@@ -1,0 +1,146 @@
+use std::str::FromStr;
+use crate::refinements::syntax::span_with_offset;
+use crate::refinements::syntax::ast::*;
+use rustc_span::{symbol::Symbol, hygiene::SyntaxContext, BytePos};
+
+grammar(offset: BytePos, ctxt: SyntaxContext);
+
+pub FnRefines: FnType = {
+    "/**@" <FnType> "@*/"
+}
+
+FnType: FnType = {
+    "(" <inputs:RefineList> ")" "->" <output:Refine> =>
+        FnType {
+            inputs: inputs,
+            output
+        },
+}
+
+pub LocalRefine: Refine = {
+    "/**@" <Refine> "@*/"
+}
+
+RefineList: Vec<Refine> = {
+    <refines:(<Refine> ",")*> <r:Refine?> => {
+        let mut refines = refines;
+        if let Some(r) = r {
+            refines.push(r);
+        }
+        refines
+    },
+}
+
+Refine: Refine = {
+    <lo:@L> <ident: Ident> ":" "{" <e: ExprLevel1> "}" <hi:@R> =>
+        Refine {
+            binding: ident,
+            pred: *e,
+            span: span_with_offset(lo, hi, offset, ctxt),
+        },
+}
+
+ExprLevel1 = LeftAssoc<OpGroup1, ExprLevel2>;
+
+ExprLevel2 = LeftAssoc<OpGroup2, ExprLevel3>;
+
+ExprLevel3: Box<Expr> = {
+    <lo:@L> <e1: ExprLevel4> <op: BinOp<OpGroup3>> <e2: ExprLevel4> <hi:@R> =>
+        box Expr {
+            kind: ExprKind::Binary(e1, op, e2),
+            span: span_with_offset(lo, hi, offset, ctxt),
+        },
+    ExprLevel4,
+}
+
+ExprLevel4 = LeftAssoc<OpGroup4, ExprLevel5>;
+
+ExprLevel5 = LeftAssoc<OpGroup5, ExprLevel6>;
+
+ExprLevel6: Box<Expr> = {
+    <lo:@L> <op: UnOp> <e: ExprLevel7> <hi:@R> =>
+        box Expr { kind: ExprKind::Unary(op, e), span: span_with_offset(lo, hi, offset, ctxt) },
+    ExprLevel7,
+}
+
+ExprLevel7: Box<Expr> = {
+    <lo:@L> <ident: Ident> <hi:@R> =>
+        box Expr { kind: ExprKind::Ident(ident), span: span_with_offset(lo, hi, offset, ctxt) },
+    <lo:@L> <i: Int> <hi:@R> =>
+        box Expr { kind: ExprKind::Int(i), span: span_with_offset(lo, hi, offset, ctxt) } ,
+    <lo:@L> "true" <hi:@R> =>
+        box Expr { kind: ExprKind::True, span: span_with_offset(lo, hi, offset, ctxt) },
+    <lo:@L> "false" <hi:@R> =>
+        box Expr { kind: ExprKind::False, span: span_with_offset(lo, hi, offset, ctxt) },
+    "(" <ExprLevel1> ")",
+}
+
+OpGroup1: BinOpKind = {
+    "||" => BinOpKind::Or,
+}
+
+OpGroup2: BinOpKind = {
+    "&&" => BinOpKind::And,
+}
+
+OpGroup3: BinOpKind = {
+    "<" => BinOpKind::Lt,
+    ">" => BinOpKind::Gt,
+}
+
+OpGroup4: BinOpKind = {
+    "+" => BinOpKind::Add,
+    "-" => BinOpKind::Sub,
+}
+
+OpGroup5: BinOpKind = {
+    "*" => BinOpKind::Mul,
+    "/" => BinOpKind::Div,
+}
+
+UnOpKind: UnOpKind = {
+    "!" => UnOpKind::Not,
+    "*" => UnOpKind::Deref,
+}
+
+Int: i32 = {
+    r"[0-9]+" => i32::from_str(<>).unwrap(),
+};
+
+Ident: Ident = {
+    <lo:@L> <sym: r"[a-zA-Z][a-zA-Z0-9_]*"> <hi:@R> => Ident {
+        name: Symbol::intern(sym),
+        span: span_with_offset(lo, hi, offset, ctxt),
+        hir_res: HirRes::Unresolved,
+        mir_local: None,
+    },
+}
+
+LeftAssoc<OpGroup, NextExprLevel>: Box<Expr> = {
+    <lo:@L>
+    <e1: LeftAssoc<OpGroup,NextExprLevel>>
+    <op: BinOp<OpGroup>>
+    <e2: NextExprLevel>
+    <hi:@R> =>
+        box Expr {
+            kind: ExprKind::Binary(e1, op, e2),
+            span: span_with_offset(lo, hi, offset, ctxt)
+        },
+    NextExprLevel,
+};
+
+UnOp: UnOp = {
+    <lo:@L> <kind: UnOpKind> <hi:@R> =>
+        UnOp {
+            kind: kind,
+            span: span_with_offset(lo, hi, offset, ctxt),
+        }
+}
+
+BinOp<OpGroup>: BinOp = {
+    <lo:@L> <kind: OpGroup> <hi:@R> =>
+        BinOp {
+            kind: kind,
+            span: span_with_offset(lo, hi, offset, ctxt),
+        }
+}

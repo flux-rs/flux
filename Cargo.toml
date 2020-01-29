@@ -1,0 +1,13 @@
+[package]
+name = "liquid-rust"
+version = "0.1.0"
+authors = ["Nico Lehmann <nico.lehmannm@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+regex = "1"
+lalrpop-util = "0.17"
+if_chain = "1"
+
+[build-dependencies]
+lalrpop = "0.17"
