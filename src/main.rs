@@ -1,23 +1,11 @@
 #![feature(rustc_private)]
 #![feature(box_syntax)]
-// #![allow(unused_imports)]
-#![allow(dead_code)]
-// #![allow(unused_variables)]
 
-mod context;
-mod refinements;
-
-extern crate rustc;
 extern crate rustc_driver;
-extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_interface;
 extern crate rustc_lint;
-extern crate rustc_session;
-extern crate rustc_span;
-extern crate syntax;
 
-use context::LiquidRustContext;
 use rustc_interface::Config;
 use rustc_lint::{LateContext, LateLintPass, LintPass};
 
@@ -36,13 +24,8 @@ impl LintPass for LiquidRust {
 }
 
 impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LiquidRust {
-    fn check_crate(
-        &mut self,
-        late_cx: &LateContext<'a, 'tcx>,
-        krate: &'tcx rustc_hir::Crate<'tcx>,
-    ) {
-        let cx = &LiquidRustContext::new(late_cx);
-        let _ = refinements::collect_type_annots(cx, krate);
+    fn check_crate(&mut self, cx: &LateContext<'a, 'tcx>, krate: &'tcx rustc_hir::Crate<'tcx>) {
+        let _ = liquid_rust::run(cx, krate);
     }
 }
 

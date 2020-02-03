@@ -1,9 +1,9 @@
 use std::str::FromStr;
-use crate::refinements::syntax::span_with_offset;
-use crate::refinements::syntax::ast::*;
+use super::span_with_offset;
+use crate::syntax::ast::*;
 use rustc_span::{symbol::Symbol, hygiene::SyntaxContext, BytePos};
 
-grammar(offset: BytePos, ctxt: SyntaxContext);
+grammar<F>(offset: BytePos, ctxt: SyntaxContext, next_expr_id: F) where F: Fn () -> ExprId, F: Copy;
 
 pub FnRefines: FnType = {
     "/**@" <FnType> "@*/"
@@ -34,7 +34,7 @@ RefineList: Vec<Refine> = {
 Refine: Refine = {
     <lo:@L> <ident: Ident> ":" "{" <e: ExprLevel1> "}" <hi:@R> =>
         Refine {
-            binding: ident,
+            name: Name {ident: ident, hir_res: HirRes::Unresolved },
             pred: *e,
             span: span_with_offset(lo, hi, offset, ctxt),
         },
@@ -47,6 +47,7 @@ ExprLevel2 = LeftAssoc<OpGroup2, ExprLevel3>;
 ExprLevel3: Box<Expr> = {
     <lo:@L> <e1: ExprLevel4> <op: BinOp<OpGroup3>> <e2: ExprLevel4> <hi:@R> =>
         box Expr {
+            expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt),
         },
@@ -59,19 +60,27 @@ ExprLevel5 = LeftAssoc<OpGroup5, ExprLevel6>;
 
 ExprLevel6: Box<Expr> = {
     <lo:@L> <op: UnOp> <e: ExprLevel7> <hi:@R> =>
-        box Expr { kind: ExprKind::Unary(op, e), span: span_with_offset(lo, hi, offset, ctxt) },
+        box Expr {
+            expr_id: next_expr_id(),
+            kind: ExprKind::Unary(op, e),
+            span: span_with_offset(lo, hi, offset, ctxt)
+        },
     ExprLevel7,
 }
 
 ExprLevel7: Box<Expr> = {
-    <lo:@L> <ident: Ident> <hi:@R> =>
-        box Expr { kind: ExprKind::Ident(ident), span: span_with_offset(lo, hi, offset, ctxt) },
-    <lo:@L> <i: Int> <hi:@R> =>
-        box Expr { kind: ExprKind::Int(i), span: span_with_offset(lo, hi, offset, ctxt) } ,
-    <lo:@L> "true" <hi:@R> =>
-        box Expr { kind: ExprKind::True, span: span_with_offset(lo, hi, offset, ctxt) },
-    <lo:@L> "false" <hi:@R> =>
-        box Expr { kind: ExprKind::False, span: span_with_offset(lo, hi, offset, ctxt) },
+    <lo:@L> <name: Name> <hi:@R> =>
+        box Expr {
+            expr_id: next_expr_id(),
+            kind: ExprKind::Name(name),
+            span: span_with_offset(lo, hi, offset, ctxt)
+        },
+    <lo:@L> <lit: Lit> <hi:@R> =>
+        box Expr {
+            expr_id: next_expr_id(),
+            kind: ExprKind::Lit(lit),
+            span: span_with_offset(lo, hi, offset, ctxt)
+        },
     "(" <ExprLevel1> ")",
 }
 
@@ -103,17 +112,27 @@ UnOpKind: UnOpKind = {
     "*" => UnOpKind::Deref,
 }
 
-Int: i32 = {
-    r"[0-9]+" => i32::from_str(<>).unwrap(),
-};
+Lit: Lit = {
+  <lo:@L> <tok: r"[0-9]+"> <hi:@R> => {
+      let kind = match u128::from_str(tok) {
+          Ok(i) => LitKind::Int(i, LitIntType::Unsuffixed),
+          Err(_) => LitKind::Err(Symbol::intern(tok))
+      };
+      Lit { node: kind, span: span_with_offset(lo, hi, offset, ctxt) }
+  },
+  <lo:@L> <tok: "true"> <hi:@R> => Lit { node: LitKind::Bool(true), span: span_with_offset(lo, hi, offset, ctxt) },
+  <lo:@L> <tok: "false"> <hi:@R> => Lit { node: LitKind::Bool(false), span: span_with_offset(lo, hi, offset, ctxt) }
+}
+
+Name: Name = {
+    <Ident> => Name {ident: <>, hir_res: HirRes::Unresolved }
+}
 
 Ident: Ident = {
     <lo:@L> <sym: r"[a-zA-Z][a-zA-Z0-9_]*"> <hi:@R> => Ident {
         name: Symbol::intern(sym),
         span: span_with_offset(lo, hi, offset, ctxt),
-        hir_res: HirRes::Unresolved,
-        mir_local: None,
-    },
+    }
 }
 
 LeftAssoc<OpGroup, NextExprLevel>: Box<Expr> = {
@@ -123,6 +142,7 @@ LeftAssoc<OpGroup, NextExprLevel>: Box<Expr> = {
     <e2: NextExprLevel>
     <hi:@R> =>
         box Expr {
+            expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt)
         },

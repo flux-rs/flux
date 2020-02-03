@@ -1,3 +1,10 @@
+extern crate arena;
+extern crate rustc_errors;
+extern crate rustc_lint;
+extern crate rustc_session;
+
+use super::ty::Expr;
+use arena::TypedArena;
 use rustc::mir;
 use rustc::ty::TyCtxt;
 pub use rustc_errors::ErrorReported;
@@ -13,20 +20,24 @@ declare_lint! {
     "liquid rust"
 }
 
-pub struct LiquidRustContext<'a, 'tcx> {
-    cx: &'a LateContext<'a, 'tcx>,
+pub struct LiquidRustCtxt<'lr> {
+    cx: &'lr LateContext<'lr, 'lr>,
+    pub expr_arena: TypedArena<Expr<'lr, 'lr>>,
 }
 
-impl<'a, 'tcx> LiquidRustContext<'a, 'tcx> {
-    pub fn new(cx: &'a LateContext<'a, 'tcx>) -> Self {
-        LiquidRustContext { cx }
+impl<'lr> LiquidRustCtxt<'lr> {
+    pub fn new(cx: &'lr LateContext<'lr, 'lr>) -> Self {
+        LiquidRustCtxt {
+            cx,
+            expr_arena: TypedArena::default(),
+        }
     }
 
-    pub fn tcx(&self) -> &TyCtxt<'tcx> {
+    pub fn tcx(&self) -> &TyCtxt<'lr> {
         &self.cx.tcx
     }
 
-    pub fn hir(&self) -> &rustc::hir::map::Map<'tcx> {
+    pub fn hir(&self) -> &rustc::hir::map::Map<'lr> {
         self.cx.tcx.hir()
     }
 
@@ -37,7 +48,7 @@ impl<'a, 'tcx> LiquidRustContext<'a, 'tcx> {
         self.cx.sess().track_errors(f)
     }
 
-    pub fn optimized_mir(&self, body_id: BodyId) -> &'tcx mir::BodyAndCache<'tcx> {
+    pub fn optimized_mir(&self, body_id: BodyId) -> &'lr mir::BodyAndCache<'lr> {
         let def_id = self.hir().body_owner_def_id(body_id);
         self.cx.tcx.optimized_mir(def_id)
     }

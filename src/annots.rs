@@ -1,49 +1,40 @@
 extern crate regex;
 
-use super::syntax::{err_msg, err_span, FnRefinesParser, LocalRefineParser, ParseError};
+use super::syntax::ast::{AttrKind, AttrStyle, Attribute, FnAnnots};
+use super::syntax::{err_msg, err_span, ParseError, ParsingCtxt};
 use crate::context::{ErrorReported, LiquidRustContext};
-use crate::refinements::syntax::ast::{FnType, Refine};
 use regex::Regex;
-pub use rustc_hir::intravisit::{self, Visitor as HirVisitor};
-use rustc_hir::{self, BodyId, Crate, HirId, Item, ItemKind, Local};
+use rustc_hir::intravisit::{self, Visitor as HirVisitor};
+use rustc_hir::{self, Crate, Item, ItemKind, Local};
 use rustc_span::{MultiSpan, Span, Symbol};
 use std::collections::HashMap;
-use syntax::ast::{AttrKind, AttrStyle, Attribute};
-
-#[derive(Debug)]
-pub struct FnAnnots {
-    pub body_id: BodyId,
-    pub fn_ty: Option<FnType>,
-    pub locals: HashMap<HirId, Refine>,
-}
 
 pub fn collect<'a, 'tcx>(
     cx: &'a LiquidRustContext<'a, 'tcx>,
     krate: &'tcx Crate<'tcx>,
 ) -> Result<Vec<FnAnnots>, ErrorReported> {
     cx.track_errors(|| {
-        let mut vis = RefinesCollector::new(cx);
+        let mut vis = AnnotsCollector::new(cx);
         krate.visit_all_item_likes(&mut vis.as_deep_visitor());
-        vis.annots()
+        let annots = vis.annots();
+        annots
     })
 }
 
-struct RefinesCollector<'a, 'tcx> {
+struct AnnotsCollector<'a, 'tcx> {
     cx: &'a LiquidRustContext<'a, 'tcx>,
     annots: Vec<FnAnnots>,
     type_annot_regex: Regex,
-    fn_annot_parser: FnRefinesParser,
-    local_annot_parser: LocalRefineParser,
+    parsing: ParsingCtxt,
 }
 
-impl<'a, 'tcx> RefinesCollector<'a, 'tcx> {
+impl<'a, 'tcx> AnnotsCollector<'a, 'tcx> {
     fn new(cx: &'a LiquidRustContext<'a, 'tcx>) -> Self {
-        RefinesCollector {
+        AnnotsCollector {
             cx: cx,
             annots: Vec::new(),
             type_annot_regex: Regex::new(r"^/\*\*@[^@]*@\*/$").unwrap(),
-            fn_annot_parser: FnRefinesParser::new(),
-            local_annot_parser: LocalRefineParser::new(),
+            parsing: ParsingCtxt::new(),
         }
     }
 
@@ -84,7 +75,7 @@ impl<'a, 'tcx> RefinesCollector<'a, 'tcx> {
 }
 
 // TODO: Collect annotations from trait impls and impls methods
-impl<'a, 'tcx> HirVisitor<'tcx> for RefinesCollector<'a, 'tcx> {
+impl<'a, 'tcx> HirVisitor<'tcx> for AnnotsCollector<'a, 'tcx> {
     type Map = rustc::hir::map::Map<'tcx>;
 
     fn nested_visit_map(&mut self) -> intravisit::NestedVisitorMap<Self::Map> {
@@ -96,7 +87,7 @@ impl<'a, 'tcx> HirVisitor<'tcx> for RefinesCollector<'a, 'tcx> {
             let annots = self.extract_annots(&item.attrs);
             let fn_ty = if let [(span, symbol)] = annots[..] {
                 let symbol = &symbol.as_str();
-                match self.fn_annot_parser.parse(span.lo(), span.ctxt(), symbol) {
+                match self.parsing.parse_fn_annot(span, symbol) {
                     Ok(fn_ty) => Some(fn_ty),
                     Err(err) => {
                         self.lint_parse_error(&err, span);
@@ -124,9 +115,7 @@ impl<'a, 'tcx> HirVisitor<'tcx> for RefinesCollector<'a, 'tcx> {
             self.lint_multiple_annots(&annots)
         } else if let [(span, symbol)] = annots[..] {
             let symbol = &symbol.as_str();
-            let result = self
-                .local_annot_parser
-                .parse(span.lo(), span.ctxt(), symbol);
+            let result = self.parsing.parse_local_annot(span, symbol);
             match result {
                 Ok(refine) => {
                     let last = self.annots.last_mut().expect("no body visited");

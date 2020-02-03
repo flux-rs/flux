@@ -1,9 +1,6 @@
-pub mod ast;
-pub mod mut_visit;
-pub mod parser;
+mod parser;
 
 extern crate lalrpop_util;
-
 pub use parser::{FnRefinesParser, LocalRefineParser, Token};
 use rustc_span::{hygiene::SyntaxContext, BytePos, Span};
 
