@@ -58,13 +58,13 @@ impl<K: Hash + Eq, V> Env<K, V> {
     }
 }
 
-struct HirNameResolver<'a, 'lr, 'tcx> {
-    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+struct HirNameResolver<'a, 'tcx> {
+    cx: &'a LiquidRustCtxt<'a, 'tcx>,
     fn_annots: &'a mut FnAnnots,
     env: Env<Symbol, HirRes>,
 }
 
-impl<'a, 'lr, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'lr, 'tcx> {
+impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
     type Map = rustc::hir::map::Map<'tcx>;
 
     fn nested_visit_map(&mut self) -> rustc_hir::intravisit::NestedVisitorMap<Self::Map> {
@@ -83,7 +83,7 @@ impl<'a, 'lr, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'lr, 'tcx> {
                         if let PatKind::Binding(_, hir_id, ident, None) = pat.kind {
                             if ident.name == refine.name.ident.name {
                                 self.env
-                                    .add_binding(ident.name, HirRes::Binding(hir_id, ident.span));
+                                    .add_binding(ident.name, HirRes::Binding(hir_id, pat.span));
                                 HirIdExprVisitor::new(self.cx, &self.env).visit_refine(refine);
                             } else {
                                 lint_name_mismatch(self.cx, refine.name.ident, ident);
@@ -111,9 +111,9 @@ impl<'a, 'lr, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'lr, 'tcx> {
             self.env.pop_frame();
         }
         for param in body.params {
-            param.pat.each_binding(|_, hir_id, _, ident| {
+            param.pat.each_binding(|_, hir_id, span, ident| {
                 self.env
-                    .add_binding(ident.name, HirRes::Binding(hir_id, ident.span));
+                    .add_binding(ident.name, HirRes::Binding(hir_id, span));
             })
         }
         intravisit::walk_body(self, body)
@@ -126,13 +126,15 @@ impl<'a, 'lr, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'lr, 'tcx> {
     }
 
     fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
+        local.pat.each_binding(|_, hir_id, span, ident| {
+            self.env
+                .add_binding(ident.name, HirRes::Binding(hir_id, span));
+        });
         let locals = &mut self.fn_annots.locals;
-        // TODO: Add support for pattern matching
         if let Some(refine) = locals.get_mut(&local.hir_id) {
-            if let PatKind::Binding(_, hir_id, ident, None) = local.pat.kind {
+            // TODO: Add support for pattern matching
+            if let PatKind::Binding(_, _, ident, None) = local.pat.kind {
                 if ident.name == refine.name.ident.name {
-                    self.env
-                        .add_binding(ident.name, HirRes::Binding(hir_id, ident.span));
                     HirIdExprVisitor::new(self.cx, &self.env).visit_refine(refine);
                 } else {
                     lint_name_mismatch(self.cx, refine.name.ident, ident);
@@ -140,11 +142,6 @@ impl<'a, 'lr, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'lr, 'tcx> {
             } else {
                 lint_pat_not_supported(self.cx, local.pat);
             }
-        } else {
-            local.pat.each_binding(|_, hir_id, _, ident| {
-                self.env
-                    .add_binding(ident.name, HirRes::Binding(hir_id, ident.span));
-            })
         }
 
         intravisit::walk_local(self, local);
@@ -171,54 +168,6 @@ impl<'a, 'tcx> MutVisitor<'a> for HirIdExprVisitor<'a, 'tcx> {
         }
     }
 }
-
-// pub fn resolve_mir_locals(cx: &LiquidRustContext, annots: &mut Vec<FnAnnots>) {
-//     for fn_annots in annots {
-//         let mir = cx.optimized_mir(fn_annots.body_id);
-//         let span_to_local = span_to_mir_local(mir);
-//         let mut resolver = MirLocalResolver {
-//             hir: cx.hir(),
-//             span_to_local,
-//         };
-//         if let Some(fn_typ) = &mut fn_annots.fn_ty {
-//             resolver.visit_fn_type(fn_typ);
-//         }
-//         for refine in fn_annots.locals.values_mut() {
-//             resolver.visit_refine(refine);
-//         }
-//     }
-// }
-
-// struct MirLocalResolver<'tcx> {
-//     hir: &'tcx rustc::hir::map::Map<'tcx>,
-//     span_to_local: HashMap<Span, mir::Local>,
-// }
-
-// impl<'ast, 'tcx> MutVisitor<'ast> for MirLocalResolver<'tcx> {
-//     fn visit_ident(&mut self, ident: &mut Ident) {
-//         match ident.hir_res {
-//             HirRes::Binding(hir_id) => {
-//                 if_chain! {
-//                     if let Some(node) = self.hir.find(hir_id);
-//                     if let Node::Binding(binding) = node;
-//                     if let Some(local) = self.span_to_local.get(&binding.span);
-//                     then { ident.mir_local = Some(*local); }
-//                     else { panic!("couldn't match identifier to mir local: {:?}", ident.span); }
-//                 }
-//             }
-//             HirRes::ReturnValue => ident.mir_local = Some(mir::RETURN_PLACE),
-//             HirRes::Unresolved => panic!("identifiers must be resolved in the hir"),
-//         }
-//     }
-// }
-
-// fn span_to_mir_local(body: &mir::Body) -> HashMap<Span, mir::Local> {
-//     let mut map = HashMap::new();
-//     for var_info in &body.var_debug_info {
-//         map.insert(var_info.source_info.span, var_info.place.local);
-//     }
-//     map
-// }
 
 fn lint_name_not_found(cx: &LiquidRustCtxt, ident: Ident) {
     cx.span_lint(

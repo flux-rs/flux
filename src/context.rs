@@ -1,10 +1,7 @@
-extern crate arena;
 extern crate rustc_errors;
 extern crate rustc_lint;
 extern crate rustc_session;
 
-use super::ty::Expr;
-use arena::TypedArena;
 use rustc::mir;
 use rustc::ty::TyCtxt;
 pub use rustc_errors::ErrorReported;
@@ -20,17 +17,13 @@ declare_lint! {
     "liquid rust"
 }
 
-pub struct LiquidRustCtxt<'lr> {
-    cx: &'lr LateContext<'lr, 'lr>,
-    pub expr_arena: TypedArena<Expr<'lr, 'lr>>,
+pub struct LiquidRustCtxt<'a, 'lr> {
+    cx: &'a LateContext<'a, 'lr>,
 }
 
-impl<'lr> LiquidRustCtxt<'lr> {
-    pub fn new(cx: &'lr LateContext<'lr, 'lr>) -> Self {
-        LiquidRustCtxt {
-            cx,
-            expr_arena: TypedArena::default(),
-        }
+impl<'a, 'lr> LiquidRustCtxt<'a, 'lr> {
+    pub fn new(cx: &'a LateContext<'a, 'lr>) -> Self {
+        LiquidRustCtxt { cx }
     }
 
     pub fn tcx(&self) -> &TyCtxt<'lr> {

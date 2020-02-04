@@ -3,7 +3,7 @@ extern crate rustc_index;
 
 use super::syntax::ast::*;
 use super::syntax::visit::{self, Visitor};
-use crate::context::{ErrorReported, LiquidRustContext};
+use crate::context::{ErrorReported, LiquidRustCtxt};
 use if_chain::if_chain;
 use rustc::bug;
 use rustc::infer::unify_key::ToType;
@@ -13,20 +13,31 @@ use rustc_span::MultiSpan;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-pub fn check_wf(cx: &LiquidRustContext, annots: &Vec<FnAnnots>) -> Result<(), ErrorReported> {
+pub type TypeckTable<'tcx> = HashMap<ExprId, Ty<'tcx>>;
+
+pub fn check_wf<'a, 'tcx>(
+    cx: &LiquidRustCtxt<'a, 'tcx>,
+    annots: &Vec<FnAnnots>,
+) -> Result<TypeckTable<'tcx>, ErrorReported> {
+    let mut expr_tys = TypeckTable::new();
     cx.track_errors(|| {
         for fn_annots in annots {
-            check_fn_annots(cx, fn_annots);
+            check_fn_annots(cx, fn_annots, &mut expr_tys);
         }
+        expr_tys
     })
 }
 
-fn check_fn_annots<'a, 'tcx>(cx: &'a LiquidRustContext<'a, 'tcx>, fn_annots: &FnAnnots) {
+fn check_fn_annots<'a, 'tcx>(
+    cx: &'a LiquidRustCtxt<'a, 'tcx>,
+    fn_annots: &FnAnnots,
+    expr_tys: &mut TypeckTable<'tcx>,
+) {
     let def_id = cx.hir().body_owner_def_id(fn_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
     let hir_id = cx.hir().as_local_hir_id(def_id).unwrap();
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
-    let mut checker = TypeChecker::new(cx, tables, ret_ty);
+    let mut checker = TypeChecker::new(cx, tables, ret_ty, expr_tys);
 
     if let Some(fn_typ) = &fn_annots.fn_ty {
         check_fn_ty(cx, fn_typ, &mut checker);
@@ -37,7 +48,7 @@ fn check_fn_annots<'a, 'tcx>(cx: &'a LiquidRustContext<'a, 'tcx>, fn_annots: &Fn
 }
 
 fn check_fn_ty<'a, 'tcx>(
-    cx: &'a LiquidRustContext<'a, 'tcx>,
+    cx: &'a LiquidRustCtxt<'a, 'tcx>,
     fn_ty: &FnType,
     checker: &mut TypeChecker<'a, 'tcx>,
 ) {
@@ -48,7 +59,7 @@ fn check_fn_ty<'a, 'tcx>(
 }
 
 fn check_refine<'a, 'tcx>(
-    cx: &'a LiquidRustContext<'a, 'tcx>,
+    cx: &'a LiquidRustCtxt<'a, 'tcx>,
     refine: &Refine,
     checker: &mut TypeChecker<'a, 'tcx>,
 ) {
@@ -59,24 +70,25 @@ fn check_refine<'a, 'tcx>(
     }
 }
 struct TypeChecker<'a, 'tcx> {
-    cx: &'a LiquidRustContext<'a, 'tcx>,
+    cx: &'a LiquidRustCtxt<'a, 'tcx>,
     tables: &'a TypeckTables<'tcx>,
     ret_ty: Ty<'tcx>,
-    expr_tys: HashMap<ExprId, Ty<'tcx>>,
+    expr_tys: &'a mut TypeckTable<'tcx>,
     infer_ctxt: InferCtxt<'tcx>,
 }
 
 impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
     pub fn new(
-        cx: &'a LiquidRustContext<'a, 'tcx>,
+        cx: &'a LiquidRustCtxt<'a, 'tcx>,
         tables: &'a TypeckTables<'tcx>,
         ret_ty: Ty<'tcx>,
+        expr_tys: &'a mut TypeckTable<'tcx>,
     ) -> Self {
         Self {
             cx,
             tables,
             ret_ty,
-            expr_tys: HashMap::new(),
+            expr_tys,
             infer_ctxt: InferCtxt::new(*cx.tcx()),
         }
     }
@@ -144,13 +156,15 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
         }
 
         match op.kind {
-            BinOpKind::Lt | BinOpKind::Gt => match self.infer_ctxt.unify(ty1, ty2) {
-                Some(ty) if ty.is_numeric() => self.mk_bool(),
-                _ => {
-                    lint_bin_op_err(self.cx, op, e1, ty1, e2, ty2);
-                    self.types.err
+            BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Eq | BinOpKind::Ge => {
+                match self.infer_ctxt.unify(ty1, ty2) {
+                    Some(ty) if ty.is_numeric() => self.mk_bool(),
+                    _ => {
+                        lint_bin_op_err(self.cx, op, e1, ty1, e2, ty2);
+                        self.types.err
+                    }
                 }
-            },
+            }
 
             BinOpKind::Mul | BinOpKind::Div | BinOpKind::Add | BinOpKind::Sub => {
                 match self.infer_ctxt.unify(ty1, ty2) {
@@ -296,7 +310,7 @@ impl<'tcx> InferCtxt<'tcx> {
     }
 }
 
-fn lint_malformed_refinement(cx: &LiquidRustContext, refine: &Refine, ty: Ty) {
+fn lint_malformed_refinement(cx: &LiquidRustCtxt, refine: &Refine, ty: Ty) {
     let b = cx.tcx().types.bool;
     let mut mspan = MultiSpan::from_span(refine.pred.span);
     mspan.push_span_label(
@@ -309,7 +323,7 @@ fn lint_malformed_refinement(cx: &LiquidRustContext, refine: &Refine, ty: Ty) {
     );
 }
 
-fn lint_expected_found(cx: &LiquidRustContext, e: &Expr, expected: Ty, found: Ty) {
+fn lint_expected_found(cx: &LiquidRustCtxt, e: &Expr, expected: Ty, found: Ty) {
     if expected == found {
         return;
     }
@@ -321,12 +335,12 @@ fn lint_expected_found(cx: &LiquidRustContext, e: &Expr, expected: Ty, found: Ty
     cx.span_lint(spans, "mismatched types")
 }
 
-fn lint_un_op_err(cx: &LiquidRustContext, op: UnOp, e: &Expr, ty: Ty) {
+fn lint_un_op_err(cx: &LiquidRustCtxt, op: UnOp, e: &Expr, ty: Ty) {
     cx.span_lint_label(op.span.to(e.span), &un_op_err_msg(op, ty));
 }
 
 fn lint_bin_op_err<'tcx>(
-    cx: &LiquidRustContext,
+    cx: &LiquidRustCtxt,
     op: BinOp,
     e1: &Expr,
     ty1: Ty<'tcx>,
@@ -349,11 +363,12 @@ fn un_op_err_msg<'tcx>(op: UnOp, ty: Ty<'tcx>) -> String {
 fn bin_op_err_msg<'tcx>(ty1: Ty<'tcx>, op: BinOp, ty2: Ty<'tcx>) -> String {
     match op.kind {
         BinOpKind::And | BinOpKind::Or => "mismatched types".into(),
-        BinOpKind::Lt | BinOpKind::Gt => format!("cannot compare `{}` with `{}`", ty1, ty2),
+        BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Eq | BinOpKind::Ge => {
+            format!("cannot compare `{}` with `{}`", ty1, ty2)
+        }
         BinOpKind::Add => format!("cannot add `{}` to `{}`", ty1, ty2),
         BinOpKind::Mul => format!("cannot multiply `{}` to `{}`", ty2, ty1),
         BinOpKind::Div => format!("cannot divide `{}` by `{}`", ty1, ty2),
-
         BinOpKind::Sub => format!("cannot subtract `{}` and `{}`", ty2, ty1),
     }
 }

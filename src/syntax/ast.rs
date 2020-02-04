@@ -81,8 +81,10 @@ pub enum BinOpKind {
     And,
     Or,
 
+    Eq,
     Lt,
     Gt,
+    Ge,
 
     Mul,
     Div,

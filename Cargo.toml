@@ -8,6 +8,7 @@ edition = "2018"
 regex = "1"
 lalrpop-util = "0.17"
 if_chain = "1"
+rsmt2 = "0.10.0"
 
 [build-dependencies]
 lalrpop = "0.17"

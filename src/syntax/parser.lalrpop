@@ -1,3 +1,4 @@
+#![allow(unused_parens)]
 use std::str::FromStr;
 use super::span_with_offset;
 use crate::syntax::ast::*;
@@ -95,6 +96,7 @@ OpGroup2: BinOpKind = {
 OpGroup3: BinOpKind = {
     "<" => BinOpKind::Lt,
     ">" => BinOpKind::Gt,
+    ">=" => BinOpKind::Ge,
 }
 
 OpGroup4: BinOpKind = {
