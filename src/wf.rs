@@ -95,7 +95,9 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
 
     fn lookup(&self, name: Name) -> Ty<'tcx> {
         match name.hir_res {
-            HirRes::Binding(hir_id, _) => self.tables.node_type(hir_id),
+            HirRes::ExternalBinding(hir_id, _) | HirRes::CurrentBinding(hir_id, _) => {
+                self.tables.node_type(hir_id)
+            }
             HirRes::ReturnValue => self.ret_ty,
             HirRes::Unresolved => bug!("names must be resolved"),
         }

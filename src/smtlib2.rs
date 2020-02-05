@@ -2,16 +2,16 @@ extern crate rsmt2;
 extern crate rustc_apfloat;
 extern crate syntax as rust_syntax;
 
-use super::refinements::Refine;
-use super::syntax::ast::BinOpKind;
+use super::refinements::{Place, Refine, VarSubst};
+use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
 pub use rsmt2::print::Expr2Smt;
 pub use rsmt2::Solver;
 use rust_syntax::ast::FloatTy;
-use rustc::mir;
 use rustc::mir::interpret::{sign_extend, ConstValue, Scalar};
 use rustc::ty::layout::Size;
 use rustc::ty::{self, Ty};
+use rustc::{bug, mir};
 use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
@@ -19,7 +19,8 @@ use rustc_apfloat::{
 use std::io::Write;
 
 #[derive(Copy, Clone)]
-pub struct SmtInfo {
+pub struct SmtInfo<'a> {
+    pub var_subst: &'a VarSubst,
     pub nu: mir::Local,
 }
 
@@ -29,15 +30,14 @@ enum Token<'rcx, 'tcx> {
     Space,
 }
 
-impl<'rcx, 'tcx> Expr2Smt<SmtInfo> for Refine<'rcx, 'tcx> {
-    fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: SmtInfo) -> SmtRes<()> {
+impl<'a, 'rcx, 'tcx> Expr2Smt<SmtInfo<'a>> for Refine<'rcx, 'tcx> {
+    fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: SmtInfo<'a>) -> SmtRes<()> {
         let mut stack = vec![Token::Expr(self)];
         while let Some(token) = stack.pop() {
             match token {
                 Token::CloseParen => write!(w, ")")?,
                 Token::Space => write!(w, " ")?,
-                Token::Expr(Refine::Nu) => write!(w, "{:?}", info.nu)?,
-                Token::Expr(Refine::Place(place)) => write!(w, "{:?}", place)?,
+                Token::Expr(Refine::Place(place)) => place.expr_to_smt2(w, info)?,
                 Token::Expr(Refine::Constant(ty, val)) => format_const_value(ty, *val, w)?,
                 Token::Expr(Refine::Binary(lhs, op, rhs)) => {
                     write!(w, "({} ", bin_op_to_smt2(op))?;
@@ -46,13 +46,44 @@ impl<'rcx, 'tcx> Expr2Smt<SmtInfo> for Refine<'rcx, 'tcx> {
                     stack.push(Token::Space);
                     stack.push(Token::Expr(lhs));
                 }
-                // TODO: Consider other unary operators
-                Token::Expr(Refine::Unary(_op, expr)) => {
+                Token::Expr(Refine::Unary(UnOpKind::Not, expr)) => {
                     write!(w, "(not ")?;
                     stack.push(Token::CloseParen);
                     stack.push(Token::Expr(expr));
                 }
+                Token::Expr(expr) => unimplemented!("{:?}", expr),
             };
+        }
+        Ok(())
+    }
+}
+
+impl<'tcx, 'rcx> Refine<'tcx, 'rcx> {
+    pub fn to_smt_str(&self, info: SmtInfo) -> String {
+        let mut v = Vec::new();
+        match self.expr_to_smt2(&mut v, info) {
+            Ok(_) => String::from_utf8(v).unwrap_or("error".into()),
+            Err(_) => "error".into(),
+        }
+    }
+}
+
+impl<'a, 'tcx> Expr2Smt<SmtInfo<'a>> for Place<'tcx> {
+    fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: SmtInfo<'a>) -> SmtRes<()> {
+        if let Some(local) = info.var_subst.lookup(self.var) {
+            write!(w, "{:?}", local)?;
+        } else if self.var.0 == 0 {
+            write!(w, "{:?}", info.nu)?;
+        } else {
+            bug!();
+        }
+        for elem in self.projection.iter() {
+            match elem {
+                mir::ProjectionElem::Field(field, _) => {
+                    write!(w, ".{}", field.index())?;
+                }
+                _ => unimplemented!(),
+            }
         }
         Ok(())
     }

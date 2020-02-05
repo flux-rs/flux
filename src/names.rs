@@ -76,21 +76,28 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
             self.env.push_frame();
             let mut inputs = fn_typ.inputs.iter_mut();
             let mut params = body.params.iter();
-
+            let env = &mut self.env;
             loop {
                 match (inputs.next(), params.next()) {
                     (Some(ref mut refine), Some(Param { pat, .. })) => {
                         if let PatKind::Binding(_, hir_id, ident, None) = pat.kind {
                             if ident.name == refine.name.ident.name {
-                                self.env
-                                    .add_binding(ident.name, HirRes::Binding(hir_id, pat.span));
-                                HirIdExprVisitor::new(self.cx, &self.env).visit_refine(refine);
+                                env.push_frame();
+                                env.add_binding(
+                                    ident.name,
+                                    HirRes::CurrentBinding(hir_id, pat.span),
+                                );
+                                HirIdExprVisitor::new(self.cx, env).visit_refine(refine);
+                                env.pop_frame();
                             } else {
                                 lint_name_mismatch(self.cx, refine.name.ident, ident);
                             }
                         } else {
                             lint_pat_not_supported(self.cx, pat);
                         }
+                        pat.each_binding(|_, hir_id, span, ident| {
+                            env.add_binding(ident.name, HirRes::ExternalBinding(hir_id, span));
+                        })
                     }
 
                     (Some(ref mut refine), None) => self
@@ -105,16 +112,10 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
                 }
             }
             let output = &mut fn_typ.output;
-            self.env
-                .add_binding(output.name.ident.name, HirRes::ReturnValue);
-            HirIdExprVisitor::new(self.cx, &self.env).visit_refine(output);
-            self.env.pop_frame();
-        }
-        for param in body.params {
-            param.pat.each_binding(|_, hir_id, span, ident| {
-                self.env
-                    .add_binding(ident.name, HirRes::Binding(hir_id, span));
-            })
+            env.push_frame();
+            env.add_binding(output.name.ident.name, HirRes::ReturnValue);
+            HirIdExprVisitor::new(self.cx, env).visit_refine(output);
+            env.pop_frame();
         }
         intravisit::walk_body(self, body)
     }
@@ -126,16 +127,15 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
     }
 
     fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
-        local.pat.each_binding(|_, hir_id, span, ident| {
-            self.env
-                .add_binding(ident.name, HirRes::Binding(hir_id, span));
-        });
         let locals = &mut self.fn_annots.locals;
         if let Some(refine) = locals.get_mut(&local.hir_id) {
-            // TODO: Add support for pattern matching
-            if let PatKind::Binding(_, _, ident, None) = local.pat.kind {
+            if let PatKind::Binding(_, hir_id, ident, None) = local.pat.kind {
                 if ident.name == refine.name.ident.name {
+                    self.env.push_frame();
+                    self.env
+                        .add_binding(ident.name, HirRes::CurrentBinding(hir_id, local.pat.span));
                     HirIdExprVisitor::new(self.cx, &self.env).visit_refine(refine);
+                    self.env.pop_frame();
                 } else {
                     lint_name_mismatch(self.cx, refine.name.ident, ident);
                 }
@@ -143,6 +143,10 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
                 lint_pat_not_supported(self.cx, local.pat);
             }
         }
+        local.pat.each_binding(|_, hir_id, span, ident| {
+            self.env
+                .add_binding(ident.name, HirRes::ExternalBinding(hir_id, span));
+        });
 
         intravisit::walk_local(self, local);
     }

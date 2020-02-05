@@ -66,7 +66,8 @@ pub struct Name {
 #[derive(Copy, Clone, Debug)]
 pub enum HirRes {
     Unresolved,
-    Binding(HirId, Span),
+    ExternalBinding(HirId, Span),
+    CurrentBinding(HirId, Span),
     ReturnValue,
 }
 

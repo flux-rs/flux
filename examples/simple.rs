@@ -3,9 +3,9 @@
 #![allow(unused_doc_comments)]
 
 fn main() {
-    /**@ x:{x > 0} @*/
+    /**@ x:{x >= 0} @*/
     let x = 1;
 
     /**@ y:{y > 0} @*/
-    let y = x + 1;
+    let y = x - 1;
 }

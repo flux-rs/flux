@@ -1,22 +1,23 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{FnRefines, Refine, RefineCtxt};
+use super::refinements::{FnRefines, Place, Refine, RefineCtxt, VarSubst};
 use super::smtlib2::{Expr2Smt, SmtInfo, SmtRes, Solver};
-use super::syntax::ast::{BinOpKind, UnOpKind};
+use super::syntax::ast::BinOpKind;
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind};
-use rustc::ty::ConstKind;
-use rustc_index::bit_set::BitSet;
+use rustc::ty::{self, Ty};
+use rustc_index::{bit_set::BitSet, vec::Idx};
 use rustc_mir::dataflow::{
     do_dataflow, BitDenotation, BottomValue, DataflowResultsCursor, DebugFormatted, GenKillSet,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub fn checks<'a, 'rcx, 'tcx>(
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
     rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
     fn_refines: &FnRefines<'rcx, 'tcx>,
     mir: &mir::Body<'tcx>,
+    var_subst: &mut VarSubst,
 ) {
     let mut refines = fn_refines.local_decls.clone();
 
@@ -49,15 +50,16 @@ pub fn checks<'a, 'rcx, 'tcx>(
             }
             match &statement.kind {
                 StatementKind::Assign(box (place, rvalue)) => {
-                    if place.projection.len() == 0 {
-                        let local = place.local;
-                        let lhs = b(rcx, rvalue);
-                        if let Some(rhs) = fn_refines.local_decls.get(&local) {
-                            let r = check(rcx, &env, lhs, rhs, local);
-                            println!("{:?}", r);
-                        } else if !mir.local_decls[local].is_user_variable() {
-                            refines.insert(local, lhs);
+                    let ty = place.ty(mir, *cx.tcx()).ty;
+                    let local = place.local;
+                    let lhs = b(rcx, var_subst, *place, ty, rvalue);
+                    if let Some(rhs) = fn_refines.local_decls.get(&local) {
+                        let r = check(rcx, &env, lhs, rhs, var_subst, local);
+                        if let Err(e) = r {
+                            println!("{:?}", e);
                         }
+                    } else if !mir.local_decls[local].is_user_variable() {
+                        refines.insert(local, lhs);
                     }
                 }
                 StatementKind::StorageLive(_)
@@ -74,26 +76,77 @@ fn check<'rcx, 'tcx>(
     env: &HashMap<mir::Local, &'rcx Refine<'rcx, 'tcx>>,
     lhs: &'rcx Refine<'rcx, 'tcx>,
     rhs: &'rcx Refine<'rcx, 'tcx>,
+    var_subst: &VarSubst,
     local: mir::Local,
 ) -> SmtRes<()> {
     let mut solver = Solver::default(())?;
-    let info = SmtInfo { nu: local };
-    if !env.contains_key(&local) {
-        solver.declare_const(&format!("{:?}", local), "Int")?;
+    let mut places = HashSet::new();
+    for (local, refine) in env {
+        refine.iter_places(|place| {
+            if let Some(place) = var_subst.subst(place) {
+                places.insert(place);
+            } else {
+                places.insert(mir::Place {
+                    local: *local,
+                    projection: place.projection,
+                });
+            }
+        })
     }
-    for local in env.keys() {
-        solver.declare_const(&format!("{:?}", local), "Int")?;
+    lhs.iter_places(|place| {
+        if let Some(place) = var_subst.subst(place) {
+            places.insert(place);
+        } else {
+            places.insert(mir::Place {
+                local: local,
+                projection: place.projection,
+            });
+        }
+    });
+    rhs.iter_places(|place| {
+        if let Some(place) = var_subst.subst(place) {
+            places.insert(place);
+        } else {
+            places.insert(mir::Place {
+                local: local,
+                projection: place.projection,
+            });
+        }
+    });
+
+    for place in places {
+        let mut s = format!("_{}", place.local.index());
+        for elem in place.projection.iter() {
+            match elem {
+                mir::ProjectionElem::Field(field, _) => {
+                    s = format!("{}.{}", s, field.index());
+                }
+                _ => unimplemented!("{:?}", elem),
+            }
+        }
+        println!("(declare-fun {} () \"Int\")", s);
+        solver.declare_const(&s, "Int")?;
     }
-    for refine in env.values() {
-        let mut v = Vec::new();
-        refine.expr_to_smt2(&mut v, info)?;
-        println!("{:?}", String::from_utf8(v));
+
+    for (local, refine) in env {
+        let info = SmtInfo {
+            var_subst,
+            nu: *local,
+        };
+        println!("{:?}", refine.to_smt_str(info));
         solver.assert_with(refine, info)?;
     }
-    let mut v = Vec::new();
-    lhs.expr_to_smt2(&mut v, info)?;
-    println!("{:?}", String::from_utf8(v));
+    let info = SmtInfo {
+        var_subst,
+        nu: local,
+    };
+    println!("{:?}", lhs.to_smt_str(info));
     solver.assert_with(lhs, info)?;
+    let info = SmtInfo {
+        var_subst,
+        nu: local,
+    };
+    println!("{:?}", rcx.mk_not(rhs).to_smt_str(info));
     solver.assert_with(rcx.mk_not(rhs), info)?;
     let b = solver.check_sat()?;
     println!("unsat {}\n", !b);
@@ -102,30 +155,44 @@ fn check<'rcx, 'tcx>(
 
 pub fn b<'rcx, 'tcx>(
     rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
+    var_subst: &mut VarSubst,
+    place: mir::Place,
+    ty: Ty<'tcx>,
     rvalue: &Rvalue<'tcx>,
 ) -> &'rcx Refine<'rcx, 'tcx> {
-    let value = match rvalue {
-        Rvalue::Use(operand) => mk_operand(rcx, operand),
+    match rvalue {
+        // v:{v == operand}
+        Rvalue::Use(operand) => {
+            let operand = mk_operand(rcx, var_subst, operand);
+            rcx.mk_binary(rcx.nu, BinOpKind::Eq, operand)
+        }
+        // v:{v.0 == lhs + rhs}
+        Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
+            let op = mir_op_to_refine_op(op);
+            let bin = rcx.mk_binary(
+                mk_operand(rcx, var_subst, lhs),
+                op,
+                mk_operand(rcx, var_subst, rhs),
+            );
+            let ty = ty.tuple_fields().next().unwrap();
+            rcx.mk_binary(
+                rcx.mk_place_field(Place::nu(), mir::Field::new(0), ty),
+                BinOpKind::Eq,
+                bin,
+            )
+        }
+        // v:{v == lhs + rhs}
         Rvalue::BinaryOp(op, lhs, rhs) => {
             let op = mir_op_to_refine_op(op);
-            rcx.mk_binary(mk_operand(rcx, lhs), op, mk_operand(rcx, rhs))
+            let bin = rcx.mk_binary(
+                mk_operand(rcx, var_subst, lhs),
+                op,
+                mk_operand(rcx, var_subst, rhs),
+            );
+            rcx.mk_binary(rcx.nu, BinOpKind::Eq, bin)
         }
-        Rvalue::UnaryOp(op, operand) => mk_unary(rcx, op, operand),
         _ => unimplemented!("{:?}", rvalue),
-    };
-    rcx.mk_binary(rcx.nu, BinOpKind::Eq, value)
-}
-
-pub fn mk_unary<'rcx, 'tcx>(
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
-    op: &mir::UnOp,
-    operand: &Operand<'tcx>,
-) -> &'rcx Refine<'rcx, 'tcx> {
-    let op = match op {
-        mir::UnOp::Not => UnOpKind::Not,
-        mir::UnOp::Neg => unimplemented!(),
-    };
-    rcx.mk_unary(op, mk_operand(rcx, operand))
+    }
 }
 
 pub fn mir_op_to_refine_op<'rcx, 'tcx>(op: &mir::BinOp) -> BinOpKind {
@@ -152,12 +219,16 @@ pub fn mir_op_to_refine_op<'rcx, 'tcx>(op: &mir::BinOp) -> BinOpKind {
 
 pub fn mk_operand<'rcx, 'tcx>(
     rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
+    var_subst: &mut VarSubst,
     operand: &Operand<'tcx>,
 ) -> &'rcx Refine<'rcx, 'tcx> {
     match operand {
-        Operand::Copy(place) | Operand::Move(place) => rcx.mk_place(*place),
+        Operand::Copy(place) | Operand::Move(place) => rcx.mk_place(Place {
+            var: var_subst.extend_with_fresh(place.local),
+            projection: place.projection,
+        }),
         Operand::Constant(box Constant { literal, .. }) => match literal.val {
-            ConstKind::Value(val) => rcx.mk_constant(literal.ty, val),
+            ty::ConstKind::Value(val) => rcx.mk_constant(literal.ty, val),
             _ => unimplemented!("{:?}", operand),
         },
     }
