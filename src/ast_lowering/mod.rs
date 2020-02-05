@@ -3,7 +3,7 @@ pub mod constant;
 use super::refinements::{FnDecl, FnRefines, Place, Refine, RefineCtxt, Var, VarSubst};
 use super::syntax::ast;
 use super::wf::TypeckTable;
-use crate::context::{ErrorReported, LiquidRustCtxt};
+use crate::context::LiquidRustCtxt;
 use rustc::bug;
 use rustc::mir;
 use rustc::mir::interpret::LitToConstError;
@@ -129,7 +129,7 @@ impl<'a, 'b, 'rcx, 'tcx> RefineBuilder<'a, 'b, 'rcx, 'tcx> {
         ty: Ty<'tcx>,
         sp: Span,
     ) -> &'rcx Refine<'rcx, 'tcx> {
-        let tcx = *self.cx.tcx();
+        let tcx = self.cx.tcx();
         let val = match constant::lit_to_const_value(tcx, lit, ty, false) {
             Ok(c) => c,
             Err(LitToConstError::UnparseableFloat) => {

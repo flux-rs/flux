@@ -6,7 +6,7 @@ use arena::TypedArena;
 use rustc::mir;
 pub use rustc::mir::interpret::{ConstValue, Scalar};
 use rustc::ty::{self, Ty, TyCtxt};
-use rustc_hir::{BodyId, HirId};
+use rustc_hir::BodyId;
 use std::collections::HashMap;
 use std::fmt;
 

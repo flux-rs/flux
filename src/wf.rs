@@ -71,6 +71,7 @@ fn check_refine<'a, 'tcx>(
 }
 struct TypeChecker<'a, 'tcx> {
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
+    tcx: TyCtxt<'tcx>,
     tables: &'a TypeckTables<'tcx>,
     ret_ty: Ty<'tcx>,
     expr_tys: &'a mut TypeckTable<'tcx>,
@@ -86,10 +87,11 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
     ) -> Self {
         Self {
             cx,
+            tcx: cx.tcx(),
             tables,
             ret_ty,
             expr_tys,
-            infer_ctxt: InferCtxt::new(*cx.tcx()),
+            infer_ctxt: InferCtxt::new(cx.tcx()),
         }
     }
 
@@ -199,7 +201,7 @@ impl<'a, 'tcx> Deref for TypeChecker<'a, 'tcx> {
     type Target = ty::TyCtxt<'tcx>;
 
     fn deref(&self) -> &Self::Target {
-        &self.cx.tcx()
+        &self.tcx
     }
 }
 

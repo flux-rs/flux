@@ -2,7 +2,7 @@ extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
 use super::refinements::{FnRefines, Place, Refine, RefineCtxt, VarSubst};
-use super::smtlib2::{Expr2Smt, SmtInfo, SmtRes, Solver};
+use super::smtlib2::{SmtInfo, SmtRes, Solver};
 use super::syntax::ast::BinOpKind;
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind};
 use rustc::ty::{self, Ty};
@@ -24,7 +24,7 @@ pub fn checks<'a, 'rcx, 'tcx>(
     let dead_unwinds = BitSet::new_empty(mir.basic_blocks().len());
     let def_id = cx.hir().body_owner_def_id(fn_refines.body_id);
     let initialized_result = do_dataflow(
-        *cx.tcx(),
+        cx.tcx(),
         mir,
         def_id,
         &[],
@@ -50,9 +50,9 @@ pub fn checks<'a, 'rcx, 'tcx>(
             }
             match &statement.kind {
                 StatementKind::Assign(box (place, rvalue)) => {
-                    let ty = place.ty(mir, *cx.tcx()).ty;
+                    let ty = place.ty(mir, cx.tcx()).ty;
                     let local = place.local;
-                    let lhs = b(rcx, var_subst, *place, ty, rvalue);
+                    let lhs = b(rcx, var_subst, ty, rvalue);
                     if let Some(rhs) = fn_refines.local_decls.get(&local) {
                         let r = check(rcx, &env, lhs, rhs, var_subst, local);
                         if let Err(e) = r {
@@ -156,7 +156,6 @@ fn check<'rcx, 'tcx>(
 pub fn b<'rcx, 'tcx>(
     rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
     var_subst: &mut VarSubst,
-    place: mir::Place,
     ty: Ty<'tcx>,
     rvalue: &Rvalue<'tcx>,
 ) -> &'rcx Refine<'rcx, 'tcx> {

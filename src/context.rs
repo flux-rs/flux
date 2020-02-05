@@ -1,3 +1,4 @@
+extern crate arena;
 extern crate rustc_errors;
 extern crate rustc_lint;
 extern crate rustc_session;
@@ -26,8 +27,8 @@ impl<'a, 'lr> LiquidRustCtxt<'a, 'lr> {
         LiquidRustCtxt { cx }
     }
 
-    pub fn tcx(&self) -> &TyCtxt<'lr> {
-        &self.cx.tcx
+    pub fn tcx(&self) -> TyCtxt<'lr> {
+        self.cx.tcx
     }
 
     pub fn hir(&self) -> &rustc::hir::map::Map<'lr> {
