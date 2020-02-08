@@ -1,5 +1,6 @@
 // auto-generated: "lalrpop 0.17.2"
-// sha256: 5b88663337dd8159d0f33b4bcfe0895e81c8a0e48ac55ae4a59153807ecefb
+// sha256: 4b2462d6482df8ebdd224b3f20da2c3ef146ad85ebc4afbab637f90631aa784
+#![allow(clippy::all)]
 #![allow(unused_parens)]
 use std::str::FromStr;
 use super::span_with_offset;
@@ -11,7 +12,7 @@ extern crate lalrpop_util as __lalrpop_util;
 use self::__lalrpop_util::state_machine as __state_machine;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-mod __parse__FnRefts {
+mod __parse__FnAnnot {
     #![allow(non_snake_case, non_camel_case_types, unused_mut, unused_variables, unused_imports, unused_parens)]
 
     use std::str::FromStr;
@@ -1115,15 +1116,15 @@ mod __parse__FnRefts {
             _ => panic!("invalid reduction index {}", __reduce_index)
         }
     }
-    pub struct FnReftsParser {
+    pub struct FnAnnotParser {
         builder: super::__intern_token::__MatcherBuilder,
         _priv: (),
     }
 
-    impl FnReftsParser {
-        pub fn new() -> FnReftsParser {
+    impl FnAnnotParser {
+        pub fn new() -> FnAnnotParser {
             let __builder = super::__intern_token::__MatcherBuilder::new();
-            FnReftsParser {
+            FnAnnotParser {
                 builder: __builder,
                 _priv: (),
             }
@@ -1352,7 +1353,7 @@ mod __parse__FnRefts {
                 __reduce57(offset, ctxt, next_expr_id, input, __action, __lookahead_start, __states, __symbols, ::std::marker::PhantomData::<(&(), F)>)
             }
             58 => {
-                // __FnRefts = FnRefts => ActionFn(0);
+                // __FnAnnot = FnAnnot => ActionFn(0);
                 let __sym0 = __pop_Variant6(__symbols);
                 let __start = __sym0.0.clone();
                 let __end = __sym0.2.clone();
@@ -2158,7 +2159,7 @@ mod __parse__FnRefts {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // FnRefts = "/**@", FnType, "@*/" => ActionFn(2);
+        // FnAnnot = "/**@", FnType, "@*/" => ActionFn(2);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -2536,7 +2537,7 @@ mod __parse__FnRefts {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // LocalReft = "/**@", Reft, "@*/" => ActionFn(4);
+        // LocalAnnot = "/**@", Reft, "@*/" => ActionFn(4);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -3087,7 +3088,7 @@ mod __parse__FnRefts {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // __LocalReft = LocalReft => ActionFn(1);
+        // __LocalAnnot = LocalAnnot => ActionFn(1);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -3096,10 +3097,10 @@ mod __parse__FnRefts {
         (1, 38)
     }
 }
-pub use self::__parse__FnRefts::FnReftsParser;
+pub use self::__parse__FnAnnot::FnAnnotParser;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-mod __parse__LocalReft {
+mod __parse__LocalAnnot {
     #![allow(non_snake_case, non_camel_case_types, unused_mut, unused_variables, unused_imports, unused_parens)]
 
     use std::str::FromStr;
@@ -4143,15 +4144,15 @@ mod __parse__LocalReft {
             _ => panic!("invalid reduction index {}", __reduce_index)
         }
     }
-    pub struct LocalReftParser {
+    pub struct LocalAnnotParser {
         builder: super::__intern_token::__MatcherBuilder,
         _priv: (),
     }
 
-    impl LocalReftParser {
-        pub fn new() -> LocalReftParser {
+    impl LocalAnnotParser {
+        pub fn new() -> LocalAnnotParser {
             let __builder = super::__intern_token::__MatcherBuilder::new();
-            LocalReftParser {
+            LocalAnnotParser {
                 builder: __builder,
                 _priv: (),
             }
@@ -4383,7 +4384,7 @@ mod __parse__LocalReft {
                 __reduce58(offset, ctxt, next_expr_id, input, __action, __lookahead_start, __states, __symbols, ::std::marker::PhantomData::<(&(), F)>)
             }
             59 => {
-                // __LocalReft = LocalReft => ActionFn(1);
+                // __LocalAnnot = LocalAnnot => ActionFn(1);
                 let __sym0 = __pop_Variant1(__symbols);
                 let __start = __sym0.0.clone();
                 let __end = __sym0.2.clone();
@@ -5186,7 +5187,7 @@ mod __parse__LocalReft {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // FnRefts = "/**@", FnType, "@*/" => ActionFn(2);
+        // FnAnnot = "/**@", FnType, "@*/" => ActionFn(2);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -5564,7 +5565,7 @@ mod __parse__LocalReft {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // LocalReft = "/**@", Reft, "@*/" => ActionFn(4);
+        // LocalAnnot = "/**@", Reft, "@*/" => ActionFn(4);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -6115,7 +6116,7 @@ mod __parse__LocalReft {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // __FnRefts = FnRefts => ActionFn(0);
+        // __FnAnnot = FnAnnot => ActionFn(0);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -6124,7 +6125,7 @@ mod __parse__LocalReft {
         (1, 37)
     }
 }
-pub use self::__parse__LocalReft::LocalReftParser;
+pub use self::__parse__LocalAnnot::LocalAnnotParser;
 #[cfg_attr(rustfmt, rustfmt_skip)]
 mod __intern_token {
     #![allow(unused_imports)]

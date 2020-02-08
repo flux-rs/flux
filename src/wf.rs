@@ -15,32 +15,32 @@ pub type TypeckTable<'tcx> = HashMap<ExprId, Ty<'tcx>>;
 
 pub fn check_wf<'a, 'tcx>(
     cx: &LiquidRustCtxt<'a, 'tcx>,
-    annots: &[FnAnnots],
+    annots: &[BodyAnnots],
 ) -> Result<TypeckTable<'tcx>, ErrorReported> {
     let mut expr_tys = TypeckTable::new();
     cx.track_errors(|| {
-        for fn_annots in annots {
-            check_fn_annots(cx, fn_annots, &mut expr_tys);
+        for body_annots in annots {
+            check_body_annots(cx, body_annots, &mut expr_tys);
         }
         expr_tys
     })
 }
 
-fn check_fn_annots<'a, 'tcx>(
+fn check_body_annots<'a, 'tcx>(
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    fn_annots: &FnAnnots,
+    body_annots: &BodyAnnots,
     expr_tys: &mut TypeckTable<'tcx>,
 ) {
-    let def_id = cx.hir().body_owner_def_id(fn_annots.body_id);
+    let def_id = cx.hir().body_owner_def_id(body_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
     let hir_id = cx.hir().as_local_hir_id(def_id).unwrap();
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
     let mut checker = TypeChecker::new(cx, tables, ret_ty, expr_tys);
 
-    if let Some(fn_typ) = &fn_annots.fn_ty {
+    if let Some(fn_typ) = &body_annots.fn_ty {
         check_fn_ty(cx, fn_typ, &mut checker);
     }
-    for refine in fn_annots.locals.values() {
+    for refine in body_annots.locals.values() {
         check_refine(cx, refine, &mut checker);
     }
 }

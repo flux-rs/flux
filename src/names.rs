@@ -1,4 +1,4 @@
-use super::syntax::ast::{FnAnnots, HirRes, Ident, Name};
+use super::syntax::ast::{BodyAnnots, HirRes, Ident, Name};
 use super::syntax::mut_visit::MutVisitor;
 use crate::context::{ErrorReported, LiquidRustCtxt};
 pub use rustc_hir::intravisit::{self, Visitor as HirVisitor};
@@ -8,14 +8,14 @@ use std::collections::HashMap;
 
 pub fn resolve_hir_bindings(
     cx: &LiquidRustCtxt,
-    annots: &mut Vec<FnAnnots>,
+    annots: &mut Vec<BodyAnnots>,
 ) -> Result<(), ErrorReported> {
     cx.track_errors(|| {
-        for fn_annots in annots {
-            let body = cx.hir().body(fn_annots.body_id);
+        for body_annots in annots {
+            let body = cx.hir().body(body_annots.body_id);
             let mut vis = HirNameResolver {
                 cx,
-                fn_annots,
+                body_annots,
                 env: NameCtxt::new(),
             };
             vis.visit_body(body);
@@ -25,7 +25,7 @@ pub fn resolve_hir_bindings(
 
 struct HirNameResolver<'a, 'tcx> {
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    fn_annots: &'a mut FnAnnots,
+    body_annots: &'a mut BodyAnnots,
     env: NameCtxt,
 }
 
@@ -37,7 +37,7 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
     }
 
     fn visit_body(&mut self, body: &'tcx Body<'tcx>) {
-        if let Some(fn_typ) = &mut self.fn_annots.fn_ty {
+        if let Some(fn_typ) = &mut self.body_annots.fn_ty {
             self.env.push_frame();
             let mut inputs = fn_typ.inputs.iter_mut();
             let mut params = body.params.iter();
@@ -90,7 +90,7 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
         local.pat.each_binding(|_, hir_id, _, ident| {
             self.env.add_binding(ident.name, hir_id);
         });
-        let locals = &mut self.fn_annots.locals;
+        let locals = &mut self.body_annots.locals;
         if let Some(refine) = locals.get_mut(&local.hir_id) {
             if let PatKind::Binding(_, hir_id, ident, None) = local.pat.kind {
                 if ident.name == refine.binding.name {

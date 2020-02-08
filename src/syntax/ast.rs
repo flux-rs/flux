@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
-pub struct FnAnnots {
+pub struct BodyAnnots {
     pub body_id: BodyId,
     pub fn_ty: Option<FnType>,
     pub locals: HashMap<HirId, Reft>,
@@ -73,9 +73,9 @@ pub enum HirRes {
 }
 
 impl HirRes {
-    pub fn hir_id(&self) -> HirId {
+    pub fn hir_id(self) -> HirId {
         if let Self::Binding(hir_id) = self {
-            *hir_id
+            hir_id
         } else {
             bug!("not a valid binding")
         }

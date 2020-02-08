@@ -28,16 +28,22 @@ pub fn run<'a, 'tcx>(
     late_cx: &LateContext<'a, 'tcx>,
     krate: &'tcx rustc_hir::Crate<'tcx>,
 ) -> Result<(), ErrorReported> {
-    let cx = &LiquidRustCtxt::new(late_cx);
-    let mut annots = annots::collect(cx, krate)?;
+    let mut cx = LiquidRustCtxt::new(late_cx);
+    let mut annots = annots::collect(&cx, krate)?;
 
-    names::resolve_hir_bindings(cx, &mut annots)?;
+    names::resolve_hir_bindings(&cx, &mut annots)?;
 
-    let typeck_table = wf::check_wf(cx, &annots)?;
+    let typeck_table = wf::check_wf(&cx, &annots)?;
 
-    for annot in annots {
-        let a = ast_lowering::build_fn_refines(cx, &annot, &typeck_table);
-        typeck::checks(cx, &a, cx.optimized_mir(a.body_id));
+    let refts = ast_lowering::build_refts(&cx, &annots, &typeck_table)?;
+
+    for body_refts in refts {
+        cx.add_body_refts(body_refts)
+    }
+
+    // Just type check bodies with annotations
+    for body_annots in annots {
+        typeck::check_body(&cx, body_annots.body_id)
     }
 
     Ok(())

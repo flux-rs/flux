@@ -1,6 +1,6 @@
 extern crate regex;
 
-use super::syntax::ast::{AttrKind, AttrStyle, Attribute, FnAnnots};
+use super::syntax::ast::{AttrKind, AttrStyle, Attribute, BodyAnnots};
 use super::syntax::{err_msg, err_span, ParseError, ParsingCtxt};
 use crate::context::{ErrorReported, LiquidRustCtxt};
 use regex::Regex;
@@ -12,18 +12,17 @@ use std::collections::HashMap;
 pub fn collect<'a, 'lr>(
     cx: &'a LiquidRustCtxt<'a, 'lr>,
     krate: &'lr Crate<'lr>,
-) -> Result<Vec<FnAnnots>, ErrorReported> {
+) -> Result<Vec<BodyAnnots>, ErrorReported> {
     cx.track_errors(|| {
         let mut vis = AnnotsCollector::new(cx);
         krate.visit_all_item_likes(&mut vis.as_deep_visitor());
-        let annots = vis.annots();
-        annots
+        vis.annots()
     })
 }
 
 struct AnnotsCollector<'a, 'lr> {
     cx: &'a LiquidRustCtxt<'a, 'lr>,
-    annots: Vec<FnAnnots>,
+    annots: Vec<BodyAnnots>,
     type_annot_regex: Regex,
     parsing: ParsingCtxt,
 }
@@ -69,7 +68,7 @@ impl<'a, 'lr> AnnotsCollector<'a, 'lr> {
             .span_lint_label(err_span(err, span.lo(), span.ctxt()), &err_msg(err))
     }
 
-    fn annots(self) -> Vec<FnAnnots> {
+    fn annots(self) -> Vec<BodyAnnots> {
         self.annots
     }
 }
@@ -100,7 +99,7 @@ impl<'a, 'lr> HirVisitor<'lr> for AnnotsCollector<'a, 'lr> {
             if annots.len() > 1 {
                 self.lint_multiple_annots(&annots);
             }
-            self.annots.push(FnAnnots {
+            self.annots.push(BodyAnnots {
                 fn_ty,
                 body_id,
                 locals: HashMap::new(),

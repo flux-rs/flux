@@ -1,26 +1,25 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{FnRefines, Place, Pred, Var};
+use super::refinements::{Place, Pred, Var};
 use super::smtlib2::{SmtRes, Solver};
 use super::syntax::ast::{BinOpKind, UnOpKind};
-use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind};
+use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
+use rustc_hir::BodyId;
 use rustc_index::{bit_set::BitSet, vec::Idx};
 use rustc_mir::dataflow::{
     do_dataflow, BitDenotation, BottomValue, DataflowResultsCursor, DebugFormatted, GenKillSet,
 };
 use std::collections::{HashMap, HashSet};
 
-pub fn checks<'a, 'tcx>(
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    fn_refines: &FnRefines<'tcx>,
-    mir: &mir::Body<'tcx>,
-) {
-    let mut refines = fn_refines.local_decls.clone();
+pub fn check_body<'a, 'tcx>(cx: &'a LiquidRustCtxt<'a, 'tcx>, body_id: BodyId) {
+    let mir = cx.optimized_mir(body_id);
+    let local_decls = cx.local_decls(body_id);
+    let mut refines = local_decls.clone();
 
     let dead_unwinds = BitSet::new_empty(mir.basic_blocks().len());
-    let def_id = cx.hir().body_owner_def_id(fn_refines.body_id);
+    let def_id = cx.hir().body_owner_def_id(body_id);
     let initialized_result = do_dataflow(
         cx.tcx(),
         mir,
@@ -53,7 +52,7 @@ pub fn checks<'a, 'tcx>(
                     let ty = place.ty(mir, cx.tcx()).ty;
                     let local = place.local;
                     let lhs = *b(cx, ty, rvalue).open(&[local]);
-                    if let Some(rhs) = fn_refines.local_decls.get(&local) {
+                    if let Some(rhs) = local_decls.get(&local) {
                         let r = check(&env, &lhs, rhs);
                         if let Err(e) = r {
                             println!("{:?}", e);
@@ -65,7 +64,7 @@ pub fn checks<'a, 'tcx>(
                 StatementKind::StorageLive(_)
                 | StatementKind::StorageDead(_)
                 | StatementKind::Nop => {}
-                _ => unimplemented!(),
+                _ => todo!("{:?}", statement),
             }
         }
         let loc = mir::Location {
@@ -73,7 +72,23 @@ pub fn checks<'a, 'tcx>(
             statement_index: bbd.statements.len(),
         };
         cursor.seek(loc);
-        println!("  {:?}\n", bbd.terminator.as_ref().map(|t| &t.kind));
+        if let Some(terminator) = &bbd.terminator {
+            println!("  {:?}\n", terminator.kind);
+            match &terminator.kind {
+                TerminatorKind::Call {
+                    func,
+                    args,
+                    destination,
+                    ..
+                } => {}
+                TerminatorKind::Resume
+                | TerminatorKind::Assert { .. }
+                | TerminatorKind::Abort
+                | TerminatorKind::Return
+                | TerminatorKind::Unreachable => {}
+                _ => todo!(),
+            };
+        }
     }
     println!("---------------------------");
 }
@@ -113,10 +128,13 @@ fn check<'tcx>(
 pub fn b<'tcx>(cx: &LiquidRustCtxt<'_, 'tcx>, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> Pred<'tcx> {
     match rvalue {
         // v:{v == operand}
-        Rvalue::Use(operand) => {
-            let operand = mk_operand(operand);
-            Pred::Binary(Pred::nu(), BinOpKind::Eq, operand)
-        }
+        Rvalue::Use(operand) => match ty.kind {
+            ty::FnDef(_, _) | ty::FnPtr(_) => todo!(),
+            _ => {
+                let operand = mk_operand(operand);
+                Pred::Binary(Pred::nu(), BinOpKind::Eq, operand)
+            }
+        },
         // v:{v.0 == lhs + rhs}
         Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
             let op = mir_op_to_refine_op(*op);
@@ -134,7 +152,7 @@ pub fn b<'tcx>(cx: &LiquidRustCtxt<'_, 'tcx>, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx
             let bin = box Pred::Binary(mk_operand(lhs), op, mk_operand(rhs));
             Pred::Binary(Pred::nu(), BinOpKind::Eq, bin)
         }
-        _ => unimplemented!("{:?}", rvalue),
+        _ => todo!("{:?}", rvalue),
     }
 }
 
@@ -211,7 +229,7 @@ impl<'a, 'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'a, 'tcx> {
             if place.projection.len() == 0 {
                 trans.gen(place.local);
             } else {
-                unimplemented!("{:?}", stmt)
+                todo!("{:?}", stmt)
             }
         }
     }

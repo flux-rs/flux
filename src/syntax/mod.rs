@@ -7,23 +7,23 @@ extern crate lalrpop_util;
 
 use ast::{ExprId, FnType, Reft};
 use parser::Token;
-use parser::{FnReftsParser, LocalReftParser};
+use parser::{FnAnnotParser, LocalAnnotParser};
 use rustc_span::{hygiene::SyntaxContext, BytePos, Span};
 use std::cell::Cell;
 
 pub type ParseError<'input> = lalrpop_util::ParseError<usize, Token<'input>, &'static str>;
 
 pub struct ParsingCtxt {
-    local_parser: LocalReftParser,
-    fn_parser: FnReftsParser,
+    local_parser: LocalAnnotParser,
+    fn_parser: FnAnnotParser,
     next_expr_id: Cell<u32>,
 }
 
 impl Default for ParsingCtxt {
     fn default() -> Self {
         Self {
-            local_parser: LocalReftParser::new(),
-            fn_parser: FnReftsParser::new(),
+            local_parser: LocalAnnotParser::new(),
+            fn_parser: FnAnnotParser::new(),
             next_expr_id: Cell::new(0),
         }
     }

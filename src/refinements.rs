@@ -10,25 +10,25 @@ use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
-pub struct FnRefines<'tcx> {
+pub struct BodyRefts<'tcx> {
     pub body_id: BodyId,
-    pub fn_ty: FnType<'tcx>,
+    pub fun_type: Option<FunType<'tcx>>,
     pub local_decls: HashMap<mir::Local, Pred<'tcx>>,
 }
 
 #[derive(Debug)]
 pub enum RType<'tcx> {
-    Fn(FnType<'tcx>),
+    Fun(FunType<'tcx>),
     Reft(Pred<'tcx>),
 }
 
-#[derive(Debug)]
-pub struct FnType<'tcx> {
+#[derive(Debug, Clone)]
+pub struct FunType<'tcx> {
     pub inputs: Vec<Pred<'tcx>>,
     pub output: Pred<'tcx>,
 }
 
-impl<'tcx> FnType<'tcx> {
+impl<'tcx> FunType<'tcx> {
     pub fn open(&self, locals: &[mir::Local]) -> Vec<Pred<'tcx>> {
         assert_eq!(locals.len(), self.inputs.len() + 1);
         let mut refines = self
@@ -51,11 +51,11 @@ pub enum Pred<'tcx> {
 }
 
 impl<'tcx> Pred<'tcx> {
-    pub fn iter_places(&self, mut f: impl FnMut(Place<'tcx>) -> ()) -> () {
+    pub fn iter_places(&self, mut f: impl FnMut(Place<'tcx>) -> ()) {
         self._iter_places(&mut f)
     }
 
-    pub fn _iter_places(&self, f: &mut impl FnMut(Place<'tcx>) -> ()) -> () {
+    pub fn _iter_places(&self, f: &mut impl FnMut(Place<'tcx>) -> ()) {
         match self {
             Self::Unary(_, expr) => expr._iter_places(f),
             Self::Binary(lhs, _, rhs) => {

@@ -3,7 +3,7 @@ extern crate rustc_errors;
 extern crate rustc_lint;
 extern crate rustc_session;
 
-use super::refinements::{self, ConstValue, Pred, Scalar};
+use super::refinements::{self, BodyRefts, ConstValue, FunType, Pred, Scalar};
 use rustc::mir;
 use rustc::ty::{Ty, TyCtxt};
 pub use rustc_errors::ErrorReported;
@@ -11,6 +11,8 @@ use rustc_hir::BodyId;
 use rustc_lint::{LateContext, LintContext};
 use rustc_session::declare_lint;
 use rustc_span::{MultiSpan, Span};
+use std::collections::HashMap;
+use std::iter;
 
 declare_lint! {
     pub LIQUID_RUST,
@@ -21,11 +23,15 @@ declare_lint! {
 
 pub struct LiquidRustCtxt<'a, 'tcx> {
     cx: &'a LateContext<'a, 'tcx>,
+    refts_table: HashMap<BodyId, BodyRefts<'tcx>>,
 }
 
 impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
     pub fn new(cx: &'a LateContext<'a, 'tcx>) -> Self {
-        LiquidRustCtxt { cx }
+        LiquidRustCtxt {
+            cx,
+            refts_table: HashMap::new(),
+        }
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -43,7 +49,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.cx.sess().track_errors(f)
     }
 
-    pub fn optimized_mir(&self, body_id: BodyId) -> &'tcx mir::BodyAndCache<'tcx> {
+    pub fn optimized_mir(&self, body_id: BodyId) -> &'tcx mir::Body<'tcx> {
         let def_id = self.hir().body_owner_def_id(body_id);
         self.cx.tcx.optimized_mir(def_id)
     }
@@ -90,6 +96,34 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
             var: place.var,
             projection: self.tcx().intern_place_elems(&projection),
         })
+    }
+
+    pub fn add_body_refts(&mut self, body_refts: BodyRefts<'tcx>) {
+        self.refts_table.insert(body_refts.body_id, body_refts);
+    }
+
+    pub fn local_decls(&self, body_id: BodyId) -> &HashMap<mir::Local, Pred<'tcx>> {
+        if let Some(body_refts) = self.refts_table.get(&body_id) {
+            &body_refts.local_decls
+        } else {
+            todo!()
+        }
+    }
+
+    pub fn fun_type(&self, body_id: BodyId) -> FunType<'tcx> {
+        if_chain! {
+            if let Some(body_refts) = self.refts_table.get(&body_id);
+            if let Some(fun_type) = &body_refts.fun_type;
+            then {
+                fun_type.clone()
+            } else {
+                let body = self.hir().body(body_id);
+                let arg_count = body.params.len();
+                let inputs = iter::repeat(self.refine_true()).take(arg_count).collect::<Vec<_>>();
+                let output = self.refine_true();
+                FunType {inputs, output}
+            }
+        }
     }
 
     // pub fn span_lint_note(&self, span: Span, msg: &str, note_span: Span, note: &str) {

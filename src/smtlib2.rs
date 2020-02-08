@@ -32,7 +32,7 @@ impl<'a, 'tcx> Expr2Smt<()> for Pred<'tcx> {
                 Token::Expr(Pred::Place(place)) => place.sym_to_smt2(w, info)?,
                 Token::Expr(Pred::Constant(ty, val)) => format_const_value(ty, *val, w)?,
                 Token::Expr(Pred::Binary(lhs, op, rhs)) => {
-                    write!(w, "({} ", bin_op_to_smt2(op))?;
+                    write!(w, "({} ", bin_op_to_smt2(*op))?;
                     stack.push(Token::Paren);
                     stack.push(Token::Expr(rhs));
                     stack.push(Token::Space);
@@ -110,7 +110,7 @@ fn format_const_value<'tcx, W: Write>(
     Ok(())
 }
 
-fn bin_op_to_smt2(op: &BinOpKind) -> &'static str {
+fn bin_op_to_smt2(op: BinOpKind) -> &'static str {
     match op {
         BinOpKind::And => "and",
         BinOpKind::Or => "or",
