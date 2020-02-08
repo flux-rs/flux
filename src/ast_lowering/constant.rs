@@ -1,7 +1,6 @@
 extern crate rustc_apfloat;
 extern crate syntax;
 
-use rustc::bug;
 use rustc::mir::interpret::{truncate, Allocation, ConstValue, LitToConstError, Scalar};
 use rustc::ty::{self, layout::Size, ParamEnv, TyCtxt};
 use rustc_span::symbol::Symbol;

@@ -2,80 +2,72 @@ extern crate rsmt2;
 extern crate rustc_apfloat;
 extern crate syntax as rust_syntax;
 
-use super::refinements::{Place, Refine, VarSubst};
+use super::refinements::{Place, Refine, Var};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
-pub use rsmt2::print::Expr2Smt;
+pub use rsmt2::print::{Expr2Smt, Sym2Smt};
 pub use rsmt2::Solver;
 use rust_syntax::ast::FloatTy;
+use rustc::mir;
 use rustc::mir::interpret::{sign_extend, ConstValue, Scalar};
 use rustc::ty::layout::Size;
 use rustc::ty::{self, Ty};
-use rustc::{bug, mir};
 use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
 };
 use std::io::Write;
 
-#[derive(Copy, Clone)]
-pub struct SmtInfo<'a> {
-    pub var_subst: &'a VarSubst,
-    pub nu: mir::Local,
-}
-
-enum Token<'rcx, 'tcx> {
-    CloseParen,
-    Expr(&'rcx Refine<'rcx, 'tcx>),
+enum Token<'a, 'tcx> {
+    Expr(&'a Refine<'tcx>),
     Space,
+    Paren,
 }
 
-impl<'a, 'rcx, 'tcx> Expr2Smt<SmtInfo<'a>> for Refine<'rcx, 'tcx> {
-    fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: SmtInfo<'a>) -> SmtRes<()> {
+impl<'a, 'tcx> Expr2Smt<()> for Refine<'tcx> {
+    fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: ()) -> SmtRes<()> {
         let mut stack = vec![Token::Expr(self)];
         while let Some(token) = stack.pop() {
             match token {
-                Token::CloseParen => write!(w, ")")?,
-                Token::Space => write!(w, " ")?,
-                Token::Expr(Refine::Place(place)) => place.expr_to_smt2(w, info)?,
+                Token::Expr(Refine::Place(place)) => place.sym_to_smt2(w, info)?,
                 Token::Expr(Refine::Constant(ty, val)) => format_const_value(ty, *val, w)?,
                 Token::Expr(Refine::Binary(lhs, op, rhs)) => {
                     write!(w, "({} ", bin_op_to_smt2(op))?;
-                    stack.push(Token::CloseParen);
+                    stack.push(Token::Paren);
                     stack.push(Token::Expr(rhs));
                     stack.push(Token::Space);
                     stack.push(Token::Expr(lhs));
                 }
                 Token::Expr(Refine::Unary(UnOpKind::Not, expr)) => {
                     write!(w, "(not ")?;
-                    stack.push(Token::CloseParen);
+                    stack.push(Token::Paren);
                     stack.push(Token::Expr(expr));
                 }
-                Token::Expr(expr) => unimplemented!("{:?}", expr),
-            };
+                Token::Expr(Refine::Unary(UnOpKind::Deref, _)) => unimplemented!(),
+                Token::Space => write!(w, " ")?,
+                Token::Paren => write!(w, ")")?,
+            }
         }
         Ok(())
     }
 }
 
-impl<'tcx, 'rcx> Refine<'tcx, 'rcx> {
-    pub fn to_smt_str(&self, info: SmtInfo) -> String {
+impl<'tcx> Refine<'tcx> {
+    pub fn to_smt_str(&self) -> String {
         let mut v = Vec::new();
-        match self.expr_to_smt2(&mut v, info) {
+        match self.expr_to_smt2(&mut v, ()) {
             Ok(_) => String::from_utf8(v).unwrap_or("error".into()),
             Err(_) => "error".into(),
         }
     }
 }
 
-impl<'a, 'tcx> Expr2Smt<SmtInfo<'a>> for Place<'tcx> {
-    fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: SmtInfo<'a>) -> SmtRes<()> {
-        if let Some(local) = info.var_subst.lookup(self.var) {
-            write!(w, "{:?}", local)?;
-        } else if self.var.0 == 0 {
-            write!(w, "{:?}", info.nu)?;
+impl<'tcx> Sym2Smt<()> for Place<'tcx> {
+    fn sym_to_smt2<Writer: Write>(&self, w: &mut Writer, _info: ()) -> SmtRes<()> {
+        if let Var::Free(local) = self.var {
+            write!(w, "_{}", local.index())?
         } else {
-            bug!();
+            bug!("place has a bound variable: {:?}", self)
         }
         for elem in self.projection.iter() {
             match elem {
@@ -108,7 +100,7 @@ fn format_const_value<'tcx, W: Write>(
             write!(w, "{}", data)?;
         }
         (ConstValue::Scalar(Scalar::Raw { data, .. }), ty::Int(i)) => {
-            // TODO: assuming 64 bits for isize. we can make this configurable
+            // TODO: assuming 64 bits for isize. we can probably make this configurable
             let bit_width = i.bit_width().unwrap_or(64) as u64;
             let size = Size::from_bits(bit_width);
             write!(w, "{}", sign_extend(data, size) as i128)?;

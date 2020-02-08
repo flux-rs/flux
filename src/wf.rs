@@ -4,8 +4,6 @@ extern crate rustc_index;
 use super::syntax::ast::*;
 use super::syntax::visit::{self, Visitor};
 use crate::context::{ErrorReported, LiquidRustCtxt};
-use if_chain::if_chain;
-use rustc::bug;
 use rustc::infer::unify_key::ToType;
 use rustc::ty::{self, Ty, TyCtxt, TyKind, TypeckTables};
 use rustc_data_structures::unify::{InPlace, UnificationTable};
@@ -97,9 +95,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
 
     fn lookup(&self, name: Name) -> Ty<'tcx> {
         match name.hir_res {
-            HirRes::ExternalBinding(hir_id, _) | HirRes::CurrentBinding(hir_id, _) => {
-                self.tables.node_type(hir_id)
-            }
+            HirRes::Binding(hir_id) => self.tables.node_type(hir_id),
             HirRes::ReturnValue => self.ret_ty,
             HirRes::Unresolved => bug!("names must be resolved"),
         }

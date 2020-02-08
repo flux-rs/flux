@@ -5,6 +5,7 @@ use rustc_hir::HirId;
 pub use rustc_hir::{BodyId, Lit};
 pub use rustc_span::{symbol::Ident, Span};
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct FnAnnots {
@@ -21,7 +22,8 @@ pub struct FnType {
 
 #[derive(Debug)]
 pub struct Refine {
-    pub name: Name,
+    pub binding: Ident,
+    pub hir_res: HirRes,
     pub pred: Expr,
     pub span: Span,
 }
@@ -51,7 +53,7 @@ pub struct UnOp {
     pub span: Span,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum UnOpKind {
     Deref,
     Not,
@@ -66,9 +68,18 @@ pub struct Name {
 #[derive(Copy, Clone, Debug)]
 pub enum HirRes {
     Unresolved,
-    ExternalBinding(HirId, Span),
-    CurrentBinding(HirId, Span),
+    Binding(HirId),
     ReturnValue,
+}
+
+impl HirRes {
+    pub fn hir_id(&self) -> HirId {
+        if let Self::Binding(hir_id) = self {
+            *hir_id
+        } else {
+            bug!("not a valid binding")
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -77,7 +88,7 @@ pub struct BinOp {
     pub span: Span,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum BinOpKind {
     And,
     Or,
@@ -91,4 +102,30 @@ pub enum BinOpKind {
     Div,
     Add,
     Sub,
+}
+
+impl fmt::Debug for UnOpKind {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Deref => write!(fmt, "*"),
+            Self::Not => write!(fmt, "!"),
+        }
+    }
+}
+
+impl fmt::Debug for BinOpKind {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::And => write!(fmt, "&&"),
+            Self::Or => write!(fmt, "||"),
+            Self::Eq => write!(fmt, "=="),
+            Self::Lt => write!(fmt, "<"),
+            Self::Gt => write!(fmt, ">"),
+            Self::Ge => write!(fmt, ">="),
+            Self::Mul => write!(fmt, "*"),
+            Self::Div => write!(fmt, "/"),
+            Self::Add => write!(fmt, "+"),
+            Self::Sub => write!(fmt, "-"),
+        }
+    }
 }

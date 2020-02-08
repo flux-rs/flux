@@ -2,10 +2,9 @@ use super::syntax::ast::{FnAnnots, HirRes, Ident, Name};
 use super::syntax::mut_visit::MutVisitor;
 use crate::context::{ErrorReported, LiquidRustCtxt};
 pub use rustc_hir::intravisit::{self, Visitor as HirVisitor};
-use rustc_hir::{self, Block, Body, Local, Param, PatKind};
+use rustc_hir::{self, Block, Body, HirId, Local, Param, PatKind};
 use rustc_span::{MultiSpan, Symbol};
 use std::collections::HashMap;
-use std::hash::Hash;
 
 pub fn resolve_hir_bindings(
     cx: &LiquidRustCtxt,
@@ -17,51 +16,17 @@ pub fn resolve_hir_bindings(
             let mut vis = HirNameResolver {
                 cx,
                 fn_annots,
-                env: Env::new(),
+                env: NameCtxt::new(),
             };
             vis.visit_body(body);
         }
     })
 }
 
-struct Env<K, V> {
-    stack: Vec<HashMap<K, V>>,
-}
-
-impl<K: Hash + Eq, V> Env<K, V> {
-    fn new() -> Self {
-        Env {
-            stack: vec![HashMap::new()],
-        }
-    }
-
-    fn push_frame(&mut self) {
-        self.stack.push(HashMap::new());
-    }
-
-    fn pop_frame(&mut self) {
-        self.stack.pop();
-    }
-
-    fn add_binding(&mut self, k: K, v: V) {
-        let frame = self.stack.last_mut().expect("Empty Stack");
-        frame.insert(k, v);
-    }
-
-    fn lookup(&self, k: &K) -> Option<&V> {
-        for frame in self.stack.iter().rev() {
-            if let Some(v) = frame.get(k) {
-                return Some(v);
-            }
-        }
-        None
-    }
-}
-
 struct HirNameResolver<'a, 'tcx> {
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
     fn_annots: &'a mut FnAnnots,
-    env: Env<Symbol, HirRes>,
+    env: NameCtxt,
 }
 
 impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
@@ -80,24 +45,19 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
             loop {
                 match (inputs.next(), params.next()) {
                     (Some(ref mut refine), Some(Param { pat, .. })) => {
+                        pat.each_binding(|_, hir_id, _, ident| {
+                            env.add_binding(ident.name, hir_id);
+                        });
                         if let PatKind::Binding(_, hir_id, ident, None) = pat.kind {
-                            if ident.name == refine.name.ident.name {
-                                env.push_frame();
-                                env.add_binding(
-                                    ident.name,
-                                    HirRes::CurrentBinding(hir_id, pat.span),
-                                );
+                            if ident.name == refine.binding.name {
+                                refine.hir_res = HirRes::Binding(hir_id);
                                 HirIdExprVisitor::new(self.cx, env).visit_refine(refine);
-                                env.pop_frame();
                             } else {
-                                lint_name_mismatch(self.cx, refine.name.ident, ident);
+                                lint_name_mismatch(self.cx, refine.binding, ident);
                             }
                         } else {
                             lint_pat_not_supported(self.cx, pat);
                         }
-                        pat.each_binding(|_, hir_id, span, ident| {
-                            env.add_binding(ident.name, HirRes::ExternalBinding(hir_id, span));
-                        })
                     }
 
                     (Some(ref mut refine), None) => self
@@ -113,7 +73,7 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
             }
             let output = &mut fn_typ.output;
             env.push_frame();
-            env.add_binding(output.name.ident.name, HirRes::ReturnValue);
+            env.add_ret_val(output.binding.name);
             HirIdExprVisitor::new(self.cx, env).visit_refine(output);
             env.pop_frame();
         }
@@ -127,49 +87,83 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
     }
 
     fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
+        local.pat.each_binding(|_, hir_id, _, ident| {
+            self.env.add_binding(ident.name, hir_id);
+        });
         let locals = &mut self.fn_annots.locals;
         if let Some(refine) = locals.get_mut(&local.hir_id) {
             if let PatKind::Binding(_, hir_id, ident, None) = local.pat.kind {
-                if ident.name == refine.name.ident.name {
-                    self.env.push_frame();
-                    self.env
-                        .add_binding(ident.name, HirRes::CurrentBinding(hir_id, local.pat.span));
+                if ident.name == refine.binding.name {
+                    refine.hir_res = HirRes::Binding(hir_id);
                     HirIdExprVisitor::new(self.cx, &self.env).visit_refine(refine);
-                    self.env.pop_frame();
                 } else {
-                    lint_name_mismatch(self.cx, refine.name.ident, ident);
+                    lint_name_mismatch(self.cx, refine.binding, ident);
                 }
             } else {
                 lint_pat_not_supported(self.cx, local.pat);
             }
         }
-        local.pat.each_binding(|_, hir_id, span, ident| {
-            self.env
-                .add_binding(ident.name, HirRes::ExternalBinding(hir_id, span));
-        });
-
         intravisit::walk_local(self, local);
     }
 }
 
 struct HirIdExprVisitor<'a, 'tcx> {
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    env: &'a Env<Symbol, HirRes>,
+    env: &'a NameCtxt,
 }
 
 impl<'a, 'tcx> HirIdExprVisitor<'a, 'tcx> {
-    fn new(cx: &'a LiquidRustCtxt<'a, 'tcx>, env: &'a Env<Symbol, HirRes>) -> Self {
+    fn new(cx: &'a LiquidRustCtxt<'a, 'tcx>, env: &'a NameCtxt) -> Self {
         HirIdExprVisitor { cx, env }
     }
 }
 
 impl<'a, 'tcx> MutVisitor<'a> for HirIdExprVisitor<'a, 'tcx> {
     fn visit_name(&mut self, name: &mut Name) {
-        if let Some(hir_res) = self.env.lookup(&name.ident.name) {
-            name.hir_res = *hir_res;
+        if let Some(hir_res) = self.env.lookup(name.ident.name) {
+            name.hir_res = hir_res;
         } else {
             lint_name_not_found(self.cx, name.ident);
         }
+    }
+}
+
+struct NameCtxt {
+    stack: Vec<HashMap<Symbol, HirRes>>,
+}
+
+impl NameCtxt {
+    fn new() -> Self {
+        NameCtxt {
+            stack: vec![HashMap::new()],
+        }
+    }
+
+    fn push_frame(&mut self) {
+        self.stack.push(HashMap::new());
+    }
+
+    fn pop_frame(&mut self) {
+        self.stack.pop();
+    }
+
+    fn add_binding(&mut self, name: Symbol, hir_id: HirId) {
+        let frame = self.stack.last_mut().expect("Empty Stack");
+        frame.insert(name, HirRes::Binding(hir_id));
+    }
+
+    fn add_ret_val(&mut self, name: Symbol) {
+        let frame = self.stack.last_mut().expect("Empty Stack");
+        frame.insert(name, HirRes::ReturnValue);
+    }
+
+    fn lookup(&self, name: Symbol) -> Option<HirRes> {
+        for frame in self.stack.iter().rev() {
+            if let Some(v) = frame.get(&name) {
+                return Some(*v);
+            }
+        }
+        None
     }
 }
 

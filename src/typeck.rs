@@ -1,9 +1,9 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{FnRefines, Place, Refine, RefineCtxt, VarSubst};
-use super::smtlib2::{SmtInfo, SmtRes, Solver};
-use super::syntax::ast::BinOpKind;
+use super::refinements::{FnRefines, Place, Refine, Var};
+use super::smtlib2::{SmtRes, Solver};
+use super::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind};
 use rustc::ty::{self, Ty};
 use rustc_index::{bit_set::BitSet, vec::Idx};
@@ -12,12 +12,10 @@ use rustc_mir::dataflow::{
 };
 use std::collections::{HashMap, HashSet};
 
-pub fn checks<'a, 'rcx, 'tcx>(
+pub fn checks<'a, 'tcx>(
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
-    fn_refines: &FnRefines<'rcx, 'tcx>,
+    fn_refines: &FnRefines<'tcx>,
     mir: &mir::Body<'tcx>,
-    var_subst: &mut VarSubst,
 ) {
     let mut refines = fn_refines.local_decls.clone();
 
@@ -45,16 +43,16 @@ pub fn checks<'a, 'rcx, 'tcx>(
             let mut env = HashMap::new();
             for local in cursor.get().iter() {
                 if let Some(refine) = refines.get(&local) {
-                    env.insert(local, *refine);
+                    env.insert(local, refine);
                 }
             }
             match &statement.kind {
                 StatementKind::Assign(box (place, rvalue)) => {
                     let ty = place.ty(mir, cx.tcx()).ty;
                     let local = place.local;
-                    let lhs = b(rcx, var_subst, ty, rvalue);
+                    let lhs = *b(cx, ty, rvalue).open(&[local]);
                     if let Some(rhs) = fn_refines.local_decls.get(&local) {
-                        let r = check(rcx, &env, lhs, rhs, var_subst, local);
+                        let r = check(&env, &lhs, rhs);
                         if let Err(e) = r {
                             println!("{:?}", e);
                         }
@@ -71,111 +69,52 @@ pub fn checks<'a, 'rcx, 'tcx>(
     }
 }
 
-fn check<'rcx, 'tcx>(
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
-    env: &HashMap<mir::Local, &'rcx Refine<'rcx, 'tcx>>,
-    lhs: &'rcx Refine<'rcx, 'tcx>,
-    rhs: &'rcx Refine<'rcx, 'tcx>,
-    var_subst: &VarSubst,
-    local: mir::Local,
+fn check<'tcx>(
+    env: &HashMap<mir::Local, &Refine<'tcx>>,
+    lhs: &Refine<'tcx>,
+    rhs: &Refine<'tcx>,
 ) -> SmtRes<()> {
     let mut solver = Solver::default(())?;
     let mut places = HashSet::new();
-    for (local, refine) in env {
+    for refine in env.values().chain(&[lhs, rhs]) {
         refine.iter_places(|place| {
-            if let Some(place) = var_subst.subst(place) {
-                places.insert(place);
-            } else {
-                places.insert(mir::Place {
-                    local: *local,
-                    projection: place.projection,
-                });
-            }
+            places.insert(place);
         })
     }
-    lhs.iter_places(|place| {
-        if let Some(place) = var_subst.subst(place) {
-            places.insert(place);
-        } else {
-            places.insert(mir::Place {
-                local: local,
-                projection: place.projection,
-            });
-        }
-    });
-    rhs.iter_places(|place| {
-        if let Some(place) = var_subst.subst(place) {
-            places.insert(place);
-        } else {
-            places.insert(mir::Place {
-                local: local,
-                projection: place.projection,
-            });
-        }
-    });
 
     for place in places {
-        let mut s = format!("_{}", place.local.index());
-        for elem in place.projection.iter() {
-            match elem {
-                mir::ProjectionElem::Field(field, _) => {
-                    s = format!("{}.{}", s, field.index());
-                }
-                _ => unimplemented!("{:?}", elem),
-            }
-        }
-        println!("(declare-fun {} () \"Int\")", s);
-        solver.declare_const(&s, "Int")?;
+        solver.declare_const(&place, "Int")?;
     }
 
-    for (local, refine) in env {
-        let info = SmtInfo {
-            var_subst,
-            nu: *local,
-        };
-        println!("{:?}", refine.to_smt_str(info));
-        solver.assert_with(refine, info)?;
+    for (_, refine) in env {
+        println!("{}", refine.to_smt_str());
+        solver.assert(refine)?;
     }
-    let info = SmtInfo {
-        var_subst,
-        nu: local,
-    };
-    println!("{:?}", lhs.to_smt_str(info));
-    solver.assert_with(lhs, info)?;
-    let info = SmtInfo {
-        var_subst,
-        nu: local,
-    };
-    println!("{:?}", rcx.mk_not(rhs).to_smt_str(info));
-    solver.assert_with(rcx.mk_not(rhs), info)?;
+    let not_rhs = Refine::Unary(UnOpKind::Not, box rhs.clone());
+    solver.assert(lhs)?;
+    solver.assert(&not_rhs)?;
+    println!("{}", lhs.to_smt_str());
+    println!("{}", not_rhs.to_smt_str());
+
     let b = solver.check_sat()?;
     println!("unsat {}\n", !b);
     Ok(())
 }
 
-pub fn b<'rcx, 'tcx>(
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
-    var_subst: &mut VarSubst,
-    ty: Ty<'tcx>,
-    rvalue: &Rvalue<'tcx>,
-) -> &'rcx Refine<'rcx, 'tcx> {
+pub fn b<'tcx>(cx: &LiquidRustCtxt<'_, 'tcx>, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> Refine<'tcx> {
     match rvalue {
         // v:{v == operand}
         Rvalue::Use(operand) => {
-            let operand = mk_operand(rcx, var_subst, operand);
-            rcx.mk_binary(rcx.nu, BinOpKind::Eq, operand)
+            let operand = mk_operand(operand);
+            Refine::Binary(Refine::nu(), BinOpKind::Eq, operand)
         }
         // v:{v.0 == lhs + rhs}
         Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
             let op = mir_op_to_refine_op(op);
-            let bin = rcx.mk_binary(
-                mk_operand(rcx, var_subst, lhs),
-                op,
-                mk_operand(rcx, var_subst, rhs),
-            );
+            let bin = box Refine::Binary(mk_operand(lhs), op, mk_operand(rhs));
             let ty = ty.tuple_fields().next().unwrap();
-            rcx.mk_binary(
-                rcx.mk_place_field(Place::nu(), mir::Field::new(0), ty),
+            Refine::Binary(
+                cx.mk_place_field(Place::nu(), mir::Field::new(0), ty),
                 BinOpKind::Eq,
                 bin,
             )
@@ -183,18 +122,14 @@ pub fn b<'rcx, 'tcx>(
         // v:{v == lhs + rhs}
         Rvalue::BinaryOp(op, lhs, rhs) => {
             let op = mir_op_to_refine_op(op);
-            let bin = rcx.mk_binary(
-                mk_operand(rcx, var_subst, lhs),
-                op,
-                mk_operand(rcx, var_subst, rhs),
-            );
-            rcx.mk_binary(rcx.nu, BinOpKind::Eq, bin)
+            let bin = box Refine::Binary(mk_operand(lhs), op, mk_operand(rhs));
+            Refine::Binary(Refine::nu(), BinOpKind::Eq, bin)
         }
         _ => unimplemented!("{:?}", rvalue),
     }
 }
 
-pub fn mir_op_to_refine_op<'rcx, 'tcx>(op: &mir::BinOp) -> BinOpKind {
+pub fn mir_op_to_refine_op<'tcx>(op: &mir::BinOp) -> BinOpKind {
     match op {
         mir::BinOp::Add => BinOpKind::Add,
         mir::BinOp::Sub => BinOpKind::Sub,
@@ -216,18 +151,14 @@ pub fn mir_op_to_refine_op<'rcx, 'tcx>(op: &mir::BinOp) -> BinOpKind {
     }
 }
 
-pub fn mk_operand<'rcx, 'tcx>(
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
-    var_subst: &mut VarSubst,
-    operand: &Operand<'tcx>,
-) -> &'rcx Refine<'rcx, 'tcx> {
-    match operand {
-        Operand::Copy(place) | Operand::Move(place) => rcx.mk_place(Place {
-            var: var_subst.extend_with_fresh(place.local),
+fn mk_operand<'tcx>(operand: &Operand<'tcx>) -> Box<Refine<'tcx>> {
+    box match operand {
+        Operand::Copy(place) | Operand::Move(place) => Refine::Place(Place {
+            var: Var::Free(place.local),
             projection: place.projection,
         }),
         Operand::Constant(box Constant { literal, .. }) => match literal.val {
-            ty::ConstKind::Value(val) => rcx.mk_constant(literal.ty, val),
+            ty::ConstKind::Value(val) => Refine::Constant(literal.ty, val),
             _ => unimplemented!("{:?}", operand),
         },
     }

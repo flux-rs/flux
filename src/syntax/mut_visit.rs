@@ -30,7 +30,6 @@ pub fn walk_fn_type<'ast, V: MutVisitor<'ast>>(vis: &mut V, fn_typ: &mut FnType)
 }
 
 pub fn walk_refine<'ast, V: MutVisitor<'ast>>(vis: &mut V, refine: &mut Refine) {
-    vis.visit_name(&mut refine.name);
     vis.visit_expression(&mut refine.pred);
 }
 

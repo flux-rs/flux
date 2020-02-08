@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.17.2"
-// sha256: 6cad82f58d6ffb972dfa2ab4c888ffea33cbb3b380158577f79ad34b3fc85
+// sha256: 26ff235633b61d6a3a2e21d03b813243587ec2892f9f01eb4ec45b122fa618
 #![allow(unused_parens)]
 use std::str::FromStr;
 use super::span_with_offset;
@@ -6415,9 +6415,10 @@ where
     F: Copy,
 {
     Refine {
-            name: Name {ident: ident, hir_res: HirRes::Unresolved },
+            binding: ident,
             pred: *e,
             span: span_with_offset(lo, hi, offset, ctxt),
+            hir_res: HirRes::Unresolved
         }
 }
 

@@ -35,9 +35,10 @@ RefineList: Vec<Refine> = {
 Refine: Refine = {
     <lo:@L> <ident: Ident> ":" "{" <e: ExprLevel1> "}" <hi:@R> =>
         Refine {
-            name: Name {ident: ident, hir_res: HirRes::Unresolved },
+            binding: ident,
             pred: *e,
             span: span_with_offset(lo, hi, offset, ctxt),
+            hir_res: HirRes::Unresolved
         },
 }
 

@@ -1,134 +1,127 @@
 pub mod constant;
 
-use super::refinements::{FnDecl, FnRefines, Place, Refine, RefineCtxt, Var, VarSubst};
+use super::refinements::{FnRefines, FnType, Place, Refine, Var};
 use super::syntax::ast;
 use super::wf::TypeckTable;
 use crate::context::LiquidRustCtxt;
-use rustc::bug;
 use rustc::mir;
 use rustc::mir::interpret::LitToConstError;
 use rustc::mir::interpret::{ConstValue, Scalar};
 use rustc::ty::{self, Ty};
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use std::collections::HashMap;
+use std::iter;
 
-// pub fn build_refines<'a, 'rcx, 'tcx>(
-//     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-//     rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
-//     annots: &Vec<ast::FnAnnots>,
-//     typeck_table: &TypeckTable<'tcx>,
-// ) -> Result<Vec<FnRefines<'rcx, 'tcx>>, ErrorReported> {
-//     cx.track_errors(|| {
-//         let mut vec = Vec::new();
-//         for annot in annots {
-//             vec.push(build_fn_refines(cx, rcx, annot, typeck_table))
-//         }
-//         vec
-//     })
-// }
-
-pub fn build_fn_refines<'a, 'rcx, 'tcx>(
+pub fn build_fn_refines<'a, 'tcx>(
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
     fn_annots: &ast::FnAnnots,
     typeck_table: &TypeckTable<'tcx>,
-) -> (FnRefines<'rcx, 'tcx>, VarSubst) {
+) -> FnRefines<'tcx> {
     let mir = cx.optimized_mir(fn_annots.body_id);
-    let span_to_local = &span_to_mir_local(mir);
-    let mut builder = RefineBuilder::new(cx, rcx, typeck_table, span_to_local);
+    let mir_local_table = MirLocalTable::new(cx, mir);
+    let builder = RefineBuilder::new(cx, typeck_table, &mir_local_table);
+
+    let fn_ty = if let Some(fn_ty) = &fn_annots.fn_ty {
+        builder.build_fn_typ(fn_ty)
+    } else {
+        let inputs = iter::repeat(cx.refine_true())
+            .take(mir.arg_count)
+            .collect::<Vec<_>>();
+        let output = cx.refine_true();
+        FnType { inputs, output }
+    };
 
     let mut local_decls = HashMap::new();
     for refine in fn_annots.locals.values() {
-        local_decls.insert(
-            lookup_mir_local(refine.name, span_to_local),
-            builder.build_refine(&refine.pred),
-        );
+        let local = mir_local_table.lookup_hir_id(refine.hir_res.hir_id());
+        local_decls.insert(local, builder.build_refine(&refine.pred, &[]));
     }
 
-    let mut inputs = Vec::new();
-    let output: &Refine;
-    if let Some(fn_ty) = &fn_annots.fn_ty {
-        for refine in &fn_ty.inputs {
-            let expr = builder.build_refine(&refine.pred);
-            let local = lookup_mir_local(refine.name, &span_to_local);
-            local_decls.insert(local, expr);
-            inputs.push(expr)
-        }
-        output = builder.build_refine(&fn_ty.output.pred);
-        local_decls.insert(lookup_mir_local(fn_ty.output.name, &span_to_local), output);
-    } else {
-        for _ in 0..mir.arg_count {
-            inputs.push(rcx.refine_true);
-        }
-        output = rcx.refine_true;
+    let mut locals = (0..mir.arg_count)
+        .map(|i| mir::Local::from_usize(i + 1))
+        .collect::<Vec<_>>();
+    locals.push(mir::RETURN_PLACE);
+    let opened = fn_ty.open(&locals);
+    for (input, local) in opened.into_iter().zip(locals) {
+        local_decls.insert(local, input);
     }
-    let fn_decl = FnDecl { inputs, output };
 
-    let fn_refines = FnRefines {
+    FnRefines {
         body_id: fn_annots.body_id,
-        fn_decl,
+        fn_ty,
         local_decls,
-    };
-    (fn_refines, builder.var_subst)
+    }
 }
 
-struct RefineBuilder<'a, 'b, 'rcx, 'tcx> {
+struct RefineBuilder<'a, 'b, 'tcx> {
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
     typeck_table: &'b HashMap<ast::ExprId, ty::Ty<'tcx>>,
-    span_to_local: &'b HashMap<Span, mir::Local>,
-    pub var_subst: VarSubst,
+    mir_local_table: &'b MirLocalTable<'a, 'tcx>,
 }
 
-impl<'a, 'b, 'rcx, 'tcx> RefineBuilder<'a, 'b, 'rcx, 'tcx> {
+impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
     fn new(
         cx: &'a LiquidRustCtxt<'a, 'tcx>,
-        rcx: &'rcx RefineCtxt<'rcx, 'tcx>,
         typeck_table: &'b HashMap<ast::ExprId, ty::Ty<'tcx>>,
-        span_to_local: &'b HashMap<Span, mir::Local>,
+        mir_local_table: &'b MirLocalTable<'a, 'tcx>,
     ) -> Self {
         RefineBuilder {
             cx,
-            rcx,
             typeck_table,
-            span_to_local,
-            var_subst: VarSubst::empty(),
+            mir_local_table,
         }
     }
 
-    fn build_refine(&mut self, expr: &ast::Expr) -> &'rcx Refine<'rcx, 'tcx> {
+    pub fn build_fn_typ(&self, fn_typ: &ast::FnType) -> FnType<'tcx> {
+        let mut local_bindings = vec![];
+        let inputs = fn_typ
+            .inputs
+            .iter()
+            .map(|input| {
+                local_bindings.push(input.binding.name);
+                self.build_refine(&input.pred, &local_bindings)
+            })
+            .collect::<Vec<_>>();
+        local_bindings.push(fn_typ.output.binding.name);
+        let output = self.build_refine(&fn_typ.output.pred, &local_bindings);
+        FnType { inputs, output }
+    }
+
+    pub fn build_refine(&self, expr: &ast::Expr, local_bindings: &[Symbol]) -> Refine<'tcx> {
         let ty = self.typeck_table[&expr.expr_id];
-        let rcx = self.rcx;
         match &expr.kind {
-            ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => rcx.mk_binary(
-                self.build_refine(lhs_expr),
+            ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => Refine::Binary(
+                box self.build_refine(lhs_expr, local_bindings),
                 op.kind,
-                self.build_refine(rhs_expr),
+                box self.build_refine(rhs_expr, local_bindings),
             ),
-            ast::ExprKind::Unary(op, expr) => rcx.mk_unary(op.kind, self.build_refine(expr)),
-            ast::ExprKind::Name(name) => rcx.mk_place(Place::from_var(self.var_for_name(*name))),
+            ast::ExprKind::Unary(op, expr) => {
+                Refine::Unary(op.kind, box self.build_refine(expr, local_bindings))
+            }
+            ast::ExprKind::Name(name) => {
+                Refine::Place(Place::from_var(self.var_for_name(*name, local_bindings)))
+            }
             ast::ExprKind::Lit(lit) => self.lit_to_constant(&lit.node, ty, expr.span),
             ast::ExprKind::Err => bug!(),
         }
     }
 
-    fn var_for_name(&mut self, name: ast::Name) -> Var {
+    fn var_for_name(&self, name: ast::Name, local_bindings: &[Symbol]) -> Var {
         match name.hir_res {
-            ast::HirRes::ExternalBinding(_, span) => match self.span_to_local.get(&span) {
-                Some(local) => self.var_subst.extend_with_fresh(*local),
-                None => bug!("couldn't match name to mir local: {:?}", name),
-            },
-            ast::HirRes::CurrentBinding(_, _) | ast::HirRes::ReturnValue => Var::nu(),
+            ast::HirRes::Binding(_) => {
+                for (i, symb) in local_bindings.iter().rev().enumerate() {
+                    if name.ident.name == *symb {
+                        return Var::Bound(i);
+                    }
+                }
+                Var::Free(self.mir_local_table.lookup_name(name))
+            }
+            ast::HirRes::ReturnValue => Var::nu(),
             ast::HirRes::Unresolved => bug!("identifiers must be resolved"),
         }
     }
 
-    fn lit_to_constant(
-        &self,
-        lit: &ast::LitKind,
-        ty: Ty<'tcx>,
-        sp: Span,
-    ) -> &'rcx Refine<'rcx, 'tcx> {
+    fn lit_to_constant(&self, lit: &ast::LitKind, ty: Ty<'tcx>, sp: Span) -> Refine<'tcx> {
         let tcx = self.cx.tcx();
         let val = match constant::lit_to_const_value(tcx, lit, ty, false) {
             Ok(c) => c,
@@ -141,27 +134,42 @@ impl<'a, 'b, 'rcx, 'tcx> RefineBuilder<'a, 'b, 'rcx, 'tcx> {
             }
             Err(LitToConstError::Reported) => bug!(),
         };
-        self.rcx.mk_constant(ty, val)
+        Refine::Constant(ty, val)
     }
 }
 
-fn lookup_mir_local(name: ast::Name, map: &HashMap<Span, mir::Local>) -> mir::Local {
-    match name.hir_res {
-        ast::HirRes::CurrentBinding(_, span) | ast::HirRes::ExternalBinding(_, span) => {
-            match map.get(&span) {
-                Some(local) => *local,
-                None => bug!("couldn't match name to mir local: {:?}", name),
+struct MirLocalTable<'a, 'tcx> {
+    cx: &'a LiquidRustCtxt<'a, 'tcx>,
+    map: HashMap<Span, mir::Local>,
+}
+
+impl<'a, 'tcx> MirLocalTable<'a, 'tcx> {
+    fn new(cx: &'a LiquidRustCtxt<'a, 'tcx>, mir: &'tcx mir::Body<'tcx>) -> Self {
+        let mut map = HashMap::new();
+        for var_info in &mir.var_debug_info {
+            map.insert(var_info.source_info.span, var_info.place.local);
+        }
+        MirLocalTable { cx, map }
+    }
+
+    pub fn lookup_hir_id(&self, hir_id: rustc_hir::HirId) -> mir::Local {
+        let node = self.cx.hir().get(hir_id);
+        if_chain! {
+            if let rustc_hir::Node::Binding(pat) = node;
+            if let Some(local) = self.map.get(&pat.span);
+            then {
+                *local
+            } else {
+                bug!("couldn't match node to mir local:\n{:#?}", node)
             }
         }
-        ast::HirRes::ReturnValue => mir::RETURN_PLACE,
-        ast::HirRes::Unresolved => bug!("identifiers must be resolved"),
     }
-}
 
-fn span_to_mir_local(body: &mir::Body) -> HashMap<Span, mir::Local> {
-    let mut map = HashMap::new();
-    for var_info in &body.var_debug_info {
-        map.insert(var_info.source_info.span, var_info.place.local);
+    pub fn lookup_name(&self, name: ast::Name) -> mir::Local {
+        match name.hir_res {
+            ast::HirRes::Binding(hir_id) => self.lookup_hir_id(hir_id),
+            ast::HirRes::ReturnValue => mir::RETURN_PLACE,
+            ast::HirRes::Unresolved => bug!("identifiers must be resolved"),
+        }
     }
-    map
 }
