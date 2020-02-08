@@ -6,7 +6,8 @@ extern crate rustc_hir;
 extern crate rustc_interface;
 extern crate rustc_lint;
 
-use rustc_interface::Config;
+use rustc_driver::{Callbacks, Compilation};
+use rustc_interface::{interface::Compiler, Config, Queries};
 use rustc_lint::{LateContext, LateLintPass, LintPass};
 
 struct LiquidRust;
@@ -31,11 +32,19 @@ impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LiquidRust {
 
 struct LiquidRustDriver;
 
-impl rustc_driver::Callbacks for LiquidRustDriver {
+impl Callbacks for LiquidRustDriver {
     fn config(&mut self, config: &mut Config) {
         config.register_lints = Some(box move |_sess, lint_store| {
             lint_store.register_late_pass(move || box LiquidRust::new());
         });
+    }
+
+    fn after_analysis<'tcx>(
+        &mut self,
+        _compiler: &Compiler,
+        _queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
+        Compilation::Stop
     }
 }
 
