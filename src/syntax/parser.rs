@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.17.2"
-// sha256: 26ff235633b61d6a3a2e21d03b813243587ec2892f9f01eb4ec45b122fa618
+// sha256: 5b88663337dd8159d0f33b4bcfe0895e81c8a0e48ac55ae4a59153807ecefb
 #![allow(unused_parens)]
 use std::str::FromStr;
 use super::span_with_offset;
@@ -11,7 +11,7 @@ extern crate lalrpop_util as __lalrpop_util;
 use self::__lalrpop_util::state_machine as __state_machine;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-mod __parse__FnRefines {
+mod __parse__FnRefts {
     #![allow(non_snake_case, non_camel_case_types, unused_mut, unused_variables, unused_imports, unused_parens)]
 
     use std::str::FromStr;
@@ -27,18 +27,18 @@ mod __parse__FnRefines {
     pub enum __Symbol<'input>
      {
         Variant0(&'input str),
-        Variant1(Refine),
-        Variant2(::std::vec::Vec<Refine>),
+        Variant1(Reft),
+        Variant2(::std::vec::Vec<Reft>),
         Variant3(usize),
         Variant4(BinOp),
-        Variant5(Box<Expr>),
+        Variant5(Box<Pred>),
         Variant6(FnType),
         Variant7(Ident),
         Variant8(Lit),
         Variant9(Name),
         Variant10(BinOpKind),
-        Variant11(::std::option::Option<Refine>),
-        Variant12(Vec<Refine>),
+        Variant11(::std::option::Option<Reft>),
+        Variant12(Vec<Reft>),
         Variant13(UnOp),
         Variant14(UnOpKind),
     }
@@ -1115,15 +1115,15 @@ mod __parse__FnRefines {
             _ => panic!("invalid reduction index {}", __reduce_index)
         }
     }
-    pub struct FnRefinesParser {
+    pub struct FnReftsParser {
         builder: super::__intern_token::__MatcherBuilder,
         _priv: (),
     }
 
-    impl FnRefinesParser {
-        pub fn new() -> FnRefinesParser {
+    impl FnReftsParser {
+        pub fn new() -> FnReftsParser {
             let __builder = super::__intern_token::__MatcherBuilder::new();
-            FnRefinesParser {
+            FnReftsParser {
                 builder: __builder,
                 _priv: (),
             }
@@ -1352,7 +1352,7 @@ mod __parse__FnRefines {
                 __reduce57(offset, ctxt, next_expr_id, input, __action, __lookahead_start, __states, __symbols, ::std::marker::PhantomData::<(&(), F)>)
             }
             58 => {
-                // __FnRefines = FnRefines => ActionFn(0);
+                // __FnRefts = FnRefts => ActionFn(0);
                 let __sym0 = __pop_Variant6(__symbols);
                 let __start = __sym0.0.clone();
                 let __end = __sym0.2.clone();
@@ -1397,7 +1397,7 @@ mod __parse__FnRefines {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Box<Expr>, usize)
+    ) -> (usize, Box<Pred>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant5(__v), __r) => (__l, __v, __r),
@@ -1452,7 +1452,7 @@ mod __parse__FnRefines {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Refine, usize)
+    ) -> (usize, Reft, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant1(__v), __r) => (__l, __v, __r),
@@ -1485,7 +1485,7 @@ mod __parse__FnRefines {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Vec<Refine>, usize)
+    ) -> (usize, Vec<Reft>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant12(__v), __r) => (__l, __v, __r),
@@ -1507,7 +1507,7 @@ mod __parse__FnRefines {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::option::Option<Refine>, usize)
+    ) -> (usize, ::std::option::Option<Reft>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant11(__v), __r) => (__l, __v, __r),
@@ -1518,7 +1518,7 @@ mod __parse__FnRefines {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::vec::Vec<Refine>, usize)
+    ) -> (usize, ::std::vec::Vec<Reft>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant2(__v), __r) => (__l, __v, __r),
@@ -1554,7 +1554,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",") = Refine, "," => ActionFn(50);
+        // (<Reft> ",") = Reft, "," => ActionFn(50);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
@@ -1581,7 +1581,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")* =  => ActionFn(48);
+        // (<Reft> ",")* =  => ActionFn(48);
         let __start = __symbols.last().map(|s| s.2.clone()).unwrap_or_default();
         let __end = __lookahead_start.cloned().unwrap_or_else(|| __start.clone());
         let __nt = super::__action48::<F>(offset, ctxt, next_expr_id, input, &__start, &__end);
@@ -1606,7 +1606,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")* = (<Refine> ",")+ => ActionFn(49);
+        // (<Reft> ",")* = (<Reft> ",")+ => ActionFn(49);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -1632,7 +1632,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")+ = Refine, "," => ActionFn(57);
+        // (<Reft> ",")+ = Reft, "," => ActionFn(57);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
@@ -1659,7 +1659,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")+ = (<Refine> ",")+, Refine, "," => ActionFn(58);
+        // (<Reft> ",")+ = (<Reft> ",")+, Reft, "," => ActionFn(58);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant2(__symbols);
@@ -2158,7 +2158,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // FnRefines = "/**@", FnType, "@*/" => ActionFn(2);
+        // FnRefts = "/**@", FnType, "@*/" => ActionFn(2);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -2186,7 +2186,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // FnType = "(", RefineList, ")", "->", Refine => ActionFn(3);
+        // FnType = "(", ReftList, ")", "->", Reft => ActionFn(3);
         let __sym4 = __pop_Variant1(__symbols);
         let __sym3 = __pop_Variant0(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
@@ -2536,7 +2536,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // LocalRefine = "/**@", Refine, "@*/" => ActionFn(4);
+        // LocalReft = "/**@", Reft, "@*/" => ActionFn(4);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -2824,7 +2824,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // Refine = Ident, ":", "{", ExprLevel1, "}" => ActionFn(97);
+        // Reft = Ident, ":", "{", ExprLevel1, "}" => ActionFn(97);
         let __sym4 = __pop_Variant0(__symbols);
         let __sym3 = __pop_Variant5(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
@@ -2854,7 +2854,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // Refine? = Refine => ActionFn(46);
+        // Reft? = Reft => ActionFn(46);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -2880,7 +2880,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // Refine? =  => ActionFn(47);
+        // Reft? =  => ActionFn(47);
         let __start = __symbols.last().map(|s| s.2.clone()).unwrap_or_default();
         let __end = __lookahead_start.cloned().unwrap_or_else(|| __start.clone());
         let __nt = super::__action47::<F>(offset, ctxt, next_expr_id, input, &__start, &__end);
@@ -2905,7 +2905,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList = Refine => ActionFn(99);
+        // ReftList = Reft => ActionFn(99);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -2931,7 +2931,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList =  => ActionFn(100);
+        // ReftList =  => ActionFn(100);
         let __start = __symbols.last().map(|s| s.2.clone()).unwrap_or_default();
         let __end = __lookahead_start.cloned().unwrap_or_else(|| __start.clone());
         let __nt = super::__action100::<F>(offset, ctxt, next_expr_id, input, &__start, &__end);
@@ -2956,7 +2956,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList = (<Refine> ",")+, Refine => ActionFn(101);
+        // ReftList = (<Reft> ",")+, Reft => ActionFn(101);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
@@ -2983,7 +2983,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList = (<Refine> ",")+ => ActionFn(102);
+        // ReftList = (<Reft> ",")+ => ActionFn(102);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -3087,7 +3087,7 @@ mod __parse__FnRefines {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // __LocalRefine = LocalRefine => ActionFn(1);
+        // __LocalReft = LocalReft => ActionFn(1);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -3096,10 +3096,10 @@ mod __parse__FnRefines {
         (1, 38)
     }
 }
-pub use self::__parse__FnRefines::FnRefinesParser;
+pub use self::__parse__FnRefts::FnReftsParser;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-mod __parse__LocalRefine {
+mod __parse__LocalReft {
     #![allow(non_snake_case, non_camel_case_types, unused_mut, unused_variables, unused_imports, unused_parens)]
 
     use std::str::FromStr;
@@ -3115,18 +3115,18 @@ mod __parse__LocalRefine {
     pub enum __Symbol<'input>
      {
         Variant0(&'input str),
-        Variant1(Refine),
-        Variant2(::std::vec::Vec<Refine>),
+        Variant1(Reft),
+        Variant2(::std::vec::Vec<Reft>),
         Variant3(usize),
         Variant4(BinOp),
-        Variant5(Box<Expr>),
+        Variant5(Box<Pred>),
         Variant6(FnType),
         Variant7(Ident),
         Variant8(Lit),
         Variant9(Name),
         Variant10(BinOpKind),
-        Variant11(::std::option::Option<Refine>),
-        Variant12(Vec<Refine>),
+        Variant11(::std::option::Option<Reft>),
+        Variant12(Vec<Reft>),
         Variant13(UnOp),
         Variant14(UnOpKind),
     }
@@ -3541,7 +3541,7 @@ mod __parse__LocalRefine {
         type Token = Token<'input>;
         type TokenIndex = usize;
         type Symbol = __Symbol<'input>;
-        type Success = Refine;
+        type Success = Reft;
         type StateIndex = i8;
         type Action = i8;
         type ReduceIndex = i8;
@@ -4143,15 +4143,15 @@ mod __parse__LocalRefine {
             _ => panic!("invalid reduction index {}", __reduce_index)
         }
     }
-    pub struct LocalRefineParser {
+    pub struct LocalReftParser {
         builder: super::__intern_token::__MatcherBuilder,
         _priv: (),
     }
 
-    impl LocalRefineParser {
-        pub fn new() -> LocalRefineParser {
+    impl LocalReftParser {
+        pub fn new() -> LocalReftParser {
             let __builder = super::__intern_token::__MatcherBuilder::new();
-            LocalRefineParser {
+            LocalReftParser {
                 builder: __builder,
                 _priv: (),
             }
@@ -4167,7 +4167,7 @@ mod __parse__LocalRefine {
             ctxt: SyntaxContext,
             next_expr_id: F,
             input: &'input str,
-        ) -> Result<Refine, __lalrpop_util::ParseError<usize, Token<'input>, &'static str>>
+        ) -> Result<Reft, __lalrpop_util::ParseError<usize, Token<'input>, &'static str>>
         where
             F: Fn() -> ExprId,
             F: Copy,
@@ -4199,7 +4199,7 @@ mod __parse__LocalRefine {
         __states: &mut ::std::vec::Vec<i8>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
         _: ::std::marker::PhantomData<(&'input (), F)>,
-    ) -> Option<Result<Refine,__lalrpop_util::ParseError<usize, Token<'input>, &'static str>>>
+    ) -> Option<Result<Reft,__lalrpop_util::ParseError<usize, Token<'input>, &'static str>>>
     where
         F: Fn() -> ExprId,
         F: Copy,
@@ -4383,7 +4383,7 @@ mod __parse__LocalRefine {
                 __reduce58(offset, ctxt, next_expr_id, input, __action, __lookahead_start, __states, __symbols, ::std::marker::PhantomData::<(&(), F)>)
             }
             59 => {
-                // __LocalRefine = LocalRefine => ActionFn(1);
+                // __LocalReft = LocalReft => ActionFn(1);
                 let __sym0 = __pop_Variant1(__symbols);
                 let __start = __sym0.0.clone();
                 let __end = __sym0.2.clone();
@@ -4425,7 +4425,7 @@ mod __parse__LocalRefine {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Box<Expr>, usize)
+    ) -> (usize, Box<Pred>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant5(__v), __r) => (__l, __v, __r),
@@ -4480,7 +4480,7 @@ mod __parse__LocalRefine {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Refine, usize)
+    ) -> (usize, Reft, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant1(__v), __r) => (__l, __v, __r),
@@ -4513,7 +4513,7 @@ mod __parse__LocalRefine {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Vec<Refine>, usize)
+    ) -> (usize, Vec<Reft>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant12(__v), __r) => (__l, __v, __r),
@@ -4535,7 +4535,7 @@ mod __parse__LocalRefine {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::option::Option<Refine>, usize)
+    ) -> (usize, ::std::option::Option<Reft>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant11(__v), __r) => (__l, __v, __r),
@@ -4546,7 +4546,7 @@ mod __parse__LocalRefine {
       'input,
     >(
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::vec::Vec<Refine>, usize)
+    ) -> (usize, ::std::vec::Vec<Reft>, usize)
      {
         match __symbols.pop().unwrap() {
             (__l, __Symbol::Variant2(__v), __r) => (__l, __v, __r),
@@ -4582,7 +4582,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",") = Refine, "," => ActionFn(50);
+        // (<Reft> ",") = Reft, "," => ActionFn(50);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
@@ -4609,7 +4609,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")* =  => ActionFn(48);
+        // (<Reft> ",")* =  => ActionFn(48);
         let __start = __symbols.last().map(|s| s.2.clone()).unwrap_or_default();
         let __end = __lookahead_start.cloned().unwrap_or_else(|| __start.clone());
         let __nt = super::__action48::<F>(offset, ctxt, next_expr_id, input, &__start, &__end);
@@ -4634,7 +4634,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")* = (<Refine> ",")+ => ActionFn(49);
+        // (<Reft> ",")* = (<Reft> ",")+ => ActionFn(49);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -4660,7 +4660,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")+ = Refine, "," => ActionFn(57);
+        // (<Reft> ",")+ = Reft, "," => ActionFn(57);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
@@ -4687,7 +4687,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // (<Refine> ",")+ = (<Refine> ",")+, Refine, "," => ActionFn(58);
+        // (<Reft> ",")+ = (<Reft> ",")+, Reft, "," => ActionFn(58);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant2(__symbols);
@@ -5186,7 +5186,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // FnRefines = "/**@", FnType, "@*/" => ActionFn(2);
+        // FnRefts = "/**@", FnType, "@*/" => ActionFn(2);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -5214,7 +5214,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // FnType = "(", RefineList, ")", "->", Refine => ActionFn(3);
+        // FnType = "(", ReftList, ")", "->", Reft => ActionFn(3);
         let __sym4 = __pop_Variant1(__symbols);
         let __sym3 = __pop_Variant0(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
@@ -5564,7 +5564,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // LocalRefine = "/**@", Refine, "@*/" => ActionFn(4);
+        // LocalReft = "/**@", Reft, "@*/" => ActionFn(4);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
@@ -5852,7 +5852,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // Refine = Ident, ":", "{", ExprLevel1, "}" => ActionFn(97);
+        // Reft = Ident, ":", "{", ExprLevel1, "}" => ActionFn(97);
         let __sym4 = __pop_Variant0(__symbols);
         let __sym3 = __pop_Variant5(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
@@ -5882,7 +5882,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // Refine? = Refine => ActionFn(46);
+        // Reft? = Reft => ActionFn(46);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -5908,7 +5908,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // Refine? =  => ActionFn(47);
+        // Reft? =  => ActionFn(47);
         let __start = __symbols.last().map(|s| s.2.clone()).unwrap_or_default();
         let __end = __lookahead_start.cloned().unwrap_or_else(|| __start.clone());
         let __nt = super::__action47::<F>(offset, ctxt, next_expr_id, input, &__start, &__end);
@@ -5933,7 +5933,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList = Refine => ActionFn(99);
+        // ReftList = Reft => ActionFn(99);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -5959,7 +5959,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList =  => ActionFn(100);
+        // ReftList =  => ActionFn(100);
         let __start = __symbols.last().map(|s| s.2.clone()).unwrap_or_default();
         let __end = __lookahead_start.cloned().unwrap_or_else(|| __start.clone());
         let __nt = super::__action100::<F>(offset, ctxt, next_expr_id, input, &__start, &__end);
@@ -5984,7 +5984,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList = (<Refine> ",")+, Refine => ActionFn(101);
+        // ReftList = (<Reft> ",")+, Reft => ActionFn(101);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
@@ -6011,7 +6011,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // RefineList = (<Refine> ",")+ => ActionFn(102);
+        // ReftList = (<Reft> ",")+ => ActionFn(102);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -6115,7 +6115,7 @@ mod __parse__LocalRefine {
         F: Fn() -> ExprId,
         F: Copy,
     {
-        // __FnRefines = FnRefines => ActionFn(0);
+        // __FnRefts = FnRefts => ActionFn(0);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
@@ -6124,7 +6124,7 @@ mod __parse__LocalRefine {
         (1, 37)
     }
 }
-pub use self::__parse__LocalRefine::LocalRefineParser;
+pub use self::__parse__LocalReft::LocalReftParser;
 #[cfg_attr(rustfmt, rustfmt_skip)]
 mod __intern_token {
     #![allow(unused_imports)]
@@ -6294,8 +6294,8 @@ fn __action1<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Refine, usize),
-) -> Refine
+    (_, __0, _): (usize, Reft, usize),
+) -> Reft
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6333,10 +6333,10 @@ fn __action3<
     next_expr_id: F,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
-    (_, inputs, _): (usize, Vec<Refine>, usize),
+    (_, inputs, _): (usize, Vec<Reft>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, output, _): (usize, Refine, usize),
+    (_, output, _): (usize, Reft, usize),
 ) -> FnType
 where
     F: Fn() -> ExprId,
@@ -6358,9 +6358,9 @@ fn __action4<
     next_expr_id: F,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
-    (_, __0, _): (usize, Refine, usize),
+    (_, __0, _): (usize, Reft, usize),
     (_, _, _): (usize, &'input str, usize),
-) -> Refine
+) -> Reft
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6377,9 +6377,9 @@ fn __action5<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, refines, _): (usize, ::std::vec::Vec<Refine>, usize),
-    (_, r, _): (usize, ::std::option::Option<Refine>, usize),
-) -> Vec<Refine>
+    (_, refines, _): (usize, ::std::vec::Vec<Reft>, usize),
+    (_, r, _): (usize, ::std::option::Option<Reft>, usize),
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6406,15 +6406,15 @@ fn __action6<
     (_, ident, _): (usize, Ident, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, e, _): (usize, Box<Expr>, usize),
+    (_, e, _): (usize, Box<Pred>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Refine
+) -> Reft
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    Refine {
+    Reft {
             binding: ident,
             pred: *e,
             span: span_with_offset(lo, hi, offset, ctxt),
@@ -6431,8 +6431,8 @@ fn __action7<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6449,8 +6449,8 @@ fn __action8<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6468,16 +6468,16 @@ fn __action9<
     next_expr_id: F,
     input: &'input str,
     (_, lo, _): (usize, usize, usize),
-    (_, e1, _): (usize, Box<Expr>, usize),
+    (_, e1, _): (usize, Box<Pred>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, e2, _): (usize, Box<Expr>, usize),
+    (_, e2, _): (usize, Box<Pred>, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt),
@@ -6493,8 +6493,8 @@ fn __action10<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6511,8 +6511,8 @@ fn __action11<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6529,8 +6529,8 @@ fn __action12<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6549,14 +6549,14 @@ fn __action13<
     input: &'input str,
     (_, lo, _): (usize, usize, usize),
     (_, op, _): (usize, UnOp, usize),
-    (_, e, _): (usize, Box<Expr>, usize),
+    (_, e, _): (usize, Box<Pred>, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Unary(op, e),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -6572,8 +6572,8 @@ fn __action14<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6593,12 +6593,12 @@ fn __action15<
     (_, lo, _): (usize, usize, usize),
     (_, name, _): (usize, Name, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Name(name),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -6617,12 +6617,12 @@ fn __action16<
     (_, lo, _): (usize, usize, usize),
     (_, lit, _): (usize, Lit, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Lit(lit),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -6639,9 +6639,9 @@ fn __action17<
     next_expr_id: F,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
-    (_, __0, _): (usize, Box<Expr>, usize),
+    (_, __0, _): (usize, Box<Pred>, usize),
     (_, _, _): (usize, &'input str, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -6987,16 +6987,16 @@ fn __action35<
     next_expr_id: F,
     input: &'input str,
     (_, lo, _): (usize, usize, usize),
-    (_, e1, _): (usize, Box<Expr>, usize),
+    (_, e1, _): (usize, Box<Pred>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, e2, _): (usize, Box<Expr>, usize),
+    (_, e2, _): (usize, Box<Pred>, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -7012,8 +7012,8 @@ fn __action36<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7031,16 +7031,16 @@ fn __action37<
     next_expr_id: F,
     input: &'input str,
     (_, lo, _): (usize, usize, usize),
-    (_, e1, _): (usize, Box<Expr>, usize),
+    (_, e1, _): (usize, Box<Pred>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, e2, _): (usize, Box<Expr>, usize),
+    (_, e2, _): (usize, Box<Pred>, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -7056,8 +7056,8 @@ fn __action38<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7098,16 +7098,16 @@ fn __action40<
     next_expr_id: F,
     input: &'input str,
     (_, lo, _): (usize, usize, usize),
-    (_, e1, _): (usize, Box<Expr>, usize),
+    (_, e1, _): (usize, Box<Pred>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, e2, _): (usize, Box<Expr>, usize),
+    (_, e2, _): (usize, Box<Pred>, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -7123,8 +7123,8 @@ fn __action41<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7142,16 +7142,16 @@ fn __action42<
     next_expr_id: F,
     input: &'input str,
     (_, lo, _): (usize, usize, usize),
-    (_, e1, _): (usize, Box<Expr>, usize),
+    (_, e1, _): (usize, Box<Pred>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, e2, _): (usize, Box<Expr>, usize),
+    (_, e2, _): (usize, Box<Pred>, usize),
     (_, hi, _): (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
 {
-    box Expr {
+    box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -7167,8 +7167,8 @@ fn __action43<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    (_, __0, _): (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7223,8 +7223,8 @@ fn __action46<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Refine, usize),
-) -> ::std::option::Option<Refine>
+    (_, __0, _): (usize, Reft, usize),
+) -> ::std::option::Option<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7243,7 +7243,7 @@ fn __action47<
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> ::std::option::Option<Refine>
+) -> ::std::option::Option<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7262,7 +7262,7 @@ fn __action48<
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> ::std::vec::Vec<Refine>
+) -> ::std::vec::Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7279,8 +7279,8 @@ fn __action49<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<Refine>, usize),
-) -> ::std::vec::Vec<Refine>
+    (_, v, _): (usize, ::std::vec::Vec<Reft>, usize),
+) -> ::std::vec::Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7297,9 +7297,9 @@ fn __action50<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Refine, usize),
+    (_, __0, _): (usize, Reft, usize),
     (_, _, _): (usize, &'input str, usize),
-) -> Refine
+) -> Reft
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7316,8 +7316,8 @@ fn __action51<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, __0, _): (usize, Refine, usize),
-) -> ::std::vec::Vec<Refine>
+    (_, __0, _): (usize, Reft, usize),
+) -> ::std::vec::Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7334,9 +7334,9 @@ fn __action52<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<Refine>, usize),
-    (_, e, _): (usize, Refine, usize),
-) -> ::std::vec::Vec<Refine>
+    (_, v, _): (usize, ::std::vec::Vec<Reft>, usize),
+    (_, e, _): (usize, Reft, usize),
+) -> ::std::vec::Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7445,9 +7445,9 @@ fn __action57<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Refine, usize),
+    __0: (usize, Reft, usize),
     __1: (usize, &'input str, usize),
-) -> ::std::vec::Vec<Refine>
+) -> ::std::vec::Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7485,10 +7485,10 @@ fn __action58<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Refine>, usize),
-    __1: (usize, Refine, usize),
+    __0: (usize, ::std::vec::Vec<Reft>, usize),
+    __1: (usize, Reft, usize),
     __2: (usize, &'input str, usize),
-) -> ::std::vec::Vec<Refine>
+) -> ::std::vec::Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7527,8 +7527,8 @@ fn __action59<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, ::std::option::Option<Refine>, usize),
-) -> Vec<Refine>
+    __0: (usize, ::std::option::Option<Reft>, usize),
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7567,9 +7567,9 @@ fn __action60<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Refine>, usize),
-    __1: (usize, ::std::option::Option<Refine>, usize),
-) -> Vec<Refine>
+    __0: (usize, ::std::vec::Vec<Reft>, usize),
+    __1: (usize, ::std::option::Option<Reft>, usize),
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7817,11 +7817,11 @@ fn __action66<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
+    __2: (usize, Box<Pred>, usize),
     __3: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7864,9 +7864,9 @@ fn __action67<
     next_expr_id: F,
     input: &'input str,
     __0: (usize, UnOp, usize),
-    __1: (usize, Box<Expr>, usize),
+    __1: (usize, Box<Pred>, usize),
     __2: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7909,7 +7909,7 @@ fn __action68<
     input: &'input str,
     __0: (usize, Name, usize),
     __1: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -7951,7 +7951,7 @@ fn __action69<
     input: &'input str,
     __0: (usize, Lit, usize),
     __1: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8033,11 +8033,11 @@ fn __action71<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
+    __2: (usize, Box<Pred>, usize),
     __3: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8079,11 +8079,11 @@ fn __action72<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
+    __2: (usize, Box<Pred>, usize),
     __3: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8125,11 +8125,11 @@ fn __action73<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
+    __2: (usize, Box<Pred>, usize),
     __3: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8171,11 +8171,11 @@ fn __action74<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
+    __2: (usize, Box<Pred>, usize),
     __3: (usize, usize, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8346,10 +8346,10 @@ fn __action78<
     __0: (usize, Ident, usize),
     __1: (usize, &'input str, usize),
     __2: (usize, &'input str, usize),
-    __3: (usize, Box<Expr>, usize),
+    __3: (usize, Box<Pred>, usize),
     __4: (usize, &'input str, usize),
     __5: (usize, usize, usize),
-) -> Refine
+) -> Reft
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8635,10 +8635,10 @@ fn __action85<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    __2: (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8680,8 +8680,8 @@ fn __action86<
     next_expr_id: F,
     input: &'input str,
     __0: (usize, UnOp, usize),
-    __1: (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    __1: (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8722,7 +8722,7 @@ fn __action87<
     next_expr_id: F,
     input: &'input str,
     __0: (usize, Name, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8762,7 +8762,7 @@ fn __action88<
     next_expr_id: F,
     input: &'input str,
     __0: (usize, Lit, usize),
-) -> Box<Expr>
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8841,10 +8841,10 @@ fn __action90<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    __2: (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8885,10 +8885,10 @@ fn __action91<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    __2: (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8929,10 +8929,10 @@ fn __action92<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    __2: (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -8973,10 +8973,10 @@ fn __action93<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Box<Expr>, usize),
+    __0: (usize, Box<Pred>, usize),
     __1: (usize, BinOp, usize),
-    __2: (usize, Box<Expr>, usize),
-) -> Box<Expr>
+    __2: (usize, Box<Pred>, usize),
+) -> Box<Pred>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -9140,9 +9140,9 @@ fn __action97<
     __0: (usize, Ident, usize),
     __1: (usize, &'input str, usize),
     __2: (usize, &'input str, usize),
-    __3: (usize, Box<Expr>, usize),
+    __3: (usize, Box<Pred>, usize),
     __4: (usize, &'input str, usize),
-) -> Refine
+) -> Reft
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -9225,8 +9225,8 @@ fn __action99<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, Refine, usize),
-) -> Vec<Refine>
+    __0: (usize, Reft, usize),
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -9265,7 +9265,7 @@ fn __action100<
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> Vec<Refine>
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -9303,9 +9303,9 @@ fn __action101<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Refine>, usize),
-    __1: (usize, Refine, usize),
-) -> Vec<Refine>
+    __0: (usize, ::std::vec::Vec<Reft>, usize),
+    __1: (usize, Reft, usize),
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,
@@ -9343,8 +9343,8 @@ fn __action102<
     ctxt: SyntaxContext,
     next_expr_id: F,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Refine>, usize),
-) -> Vec<Refine>
+    __0: (usize, ::std::vec::Vec<Reft>, usize),
+) -> Vec<Reft>
 where
     F: Fn() -> ExprId,
     F: Copy,

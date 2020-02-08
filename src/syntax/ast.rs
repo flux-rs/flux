@@ -11,25 +11,25 @@ use std::fmt;
 pub struct FnAnnots {
     pub body_id: BodyId,
     pub fn_ty: Option<FnType>,
-    pub locals: HashMap<HirId, Refine>,
+    pub locals: HashMap<HirId, Reft>,
 }
 
 #[derive(Debug)]
 pub struct FnType {
-    pub inputs: Vec<Refine>,
-    pub output: Refine,
+    pub inputs: Vec<Reft>,
+    pub output: Reft,
 }
 
 #[derive(Debug)]
-pub struct Refine {
+pub struct Reft {
     pub binding: Ident,
     pub hir_res: HirRes,
-    pub pred: Expr,
+    pub pred: Pred,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct Expr {
+pub struct Pred {
     pub expr_id: ExprId,
     pub kind: ExprKind,
     pub span: Span,
@@ -40,8 +40,8 @@ pub struct ExprId(pub(super) u32);
 
 #[derive(Debug)]
 pub enum ExprKind {
-    Unary(UnOp, Box<Expr>),
-    Binary(Box<Expr>, BinOp, Box<Expr>),
+    Unary(UnOp, Box<Pred>),
+    Binary(Box<Pred>, BinOp, Box<Pred>),
     Lit(Lit),
     Name(Name),
     Err,

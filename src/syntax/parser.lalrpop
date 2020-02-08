@@ -6,24 +6,24 @@ use rustc_span::{symbol::Symbol, hygiene::SyntaxContext, BytePos};
 
 grammar<F>(offset: BytePos, ctxt: SyntaxContext, next_expr_id: F) where F: Fn () -> ExprId, F: Copy;
 
-pub FnRefines: FnType = {
+pub FnRefts: FnType = {
     "/**@" <FnType> "@*/"
 }
 
 FnType: FnType = {
-    "(" <inputs:RefineList> ")" "->" <output:Refine> =>
+    "(" <inputs:ReftList> ")" "->" <output:Reft> =>
         FnType {
             inputs: inputs,
             output
         },
 }
 
-pub LocalRefine: Refine = {
-    "/**@" <Refine> "@*/"
+pub LocalReft: Reft = {
+    "/**@" <Reft> "@*/"
 }
 
-RefineList: Vec<Refine> = {
-    <refines:(<Refine> ",")*> <r:Refine?> => {
+ReftList: Vec<Reft> = {
+    <refines:(<Reft> ",")*> <r:Reft?> => {
         let mut refines = refines;
         if let Some(r) = r {
             refines.push(r);
@@ -32,9 +32,9 @@ RefineList: Vec<Refine> = {
     },
 }
 
-Refine: Refine = {
+Reft: Reft = {
     <lo:@L> <ident: Ident> ":" "{" <e: ExprLevel1> "}" <hi:@R> =>
-        Refine {
+        Reft {
             binding: ident,
             pred: *e,
             span: span_with_offset(lo, hi, offset, ctxt),
@@ -46,9 +46,9 @@ ExprLevel1 = LeftAssoc<OpGroup1, ExprLevel2>;
 
 ExprLevel2 = LeftAssoc<OpGroup2, ExprLevel3>;
 
-ExprLevel3: Box<Expr> = {
+ExprLevel3: Box<Pred> = {
     <lo:@L> <e1: ExprLevel4> <op: BinOp<OpGroup3>> <e2: ExprLevel4> <hi:@R> =>
-        box Expr {
+        box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt),
@@ -60,9 +60,9 @@ ExprLevel4 = LeftAssoc<OpGroup4, ExprLevel5>;
 
 ExprLevel5 = LeftAssoc<OpGroup5, ExprLevel6>;
 
-ExprLevel6: Box<Expr> = {
+ExprLevel6: Box<Pred> = {
     <lo:@L> <op: UnOp> <e: ExprLevel7> <hi:@R> =>
-        box Expr {
+        box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Unary(op, e),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -70,15 +70,15 @@ ExprLevel6: Box<Expr> = {
     ExprLevel7,
 }
 
-ExprLevel7: Box<Expr> = {
+ExprLevel7: Box<Pred> = {
     <lo:@L> <name: Name> <hi:@R> =>
-        box Expr {
+        box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Name(name),
             span: span_with_offset(lo, hi, offset, ctxt)
         },
     <lo:@L> <lit: Lit> <hi:@R> =>
-        box Expr {
+        box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Lit(lit),
             span: span_with_offset(lo, hi, offset, ctxt)
@@ -138,13 +138,13 @@ Ident: Ident = {
     }
 }
 
-LeftAssoc<OpGroup, NextExprLevel>: Box<Expr> = {
+LeftAssoc<OpGroup, NextExprLevel>: Box<Pred> = {
     <lo:@L>
     <e1: LeftAssoc<OpGroup,NextExprLevel>>
     <op: BinOp<OpGroup>>
     <e2: NextExprLevel>
     <hi:@R> =>
-        box Expr {
+        box Pred {
             expr_id: next_expr_id(),
             kind: ExprKind::Binary(e1, op, e2),
             span: span_with_offset(lo, hi, offset, ctxt)

@@ -13,11 +13,11 @@ pub trait MutVisitor<'ast>: Sized {
         walk_fn_type(self, fn_typ);
     }
 
-    fn visit_refine(&mut self, refine: &mut Refine) {
+    fn visit_refine(&mut self, refine: &mut Reft) {
         walk_refine(self, refine);
     }
 
-    fn visit_expression(&mut self, expr: &mut Expr) {
+    fn visit_expression(&mut self, expr: &mut Pred) {
         walk_expression(self, expr);
     }
 
@@ -29,11 +29,11 @@ pub fn walk_fn_type<'ast, V: MutVisitor<'ast>>(vis: &mut V, fn_typ: &mut FnType)
     walk_refine(vis, &mut fn_typ.output);
 }
 
-pub fn walk_refine<'ast, V: MutVisitor<'ast>>(vis: &mut V, refine: &mut Refine) {
+pub fn walk_refine<'ast, V: MutVisitor<'ast>>(vis: &mut V, refine: &mut Reft) {
     vis.visit_expression(&mut refine.pred);
 }
 
-pub fn walk_expression<'ast, V: MutVisitor<'ast>>(vis: &mut V, expr: &mut Expr) {
+pub fn walk_expression<'ast, V: MutVisitor<'ast>>(vis: &mut V, expr: &mut Pred) {
     match &mut expr.kind {
         ExprKind::Name(ident) => vis.visit_name(ident),
         ExprKind::Binary(e1, _, e2) => {

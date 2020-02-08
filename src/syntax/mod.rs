@@ -5,34 +5,36 @@ pub mod visit;
 
 extern crate lalrpop_util;
 
-use ast::{ExprId, FnType, Refine};
+use ast::{ExprId, FnType, Reft};
 use parser::Token;
-use parser::{FnRefinesParser, LocalRefineParser};
+use parser::{FnReftsParser, LocalReftParser};
 use rustc_span::{hygiene::SyntaxContext, BytePos, Span};
 use std::cell::Cell;
 
 pub type ParseError<'input> = lalrpop_util::ParseError<usize, Token<'input>, &'static str>;
 
 pub struct ParsingCtxt {
-    local_parser: LocalRefineParser,
-    fn_parser: FnRefinesParser,
+    local_parser: LocalReftParser,
+    fn_parser: FnReftsParser,
     next_expr_id: Cell<u32>,
 }
 
-impl ParsingCtxt {
-    pub fn new() -> Self {
-        ParsingCtxt {
-            local_parser: LocalRefineParser::new(),
-            fn_parser: FnRefinesParser::new(),
+impl Default for ParsingCtxt {
+    fn default() -> Self {
+        Self {
+            local_parser: LocalReftParser::new(),
+            fn_parser: FnReftsParser::new(),
             next_expr_id: Cell::new(0),
         }
     }
+}
 
+impl ParsingCtxt {
     pub fn parse_local_annot<'a>(
         &mut self,
         span: Span,
         s: &'a str,
-    ) -> Result<Refine, ParseError<'a>> {
+    ) -> Result<Reft, ParseError<'a>> {
         let next_expr_id = self.next_expr_id.clone();
         self.local_parser.parse(
             span.lo(),

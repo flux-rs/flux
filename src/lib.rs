@@ -35,9 +35,10 @@ pub fn run<'a, 'tcx>(
 
     let typeck_table = wf::check_wf(cx, &annots)?;
 
-    let a = ast_lowering::build_fn_refines(cx, &annots[0], &typeck_table);
-
-    typeck::checks(cx, &a, cx.optimized_mir(a.body_id));
+    for annot in annots {
+        let a = ast_lowering::build_fn_refines(cx, &annot, &typeck_table);
+        typeck::checks(cx, &a, cx.optimized_mir(a.body_id));
+    }
 
     Ok(())
 }

@@ -3,7 +3,7 @@ extern crate rustc_errors;
 extern crate rustc_lint;
 extern crate rustc_session;
 
-use super::refinements::{self, ConstValue, Refine, Scalar};
+use super::refinements::{self, ConstValue, Pred, Scalar};
 use rustc::mir;
 use rustc::ty::{Ty, TyCtxt};
 pub use rustc_errors::ErrorReported;
@@ -62,8 +62,8 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.cx.sess().abort_if_errors();
     }
 
-    pub fn refine_true(&self) -> Refine<'tcx> {
-        Refine::Constant(
+    pub fn refine_true(&self) -> Pred<'tcx> {
+        Pred::Constant(
             self.tcx().types.bool,
             ConstValue::Scalar(Scalar::from_bool(true)),
         )
@@ -74,7 +74,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         place: refinements::Place<'tcx>,
         f: mir::Field,
         ty: Ty<'tcx>,
-    ) -> Box<Refine<'tcx>> {
+    ) -> Box<Pred<'tcx>> {
         self.mk_place_elem(place, mir::PlaceElem::Field(f, ty))
     }
 
@@ -82,11 +82,11 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         &self,
         place: refinements::Place<'tcx>,
         elem: mir::PlaceElem<'tcx>,
-    ) -> Box<Refine<'tcx>> {
+    ) -> Box<Pred<'tcx>> {
         let mut projection = place.projection.to_vec();
         projection.push(elem);
 
-        box Refine::Place(refinements::Place {
+        box Pred::Place(refinements::Place {
             var: place.var,
             projection: self.tcx().intern_place_elems(&projection),
         })

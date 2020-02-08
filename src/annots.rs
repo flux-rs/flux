@@ -31,10 +31,10 @@ struct AnnotsCollector<'a, 'lr> {
 impl<'a, 'lr> AnnotsCollector<'a, 'lr> {
     fn new(cx: &'a LiquidRustCtxt<'a, 'lr>) -> Self {
         AnnotsCollector {
-            cx: cx,
+            cx,
             annots: Vec::new(),
             type_annot_regex: Regex::new(r"^/\*\*@[^@]*@\*/$").unwrap(),
-            parsing: ParsingCtxt::new(),
+            parsing: ParsingCtxt::default(),
         }
     }
 
@@ -102,7 +102,7 @@ impl<'a, 'lr> HirVisitor<'lr> for AnnotsCollector<'a, 'lr> {
             }
             self.annots.push(FnAnnots {
                 fn_ty,
-                body_id: body_id,
+                body_id,
                 locals: HashMap::new(),
             });
             intravisit::walk_item(self, item);

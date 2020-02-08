@@ -1,7 +1,7 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{FnRefines, Place, Refine, Var};
+use super::refinements::{FnRefines, Place, Pred, Var};
 use super::smtlib2::{SmtRes, Solver};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind};
@@ -34,6 +34,7 @@ pub fn checks<'a, 'tcx>(
     let mut cursor = DataflowResultsCursor::new(initialized_result, mir);
 
     for (bb, bbd) in mir.basic_blocks().iter_enumerated() {
+        println!("bb{}:", bb.index());
         for (i, statement) in bbd.statements.iter().enumerate() {
             let loc = mir::Location {
                 block: bb,
@@ -46,6 +47,7 @@ pub fn checks<'a, 'tcx>(
                     env.insert(local, refine);
                 }
             }
+            println!("  {:?}\n", statement);
             match &statement.kind {
                 StatementKind::Assign(box (place, rvalue)) => {
                     let ty = place.ty(mir, cx.tcx()).ty;
@@ -66,13 +68,20 @@ pub fn checks<'a, 'tcx>(
                 _ => unimplemented!(),
             }
         }
+        let loc = mir::Location {
+            block: bb,
+            statement_index: bbd.statements.len(),
+        };
+        cursor.seek(loc);
+        println!("  {:?}\n", bbd.terminator.as_ref().map(|t| &t.kind));
     }
+    println!("---------------------------");
 }
 
 fn check<'tcx>(
-    env: &HashMap<mir::Local, &Refine<'tcx>>,
-    lhs: &Refine<'tcx>,
-    rhs: &Refine<'tcx>,
+    env: &HashMap<mir::Local, &Pred<'tcx>>,
+    lhs: &Pred<'tcx>,
+    rhs: &Pred<'tcx>,
 ) -> SmtRes<()> {
     let mut solver = Solver::default(())?;
     let mut places = HashSet::new();
@@ -86,34 +95,34 @@ fn check<'tcx>(
         solver.declare_const(&place, "Int")?;
     }
 
-    for (_, refine) in env {
-        println!("{}", refine.to_smt_str());
+    for refine in env.values() {
+        println!("    {}", refine.to_smt_str());
         solver.assert(refine)?;
     }
-    let not_rhs = Refine::Unary(UnOpKind::Not, box rhs.clone());
+    let not_rhs = Pred::Unary(UnOpKind::Not, box rhs.clone());
     solver.assert(lhs)?;
     solver.assert(&not_rhs)?;
-    println!("{}", lhs.to_smt_str());
-    println!("{}", not_rhs.to_smt_str());
+    println!("    {}", lhs.to_smt_str());
+    println!("    {}", not_rhs.to_smt_str());
 
     let b = solver.check_sat()?;
-    println!("unsat {}\n", !b);
+    println!("    unsat {}\n", !b);
     Ok(())
 }
 
-pub fn b<'tcx>(cx: &LiquidRustCtxt<'_, 'tcx>, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> Refine<'tcx> {
+pub fn b<'tcx>(cx: &LiquidRustCtxt<'_, 'tcx>, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> Pred<'tcx> {
     match rvalue {
         // v:{v == operand}
         Rvalue::Use(operand) => {
             let operand = mk_operand(operand);
-            Refine::Binary(Refine::nu(), BinOpKind::Eq, operand)
+            Pred::Binary(Pred::nu(), BinOpKind::Eq, operand)
         }
         // v:{v.0 == lhs + rhs}
         Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
-            let op = mir_op_to_refine_op(op);
-            let bin = box Refine::Binary(mk_operand(lhs), op, mk_operand(rhs));
+            let op = mir_op_to_refine_op(*op);
+            let bin = box Pred::Binary(mk_operand(lhs), op, mk_operand(rhs));
             let ty = ty.tuple_fields().next().unwrap();
-            Refine::Binary(
+            Pred::Binary(
                 cx.mk_place_field(Place::nu(), mir::Field::new(0), ty),
                 BinOpKind::Eq,
                 bin,
@@ -121,15 +130,15 @@ pub fn b<'tcx>(cx: &LiquidRustCtxt<'_, 'tcx>, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx
         }
         // v:{v == lhs + rhs}
         Rvalue::BinaryOp(op, lhs, rhs) => {
-            let op = mir_op_to_refine_op(op);
-            let bin = box Refine::Binary(mk_operand(lhs), op, mk_operand(rhs));
-            Refine::Binary(Refine::nu(), BinOpKind::Eq, bin)
+            let op = mir_op_to_refine_op(*op);
+            let bin = box Pred::Binary(mk_operand(lhs), op, mk_operand(rhs));
+            Pred::Binary(Pred::nu(), BinOpKind::Eq, bin)
         }
         _ => unimplemented!("{:?}", rvalue),
     }
 }
 
-pub fn mir_op_to_refine_op<'tcx>(op: &mir::BinOp) -> BinOpKind {
+pub fn mir_op_to_refine_op(op: mir::BinOp) -> BinOpKind {
     match op {
         mir::BinOp::Add => BinOpKind::Add,
         mir::BinOp::Sub => BinOpKind::Sub,
@@ -151,14 +160,14 @@ pub fn mir_op_to_refine_op<'tcx>(op: &mir::BinOp) -> BinOpKind {
     }
 }
 
-fn mk_operand<'tcx>(operand: &Operand<'tcx>) -> Box<Refine<'tcx>> {
+fn mk_operand<'tcx>(operand: &Operand<'tcx>) -> Box<Pred<'tcx>> {
     box match operand {
-        Operand::Copy(place) | Operand::Move(place) => Refine::Place(Place {
+        Operand::Copy(place) | Operand::Move(place) => Pred::Place(Place {
             var: Var::Free(place.local),
             projection: place.projection,
         }),
         Operand::Constant(box Constant { literal, .. }) => match literal.val {
-            ty::ConstKind::Value(val) => Refine::Constant(literal.ty, val),
+            ty::ConstKind::Value(val) => Pred::Constant(literal.ty, val),
             _ => unimplemented!("{:?}", operand),
         },
     }
@@ -198,15 +207,12 @@ impl<'a, 'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'a, 'tcx> {
     fn statement_effect(&self, trans: &mut GenKillSet<mir::Local>, loc: mir::Location) {
         let stmt = &self.body[loc.block].statements[loc.statement_index];
 
-        match stmt.kind {
-            StatementKind::Assign(box (place, _)) => {
-                if place.projection.len() == 0 {
-                    trans.gen(place.local);
-                } else {
-                    unimplemented!("{:?}", stmt)
-                }
+        if let StatementKind::Assign(box (place, _)) = stmt.kind {
+            if place.projection.len() == 0 {
+                trans.gen(place.local);
+            } else {
+                unimplemented!("{:?}", stmt)
             }
-            _ => (),
         }
     }
 

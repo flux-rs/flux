@@ -2,7 +2,7 @@ extern crate rsmt2;
 extern crate rustc_apfloat;
 extern crate syntax as rust_syntax;
 
-use super::refinements::{Place, Refine, Var};
+use super::refinements::{Place, Pred, Var};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
 pub use rsmt2::print::{Expr2Smt, Sym2Smt};
@@ -19,31 +19,31 @@ use rustc_apfloat::{
 use std::io::Write;
 
 enum Token<'a, 'tcx> {
-    Expr(&'a Refine<'tcx>),
+    Expr(&'a Pred<'tcx>),
     Space,
     Paren,
 }
 
-impl<'a, 'tcx> Expr2Smt<()> for Refine<'tcx> {
+impl<'a, 'tcx> Expr2Smt<()> for Pred<'tcx> {
     fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: ()) -> SmtRes<()> {
         let mut stack = vec![Token::Expr(self)];
         while let Some(token) = stack.pop() {
             match token {
-                Token::Expr(Refine::Place(place)) => place.sym_to_smt2(w, info)?,
-                Token::Expr(Refine::Constant(ty, val)) => format_const_value(ty, *val, w)?,
-                Token::Expr(Refine::Binary(lhs, op, rhs)) => {
+                Token::Expr(Pred::Place(place)) => place.sym_to_smt2(w, info)?,
+                Token::Expr(Pred::Constant(ty, val)) => format_const_value(ty, *val, w)?,
+                Token::Expr(Pred::Binary(lhs, op, rhs)) => {
                     write!(w, "({} ", bin_op_to_smt2(op))?;
                     stack.push(Token::Paren);
                     stack.push(Token::Expr(rhs));
                     stack.push(Token::Space);
                     stack.push(Token::Expr(lhs));
                 }
-                Token::Expr(Refine::Unary(UnOpKind::Not, expr)) => {
+                Token::Expr(Pred::Unary(UnOpKind::Not, expr)) => {
                     write!(w, "(not ")?;
                     stack.push(Token::Paren);
                     stack.push(Token::Expr(expr));
                 }
-                Token::Expr(Refine::Unary(UnOpKind::Deref, _)) => unimplemented!(),
+                Token::Expr(Pred::Unary(UnOpKind::Deref, _)) => unimplemented!(),
                 Token::Space => write!(w, " ")?,
                 Token::Paren => write!(w, ")")?,
             }
@@ -52,7 +52,7 @@ impl<'a, 'tcx> Expr2Smt<()> for Refine<'tcx> {
     }
 }
 
-impl<'tcx> Refine<'tcx> {
+impl<'tcx> Pred<'tcx> {
     pub fn to_smt_str(&self) -> String {
         let mut v = Vec::new();
         match self.expr_to_smt2(&mut v, ()) {

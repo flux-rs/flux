@@ -13,17 +13,23 @@ use std::fmt;
 pub struct FnRefines<'tcx> {
     pub body_id: BodyId,
     pub fn_ty: FnType<'tcx>,
-    pub local_decls: HashMap<mir::Local, Refine<'tcx>>,
+    pub local_decls: HashMap<mir::Local, Pred<'tcx>>,
+}
+
+#[derive(Debug)]
+pub enum RType<'tcx> {
+    Fn(FnType<'tcx>),
+    Reft(Pred<'tcx>),
 }
 
 #[derive(Debug)]
 pub struct FnType<'tcx> {
-    pub inputs: Vec<Refine<'tcx>>,
-    pub output: Refine<'tcx>,
+    pub inputs: Vec<Pred<'tcx>>,
+    pub output: Pred<'tcx>,
 }
 
 impl<'tcx> FnType<'tcx> {
-    pub fn open(&self, locals: &[mir::Local]) -> Vec<Refine<'tcx>> {
+    pub fn open(&self, locals: &[mir::Local]) -> Vec<Pred<'tcx>> {
         assert_eq!(locals.len(), self.inputs.len() + 1);
         let mut refines = self
             .inputs
@@ -37,14 +43,14 @@ impl<'tcx> FnType<'tcx> {
 }
 
 #[derive(Clone)]
-pub enum Refine<'tcx> {
-    Unary(ast::UnOpKind, Box<Refine<'tcx>>),
-    Binary(Box<Refine<'tcx>>, ast::BinOpKind, Box<Refine<'tcx>>),
+pub enum Pred<'tcx> {
+    Unary(ast::UnOpKind, Box<Pred<'tcx>>),
+    Binary(Box<Pred<'tcx>>, ast::BinOpKind, Box<Pred<'tcx>>),
     Constant(Ty<'tcx>, ConstValue<'tcx>),
     Place(Place<'tcx>),
 }
 
-impl<'tcx> Refine<'tcx> {
+impl<'tcx> Pred<'tcx> {
     pub fn iter_places(&self, mut f: impl FnMut(Place<'tcx>) -> ()) -> () {
         self._iter_places(&mut f)
     }
@@ -116,7 +122,7 @@ impl Var {
     }
 }
 
-impl<'tcx> fmt::Debug for Refine<'tcx> {
+impl<'tcx> fmt::Debug for Pred<'tcx> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unary(op, expr) => write!(fmt, "{:?}{:?}", op, expr),

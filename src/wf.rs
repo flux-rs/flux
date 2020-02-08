@@ -15,7 +15,7 @@ pub type TypeckTable<'tcx> = HashMap<ExprId, Ty<'tcx>>;
 
 pub fn check_wf<'a, 'tcx>(
     cx: &LiquidRustCtxt<'a, 'tcx>,
-    annots: &Vec<FnAnnots>,
+    annots: &[FnAnnots],
 ) -> Result<TypeckTable<'tcx>, ErrorReported> {
     let mut expr_tys = TypeckTable::new();
     cx.track_errors(|| {
@@ -58,7 +58,7 @@ fn check_fn_ty<'a, 'tcx>(
 
 fn check_refine<'a, 'tcx>(
     cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    refine: &Refine,
+    refine: &Reft,
     checker: &mut TypeChecker<'a, 'tcx>,
 ) {
     let ty = checker.infer_expr(&refine.pred);
@@ -101,7 +101,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
         }
     }
 
-    fn infer_expr(&mut self, expr: &Expr) -> Ty<'tcx> {
+    fn infer_expr(&mut self, expr: &Pred) -> Ty<'tcx> {
         let ty = match &expr.kind {
             ExprKind::Lit(lit) => self.infer_lit(lit),
             ExprKind::Binary(e1, op, e2) => self.infer_bin_op(e1, *op, e2),
@@ -132,7 +132,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
         }
     }
 
-    fn infer_un_op(&mut self, op: UnOp, e: &Expr) -> Ty<'tcx> {
+    fn infer_un_op(&mut self, op: UnOp, e: &Pred) -> Ty<'tcx> {
         let ty = self.infer_expr(e);
         if ty.kind == TyKind::Error {
             return ty;
@@ -148,7 +148,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
         }
     }
 
-    fn infer_bin_op(&mut self, e1: &Expr, op: BinOp, e2: &Expr) -> Ty<'tcx> {
+    fn infer_bin_op(&mut self, e1: &Pred, op: BinOp, e2: &Pred) -> Ty<'tcx> {
         let ty1 = self.infer_expr(e1);
         let ty2 = self.infer_expr(e2);
         if ty1.kind == TyKind::Error || ty2.kind == TyKind::Error {
@@ -188,7 +188,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
         }
     }
 
-    fn resolve_inferred_types(&mut self, expr: &Expr) {
+    fn resolve_inferred_types(&mut self, expr: &Pred) {
         self.visit_expression(expr);
     }
 }
@@ -202,7 +202,7 @@ impl<'a, 'tcx> Deref for TypeChecker<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> Visitor<'a> for TypeChecker<'a, 'tcx> {
-    fn visit_expression(&mut self, expr: &Expr) {
+    fn visit_expression(&mut self, expr: &Pred) {
         let ty = self.expr_tys.get(&expr.expr_id).unwrap();
         if_chain! {
             if let ty::Infer(infer_ty) = ty.kind;
@@ -310,7 +310,7 @@ impl<'tcx> InferCtxt<'tcx> {
     }
 }
 
-fn lint_malformed_refinement(cx: &LiquidRustCtxt, refine: &Refine, ty: Ty) {
+fn lint_malformed_refinement(cx: &LiquidRustCtxt, refine: &Reft, ty: Ty) {
     let b = cx.tcx().types.bool;
     let mut mspan = MultiSpan::from_span(refine.pred.span);
     mspan.push_span_label(
@@ -323,7 +323,7 @@ fn lint_malformed_refinement(cx: &LiquidRustCtxt, refine: &Refine, ty: Ty) {
     );
 }
 
-fn lint_expected_found(cx: &LiquidRustCtxt, e: &Expr, expected: Ty, found: Ty) {
+fn lint_expected_found(cx: &LiquidRustCtxt, e: &Pred, expected: Ty, found: Ty) {
     if expected == found {
         return;
     }
@@ -335,16 +335,16 @@ fn lint_expected_found(cx: &LiquidRustCtxt, e: &Expr, expected: Ty, found: Ty) {
     cx.span_lint(spans, "mismatched types")
 }
 
-fn lint_un_op_err(cx: &LiquidRustCtxt, op: UnOp, e: &Expr, ty: Ty) {
+fn lint_un_op_err(cx: &LiquidRustCtxt, op: UnOp, e: &Pred, ty: Ty) {
     cx.span_lint_label(op.span.to(e.span), &un_op_err_msg(op, ty));
 }
 
 fn lint_bin_op_err<'tcx>(
     cx: &LiquidRustCtxt,
     op: BinOp,
-    e1: &Expr,
+    e1: &Pred,
     ty1: Ty<'tcx>,
-    e2: &Expr,
+    e2: &Pred,
     ty2: Ty<'tcx>,
 ) {
     let mut mspan = MultiSpan::from_span(op.span);
@@ -353,7 +353,7 @@ fn lint_bin_op_err<'tcx>(
     cx.span_lint(mspan, &bin_op_err_msg(ty1, op, ty2));
 }
 
-fn un_op_err_msg<'tcx>(op: UnOp, ty: Ty<'tcx>) -> String {
+fn un_op_err_msg(op: UnOp, ty: Ty) -> String {
     match op.kind {
         UnOpKind::Deref => format!("type `{:?}` cannot be dereferenced", ty),
         UnOpKind::Not => format!("cannot apply unary operator `!` to type `{:?}`", ty),

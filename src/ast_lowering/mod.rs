@@ -1,6 +1,6 @@
 pub mod constant;
 
-use super::refinements::{FnRefines, FnType, Place, Refine, Var};
+use super::refinements::{FnRefines, FnType, Place, Pred, Var};
 use super::syntax::ast;
 use super::wf::TypeckTable;
 use crate::context::LiquidRustCtxt;
@@ -87,19 +87,19 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         FnType { inputs, output }
     }
 
-    pub fn build_refine(&self, expr: &ast::Expr, local_bindings: &[Symbol]) -> Refine<'tcx> {
+    pub fn build_refine(&self, expr: &ast::Pred, local_bindings: &[Symbol]) -> Pred<'tcx> {
         let ty = self.typeck_table[&expr.expr_id];
         match &expr.kind {
-            ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => Refine::Binary(
+            ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => Pred::Binary(
                 box self.build_refine(lhs_expr, local_bindings),
                 op.kind,
                 box self.build_refine(rhs_expr, local_bindings),
             ),
             ast::ExprKind::Unary(op, expr) => {
-                Refine::Unary(op.kind, box self.build_refine(expr, local_bindings))
+                Pred::Unary(op.kind, box self.build_refine(expr, local_bindings))
             }
             ast::ExprKind::Name(name) => {
-                Refine::Place(Place::from_var(self.var_for_name(*name, local_bindings)))
+                Pred::Place(Place::from_var(self.var_for_name(*name, local_bindings)))
             }
             ast::ExprKind::Lit(lit) => self.lit_to_constant(&lit.node, ty, expr.span),
             ast::ExprKind::Err => bug!(),
@@ -121,7 +121,7 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         }
     }
 
-    fn lit_to_constant(&self, lit: &ast::LitKind, ty: Ty<'tcx>, sp: Span) -> Refine<'tcx> {
+    fn lit_to_constant(&self, lit: &ast::LitKind, ty: Ty<'tcx>, sp: Span) -> Pred<'tcx> {
         let tcx = self.cx.tcx();
         let val = match constant::lit_to_const_value(tcx, lit, ty, false) {
             Ok(c) => c,
@@ -134,7 +134,7 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
             }
             Err(LitToConstError::Reported) => bug!(),
         };
-        Refine::Constant(ty, val)
+        Pred::Constant(ty, val)
     }
 }
 
