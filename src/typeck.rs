@@ -1,12 +1,13 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{Place, Pred, Var};
+use super::refinements::{Place, Pred, ReftType, Value, Var};
 use super::smtlib2::{SmtRes, Solver};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
 use rustc_hir::BodyId;
+use rustc_index::vec::IndexVec;
 use rustc_index::{bit_set::BitSet, vec::Idx};
 use rustc_mir::dataflow::{
     do_dataflow, BitDenotation, BottomValue, DataflowResultsCursor, DebugFormatted, GenKillSet,
@@ -21,27 +22,29 @@ struct ReftChecker<'a, 'b, 'tcx> {
     cx: &'b LiquidRustCtxt<'a, 'tcx>,
     body_id: BodyId,
     mir: &'b mir::Body<'tcx>,
-    refts: HashMap<mir::Local, &'a Pred<'a, 'tcx>>, // mir: &'b mir::Body<'tcx>,
+    reft_types: HashMap<mir::Local, ReftType<'a, 'tcx>>,
 }
 
 impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     pub fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, body_id: BodyId) -> Self {
-        let refts = cx.local_decls(body_id).clone();
+        let mut reft_types = HashMap::new();
+        for (local, reft) in cx.local_decls(body_id) {
+            reft_types.insert(*local, ReftType::Reft(reft));
+        }
         let mir = cx.optimized_mir(body_id);
         ReftChecker {
             cx,
             mir,
             body_id,
-            refts,
+            reft_types,
         }
     }
 
     pub fn check_body(&mut self) {
-        let local_decls = self.cx.local_decls(self.body_id);
         let mut cursor = self.initialized_locals();
 
         for (bb, bbd) in self.mir.basic_blocks().iter_enumerated() {
-            println!("bb{}:", bb.index());
+            print!("\nbb{}:", bb.index());
             for (i, statement) in bbd.statements.iter().enumerate() {
                 let loc = mir::Location {
                     block: bb,
@@ -50,24 +53,21 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                 cursor.seek(loc);
                 let mut env = HashMap::new();
                 for local in cursor.get().iter() {
-                    if let Some(pred) = self.refts.get(&local) {
+                    if let Some(ReftType::Reft(pred)) = self.reft_types.get(&local) {
                         env.insert(local, *pred);
                     }
                 }
-                println!("  {:?}\n", statement);
+                println!("\n  {:?}", statement);
                 match &statement.kind {
                     StatementKind::Assign(box (place, rvalue)) => {
-                        let ty = place.ty(self.mir, self.cx.tcx()).ty;
+                        let ty = place.ty(self, self.cx.tcx()).ty;
                         let local = place.local;
-                        let lhs = self.b(ty, rvalue);
-                        let lhs = self.cx.open_pred(lhs, &[local]);
-                        if let Some(rhs) = local_decls.get(&local) {
-                            let r = self.check(&env, lhs, rhs);
-                            if let Err(e) = r {
-                                println!("{:?}", e);
-                            }
+                        let lhs = self.rvalue_reft_type(ty, rvalue);
+                        if let Some(rhs) = self.reft_types.get(&local) {
+                            self.check_subtyping(&env, lhs, *rhs, Some(local));
                         } else if !self.mir.local_decls[local].is_user_variable() {
-                            self.refts.insert(local, lhs);
+                            println!("    infer {:?} for {:?}", lhs, local);
+                            self.reft_types.insert(local, lhs);
                         }
                     }
                     StatementKind::StorageLive(_)
@@ -81,15 +81,65 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                 statement_index: bbd.statements.len(),
             };
             cursor.seek(loc);
+            let mut env = HashMap::new();
+            for local in cursor.get().iter() {
+                if let Some(ReftType::Reft(pred)) = self.reft_types.get(&local) {
+                    env.insert(local, *pred);
+                }
+            }
             if let Some(terminator) = &bbd.terminator {
-                println!("  {:?}\n", terminator.kind);
+                println!("\n  {:?}", terminator.kind);
                 match &terminator.kind {
                     TerminatorKind::Call {
                         func,
                         args,
                         destination,
                         ..
-                    } => {}
+                    } => {
+                        if let ReftType::Fun(fun_type) = self.operand_reft_type(func) {
+                            if let Some((place, _)) = destination {
+                                if place.projection.len() > 0 {
+                                    todo!();
+                                }
+                                let mut values = args
+                                    .iter()
+                                    .map(|arg| self.operand_to_arg_value(arg))
+                                    .collect::<Vec<_>>();
+                                values.push(Value::Local(place.local));
+                                let opened = self.cx.open_fun_type(fun_type, &values);
+                                let (ret, formals) = opened.split_last().unwrap();
+
+                                for formal in formals {
+                                    self.check_subtyping(
+                                        &env,
+                                        ReftType::Reft(self.cx.reft_true),
+                                        ReftType::Reft(formal),
+                                        None,
+                                    );
+                                }
+                                println!("");
+                                if let Some(rhs) = self.reft_types.get(&place.local) {
+                                    self.check_subtyping(
+                                        &env,
+                                        ReftType::Reft(ret),
+                                        *rhs,
+                                        Some(place.local),
+                                    );
+                                } else if !self.mir.local_decls[place.local].is_user_variable() {
+                                    println!(
+                                        "    infer {:?} for {:?}",
+                                        ReftType::Reft(ret),
+                                        place.local
+                                    );
+                                    self.reft_types.insert(place.local, ReftType::Reft(ret));
+                                }
+                            } else {
+                                todo!("implement checks for non converging calls")
+                            }
+                        } else {
+                            bug!("expected function type")
+                        }
+                    }
                     TerminatorKind::Resume
                     | TerminatorKind::Assert { .. }
                     | TerminatorKind::Abort
@@ -100,6 +150,40 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
             }
         }
         println!("---------------------------");
+    }
+
+    fn operand_to_arg_value(&self, operand: &Operand<'tcx>) -> Value<'tcx> {
+        match operand {
+            Operand::Copy(place) | Operand::Move(place) => {
+                if place.projection.len() > 0 {
+                    bug!("values in argument position must by constants or locals")
+                }
+                Value::Local(place.local)
+            }
+            Operand::Constant(box Constant { literal, .. }) => match literal.val {
+                ty::ConstKind::Value(val) => Value::Constant(literal.ty, val),
+                _ => unimplemented!("{:?}", operand),
+            },
+        }
+    }
+
+    fn check_subtyping(
+        &self,
+        env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
+        lhs: ReftType<'a, 'tcx>,
+        rhs: ReftType<'a, 'tcx>,
+        local: Option<mir::Local>,
+    ) {
+        match (lhs, rhs) {
+            (ReftType::Fun(_), ReftType::Fun(_)) => todo!(),
+            (ReftType::Reft(lhs), ReftType::Reft(rhs)) => {
+                let r = self.check(&env, lhs, rhs, local);
+                if let Err(e) = r {
+                    println!("    {:?}", e);
+                }
+            }
+            _ => bug!("refinement types must have the same shape"),
+        }
     }
 
     fn initialized_locals(
@@ -120,6 +204,36 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         DataflowResultsCursor::new(initialized_result, self.mir)
     }
 
+    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> ReftType<'a, 'tcx> {
+        match operand {
+            Operand::Copy(place) | Operand::Move(place) => {
+                match place.ty(self, self.cx.tcx()).ty.kind {
+                    ty::FnDef(def_id, _) => ReftType::Fun(self.cx.fun_type(def_id)),
+                    ty::FnPtr(..) => todo!(),
+                    _ => {
+                        let place = Place {
+                            var: Var::Free(place.local),
+                            projection: place.projection,
+                        };
+                        let place = self.cx.mk_pred_place(place);
+                        ReftType::Reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, place))
+                    }
+                }
+            }
+            Operand::Constant(box Constant { literal, .. }) => match literal.ty.kind {
+                ty::FnDef(def_id, _) => ReftType::Fun(self.cx.fun_type(def_id)),
+                ty::FnPtr(..) => todo!(),
+                _ => match literal.val {
+                    ty::ConstKind::Value(val) => {
+                        let constant = self.cx.mk_constant(literal.ty, val);
+                        ReftType::Reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
+                    }
+                    _ => unimplemented!("{:?}", operand),
+                },
+            },
+        }
+    }
+
     fn operand_to_value(&self, operand: &Operand<'tcx>) -> &'a Pred<'a, 'tcx> {
         match operand {
             Operand::Copy(place) | Operand::Move(place) => self.cx.mk_pred_place(Place {
@@ -133,16 +247,10 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         }
     }
 
-    pub fn b(&self, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> &'a Pred<'a, 'tcx> {
+    pub fn rvalue_reft_type(&self, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> ReftType<'a, 'tcx> {
         match rvalue {
             // v:{v == operand}
-            Rvalue::Use(operand) => match ty.kind {
-                ty::FnDef(_, _) | ty::FnPtr(_) => todo!(),
-                _ => {
-                    let operand = self.operand_to_value(operand);
-                    self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, operand)
-                }
-            },
+            Rvalue::Use(operand) => self.operand_reft_type(operand),
             // v:{v.0 == lhs + rhs}
             Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
                 let op = mir_op_to_refine_op(*op);
@@ -150,7 +258,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     self.cx
                         .mk_binary(self.operand_to_value(lhs), op, self.operand_to_value(rhs));
                 let ty = ty.tuple_fields().next().unwrap();
-                self.cx.mk_binary(
+                let bin = self.cx.mk_binary(
                     self.cx.mk_pred_place(self.cx.mk_place_field(
                         Place::nu(),
                         mir::Field::new(0),
@@ -158,7 +266,8 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     )),
                     BinOpKind::Eq,
                     bin,
-                )
+                );
+                ReftType::Reft(bin)
             }
             // v:{v == lhs + rhs}
             Rvalue::BinaryOp(op, lhs, rhs) => {
@@ -166,7 +275,8 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                 let bin =
                     self.cx
                         .mk_binary(self.operand_to_value(lhs), op, self.operand_to_value(rhs));
-                self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, bin)
+                let bin = self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, bin);
+                ReftType::Reft(bin)
             }
             _ => todo!("{:?}", rvalue),
         }
@@ -175,24 +285,43 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     fn check(
         &self,
         env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
-        lhs: &'a Pred<'a, 'tcx>,
-        rhs: &'a Pred<'a, 'tcx>,
+        mut lhs: &'a Pred<'a, 'tcx>,
+        mut rhs: &'a Pred<'a, 'tcx>,
+        local: Option<mir::Local>,
     ) -> SmtRes<()> {
         let mut solver = Solver::default(())?;
         let mut places = HashSet::new();
-        for refine in env.values().chain(&[lhs, rhs]) {
-            refine.iter_places(|place| {
+        let preds = env
+            .iter()
+            .map(|(local, pred)| self.cx.open_pred_with_locals(pred, &[*local]))
+            .collect::<Vec<_>>();
+
+        for pred in &preds {
+            pred.iter_places(|place| {
                 places.insert(place);
             })
         }
+
+        if let Some(local) = local {
+            lhs = self.cx.open_pred_with_locals(lhs, &[local]);
+            rhs = self.cx.open_pred_with_locals(rhs, &[local]);
+        }
+
+        lhs.iter_places(|place| {
+            places.insert(place);
+        });
+
+        lhs.iter_places(|place| {
+            places.insert(place);
+        });
 
         for place in places {
             solver.declare_const(&place, "Int")?;
         }
 
-        for refine in env.values() {
-            println!("    {}", refine.to_smt_str());
-            solver.assert(refine)?;
+        for pred in preds {
+            println!("    {}", pred.to_smt_str());
+            solver.assert(pred)?;
         }
         let not_rhs = Pred::Unary(UnOpKind::Not, rhs);
         solver.assert(lhs)?;
@@ -201,8 +330,14 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         println!("    {}", not_rhs.to_smt_str());
 
         let b = solver.check_sat()?;
-        println!("    unsat {}\n", !b);
+        println!("    unsat {}", !b);
         Ok(())
+    }
+}
+
+impl<'tcx> mir::HasLocalDecls<'tcx> for ReftChecker<'_, '_, 'tcx> {
+    fn local_decls(&self) -> &IndexVec<mir::Local, mir::LocalDecl<'tcx>> {
+        &self.mir.local_decls
     }
 }
 

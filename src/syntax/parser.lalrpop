@@ -99,6 +99,7 @@ OpGroup3: BinOpKind = {
     "<" => BinOpKind::Lt,
     ">" => BinOpKind::Gt,
     ">=" => BinOpKind::Ge,
+    "==" => BinOpKind::Eq,
 }
 
 OpGroup4: BinOpKind = {

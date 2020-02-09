@@ -3,14 +3,14 @@ extern crate rustc_errors;
 extern crate rustc_lint;
 extern crate rustc_session;
 
-use super::refinements::{self, BodyRefts, ConstValue, FunType, Place, Pred, Scalar, Var};
+use super::refinements::*;
 use super::syntax::ast;
 use arena::TypedArena;
 use rustc::mir;
 use rustc::ty::{Ty, TyCtxt};
 use rustc_data_structures::sharded::ShardedHashMap;
 pub use rustc_errors::ErrorReported;
-use rustc_hir::BodyId;
+use rustc_hir::{def_id::DefId, BodyId};
 use rustc_lint::{LateContext, LintContext};
 use rustc_session::declare_lint;
 use rustc_span::{MultiSpan, Span};
@@ -27,7 +27,7 @@ declare_lint! {
 
 pub struct LiquidRustCtxt<'a, 'tcx> {
     cx: &'a LateContext<'a, 'tcx>,
-    refts_table: HashMap<BodyId, BodyRefts<'a, 'tcx>>,
+    refts_table: HashMap<DefId, BodyRefts<'a, 'tcx>>,
     preds: &'a ArenaInterner<'a, Pred<'a, 'tcx>>,
     pub reft_true: &'a Pred<'a, 'tcx>,
     pub nu: &'a Pred<'a, 'tcx>,
@@ -96,24 +96,15 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.preds.intern(Pred::Place(Place::from_var(var)))
     }
 
-    pub fn mk_place_field(
-        &self,
-        place: refinements::Place<'tcx>,
-        f: mir::Field,
-        ty: Ty<'tcx>,
-    ) -> refinements::Place<'tcx> {
+    pub fn mk_place_field(&self, place: Place<'tcx>, f: mir::Field, ty: Ty<'tcx>) -> Place<'tcx> {
         self.mk_place_elem(place, mir::PlaceElem::Field(f, ty))
     }
 
-    pub fn mk_place_elem(
-        &self,
-        place: refinements::Place<'tcx>,
-        elem: mir::PlaceElem<'tcx>,
-    ) -> refinements::Place<'tcx> {
+    pub fn mk_place_elem(&self, place: Place<'tcx>, elem: mir::PlaceElem<'tcx>) -> Place<'tcx> {
         let mut projection = place.projection.to_vec();
         projection.push(elem);
 
-        refinements::Place {
+        Place {
             var: place.var,
             projection: self.tcx().intern_place_elems(&projection),
         }
@@ -141,26 +132,27 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
     }
 
     pub fn add_body_refts(&mut self, body_refts: BodyRefts<'a, 'tcx>) {
-        self.refts_table.insert(body_refts.body_id, body_refts);
+        let def_id = self.hir().body_owner_def_id(body_refts.body_id);
+        self.refts_table.insert(def_id, body_refts);
     }
 
     pub fn local_decls(&self, body_id: BodyId) -> &HashMap<mir::Local, &'a Pred<'a, 'tcx>> {
-        if let Some(body_refts) = self.refts_table.get(&body_id) {
+        let def_id = self.hir().body_owner_def_id(body_id);
+        if let Some(body_refts) = self.refts_table.get(&def_id) {
             &body_refts.local_decls
         } else {
             todo!()
         }
     }
 
-    pub fn fun_type(&self, body_id: BodyId) -> FunType<'a, 'tcx> {
+    pub fn fun_type(&self, def_id: DefId) -> FunType<'a, 'tcx> {
         if_chain! {
-            if let Some(body_refts) = self.refts_table.get(&body_id);
+            if let Some(body_refts) = self.refts_table.get(&def_id);
             if let Some(fun_type) = body_refts.fun_type;
             then {
                 fun_type
             } else {
-                let body = self.hir().body(body_id);
-                let arg_count = body.params.len();
+                let arg_count = self.tcx().fn_sig(def_id).skip_binder().inputs().len();
                 let inputs = self.preds.alloc_from_iter(iter::repeat(*self.reft_true).take(arg_count));
                 let output = self.reft_true;
                 FunType { inputs, output }
@@ -168,24 +160,44 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn open_pred(&self, pred: &'a Pred<'a, 'tcx>, locals: &[mir::Local]) -> &'a Pred<'a, 'tcx> {
+    pub fn open_pred_with_locals(
+        &self,
+        pred: &'a Pred<'a, 'tcx>,
+        locals: &[mir::Local],
+    ) -> &'a Pred<'a, 'tcx> {
+        self.open_pred(pred, &Value::from_locals(locals))
+    }
+
+    pub fn open_fun_type_with_locals(
+        &self,
+        fun_type: FunType<'a, 'tcx>,
+        locals: &[mir::Local],
+    ) -> Vec<&'a Pred<'a, 'tcx>> {
+        self.open_fun_type(fun_type, &Value::from_locals(locals))
+    }
+
+    pub fn open_pred(
+        &self,
+        pred: &'a Pred<'a, 'tcx>,
+        values: &[Value<'tcx>],
+    ) -> &'a Pred<'a, 'tcx> {
         match pred {
-            Pred::Unary(op, pred) => self.mk_unary(*op, self.open_pred(pred, locals)),
+            Pred::Unary(op, pred) => self.mk_unary(*op, self.open_pred(pred, values)),
             Pred::Binary(lhs, op, rhs) => self.mk_binary(
-                self.open_pred(lhs, locals),
+                self.open_pred(lhs, values),
                 *op,
-                self.open_pred(rhs, locals),
+                self.open_pred(rhs, values),
             ),
-            Pred::Place(place) => {
-                let place = match place.var {
-                    Var::Free(_) => *place,
-                    Var::Bound(idx) => Place {
-                        var: Var::Free(locals[locals.len() - idx - 1]),
+            Pred::Place(place) => match place.var {
+                Var::Free(_) => pred,
+                Var::Bound(idx) => match values[values.len() - idx - 1] {
+                    Value::Constant(ty, val) => self.mk_constant(ty, val),
+                    Value::Local(local) => self.mk_pred_place(Place {
+                        var: Var::Free(local),
                         projection: place.projection,
-                    },
-                };
-                self.mk_pred_place(place)
-            }
+                    }),
+                },
+            },
             Pred::Constant(..) => pred,
         }
     }
@@ -193,16 +205,16 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
     pub fn open_fun_type(
         &self,
         fun_type: FunType<'a, 'tcx>,
-        locals: &[mir::Local],
+        inputs_and_output: &[Value<'tcx>],
     ) -> Vec<&'a Pred<'a, 'tcx>> {
-        assert_eq!(locals.len(), fun_type.inputs.len() + 1);
+        assert_eq!(inputs_and_output.len(), fun_type.inputs.len() + 1);
         let mut refines = fun_type
             .inputs
             .iter()
             .enumerate()
-            .map(|(i, pred)| self.open_pred(pred, &locals[0..i + 1]))
+            .map(|(i, pred)| self.open_pred(pred, &inputs_and_output[0..i + 1]))
             .collect::<Vec<_>>();
-        refines.push(self.open_pred(fun_type.output, locals));
+        refines.push(self.open_pred(fun_type.output, inputs_and_output));
         refines
     }
 }

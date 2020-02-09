@@ -45,7 +45,7 @@ fn build_body_refts<'a, 'tcx>(
             .map(|i| mir::Local::from_usize(i + 1))
             .collect::<Vec<_>>();
         locals.push(mir::RETURN_PLACE);
-        let opened = cx.open_fun_type(fun_type, &locals);
+        let opened = cx.open_fun_type_with_locals(fun_type, &locals);
         for (input, local) in opened.into_iter().zip(locals) {
             local_decls.insert(local, input);
         }
