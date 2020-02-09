@@ -19,12 +19,12 @@ use rustc_apfloat::{
 use std::io::Write;
 
 enum Token<'a, 'tcx> {
-    Expr(&'a Pred<'tcx>),
+    Expr(&'a Pred<'a, 'tcx>),
     Space,
     Paren,
 }
 
-impl<'a, 'tcx> Expr2Smt<()> for Pred<'tcx> {
+impl Expr2Smt<()> for Pred<'_, '_> {
     fn expr_to_smt2<Writer: Write>(&self, w: &mut Writer, info: ()) -> SmtRes<()> {
         let mut stack = vec![Token::Expr(self)];
         while let Some(token) = stack.pop() {
@@ -52,7 +52,7 @@ impl<'a, 'tcx> Expr2Smt<()> for Pred<'tcx> {
     }
 }
 
-impl<'tcx> Pred<'tcx> {
+impl Pred<'_, '_> {
     pub fn to_smt_str(&self) -> String {
         let mut v = Vec::new();
         match self.expr_to_smt2(&mut v, ()) {
@@ -62,7 +62,7 @@ impl<'tcx> Pred<'tcx> {
     }
 }
 
-impl<'tcx> Sym2Smt<()> for Place<'tcx> {
+impl Sym2Smt<()> for Place<'_> {
     fn sym_to_smt2<Writer: Write>(&self, w: &mut Writer, _info: ()) -> SmtRes<()> {
         if let Var::Free(local) = self.var {
             write!(w, "_{}", local.index())?

@@ -8,7 +8,7 @@ macro_rules! walk_list {
     };
 }
 
-pub trait Visitor<'ast>: Sized {
+pub trait Visitor: Sized {
     fn visit_fn_type(&mut self, fn_typ: &FnType) {
         walk_fn_type(self, fn_typ);
     }
@@ -24,16 +24,16 @@ pub trait Visitor<'ast>: Sized {
     fn visit_name(&mut self, _: &Name) {}
 }
 
-pub fn walk_fn_type<'ast, V: Visitor<'ast>>(vis: &mut V, fn_typ: &FnType) {
+pub fn walk_fn_type<V: Visitor>(vis: &mut V, fn_typ: &FnType) {
     walk_list!(vis, visit_refine, &fn_typ.inputs);
     walk_refine(vis, &fn_typ.output);
 }
 
-pub fn walk_refine<'ast, V: Visitor<'ast>>(vis: &mut V, refine: &Reft) {
+pub fn walk_refine<V: Visitor>(vis: &mut V, refine: &Reft) {
     vis.visit_expression(&refine.pred);
 }
 
-pub fn walk_expression<'ast, V: Visitor<'ast>>(vis: &mut V, expr: &Pred) {
+pub fn walk_expression<V: Visitor>(vis: &mut V, expr: &Pred) {
     match &expr.kind {
         ExprKind::Name(ident) => vis.visit_name(ident),
         ExprKind::Binary(e1, _, e2) => {

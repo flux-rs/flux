@@ -27,7 +27,7 @@ pub fn check_wf<'a, 'tcx>(
 }
 
 fn check_body_annots<'a, 'tcx>(
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
+    cx: &LiquidRustCtxt<'a, 'tcx>,
     body_annots: &BodyAnnots,
     expr_tys: &mut TypeckTable<'tcx>,
 ) {
@@ -46,9 +46,9 @@ fn check_body_annots<'a, 'tcx>(
 }
 
 fn check_fn_ty<'a, 'tcx>(
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
+    cx: &LiquidRustCtxt<'a, 'tcx>,
     fn_ty: &FnType,
-    checker: &mut TypeChecker<'a, 'tcx>,
+    checker: &mut TypeChecker<'a, '_, 'tcx>,
 ) {
     for input in &fn_ty.inputs {
         check_refine(cx, input, checker);
@@ -57,9 +57,9 @@ fn check_fn_ty<'a, 'tcx>(
 }
 
 fn check_refine<'a, 'tcx>(
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
+    cx: &LiquidRustCtxt<'a, 'tcx>,
     refine: &Reft,
-    checker: &mut TypeChecker<'a, 'tcx>,
+    checker: &mut TypeChecker<'a, '_, 'tcx>,
 ) {
     let ty = checker.infer_expr(&refine.pred);
     checker.resolve_inferred_types(&refine.pred);
@@ -67,21 +67,21 @@ fn check_refine<'a, 'tcx>(
         lint_malformed_refinement(cx, refine, ty);
     }
 }
-struct TypeChecker<'a, 'tcx> {
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
+struct TypeChecker<'a, 'b, 'tcx> {
+    cx: &'b LiquidRustCtxt<'a, 'tcx>,
     tcx: TyCtxt<'tcx>,
-    tables: &'a TypeckTables<'tcx>,
+    tables: &'b TypeckTables<'tcx>,
     ret_ty: Ty<'tcx>,
-    expr_tys: &'a mut TypeckTable<'tcx>,
+    expr_tys: &'b mut TypeckTable<'tcx>,
     infer_ctxt: InferCtxt<'tcx>,
 }
 
-impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
+impl<'a, 'b, 'tcx> TypeChecker<'a, 'b, 'tcx> {
     pub fn new(
-        cx: &'a LiquidRustCtxt<'a, 'tcx>,
-        tables: &'a TypeckTables<'tcx>,
+        cx: &'b LiquidRustCtxt<'a, 'tcx>,
+        tables: &'b TypeckTables<'tcx>,
         ret_ty: Ty<'tcx>,
-        expr_tys: &'a mut TypeckTable<'tcx>,
+        expr_tys: &'b mut TypeckTable<'tcx>,
     ) -> Self {
         Self {
             cx,
@@ -193,7 +193,7 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> Deref for TypeChecker<'a, 'tcx> {
+impl<'tcx> Deref for TypeChecker<'_, '_, 'tcx> {
     type Target = ty::TyCtxt<'tcx>;
 
     fn deref(&self) -> &Self::Target {
@@ -201,7 +201,7 @@ impl<'a, 'tcx> Deref for TypeChecker<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> Visitor<'a> for TypeChecker<'a, 'tcx> {
+impl Visitor for TypeChecker<'_, '_, '_> {
     fn visit_expression(&mut self, expr: &Pred) {
         let ty = self.expr_tys.get(&expr.expr_id).unwrap();
         if_chain! {

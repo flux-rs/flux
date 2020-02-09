@@ -53,7 +53,7 @@ pub struct UnOp {
     pub span: Span,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub enum UnOpKind {
     Deref,
     Not,
@@ -88,7 +88,7 @@ pub struct BinOp {
     pub span: Span,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub enum BinOpKind {
     And,
     Or,

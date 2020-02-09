@@ -6,8 +6,8 @@ use rustc_hir::{self, Block, Body, HirId, Local, Param, PatKind};
 use rustc_span::{MultiSpan, Symbol};
 use std::collections::HashMap;
 
-pub fn resolve_hir_bindings(
-    cx: &LiquidRustCtxt,
+pub fn resolve_hir_bindings<'a, 'tcx>(
+    cx: &LiquidRustCtxt<'a, 'tcx>,
     annots: &mut Vec<BodyAnnots>,
 ) -> Result<(), ErrorReported> {
     cx.track_errors(|| {
@@ -23,13 +23,13 @@ pub fn resolve_hir_bindings(
     })
 }
 
-struct HirNameResolver<'a, 'tcx> {
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    body_annots: &'a mut BodyAnnots,
+struct HirNameResolver<'a, 'b, 'tcx> {
+    cx: &'b LiquidRustCtxt<'a, 'tcx>,
+    body_annots: &'b mut BodyAnnots,
     env: NameCtxt,
 }
 
-impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
+impl<'tcx> HirVisitor<'tcx> for HirNameResolver<'_, '_, 'tcx> {
     type Map = rustc::hir::map::Map<'tcx>;
 
     fn nested_visit_map(&mut self) -> rustc_hir::intravisit::NestedVisitorMap<Self::Map> {
@@ -107,18 +107,18 @@ impl<'a, 'tcx> HirVisitor<'tcx> for HirNameResolver<'a, 'tcx> {
     }
 }
 
-struct HirIdExprVisitor<'a, 'tcx> {
-    cx: &'a LiquidRustCtxt<'a, 'tcx>,
-    env: &'a NameCtxt,
+struct HirIdExprVisitor<'a, 'b, 'tcx> {
+    cx: &'b LiquidRustCtxt<'a, 'tcx>,
+    env: &'b NameCtxt,
 }
 
-impl<'a, 'tcx> HirIdExprVisitor<'a, 'tcx> {
-    fn new(cx: &'a LiquidRustCtxt<'a, 'tcx>, env: &'a NameCtxt) -> Self {
+impl<'a, 'b, 'tcx> HirIdExprVisitor<'a, 'b, 'tcx> {
+    fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, env: &'b NameCtxt) -> Self {
         HirIdExprVisitor { cx, env }
     }
 }
 
-impl<'a, 'tcx> MutVisitor<'a> for HirIdExprVisitor<'a, 'tcx> {
+impl MutVisitor for HirIdExprVisitor<'_, '_, '_> {
     fn visit_name(&mut self, name: &mut Name) {
         if let Some(hir_res) = self.env.lookup(name.ident.name) {
             name.hir_res = hir_res;

@@ -2,6 +2,7 @@
 #![feature(box_syntax)]
 #![feature(box_patterns)]
 
+extern crate arena;
 #[macro_use]
 extern crate rustc;
 #[macro_use]
@@ -21,14 +22,16 @@ pub mod syntax;
 pub mod typeck;
 pub mod wf;
 
-use context::{ErrorReported, LiquidRustCtxt};
+use context::{ArenaInterner, ErrorReported, LiquidRustCtxt};
 use rustc_lint::LateContext;
 
 pub fn run<'a, 'tcx>(
     late_cx: &LateContext<'a, 'tcx>,
     krate: &'tcx rustc_hir::Crate<'tcx>,
 ) -> Result<(), ErrorReported> {
-    let mut cx = LiquidRustCtxt::new(late_cx);
+    let arena = arena::TypedArena::default();
+    let preds = ArenaInterner::new(&arena);
+    let mut cx = LiquidRustCtxt::new(late_cx, &preds);
     let mut annots = annots::collect(&cx, krate)?;
 
     names::resolve_hir_bindings(&cx, &mut annots)?;
@@ -41,7 +44,6 @@ pub fn run<'a, 'tcx>(
         cx.add_body_refts(body_refts)
     }
 
-    // Just type check bodies with annotations
     for body_annots in annots {
         typeck::check_body(&cx, body_annots.body_id)
     }

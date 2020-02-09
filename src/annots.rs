@@ -9,9 +9,9 @@ use rustc_hir::{self, Crate, Item, ItemKind, Local};
 use rustc_span::{MultiSpan, Span, Symbol};
 use std::collections::HashMap;
 
-pub fn collect<'a, 'lr>(
-    cx: &'a LiquidRustCtxt<'a, 'lr>,
-    krate: &'lr Crate<'lr>,
+pub fn collect<'a, 'tcx>(
+    cx: &LiquidRustCtxt<'a, 'tcx>,
+    krate: &'tcx Crate<'tcx>,
 ) -> Result<Vec<BodyAnnots>, ErrorReported> {
     cx.track_errors(|| {
         let mut vis = AnnotsCollector::new(cx);
@@ -20,15 +20,15 @@ pub fn collect<'a, 'lr>(
     })
 }
 
-struct AnnotsCollector<'a, 'lr> {
-    cx: &'a LiquidRustCtxt<'a, 'lr>,
+struct AnnotsCollector<'a, 'b, 'tcx> {
+    cx: &'b LiquidRustCtxt<'a, 'tcx>,
     annots: Vec<BodyAnnots>,
     type_annot_regex: Regex,
     parsing: ParsingCtxt,
 }
 
-impl<'a, 'lr> AnnotsCollector<'a, 'lr> {
-    fn new(cx: &'a LiquidRustCtxt<'a, 'lr>) -> Self {
+impl<'a, 'b, 'tcx> AnnotsCollector<'a, 'b, 'tcx> {
+    fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>) -> Self {
         AnnotsCollector {
             cx,
             annots: Vec::new(),
@@ -74,14 +74,14 @@ impl<'a, 'lr> AnnotsCollector<'a, 'lr> {
 }
 
 // TODO: Collect annotations from trait impls and impls methods
-impl<'a, 'lr> HirVisitor<'lr> for AnnotsCollector<'a, 'lr> {
-    type Map = rustc::hir::map::Map<'lr>;
+impl<'tcx> HirVisitor<'tcx> for AnnotsCollector<'_, '_, 'tcx> {
+    type Map = rustc::hir::map::Map<'tcx>;
 
     fn nested_visit_map(&mut self) -> intravisit::NestedVisitorMap<Self::Map> {
         intravisit::NestedVisitorMap::OnlyBodies(&self.cx.hir())
     }
 
-    fn visit_item(&mut self, item: &'lr Item<'lr>) {
+    fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
         if let ItemKind::Fn(_, _, body_id) = item.kind {
             let annots = self.extract_annots(&item.attrs);
             let fn_ty = if let [(span, symbol)] = annots[..] {
@@ -108,7 +108,7 @@ impl<'a, 'lr> HirVisitor<'lr> for AnnotsCollector<'a, 'lr> {
         }
     }
 
-    fn visit_local(&mut self, local: &'lr Local<'lr>) {
+    fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
         let annots = self.extract_annots(&local.attrs);
         if annots.len() > 1 {
             self.lint_multiple_annots(&annots)
