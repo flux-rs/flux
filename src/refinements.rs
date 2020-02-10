@@ -12,20 +12,17 @@ use std::fmt;
 #[derive(Debug)]
 pub struct BodyRefts<'a, 'tcx> {
     pub body_id: BodyId,
-    pub fun_type: Option<FunType<'a, 'tcx>>,
-    pub local_decls: HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
+    pub fun_type: Option<&'a ReftType<'a, 'tcx>>,
+    pub local_decls: HashMap<mir::Local, &'a ReftType<'a, 'tcx>>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ReftType<'a, 'tcx> {
-    Fun(FunType<'a, 'tcx>),
+    Fun {
+        inputs: &'a [ReftType<'a, 'tcx>],
+        output: &'a ReftType<'a, 'tcx>,
+    },
     Reft(&'a Pred<'a, 'tcx>),
-}
-
-#[derive(Copy, Clone)]
-pub struct FunType<'a, 'tcx> {
-    pub inputs: &'a [Pred<'a, 'tcx>],
-    pub output: &'a Pred<'a, 'tcx>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -52,6 +49,16 @@ pub enum Var {
 pub enum Value<'tcx> {
     Constant(Ty<'tcx>, ConstValue<'tcx>),
     Local(mir::Local),
+}
+
+impl<'a, 'tcx> ReftType<'a, 'tcx> {
+    pub fn pred(&self) -> Option<&'a Pred<'a, 'tcx>> {
+        if let Self::Reft(pred) = self {
+            Some(pred)
+        } else {
+            None
+        }
+    }
 }
 
 impl<'tcx> Value<'tcx> {
@@ -106,22 +113,18 @@ impl Var {
 impl fmt::Debug for ReftType<'_, '_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Fun(fun) => write!(fmt, "{:?}", fun),
+            Self::Fun { inputs, output } => {
+                write!(fmt, "(")?;
+                for (i, pred) in inputs.iter().enumerate() {
+                    if i > 0 {
+                        write!(fmt, ", ")?;
+                    }
+                    write!(fmt, "{{{:?}}}", pred)?;
+                }
+                write!(fmt, ") -> {{{:?}}}", output)
+            }
             Self::Reft(pred) => write!(fmt, "{{{:?}}}", pred),
         }
-    }
-}
-
-impl fmt::Debug for FunType<'_, '_> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "(")?;
-        for (i, pred) in self.inputs.iter().enumerate() {
-            if i > 0 {
-                write!(fmt, ", ")?;
-            }
-            write!(fmt, "{{{:?}}}", pred)?;
-        }
-        write!(fmt, ") -> {{{:?}}}", self.output)
     }
 }
 

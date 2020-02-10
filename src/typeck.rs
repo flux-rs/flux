@@ -22,15 +22,12 @@ struct ReftChecker<'a, 'b, 'tcx> {
     cx: &'b LiquidRustCtxt<'a, 'tcx>,
     body_id: BodyId,
     mir: &'b mir::Body<'tcx>,
-    reft_types: HashMap<mir::Local, ReftType<'a, 'tcx>>,
+    reft_types: HashMap<mir::Local, &'a ReftType<'a, 'tcx>>,
 }
 
 impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     pub fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, body_id: BodyId) -> Self {
-        let mut reft_types = HashMap::new();
-        for (local, reft) in cx.local_decls(body_id) {
-            reft_types.insert(*local, ReftType::Reft(reft));
-        }
+        let reft_types = cx.local_decls(body_id).clone();
         let mir = cx.optimized_mir(body_id);
         ReftChecker {
             cx,
@@ -53,8 +50,8 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                 cursor.seek(loc);
                 let mut env = HashMap::new();
                 for local in cursor.get().iter() {
-                    if let Some(ReftType::Reft(pred)) = self.reft_types.get(&local) {
-                        env.insert(local, *pred);
+                    if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
+                        env.insert(local, pred);
                     }
                 }
                 println!("\n  {:?}", statement);
@@ -64,7 +61,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                         let local = place.local;
                         let lhs = self.rvalue_reft_type(ty, rvalue);
                         if let Some(rhs) = self.reft_types.get(&local) {
-                            self.check_subtyping(&env, lhs, *rhs, Some(local));
+                            self.check_subtyping(&env, lhs, rhs, Some(local));
                         } else if !self.mir.local_decls[local].is_user_variable() {
                             println!("    infer {:?} for {:?}", lhs, local);
                             self.reft_types.insert(local, lhs);
@@ -96,48 +93,31 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                         destination,
                         ..
                     } => {
-                        if let ReftType::Fun(fun_type) = self.operand_reft_type(func) {
-                            if let Some((place, _)) = destination {
-                                if place.projection.len() > 0 {
-                                    todo!();
-                                }
-                                let mut values = args
-                                    .iter()
-                                    .map(|arg| self.operand_to_arg_value(arg))
-                                    .collect::<Vec<_>>();
-                                values.push(Value::Local(place.local));
-                                let opened = self.cx.open_fun_type(fun_type, &values);
-                                let (ret, formals) = opened.split_last().unwrap();
+                        if let Some((place, _)) = destination {
+                            let fun_type = self.operand_reft_type(func);
+                            if place.projection.len() > 0 {
+                                todo!();
+                            }
+                            let mut values = args
+                                .iter()
+                                .map(|arg| self.operand_to_arg_value(arg))
+                                .collect::<Vec<_>>();
+                            values.push(Value::Local(place.local));
+                            let opened = self.cx.open_reft_type(fun_type, &values);
+                            let (ret, formals) = opened.split_last().unwrap();
 
-                                for formal in formals {
-                                    self.check_subtyping(
-                                        &env,
-                                        ReftType::Reft(self.cx.reft_true),
-                                        ReftType::Reft(formal),
-                                        None,
-                                    );
-                                }
-                                println!("");
-                                if let Some(rhs) = self.reft_types.get(&place.local) {
-                                    self.check_subtyping(
-                                        &env,
-                                        ReftType::Reft(ret),
-                                        *rhs,
-                                        Some(place.local),
-                                    );
-                                } else if !self.mir.local_decls[place.local].is_user_variable() {
-                                    println!(
-                                        "    infer {:?} for {:?}",
-                                        ReftType::Reft(ret),
-                                        place.local
-                                    );
-                                    self.reft_types.insert(place.local, ReftType::Reft(ret));
-                                }
-                            } else {
-                                todo!("implement checks for non converging calls")
+                            for formal in formals {
+                                self.check_subtyping(&env, self.cx.reft_true, formal, None);
+                            }
+                            println!("");
+                            if let Some(rhs) = self.reft_types.get(&place.local) {
+                                self.check_subtyping(&env, ret, *rhs, Some(place.local));
+                            } else if !self.mir.local_decls[place.local].is_user_variable() {
+                                println!("    infer {:?} for {:?}", ret, place.local);
+                                self.reft_types.insert(place.local, ret);
                             }
                         } else {
-                            bug!("expected function type")
+                            todo!("implement checks for non converging calls")
                         }
                     }
                     TerminatorKind::Resume
@@ -170,12 +150,12 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     fn check_subtyping(
         &self,
         env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
-        lhs: ReftType<'a, 'tcx>,
-        rhs: ReftType<'a, 'tcx>,
+        lhs: &'a ReftType<'a, 'tcx>,
+        rhs: &'a ReftType<'a, 'tcx>,
         local: Option<mir::Local>,
     ) {
         match (lhs, rhs) {
-            (ReftType::Fun(_), ReftType::Fun(_)) => todo!(),
+            (ReftType::Fun { .. }, ReftType::Fun { .. }) => todo!(),
             (ReftType::Reft(lhs), ReftType::Reft(rhs)) => {
                 let r = self.check(&env, lhs, rhs, local);
                 if let Err(e) = r {
@@ -204,11 +184,11 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         DataflowResultsCursor::new(initialized_result, self.mir)
     }
 
-    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> ReftType<'a, 'tcx> {
+    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> &'a ReftType<'a, 'tcx> {
         match operand {
             Operand::Copy(place) | Operand::Move(place) => {
                 match place.ty(self, self.cx.tcx()).ty.kind {
-                    ty::FnDef(def_id, _) => ReftType::Fun(self.cx.fun_type(def_id)),
+                    ty::FnDef(def_id, _) => self.cx.reft_type_for(def_id),
                     ty::FnPtr(..) => todo!(),
                     _ => {
                         let place = Place {
@@ -216,17 +196,19 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                             projection: place.projection,
                         };
                         let place = self.cx.mk_pred_place(place);
-                        ReftType::Reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, place))
+                        self.cx
+                            .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, place))
                     }
                 }
             }
             Operand::Constant(box Constant { literal, .. }) => match literal.ty.kind {
-                ty::FnDef(def_id, _) => ReftType::Fun(self.cx.fun_type(def_id)),
+                ty::FnDef(def_id, _) => self.cx.reft_type_for(def_id),
                 ty::FnPtr(..) => todo!(),
                 _ => match literal.val {
                     ty::ConstKind::Value(val) => {
                         let constant = self.cx.mk_constant(literal.ty, val);
-                        ReftType::Reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
+                        self.cx
+                            .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
                     }
                     _ => unimplemented!("{:?}", operand),
                 },
@@ -247,7 +229,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         }
     }
 
-    pub fn rvalue_reft_type(&self, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> ReftType<'a, 'tcx> {
+    pub fn rvalue_reft_type(&self, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> &'a ReftType<'a, 'tcx> {
         match rvalue {
             // v:{v == operand}
             Rvalue::Use(operand) => self.operand_reft_type(operand),
@@ -267,7 +249,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     BinOpKind::Eq,
                     bin,
                 );
-                ReftType::Reft(bin)
+                self.cx.mk_reft(bin)
             }
             // v:{v == lhs + rhs}
             Rvalue::BinaryOp(op, lhs, rhs) => {
@@ -276,7 +258,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     self.cx
                         .mk_binary(self.operand_to_value(lhs), op, self.operand_to_value(rhs));
                 let bin = self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, bin);
-                ReftType::Reft(bin)
+                self.cx.mk_reft(bin)
             }
             _ => todo!("{:?}", rvalue),
         }

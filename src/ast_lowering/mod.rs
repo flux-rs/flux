@@ -1,6 +1,6 @@
 pub mod constant;
 
-use super::refinements::{BodyRefts, FunType, Pred, Var};
+use super::refinements::{BodyRefts, Pred, ReftType, Value, Var};
 use super::syntax::ast;
 use super::wf::TypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
@@ -36,16 +36,16 @@ fn build_body_refts<'a, 'tcx>(
     let mut local_decls = HashMap::new();
     for refine in body_annots.locals.values() {
         let local = mir_local_table.lookup_hir_id(refine.hir_res.hir_id());
-        local_decls.insert(local, builder.build_refine(&refine.pred, &[]));
+        local_decls.insert(local, builder.build_reft(refine, &[]));
     }
 
     let fun_type = if let Some(fun_type) = &body_annots.fn_ty {
-        let fun_type = builder.build_fn_typ(fun_type);
+        let fun_type = builder.build_fun_type(fun_type);
         let mut locals = (0..mir.arg_count)
             .map(|i| mir::Local::from_usize(i + 1))
             .collect::<Vec<_>>();
         locals.push(mir::RETURN_PLACE);
-        let opened = cx.open_fun_type_with_locals(fun_type, &locals);
+        let opened = cx.open_reft_type(fun_type, &Value::from_locals(&locals));
         for (input, local) in opened.into_iter().zip(locals) {
             local_decls.insert(local, input);
         }
@@ -80,44 +80,49 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         }
     }
 
-    fn build_fn_typ(&self, fn_typ: &ast::FnType) -> FunType<'a, 'tcx> {
-        let mut local_bindings = vec![];
+    fn build_fun_type(&self, fn_typ: &ast::FnType) -> &'a ReftType<'a, 'tcx> {
+        let mut bindings = vec![];
         let inputs = fn_typ
             .inputs
             .iter()
             .map(|input| {
-                local_bindings.push(input.binding.name);
-                *self.build_refine(&input.pred, &local_bindings)
+                bindings.push(input.binding.name);
+                self.build_reft(input, &bindings)
             })
             .collect::<Vec<_>>();
-        local_bindings.push(fn_typ.output.binding.name);
-        let output = self.build_refine(&fn_typ.output.pred, &local_bindings);
-        self.cx.mk_fun_type(&inputs, output)
+        bindings.push(fn_typ.output.binding.name);
+        let output = self.build_reft(&fn_typ.output, &bindings);
+        self.cx.mk_fun_type(inputs, output)
     }
 
-    fn build_refine(&self, expr: &ast::Pred, local_bindings: &[Symbol]) -> &'a Pred<'a, 'tcx> {
+    fn build_reft(&self, reft: &ast::Reft, bindings: &[Symbol]) -> &'a ReftType<'a, 'tcx> {
+        let mut bindings = bindings.to_vec();
+        bindings.push(reft.binding.name);
+        let pred = self.build_pred(&reft.pred, &bindings);
+        self.cx.mk_reft(pred)
+    }
+
+    fn build_pred(&self, expr: &ast::Pred, bindings: &[Symbol]) -> &'a Pred<'a, 'tcx> {
         let ty = self.typeck_table[&expr.expr_id];
         match &expr.kind {
             ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => self.cx.mk_binary(
-                self.build_refine(lhs_expr, local_bindings),
+                self.build_pred(lhs_expr, bindings),
                 op.kind,
-                self.build_refine(rhs_expr, local_bindings),
+                self.build_pred(rhs_expr, bindings),
             ),
-            ast::ExprKind::Unary(op, expr) => self
-                .cx
-                .mk_unary(op.kind, self.build_refine(expr, local_bindings)),
-            ast::ExprKind::Name(name) => self
-                .cx
-                .mk_place_var(self.var_for_name(*name, local_bindings)),
+            ast::ExprKind::Unary(op, expr) => {
+                self.cx.mk_unary(op.kind, self.build_pred(expr, bindings))
+            }
+            ast::ExprKind::Name(name) => self.cx.mk_place_var(self.var_for_name(*name, bindings)),
             ast::ExprKind::Lit(lit) => self.lit_to_constant(&lit.node, ty, expr.span),
             ast::ExprKind::Err => bug!(),
         }
     }
 
-    fn var_for_name(&self, name: ast::Name, local_bindings: &[Symbol]) -> Var {
+    fn var_for_name(&self, name: ast::Name, bindings: &[Symbol]) -> Var {
         match name.hir_res {
             ast::HirRes::Binding(_) => {
-                for (i, symb) in local_bindings.iter().rev().enumerate() {
+                for (i, symb) in bindings.iter().rev().enumerate() {
                     if name.ident.name == *symb {
                         return Var::Bound(i);
                     }

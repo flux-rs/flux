@@ -29,13 +29,18 @@ pub struct LiquidRustCtxt<'a, 'tcx> {
     cx: &'a LateContext<'a, 'tcx>,
     refts_table: HashMap<DefId, BodyRefts<'a, 'tcx>>,
     preds: &'a ArenaInterner<'a, Pred<'a, 'tcx>>,
-    pub reft_true: &'a Pred<'a, 'tcx>,
+    refts: &'a ArenaInterner<'a, ReftType<'a, 'tcx>>,
+    pub reft_true: &'a ReftType<'a, 'tcx>,
     pub nu: &'a Pred<'a, 'tcx>,
 }
 
 impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
-    pub fn new(cx: &'a LateContext<'a, 'tcx>, preds: &'a ArenaInterner<Pred<'a, 'tcx>>) -> Self {
-        let reft_true = Pred::Constant(
+    pub fn new(
+        cx: &'a LateContext<'a, 'tcx>,
+        preds: &'a ArenaInterner<Pred<'a, 'tcx>>,
+        refts: &'a ArenaInterner<ReftType<'a, 'tcx>>,
+    ) -> Self {
+        let pred_true = Pred::Constant(
             cx.tcx.types.bool,
             ConstValue::Scalar(Scalar::from_bool(true)),
         );
@@ -44,8 +49,9 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
             cx,
             refts_table: HashMap::new(),
             preds,
-            reft_true: preds.intern(reft_true),
+            reft_true: refts.intern(ReftType::Reft(preds.intern(pred_true))),
             nu: preds.intern(Pred::nu()),
+            refts,
         }
     }
 
@@ -83,13 +89,17 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.cx.sess().abort_if_errors();
     }
 
+    pub fn mk_reft(&self, pred: &'a Pred<'a, 'tcx>) -> &'a ReftType<'a, 'tcx> {
+        self.refts.intern(ReftType::Reft(pred))
+    }
+
     pub fn mk_fun_type(
         &self,
-        inputs: &[Pred<'a, 'tcx>],
-        output: &'a Pred<'a, 'tcx>,
-    ) -> FunType<'a, 'tcx> {
-        let inputs = self.preds.alloc_slice(inputs);
-        FunType { inputs, output }
+        inputs: Vec<&'a ReftType<'a, 'tcx>>,
+        output: &'a ReftType<'a, 'tcx>,
+    ) -> &'a ReftType<'a, 'tcx> {
+        let inputs = self.refts.alloc_from_iter(inputs.into_iter().map(|p| *p));
+        self.refts.intern(ReftType::Fun { inputs, output })
     }
 
     pub fn mk_place_var(&self, var: Var) -> &'a Pred<'a, 'tcx> {
@@ -136,7 +146,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.refts_table.insert(def_id, body_refts);
     }
 
-    pub fn local_decls(&self, body_id: BodyId) -> &HashMap<mir::Local, &'a Pred<'a, 'tcx>> {
+    pub fn local_decls(&self, body_id: BodyId) -> &HashMap<mir::Local, &'a ReftType<'a, 'tcx>> {
         let def_id = self.hir().body_owner_def_id(body_id);
         if let Some(body_refts) = self.refts_table.get(&def_id) {
             &body_refts.local_decls
@@ -145,7 +155,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn fun_type(&self, def_id: DefId) -> FunType<'a, 'tcx> {
+    pub fn reft_type_for(&self, def_id: DefId) -> &'a ReftType<'a, 'tcx> {
         if_chain! {
             if let Some(body_refts) = self.refts_table.get(&def_id);
             if let Some(fun_type) = body_refts.fun_type;
@@ -153,9 +163,9 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
                 fun_type
             } else {
                 let arg_count = self.tcx().fn_sig(def_id).skip_binder().inputs().len();
-                let inputs = self.preds.alloc_from_iter(iter::repeat(*self.reft_true).take(arg_count));
+                let inputs = self.refts.alloc_from_iter(iter::repeat(*self.reft_true).take(arg_count));
                 let output = self.reft_true;
-                FunType { inputs, output }
+                self.refts.intern(ReftType::Fun { inputs, output})
             }
         }
     }
@@ -166,14 +176,6 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         locals: &[mir::Local],
     ) -> &'a Pred<'a, 'tcx> {
         self.open_pred(pred, &Value::from_locals(locals))
-    }
-
-    pub fn open_fun_type_with_locals(
-        &self,
-        fun_type: FunType<'a, 'tcx>,
-        locals: &[mir::Local],
-    ) -> Vec<&'a Pred<'a, 'tcx>> {
-        self.open_fun_type(fun_type, &Value::from_locals(locals))
     }
 
     pub fn open_pred(
@@ -202,20 +204,23 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn open_fun_type(
+    pub fn open_reft_type(
         &self,
-        fun_type: FunType<'a, 'tcx>,
-        inputs_and_output: &[Value<'tcx>],
-    ) -> Vec<&'a Pred<'a, 'tcx>> {
-        assert_eq!(inputs_and_output.len(), fun_type.inputs.len() + 1);
-        let mut refines = fun_type
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(i, pred)| self.open_pred(pred, &inputs_and_output[0..i + 1]))
-            .collect::<Vec<_>>();
-        refines.push(self.open_pred(fun_type.output, inputs_and_output));
-        refines
+        reft_type: &'a ReftType<'a, 'tcx>,
+        values: &[Value<'tcx>],
+    ) -> Vec<&'a ReftType<'a, 'tcx>> {
+        match reft_type {
+            ReftType::Reft(pred) => vec![self.mk_reft(self.open_pred(pred, values))],
+            ReftType::Fun { inputs, output } => {
+                let mut refts = inputs
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, reft_ty)| self.open_reft_type(reft_ty, &values[0..i + 1]))
+                    .collect::<Vec<_>>();
+                refts.extend(self.open_reft_type(output, values));
+                refts
+            }
+        }
     }
 }
 
