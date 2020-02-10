@@ -90,17 +90,15 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                             if place.projection.len() > 0 {
                                 todo!();
                             }
-                            let mut values = args
+                            let values = args
                                 .iter()
                                 .map(|arg| self.operand_to_arg(arg))
                                 .collect::<Vec<_>>();
-                            values.push(Value::Local(place.local));
-                            let opened = self.cx.open_reft_type(fun_type, &values);
-                            let (ret, formals) = opened.split_last().unwrap();
+                            let (formals, ret) = self.cx.open_fun_type(fun_type, &values);
 
                             for (arg, formal) in args.iter().zip(formals) {
                                 let actual = self.operand_reft_type(arg);
-                                self.check_subtyping(&env, actual, *formal);
+                                self.check_subtyping(&env, actual, formal);
                             }
                             println!("");
                             self.check_assign(*place, &env, ret);
@@ -263,10 +261,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         let mut places = HashSet::new();
         let preds = env
             .iter()
-            .map(|(local, pred)| {
-                self.cx
-                    .open_pred(pred, &Value::from_locals(&[*local]), false)
-            })
+            .map(|(local, pred)| self.cx.open_pred(pred, Value::Local(*local)))
             .collect::<Vec<_>>();
 
         for pred in &preds {

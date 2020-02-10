@@ -41,14 +41,14 @@ fn build_body_refts<'a, 'tcx>(
 
     let fun_type = if let Some(fun_type) = &body_annots.fn_ty {
         let fun_type = builder.build_fun_type(fun_type);
-        let mut locals = (0..mir.arg_count)
+        let locals = (0..mir.arg_count)
             .map(|i| mir::Local::from_usize(i + 1))
             .collect::<Vec<_>>();
-        locals.push(mir::RETURN_PLACE);
-        let opened = cx.open_reft_type(fun_type, &Value::from_locals(&locals));
-        for (input, local) in opened.into_iter().zip(locals) {
+        let (inputs, output) = cx.open_fun_type(fun_type, &Value::from_locals(&locals));
+        for (input, local) in inputs.into_iter().zip(locals) {
             local_decls.insert(local, input);
         }
+        local_decls.insert(mir::RETURN_PLACE, output);
         Some(fun_type)
     } else {
         None

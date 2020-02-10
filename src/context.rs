@@ -170,27 +170,26 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn open_pred(
+    pub fn open_pred(&self, pred: &'a Pred<'a, 'tcx>, value: Value<'tcx>) -> &'a Pred<'a, 'tcx> {
+        self._open_pred(pred, &[value], 1)
+    }
+
+    fn _open_pred(
         &self,
         pred: &'a Pred<'a, 'tcx>,
         values: &[Value<'tcx>],
-        keep_inner_most: bool,
+        nbinders: usize,
     ) -> &'a Pred<'a, 'tcx> {
         match pred {
-            Pred::Unary(op, pred) => {
-                self.mk_unary(*op, self.open_pred(pred, values, keep_inner_most))
-            }
+            Pred::Unary(op, pred) => self.mk_unary(*op, self._open_pred(pred, values, nbinders)),
             Pred::Binary(lhs, op, rhs) => self.mk_binary(
-                self.open_pred(lhs, values, keep_inner_most),
+                self._open_pred(lhs, values, nbinders),
                 *op,
-                self.open_pred(rhs, values, keep_inner_most),
+                self._open_pred(rhs, values, nbinders),
             ),
             Pred::Place(place) => match place.var {
-                Var::Bound(idx) => {
-                    if idx == 0 && keep_inner_most {
-                        return pred;
-                    }
-                    match values[values.len() - idx - 1] {
+                Var::Bound(idx) if values.len() + idx >= nbinders => {
+                    match values[values.len() + idx - nbinders] {
                         Value::Constant(ty, val) => self.mk_constant(ty, val),
                         Value::Local(local) => self.mk_pred_place(Place {
                             var: Var::Local(local),
@@ -204,21 +203,41 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn open_reft_type(
+    pub fn open_fun_type(
         &self,
         reft_type: &'a ReftType<'a, 'tcx>,
         values: &[Value<'tcx>],
-    ) -> Vec<&'a ReftType<'a, 'tcx>> {
+    ) -> (Vec<&'a ReftType<'a, 'tcx>>, &'a ReftType<'a, 'tcx>) {
         match reft_type {
-            ReftType::Reft(pred) => vec![self.mk_reft(self.open_pred(pred, values, true))],
+            ReftType::Reft(..) => bug!("expected function type"),
             ReftType::Fun { inputs, output } => {
-                let mut refts = inputs
+                let output = self._open_reft_type(output, values, inputs.len());
+                let inputs = inputs
                     .iter()
                     .enumerate()
-                    .flat_map(|(i, reft_ty)| self.open_reft_type(reft_ty, &values[0..i + 1]))
+                    .map(|(i, reft_ty)| self._open_reft_type(reft_ty, &values[0..i], i))
                     .collect::<Vec<_>>();
-                refts.extend(self.open_reft_type(output, values));
-                refts
+                (inputs, output)
+            }
+        }
+    }
+
+    fn _open_reft_type(
+        &self,
+        reft_type: &'a ReftType<'a, 'tcx>,
+        values: &[Value<'tcx>],
+        nbinders: usize,
+    ) -> &'a ReftType<'a, 'tcx> {
+        match reft_type {
+            ReftType::Reft(pred) => self.mk_reft(self._open_pred(pred, values, nbinders + 1)),
+            ReftType::Fun { inputs, output } => {
+                let output = self._open_reft_type(output, values, nbinders + inputs.len());
+                let inputs = inputs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, reft_ty)| self._open_reft_type(reft_ty, values, nbinders + i))
+                    .collect::<Vec<_>>();
+                self.mk_fun_type(inputs, output)
             }
         }
     }
