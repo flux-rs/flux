@@ -6,7 +6,7 @@ use super::smtlib2::{SmtRes, Solver};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
-use rustc_hir::BodyId;
+use rustc_hir::{def_id::DefId, BodyId};
 use rustc_index::vec::IndexVec;
 use rustc_index::{bit_set::BitSet, vec::Idx};
 use rustc_mir::dataflow::{
@@ -20,52 +20,54 @@ pub fn check_body(cx: &LiquidRustCtxt<'_, '_>, body_id: BodyId) {
 
 struct ReftChecker<'a, 'b, 'tcx> {
     cx: &'b LiquidRustCtxt<'a, 'tcx>,
-    body_id: BodyId,
     mir: &'b mir::Body<'tcx>,
     reft_types: HashMap<mir::Local, &'a ReftType<'a, 'tcx>>,
+    cursor: DataflowResultsCursor<'b, 'tcx, DefinitelyInitializedLocal<'b, 'tcx>>,
 }
 
 impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     pub fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, body_id: BodyId) -> Self {
         let reft_types = cx.local_decls(body_id).clone();
         let mir = cx.optimized_mir(body_id);
+        let cursor = initialized_locals(cx, cx.hir().body_owner_def_id(body_id));
         ReftChecker {
             cx,
             mir,
-            body_id,
             reft_types,
+            cursor,
         }
     }
 
-    pub fn check_body(&mut self) {
-        let mut cursor = self.initialized_locals();
+    fn env_at(
+        &mut self,
+        block: mir::BasicBlock,
+        statement_index: usize,
+    ) -> HashMap<mir::Local, &'a Pred<'a, 'tcx>> {
+        let loc = mir::Location {
+            block,
+            statement_index,
+        };
+        self.cursor.seek(loc);
+        let mut env = HashMap::new();
+        for local in self.cursor.get().iter() {
+            if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
+                env.insert(local, pred);
+            }
+        }
+        env
+    }
 
+    pub fn check_body(&mut self) {
         for (bb, bbd) in self.mir.basic_blocks().iter_enumerated() {
             print!("\nbb{}:", bb.index());
             for (i, statement) in bbd.statements.iter().enumerate() {
-                let loc = mir::Location {
-                    block: bb,
-                    statement_index: i,
-                };
-                cursor.seek(loc);
-                let mut env = HashMap::new();
-                for local in cursor.get().iter() {
-                    if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
-                        env.insert(local, pred);
-                    }
-                }
                 println!("\n  {:?}", statement);
                 match &statement.kind {
                     StatementKind::Assign(box (place, rvalue)) => {
                         let ty = place.ty(self, self.cx.tcx()).ty;
-                        let local = place.local;
                         let lhs = self.rvalue_reft_type(ty, rvalue);
-                        if let Some(rhs) = self.reft_types.get(&local) {
-                            self.check_subtyping(&env, lhs, rhs);
-                        } else if !self.mir.local_decls[local].is_user_variable() {
-                            println!("    infer {:?}:{:?}", local, lhs);
-                            self.reft_types.insert(local, lhs);
-                        }
+                        let env = self.env_at(bb, i);
+                        self.check_assign(*place, &env, lhs);
                     }
                     StatementKind::StorageLive(_)
                     | StatementKind::StorageDead(_)
@@ -73,17 +75,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     _ => todo!("{:?}", statement),
                 }
             }
-            let loc = mir::Location {
-                block: bb,
-                statement_index: bbd.statements.len(),
-            };
-            cursor.seek(loc);
-            let mut env = HashMap::new();
-            for local in cursor.get().iter() {
-                if let Some(ReftType::Reft(pred)) = self.reft_types.get(&local) {
-                    env.insert(local, *pred);
-                }
-            }
+            let env = self.env_at(bb, bbd.statements.len());
             if let Some(terminator) = &bbd.terminator {
                 println!("\n  {:?}", terminator.kind);
                 match &terminator.kind {
@@ -100,7 +92,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                             }
                             let mut values = args
                                 .iter()
-                                .map(|arg| self.operand_to_arg_value(arg))
+                                .map(|arg| self.operand_to_arg(arg))
                                 .collect::<Vec<_>>();
                             values.push(Value::Local(place.local));
                             let opened = self.cx.open_reft_type(fun_type, &values);
@@ -111,12 +103,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                                 self.check_subtyping(&env, actual, *formal);
                             }
                             println!("");
-                            if let Some(rhs) = self.reft_types.get(&place.local) {
-                                self.check_subtyping(&env, ret, *rhs);
-                            } else if !self.mir.local_decls[place.local].is_user_variable() {
-                                println!("    infer {:?}:{:?}", place.local, ret);
-                                self.reft_types.insert(place.local, ret);
-                            }
+                            self.check_assign(*place, &env, ret);
                         } else {
                             todo!("implement checks for non converging calls")
                         }
@@ -133,7 +120,25 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         println!("---------------------------");
     }
 
-    fn operand_to_arg_value(&self, operand: &Operand<'tcx>) -> Value<'tcx> {
+    fn check_assign(
+        &mut self,
+        place: mir::Place,
+        env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
+        lhs: &'a ReftType<'a, 'tcx>,
+    ) {
+        if place.projection.len() > 0 {
+            todo!();
+        }
+        let local = place.local;
+        if let Some(rhs) = self.reft_types.get(&local) {
+            self.check_subtyping(&env, lhs, rhs);
+        } else if !self.mir.local_decls[local].is_user_variable() {
+            println!("    infer {:?}:{:?}", local, lhs);
+            self.reft_types.insert(local, lhs);
+        }
+    }
+
+    fn operand_to_arg(&self, operand: &Operand<'tcx>) -> Value<'tcx> {
         match operand {
             Operand::Copy(place) | Operand::Move(place) => {
                 if place.projection.len() > 0 {
@@ -166,24 +171,6 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
             }
             _ => bug!("refinement types must have the same shape"),
         }
-    }
-
-    fn initialized_locals(
-        &self,
-    ) -> DataflowResultsCursor<'b, 'tcx, DefinitelyInitializedLocal<'b, 'tcx>> {
-        let dead_unwinds = BitSet::new_empty(self.mir.basic_blocks().len());
-        let def_id = self.cx.hir().body_owner_def_id(self.body_id);
-        let initialized_result = do_dataflow(
-            self.cx.tcx(),
-            self.mir,
-            def_id,
-            &[],
-            &dead_unwinds,
-            DefinitelyInitializedLocal::new(self.mir),
-            |bd, p| DebugFormatted::new(&bd.body().local_decls[p]),
-        );
-
-        DataflowResultsCursor::new(initialized_result, self.mir)
     }
 
     fn operand_reft_type(&self, operand: &Operand<'tcx>) -> &'a ReftType<'a, 'tcx> {
@@ -342,6 +329,25 @@ pub fn mir_op_to_refine_op(op: mir::BinOp) -> BinOpKind {
         | mir::BinOp::Shr
         | mir::BinOp::Offset => unimplemented!("{:?}", op),
     }
+}
+
+fn initialized_locals<'a, 'b, 'tcx>(
+    cx: &LiquidRustCtxt<'a, 'tcx>,
+    def_id: DefId,
+) -> DataflowResultsCursor<'b, 'tcx, DefinitelyInitializedLocal<'b, 'tcx>> {
+    let mir = cx.tcx().optimized_mir(def_id);
+    let dead_unwinds = BitSet::new_empty(mir.basic_blocks().len());
+    let initialized_result = do_dataflow(
+        cx.tcx(),
+        mir,
+        def_id,
+        &[],
+        &dead_unwinds,
+        DefinitelyInitializedLocal::new(mir),
+        |bd, p| DebugFormatted::new(&bd.body().local_decls[p]),
+    );
+
+    DataflowResultsCursor::new(initialized_result, mir)
 }
 
 struct DefinitelyInitializedLocal<'a, 'tcx> {
