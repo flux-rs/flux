@@ -9,11 +9,14 @@ use rustc_hir::BodyId;
 use std::collections::HashMap;
 use std::fmt;
 
+#[derive(Copy, Clone)]
+pub struct Binder<T>(T);
+
 #[derive(Debug)]
 pub struct BodyRefts<'a, 'tcx> {
     pub body_id: BodyId,
-    pub fun_type: Option<&'a ReftType<'a, 'tcx>>,
-    pub local_decls: HashMap<mir::Local, &'a ReftType<'a, 'tcx>>,
+    pub fun_type: Option<Binder<&'a ReftType<'a, 'tcx>>>,
+    pub local_decls: HashMap<mir::Local, Binder<&'a ReftType<'a, 'tcx>>>,
 }
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
@@ -50,6 +53,26 @@ pub enum Var {
 pub enum Value<'tcx> {
     Constant(Ty<'tcx>, ConstValue<'tcx>),
     Local(mir::Local),
+}
+
+impl<T> Binder<T> {
+    pub fn bind(val: T) -> Self {
+        Binder(val)
+    }
+
+    pub fn skip_binder(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<'a, 'tcx> Binder<&'a ReftType<'a, 'tcx>> {
+    pub fn pred(&self) -> Option<Binder<&'a Pred<'a, 'tcx>>> {
+        if let ReftType::Reft(pred) = self.skip_binder() {
+            Some(Binder::bind(pred))
+        } else {
+            None
+        }
+    }
 }
 
 impl<'a, 'tcx> ReftType<'a, 'tcx> {
@@ -108,6 +131,12 @@ impl<'tcx> Place<'tcx> {
 impl Var {
     pub fn nu() -> Self {
         Var::Bound(0)
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Binder<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.skip_binder(), fmt)
     }
 }
 

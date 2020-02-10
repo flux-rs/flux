@@ -1,7 +1,7 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{Place, Pred, ReftType, Value, Var};
+use super::refinements::{Binder, Place, Pred, ReftType, Value, Var};
 use super::smtlib2::{SmtRes, Solver};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
@@ -21,7 +21,7 @@ pub fn check_body(cx: &LiquidRustCtxt<'_, '_>, body_id: BodyId) {
 struct ReftChecker<'a, 'b, 'tcx> {
     cx: &'b LiquidRustCtxt<'a, 'tcx>,
     mir: &'b mir::Body<'tcx>,
-    reft_types: HashMap<mir::Local, &'a ReftType<'a, 'tcx>>,
+    reft_types: HashMap<mir::Local, Binder<&'a ReftType<'a, 'tcx>>>,
     cursor: DataflowResultsCursor<'b, 'tcx, DefinitelyInitializedLocal<'b, 'tcx>>,
 }
 
@@ -42,16 +42,16 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         &mut self,
         block: mir::BasicBlock,
         statement_index: usize,
-    ) -> HashMap<mir::Local, &'a Pred<'a, 'tcx>> {
+    ) -> Vec<&'a Pred<'a, 'tcx>> {
         let loc = mir::Location {
             block,
             statement_index,
         };
         self.cursor.seek(loc);
-        let mut env = HashMap::new();
+        let mut env = Vec::new();
         for local in self.cursor.get().iter() {
             if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
-                env.insert(local, pred);
+                env.push(self.cx.open_pred(pred, Value::Local(local)));
             }
         }
         env
@@ -121,15 +121,15 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     fn check_assign(
         &mut self,
         place: mir::Place,
-        env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
-        lhs: &'a ReftType<'a, 'tcx>,
+        env: &[&'a Pred<'a, 'tcx>],
+        lhs: Binder<&'a ReftType<'a, 'tcx>>,
     ) {
         if place.projection.len() > 0 {
             todo!();
         }
         let local = place.local;
         if let Some(rhs) = self.reft_types.get(&local) {
-            self.check_subtyping(&env, lhs, rhs);
+            self.check_subtyping(&env, lhs, *rhs);
         } else if !self.mir.local_decls[local].is_user_variable() {
             println!("    infer {:?}:{:?}", local, lhs);
             self.reft_types.insert(local, lhs);
@@ -153,9 +153,9 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
 
     fn check_subtyping(
         &self,
-        env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
-        lhs: &'a ReftType<'a, 'tcx>,
-        rhs: &'a ReftType<'a, 'tcx>,
+        env: &[&'a Pred<'a, 'tcx>],
+        lhs: Binder<&'a ReftType<'a, 'tcx>>,
+        rhs: Binder<&'a ReftType<'a, 'tcx>>,
     ) {
         let lhs = self.cx.open_with_fresh_vars(lhs);
         let rhs = self.cx.open_with_fresh_vars(rhs);
@@ -171,11 +171,11 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         }
     }
 
-    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> &'a ReftType<'a, 'tcx> {
-        match operand {
+    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> Binder<&'a ReftType<'a, 'tcx>> {
+        let reft_ty = match operand {
             Operand::Copy(place) | Operand::Move(place) => {
                 match place.ty(self, self.cx.tcx()).ty.kind {
-                    ty::FnDef(def_id, _) => self.cx.reft_type_for(def_id),
+                    ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                     ty::FnPtr(..) => todo!(),
                     _ => {
                         let place = Place {
@@ -189,7 +189,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                 }
             }
             Operand::Constant(box Constant { literal, .. }) => match literal.ty.kind {
-                ty::FnDef(def_id, _) => self.cx.reft_type_for(def_id),
+                ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                 ty::FnPtr(..) => todo!(),
                 _ => match literal.val {
                     ty::ConstKind::Value(val) => {
@@ -200,7 +200,8 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     _ => unimplemented!("{:?}", operand),
                 },
             },
-        }
+        };
+        Binder::bind(reft_ty)
     }
 
     fn operand_to_value(&self, operand: &Operand<'tcx>) -> &'a Pred<'a, 'tcx> {
@@ -216,10 +217,14 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         }
     }
 
-    pub fn rvalue_reft_type(&self, ty: Ty<'tcx>, rvalue: &Rvalue<'tcx>) -> &'a ReftType<'a, 'tcx> {
-        match rvalue {
+    pub fn rvalue_reft_type(
+        &self,
+        ty: Ty<'tcx>,
+        rvalue: &Rvalue<'tcx>,
+    ) -> Binder<&'a ReftType<'a, 'tcx>> {
+        let reft_ty = match rvalue {
             // v:{v == operand}
-            Rvalue::Use(operand) => self.operand_reft_type(operand),
+            Rvalue::Use(operand) => return self.operand_reft_type(operand),
             // v:{v.0 == lhs + rhs}
             Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
                 let op = mir_op_to_refine_op(*op);
@@ -248,41 +253,29 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                 self.cx.mk_reft(bin)
             }
             _ => todo!("{:?}", rvalue),
-        }
+        };
+        Binder::bind(reft_ty)
     }
 
     fn check(
         &self,
-        env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
+        env: &[&'a Pred<'a, 'tcx>],
         lhs: &'a Pred<'a, 'tcx>,
         rhs: &'a Pred<'a, 'tcx>,
     ) -> SmtRes<()> {
         let mut solver = Solver::default(())?;
         let mut places = HashSet::new();
-        let preds = env
-            .iter()
-            .map(|(local, pred)| self.cx.open_pred(pred, Value::Local(*local)))
-            .collect::<Vec<_>>();
-
-        for pred in &preds {
+        for pred in env.iter().chain(&[lhs, rhs]) {
             pred.iter_places(|place| {
                 places.insert(place);
             })
         }
 
-        lhs.iter_places(|place| {
-            places.insert(place);
-        });
-
-        rhs.iter_places(|place| {
-            places.insert(place);
-        });
-
         for place in places {
             solver.declare_const(&place, "Int")?;
         }
 
-        for pred in preds {
+        for pred in env {
             println!("    {}", pred.to_smt_str());
             solver.assert(pred)?;
         }

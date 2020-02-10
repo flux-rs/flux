@@ -1,6 +1,6 @@
 pub mod constant;
 
-use super::refinements::{BodyRefts, Pred, ReftType, Value, Var};
+use super::refinements::{Binder, BodyRefts, Pred, ReftType, Value, Var};
 use super::syntax::ast;
 use super::wf::TypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
@@ -80,7 +80,7 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         }
     }
 
-    fn build_fun_type(&self, fn_typ: &ast::FnType) -> &'a ReftType<'a, 'tcx> {
+    fn build_fun_type(&self, fn_typ: &ast::FnType) -> Binder<&'a ReftType<'a, 'tcx>> {
         let mut bindings = vec![];
         let inputs = fn_typ
             .inputs
@@ -88,18 +88,18 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
             .map(|input| {
                 let reft = self.build_reft(input, &bindings);
                 bindings.push(input.binding.name);
-                reft
+                *reft.skip_binder()
             })
             .collect::<Vec<_>>();
-        let output = self.build_reft(&fn_typ.output, &bindings);
-        self.cx.mk_fun_type(inputs, output)
+        let output = *self.build_reft(&fn_typ.output, &bindings).skip_binder();
+        Binder::bind(self.cx.mk_fun_type(inputs, output))
     }
 
-    fn build_reft(&self, reft: &ast::Reft, bindings: &[Symbol]) -> &'a ReftType<'a, 'tcx> {
+    fn build_reft(&self, reft: &ast::Reft, bindings: &[Symbol]) -> Binder<&'a ReftType<'a, 'tcx>> {
         let mut bindings = bindings.to_vec();
         bindings.push(reft.binding.name);
         let pred = self.build_pred(&reft.pred, &bindings);
-        self.cx.mk_reft(pred)
+        Binder::bind(self.cx.mk_reft(pred))
     }
 
     fn build_pred(&self, expr: &ast::Pred, bindings: &[Symbol]) -> &'a Pred<'a, 'tcx> {

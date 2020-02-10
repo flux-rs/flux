@@ -2,9 +2,9 @@
 #![allow(unused_variables)]
 #![allow(unused_doc_comments)]
 
-/**@ (x:{x == 0}) -> v:{v > x} @*/
-fn foo(x: i32) -> i32 {
-    x + 1
+/**@ (x:{x == 0}, y:{y > x}) -> v:{v >= y} @*/
+fn foo(x: i32, y: i32) -> i32 {
+    x + y
 }
 
 fn main() {
@@ -15,5 +15,5 @@ fn main() {
     let y = x + 1;
 
     /**@ z:{z > 0} @*/
-    let z = foo(y);
+    let z = foo(y, y + 1);
 }

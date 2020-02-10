@@ -146,7 +146,10 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.refts_table.insert(def_id, body_refts);
     }
 
-    pub fn local_decls(&self, body_id: BodyId) -> &HashMap<mir::Local, &'a ReftType<'a, 'tcx>> {
+    pub fn local_decls(
+        &self,
+        body_id: BodyId,
+    ) -> &HashMap<mir::Local, Binder<&'a ReftType<'a, 'tcx>>> {
         let def_id = self.hir().body_owner_def_id(body_id);
         if let Some(body_refts) = self.refts_table.get(&def_id) {
             &body_refts.local_decls
@@ -155,7 +158,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn reft_type_for(&self, def_id: DefId) -> &'a ReftType<'a, 'tcx> {
+    pub fn reft_type_for(&self, def_id: DefId) -> Binder<&'a ReftType<'a, 'tcx>> {
         if_chain! {
             if let Some(body_refts) = self.refts_table.get(&def_id);
             if let Some(fun_type) = body_refts.fun_type;
@@ -165,13 +168,17 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
                 let arg_count = self.tcx().fn_sig(def_id).skip_binder().inputs().len();
                 let inputs = self.refts.alloc_from_iter(iter::repeat(*self.reft_true).take(arg_count));
                 let output = self.reft_true;
-                self.refts.intern(ReftType::Fun { inputs, output})
+                Binder::bind(self.refts.intern(ReftType::Fun { inputs, output}))
             }
         }
     }
 
-    pub fn open_pred(&self, pred: &'a Pred<'a, 'tcx>, value: Value<'tcx>) -> &'a Pred<'a, 'tcx> {
-        self._open_pred(pred, &[value], 1)
+    pub fn open_pred(
+        &self,
+        pred: Binder<&'a Pred<'a, 'tcx>>,
+        value: Value<'tcx>,
+    ) -> &'a Pred<'a, 'tcx> {
+        self._open_pred(pred.skip_binder(), &[value], 1)
     }
 
     fn _open_pred(
@@ -189,7 +196,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
             ),
             Pred::Place(place) => match place.var {
                 Var::Bound(idx) if values.len() + idx >= nbinders => {
-                    match values[values.len() + idx - nbinders] {
+                    match values[nbinders - idx - 1] {
                         Value::Constant(ty, val) => self.mk_constant(ty, val),
                         Value::Local(local) => self.mk_pred_place(Place {
                             var: Var::Local(local),
@@ -205,17 +212,22 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     pub fn open_fun_type(
         &self,
-        reft_type: &'a ReftType<'a, 'tcx>,
+        reft_type: Binder<&'a ReftType<'a, 'tcx>>,
         values: &[Value<'tcx>],
-    ) -> (Vec<&'a ReftType<'a, 'tcx>>, &'a ReftType<'a, 'tcx>) {
-        match reft_type {
+    ) -> (
+        Vec<Binder<&'a ReftType<'a, 'tcx>>>,
+        Binder<&'a ReftType<'a, 'tcx>>,
+    ) {
+        match reft_type.skip_binder() {
             ReftType::Reft(..) => bug!("expected function type"),
             ReftType::Fun { inputs, output } => {
-                let output = self._open_reft_type(output, values, inputs.len());
+                let output = Binder::bind(self._open_reft_type(output, values, inputs.len()));
                 let inputs = inputs
                     .iter()
                     .enumerate()
-                    .map(|(i, reft_ty)| self._open_reft_type(reft_ty, &values[0..i], i))
+                    .map(|(i, reft_ty)| {
+                        Binder::bind(self._open_reft_type(reft_ty, &values[0..i], i))
+                    })
                     .collect::<Vec<_>>();
                 (inputs, output)
             }
@@ -242,17 +254,23 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    fn open_pred_with_fresh_vars(&self, pred: &'a Pred<'a, 'tcx>, n: usize) -> &'a Pred<'a, 'tcx> {
+    fn open_pred_with_fresh_vars(
+        &self,
+        pred: &'a Pred<'a, 'tcx>,
+        nbinders: usize,
+    ) -> &'a Pred<'a, 'tcx> {
         match pred {
-            Pred::Unary(op, pred) => self.mk_unary(*op, self.open_pred_with_fresh_vars(pred, n)),
+            Pred::Unary(op, pred) => {
+                self.mk_unary(*op, self.open_pred_with_fresh_vars(pred, nbinders))
+            }
             Pred::Binary(lhs, op, rhs) => self.mk_binary(
-                self.open_pred_with_fresh_vars(lhs, n),
+                self.open_pred_with_fresh_vars(lhs, nbinders),
                 *op,
-                self.open_pred_with_fresh_vars(rhs, n),
+                self.open_pred_with_fresh_vars(rhs, nbinders),
             ),
             Pred::Place(place) => match place.var {
                 Var::Bound(idx) => self.mk_pred_place(Place {
-                    var: Var::Free(n - idx - 1),
+                    var: Var::Free(nbinders - idx - 1),
                     projection: place.projection,
                 }),
                 _ => pred,
@@ -263,24 +281,26 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     pub fn open_with_fresh_vars(
         &self,
-        reft_type: &'a ReftType<'a, 'tcx>,
+        reft_type: Binder<&'a ReftType<'a, 'tcx>>,
     ) -> &'a ReftType<'a, 'tcx> {
-        self._open_with_fresh_vars(reft_type, 0)
+        self._open_with_fresh_vars(reft_type.skip_binder(), 0)
     }
 
     fn _open_with_fresh_vars(
         &self,
         reft_type: &'a ReftType<'a, 'tcx>,
-        n: usize,
+        nbinders: usize,
     ) -> &'a ReftType<'a, 'tcx> {
         match reft_type {
-            ReftType::Reft(pred) => self.mk_reft(self.open_pred_with_fresh_vars(pred, n + 1)),
+            ReftType::Reft(pred) => {
+                self.mk_reft(self.open_pred_with_fresh_vars(pred, nbinders + 1))
+            }
             ReftType::Fun { inputs, output } => {
-                let output = self._open_with_fresh_vars(output, inputs.len() + n);
+                let output = self._open_with_fresh_vars(output, inputs.len() + nbinders);
                 let inputs = inputs
                     .iter()
                     .enumerate()
-                    .map(|(i, reft_type)| self._open_with_fresh_vars(reft_type, n + i))
+                    .map(|(i, reft_type)| self._open_with_fresh_vars(reft_type, nbinders + i))
                     .collect::<Vec<_>>();
                 self.mk_fun_type(inputs, output)
             }
