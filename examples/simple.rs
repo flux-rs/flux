@@ -2,7 +2,7 @@
 #![allow(unused_variables)]
 #![allow(unused_doc_comments)]
 
-/**@ (x:{x == 0}) -> v:{v > 0} @*/
+/**@ (x:{x == 0}) -> v:{v > x} @*/
 fn foo(x: i32) -> i32 {
     x + 1
 }

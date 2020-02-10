@@ -86,11 +86,11 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
             .inputs
             .iter()
             .map(|input| {
+                let reft = self.build_reft(input, &bindings);
                 bindings.push(input.binding.name);
-                self.build_reft(input, &bindings)
+                reft
             })
             .collect::<Vec<_>>();
-        bindings.push(fn_typ.output.binding.name);
         let output = self.build_reft(&fn_typ.output, &bindings);
         self.cx.mk_fun_type(inputs, output)
     }
@@ -127,7 +127,7 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
                         return Var::Bound(i);
                     }
                 }
-                Var::Free(self.mir_local_table.lookup_name(name))
+                Var::Local(self.mir_local_table.lookup_name(name))
             }
             ast::HirRes::ReturnValue => Var::nu(),
             ast::HirRes::Unresolved => bug!("identifiers must be resolved"),

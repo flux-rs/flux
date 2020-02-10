@@ -170,35 +170,35 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn open_pred_with_locals(
-        &self,
-        pred: &'a Pred<'a, 'tcx>,
-        locals: &[mir::Local],
-    ) -> &'a Pred<'a, 'tcx> {
-        self.open_pred(pred, &Value::from_locals(locals))
-    }
-
     pub fn open_pred(
         &self,
         pred: &'a Pred<'a, 'tcx>,
         values: &[Value<'tcx>],
+        keep_inner_most: bool,
     ) -> &'a Pred<'a, 'tcx> {
         match pred {
-            Pred::Unary(op, pred) => self.mk_unary(*op, self.open_pred(pred, values)),
+            Pred::Unary(op, pred) => {
+                self.mk_unary(*op, self.open_pred(pred, values, keep_inner_most))
+            }
             Pred::Binary(lhs, op, rhs) => self.mk_binary(
-                self.open_pred(lhs, values),
+                self.open_pred(lhs, values, keep_inner_most),
                 *op,
-                self.open_pred(rhs, values),
+                self.open_pred(rhs, values, keep_inner_most),
             ),
             Pred::Place(place) => match place.var {
-                Var::Free(_) => pred,
-                Var::Bound(idx) => match values[values.len() - idx - 1] {
-                    Value::Constant(ty, val) => self.mk_constant(ty, val),
-                    Value::Local(local) => self.mk_pred_place(Place {
-                        var: Var::Free(local),
-                        projection: place.projection,
-                    }),
-                },
+                Var::Bound(idx) => {
+                    if idx == 0 && keep_inner_most {
+                        return pred;
+                    }
+                    match values[values.len() - idx - 1] {
+                        Value::Constant(ty, val) => self.mk_constant(ty, val),
+                        Value::Local(local) => self.mk_pred_place(Place {
+                            var: Var::Local(local),
+                            projection: place.projection,
+                        }),
+                    }
+                }
+                _ => pred,
             },
             Pred::Constant(..) => pred,
         }
@@ -210,7 +210,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         values: &[Value<'tcx>],
     ) -> Vec<&'a ReftType<'a, 'tcx>> {
         match reft_type {
-            ReftType::Reft(pred) => vec![self.mk_reft(self.open_pred(pred, values))],
+            ReftType::Reft(pred) => vec![self.mk_reft(self.open_pred(pred, values, true))],
             ReftType::Fun { inputs, output } => {
                 let mut refts = inputs
                     .iter()
@@ -219,6 +219,51 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
                     .collect::<Vec<_>>();
                 refts.extend(self.open_reft_type(output, values));
                 refts
+            }
+        }
+    }
+
+    fn open_pred_with_fresh_vars(&self, pred: &'a Pred<'a, 'tcx>, n: usize) -> &'a Pred<'a, 'tcx> {
+        match pred {
+            Pred::Unary(op, pred) => self.mk_unary(*op, self.open_pred_with_fresh_vars(pred, n)),
+            Pred::Binary(lhs, op, rhs) => self.mk_binary(
+                self.open_pred_with_fresh_vars(lhs, n),
+                *op,
+                self.open_pred_with_fresh_vars(rhs, n),
+            ),
+            Pred::Place(place) => match place.var {
+                Var::Bound(idx) => self.mk_pred_place(Place {
+                    var: Var::Free(n - idx - 1),
+                    projection: place.projection,
+                }),
+                _ => pred,
+            },
+            Pred::Constant(..) => pred,
+        }
+    }
+
+    pub fn open_with_fresh_vars(
+        &self,
+        reft_type: &'a ReftType<'a, 'tcx>,
+    ) -> &'a ReftType<'a, 'tcx> {
+        self._open_with_fresh_vars(reft_type, 0)
+    }
+
+    fn _open_with_fresh_vars(
+        &self,
+        reft_type: &'a ReftType<'a, 'tcx>,
+        n: usize,
+    ) -> &'a ReftType<'a, 'tcx> {
+        match reft_type {
+            ReftType::Reft(pred) => self.mk_reft(self.open_pred_with_fresh_vars(pred, n + 1)),
+            ReftType::Fun { inputs, output } => {
+                let output = self._open_with_fresh_vars(output, inputs.len() + n);
+                let inputs = inputs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, reft_type)| self._open_with_fresh_vars(reft_type, n + i))
+                    .collect::<Vec<_>>();
+                self.mk_fun_type(inputs, output)
             }
         }
     }

@@ -42,7 +42,8 @@ pub struct Place<'tcx> {
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Var {
     Bound(usize),
-    Free(mir::Local),
+    Local(mir::Local),
+    Free(usize),
 }
 
 #[derive(Debug)]
@@ -119,9 +120,9 @@ impl fmt::Debug for ReftType<'_, '_> {
                     if i > 0 {
                         write!(fmt, ", ")?;
                     }
-                    write!(fmt, "{{{:?}}}", pred)?;
+                    write!(fmt, "{:?}", pred)?;
                 }
-                write!(fmt, ") -> {{{:?}}}", output)
+                write!(fmt, ") -> {:?}", output)
             }
             Self::Reft(pred) => write!(fmt, "{{{:?}}}", pred),
         }
@@ -223,8 +224,9 @@ impl fmt::Debug for Place<'_> {
 impl fmt::Debug for Var {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Bound(idx) => write!(fmt, "${}", idx),
-            Self::Free(local) => write!(fmt, "{:?}", local),
+            Self::Bound(idx) => write!(fmt, "^{}", idx),
+            Self::Local(local) => write!(fmt, "_{}", local.index()),
+            Self::Free(idx) => write!(fmt, "${}", idx),
         }
     }
 }

@@ -64,10 +64,10 @@ impl Pred<'_, '_> {
 
 impl Sym2Smt<()> for Place<'_> {
     fn sym_to_smt2<Writer: Write>(&self, w: &mut Writer, _info: ()) -> SmtRes<()> {
-        if let Var::Free(local) = self.var {
-            write!(w, "_{}", local.index())?
-        } else {
-            bug!("place has a bound variable: {:?}", self)
+        match self.var {
+            Var::Local(local) => write!(w, "_{}", local.index())?,
+            Var::Free(idx) => write!(w, "${}", idx)?,
+            Var::Bound(_) => bug!("place has a bound variable: {:?}", self),
         }
         for elem in self.projection.iter() {
             match elem {

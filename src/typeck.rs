@@ -61,9 +61,9 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                         let local = place.local;
                         let lhs = self.rvalue_reft_type(ty, rvalue);
                         if let Some(rhs) = self.reft_types.get(&local) {
-                            self.check_subtyping(&env, lhs, rhs, Some(local));
+                            self.check_subtyping(&env, lhs, rhs);
                         } else if !self.mir.local_decls[local].is_user_variable() {
-                            println!("    infer {:?} for {:?}", lhs, local);
+                            println!("    infer {:?}:{:?}", local, lhs);
                             self.reft_types.insert(local, lhs);
                         }
                     }
@@ -106,14 +106,15 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                             let opened = self.cx.open_reft_type(fun_type, &values);
                             let (ret, formals) = opened.split_last().unwrap();
 
-                            for formal in formals {
-                                self.check_subtyping(&env, self.cx.reft_true, formal, None);
+                            for (arg, formal) in args.iter().zip(formals) {
+                                let actual = self.operand_reft_type(arg);
+                                self.check_subtyping(&env, actual, *formal);
                             }
                             println!("");
                             if let Some(rhs) = self.reft_types.get(&place.local) {
-                                self.check_subtyping(&env, ret, *rhs, Some(place.local));
+                                self.check_subtyping(&env, ret, *rhs);
                             } else if !self.mir.local_decls[place.local].is_user_variable() {
-                                println!("    infer {:?} for {:?}", ret, place.local);
+                                println!("    infer {:?}:{:?}", place.local, ret);
                                 self.reft_types.insert(place.local, ret);
                             }
                         } else {
@@ -152,12 +153,13 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
         lhs: &'a ReftType<'a, 'tcx>,
         rhs: &'a ReftType<'a, 'tcx>,
-        local: Option<mir::Local>,
     ) {
+        let lhs = self.cx.open_with_fresh_vars(lhs);
+        let rhs = self.cx.open_with_fresh_vars(rhs);
         match (lhs, rhs) {
             (ReftType::Fun { .. }, ReftType::Fun { .. }) => todo!(),
             (ReftType::Reft(lhs), ReftType::Reft(rhs)) => {
-                let r = self.check(&env, lhs, rhs, local);
+                let r = self.check(&env, lhs, rhs);
                 if let Err(e) = r {
                     println!("    {:?}", e);
                 }
@@ -192,7 +194,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
                     ty::FnPtr(..) => todo!(),
                     _ => {
                         let place = Place {
-                            var: Var::Free(place.local),
+                            var: Var::Local(place.local),
                             projection: place.projection,
                         };
                         let place = self.cx.mk_pred_place(place);
@@ -219,7 +221,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     fn operand_to_value(&self, operand: &Operand<'tcx>) -> &'a Pred<'a, 'tcx> {
         match operand {
             Operand::Copy(place) | Operand::Move(place) => self.cx.mk_pred_place(Place {
-                var: Var::Free(place.local),
+                var: Var::Local(place.local),
                 projection: place.projection,
             }),
             Operand::Constant(box Constant { literal, .. }) => match literal.val {
@@ -267,15 +269,17 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     fn check(
         &self,
         env: &HashMap<mir::Local, &'a Pred<'a, 'tcx>>,
-        mut lhs: &'a Pred<'a, 'tcx>,
-        mut rhs: &'a Pred<'a, 'tcx>,
-        local: Option<mir::Local>,
+        lhs: &'a Pred<'a, 'tcx>,
+        rhs: &'a Pred<'a, 'tcx>,
     ) -> SmtRes<()> {
         let mut solver = Solver::default(())?;
         let mut places = HashSet::new();
         let preds = env
             .iter()
-            .map(|(local, pred)| self.cx.open_pred_with_locals(pred, &[*local]))
+            .map(|(local, pred)| {
+                self.cx
+                    .open_pred(pred, &Value::from_locals(&[*local]), false)
+            })
             .collect::<Vec<_>>();
 
         for pred in &preds {
@@ -284,16 +288,11 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
             })
         }
 
-        if let Some(local) = local {
-            lhs = self.cx.open_pred_with_locals(lhs, &[local]);
-            rhs = self.cx.open_pred_with_locals(rhs, &[local]);
-        }
-
         lhs.iter_places(|place| {
             places.insert(place);
         });
 
-        lhs.iter_places(|place| {
+        rhs.iter_places(|place| {
             places.insert(place);
         });
 
