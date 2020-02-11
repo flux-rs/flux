@@ -18,15 +18,15 @@ pub fn check_body(cx: &LiquidRustCtxt<'_, '_>, body_id: BodyId) {
     ReftChecker::new(cx, body_id).check_body();
 }
 
-struct ReftChecker<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
-    mir: &'b mir::Body<'tcx>,
-    reft_types: HashMap<mir::Local, Binder<&'a ReftType<'a, 'tcx>>>,
-    cursor: DataflowResultsCursor<'b, 'tcx, DefinitelyInitializedLocal<'b, 'tcx>>,
+struct ReftChecker<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+    mir: &'a mir::Body<'tcx>,
+    reft_types: HashMap<mir::Local, Binder<&'lr ReftType<'lr, 'tcx>>>,
+    cursor: DataflowResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>>,
 }
 
-impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
-    pub fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, body_id: BodyId) -> Self {
+impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
+    pub fn new(cx: &'a LiquidRustCtxt<'lr, 'tcx>, body_id: BodyId) -> Self {
         let reft_types = cx.local_decls(body_id).clone();
         let mir = cx.optimized_mir(body_id);
         let cursor = initialized_locals(cx, cx.hir().body_owner_def_id(body_id));
@@ -38,14 +38,10 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         }
     }
 
-    fn env_at(
-        &mut self,
-        block: mir::BasicBlock,
-        statement_index: usize,
-    ) -> Vec<&'a Pred<'a, 'tcx>> {
+    fn env_at(&mut self, block: mir::BasicBlock, index: usize) -> Vec<&'lr Pred<'lr, 'tcx>> {
         let loc = mir::Location {
             block,
-            statement_index,
+            statement_index: index,
         };
         self.cursor.seek(loc);
         let mut env = Vec::new();
@@ -121,8 +117,8 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
     fn check_assign(
         &mut self,
         place: mir::Place,
-        env: &[&'a Pred<'a, 'tcx>],
-        lhs: Binder<&'a ReftType<'a, 'tcx>>,
+        env: &[&'lr Pred<'lr, 'tcx>],
+        lhs: Binder<&'lr ReftType<'lr, 'tcx>>,
     ) {
         if place.projection.len() > 0 {
             todo!();
@@ -153,9 +149,9 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
 
     fn check_subtyping(
         &self,
-        env: &[&'a Pred<'a, 'tcx>],
-        lhs: Binder<&'a ReftType<'a, 'tcx>>,
-        rhs: Binder<&'a ReftType<'a, 'tcx>>,
+        env: &[&'lr Pred<'lr, 'tcx>],
+        lhs: Binder<&'lr ReftType<'lr, 'tcx>>,
+        rhs: Binder<&'lr ReftType<'lr, 'tcx>>,
     ) {
         let lhs = self.cx.open_with_fresh_vars(lhs);
         let rhs = self.cx.open_with_fresh_vars(rhs);
@@ -171,7 +167,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         }
     }
 
-    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> Binder<&'a ReftType<'a, 'tcx>> {
+    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let reft_ty = match operand {
             Operand::Copy(place) | Operand::Move(place) => {
                 match place.ty(self, self.cx.tcx()).ty.kind {
@@ -204,7 +200,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         Binder::bind(reft_ty)
     }
 
-    fn operand_to_value(&self, operand: &Operand<'tcx>) -> &'a Pred<'a, 'tcx> {
+    fn operand_to_value(&self, operand: &Operand<'tcx>) -> &'lr Pred<'lr, 'tcx> {
         match operand {
             Operand::Copy(place) | Operand::Move(place) => self.cx.mk_pred_place(Place {
                 var: Var::Local(place.local),
@@ -221,7 +217,7 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
         &self,
         ty: Ty<'tcx>,
         rvalue: &Rvalue<'tcx>,
-    ) -> Binder<&'a ReftType<'a, 'tcx>> {
+    ) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let reft_ty = match rvalue {
             // v:{v == operand}
             Rvalue::Use(operand) => return self.operand_reft_type(operand),
@@ -259,9 +255,9 @@ impl<'a, 'b, 'tcx> ReftChecker<'a, 'b, 'tcx> {
 
     fn check(
         &self,
-        env: &[&'a Pred<'a, 'tcx>],
-        lhs: &'a Pred<'a, 'tcx>,
-        rhs: &'a Pred<'a, 'tcx>,
+        env: &[&'lr Pred<'lr, 'tcx>],
+        lhs: &'lr Pred<'lr, 'tcx>,
+        rhs: &'lr Pred<'lr, 'tcx>,
     ) -> SmtRes<()> {
         let mut solver = Solver::default(())?;
         let mut places = HashSet::new();
@@ -319,10 +315,10 @@ pub fn mir_op_to_refine_op(op: mir::BinOp) -> BinOpKind {
     }
 }
 
-fn initialized_locals<'a, 'b, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+fn initialized_locals<'a, 'tcx>(
+    cx: &LiquidRustCtxt<'_, 'tcx>,
     def_id: DefId,
-) -> DataflowResultsCursor<'b, 'tcx, DefinitelyInitializedLocal<'b, 'tcx>> {
+) -> DataflowResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>> {
     let mir = cx.tcx().optimized_mir(def_id);
     let dead_unwinds = BitSet::new_empty(mir.basic_blocks().len());
     let initialized_result = do_dataflow(
@@ -352,7 +348,7 @@ impl<'a, 'tcx> DefinitelyInitializedLocal<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'a, 'tcx> {
+impl<'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
     type Idx = mir::Local;
     fn name() -> &'static str {
         "definitely_initialized_local"
@@ -396,6 +392,6 @@ impl<'a, 'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> BottomValue for DefinitelyInitializedLocal<'a, 'tcx> {
+impl BottomValue for DefinitelyInitializedLocal<'_, '_> {
     const BOTTOM_VALUE: bool = true;
 }
