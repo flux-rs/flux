@@ -25,20 +25,20 @@ declare_lint! {
     "liquid rust"
 }
 
-pub struct LiquidRustCtxt<'a, 'tcx> {
-    cx: &'a LateContext<'a, 'tcx>,
-    refts_table: HashMap<DefId, BodyRefts<'a, 'tcx>>,
-    preds: &'a ArenaInterner<'a, Pred<'a, 'tcx>>,
-    refts: &'a ArenaInterner<'a, ReftType<'a, 'tcx>>,
-    pub reft_true: &'a ReftType<'a, 'tcx>,
-    pub nu: &'a Pred<'a, 'tcx>,
+pub struct LiquidRustCtxt<'lr, 'tcx> {
+    cx: &'lr LateContext<'lr, 'tcx>,
+    refts_table: HashMap<DefId, BodyRefts<'lr, 'tcx>>,
+    preds: &'lr ArenaInterner<'lr, Pred<'lr, 'tcx>>,
+    refts: &'lr ArenaInterner<'lr, ReftType<'lr, 'tcx>>,
+    pub reft_true: &'lr ReftType<'lr, 'tcx>,
+    pub nu: &'lr Pred<'lr, 'tcx>,
 }
 
-impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
+impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
     pub fn new(
-        cx: &'a LateContext<'a, 'tcx>,
-        preds: &'a ArenaInterner<Pred<'a, 'tcx>>,
-        refts: &'a ArenaInterner<ReftType<'a, 'tcx>>,
+        cx: &'lr LateContext<'lr, 'tcx>,
+        preds: &'lr ArenaInterner<Pred<'lr, 'tcx>>,
+        refts: &'lr ArenaInterner<ReftType<'lr, 'tcx>>,
     ) -> Self {
         let pred_true = Pred::Constant(
             cx.tcx.types.bool,
@@ -89,20 +89,20 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         self.cx.sess().abort_if_errors();
     }
 
-    pub fn mk_reft(&self, pred: &'a Pred<'a, 'tcx>) -> &'a ReftType<'a, 'tcx> {
+    pub fn mk_reft(&self, pred: &'lr Pred<'lr, 'tcx>) -> &'lr ReftType<'lr, 'tcx> {
         self.refts.intern(ReftType::Reft(pred))
     }
 
     pub fn mk_fun_type(
         &self,
-        inputs: Vec<&'a ReftType<'a, 'tcx>>,
-        output: &'a ReftType<'a, 'tcx>,
-    ) -> &'a ReftType<'a, 'tcx> {
+        inputs: Vec<&'lr ReftType<'lr, 'tcx>>,
+        output: &'lr ReftType<'lr, 'tcx>,
+    ) -> &'lr ReftType<'lr, 'tcx> {
         let inputs = self.refts.alloc_from_iter(inputs.into_iter().map(|p| *p));
         self.refts.intern(ReftType::Fun { inputs, output })
     }
 
-    pub fn mk_place_var(&self, var: Var) -> &'a Pred<'a, 'tcx> {
+    pub fn mk_place_var(&self, var: Var) -> &'lr Pred<'lr, 'tcx> {
         self.preds.intern(Pred::Place(Place::from_var(var)))
     }
 
@@ -120,28 +120,28 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn mk_pred_place(&self, place: Place<'tcx>) -> &'a Pred<'a, 'tcx> {
+    pub fn mk_pred_place(&self, place: Place<'tcx>) -> &'lr Pred<'lr, 'tcx> {
         self.preds.intern(Pred::Place(place))
     }
 
-    pub fn mk_constant(&self, ty: Ty<'tcx>, val: ConstValue<'tcx>) -> &'a Pred<'a, 'tcx> {
+    pub fn mk_constant(&self, ty: Ty<'tcx>, val: ConstValue<'tcx>) -> &'lr Pred<'lr, 'tcx> {
         self.preds.intern(Pred::Constant(ty, val))
     }
 
     pub fn mk_binary(
         &self,
-        lhs: &'a Pred<'a, 'tcx>,
+        lhs: &'lr Pred<'lr, 'tcx>,
         op: ast::BinOpKind,
-        rhs: &'a Pred<'a, 'tcx>,
-    ) -> &'a Pred<'a, 'tcx> {
+        rhs: &'lr Pred<'lr, 'tcx>,
+    ) -> &'lr Pred<'lr, 'tcx> {
         self.preds.intern(Pred::Binary(lhs, op, rhs))
     }
 
-    pub fn mk_unary(&self, op: ast::UnOpKind, pred: &'a Pred<'a, 'tcx>) -> &'a Pred<'a, 'tcx> {
+    pub fn mk_unary(&self, op: ast::UnOpKind, pred: &'lr Pred<'lr, 'tcx>) -> &'lr Pred<'lr, 'tcx> {
         self.preds.intern(Pred::Unary(op, pred))
     }
 
-    pub fn add_body_refts(&mut self, body_refts: BodyRefts<'a, 'tcx>) {
+    pub fn add_body_refts(&mut self, body_refts: BodyRefts<'lr, 'tcx>) {
         let def_id = self.hir().body_owner_def_id(body_refts.body_id);
         self.refts_table.insert(def_id, body_refts);
     }
@@ -149,7 +149,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
     pub fn local_decls(
         &self,
         body_id: BodyId,
-    ) -> &HashMap<mir::Local, Binder<&'a ReftType<'a, 'tcx>>> {
+    ) -> &HashMap<mir::Local, Binder<&'lr ReftType<'lr, 'tcx>>> {
         let def_id = self.hir().body_owner_def_id(body_id);
         if let Some(body_refts) = self.refts_table.get(&def_id) {
             &body_refts.local_decls
@@ -158,7 +158,7 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn reft_type_for(&self, def_id: DefId) -> Binder<&'a ReftType<'a, 'tcx>> {
+    pub fn reft_type_for(&self, def_id: DefId) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         if_chain! {
             if let Some(body_refts) = self.refts_table.get(&def_id);
             if let Some(fun_type) = body_refts.fun_type;
@@ -175,18 +175,18 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     pub fn open_pred(
         &self,
-        pred: Binder<&'a Pred<'a, 'tcx>>,
+        pred: Binder<&'lr Pred<'lr, 'tcx>>,
         value: Value<'tcx>,
-    ) -> &'a Pred<'a, 'tcx> {
+    ) -> &'lr Pred<'lr, 'tcx> {
         self._open_pred(pred.skip_binder(), &[value], 1)
     }
 
     fn _open_pred(
         &self,
-        pred: &'a Pred<'a, 'tcx>,
+        pred: &'lr Pred<'lr, 'tcx>,
         values: &[Value<'tcx>],
         nbinders: usize,
-    ) -> &'a Pred<'a, 'tcx> {
+    ) -> &'lr Pred<'lr, 'tcx> {
         match pred {
             Pred::Unary(op, pred) => self.mk_unary(*op, self._open_pred(pred, values, nbinders)),
             Pred::Binary(lhs, op, rhs) => self.mk_binary(
@@ -212,11 +212,11 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     pub fn open_fun_type(
         &self,
-        reft_type: Binder<&'a ReftType<'a, 'tcx>>,
+        reft_type: Binder<&'lr ReftType<'lr, 'tcx>>,
         values: &[Value<'tcx>],
     ) -> (
-        Vec<Binder<&'a ReftType<'a, 'tcx>>>,
-        Binder<&'a ReftType<'a, 'tcx>>,
+        Vec<Binder<&'lr ReftType<'lr, 'tcx>>>,
+        Binder<&'lr ReftType<'lr, 'tcx>>,
     ) {
         match reft_type.skip_binder() {
             ReftType::Reft(..) => bug!("expected function type"),
@@ -236,10 +236,10 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     fn _open_reft_type(
         &self,
-        reft_type: &'a ReftType<'a, 'tcx>,
+        reft_type: &'lr ReftType<'lr, 'tcx>,
         values: &[Value<'tcx>],
         nbinders: usize,
-    ) -> &'a ReftType<'a, 'tcx> {
+    ) -> &'lr ReftType<'lr, 'tcx> {
         match reft_type {
             ReftType::Reft(pred) => self.mk_reft(self._open_pred(pred, values, nbinders + 1)),
             ReftType::Fun { inputs, output } => {
@@ -256,9 +256,9 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     fn open_pred_with_fresh_vars(
         &self,
-        pred: &'a Pred<'a, 'tcx>,
+        pred: &'lr Pred<'lr, 'tcx>,
         nbinders: usize,
-    ) -> &'a Pred<'a, 'tcx> {
+    ) -> &'lr Pred<'lr, 'tcx> {
         match pred {
             Pred::Unary(op, pred) => {
                 self.mk_unary(*op, self.open_pred_with_fresh_vars(pred, nbinders))
@@ -281,16 +281,16 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
 
     pub fn open_with_fresh_vars(
         &self,
-        reft_type: Binder<&'a ReftType<'a, 'tcx>>,
-    ) -> &'a ReftType<'a, 'tcx> {
+        reft_type: Binder<&'lr ReftType<'lr, 'tcx>>,
+    ) -> &'lr ReftType<'lr, 'tcx> {
         self._open_with_fresh_vars(reft_type.skip_binder(), 0)
     }
 
     fn _open_with_fresh_vars(
         &self,
-        reft_type: &'a ReftType<'a, 'tcx>,
+        reft_type: &'lr ReftType<'lr, 'tcx>,
         nbinders: usize,
-    ) -> &'a ReftType<'a, 'tcx> {
+    ) -> &'lr ReftType<'lr, 'tcx> {
         match reft_type {
             ReftType::Reft(pred) => {
                 self.mk_reft(self.open_pred_with_fresh_vars(pred, nbinders + 1))
@@ -308,28 +308,28 @@ impl<'a, 'tcx> LiquidRustCtxt<'a, 'tcx> {
     }
 }
 
-pub struct ArenaInterner<'a, T: 'a> {
-    arena: &'a TypedArena<T>,
+pub struct ArenaInterner<'a, T> {
+    arena: TypedArena<T>,
     interner: ShardedHashMap<&'a T, ()>,
 }
 
 impl<'a, T: Hash + Eq + Copy> ArenaInterner<'a, T> {
-    pub fn new(arena: &'a TypedArena<T>) -> Self {
+    pub fn new(arena: TypedArena<T>) -> Self {
         ArenaInterner {
             arena,
             interner: ShardedHashMap::default(),
         }
     }
 
-    pub fn intern(&self, pred: T) -> &'a T {
+    pub fn intern<'b>(&'a self, pred: T) -> &'a T {
         self.interner.intern(pred, |pred| self.arena.alloc(pred))
     }
 
-    pub fn alloc_slice(&self, slice: &[T]) -> &'a [T] {
+    pub fn alloc_slice(&'a self, slice: &[T]) -> &'a [T] {
         self.arena.alloc_slice(slice)
     }
 
-    pub fn alloc_from_iter<I: IntoIterator<Item = T>>(&self, iter: I) -> &'a mut [T] {
+    pub fn alloc_from_iter<I: IntoIterator<Item = T>>(&'a self, iter: I) -> &'a mut [T] {
         self.arena.alloc_from_iter(iter)
     }
 }

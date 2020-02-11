@@ -29,10 +29,8 @@ pub fn run<'a, 'tcx>(
     late_cx: &LateContext<'a, 'tcx>,
     krate: &'tcx rustc_hir::Crate<'tcx>,
 ) -> Result<(), ErrorReported> {
-    let preds_arena = arena::TypedArena::default();
-    let refts_arena = arena::TypedArena::default();
-    let preds = ArenaInterner::new(&preds_arena);
-    let refts = ArenaInterner::new(&refts_arena);
+    let preds = ArenaInterner::new(arena::TypedArena::default());
+    let refts = ArenaInterner::new(arena::TypedArena::default());
     let mut cx = LiquidRustCtxt::new(late_cx, &preds, &refts);
     let mut annots = annots::collect(&cx, krate)?;
 

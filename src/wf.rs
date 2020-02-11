@@ -13,8 +13,8 @@ use std::ops::Deref;
 
 pub type TypeckTable<'tcx> = HashMap<ExprId, Ty<'tcx>>;
 
-pub fn check_wf<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+pub fn check_wf<'tcx>(
+    cx: &LiquidRustCtxt<'_, 'tcx>,
     annots: &[BodyAnnots],
 ) -> Result<TypeckTable<'tcx>, ErrorReported> {
     let mut expr_tys = TypeckTable::new();
@@ -26,8 +26,8 @@ pub fn check_wf<'a, 'tcx>(
     })
 }
 
-fn check_body_annots<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+fn check_body_annots<'tcx>(
+    cx: &LiquidRustCtxt<'_, 'tcx>,
     body_annots: &BodyAnnots,
     expr_tys: &mut TypeckTable<'tcx>,
 ) {
@@ -45,10 +45,10 @@ fn check_body_annots<'a, 'tcx>(
     }
 }
 
-fn check_fn_ty<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+fn check_fn_ty<'lr, 'tcx>(
+    cx: &LiquidRustCtxt<'lr, 'tcx>,
     fn_ty: &FnType,
-    checker: &mut TypeChecker<'a, '_, 'tcx>,
+    checker: &mut TypeChecker<'_, 'lr, 'tcx>,
 ) {
     for input in &fn_ty.inputs {
         check_refine(cx, input, checker);
@@ -56,10 +56,10 @@ fn check_fn_ty<'a, 'tcx>(
     check_refine(cx, &fn_ty.output, checker);
 }
 
-fn check_refine<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+fn check_refine<'lr, 'tcx>(
+    cx: &LiquidRustCtxt<'lr, 'tcx>,
     refine: &Reft,
-    checker: &mut TypeChecker<'a, '_, 'tcx>,
+    checker: &mut TypeChecker<'_, 'lr, 'tcx>,
 ) {
     let ty = checker.infer_expr(&refine.pred);
     checker.resolve_inferred_types(&refine.pred);
@@ -67,21 +67,21 @@ fn check_refine<'a, 'tcx>(
         lint_malformed_refinement(cx, refine, ty);
     }
 }
-struct TypeChecker<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
+struct TypeChecker<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
     tcx: TyCtxt<'tcx>,
-    tables: &'b TypeckTables<'tcx>,
+    tables: &'a TypeckTables<'tcx>,
     ret_ty: Ty<'tcx>,
-    expr_tys: &'b mut TypeckTable<'tcx>,
+    expr_tys: &'a mut TypeckTable<'tcx>,
     infer_ctxt: InferCtxt<'tcx>,
 }
 
-impl<'a, 'b, 'tcx> TypeChecker<'a, 'b, 'tcx> {
+impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
     pub fn new(
-        cx: &'b LiquidRustCtxt<'a, 'tcx>,
-        tables: &'b TypeckTables<'tcx>,
+        cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+        tables: &'a TypeckTables<'tcx>,
         ret_ty: Ty<'tcx>,
-        expr_tys: &'b mut TypeckTable<'tcx>,
+        expr_tys: &'a mut TypeckTable<'tcx>,
     ) -> Self {
         Self {
             cx,

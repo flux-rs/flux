@@ -11,11 +11,11 @@ use rustc::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
 use std::collections::HashMap;
 
-pub fn build_refts<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+pub fn build_refts<'lr, 'tcx>(
+    cx: &LiquidRustCtxt<'lr, 'tcx>,
     annots: &[ast::BodyAnnots],
     typeck_table: &TypeckTable<'tcx>,
-) -> Result<Vec<BodyRefts<'a, 'tcx>>, ErrorReported> {
+) -> Result<Vec<BodyRefts<'lr, 'tcx>>, ErrorReported> {
     cx.track_errors(|| {
         annots
             .iter()
@@ -24,11 +24,11 @@ pub fn build_refts<'a, 'tcx>(
     })
 }
 
-fn build_body_refts<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+fn build_body_refts<'lr, 'tcx>(
+    cx: &LiquidRustCtxt<'lr, 'tcx>,
     body_annots: &ast::BodyAnnots,
     typeck_table: &TypeckTable<'tcx>,
-) -> BodyRefts<'a, 'tcx> {
+) -> BodyRefts<'lr, 'tcx> {
     let mir = cx.optimized_mir(body_annots.body_id);
     let mir_local_table = MirLocalTable::new(cx, mir);
     let builder = RefineBuilder::new(cx, typeck_table, &mir_local_table);
@@ -61,17 +61,17 @@ fn build_body_refts<'a, 'tcx>(
     }
 }
 
-struct RefineBuilder<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
-    typeck_table: &'b HashMap<ast::ExprId, ty::Ty<'tcx>>,
-    mir_local_table: &'b MirLocalTable<'a, 'b, 'tcx>,
+struct RefineBuilder<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+    typeck_table: &'a HashMap<ast::ExprId, ty::Ty<'tcx>>,
+    mir_local_table: &'a MirLocalTable<'a, 'lr, 'tcx>,
 }
 
-impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
+impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
     fn new(
-        cx: &'b LiquidRustCtxt<'a, 'tcx>,
-        typeck_table: &'b HashMap<ast::ExprId, ty::Ty<'tcx>>,
-        mir_local_table: &'b MirLocalTable<'a, 'b, 'tcx>,
+        cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+        typeck_table: &'a HashMap<ast::ExprId, ty::Ty<'tcx>>,
+        mir_local_table: &'a MirLocalTable<'a, 'lr, 'tcx>,
     ) -> Self {
         RefineBuilder {
             cx,
@@ -80,7 +80,7 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         }
     }
 
-    fn build_fun_type(&self, fn_typ: &ast::FnType) -> Binder<&'a ReftType<'a, 'tcx>> {
+    fn build_fun_type(&self, fn_typ: &ast::FnType) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let mut bindings = vec![];
         let inputs = fn_typ
             .inputs
@@ -95,14 +95,18 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         Binder::bind(self.cx.mk_fun_type(inputs, output))
     }
 
-    fn build_reft(&self, reft: &ast::Reft, bindings: &[Symbol]) -> Binder<&'a ReftType<'a, 'tcx>> {
+    fn build_reft(
+        &self,
+        reft: &ast::Reft,
+        bindings: &[Symbol],
+    ) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let mut bindings = bindings.to_vec();
         bindings.push(reft.binding.name);
         let pred = self.build_pred(&reft.pred, &bindings);
         Binder::bind(self.cx.mk_reft(pred))
     }
 
-    fn build_pred(&self, expr: &ast::Pred, bindings: &[Symbol]) -> &'a Pred<'a, 'tcx> {
+    fn build_pred(&self, expr: &ast::Pred, bindings: &[Symbol]) -> &'lr Pred<'lr, 'tcx> {
         let ty = self.typeck_table[&expr.expr_id];
         match &expr.kind {
             ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => self.cx.mk_binary(
@@ -134,7 +138,7 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
         }
     }
 
-    fn lit_to_constant(&self, lit: &ast::LitKind, ty: Ty<'tcx>, sp: Span) -> &'a Pred<'a, 'tcx> {
+    fn lit_to_constant(&self, lit: &ast::LitKind, ty: Ty<'tcx>, sp: Span) -> &'lr Pred<'lr, 'tcx> {
         let tcx = self.cx.tcx();
         let val = match constant::lit_to_const_value(tcx, lit, ty, false) {
             Ok(c) => c,
@@ -151,13 +155,13 @@ impl<'a, 'b, 'tcx> RefineBuilder<'a, 'b, 'tcx> {
     }
 }
 
-struct MirLocalTable<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
+struct MirLocalTable<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
     map: HashMap<Span, mir::Local>,
 }
 
-impl<'a, 'b, 'tcx> MirLocalTable<'a, 'b, 'tcx> {
-    fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, mir: &'tcx mir::Body<'tcx>) -> Self {
+impl<'a, 'lr, 'tcx> MirLocalTable<'a, 'lr, 'tcx> {
+    fn new(cx: &'a LiquidRustCtxt<'lr, 'tcx>, mir: &'tcx mir::Body<'tcx>) -> Self {
         let mut map = HashMap::new();
         for var_info in &mir.var_debug_info {
             map.insert(var_info.source_info.span, var_info.place.local);

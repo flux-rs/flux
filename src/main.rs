@@ -10,21 +10,21 @@ use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Config, Queries};
 use rustc_lint::{LateContext, LateLintPass, LintPass};
 
-struct LiquidRust;
+struct LiquidRustLintPass;
 
-impl LiquidRust {
-    fn new() -> LiquidRust {
-        LiquidRust
+impl LiquidRustLintPass {
+    fn new() -> LiquidRustLintPass {
+        LiquidRustLintPass
     }
 }
 
-impl LintPass for LiquidRust {
+impl LintPass for LiquidRustLintPass {
     fn name(&self) -> &'static str {
         return stringify!(LiquidRust);
     }
 }
 
-impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LiquidRust {
+impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LiquidRustLintPass {
     fn check_crate(&mut self, cx: &LateContext<'a, 'tcx>, krate: &'tcx rustc_hir::Crate<'tcx>) {
         let _ = liquid_rust::run(cx, krate);
     }
@@ -35,7 +35,7 @@ struct LiquidRustDriver;
 impl Callbacks for LiquidRustDriver {
     fn config(&mut self, config: &mut Config) {
         config.register_lints = Some(box move |_sess, lint_store| {
-            lint_store.register_late_pass(move || box LiquidRust::new());
+            lint_store.register_late_pass(move || box LiquidRustLintPass::new());
         });
     }
 

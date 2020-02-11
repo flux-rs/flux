@@ -6,8 +6,8 @@ use rustc_hir::{self, Block, Body, HirId, Local, Param, PatKind};
 use rustc_span::{MultiSpan, Symbol};
 use std::collections::HashMap;
 
-pub fn resolve_hir_bindings<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+pub fn resolve_hir_bindings(
+    cx: &LiquidRustCtxt,
     annots: &mut Vec<BodyAnnots>,
 ) -> Result<(), ErrorReported> {
     cx.track_errors(|| {
@@ -23,9 +23,9 @@ pub fn resolve_hir_bindings<'a, 'tcx>(
     })
 }
 
-struct HirNameResolver<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
-    body_annots: &'b mut BodyAnnots,
+struct HirNameResolver<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+    body_annots: &'a mut BodyAnnots,
     env: NameCtxt,
 }
 
@@ -107,13 +107,13 @@ impl<'tcx> HirVisitor<'tcx> for HirNameResolver<'_, '_, 'tcx> {
     }
 }
 
-struct HirIdExprVisitor<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
-    env: &'b NameCtxt,
+struct HirIdExprVisitor<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
+    env: &'a NameCtxt,
 }
 
-impl<'a, 'b, 'tcx> HirIdExprVisitor<'a, 'b, 'tcx> {
-    fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>, env: &'b NameCtxt) -> Self {
+impl<'a, 'lr, 'tcx> HirIdExprVisitor<'a, 'lr, 'tcx> {
+    fn new(cx: &'a LiquidRustCtxt<'lr, 'tcx>, env: &'a NameCtxt) -> Self {
         HirIdExprVisitor { cx, env }
     }
 }

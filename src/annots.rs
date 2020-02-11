@@ -9,8 +9,8 @@ use rustc_hir::{self, Crate, Item, ItemKind, Local};
 use rustc_span::{MultiSpan, Span, Symbol};
 use std::collections::HashMap;
 
-pub fn collect<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'a, 'tcx>,
+pub fn collect<'tcx>(
+    cx: &LiquidRustCtxt<'_, 'tcx>,
     krate: &'tcx Crate<'tcx>,
 ) -> Result<Vec<BodyAnnots>, ErrorReported> {
     cx.track_errors(|| {
@@ -20,15 +20,15 @@ pub fn collect<'a, 'tcx>(
     })
 }
 
-struct AnnotsCollector<'a, 'b, 'tcx> {
-    cx: &'b LiquidRustCtxt<'a, 'tcx>,
+struct AnnotsCollector<'a, 'lr, 'tcx> {
+    cx: &'a LiquidRustCtxt<'lr, 'tcx>,
     annots: Vec<BodyAnnots>,
     type_annot_regex: Regex,
     parsing: ParsingCtxt,
 }
 
-impl<'a, 'b, 'tcx> AnnotsCollector<'a, 'b, 'tcx> {
-    fn new(cx: &'b LiquidRustCtxt<'a, 'tcx>) -> Self {
+impl<'a, 'lr, 'tcx> AnnotsCollector<'a, 'lr, 'tcx> {
+    fn new(cx: &'a LiquidRustCtxt<'lr, 'tcx>) -> Self {
         AnnotsCollector {
             cx,
             annots: Vec::new(),
