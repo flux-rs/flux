@@ -1,10 +1,16 @@
 extern crate arena;
 extern crate rustc_index;
+extern crate syntax as rust_syntax;
 
 use super::syntax::ast;
+use rust_syntax::ast::FloatTy;
 use rustc::mir;
-pub use rustc::mir::interpret::{ConstValue, Scalar};
-use rustc::ty::{self, Ty};
+use rustc::mir::interpret::sign_extend;
+use rustc::ty::{self, layout::Size, Ty};
+use rustc_apfloat::{
+    ieee::{Double, Single},
+    Float,
+};
 use rustc_hir::BodyId;
 use std::collections::HashMap;
 use std::fmt;
@@ -32,8 +38,47 @@ pub enum ReftType<'a, 'tcx> {
 pub enum Pred<'a, 'tcx> {
     Unary(ast::UnOpKind, &'a Pred<'a, 'tcx>),
     Binary(&'a Pred<'a, 'tcx>, ast::BinOpKind, &'a Pred<'a, 'tcx>),
-    Constant(Ty<'tcx>, ConstValue<'tcx>),
+    Constant(Ty<'tcx>, Scalar),
     Place(Place<'tcx>),
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct Scalar {
+    pub data: u128,
+    pub size: u8,
+}
+
+impl Scalar {
+    pub fn from_bool(b: bool) -> Self {
+        Scalar {
+            data: b as u128,
+            size: 1,
+        }
+    }
+
+    pub fn from_uint(i: impl Into<u128>, size: Size) -> Self {
+        let i = i.into();
+        Scalar {
+            data: i,
+            size: size.bytes() as u8,
+        }
+    }
+
+    pub fn from_f32(f: Single) -> Self {
+        // We trust apfloat to give us properly truncated data.
+        Scalar {
+            data: f.to_bits(),
+            size: 4,
+        }
+    }
+
+    pub fn from_f64(f: Double) -> Self {
+        // We trust apfloat to give us properly truncated data.
+        Scalar {
+            data: f.to_bits(),
+            size: 8,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -51,7 +96,7 @@ pub enum Var {
 
 #[derive(Debug)]
 pub enum Value<'tcx> {
-    Constant(Ty<'tcx>, ConstValue<'tcx>),
+    Constant(Ty<'tcx>, Scalar),
     Local(mir::Local),
 }
 
@@ -164,7 +209,22 @@ impl fmt::Debug for Pred<'_, '_> {
             Self::Unary(op, expr) => write!(fmt, "{:?}{:?}", op, expr),
             Self::Binary(lhs, op, rhs) => write!(fmt, "{:?} {:?} {:?}", lhs, op, rhs),
             Self::Place(place) => write!(fmt, "{:?}", place),
-            Self::Constant(ty, value) => write!(fmt, "{:?}{}", value, ty),
+            Self::Constant(ty, scalar) => {
+                match &ty.kind {
+                    ty::Bool => write!(fmt, "{}", if scalar.data == 0 { "false" } else { "true" })?,
+                    ty::Float(FloatTy::F32) => write!(fmt, "{}", Single::from_bits(scalar.data))?,
+                    ty::Float(FloatTy::F64) => write!(fmt, "{}", Double::from_bits(scalar.data))?,
+                    ty::Uint(_) => write!(fmt, "{}", scalar.data)?,
+                    ty::Int(i) => {
+                        // TODO: assuming 64 bits for isize. we can probably make this configurable
+                        let bit_width = i.bit_width().unwrap_or(64) as u64;
+                        let size = Size::from_bits(bit_width);
+                        write!(fmt, "{}", sign_extend(scalar.data, size) as i128)?
+                    }
+                    _ => bug!(),
+                }
+                write!(fmt, "{}", ty)
+            }
         }
     }
 }

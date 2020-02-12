@@ -114,21 +114,14 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
     }
 
     fn infer_lit(&mut self, lit: &Lit) -> Ty<'tcx> {
-        match lit.node {
-            LitKind::Str(..) => self.mk_static_str(),
-            LitKind::ByteStr(ref v) => self.mk_imm_ref(
-                self.lifetimes.re_static,
-                self.mk_array(self.types.u8, v.len() as u64),
-            ),
-            LitKind::Byte(_) => self.types.u8,
-            LitKind::Char(_) => self.types.char,
+        match lit.kind {
             LitKind::Int(_, LitIntType::Signed(t)) => self.mk_mach_int(t),
             LitKind::Int(_, LitIntType::Unsigned(t)) => self.mk_mach_uint(t),
             LitKind::Int(_, LitIntType::Unsuffixed) => self.infer_ctxt.next_int_var(),
             LitKind::Float(_, LitFloatType::Suffixed(t)) => self.mk_mach_float(t),
             LitKind::Float(_, LitFloatType::Unsuffixed) => self.infer_ctxt.next_float_var(),
             LitKind::Bool(_) => self.types.bool,
-            LitKind::Err(_) => self.types.err,
+            LitKind::Err => self.types.err,
         }
     }
 

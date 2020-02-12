@@ -1,12 +1,13 @@
-pub mod constant;
+extern crate syntax as rust_syntax;
 
-use super::refinements::{Binder, BodyRefts, Pred, ReftType, Value, Var};
+use super::refinements::{Binder, BodyRefts, Pred, ReftType, Scalar, Value, Var};
 use super::syntax::ast;
 use super::wf::TypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
+use rust_syntax::ast::FloatTy;
 use rustc::mir;
+use rustc::mir::interpret::truncate;
 use rustc::mir::interpret::LitToConstError;
-use rustc::mir::interpret::{ConstValue, Scalar};
 use rustc::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
 use std::collections::HashMap;
@@ -118,7 +119,7 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
                 self.cx.mk_unary(op.kind, self.build_pred(expr, bindings))
             }
             ast::ExprKind::Name(name) => self.cx.mk_place_var(self.var_for_name(*name, bindings)),
-            ast::ExprKind::Lit(lit) => self.lit_to_constant(&lit.node, ty, expr.span),
+            ast::ExprKind::Lit(lit) => self.lit_to_constant(&lit.kind, ty, expr.span),
             ast::ExprKind::Err => bug!(),
         }
     }
@@ -139,19 +140,56 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
     }
 
     fn lit_to_constant(&self, lit: &ast::LitKind, ty: Ty<'tcx>, sp: Span) -> &'lr Pred<'lr, 'tcx> {
-        let tcx = self.cx.tcx();
-        let val = match constant::lit_to_const_value(tcx, lit, ty, false) {
+        let scalar = match self.lit_to_scalar(lit, ty, false) {
             Ok(c) => c,
             Err(LitToConstError::UnparseableFloat) => {
                 // FIXME(#31407) this is only necessary because float parsing is buggy
                 self.cx
                     .span_lint(sp, "could not evaluate float literal (see issue #31407)");
                 // create a dummy value and continue compiling
-                ConstValue::Scalar(Scalar::from_u32(0))
+                Scalar::from_bool(true)
             }
             Err(LitToConstError::Reported) => bug!(),
         };
-        self.cx.mk_constant(ty, val)
+        self.cx.mk_constant(ty, scalar)
+    }
+
+    pub fn lit_to_scalar(
+        &self,
+        lit: &ast::LitKind,
+        ty: ty::Ty<'tcx>,
+        neg: bool,
+    ) -> Result<Scalar, LitToConstError> {
+        let trunc = |n| {
+            let param_ty = ty::ParamEnv::reveal_all().and(ty);
+            let width = self
+                .cx
+                .tcx()
+                .layout_of(param_ty)
+                .map_err(|_| LitToConstError::Reported)?
+                .size;
+            let result = truncate(n, width);
+            Ok(Scalar::from_uint(result, width))
+        };
+
+        let lit = match *lit {
+            ast::LitKind::Int(n, _) if neg => {
+                let n = n as i128;
+                let n = n.overflowing_neg().0;
+                trunc(n as u128)?
+            }
+            ast::LitKind::Int(n, _) => trunc(n)?,
+            ast::LitKind::Float(n, _) => {
+                let fty = match ty.kind {
+                    ty::Float(fty) => fty,
+                    _ => bug!(),
+                };
+                parse_float(n, fty, neg).map_err(|_| LitToConstError::UnparseableFloat)?
+            }
+            ast::LitKind::Bool(b) => Scalar::from_bool(b),
+            ast::LitKind::Err => return Err(LitToConstError::Reported),
+        };
+        Ok(lit)
     }
 }
 
@@ -189,4 +227,32 @@ impl<'a, 'lr, 'tcx> MirLocalTable<'a, 'lr, 'tcx> {
             ast::HirRes::Unresolved => bug!("identifiers must be resolved"),
         }
     }
+}
+
+fn parse_float(num: Symbol, fty: FloatTy, neg: bool) -> Result<Scalar, ()> {
+    let num = num.as_str();
+    use rustc_apfloat::ieee::{Double, Single};
+    let scalar = match fty {
+        FloatTy::F32 => {
+            num.parse::<f32>().map_err(|_| ())?;
+            let mut f = num.parse::<Single>().unwrap_or_else(|e| {
+                panic!("apfloat::ieee::Single failed to parse `{}`: {:?}", num, e)
+            });
+            if neg {
+                f = -f;
+            }
+            Scalar::from_f32(f)
+        }
+        FloatTy::F64 => {
+            num.parse::<f64>().map_err(|_| ())?;
+            let mut f = num.parse::<Double>().unwrap_or_else(|e| {
+                panic!("apfloat::ieee::Double failed to parse `{}`: {:?}", num, e)
+            });
+            if neg {
+                f = -f;
+            }
+            Scalar::from_f64(f)
+        }
+    };
+    Ok(scalar)
 }

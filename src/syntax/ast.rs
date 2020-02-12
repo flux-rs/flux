@@ -1,9 +1,9 @@
 extern crate syntax as rust_syntax;
 
-pub use rust_syntax::ast::{AttrKind, AttrStyle, Attribute, LitFloatType, LitIntType, LitKind};
+pub use rust_syntax::ast::{AttrKind, AttrStyle, Attribute, LitFloatType, LitIntType};
+pub use rustc_hir::BodyId;
 use rustc_hir::HirId;
-pub use rustc_hir::{BodyId, Lit};
-pub use rustc_span::{symbol::Ident, Span};
+pub use rustc_span::{symbol::Ident, Span, Symbol};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -44,6 +44,20 @@ pub enum ExprKind {
     Binary(Box<Pred>, BinOp, Box<Pred>),
     Lit(Lit),
     Name(Name),
+    Err,
+}
+
+#[derive(Debug)]
+pub struct Lit {
+    pub span: Span,
+    pub kind: LitKind,
+}
+
+#[derive(Debug)]
+pub enum LitKind {
+    Bool(bool),
+    Int(u128, LitIntType),
+    Float(Symbol, LitFloatType),
     Err,
 }
 

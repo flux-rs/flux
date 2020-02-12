@@ -40,10 +40,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         preds: &'lr ArenaInterner<Pred<'lr, 'tcx>>,
         refts: &'lr ArenaInterner<ReftType<'lr, 'tcx>>,
     ) -> Self {
-        let pred_true = Pred::Constant(
-            cx.tcx.types.bool,
-            ConstValue::Scalar(Scalar::from_bool(true)),
-        );
+        let pred_true = Pred::Constant(cx.tcx.types.bool, Scalar::from_bool(true));
 
         LiquidRustCtxt {
             cx,
@@ -124,8 +121,8 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         self.preds.intern(Pred::Place(place))
     }
 
-    pub fn mk_constant(&self, ty: Ty<'tcx>, val: ConstValue<'tcx>) -> &'lr Pred<'lr, 'tcx> {
-        self.preds.intern(Pred::Constant(ty, val))
+    pub fn mk_constant(&self, ty: Ty<'tcx>, scalar: Scalar) -> &'lr Pred<'lr, 'tcx> {
+        self.preds.intern(Pred::Constant(ty, scalar))
     }
 
     pub fn mk_binary(

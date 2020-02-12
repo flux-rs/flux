@@ -1,9 +1,10 @@
 extern crate rustc_mir;
 
 use super::context::LiquidRustCtxt;
-use super::refinements::{Binder, Place, Pred, ReftType, Value, Var};
+use super::refinements::{Binder, Place, Pred, ReftType, Scalar, Value, Var};
 use super::smtlib2::{SmtRes, Solver};
 use super::syntax::ast::{BinOpKind, UnOpKind};
+use rustc::mir::interpret::ConstValue;
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
 use rustc_hir::{def_id::DefId, BodyId};
@@ -140,10 +141,19 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                 }
                 Value::Local(place.local)
             }
-            Operand::Constant(box Constant { literal, .. }) => match literal.val {
-                ty::ConstKind::Value(val) => Value::Constant(literal.ty, val),
-                _ => unimplemented!("{:?}", operand),
-            },
+            Operand::Constant(box Constant { literal, .. }) => {
+                if_chain! {
+                    if let ty::ConstKind::Value(val) = literal.val;
+                    if let ConstValue::Scalar(scalar) = val;
+                    if let mir::interpret::Scalar::Raw {data, size} = scalar;
+                    then {
+                        Value::Constant(literal.ty, Scalar { data, size })
+                    }
+                    else {
+                        todo!("{:?}", operand);
+                    }
+                }
+            }
         }
     }
 
@@ -187,14 +197,22 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             Operand::Constant(box Constant { literal, .. }) => match literal.ty.kind {
                 ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                 ty::FnPtr(..) => todo!(),
-                _ => match literal.val {
-                    ty::ConstKind::Value(val) => {
-                        let constant = self.cx.mk_constant(literal.ty, val);
-                        self.cx
-                            .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
-                    }
-                    _ => unimplemented!("{:?}", operand),
-                },
+                _ => {
+                    let scalar = if_chain! {
+                        if let ty::ConstKind::Value(val) = literal.val;
+                        if let ConstValue::Scalar(scalar) = val;
+                        if let mir::interpret::Scalar::Raw {data, size} = scalar;
+                        then {
+                            Scalar { data, size }
+                        }
+                        else {
+                            todo!("{:?}", operand);
+                        }
+                    };
+                    let constant = self.cx.mk_constant(literal.ty, scalar);
+                    self.cx
+                        .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
+                }
             },
         };
         Binder::bind(reft_ty)
@@ -206,9 +224,16 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                 var: Var::Local(place.local),
                 projection: place.projection,
             }),
-            Operand::Constant(box Constant { literal, .. }) => match literal.val {
-                ty::ConstKind::Value(val) => self.cx.mk_constant(literal.ty, val),
-                _ => unimplemented!("{:?}", operand),
+            Operand::Constant(box Constant { literal, .. }) => if_chain! {
+                if let ty::ConstKind::Value(val) = literal.val;
+                if let ConstValue::Scalar(scalar) = val;
+                if let mir::interpret::Scalar::Raw {data, size} = scalar;
+                then {
+                    self.cx.mk_constant(literal.ty, Scalar { data, size })
+                }
+                else {
+                    todo!("{:?}", operand);
+                }
             },
         }
     }

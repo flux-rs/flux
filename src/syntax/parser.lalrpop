@@ -121,12 +121,19 @@ Lit: Lit = {
   <lo:@L> <tok: r"[0-9]+"> <hi:@R> => {
       let kind = match u128::from_str(tok) {
           Ok(i) => LitKind::Int(i, LitIntType::Unsuffixed),
-          Err(_) => LitKind::Err(Symbol::intern(tok))
+          Err(_) => LitKind::Err
       };
-      Lit { node: kind, span: span_with_offset(lo, hi, offset, ctxt) }
+      Lit { kind: kind, span: span_with_offset(lo, hi, offset, ctxt) }
   },
-  <lo:@L> <tok: "true"> <hi:@R> => Lit { node: LitKind::Bool(true), span: span_with_offset(lo, hi, offset, ctxt) },
-  <lo:@L> <tok: "false"> <hi:@R> => Lit { node: LitKind::Bool(false), span: span_with_offset(lo, hi, offset, ctxt) }
+  <lo:@L> <tok: r"[0-9]*\.[0-9]+"> <hi:@R> =>
+      Lit {
+          kind: LitKind::Float(Symbol::intern(tok), LitFloatType::Unsuffixed),
+          span: span_with_offset(lo, hi, offset, ctxt)
+      },
+  <lo:@L> <tok: "true"> <hi:@R> =>
+      Lit { kind: LitKind::Bool(true), span: span_with_offset(lo, hi, offset, ctxt) },
+  <lo:@L> <tok: "false"> <hi:@R> =>
+      Lit { kind: LitKind::Bool(false), span: span_with_offset(lo, hi, offset, ctxt) }
 }
 
 Name: Name = {

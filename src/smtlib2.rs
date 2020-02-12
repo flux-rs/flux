@@ -2,14 +2,14 @@ extern crate rsmt2;
 extern crate rustc_apfloat;
 extern crate syntax as rust_syntax;
 
-use super::refinements::{Place, Pred, Var};
+use super::refinements::{Place, Pred, Scalar, Var};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
 pub use rsmt2::print::{Expr2Smt, Sym2Smt};
 pub use rsmt2::Solver;
 use rust_syntax::ast::FloatTy;
 use rustc::mir;
-use rustc::mir::interpret::{sign_extend, ConstValue, Scalar};
+use rustc::mir::interpret::sign_extend;
 use rustc::ty::layout::Size;
 use rustc::ty::{self, Ty};
 use rustc_apfloat::{
@@ -30,7 +30,7 @@ impl Expr2Smt<()> for Pred<'_, '_> {
         while let Some(token) = stack.pop() {
             match token {
                 Token::Expr(Pred::Place(place)) => place.sym_to_smt2(w, info)?,
-                Token::Expr(Pred::Constant(ty, val)) => format_const_value(ty, *val, w)?,
+                Token::Expr(Pred::Constant(ty, scalar)) => format_scalar(ty, *scalar, w)?,
                 Token::Expr(Pred::Binary(lhs, op, rhs)) => {
                     write!(w, "({} ", bin_op_to_smt2(*op))?;
                     stack.push(Token::Paren);
@@ -81,31 +81,21 @@ impl Sym2Smt<()> for Place<'_> {
     }
 }
 
-fn format_const_value<'tcx, W: Write>(
-    ty: Ty<'tcx>,
-    val: ConstValue<'tcx>,
-    w: &mut W,
-) -> SmtRes<()> {
-    match (val, &ty.kind) {
-        (ConstValue::Scalar(Scalar::Raw { data, .. }), ty::Bool) => {
-            write!(w, "{}", if data == 0 { "false" } else { "true" })?
+fn format_scalar<'tcx, W: Write>(ty: Ty<'tcx>, scalar: Scalar, w: &mut W) -> SmtRes<()> {
+    match &ty.kind {
+        ty::Bool => write!(w, "{}", if scalar.data == 0 { "false" } else { "true" })?,
+        ty::Float(FloatTy::F32) => write!(w, "{}", Single::from_bits(scalar.data))?,
+        ty::Float(FloatTy::F64) => write!(w, "{}", Double::from_bits(scalar.data))?,
+        ty::Uint(_) => {
+            write!(w, "{}", scalar.data)?;
         }
-        (ConstValue::Scalar(Scalar::Raw { data, .. }), ty::Float(FloatTy::F32)) => {
-            write!(w, "{}", Single::from_bits(data))?
-        }
-        (ConstValue::Scalar(Scalar::Raw { data, .. }), ty::Float(FloatTy::F64)) => {
-            write!(w, "{}", Double::from_bits(data))?
-        }
-        (ConstValue::Scalar(Scalar::Raw { data, .. }), ty::Uint(_)) => {
-            write!(w, "{}", data)?;
-        }
-        (ConstValue::Scalar(Scalar::Raw { data, .. }), ty::Int(i)) => {
+        ty::Int(i) => {
             // TODO: assuming 64 bits for isize. we can probably make this configurable
             let bit_width = i.bit_width().unwrap_or(64) as u64;
             let size = Size::from_bits(bit_width);
-            write!(w, "{}", sign_extend(data, size) as i128)?;
+            write!(w, "{}", sign_extend(scalar.data, size) as i128)?;
         }
-        _ => unimplemented!(),
+        _ => bug!(),
     }
     Ok(())
 }
