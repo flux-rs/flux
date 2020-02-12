@@ -92,7 +92,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                                 .iter()
                                 .map(|arg| self.operand_to_arg(arg))
                                 .collect::<Vec<_>>();
-                            let (formals, ret) = self.cx.open_fun_type(fun_type, &values);
+                            let (formals, ret) = self.cx.split_fun_type(fun_type, &values);
 
                             println!("    {:?}", env);
                             for (arg, formal) in args.iter().zip(formals) {

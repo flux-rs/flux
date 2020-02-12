@@ -207,7 +207,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         }
     }
 
-    pub fn open_fun_type(
+    pub fn split_fun_type(
         &self,
         reft_type: Binder<&'lr ReftType<'lr, 'tcx>>,
         values: &[Value<'tcx>],
@@ -218,7 +218,6 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         match reft_type.skip_binder() {
             ReftType::Reft(..) => bug!("expected function type"),
             ReftType::Fun { inputs, output } => {
-                let output = Binder::bind(self._open_reft_type(output, values, inputs.len()));
                 let inputs = inputs
                     .iter()
                     .enumerate()
@@ -226,6 +225,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
                         Binder::bind(self._open_reft_type(reft_ty, &values[0..i], i))
                     })
                     .collect::<Vec<_>>();
+                let output = Binder::bind(self._open_reft_type(output, values, inputs.len()));
                 (inputs, output)
             }
         }
@@ -237,18 +237,9 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         values: &[Value<'tcx>],
         nbinders: usize,
     ) -> &'lr ReftType<'lr, 'tcx> {
-        match reft_type {
-            ReftType::Reft(pred) => self.mk_reft(self._open_pred(pred, values, nbinders + 1)),
-            ReftType::Fun { inputs, output } => {
-                let output = self._open_reft_type(output, values, nbinders + inputs.len());
-                let inputs = inputs
-                    .iter()
-                    .enumerate()
-                    .map(|(i, reft_ty)| self._open_reft_type(reft_ty, values, nbinders + i))
-                    .collect::<Vec<_>>();
-                self.mk_fun_type(inputs, output)
-            }
-        }
+        self.fold_reft_type(reft_type, nbinders, &|pred, nbinders| {
+            self._open_pred(pred, values, nbinders)
+        })
     }
 
     fn open_pred_with_fresh_vars(
@@ -280,25 +271,26 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         &self,
         reft_type: Binder<&'lr ReftType<'lr, 'tcx>>,
     ) -> &'lr ReftType<'lr, 'tcx> {
-        self._open_with_fresh_vars(reft_type.skip_binder(), 0)
+        self.fold_reft_type(reft_type.skip_binder(), 0, &|pred, nbinders| {
+            self.open_pred_with_fresh_vars(pred, nbinders)
+        })
     }
 
-    fn _open_with_fresh_vars(
+    fn fold_reft_type(
         &self,
         reft_type: &'lr ReftType<'lr, 'tcx>,
         nbinders: usize,
+        pred_folder: &impl Fn(&'lr Pred<'lr, 'tcx>, usize) -> &'lr Pred<'lr, 'tcx>,
     ) -> &'lr ReftType<'lr, 'tcx> {
         match reft_type {
-            ReftType::Reft(pred) => {
-                self.mk_reft(self.open_pred_with_fresh_vars(pred, nbinders + 1))
-            }
+            ReftType::Reft(pred) => self.mk_reft(pred_folder(pred, nbinders + 1)),
             ReftType::Fun { inputs, output } => {
-                let output = self._open_with_fresh_vars(output, inputs.len() + nbinders);
                 let inputs = inputs
                     .iter()
                     .enumerate()
-                    .map(|(i, reft_type)| self._open_with_fresh_vars(reft_type, nbinders + i))
+                    .map(|(i, reft_type)| self.fold_reft_type(reft_type, nbinders + i, pred_folder))
                     .collect::<Vec<_>>();
+                let output = self.fold_reft_type(output, inputs.len() + nbinders, pred_folder);
                 self.mk_fun_type(inputs, output)
             }
         }
