@@ -1,3 +1,5 @@
+pub mod typeck;
+
 extern crate arena;
 extern crate rustc_index;
 extern crate syntax as rust_syntax;

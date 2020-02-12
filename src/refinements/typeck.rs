@@ -1,9 +1,9 @@
 extern crate rustc_mir;
 
-use super::context::LiquidRustCtxt;
-use super::refinements::{Binder, Place, Pred, ReftType, Scalar, Value, Var};
-use super::smtlib2::{SmtRes, Solver};
-use super::syntax::ast::{BinOpKind, UnOpKind};
+use super::{Binder, Place, Pred, ReftType, Scalar, Value, Var};
+use crate::context::LiquidRustCtxt;
+use crate::smtlib2::{SmtRes, Solver};
+use crate::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::interpret::ConstValue;
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
