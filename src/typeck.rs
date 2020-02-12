@@ -64,6 +64,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                         let ty = place.ty(self, self.cx.tcx()).ty;
                         let lhs = self.rvalue_reft_type(ty, rvalue);
                         let env = self.env_at(bb, i);
+                        println!("    {:?}", env);
                         self.check_assign(*place, &env, lhs);
                     }
                     StatementKind::StorageLive(_)
@@ -93,6 +94,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                                 .collect::<Vec<_>>();
                             let (formals, ret) = self.cx.open_fun_type(fun_type, &values);
 
+                            println!("    {:?}", env);
                             for (arg, formal) in args.iter().zip(formals) {
                                 let actual = self.operand_reft_type(arg);
                                 self.check_subtyping(&env, actual, formal);
@@ -297,17 +299,16 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         }
 
         for pred in env {
-            println!("    {}", pred.to_smt_str());
             solver.assert(pred)?;
         }
+
         let not_rhs = Pred::Unary(UnOpKind::Not, rhs);
         solver.assert(lhs)?;
         solver.assert(&not_rhs)?;
-        println!("    {}", lhs.to_smt_str());
-        println!("    {}", not_rhs.to_smt_str());
 
         let b = solver.check_sat()?;
-        println!("    unsat {}", !b);
+        print!("      {:?} => {:?}", lhs, rhs);
+        println!("  {}", !b);
         Ok(())
     }
 }
