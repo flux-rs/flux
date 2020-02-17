@@ -4,7 +4,6 @@ use super::{Binder, Place, Pred, ReftType, Scalar, Value, Var};
 use crate::context::LiquidRustCtxt;
 use crate::smtlib2::{SmtRes, Solver};
 use crate::syntax::ast::{BinOpKind, UnOpKind};
-use rustc::mir::interpret::ConstValue;
 use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
 use rustc_hir::{def_id::DefId, BodyId};
@@ -88,10 +87,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                             if place.projection.len() > 0 {
                                 todo!();
                             }
-                            let values = args
-                                .iter()
-                                .map(|arg| self.operand_to_arg(arg))
-                                .collect::<Vec<_>>();
+                            let values: Vec<_> = args.iter().map(Value::from_operand).collect();
                             let (formals, ret) = self.cx.split_fun_type(fun_type, &values);
 
                             println!("    {:?}", env);
@@ -132,30 +128,6 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         } else if !self.mir.local_decls[local].is_user_variable() {
             println!("    infer {:?}:{:?}", local, lhs);
             self.reft_types.insert(local, lhs);
-        }
-    }
-
-    fn operand_to_arg(&self, operand: &Operand<'tcx>) -> Value<'tcx> {
-        match operand {
-            Operand::Copy(place) | Operand::Move(place) => {
-                if place.projection.len() > 0 {
-                    bug!("values in argument position must by constants or locals")
-                }
-                Value::Local(place.local)
-            }
-            Operand::Constant(box Constant { literal, .. }) => {
-                if_chain! {
-                    if let ty::ConstKind::Value(val) = literal.val;
-                    if let ConstValue::Scalar(scalar) = val;
-                    if let mir::interpret::Scalar::Raw {data, size} = scalar;
-                    then {
-                        Value::Constant(literal.ty, Scalar { data, size })
-                    }
-                    else {
-                        todo!("{:?}", operand);
-                    }
-                }
-            }
         }
     }
 
@@ -200,16 +172,9 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                 ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                 ty::FnPtr(..) => todo!(),
                 _ => {
-                    let scalar = if_chain! {
-                        if let ty::ConstKind::Value(val) = literal.val;
-                        if let ConstValue::Scalar(scalar) = val;
-                        if let mir::interpret::Scalar::Raw {data, size} = scalar;
-                        then {
-                            Scalar { data, size }
-                        }
-                        else {
-                            todo!("{:?}", operand);
-                        }
+                    let scalar = match Scalar::from_const(literal) {
+                        Some(scalar) => scalar,
+                        None => todo!("{:?}", literal),
                     };
                     let constant = self.cx.mk_constant(literal.ty, scalar);
                     self.cx
@@ -226,16 +191,9 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                 var: Var::Local(place.local),
                 projection: place.projection,
             }),
-            Operand::Constant(box Constant { literal, .. }) => if_chain! {
-                if let ty::ConstKind::Value(val) = literal.val;
-                if let ConstValue::Scalar(scalar) = val;
-                if let mir::interpret::Scalar::Raw {data, size} = scalar;
-                then {
-                    self.cx.mk_constant(literal.ty, Scalar { data, size })
-                }
-                else {
-                    todo!("{:?}", operand);
-                }
+            Operand::Constant(box Constant { literal, .. }) => match Scalar::from_const(literal) {
+                Some(scalar) => self.cx.mk_constant(literal.ty, scalar),
+                None => todo!("{:?}", operand),
             },
         }
     }
@@ -307,8 +265,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         solver.assert(&not_rhs)?;
 
         let b = solver.check_sat()?;
-        print!("      {:?} => {:?}", lhs, rhs);
-        println!("  {}", !b);
+        println!("      {:?} => {:?}  {}", lhs, rhs, !b);
         Ok(())
     }
 }

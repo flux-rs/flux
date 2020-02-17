@@ -81,6 +81,20 @@ impl Scalar {
             size: 8,
         }
     }
+
+    pub fn from_const(lit: &ty::Const) -> Option<Self> {
+        if_chain! {
+            if let ty::ConstKind::Value(val) = lit.val;
+            if let mir::interpret::ConstValue::Scalar(scalar) = val;
+            if let mir::interpret::Scalar::Raw {data, size} = scalar;
+            then {
+                Some(Scalar { data, size })
+            }
+            else {
+                None
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -135,6 +149,23 @@ impl<'a, 'tcx> ReftType<'a, 'tcx> {
 impl<'tcx> Value<'tcx> {
     pub fn from_locals(locals: &[mir::Local]) -> Vec<Value<'tcx>> {
         locals.iter().map(|l| Value::Local(*l)).collect::<Vec<_>>()
+    }
+
+    pub fn from_operand(operand: &mir::Operand<'tcx>) -> Self {
+        match operand {
+            mir::Operand::Copy(place) | mir::Operand::Move(place) => {
+                if place.projection.len() > 0 {
+                    bug!("values in argument position must be constants or locals")
+                }
+                Value::Local(place.local)
+            }
+            mir::Operand::Constant(box mir::Constant { literal, .. }) => {
+                match Scalar::from_const(literal) {
+                    Some(scalar) => Value::Constant(literal.ty, scalar),
+                    None => todo!("{:?}", operand),
+                }
+            }
+        }
     }
 }
 
