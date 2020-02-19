@@ -8,9 +8,11 @@ extern crate rustc;
 #[macro_use]
 extern crate if_chain;
 extern crate rustc_apfloat;
+extern crate rustc_data_structures;
 extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_lint;
+extern crate rustc_macros;
 extern crate rustc_span;
 
 pub mod annots;

@@ -40,8 +40,41 @@ pub enum ReftType<'a, 'tcx> {
 pub enum Pred<'a, 'tcx> {
     Unary(ast::UnOpKind, &'a Pred<'a, 'tcx>),
     Binary(&'a Pred<'a, 'tcx>, ast::BinOpKind, &'a Pred<'a, 'tcx>),
+    Operand(Operand<'tcx>),
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Operand<'tcx> {
     Constant(Ty<'tcx>, Scalar),
     Place(Place<'tcx>),
+}
+
+impl<'tcx> Operand<'tcx> {
+    pub fn from_locals(locals: &[mir::Local]) -> Vec<Self> {
+        locals.iter().map(|l| Self::from_local(*l)).collect()
+    }
+
+    pub fn from_local(local: mir::Local) -> Self {
+        Operand::Place(Place {
+            var: Var::Local(local),
+            projection: ty::List::empty(),
+        })
+    }
+
+    pub fn from_mir(operand: &mir::Operand<'tcx>) -> Self {
+        match operand {
+            mir::Operand::Copy(place) | mir::Operand::Move(place) => Self::Place(Place {
+                var: Var::Local(place.local),
+                projection: place.projection,
+            }),
+            mir::Operand::Constant(box mir::Constant { literal, .. }) => {
+                match Scalar::from_const(literal) {
+                    Some(scalar) => Operand::Constant(literal.ty, scalar),
+                    None => todo!("{:?}", operand),
+                }
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -110,11 +143,11 @@ pub enum Var {
     Free(usize),
 }
 
-#[derive(Debug)]
-pub enum Value<'tcx> {
-    Constant(Ty<'tcx>, Scalar),
-    Local(mir::Local),
-}
+// #[derive(Debug)]
+// pub enum Value<'tcx> {
+//     Constant(Ty<'tcx>, Scalar),
+//     Local(mir::Local),
+// }
 
 impl<T> Binder<T> {
     pub fn bind(val: T) -> Self {
@@ -146,28 +179,28 @@ impl<'a, 'tcx> ReftType<'a, 'tcx> {
     }
 }
 
-impl<'tcx> Value<'tcx> {
-    pub fn from_locals(locals: &[mir::Local]) -> Vec<Value<'tcx>> {
-        locals.iter().map(|l| Value::Local(*l)).collect::<Vec<_>>()
-    }
+// impl<'tcx> Value<'tcx> {
+//     pub fn from_locals(locals: &[mir::Local]) -> Vec<Value<'tcx>> {
+//         locals.iter().map(|l| Value::Local(*l)).collect::<Vec<_>>()
+//     }
 
-    pub fn from_operand(operand: &mir::Operand<'tcx>) -> Self {
-        match operand {
-            mir::Operand::Copy(place) | mir::Operand::Move(place) => {
-                if place.projection.len() > 0 {
-                    bug!("values in argument position must be constants or locals")
-                }
-                Value::Local(place.local)
-            }
-            mir::Operand::Constant(box mir::Constant { literal, .. }) => {
-                match Scalar::from_const(literal) {
-                    Some(scalar) => Value::Constant(literal.ty, scalar),
-                    None => todo!("{:?}", operand),
-                }
-            }
-        }
-    }
-}
+//     pub fn from_operand(operand: &mir::Operand<'tcx>) -> Self {
+//         match operand {
+//             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
+//                 if place.projection.len() > 0 {
+//                     bug!("values in argument position must be constants or locals")
+//                 }
+//                 Value::Local(place.local)
+//             }
+//             mir::Operand::Constant(box mir::Constant { literal, .. }) => {
+//                 match Scalar::from_const(literal) {
+//                     Some(scalar) => Value::Constant(literal.ty, scalar),
+//                     None => todo!("{:?}", operand),
+//                 }
+//             }
+//         }
+//     }
+// }
 
 impl<'a, 'tcx> Pred<'a, 'tcx> {
     pub fn iter_places(&self, mut f: impl FnMut(Place<'tcx>) -> ()) {
@@ -181,15 +214,13 @@ impl<'a, 'tcx> Pred<'a, 'tcx> {
                 lhs._iter_places(f);
                 rhs._iter_places(f);
             }
-            Self::Place(place) => {
-                f(*place);
-            }
-            Self::Constant(_, _) => {}
+            Self::Operand(Operand::Place(place)) => f(*place),
+            Self::Operand(Operand::Constant(..)) => {}
         }
     }
 
     pub fn nu() -> Self {
-        Self::Place(Place::nu())
+        Self::Operand(Operand::Place(Place::nu()))
     }
 }
 
@@ -241,6 +272,14 @@ impl fmt::Debug for Pred<'_, '_> {
         match self {
             Self::Unary(op, expr) => write!(fmt, "{:?}{:?}", op, expr),
             Self::Binary(lhs, op, rhs) => write!(fmt, "{:?} {:?} {:?}", lhs, op, rhs),
+            Self::Operand(operand) => write!(fmt, "{:?}", operand),
+        }
+    }
+}
+
+impl fmt::Debug for Operand<'_> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
             Self::Place(place) => write!(fmt, "{:?}", place),
             Self::Constant(ty, scalar) => {
                 match &ty.kind {

@@ -40,7 +40,10 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         preds: &'lr ArenaInterner<Pred<'lr, 'tcx>>,
         refts: &'lr ArenaInterner<ReftType<'lr, 'tcx>>,
     ) -> Self {
-        let pred_true = Pred::Constant(cx.tcx.types.bool, Scalar::from_bool(true));
+        let pred_true = Pred::Operand(Operand::Constant(
+            cx.tcx.types.bool,
+            Scalar::from_bool(true),
+        ));
 
         LiquidRustCtxt {
             cx,
@@ -56,7 +59,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         self.cx.tcx
     }
 
-    pub fn hir(&self) -> &rustc::hir::map::Map<'tcx> {
+    pub fn hir(&self) -> rustc::hir::Hir<'tcx> {
         self.cx.tcx.hir()
     }
 
@@ -73,7 +76,9 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
     }
 
     pub fn span_lint<S: Into<MultiSpan>>(&self, span: S, msg: &str) {
-        self.cx.span_lint(LIQUID_RUST, span, msg);
+        self.cx.struct_span_lint(LIQUID_RUST, span, |ldb| {
+            ldb.build(msg).emit();
+        });
     }
 
     pub fn span_lint_label(&self, span: Span, msg: &str) {
@@ -99,10 +104,6 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         self.refts.intern(ReftType::Fun { inputs, output })
     }
 
-    pub fn mk_place_var(&self, var: Var) -> &'lr Pred<'lr, 'tcx> {
-        self.preds.intern(Pred::Place(Place::from_var(var)))
-    }
-
     pub fn mk_place_field(&self, place: Place<'tcx>, f: mir::Field, ty: Ty<'tcx>) -> Place<'tcx> {
         self.mk_place_elem(place, mir::PlaceElem::Field(f, ty))
     }
@@ -117,12 +118,8 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         }
     }
 
-    pub fn mk_pred_place(&self, place: Place<'tcx>) -> &'lr Pred<'lr, 'tcx> {
-        self.preds.intern(Pred::Place(place))
-    }
-
-    pub fn mk_constant(&self, ty: Ty<'tcx>, scalar: Scalar) -> &'lr Pred<'lr, 'tcx> {
-        self.preds.intern(Pred::Constant(ty, scalar))
+    pub fn mk_operand(&self, operand: Operand<'tcx>) -> &'lr Pred<'lr, 'tcx> {
+        self.preds.intern(Pred::Operand(operand))
     }
 
     pub fn mk_binary(
@@ -173,7 +170,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
     pub fn open_pred(
         &self,
         pred: Binder<&'lr Pred<'lr, 'tcx>>,
-        value: Value<'tcx>,
+        value: Operand<'tcx>,
     ) -> &'lr Pred<'lr, 'tcx> {
         self._open_pred(pred.skip_binder(), &[value], 1)
     }
@@ -181,7 +178,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
     fn _open_pred(
         &self,
         pred: &'lr Pred<'lr, 'tcx>,
-        values: &[Value<'tcx>],
+        values: &[Operand<'tcx>],
         nbinders: usize,
     ) -> &'lr Pred<'lr, 'tcx> {
         match pred {
@@ -191,26 +188,49 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
                 *op,
                 self._open_pred(rhs, values, nbinders),
             ),
-            Pred::Place(place) => match place.var {
+            Pred::Operand(operand) => {
+                self.mk_operand(self._open_operand(*operand, values, nbinders))
+            }
+        }
+    }
+
+    fn _open_operand(
+        &self,
+        operand: Operand<'tcx>,
+        values: &[Operand<'tcx>],
+        nbinders: usize,
+    ) -> Operand<'tcx> {
+        match operand {
+            Operand::Place(place) => match place.var {
                 Var::Bound(idx) if values.len() + idx >= nbinders => {
                     match values[nbinders - idx - 1] {
-                        Value::Constant(ty, val) => self.mk_constant(ty, val),
-                        Value::Local(local) => self.mk_pred_place(Place {
-                            var: Var::Local(local),
-                            projection: place.projection,
-                        }),
+                        c @ Operand::Constant(..) => {
+                            if place.projection.len() > 0 {
+                                bug!("cannot replace a constant into a projected place");
+                            }
+                            c
+                        }
+                        Operand::Place(Place { var, projection }) => {
+                            let mut projection = projection.to_vec();
+                            projection.extend(place.projection);
+
+                            Operand::Place(Place {
+                                var,
+                                projection: self.tcx().intern_place_elems(&projection),
+                            })
+                        }
                     }
                 }
-                _ => pred,
+                _ => operand,
             },
-            Pred::Constant(..) => pred,
+            Operand::Constant(..) => operand,
         }
     }
 
     pub fn split_fun_type(
         &self,
         reft_type: Binder<&'lr ReftType<'lr, 'tcx>>,
-        values: &[Value<'tcx>],
+        values: &[Operand<'tcx>],
     ) -> (
         Vec<Binder<&'lr ReftType<'lr, 'tcx>>>,
         Binder<&'lr ReftType<'lr, 'tcx>>,
@@ -234,7 +254,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
     fn _open_reft_type(
         &self,
         reft_type: &'lr ReftType<'lr, 'tcx>,
-        values: &[Value<'tcx>],
+        values: &[Operand<'tcx>],
         nbinders: usize,
     ) -> &'lr ReftType<'lr, 'tcx> {
         self.fold_reft_type(reft_type, nbinders, &|pred, nbinders| {
@@ -256,14 +276,26 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
                 *op,
                 self.open_pred_with_fresh_vars(rhs, nbinders),
             ),
-            Pred::Place(place) => match place.var {
-                Var::Bound(idx) => self.mk_pred_place(Place {
+            Pred::Operand(operand) => {
+                self.mk_operand(self.open_operand_with_fresh_vars(*operand, nbinders))
+            }
+        }
+    }
+
+    fn open_operand_with_fresh_vars(
+        &self,
+        operand: Operand<'tcx>,
+        nbinders: usize,
+    ) -> Operand<'tcx> {
+        match operand {
+            Operand::Place(place) => match place.var {
+                Var::Bound(idx) => Operand::Place(Place {
                     var: Var::Free(nbinders - idx - 1),
                     projection: place.projection,
                 }),
-                _ => pred,
+                _ => operand,
             },
-            Pred::Constant(..) => pred,
+            Operand::Constant(..) => operand,
         }
     }
 

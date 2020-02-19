@@ -2,7 +2,7 @@ extern crate rsmt2;
 extern crate rustc_apfloat;
 extern crate syntax as rust_syntax;
 
-use super::refinements::{Place, Pred, Scalar, Var};
+use super::refinements::{Operand, Place, Pred, Scalar, Var};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
 pub use rsmt2::print::{Expr2Smt, Sym2Smt};
@@ -29,8 +29,10 @@ impl Expr2Smt<()> for Pred<'_, '_> {
         let mut stack = vec![Token::Expr(self)];
         while let Some(token) = stack.pop() {
             match token {
-                Token::Expr(Pred::Place(place)) => place.sym_to_smt2(w, info)?,
-                Token::Expr(Pred::Constant(ty, scalar)) => format_scalar(ty, *scalar, w)?,
+                Token::Expr(Pred::Operand(Operand::Place(place))) => place.sym_to_smt2(w, info)?,
+                Token::Expr(Pred::Operand(Operand::Constant(ty, scalar))) => {
+                    format_scalar(ty, *scalar, w)?
+                }
                 Token::Expr(Pred::Binary(lhs, op, rhs)) => {
                     write!(w, "({} ", bin_op_to_smt2(*op))?;
                     stack.push(Token::Paren);

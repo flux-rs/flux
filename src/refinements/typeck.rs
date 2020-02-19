@@ -1,10 +1,10 @@
 extern crate rustc_mir;
 
-use super::{Binder, Place, Pred, ReftType, Scalar, Value, Var};
+use super::{Binder, Operand, Place, Pred, ReftType, Scalar, Var};
 use crate::context::LiquidRustCtxt;
 use crate::smtlib2::{SmtRes, Solver};
 use crate::syntax::ast::{BinOpKind, UnOpKind};
-use rustc::mir::{self, Constant, Operand, Rvalue, StatementKind, TerminatorKind};
+use rustc::mir::{self, Constant, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
 use rustc_hir::{def_id::DefId, BodyId};
 use rustc_index::vec::IndexVec;
@@ -47,7 +47,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         let mut env = Vec::new();
         for local in self.cursor.get().iter() {
             if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
-                env.push(self.cx.open_pred(pred, Value::Local(local)));
+                env.push(self.cx.open_pred(pred, Operand::from_local(local)));
             }
         }
         env
@@ -87,7 +87,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                             if place.projection.len() > 0 {
                                 todo!();
                             }
-                            let values: Vec<_> = args.iter().map(Value::from_operand).collect();
+                            let values: Vec<_> = args.iter().map(Operand::from_mir).collect();
                             let (formals, ret) = self.cx.split_fun_type(fun_type, &values);
 
                             println!("    {:?}", env);
@@ -151,9 +151,9 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         }
     }
 
-    fn operand_reft_type(&self, operand: &Operand<'tcx>) -> Binder<&'lr ReftType<'lr, 'tcx>> {
+    fn operand_reft_type(&self, operand: &mir::Operand<'tcx>) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let reft_ty = match operand {
-            Operand::Copy(place) | Operand::Move(place) => {
+            mir::Operand::Copy(place) | mir::Operand::Move(place) => {
                 match place.ty(self, self.cx.tcx()).ty.kind {
                     ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                     ty::FnPtr(..) => todo!(),
@@ -162,13 +162,13 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                             var: Var::Local(place.local),
                             projection: place.projection,
                         };
-                        let place = self.cx.mk_pred_place(place);
+                        let place = self.cx.mk_operand(Operand::Place(place));
                         self.cx
                             .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, place))
                     }
                 }
             }
-            Operand::Constant(box Constant { literal, .. }) => match literal.ty.kind {
+            mir::Operand::Constant(box Constant { literal, .. }) => match literal.ty.kind {
                 ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                 ty::FnPtr(..) => todo!(),
                 _ => {
@@ -176,7 +176,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                         Some(scalar) => scalar,
                         None => todo!("{:?}", literal),
                     };
-                    let constant = self.cx.mk_constant(literal.ty, scalar);
+                    let constant = self.cx.mk_operand(Operand::Constant(literal.ty, scalar));
                     self.cx
                         .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
                 }
@@ -185,40 +185,26 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         Binder::bind(reft_ty)
     }
 
-    fn operand_to_value(&self, operand: &Operand<'tcx>) -> &'lr Pred<'lr, 'tcx> {
-        match operand {
-            Operand::Copy(place) | Operand::Move(place) => self.cx.mk_pred_place(Place {
-                var: Var::Local(place.local),
-                projection: place.projection,
-            }),
-            Operand::Constant(box Constant { literal, .. }) => match Scalar::from_const(literal) {
-                Some(scalar) => self.cx.mk_constant(literal.ty, scalar),
-                None => todo!("{:?}", operand),
-            },
-        }
-    }
-
     pub fn rvalue_reft_type(
         &self,
         ty: Ty<'tcx>,
         rvalue: &Rvalue<'tcx>,
     ) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let reft_ty = match rvalue {
-            // v:{v == operand}
             Rvalue::Use(operand) => return self.operand_reft_type(operand),
             // v:{v.0 == lhs + rhs}
             Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
                 let op = mir_op_to_refine_op(*op);
-                let bin =
-                    self.cx
-                        .mk_binary(self.operand_to_value(lhs), op, self.operand_to_value(rhs));
+                let lhs = self.cx.mk_operand(Operand::from_mir(lhs));
+                let rhs = self.cx.mk_operand(Operand::from_mir(rhs));
+                let bin = self.cx.mk_binary(lhs, op, rhs);
                 let ty = ty.tuple_fields().next().unwrap();
                 let bin = self.cx.mk_binary(
-                    self.cx.mk_pred_place(self.cx.mk_place_field(
+                    self.cx.mk_operand(Operand::Place(self.cx.mk_place_field(
                         Place::nu(),
                         mir::Field::new(0),
                         ty,
-                    )),
+                    ))),
                     BinOpKind::Eq,
                     bin,
                 );
@@ -227,9 +213,9 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             // v:{v == lhs + rhs}
             Rvalue::BinaryOp(op, lhs, rhs) => {
                 let op = mir_op_to_refine_op(*op);
-                let bin =
-                    self.cx
-                        .mk_binary(self.operand_to_value(lhs), op, self.operand_to_value(rhs));
+                let lhs = self.cx.mk_operand(Operand::from_mir(lhs));
+                let rhs = self.cx.mk_operand(Operand::from_mir(rhs));
+                let bin = self.cx.mk_binary(lhs, op, rhs);
                 let bin = self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, bin);
                 self.cx.mk_reft(bin)
             }

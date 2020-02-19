@@ -1,6 +1,6 @@
 extern crate syntax as rust_syntax;
 
-use super::refinements::{Binder, BodyRefts, Pred, ReftType, Scalar, Value, Var};
+use super::refinements::{Binder, BodyRefts, Operand, Place, Pred, ReftType, Scalar, Var};
 use super::syntax::ast;
 use super::wf::TypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
@@ -45,7 +45,7 @@ fn build_body_refts<'lr, 'tcx>(
         let locals = (0..mir.arg_count)
             .map(|i| mir::Local::from_usize(i + 1))
             .collect::<Vec<_>>();
-        let (inputs, output) = cx.split_fun_type(fun_type, &Value::from_locals(&locals));
+        let (inputs, output) = cx.split_fun_type(fun_type, &Operand::from_locals(&locals));
         for (input, local) in inputs.into_iter().zip(locals) {
             local_decls.insert(local, input);
         }
@@ -118,7 +118,9 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
             ast::ExprKind::Unary(op, expr) => {
                 self.cx.mk_unary(op.kind, self.build_pred(expr, bindings))
             }
-            ast::ExprKind::Name(name) => self.cx.mk_place_var(self.var_for_name(*name, bindings)),
+            ast::ExprKind::Name(name) => self.cx.mk_operand(Operand::Place(Place::from_var(
+                self.var_for_name(*name, bindings),
+            ))),
             ast::ExprKind::Lit(lit) => self.lit_to_constant(&lit.kind, ty, expr.span),
             ast::ExprKind::Err => bug!(),
         }
@@ -151,7 +153,7 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
             }
             Err(LitToConstError::Reported) => bug!(),
         };
-        self.cx.mk_constant(ty, scalar)
+        self.cx.mk_operand(Operand::Constant(ty, scalar))
     }
 
     pub fn lit_to_scalar(
