@@ -8,7 +8,7 @@ use super::syntax::ast;
 use rust_syntax::ast::FloatTy;
 use rustc::mir;
 use rustc::mir::interpret::sign_extend;
-use rustc::ty::{self, layout::Size, Ty};
+use rustc::ty::{self, layout::Size, Ty, TyCtxt};
 use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
@@ -74,6 +74,19 @@ impl<'tcx> Operand<'tcx> {
                 }
             }
         }
+    }
+
+    pub fn from_bits(tcx: TyCtxt<'tcx>, bits: u128, ty: Ty<'tcx>) -> Self {
+        let param_ty = ty::ParamEnv::reveal_all().and(ty);
+        let size = tcx
+            .layout_of(param_ty)
+            .unwrap_or_else(|e| panic!("could not compute layout for {:?}: {:?}", ty, e))
+            .size;
+        Self::from_scalar(ty, Scalar::from_uint(bits, size))
+    }
+
+    pub fn from_scalar(ty: Ty<'tcx>, scalar: Scalar) -> Self {
+        Self::Constant(ty, scalar)
     }
 }
 
@@ -143,12 +156,6 @@ pub enum Var {
     Free(usize),
 }
 
-// #[derive(Debug)]
-// pub enum Value<'tcx> {
-//     Constant(Ty<'tcx>, Scalar),
-//     Local(mir::Local),
-// }
-
 impl<T> Binder<T> {
     pub fn bind(val: T) -> Self {
         Binder(val)
@@ -178,29 +185,6 @@ impl<'a, 'tcx> ReftType<'a, 'tcx> {
         }
     }
 }
-
-// impl<'tcx> Value<'tcx> {
-//     pub fn from_locals(locals: &[mir::Local]) -> Vec<Value<'tcx>> {
-//         locals.iter().map(|l| Value::Local(*l)).collect::<Vec<_>>()
-//     }
-
-//     pub fn from_operand(operand: &mir::Operand<'tcx>) -> Self {
-//         match operand {
-//             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
-//                 if place.projection.len() > 0 {
-//                     bug!("values in argument position must be constants or locals")
-//                 }
-//                 Value::Local(place.local)
-//             }
-//             mir::Operand::Constant(box mir::Constant { literal, .. }) => {
-//                 match Scalar::from_const(literal) {
-//                     Some(scalar) => Value::Constant(literal.ty, scalar),
-//                     None => todo!("{:?}", operand),
-//                 }
-//             }
-//         }
-//     }
-// }
 
 impl<'a, 'tcx> Pred<'a, 'tcx> {
     pub fn iter_places(&self, mut f: impl FnMut(Place<'tcx>) -> ()) {
@@ -234,6 +218,25 @@ impl<'tcx> Place<'tcx> {
 
     pub fn nu() -> Self {
         Place::from_var(Var::nu())
+    }
+
+    pub fn ty<D>(&self, local_decls: &D, tcx: TyCtxt<'tcx>) -> Ty<'tcx>
+    where
+        D: mir::HasLocalDecls<'tcx>,
+    {
+        match self.var {
+            Var::Local(local) => {
+                self.projection
+                    .iter()
+                    .fold(
+                        mir::tcx::PlaceTy::from_ty(local_decls.local_decls()[local].ty),
+                        |place_ty, elem| place_ty.projection_ty(tcx, elem),
+                    )
+                    .ty
+            }
+            // TODO: Fix this
+            _ => tcx.mk_mach_int(ast::IntTy::I32),
+        }
     }
 }
 
@@ -270,7 +273,7 @@ impl fmt::Debug for ReftType<'_, '_> {
 impl fmt::Debug for Pred<'_, '_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unary(op, expr) => write!(fmt, "{:?}{:?}", op, expr),
+            Self::Unary(op, expr) => write!(fmt, "{:?}({:?})", op, expr),
             Self::Binary(lhs, op, rhs) => write!(fmt, "{:?} {:?} {:?}", lhs, op, rhs),
             Self::Operand(operand) => write!(fmt, "{:?}", operand),
         }
@@ -283,19 +286,18 @@ impl fmt::Debug for Operand<'_> {
             Self::Place(place) => write!(fmt, "{:?}", place),
             Self::Constant(ty, scalar) => {
                 match &ty.kind {
-                    ty::Bool => write!(fmt, "{}", if scalar.data == 0 { "false" } else { "true" })?,
-                    ty::Float(FloatTy::F32) => write!(fmt, "{}", Single::from_bits(scalar.data))?,
-                    ty::Float(FloatTy::F64) => write!(fmt, "{}", Double::from_bits(scalar.data))?,
-                    ty::Uint(_) => write!(fmt, "{}", scalar.data)?,
+                    ty::Bool => write!(fmt, "{}", if scalar.data == 0 { "false" } else { "true" }),
+                    ty::Float(FloatTy::F32) => write!(fmt, "{}", Single::from_bits(scalar.data)),
+                    ty::Float(FloatTy::F64) => write!(fmt, "{}", Double::from_bits(scalar.data)),
+                    ty::Uint(_) => write!(fmt, "{}", scalar.data),
                     ty::Int(i) => {
                         // TODO: assuming 64 bits for isize. we can probably make this configurable
                         let bit_width = i.bit_width().unwrap_or(64) as u64;
                         let size = Size::from_bits(bit_width);
-                        write!(fmt, "{}", sign_extend(scalar.data, size) as i128)?
+                        write!(fmt, "{}", sign_extend(scalar.data, size) as i128)
                     }
                     _ => bug!(),
                 }
-                write!(fmt, "{}", ty)
             }
         }
     }

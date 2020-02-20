@@ -30,6 +30,8 @@ pub struct LiquidRustCtxt<'lr, 'tcx> {
     refts_table: HashMap<DefId, BodyRefts<'lr, 'tcx>>,
     preds: &'lr ArenaInterner<'lr, Pred<'lr, 'tcx>>,
     refts: &'lr ArenaInterner<'lr, ReftType<'lr, 'tcx>>,
+    pub pred_true: &'lr Pred<'lr, 'tcx>,
+    pub pred_false: &'lr Pred<'lr, 'tcx>,
     pub reft_true: &'lr ReftType<'lr, 'tcx>,
     pub nu: &'lr Pred<'lr, 'tcx>,
 }
@@ -40,16 +42,22 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         preds: &'lr ArenaInterner<Pred<'lr, 'tcx>>,
         refts: &'lr ArenaInterner<ReftType<'lr, 'tcx>>,
     ) -> Self {
-        let pred_true = Pred::Operand(Operand::Constant(
+        let pred_true = preds.intern(Pred::Operand(Operand::Constant(
             cx.tcx.types.bool,
             Scalar::from_bool(true),
-        ));
+        )));
+        let pred_false = preds.intern(Pred::Operand(Operand::Constant(
+            cx.tcx.types.bool,
+            Scalar::from_bool(false),
+        )));
 
         LiquidRustCtxt {
             cx,
             refts_table: HashMap::new(),
             preds,
-            reft_true: refts.intern(ReftType::Reft(preds.intern(pred_true))),
+            pred_true,
+            pred_false,
+            reft_true: refts.intern(ReftType::Reft(pred_true)),
             nu: preds.intern(Pred::nu()),
             refts,
         }

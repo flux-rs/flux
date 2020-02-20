@@ -1,6 +1,6 @@
 extern crate syntax as rust_syntax;
 
-pub use rust_syntax::ast::{AttrKind, AttrStyle, Attribute, LitFloatType, LitIntType};
+pub use rust_syntax::ast::{AttrKind, AttrStyle, Attribute, IntTy, LitFloatType, LitIntType};
 pub use rustc_hir::BodyId;
 use rustc_hir::HirId;
 pub use rustc_span::{symbol::Ident, Span, Symbol};

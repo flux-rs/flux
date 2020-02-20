@@ -6,6 +6,7 @@ use crate::smtlib2::{SmtRes, Solver};
 use crate::syntax::ast::{BinOpKind, UnOpKind};
 use rustc::mir::{self, Constant, Rvalue, StatementKind, TerminatorKind};
 use rustc::ty::{self, Ty};
+use rustc_data_structures::work_queue::WorkQueue;
 use rustc_hir::{def_id::DefId, BodyId};
 use rustc_index::vec::IndexVec;
 use rustc_index::{bit_set::BitSet, vec::Idx};
@@ -23,6 +24,7 @@ struct ReftChecker<'a, 'lr, 'tcx> {
     mir: &'a mir::Body<'tcx>,
     reft_types: HashMap<mir::Local, Binder<&'lr ReftType<'lr, 'tcx>>>,
     cursor: DataflowResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>>,
+    conditionals: IndexVec<mir::BasicBlock, Vec<&'lr Pred<'lr, 'tcx>>>,
 }
 
 impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
@@ -30,11 +32,13 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         let reft_types = cx.local_decls(body_id).clone();
         let mir = cx.optimized_mir(body_id);
         let cursor = initialized_locals(cx, cx.hir().body_owner_def_id(body_id));
+        let conditionals = conditionals(cx, mir);
         ReftChecker {
             cx,
             mir,
             reft_types,
             cursor,
+            conditionals,
         }
     }
 
@@ -49,6 +53,9 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
                 env.push(self.cx.open_pred(pred, Operand::from_local(local)));
             }
+        }
+        for conditional in &self.conditionals[block] {
+            env.push(conditional);
         }
         env
     }
@@ -102,11 +109,13 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                         }
                     }
                     TerminatorKind::Resume
+                    | TerminatorKind::Goto { .. }
+                    | TerminatorKind::SwitchInt { .. }
                     | TerminatorKind::Assert { .. }
                     | TerminatorKind::Abort
                     | TerminatorKind::Return
                     | TerminatorKind::Unreachable => {}
-                    _ => todo!(),
+                    _ => todo!("{:?}", terminator.kind),
                 };
             }
         }
@@ -239,7 +248,12 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         }
 
         for place in places {
-            solver.declare_const(&place, "Int")?;
+            let sort = match &place.ty(self, self.cx.tcx()).kind {
+                ty::Int(..) => "Int",
+                ty::Bool => "Bool",
+                ty @ _ => todo!("{:?}", ty),
+            };
+            solver.declare_const(&place, sort)?;
         }
 
         for pred in env {
@@ -363,4 +377,141 @@ impl<'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
 
 impl BottomValue for DefinitelyInitializedLocal<'_, '_> {
     const BOTTOM_VALUE: bool = true;
+}
+
+fn conditionals<'lr, 'tcx>(
+    cx: &LiquidRustCtxt<'lr, 'tcx>,
+    body: &mir::Body<'tcx>,
+) -> IndexVec<mir::BasicBlock, Vec<&'lr Pred<'lr, 'tcx>>> {
+    let mut dirty_queue: WorkQueue<mir::BasicBlock> =
+        WorkQueue::with_none(body.basic_blocks().len());
+
+    let cond_data: CondData = gather_conds(cx, body);
+    let bits_per_block = cond_data.conds.len();
+    let bottom = BitSet::new_filled(bits_per_block);
+
+    let mut entry_sets = IndexVec::from_elem(bottom, body.basic_blocks());
+    entry_sets[mir::START_BLOCK].clear();
+
+    for (bb, _) in mir::traversal::reverse_postorder(body) {
+        dirty_queue.insert(bb);
+    }
+
+    while let Some(bb) = dirty_queue.pop() {
+        if let Some(terminator) = &body[bb].terminator {
+            match &terminator.kind {
+                mir::TerminatorKind::SwitchInt { targets, .. } => {
+                    for (target, ci) in targets.iter().zip(&cond_data.lookup[bb]) {
+                        let mut temp = entry_sets[bb].clone();
+                        temp.insert(*ci);
+                        if entry_sets[*target].intersect(&temp) {
+                            dirty_queue.insert(*target);
+                        }
+                    }
+                }
+                mir::TerminatorKind::Assert { target, .. } => {
+                    let mut temp = entry_sets[bb].clone();
+                    temp.insert(cond_data.lookup[bb][0]);
+                    if entry_sets[*target].intersect(&temp) {
+                        dirty_queue.insert(*target);
+                    }
+                }
+                mir::TerminatorKind::Call {
+                    destination,
+                    cleanup,
+                    ..
+                } => {
+                    if let Some(_) = cleanup {
+                        todo!();
+                    }
+                    if let Some((_, target)) = destination {
+                        let temp = &entry_sets[bb].clone();
+                        if entry_sets[*target].intersect(&temp) {
+                            dirty_queue.insert(*target);
+                        }
+                    }
+                }
+                mir::TerminatorKind::Goto { target } => {
+                    let temp = &entry_sets[bb].clone();
+                    if entry_sets[*target].intersect(&temp) {
+                        dirty_queue.insert(*target);
+                    }
+                }
+                mir::TerminatorKind::Return
+                | mir::TerminatorKind::Resume
+                | mir::TerminatorKind::Abort
+                | mir::TerminatorKind::GeneratorDrop
+                | mir::TerminatorKind::Unreachable => {}
+                _ => todo!("{:?}", terminator.kind),
+            }
+        }
+    }
+    let mut results = IndexVec::new();
+    for entry_set in entry_sets {
+        let mut preds = Vec::new();
+        for ci in entry_set.iter() {
+            preds.push(cond_data.conds[ci]);
+        }
+        results.push(preds);
+    }
+    results
+}
+
+newtype_index! {
+    pub struct CondIndex {
+        DEBUG_FORMAT = "ci{}"
+    }
+}
+
+#[derive(Debug)]
+struct CondData<'lr, 'tcx> {
+    conds: IndexVec<CondIndex, &'lr Pred<'lr, 'tcx>>,
+    lookup: IndexVec<mir::BasicBlock, Vec<CondIndex>>,
+}
+
+fn gather_conds<'lr, 'tcx>(
+    cx: &LiquidRustCtxt<'lr, 'tcx>,
+    body: &mir::Body<'tcx>,
+) -> CondData<'lr, 'tcx> {
+    let mut cond_data = CondData {
+        conds: IndexVec::new(),
+        lookup: IndexVec::new(),
+    };
+    for bb_data in body.basic_blocks().iter() {
+        if let Some(terminator) = &bb_data.terminator {
+            let mut lookup = Vec::new();
+            match &terminator.kind {
+                mir::TerminatorKind::SwitchInt {
+                    discr,
+                    values,
+                    switch_ty,
+                    ..
+                } => {
+                    let discr = cx.mk_operand(Operand::from_mir(discr));
+                    let mut disj = cx.pred_false;
+                    for value in values.iter() {
+                        let value = cx.mk_operand(Operand::from_bits(cx.tcx(), *value, switch_ty));
+                        let cond = cx.mk_binary(discr, BinOpKind::Eq, value);
+                        disj = cx.mk_binary(disj, BinOpKind::Or, cond);
+                        lookup.push(cond_data.conds.next_index());
+                        cond_data.conds.push(cond);
+                    }
+                    let neg = cx.mk_unary(UnOpKind::Not, disj);
+                    lookup.push(cond_data.conds.next_index());
+                    cond_data.conds.push(neg);
+                }
+                mir::TerminatorKind::Assert { cond, expected, .. } => {
+                    let mut cond = cx.mk_operand(Operand::from_mir(cond));
+                    if !expected {
+                        cond = cx.mk_unary(UnOpKind::Not, cond);
+                    }
+                    lookup.push(cond_data.conds.next_index());
+                    cond_data.conds.push(cond);
+                }
+                _ => {}
+            }
+            cond_data.lookup.push(lookup);
+        }
+    }
+    cond_data
 }
