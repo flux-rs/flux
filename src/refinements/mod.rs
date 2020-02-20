@@ -1,3 +1,4 @@
+pub mod dataflow;
 pub mod typeck;
 
 extern crate arena;
