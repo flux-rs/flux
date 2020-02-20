@@ -41,9 +41,9 @@ pub fn run<'a, 'tcx>(
 
     names::resolve_hir_bindings(&cx, &mut annots)?;
 
-    let typeck_table = wf::check_wf(&cx, &annots)?;
+    let reft_table = wf::check_wf(&cx, &annots)?;
 
-    let refts = reft_lowering::build_refts(&cx, &annots, &typeck_table)?;
+    let refts = reft_lowering::build_refts(&cx, &annots, &reft_table)?;
 
     for body_refts in refts {
         cx.add_body_refts(body_refts)

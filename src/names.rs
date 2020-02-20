@@ -72,6 +72,7 @@ impl<'tcx> HirVisitor<'tcx> for HirNameResolver<'_, '_, 'tcx> {
                 }
             }
             let output = &mut fn_typ.output;
+            output.hir_res = HirRes::ReturnValue;
             env.push_frame();
             env.add_ret_val(output.binding.name);
             HirIdExprVisitor::new(self.cx, env).visit_refine(output);

@@ -150,7 +150,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         let rhs = self.cx.open_with_fresh_vars(rhs);
         match (lhs, rhs) {
             (ReftType::Fun { .. }, ReftType::Fun { .. }) => todo!(),
-            (ReftType::Reft(lhs), ReftType::Reft(rhs)) => {
+            (ReftType::Reft(_, lhs), ReftType::Reft(_, rhs)) => {
                 let r = self.check(&env, lhs, rhs);
                 if let Err(e) = r {
                     println!("    {:?}", e);
@@ -163,7 +163,8 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
     fn operand_reft_type(&self, operand: &mir::Operand<'tcx>) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         let reft_ty = match operand {
             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
-                match place.ty(self, self.cx.tcx()).ty.kind {
+                let ty = place.ty(self, self.cx.tcx()).ty;
+                match ty.kind {
                     ty::FnDef(def_id, _) => return self.cx.reft_type_for(def_id),
                     ty::FnPtr(..) => todo!(),
                     _ => {
@@ -173,7 +174,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                         };
                         let place = self.cx.mk_operand(Operand::Place(place));
                         self.cx
-                            .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, place))
+                            .mk_reft(ty, self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, place))
                     }
                 }
             }
@@ -185,9 +186,10 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                         Some(scalar) => scalar,
                         None => todo!("{:?}", literal),
                     };
+                    let ty = literal.ty;
                     let constant = self.cx.mk_operand(Operand::Constant(literal.ty, scalar));
                     self.cx
-                        .mk_reft(self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
+                        .mk_reft(ty, self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, constant))
                 }
             },
         };
@@ -217,7 +219,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                     BinOpKind::Eq,
                     bin,
                 );
-                self.cx.mk_reft(bin)
+                self.cx.mk_reft(ty, bin)
             }
             // v:{v == lhs + rhs}
             Rvalue::BinaryOp(op, lhs, rhs) => {
@@ -226,7 +228,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                 let rhs = self.cx.mk_operand(Operand::from_mir(rhs));
                 let bin = self.cx.mk_binary(lhs, op, rhs);
                 let bin = self.cx.mk_binary(self.cx.nu, BinOpKind::Eq, bin);
-                self.cx.mk_reft(bin)
+                self.cx.mk_reft(ty, bin)
             }
             _ => todo!("{:?}", rvalue),
         };

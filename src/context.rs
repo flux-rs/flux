@@ -16,7 +16,6 @@ use rustc_session::declare_lint;
 use rustc_span::{MultiSpan, Span};
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::iter;
 
 declare_lint! {
     pub LIQUID_RUST,
@@ -32,7 +31,6 @@ pub struct LiquidRustCtxt<'lr, 'tcx> {
     refts: &'lr ArenaInterner<'lr, ReftType<'lr, 'tcx>>,
     pub pred_true: &'lr Pred<'lr, 'tcx>,
     pub pred_false: &'lr Pred<'lr, 'tcx>,
-    pub reft_true: &'lr ReftType<'lr, 'tcx>,
     pub nu: &'lr Pred<'lr, 'tcx>,
 }
 
@@ -57,7 +55,6 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
             preds,
             pred_true,
             pred_false,
-            reft_true: refts.intern(ReftType::Reft(pred_true)),
             nu: preds.intern(Pred::nu()),
             refts,
         }
@@ -99,8 +96,8 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         self.cx.sess().abort_if_errors();
     }
 
-    pub fn mk_reft(&self, pred: &'lr Pred<'lr, 'tcx>) -> &'lr ReftType<'lr, 'tcx> {
-        self.refts.intern(ReftType::Reft(pred))
+    pub fn mk_reft(&self, ty: Ty<'tcx>, pred: &'lr Pred<'lr, 'tcx>) -> &'lr ReftType<'lr, 'tcx> {
+        self.refts.intern(ReftType::Reft(ty, pred))
     }
 
     pub fn mk_fun_type(
@@ -124,6 +121,10 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
             var: place.var,
             projection: self.tcx().intern_place_elems(&projection),
         }
+    }
+
+    pub fn mk_true(&self, ty: Ty<'tcx>) -> &'lr ReftType<'lr, 'tcx> {
+        self.mk_reft(ty, self.pred_true)
     }
 
     pub fn mk_operand(&self, operand: Operand<'tcx>) -> &'lr Pred<'lr, 'tcx> {
@@ -167,9 +168,11 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
             then {
                 fun_type
             } else {
-                let arg_count = self.tcx().fn_sig(def_id).skip_binder().inputs().len();
-                let inputs = self.refts.alloc_from_iter(iter::repeat(*self.reft_true).take(arg_count));
-                let output = self.reft_true;
+                let fn_sig = self.tcx().fn_sig(def_id);
+                let fn_sig = fn_sig.skip_binder();
+                let inputs = fn_sig.inputs().iter().map(|ty| *self.mk_true(ty));
+                let inputs = self.refts.alloc_from_iter(inputs);
+                let output = self.mk_true(fn_sig.output());
                 Binder::bind(self.refts.intern(ReftType::Fun { inputs, output}))
             }
         }
@@ -323,7 +326,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         pred_folder: &impl Fn(&'lr Pred<'lr, 'tcx>, usize) -> &'lr Pred<'lr, 'tcx>,
     ) -> &'lr ReftType<'lr, 'tcx> {
         match reft_type {
-            ReftType::Reft(pred) => self.mk_reft(pred_folder(pred, nbinders + 1)),
+            ReftType::Reft(ty, pred) => self.mk_reft(ty, pred_folder(pred, nbinders + 1)),
             ReftType::Fun { inputs, output } => {
                 let inputs = inputs
                     .iter()

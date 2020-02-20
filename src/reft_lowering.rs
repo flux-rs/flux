@@ -2,7 +2,7 @@ extern crate syntax as rust_syntax;
 
 use super::refinements::{Binder, BodyRefts, Operand, Place, Pred, ReftType, Scalar, Var};
 use super::syntax::ast;
-use super::wf::TypeckTable;
+use super::wf::ReftTypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
 use rust_syntax::ast::FloatTy;
 use rustc::mir;
@@ -15,12 +15,12 @@ use std::collections::HashMap;
 pub fn build_refts<'lr, 'tcx>(
     cx: &LiquidRustCtxt<'lr, 'tcx>,
     annots: &[ast::BodyAnnots],
-    typeck_table: &TypeckTable<'tcx>,
+    reft_table: &ReftTypeckTable<'tcx>,
 ) -> Result<Vec<BodyRefts<'lr, 'tcx>>, ErrorReported> {
     cx.track_errors(|| {
         annots
             .iter()
-            .map(|ba| build_body_refts(cx, ba, typeck_table))
+            .map(|ba| build_body_refts(cx, ba, reft_table))
             .collect::<Vec<_>>()
     })
 }
@@ -28,11 +28,15 @@ pub fn build_refts<'lr, 'tcx>(
 fn build_body_refts<'lr, 'tcx>(
     cx: &LiquidRustCtxt<'lr, 'tcx>,
     body_annots: &ast::BodyAnnots,
-    typeck_table: &TypeckTable<'tcx>,
+    reft_table: &ReftTypeckTable<'tcx>,
 ) -> BodyRefts<'lr, 'tcx> {
+    let def_id = cx.hir().body_owner_def_id(body_annots.body_id);
+    let tables = cx.tcx().typeck_tables_of(def_id);
+    let hir_id = cx.hir().as_local_hir_id(def_id).unwrap();
+    let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
     let mir = cx.optimized_mir(body_annots.body_id);
     let mir_local_table = MirLocalTable::new(cx, mir);
-    let builder = RefineBuilder::new(cx, typeck_table, &mir_local_table);
+    let builder = RefineBuilder::new(cx, reft_table, tables, ret_ty, &mir_local_table);
 
     let mut local_decls = HashMap::new();
     for refine in body_annots.locals.values() {
@@ -64,19 +68,25 @@ fn build_body_refts<'lr, 'tcx>(
 
 struct RefineBuilder<'a, 'lr, 'tcx> {
     cx: &'a LiquidRustCtxt<'lr, 'tcx>,
-    typeck_table: &'a HashMap<ast::ExprId, ty::Ty<'tcx>>,
+    reft_table: &'a HashMap<ast::ExprId, ty::Ty<'tcx>>,
+    tables: &'a ty::TypeckTables<'tcx>,
+    ret_ty: Ty<'tcx>,
     mir_local_table: &'a MirLocalTable<'a, 'lr, 'tcx>,
 }
 
 impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
     fn new(
         cx: &'a LiquidRustCtxt<'lr, 'tcx>,
-        typeck_table: &'a HashMap<ast::ExprId, ty::Ty<'tcx>>,
+        reft_table: &'a HashMap<ast::ExprId, ty::Ty<'tcx>>,
+        tables: &'a ty::TypeckTables<'tcx>,
+        ret_ty: Ty<'tcx>,
         mir_local_table: &'a MirLocalTable<'a, 'lr, 'tcx>,
     ) -> Self {
         RefineBuilder {
             cx,
-            typeck_table,
+            reft_table,
+            tables,
+            ret_ty,
             mir_local_table,
         }
     }
@@ -104,11 +114,19 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
         let mut bindings = bindings.to_vec();
         bindings.push(reft.binding.name);
         let pred = self.build_pred(&reft.pred, &bindings);
-        Binder::bind(self.cx.mk_reft(pred))
+        Binder::bind(self.cx.mk_reft(self.ty_for_reft(reft), pred))
+    }
+
+    fn ty_for_reft(&self, reft: &ast::Reft) -> Ty<'tcx> {
+        match reft.hir_res {
+            ast::HirRes::Binding(hir_id) => self.tables.node_type(hir_id),
+            ast::HirRes::ReturnValue => self.ret_ty,
+            ast::HirRes::Unresolved => bug!("names must be resolved"),
+        }
     }
 
     fn build_pred(&self, expr: &ast::Pred, bindings: &[Symbol]) -> &'lr Pred<'lr, 'tcx> {
-        let ty = self.typeck_table[&expr.expr_id];
+        let ty = self.reft_table[&expr.expr_id];
         match &expr.kind {
             ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => self.cx.mk_binary(
                 self.build_pred(lhs_expr, bindings),

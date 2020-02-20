@@ -34,7 +34,7 @@ pub enum ReftType<'a, 'tcx> {
         inputs: &'a [ReftType<'a, 'tcx>],
         output: &'a ReftType<'a, 'tcx>,
     },
-    Reft(&'a Pred<'a, 'tcx>),
+    Reft(Ty<'tcx>, &'a Pred<'a, 'tcx>),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -169,7 +169,7 @@ impl<T> Binder<T> {
 
 impl<'a, 'tcx> Binder<&'a ReftType<'a, 'tcx>> {
     pub fn pred(&self) -> Option<Binder<&'a Pred<'a, 'tcx>>> {
-        if let ReftType::Reft(pred) = self.skip_binder() {
+        if let ReftType::Reft(_, pred) = self.skip_binder() {
             Some(Binder::bind(pred))
         } else {
             None
@@ -179,7 +179,7 @@ impl<'a, 'tcx> Binder<&'a ReftType<'a, 'tcx>> {
 
 impl<'a, 'tcx> ReftType<'a, 'tcx> {
     pub fn pred(&self) -> Option<&'a Pred<'a, 'tcx>> {
-        if let Self::Reft(pred) = self {
+        if let Self::Reft(_, pred) = self {
             Some(pred)
         } else {
             None
@@ -266,7 +266,7 @@ impl fmt::Debug for ReftType<'_, '_> {
                 }
                 write!(fmt, ") -> {:?}", output)
             }
-            Self::Reft(pred) => write!(fmt, "{{{:?}}}", pred),
+            Self::Reft(_, pred) => write!(fmt, "{{{:?}}}", pred),
         }
     }
 }

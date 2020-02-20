@@ -11,31 +11,31 @@ use rustc_span::MultiSpan;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-pub type TypeckTable<'tcx> = HashMap<ExprId, Ty<'tcx>>;
+pub type ReftTypeckTable<'tcx> = HashMap<ExprId, Ty<'tcx>>;
 
 pub fn check_wf<'tcx>(
     cx: &LiquidRustCtxt<'_, 'tcx>,
     annots: &[BodyAnnots],
-) -> Result<TypeckTable<'tcx>, ErrorReported> {
-    let mut expr_tys = TypeckTable::new();
+) -> Result<ReftTypeckTable<'tcx>, ErrorReported> {
+    let mut reft_table = ReftTypeckTable::new();
     cx.track_errors(|| {
         for body_annots in annots {
-            check_body_annots(cx, body_annots, &mut expr_tys);
+            check_body_annots(cx, body_annots, &mut reft_table);
         }
-        expr_tys
+        reft_table
     })
 }
 
 fn check_body_annots<'tcx>(
     cx: &LiquidRustCtxt<'_, 'tcx>,
     body_annots: &BodyAnnots,
-    expr_tys: &mut TypeckTable<'tcx>,
+    reft_table: &mut ReftTypeckTable<'tcx>,
 ) {
     let def_id = cx.hir().body_owner_def_id(body_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
     let hir_id = cx.hir().as_local_hir_id(def_id).unwrap();
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
-    let mut checker = TypeChecker::new(cx, tables, ret_ty, expr_tys);
+    let mut checker = TypeChecker::new(cx, tables, ret_ty, reft_table);
 
     if let Some(fn_typ) = &body_annots.fn_ty {
         check_fn_ty(cx, fn_typ, &mut checker);
@@ -72,7 +72,7 @@ struct TypeChecker<'a, 'lr, 'tcx> {
     tcx: TyCtxt<'tcx>,
     tables: &'a TypeckTables<'tcx>,
     ret_ty: Ty<'tcx>,
-    expr_tys: &'a mut TypeckTable<'tcx>,
+    reft_table: &'a mut ReftTypeckTable<'tcx>,
     infer_ctxt: InferCtxt<'tcx>,
 }
 
@@ -81,14 +81,14 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
         cx: &'a LiquidRustCtxt<'lr, 'tcx>,
         tables: &'a TypeckTables<'tcx>,
         ret_ty: Ty<'tcx>,
-        expr_tys: &'a mut TypeckTable<'tcx>,
+        reft_table: &'a mut ReftTypeckTable<'tcx>,
     ) -> Self {
         Self {
             cx,
             tcx: cx.tcx(),
             tables,
             ret_ty,
-            expr_tys,
+            reft_table,
             infer_ctxt: InferCtxt::new(cx.tcx()),
         }
     }
@@ -109,7 +109,7 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
             ExprKind::Unary(op, e) => self.infer_un_op(*op, e),
             ExprKind::Err => self.types.err,
         };
-        self.expr_tys.insert(expr.expr_id, ty);
+        self.reft_table.insert(expr.expr_id, ty);
         ty
     }
 
@@ -196,12 +196,12 @@ impl<'tcx> Deref for TypeChecker<'_, '_, 'tcx> {
 
 impl Visitor for TypeChecker<'_, '_, '_> {
     fn visit_expression(&mut self, expr: &Pred) {
-        let ty = self.expr_tys.get(&expr.expr_id).unwrap();
+        let ty = self.reft_table.get(&expr.expr_id).unwrap();
         if_chain! {
             if let ty::Infer(infer_ty) = ty.kind;
             if let Some(inferred_ty) = self.infer_ctxt.type_inferred_for(infer_ty);
             then {
-                self.expr_tys.insert(expr.expr_id, inferred_ty);
+                self.reft_table.insert(expr.expr_id, inferred_ty);
             }
         }
         visit::walk_expression(self, expr);
