@@ -1,13 +1,11 @@
 extern crate rsmt2;
 extern crate rustc_apfloat;
-extern crate syntax as rust_syntax;
 
 use super::refinements::{Operand, Place, Pred, Scalar, Var};
 use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
 pub use rsmt2::print::{Expr2Smt, Sym2Smt};
 pub use rsmt2::Solver;
-use rust_syntax::ast::FloatTy;
 use rustc::mir;
 use rustc::mir::interpret::sign_extend;
 use rustc::ty::layout::Size;
@@ -16,6 +14,7 @@ use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
 };
+use rustc_ast::ast::FloatTy;
 use std::io::Write;
 
 enum Token<'a, 'tcx> {

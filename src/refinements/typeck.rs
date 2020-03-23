@@ -205,7 +205,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             Rvalue::Use(operand) => return self.operand_reft_type(operand),
             // v:{v.0 == lhs + rhs}
             Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
-                let op = mir_op_to_refine_op(*op);
+                let op = mir_binop_to_refine_op(*op);
                 let lhs = self.cx.mk_operand(Operand::from_mir(lhs));
                 let rhs = self.cx.mk_operand(Operand::from_mir(rhs));
                 let bin = self.cx.mk_binary(lhs, op, rhs);
@@ -223,7 +223,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             }
             // v:{v == lhs + rhs}
             Rvalue::BinaryOp(op, lhs, rhs) => {
-                let op = mir_op_to_refine_op(*op);
+                let op = mir_binop_to_refine_op(*op);
                 let lhs = self.cx.mk_operand(Operand::from_mir(lhs));
                 let rhs = self.cx.mk_operand(Operand::from_mir(rhs));
                 let bin = self.cx.mk_binary(lhs, op, rhs);
@@ -267,7 +267,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         solver.assert(&not_rhs)?;
 
         let b = solver.check_sat()?;
-        println!("      {:?} => {:?}  {}", lhs, rhs, !b);
+        println!("      {{{:?}}} <: {{{:?}}}  {}", lhs, rhs, !b);
         Ok(())
     }
 }
@@ -278,7 +278,7 @@ impl<'tcx> mir::HasLocalDecls<'tcx> for ReftChecker<'_, '_, 'tcx> {
     }
 }
 
-pub fn mir_op_to_refine_op(op: mir::BinOp) -> BinOpKind {
+pub fn mir_binop_to_refine_op(op: mir::BinOp) -> BinOpKind {
     match op {
         mir::BinOp::Add => BinOpKind::Add,
         mir::BinOp::Sub => BinOpKind::Sub,
@@ -296,7 +296,7 @@ pub fn mir_op_to_refine_op(op: mir::BinOp) -> BinOpKind {
         | mir::BinOp::BitOr
         | mir::BinOp::Shl
         | mir::BinOp::Shr
-        | mir::BinOp::Offset => unimplemented!("{:?}", op),
+        | mir::BinOp::Offset => todo!("{:?}", op),
     }
 }
 
@@ -362,8 +362,20 @@ impl<'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
         }
     }
 
-    fn terminator_effect(&self, _trans: &mut GenKillSet<mir::Local>, _loc: mir::Location) {
+    fn terminator_effect(&self, trans: &mut GenKillSet<mir::Local>, loc: mir::Location) {
         // TODO: at least function calls should have effect here
+        if_chain! {
+            if let Some(terminator) = &self.body[loc.block].terminator;
+            if let TerminatorKind::Call {destination, ..} = &terminator.kind;
+            if let Some((place, _)) = destination;
+            then {
+                if place.projection.len() == 0 {
+                    trans.gen(place.local);
+                } else {
+                    todo!("{:?}", terminator)
+                }
+            }
+        }
     }
 
     fn propagate_call_return(

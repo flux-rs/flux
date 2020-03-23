@@ -3,10 +3,8 @@ pub mod typeck;
 
 extern crate arena;
 extern crate rustc_index;
-extern crate syntax as rust_syntax;
 
 use super::syntax::ast;
-use rust_syntax::ast::FloatTy;
 use rustc::mir;
 use rustc::mir::interpret::sign_extend;
 use rustc::ty::{self, layout::Size, Ty, TyCtxt};
@@ -14,6 +12,7 @@ use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
 };
+use rustc_ast::ast::FloatTy;
 use rustc_hir::BodyId;
 use std::collections::HashMap;
 use std::fmt;

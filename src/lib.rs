@@ -3,6 +3,7 @@
 #![feature(box_patterns)]
 
 extern crate arena;
+extern crate rustc_ast;
 #[macro_use]
 extern crate rustc;
 #[macro_use]

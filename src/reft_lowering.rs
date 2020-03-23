@@ -1,14 +1,12 @@
-extern crate syntax as rust_syntax;
-
 use super::refinements::{Binder, BodyRefts, Operand, Place, Pred, ReftType, Scalar, Var};
 use super::syntax::ast;
 use super::wf::ReftTypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
-use rust_syntax::ast::FloatTy;
 use rustc::mir;
 use rustc::mir::interpret::truncate;
 use rustc::mir::interpret::LitToConstError;
 use rustc::ty::{self, Ty};
+use rustc_ast::ast::FloatTy;
 use rustc_span::{Span, Symbol};
 use std::collections::HashMap;
 
@@ -169,7 +167,7 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
                 // create a dummy value and continue compiling
                 Scalar::from_bool(true)
             }
-            Err(LitToConstError::Reported) => bug!(),
+            Err(_) => bug!(),
         };
         self.cx.mk_operand(Operand::Constant(ty, scalar))
     }
