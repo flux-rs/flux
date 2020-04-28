@@ -4,6 +4,7 @@
 #![feature(const_if_match)]
 #![feature(const_fn)]
 #![feature(const_panic)]
+#![feature(try_blocks)]
 
 extern crate arena;
 extern crate rustc_ast;
@@ -39,24 +40,24 @@ pub fn run<'a, 'tcx>(
     late_cx: &LateContext<'a, 'tcx>,
     krate: &'tcx rustc_hir::Crate<'tcx>,
 ) -> Result<(), ErrorReported> {
-    let preds = ArenaInterner::new(arena::TypedArena::default());
-    let refts = ArenaInterner::new(arena::TypedArena::default());
-    let mut cx = LiquidRustCtxt::new(late_cx, &preds, &refts);
-    let mut annots = annots::collect(&cx, krate)?;
+    try {
+        let preds = ArenaInterner::new(arena::TypedArena::default());
+        let refts = ArenaInterner::new(arena::TypedArena::default());
+        let mut cx = LiquidRustCtxt::new(late_cx, &preds, &refts);
+        let mut annots = annots::collect(&cx, krate)?;
 
-    names::resolve_hir_bindings(&cx, &mut annots)?;
+        names::resolve_hir_bindings(&cx, &mut annots)?;
 
-    let reft_table = wf::check_wf(&cx, &annots)?;
+        let reft_table = wf::check_wf(&cx, &annots)?;
 
-    let refts = reft_lowering::build_refts(&cx, &annots, &reft_table)?;
+        let refts = reft_lowering::build_refts(&cx, &annots, &reft_table)?;
 
-    for body_refts in refts {
-        cx.add_body_refts(body_refts)
+        for body_refts in refts {
+            cx.add_body_refts(body_refts)
+        }
+
+        for body_annots in annots {
+            typeck::check_body(&cx, body_annots.body_id)
+        }
     }
-
-    for body_annots in annots {
-        typeck::check_body(&cx, body_annots.body_id)
-    }
-
-    Ok(())
 }

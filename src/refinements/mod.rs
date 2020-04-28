@@ -297,7 +297,7 @@ impl fmt::Debug for Operand<'_> {
                         let size = Size::from_bits(bit_width);
                         write!(fmt, "{}", sign_extend(scalar.data, size) as i128)
                     }
-                    _ => write!(fmt, "unknown"),
+                    _ => write!(fmt, "`?:{:?}`", ty.kind),
                 }
             }
         }

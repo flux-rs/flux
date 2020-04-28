@@ -68,9 +68,9 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         for (bb, bbd) in self.mir.basic_blocks().iter_enumerated() {
             print!("\nbb{}:", bb.index());
             for (i, statement) in bbd.statements.iter().enumerate() {
-                println!("\n  {:?}", statement);
                 match &statement.kind {
                     StatementKind::Assign(box (place, rvalue)) => {
+                        println!("\n  {:?}", statement);
                         let ty = place.ty(self, self.cx.tcx()).ty;
                         let lhs = self.rvalue_reft_type(ty, rvalue);
                         let env = self.env_at(bb, i);
