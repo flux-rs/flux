@@ -6,12 +6,15 @@ extern crate rustc_session;
 use super::refinements::*;
 use super::syntax::ast;
 use arena::TypedArena;
-use rustc::mir;
-use rustc::ty::{Ty, TyCtxt};
 use rustc_data_structures::sharded::ShardedHashMap;
 pub use rustc_errors::ErrorReported;
-use rustc_hir::{def_id::DefId, BodyId};
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    BodyId,
+};
 use rustc_lint::{LateContext, LintContext};
+use rustc_middle::mir;
+use rustc_middle::ty::{Ty, TyCtxt};
 use rustc_session::declare_lint;
 use rustc_span::{MultiSpan, Span};
 use std::collections::HashMap;
@@ -26,7 +29,7 @@ declare_lint! {
 
 pub struct LiquidRustCtxt<'lr, 'tcx> {
     cx: &'lr LateContext<'lr, 'tcx>,
-    refts_table: HashMap<DefId, BodyRefts<'lr, 'tcx>>,
+    refts_table: HashMap<LocalDefId, BodyRefts<'lr, 'tcx>>,
     preds: &'lr ArenaInterner<'lr, Pred<'lr, 'tcx>>,
     refts: &'lr ArenaInterner<'lr, ReftType<'lr, 'tcx>>,
     pub pred_true: &'lr Pred<'lr, 'tcx>,
@@ -64,7 +67,7 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
         self.cx.tcx
     }
 
-    pub fn hir(&self) -> rustc::hir::Hir<'tcx> {
+    pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.cx.tcx.hir()
     }
 
@@ -163,7 +166,8 @@ impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
 
     pub fn reft_type_for(&self, def_id: DefId) -> Binder<&'lr ReftType<'lr, 'tcx>> {
         if_chain! {
-            if let Some(body_refts) = self.refts_table.get(&def_id);
+            if let Some(local_def_id) = def_id.as_local();
+            if let Some(body_refts) = self.refts_table.get(&local_def_id);
             if let Some(fun_type) = body_refts.fun_type;
             then {
                 fun_type

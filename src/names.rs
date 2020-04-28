@@ -30,10 +30,10 @@ struct HirNameResolver<'a, 'lr, 'tcx> {
 }
 
 impl<'tcx> HirVisitor<'tcx> for HirNameResolver<'_, '_, 'tcx> {
-    type Map = rustc::hir::map::Map<'tcx>;
+    type Map = rustc_middle::hir::map::Map<'tcx>;
 
     fn nested_visit_map(&mut self) -> rustc_hir::intravisit::NestedVisitorMap<Self::Map> {
-        intravisit::NestedVisitorMap::OnlyBodies(&self.cx.hir())
+        intravisit::NestedVisitorMap::OnlyBodies(self.cx.hir())
     }
 
     fn visit_body(&mut self, body: &'tcx Body<'tcx>) {

@@ -6,15 +6,15 @@ use super::syntax::ast::{BinOpKind, UnOpKind};
 pub use rsmt2::errors::SmtRes;
 pub use rsmt2::print::{Expr2Smt, Sym2Smt};
 pub use rsmt2::Solver;
-use rustc::mir;
-use rustc::mir::interpret::sign_extend;
-use rustc::ty::layout::Size;
-use rustc::ty::{self, Ty};
 use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
 };
 use rustc_ast::ast::FloatTy;
+use rustc_middle::mir;
+use rustc_middle::mir::interpret::sign_extend;
+use rustc_middle::ty::{self, Ty};
+use rustc_target::abi::Size;
 use std::io::Write;
 
 enum Token<'a, 'tcx> {

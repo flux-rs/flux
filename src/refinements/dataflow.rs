@@ -1,10 +1,10 @@
 use crate::context::LiquidRustCtxt;
 use crate::refinements::{Operand, Pred};
 use crate::syntax::ast::{BinOpKind, UnOpKind};
-use rustc::mir;
 use rustc_data_structures::work_queue::WorkQueue;
 use rustc_index::bit_set::BitSet;
 use rustc_index::vec::IndexVec;
+use rustc_middle::mir;
 
 pub fn do_conditionals_analysis<'lr, 'tcx>(
     cx: &LiquidRustCtxt<'lr, 'tcx>,
@@ -113,9 +113,7 @@ impl<'a, 'lr, 'tcx> ConditionalsAnalysis<'a, 'lr, 'tcx> {
 }
 
 newtype_index! {
-    pub struct CondIndex {
-        DEBUG_FORMAT = "ci{}"
-    }
+    pub struct CondIndex { DEBUG_FORMAT = "ci{}" }
 }
 
 #[derive(Debug)]

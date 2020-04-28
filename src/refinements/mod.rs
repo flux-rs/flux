@@ -5,15 +5,16 @@ extern crate arena;
 extern crate rustc_index;
 
 use super::syntax::ast;
-use rustc::mir;
-use rustc::mir::interpret::sign_extend;
-use rustc::ty::{self, layout::Size, Ty, TyCtxt};
 use rustc_apfloat::{
     ieee::{Double, Single},
     Float,
 };
 use rustc_ast::ast::FloatTy;
 use rustc_hir::BodyId;
+use rustc_middle::mir;
+use rustc_middle::mir::interpret::sign_extend;
+use rustc_middle::ty::{self, Ty, TyCtxt};
+use rustc_target::abi::Size;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -296,7 +297,7 @@ impl fmt::Debug for Operand<'_> {
                         let size = Size::from_bits(bit_width);
                         write!(fmt, "{}", sign_extend(scalar.data, size) as i128)
                     }
-                    _ => bug!(),
+                    _ => write!(fmt, "unknown"),
                 }
             }
         }

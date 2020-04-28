@@ -1,16 +1,20 @@
 #![feature(rustc_private)]
 #![feature(box_syntax)]
 #![feature(box_patterns)]
+#![feature(const_if_match)]
+#![feature(const_fn)]
+#![feature(const_panic)]
 
 extern crate arena;
 extern crate rustc_ast;
 #[macro_use]
-extern crate rustc;
+extern crate rustc_middle;
 #[macro_use]
 extern crate if_chain;
 extern crate rustc_apfloat;
 extern crate rustc_data_structures;
 extern crate rustc_hir;
+extern crate rustc_target;
 #[macro_use]
 extern crate rustc_index;
 extern crate rustc_lint;

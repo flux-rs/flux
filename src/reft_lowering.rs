@@ -2,12 +2,12 @@ use super::refinements::{Binder, BodyRefts, Operand, Place, Pred, ReftType, Scal
 use super::syntax::ast;
 use super::wf::ReftTypeckTable;
 use crate::context::{ErrorReported, LiquidRustCtxt};
-use rustc::mir;
-use rustc::mir::interpret::truncate;
-use rustc::mir::interpret::LitToConstError;
-use rustc::ty::{self, Ty};
 use rustc_ast::ast::FloatTy;
-use rustc_span::{Span, Symbol};
+use rustc_middle::mir;
+use rustc_middle::mir::interpret::truncate;
+use rustc_middle::mir::interpret::LitToConstError;
+use rustc_middle::ty::{self, Ty};
+use rustc_span::{def_id::LocalDefId, Span, Symbol};
 use std::collections::HashMap;
 
 pub fn build_refts<'lr, 'tcx>(
@@ -28,9 +28,9 @@ fn build_body_refts<'lr, 'tcx>(
     body_annots: &ast::BodyAnnots,
     reft_table: &ReftTypeckTable<'tcx>,
 ) -> BodyRefts<'lr, 'tcx> {
-    let def_id = cx.hir().body_owner_def_id(body_annots.body_id);
+    let def_id: LocalDefId = cx.hir().body_owner_def_id(body_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
-    let hir_id = cx.hir().as_local_hir_id(def_id).unwrap();
+    let hir_id = cx.hir().as_local_hir_id(def_id.to_def_id()).unwrap();
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
     let mir = cx.optimized_mir(body_annots.body_id);
     let mir_local_table = MirLocalTable::new(cx, mir);

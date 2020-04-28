@@ -5,13 +5,13 @@ use super::{Binder, Operand, Place, Pred, ReftType, Scalar, Var};
 use crate::context::LiquidRustCtxt;
 use crate::smtlib2::{SmtRes, Solver};
 use crate::syntax::ast::{BinOpKind, UnOpKind};
-use rustc::mir::{self, Constant, Rvalue, StatementKind, TerminatorKind};
-use rustc::ty::{self, Ty};
-use rustc_hir::{def_id::DefId, BodyId};
+use rustc_hir::BodyId;
 use rustc_index::vec::IndexVec;
 use rustc_index::{bit_set::BitSet, vec::Idx};
+use rustc_middle::mir::{self, Constant, Rvalue, StatementKind, TerminatorKind};
+use rustc_middle::ty::{self, Ty};
 use rustc_mir::dataflow::{
-    do_dataflow, BitDenotation, BottomValue, DataflowResultsCursor, DebugFormatted, GenKillSet,
+    Analysis, AnalysisDomain, BottomValue, GenKill, GenKillAnalysis, ResultsCursor,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -23,7 +23,7 @@ struct ReftChecker<'a, 'lr, 'tcx> {
     cx: &'a LiquidRustCtxt<'lr, 'tcx>,
     mir: &'a mir::Body<'tcx>,
     reft_types: HashMap<mir::Local, Binder<&'lr ReftType<'lr, 'tcx>>>,
-    cursor: DataflowResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>>,
+    cursor: ResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>>,
     conditionals: IndexVec<mir::BasicBlock, Vec<&'lr Pred<'lr, 'tcx>>>,
 }
 
@@ -31,7 +31,11 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
     pub fn new(cx: &'a LiquidRustCtxt<'lr, 'tcx>, body_id: BodyId) -> Self {
         let reft_types = cx.local_decls(body_id).clone();
         let mir = cx.optimized_mir(body_id);
-        let cursor = initialized_locals(cx, cx.hir().body_owner_def_id(body_id));
+        let def_id = cx.hir().body_owner_def_id(body_id);
+        let cursor = DefinitelyInitializedLocal::new(mir)
+            .into_engine(cx.tcx(), mir, def_id.to_def_id())
+            .iterate_to_fixpoint()
+            .into_results_cursor(mir);
         let conditionals = dataflow::do_conditionals_analysis(cx, mir);
         ReftChecker {
             cx,
@@ -47,7 +51,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             block,
             statement_index: index,
         };
-        self.cursor.seek(loc);
+        self.cursor.seek_before(loc);
         let mut env = Vec::new();
         for local in self.cursor.get().iter() {
             if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
@@ -300,25 +304,6 @@ pub fn mir_binop_to_refine_op(op: mir::BinOp) -> BinOpKind {
     }
 }
 
-fn initialized_locals<'a, 'tcx>(
-    cx: &LiquidRustCtxt<'_, 'tcx>,
-    def_id: DefId,
-) -> DataflowResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>> {
-    let mir = cx.tcx().optimized_mir(def_id);
-    let dead_unwinds = BitSet::new_empty(mir.basic_blocks().len());
-    let initialized_result = do_dataflow(
-        cx.tcx(),
-        mir,
-        def_id,
-        &[],
-        &dead_unwinds,
-        DefinitelyInitializedLocal::new(mir),
-        |bd, p| DebugFormatted::new(&bd.body().local_decls[p]),
-    );
-
-    DataflowResultsCursor::new(initialized_result, mir)
-}
-
 struct DefinitelyInitializedLocal<'a, 'tcx> {
     body: &'a mir::Body<'tcx>,
 }
@@ -327,32 +312,36 @@ impl<'a, 'tcx> DefinitelyInitializedLocal<'a, 'tcx> {
     pub fn new(body: &'a mir::Body<'tcx>) -> Self {
         DefinitelyInitializedLocal { body }
     }
-
-    pub fn body(&self) -> &mir::Body<'tcx> {
-        self.body
-    }
 }
 
-impl<'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
+impl<'tcx> AnalysisDomain<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
     type Idx = mir::Local;
-    fn name() -> &'static str {
-        "definitely_initialized_local"
-    }
 
-    fn bits_per_block(&self) -> usize {
+    const NAME: &'static str = "definitely_init_local";
+
+    fn bits_per_block(&self, _: &mir::Body<'tcx>) -> usize {
         self.body.local_decls.len()
     }
 
-    fn start_block_effect(&self, on_entry: &mut BitSet<mir::Local>) {
+    fn initialize_start_block(&self, _: &mir::Body<'tcx>, on_entry: &mut BitSet<Self::Idx>) {
         on_entry.clear();
         for arg in self.body.args_iter() {
             on_entry.insert(arg);
         }
     }
 
-    fn statement_effect(&self, trans: &mut GenKillSet<mir::Local>, loc: mir::Location) {
-        let stmt = &self.body[loc.block].statements[loc.statement_index];
+    fn pretty_print_idx(&self, w: &mut impl std::io::Write, mpi: Self::Idx) -> std::io::Result<()> {
+        write!(w, "{:?}", self.body.local_decls[mpi])
+    }
+}
 
+impl<'tcx> GenKillAnalysis<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
+    fn statement_effect(
+        &self,
+        trans: &mut impl GenKill<mir::Local>,
+        stmt: &mir::Statement<'tcx>,
+        _loc: mir::Location,
+    ) {
         if let StatementKind::Assign(box (place, _)) = stmt.kind {
             if place.projection.len() == 0 {
                 trans.gen(place.local);
@@ -362,10 +351,14 @@ impl<'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
         }
     }
 
-    fn terminator_effect(&self, trans: &mut GenKillSet<mir::Local>, loc: mir::Location) {
+    fn terminator_effect(
+        &self,
+        trans: &mut impl GenKill<mir::Local>,
+        terminator: &mir::Terminator<'tcx>,
+        _loc: mir::Location,
+    ) {
         // TODO: at least function calls should have effect here
         if_chain! {
-            if let Some(terminator) = &self.body[loc.block].terminator;
             if let TerminatorKind::Call {destination, ..} = &terminator.kind;
             if let Some((place, _)) = destination;
             then {
@@ -378,14 +371,15 @@ impl<'tcx> BitDenotation<'tcx> for DefinitelyInitializedLocal<'_, 'tcx> {
         }
     }
 
-    fn propagate_call_return(
+    fn call_return_effect(
         &self,
-        _in_out: &mut BitSet<mir::Local>,
-        _call_bb: mir::BasicBlock,
-        _dest_bb: mir::BasicBlock,
-        _dest_place: &mir::Place<'tcx>,
+        _trans: &mut impl GenKill<Self::Idx>,
+        _block: mir::BasicBlock,
+        _func: &mir::Operand<'tcx>,
+        _args: &[mir::Operand<'tcx>],
+        _dest_place: mir::Place<'tcx>,
     ) {
-        // Nothing to do when a call returns successfully
+        // TODO We should initialize the dest_place here
     }
 }
 

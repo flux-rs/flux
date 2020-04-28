@@ -75,10 +75,10 @@ impl<'a, 'lr, 'tcx> AnnotsCollector<'a, 'lr, 'tcx> {
 
 // TODO: Collect annotations from trait impls and impls methods
 impl<'tcx> HirVisitor<'tcx> for AnnotsCollector<'_, '_, 'tcx> {
-    type Map = rustc::hir::map::Map<'tcx>;
+    type Map = rustc_middle::hir::map::Map<'tcx>;
 
     fn nested_visit_map(&mut self) -> intravisit::NestedVisitorMap<Self::Map> {
-        intravisit::NestedVisitorMap::OnlyBodies(&self.cx.hir())
+        intravisit::NestedVisitorMap::OnlyBodies(self.cx.hir())
     }
 
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {

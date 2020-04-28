@@ -4,9 +4,9 @@ extern crate rustc_index;
 use super::syntax::ast::*;
 use super::syntax::visit::{self, Visitor};
 use crate::context::{ErrorReported, LiquidRustCtxt};
-use rustc::infer::unify_key::ToType;
-use rustc::ty::{self, Ty, TyCtxt, TyKind, TypeckTables};
 use rustc_data_structures::unify::{InPlace, UnificationTable};
+use rustc_middle::infer::unify_key::ToType;
+use rustc_middle::ty::{self, Ty, TyCtxt, TyKind, TypeckTables};
 use rustc_span::MultiSpan;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -33,7 +33,7 @@ fn check_body_annots<'tcx>(
 ) {
     let def_id = cx.hir().body_owner_def_id(body_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
-    let hir_id = cx.hir().as_local_hir_id(def_id).unwrap();
+    let hir_id = cx.hir().as_local_hir_id(def_id.to_def_id()).unwrap();
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
     let mut checker = TypeChecker::new(cx, tables, ret_ty, reft_table);
 
