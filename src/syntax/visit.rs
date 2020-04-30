@@ -40,7 +40,7 @@ pub fn walk_expression<V: Visitor>(vis: &mut V, expr: &Pred) {
             vis.visit_expression(e1);
             vis.visit_expression(e2);
         }
-        ExprKind::Unary(_, e) => walk_expression(vis, e),
+        ExprKind::Unary(_, e) => vis.visit_expression(e),
         ExprKind::Lit(_) | ExprKind::Err => {}
     }
 }

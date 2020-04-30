@@ -97,6 +97,7 @@ OpGroup2: BinOpKind = {
 
 OpGroup3: BinOpKind = {
     "<" => BinOpKind::Lt,
+    "<=" => BinOpKind::Le,
     ">" => BinOpKind::Gt,
     ">=" => BinOpKind::Ge,
     "==" => BinOpKind::Eq,
@@ -115,6 +116,7 @@ OpGroup5: BinOpKind = {
 UnOpKind: UnOpKind = {
     "!" => UnOpKind::Not,
     "*" => UnOpKind::Deref,
+    "-" => UnOpKind::Neg,
 }
 
 Lit: Lit = {

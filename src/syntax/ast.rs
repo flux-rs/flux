@@ -69,6 +69,7 @@ pub struct UnOp {
 pub enum UnOpKind {
     Deref,
     Not,
+    Neg,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -107,6 +108,7 @@ pub enum BinOpKind {
 
     Eq,
     Lt,
+    Le,
     Gt,
     Ge,
 
@@ -121,6 +123,7 @@ impl fmt::Debug for UnOpKind {
         match self {
             Self::Deref => write!(fmt, "*"),
             Self::Not => write!(fmt, "!"),
+            Self::Neg => write!(fmt, "-"),
         }
     }
 }
@@ -132,6 +135,7 @@ impl fmt::Debug for BinOpKind {
             Self::Or => write!(fmt, "||"),
             Self::Eq => write!(fmt, "=="),
             Self::Lt => write!(fmt, "<"),
+            Self::Le => write!(fmt, "<="),
             Self::Gt => write!(fmt, ">"),
             Self::Ge => write!(fmt, ">="),
             Self::Mul => write!(fmt, "*"),

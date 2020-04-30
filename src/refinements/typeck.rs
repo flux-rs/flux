@@ -292,8 +292,8 @@ pub fn mir_binop_to_refine_op(op: mir::BinOp) -> BinOpKind {
         mir::BinOp::Lt => BinOpKind::Lt,
         mir::BinOp::Ge => BinOpKind::Ge,
         mir::BinOp::Gt => BinOpKind::Gt,
-        mir::BinOp::Le
-        | mir::BinOp::Ne
+        mir::BinOp::Le => BinOpKind::Le,
+        mir::BinOp::Ne
         | mir::BinOp::Rem
         | mir::BinOp::BitXor
         | mir::BinOp::BitAnd

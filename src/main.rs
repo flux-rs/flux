@@ -66,6 +66,8 @@ fn main() {
         let args2 = args
             .iter()
             .map(|s| (*s).to_string())
+            // Note: if running without rustup, comment the next line out
+            // and manually pass in the rust compiler dir via --sysroot
             .chain(sys_root().into_iter())
             .chain(allow_unused_doc_comments().into_iter())
             .collect::<Vec<_>>();
