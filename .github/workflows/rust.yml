@@ -27,11 +27,11 @@ jobs:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      #- name: Cache cargo index
+      #  uses: actions/cache@v1
+      #  with:
+      #    path: ~/.cargo/git
+      #    key: cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo target dir
         uses: actions/cache@v1
