@@ -30,7 +30,7 @@ fn build_body_refts<'lr, 'tcx>(
 ) -> BodyRefts<'lr, 'tcx> {
     let def_id: LocalDefId = cx.hir().body_owner_def_id(body_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
-    let hir_id = cx.hir().as_local_hir_id(def_id.to_def_id()).unwrap();
+    let hir_id = cx.hir().as_local_hir_id(def_id);
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
     let mir = cx.optimized_mir(body_annots.body_id);
     let mir_local_table = MirLocalTable::new(cx, mir);

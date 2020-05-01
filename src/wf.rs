@@ -33,7 +33,7 @@ fn check_body_annots<'tcx>(
 ) {
     let def_id = cx.hir().body_owner_def_id(body_annots.body_id);
     let tables = cx.tcx().typeck_tables_of(def_id);
-    let hir_id = cx.hir().as_local_hir_id(def_id.to_def_id()).unwrap();
+    let hir_id = cx.hir().as_local_hir_id(def_id);
     let ret_ty = tables.liberated_fn_sigs()[hir_id].output();
     let mut checker = TypeChecker::new(cx, tables, ret_ty, reft_table);
 
@@ -67,6 +67,7 @@ fn check_refine<'lr, 'tcx>(
         lint_malformed_refinement(cx, refine, ty);
     }
 }
+
 struct TypeChecker<'a, 'lr, 'tcx> {
     cx: &'a LiquidRustCtxt<'lr, 'tcx>,
     tcx: TyCtxt<'tcx>,
