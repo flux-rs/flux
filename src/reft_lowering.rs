@@ -126,13 +126,11 @@ impl<'a, 'lr, 'tcx> RefineBuilder<'a, 'lr, 'tcx> {
     fn build_pred(&self, expr: &ast::Pred, bindings: &[Symbol]) -> &'lr Pred<'lr, 'tcx> {
         let ty = self.reft_table[&expr.expr_id];
         match &expr.kind {
-            ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => {
-                self.cx.mk_binary(
-                    self.build_pred(lhs_expr, bindings),
-                    op.kind,
-                    self.build_pred(rhs_expr, bindings),
-                )
-            }
+            ast::ExprKind::Binary(lhs_expr, op, rhs_expr) => self.cx.mk_binary(
+                self.build_pred(lhs_expr, bindings),
+                op.kind,
+                self.build_pred(rhs_expr, bindings),
+            ),
             ast::ExprKind::Unary(op, expr) => {
                 self.cx.mk_unary(op.kind, self.build_pred(expr, bindings))
             }

@@ -1,10 +1,10 @@
 extern crate rustc_mir;
 
-use super::dataflow;
-use super::{Binder, Operand, Place, Pred, ReftType, Scalar, Var};
+use super::{dom_tree::DominatorTree, Binder, Operand, Place, Pred, ReftType, Scalar, Var};
 use crate::context::LiquidRustCtxt;
 use crate::smtlib2::{SmtRes, Solver};
 use crate::syntax::ast::{BinOpKind, UnOpKind};
+use rustc_data_structures::graph::WithStartNode;
 use rustc_hir::BodyId;
 use rustc_index::vec::IndexVec;
 use rustc_index::{bit_set::BitSet, vec::Idx};
@@ -15,6 +15,8 @@ use rustc_mir::dataflow::{
 };
 use std::collections::{HashMap, HashSet};
 
+const LOCAL_DEPTH: usize = usize::MAX;
+
 pub fn check_body(cx: &LiquidRustCtxt<'_, '_>, body_id: BodyId) {
     ReftChecker::new(cx, body_id).check_body();
 }
@@ -24,7 +26,6 @@ struct ReftChecker<'a, 'lr, 'tcx> {
     mir: &'a mir::Body<'tcx>,
     reft_types: HashMap<mir::Local, Binder<&'lr ReftType<'lr, 'tcx>>>,
     cursor: ResultsCursor<'a, 'tcx, DefinitelyInitializedLocal<'a, 'tcx>>,
-    conditionals: IndexVec<mir::BasicBlock, Vec<&'lr Pred<'lr, 'tcx>>>,
 }
 
 impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
@@ -36,46 +37,60 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
             .into_engine(cx.tcx(), mir, def_id.to_def_id())
             .iterate_to_fixpoint()
             .into_results_cursor(mir);
-        let conditionals = dataflow::do_conditionals_analysis(cx, mir);
         ReftChecker {
             cx,
             mir,
             reft_types,
             cursor,
-            conditionals,
         }
-    }
-
-    fn env_at(&mut self, block: mir::BasicBlock, index: usize) -> Vec<&'lr Pred<'lr, 'tcx>> {
-        let loc = mir::Location {
-            block,
-            statement_index: index,
-        };
-        self.cursor.seek_before(loc);
-        let mut env = Vec::new();
-        for local in self.cursor.get().iter() {
-            if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
-                env.push(self.cx.open_pred(pred, Operand::from_local(local)));
-            }
-        }
-        for conditional in &self.conditionals[block] {
-            env.push(conditional);
-        }
-        env
     }
 
     pub fn check_body(&mut self) {
-        for (bb, bbd) in self.mir.basic_blocks().iter_enumerated() {
+        let dom_tree = DominatorTree::build(&self.cx, &self.mir);
+
+        // Typing context:
+        // We iteratively build our typing context as we go.
+        // env is the actual typing environment, while depths is the depth
+        // at which each corresponding item in env was added.
+        let mut env: Vec<&'lr Pred<'lr, 'tcx>> = Vec::new();
+        let mut depths = Vec::new();
+
+        for (depth, op_pred, bb) in dom_tree.traverse(self.mir.start_node()) {
             print!("\nbb{}:", bb.index());
-            for (i, statement) in bbd.statements.iter().enumerate() {
+            let bbd = &self.mir[bb];
+
+            // If our current depth is not greater than the depth of the top
+            // item in the context, we pop until this is true.
+            //
+            // Because our locals are always pushed last on the stack, and since
+            // we set the depth of inserted locals to be arbitrarily large, all
+            // locals will always be popped on entering each basic block
+            while let Some(d) = depths.pop() {
+                if depth > d {
+                    depths.push(d);
+                    break;
+                } else {
+                    let _ = env.pop();
+                }
+            }
+
+            // We then push our known pred, if it exists
+            if let Some(p) = op_pred {
+                env.push(p);
+                depths.push(depth);
+            }
+
+            // We also push our locals
+            self.reinsert_locals(bb, &mut env, &mut depths, LOCAL_DEPTH);
+
+            for statement in bbd.statements.iter() {
                 match &statement.kind {
                     StatementKind::Assign(box (place, rvalue)) => {
                         println!("\n  {:?}", statement);
                         let ty = place.ty(self, self.cx.tcx()).ty;
-                        let lhs = self.rvalue_reft_type(ty, rvalue);
-                        let env = self.env_at(bb, i);
+                        let lhs = self.rvalue_reft_type(ty, &rvalue);
                         println!("    {:?}", env);
-                        self.check_assign(*place, &env, lhs);
+                        self.check_assign(*place, &mut env, &mut depths, LOCAL_DEPTH, lhs);
                     }
                     StatementKind::StorageLive(_)
                     | StatementKind::StorageDead(_)
@@ -83,7 +98,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                     _ => todo!("{:?}", statement),
                 }
             }
-            let env = self.env_at(bb, bbd.statements.len());
+
             if let Some(terminator) = &bbd.terminator {
                 println!("\n  {:?}", terminator.kind);
                 match &terminator.kind {
@@ -107,7 +122,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
                                 self.check_subtyping(&env, actual, formal);
                             }
                             println!("");
-                            self.check_assign(*place, &env, ret);
+                            self.check_assign(*place, &mut env, &mut depths, LOCAL_DEPTH, ret);
                         } else {
                             todo!("implement checks for non converging calls")
                         }
@@ -126,10 +141,44 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         println!("---------------------------");
     }
 
+    /// This function uses dataflow analysis to reinsert all reachable
+    /// locals into an environment.
+    ///
+    /// We have to do this since, unlike in functional languages, every
+    /// time we traverse to a new basic block, we have to check all
+    /// of our local variables to see which ones have definitely been
+    /// initialized
+    ///
+    /// With Rust, we can do things like let x: i32;
+    /// This means that we could give x an impossible refinement and,
+    /// if we don't check that it's been initialized, we'll have
+    /// nonsense like "{ x: Int | false }" in our environment
+    fn reinsert_locals(
+        &mut self,
+        block: mir::BasicBlock,
+        env: &mut Vec<&'lr Pred<'lr, 'tcx>>,
+        depths: &mut Vec<usize>,
+        depth: usize,
+    ) {
+        let loc = mir::Location {
+            block,
+            statement_index: 0,
+        };
+        self.cursor.seek_before(loc);
+        for local in self.cursor.get().iter() {
+            if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
+                env.push(self.cx.open_pred(pred, Operand::from_local(local)));
+                depths.push(depth);
+            }
+        }
+    }
+
     fn check_assign(
         &mut self,
         place: mir::Place,
-        env: &[&'lr Pred<'lr, 'tcx>],
+        env: &mut Vec<&'lr Pred<'lr, 'tcx>>,
+        depths: &mut Vec<usize>,
+        depth: usize,
         lhs: Binder<&'lr ReftType<'lr, 'tcx>>,
     ) {
         if place.projection.len() > 0 {
@@ -141,6 +190,10 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         } else if !self.mir.local_decls[local].is_user_variable() {
             println!("    infer {:?}:{:?}", local, lhs);
             self.reft_types.insert(local, lhs);
+            if let Some(pred) = lhs.pred() {
+                env.push(self.cx.open_pred(pred, Operand::from_local(local)));
+                depths.push(depth);
+            }
         }
     }
 

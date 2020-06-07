@@ -1,4 +1,4 @@
-pub mod dataflow;
+pub mod dom_tree;
 pub mod typeck;
 
 extern crate arena;
