@@ -164,12 +164,12 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         env: &mut Vec<&'lr Pred<'lr, 'tcx>>,
     ) -> usize {
         let mut inserted = 0;
-        
+
         let loc = mir::Location {
             block,
             statement_index: 0,
         };
-        self.cursor.seek_before(loc);
+        self.cursor.seek_before_primary_effect(loc);
         for local in self.cursor.get().iter() {
             if let Some(pred) = self.reft_types.get(&local).and_then(|rt| rt.pred()) {
                 env.push(self.cx.open_pred(pred, Operand::from_local(local)));
@@ -180,11 +180,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         inserted
     }
 
-    fn remove_locals(
-        &mut self,
-        env: &mut Vec<&'lr Pred<'lr, 'tcx>>,
-        amt: usize,
-    ) {
+    fn remove_locals(&mut self, env: &mut Vec<&'lr Pred<'lr, 'tcx>>, amt: usize) {
         env.truncate(env.len().saturating_sub(amt));
     }
 

@@ -5,7 +5,7 @@ extern crate rustc_session;
 
 use super::refinements::*;
 use super::syntax::ast;
-use arena::TypedArena;
+use rustc_arena::TypedArena;
 use rustc_data_structures::sharded::ShardedHashMap;
 pub use rustc_errors::ErrorReported;
 use rustc_hir::{
@@ -28,7 +28,7 @@ declare_lint! {
 }
 
 pub struct LiquidRustCtxt<'lr, 'tcx> {
-    cx: &'lr LateContext<'lr, 'tcx>,
+    cx: &'lr LateContext<'tcx>,
     refts_table: HashMap<LocalDefId, BodyRefts<'lr, 'tcx>>,
     preds: &'lr ArenaInterner<'lr, Pred<'lr, 'tcx>>,
     refts: &'lr ArenaInterner<'lr, ReftType<'lr, 'tcx>>,
@@ -39,7 +39,7 @@ pub struct LiquidRustCtxt<'lr, 'tcx> {
 
 impl<'lr, 'tcx> LiquidRustCtxt<'lr, 'tcx> {
     pub fn new(
-        cx: &'lr LateContext<'lr, 'tcx>,
+        cx: &'lr LateContext<'tcx>,
         preds: &'lr ArenaInterner<Pred<'lr, 'tcx>>,
         refts: &'lr ArenaInterner<ReftType<'lr, 'tcx>>,
     ) -> Self {

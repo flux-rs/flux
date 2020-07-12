@@ -63,7 +63,7 @@ fn check_refine<'lr, 'tcx>(
 ) {
     let ty = checker.infer_expr(&refine.pred);
     checker.resolve_inferred_types(&refine.pred);
-    if ty.kind != TyKind::Bool && ty.kind != TyKind::Error {
+    if !matches!(ty.kind, TyKind::Bool | TyKind::Error(..)) {
         lint_malformed_refinement(cx, refine, ty);
     }
 }
@@ -108,7 +108,7 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
             ExprKind::Binary(e1, op, e2) => self.infer_bin_op(e1, *op, e2),
             ExprKind::Name(name) => self.lookup(*name),
             ExprKind::Unary(op, e) => self.infer_un_op(*op, e),
-            ExprKind::Err => self.types.err,
+            ExprKind::Err => self.ty_error(),
         };
         self.reft_table.insert(expr.expr_id, ty);
         ty
@@ -122,13 +122,13 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
             LitKind::Float(_, LitFloatType::Suffixed(t)) => self.mk_mach_float(t),
             LitKind::Float(_, LitFloatType::Unsuffixed) => self.infer_ctxt.next_float_var(),
             LitKind::Bool(_) => self.types.bool,
-            LitKind::Err => self.types.err,
+            LitKind::Err => self.ty_error(),
         }
     }
 
     fn infer_un_op(&mut self, op: UnOp, e: &Pred) -> Ty<'tcx> {
         let ty = self.infer_expr(e);
-        if ty.kind == TyKind::Error {
+        if matches!(ty.kind, TyKind::Error(..)) {
             return ty;
         }
 
@@ -145,7 +145,7 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
             (UnOpKind::Neg, ty::Infer(ty::FloatVar(_))) => ty,
             _ => {
                 lint_un_op_err(self.cx, op, e, ty);
-                self.types.err
+                self.ty_error()
             }
         }
     }
@@ -153,8 +153,8 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
     fn infer_bin_op(&mut self, e1: &Pred, op: BinOp, e2: &Pred) -> Ty<'tcx> {
         let ty1 = self.infer_expr(e1);
         let ty2 = self.infer_expr(e2);
-        if ty1.kind == TyKind::Error || ty2.kind == TyKind::Error {
-            return self.types.err;
+        if matches!(ty1.kind, TyKind::Error(..)) || matches!(ty2.kind, TyKind::Error(..)) {
+            return self.ty_error();
         }
 
         // We have to unify types here to reconcile differences in inferred
@@ -162,10 +162,10 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
         match op.kind {
             BinOpKind::Lt | BinOpKind::Le | BinOpKind::Gt | BinOpKind::Eq | BinOpKind::Ge => {
                 match self.infer_ctxt.unify(ty1, ty2) {
-                    Some(ty) if ty.is_numeric() => self.mk_bool(),
+                    Some(ty) if ty.is_numeric() => self.types.bool,
                     _ => {
                         lint_bin_op_err(self.cx, op, e1, ty1, e2, ty2);
-                        self.types.err
+                        self.ty_error()
                     }
                 }
             }
@@ -175,18 +175,18 @@ impl<'a, 'lr, 'tcx> TypeChecker<'a, 'lr, 'tcx> {
                     Some(ty) if ty.is_numeric() => ty,
                     _ => {
                         lint_bin_op_err(self.cx, op, e1, ty1, e2, ty2);
-                        self.types.err
+                        self.ty_error()
                     }
                 }
             }
 
             BinOpKind::And | BinOpKind::Or => {
-                lint_expected_found(self.cx, e1, self.mk_bool(), ty1);
-                lint_expected_found(self.cx, e2, self.mk_bool(), ty2);
+                lint_expected_found(self.cx, e1, self.types.bool, ty1);
+                lint_expected_found(self.cx, e2, self.types.bool, ty2);
                 if ty1.is_bool() && ty2.is_bool() {
-                    self.mk_bool()
+                    self.types.bool
                 } else {
-                    self.types.err
+                    self.ty_error()
                 }
             }
         }

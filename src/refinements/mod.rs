@@ -1,7 +1,6 @@
 pub mod dom_tree;
 pub mod typeck;
 
-extern crate arena;
 extern crate rustc_index;
 
 use super::syntax::ast;
@@ -358,14 +357,14 @@ impl fmt::Debug for Place<'_> {
                     from,
                     to,
                     from_end: true,
-                } if *to == 0 => {
+                } if to == 0 => {
                     write!(fmt, "[{:?}:]", from)?;
                 }
                 mir::ProjectionElem::Subslice {
                     from,
                     to,
                     from_end: true,
-                } if *from == 0 => {
+                } if from == 0 => {
                     write!(fmt, "[:-{:?}]", to)?;
                 }
                 mir::ProjectionElem::Subslice {

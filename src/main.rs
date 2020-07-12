@@ -25,8 +25,8 @@ impl LintPass for LiquidRustLintPass {
     }
 }
 
-impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LiquidRustLintPass {
-    fn check_crate(&mut self, cx: &LateContext<'a, 'tcx>, krate: &'tcx rustc_hir::Crate<'tcx>) {
+impl<'tcx> LateLintPass<'tcx> for LiquidRustLintPass {
+    fn check_crate(&mut self, cx: &LateContext<'tcx>, krate: &'tcx rustc_hir::Crate<'tcx>) {
         let _ = liquid_rust::run(cx, krate);
     }
 }

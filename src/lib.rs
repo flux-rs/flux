@@ -1,12 +1,11 @@
 #![feature(rustc_private)]
 #![feature(box_syntax)]
 #![feature(box_patterns)]
-#![feature(const_if_match)]
 #![feature(const_fn)]
 #![feature(const_panic)]
 #![feature(try_blocks)]
 
-extern crate arena;
+extern crate rustc_arena;
 extern crate rustc_ast;
 #[macro_use]
 extern crate rustc_middle;
@@ -20,7 +19,6 @@ extern crate rustc_lint;
 extern crate rustc_macros;
 extern crate rustc_span;
 extern crate rustc_target;
-extern crate serialize as rustc_serialize;
 
 pub mod annots;
 pub mod context;
@@ -35,13 +33,13 @@ use context::{ArenaInterner, ErrorReported, LiquidRustCtxt};
 use refinements::typeck;
 use rustc_lint::LateContext;
 
-pub fn run<'a, 'tcx>(
-    late_cx: &LateContext<'a, 'tcx>,
+pub fn run<'tcx>(
+    late_cx: &LateContext<'tcx>,
     krate: &'tcx rustc_hir::Crate<'tcx>,
 ) -> Result<(), ErrorReported> {
     try {
-        let preds = ArenaInterner::new(arena::TypedArena::default());
-        let refts = ArenaInterner::new(arena::TypedArena::default());
+        let preds = ArenaInterner::new(rustc_arena::TypedArena::default());
+        let refts = ArenaInterner::new(rustc_arena::TypedArena::default());
         let mut cx = LiquidRustCtxt::new(late_cx, &preds, &refts);
         let mut annots = annots::collect(&cx, krate)?;
 
