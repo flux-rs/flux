@@ -101,7 +101,7 @@
   {
   \tenv |- \Pi(\bar{y: \tau_2}) \preceq \Pi(\bar{x: \tau_1})
   \\
-  \tenv, \bar{y: \tau_2} |- \tau'_1[\bar{y}/\bar{x}] \prec \tau'_2
+  \tenv, \bar{y: \tau_2} |- \tau'_1[\bar{y}/\bar{x}] \preceq \tau'_2
   }
   {\tenv |- \<fn>(\bar{x: \tau_1}) -> \tau'_1 \preceq \<fn>(\bar{y: \tau_2}) -> \tau'_2}
 
@@ -185,15 +185,15 @@
 
   \infer
   [\textsc{F-jump}]
-  {\tenv |- y_i \colon \tau_i \\ \tenv |- \Pi(\bar{y: \tau})\preceq \Pi(\bar{x: \tau'})}
+  {\tenv |- y_i \colon \tau_i \\ \tenv |- \tau_i \preceq \tau'_i[\bar{y}/\bar{x}]}
   {\tenv|\kenv,k: \<cont>(\bar{x:\tau'}) |- \<jump> k(\bar{y})}
 
   \infer
   [\textsc{F-call}]
   {
-    \tenv |- y_i \colon \tau_i \\
-    \tenv |- \Pi(\bar{y: \tau}) \preceq \Pi(\bar{x: \tau'}) \\
-    \tenv |- \tau_f[\bar{y}/\bar{x}] \preceq \tau_k
+  \tenv |- y_i \colon \tau_i \\
+  \tenv |- \tau_i \preceq \tau'_i[\bar{y}/\bar{x}] \\
+  \tenv |- \tau_f[\bar{y}/\bar{x}] \preceq \tau_k
   }
   {\tenv,f: \<fn>(\bar{x:\tau'}) \rightarrow \tau_f \mid \kenv,k: \<cont>(z: \tau_k) |- \<call> f(\bar{y}) \<ret> k}
 
@@ -235,7 +235,7 @@
     \\
     \<sub>(\<fn>(\bar{x: \tau_1}) -> \tau'_1; \<fn>(\bar{y: \tau_2}) -> \tau'_2) & =  & c_1 \wedge (\bar{y: \tau_2}) => c_2                \\
     \quad \mathtt{where}                                                                                                                   \\
-    \quad \quad c_1                                                              & =  & \<sub>(\Pi(\bar{x: \tau_2}), \Pi(\bar{x: \tau_1})) \\
+    \quad \quad c_1                                                              & =  & \<sub>(\Pi(\bar{y: \tau_2}), \Pi(\bar{x: \tau_1})) \\
     \quad \quad c_2                                                              & =  & \<sub>(\tau'_1[\bar{y}/\bar{x}], \tau'_2)          \\
     \\
     \<sub>(\Pi(\bar{x: \tau_1}); \Pi(\bar{y: \tau_2}))                           & =  & c_0                                                \\
@@ -262,16 +262,17 @@
     \quad \quad c_1                                                    & = & \<cgen>(\tenv,\bar{x: \tau};\kenv,k:\<cont>(\bar{x: \tau});F_1) \\
     \quad \quad c_2                                                    & = & \<cgen>(\tenv;\kenv,k:\<cont>(\bar{x: \tau});F_2)               \\
     \\
-    \<cgen>(\tenv;\kenv,k: \<cont>(\bar{x:\tau'});\<jump> k(\bar{y}))  & = & \<sub>(\Pi(\bar{y: \tau}), \Pi(\bar{x: \tau'}))                 \\
+    \<cgen>(\tenv;\kenv,k: \<cont>(\bar{x:\tau'});\<jump> k(\bar{y}))  & = & \bigwedge c_i                                                   \\
     \quad \mathtt{where}                                                                                                                     \\
-    \quad \quad \bar{y: \tau}                                          & = & \bar{y: \<synth>(\tenv; y)}                                     \\
+    \quad \quad \tau_i                                                 & = & \<synth>(\tenv; y_i)                                            \\
+    \quad \quad c_i                                                    & = & \<sub>(\tau_i, \tau'_i[\bar{y}/\bar{x}])                        \\
     \\
     \<cgen>(\tenv,f: \<fn>(\bar{x: \tau'})-> \tau_f;\kenv, k:\<cont>(z: \tau_k)
-    ; \<call> f(\bar{y}) \<ret> k)                                     & = & c_1 \wedge c_2                                                  \\
+    ; \<call> f(\bar{y}) \<ret> k)                                     & = & \bigwedge c_i \wedge c                                          \\
     \quad \mathtt{where}                                                                                                                     \\
-    \quad \quad \bar{y: \tau}                                          & = & \bar{y: \<synth>(\tenv; y)}                                     \\
-    \quad \quad c_1                                                    & = & \<sub>(\Pi(\bar{y: \tau}), \Pi(\bar{x: \tau'}))                 \\
-    \quad \quad c_2                                                    & = & \<sub>(\tau_f[\bar{y}/\bar{x}], \tau_k)                         \\
+    \quad \quad \tau_i                                                 & = & \<synth>(\tenv; y)                                              \\
+    \quad \quad c_i                                                    & = & \<sub>(\tau_i, \tau'_i[\bar{y}/\bar{x}])                        \\
+    \quad \quad c                                                      & = & \<sub>(\tau_f[\bar{y}/\bar{x}], \tau_k)                         \\
     \\
     \<cgen>(\tenv;\kenv;\<if> p \<then> F_1 \<else> F_2)               & = & c_1 \wedge c_2                                                  \\
     \quad \mathtt{where}                                                                                                                     \\
