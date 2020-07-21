@@ -52,7 +52,7 @@
     \mid \<jump> k(\bar{x})  \mid \<abort>                                                                         \\
                              &       & \mid & \<call> f(\bar{x}) \<ret> k \mid \<if> p \<then> F_1 \<else> F_2     \\
     \textbf{Basic Types}     & \beta & ::=  & \<bool> \mid \<int>                                                  \\
-    \textbf{Types}           & \tau  & ::=  & \<fn>(\bar{x:\tau}) -> \tau \mid \r{\nu:\beta | r}
+    \textbf{Types}           & \tau  & ::=  & \<fn>(\bar{x:\tau}) -> \tau \mid \r{x:\beta | r}
     \mid \Pi(\bar{x:\tau})                                                                                         \\
     \textbf{Refinements}     & r     & ::=  & \dots                                                                \\
                              & \tenv & ::=  & \emptyset \mid \tenv, x: \tau \mid \tenv, r                          \\
@@ -70,8 +70,8 @@
   {\tenv |- \<fn>(\bar{x:\tau}) -> \tau'}
 
   \infer[Wf-refine]
-  {\tenv |- r \colon \<bool>}
-  {\tenv |- \r{\nu: \beta | r}}
+  {\lfloor \tenv \rfloor,x: \beta |- r \colon \<bool>}
+  {\tenv |- \r{x: \beta | r}}
 
   \infer[Wf-prod]
   {\tenv, x_0:\tau_0,\dots,x_{i-1}: \tau_{i-1} |- \tau_{i}}
@@ -99,7 +99,7 @@
 
   \infer[$\preceq$-fun]
   {
-  \tenv |- \Pi(\bar{y: \tau_2}) \preceq \Pi(\bar{x: \tau_1})
+  \tenv,y_0: \tau_{2_0},\dots,y_{2_{i-1}}: \tau_{2_{i_1}} |- \tau_{2_i} \preceq \tau_{1_i}[\bar{x}/\bar{y}]
   \\
   \tenv, \bar{y: \tau_2} |- \tau'_1[\bar{y}/\bar{x}] \preceq \tau'_2
   }
@@ -128,37 +128,37 @@
 
   \infer
   [\textsc{R-add}]
-  {\tenv |- o_1 \colon \r{\nu:\<int> | r_1} \\ \tenv |- o_2 \colon \r{\nu:\<int> | r_2}}
-  {\tenv |- o_1 \oplus o_2 \colon \Pi(\r{\nu:\<int> | \nu = o_1 + o_2}, \<bool>)}
+  {\tenv |- o_1 \colon \r{x:\<int> | r_1} \\ \tenv |- o_2 \colon \r{x:\<int> | r_2}}
+  {\tenv |- o_1 \oplus o_2 \colon \Pi(\r{x:\<int> | x = o_1 + o_2}, \<bool>)}
 
   \infer
   [\textsc{R-lt}]
-  {\tenv |- o_1 \colon \r{\nu: \<int> | r_1} \\ \tenv |- o_2 \colon \r{\nu:\<int> | r_2}}
-  {\tenv |- o_1 < o_2 \colon \r{\nu:\<bool> | \nu <=> o_1 < o_2}}
+  {\tenv |- o_1 \colon \r{x: \<int> | r_1} \\ \tenv |- o_2 \colon \r{x:\<int> | r_2}}
+  {\tenv |- o_1 < o_2 \colon \r{x:\<bool> | x <=> o_1 < o_2}}
 
   \infer
   [\textsc{R-eq}]
-  {\tenv |- o_1 \colon \r{\nu: \beta | r_1 }\\ \tenv |- o_2 \colon \r{\nu: \beta | r_2}}
-  {\tenv |- o_1 = o_2 \colon \r{\nu:\<bool> | \nu <=> o_1 = o_2}}
+  {\tenv |- o_1 \colon \r{x: \beta | r_1 }\\ \tenv |- o_2 \colon \r{x: \beta | r_2}}
+  {\tenv |- o_1 = o_2 \colon \r{x:\<bool> | x <=> o_1 = o_2}}
 
   \infer
   [\textsc{R-bool}]
   {b=\<true> \text{ or } b=\<false>}
-  {\tenv |- b \colon \r{\nu:\<bool> | \nu = b}}
+  {\tenv |- b \colon \r{x:\<bool> | x = b}}
 
   \infer
   [\textsc{R-int}]
   {\\}
-  {\tenv |- z \colon \r{\nu:\<int> | \nu = z}}
+  {\tenv |- z \colon \r{x:\<int> | x = z}}
 \end{mathpar}
 
 \begin{displaymath}
   \begin{array}{lcl}
     \toprule
-    \mathtt{single}                        & : & (Place \times Type) -> Type        \\
+    \mathtt{single}                      & : & (Place \times Type) -> Type    \\
     \midrule
-    \mathtt{single}(p, \r{\nu: \beta | r}) & = & \r{\nu: \beta | r  \wedge \nu = p} \\
-    \mathtt{single}(p, \tau)               & = & \tau                               \\
+    \mathtt{single}(p, \r{x: \beta | r}) & = & \r{x: \beta | r  \wedge x = p} \\
+    \mathtt{single}(p, \tau)             & = & \tau                           \\
     \bottomrule
   \end{array}
 \end{displaymath}
@@ -221,28 +221,29 @@
 \begin{displaymath}
   \begin{array}{lcl}
     \toprule
-    (=>)                                                                         & :: & (TypEnv \times Constraint) -> Constraint           \\
+    (=>)                                                                         & :: & (TypEnv \times Constraint) -> Constraint  \\
     \midrule
-    (\tenv, x: \r{y: \beta | r}) => c                                            & =  & \tenv => \forall x: \beta . r[x/y] => c            \\
+    (\tenv, x: \r{y: \beta | r}) => c                                            & =  & \tenv => \forall x: \beta . r[x/y] => c   \\
     \\
-    (\tenv, x: \Pi(\bar{y: \tau})) => c                                          & =  & (\tenv, \bar{y: \tau}) => c                        \\
+    (\tenv, x: \Pi(\bar{y: \tau})) => c                                          & =  & (\tenv, \bar{y: \tau}) => c               \\
     \\
-    (\tenv, x: \tau) => c                                                        & =  & \tenv => c                                         \\
+    (\tenv, x: \tau) => c                                                        & =  & \tenv => c                                \\
     \toprule
-    \<sub>                                                                       & :: & (Type \times Type) -> Constraint                   \\
+    \<sub>                                                                       & :: & (Type \times Type) -> Constraint          \\
     \midrule
-    \<sub>(\r{x: \beta | r_1}; \r{y: \beta | r_2})                               & =  & \forall x: \beta. r_1 => r_2[x/y]                  \\
+    \<sub>(\r{x: \beta | r_1}; \r{y: \beta | r_2})                               & =  & \forall x: \beta. r_1 => r_2[x/y]         \\
     \\
-    \<sub>(\<fn>(\bar{x: \tau_1}) -> \tau'_1; \<fn>(\bar{y: \tau_2}) -> \tau'_2) & =  & c_1 \wedge (\bar{y: \tau_2}) => c_2                \\
-    \quad \mathtt{where}                                                                                                                   \\
-    \quad \quad c_1                                                              & =  & \<sub>(\Pi(\bar{y: \tau_2}), \Pi(\bar{x: \tau_1})) \\
-    \quad \quad c_2                                                              & =  & \<sub>(\tau'_1[\bar{y}/\bar{x}], \tau'_2)          \\
+    \<sub>(\<fn>(\bar{x: \tau_1}) -> \tau'_1; \<fn>(\bar{y: \tau_2}) -> \tau'_2) & =  & c_0                                       \\
+    \quad \mathtt{where}                                                                                                          \\
+    \quad \quad c_{n+1}                                                          & =  & \<sub>(\tau'_1[\bar{y}/\bar{x}], \tau'_2) \\
+    \quad \quad c_i                                                              & =  & (y_i: \tau_{2_i}) => c_{i+1} \wedge
+    \<sub>(\tau_{2_i}, \tau_{1_i}[\bar{y}/\bar{x}])                                                                               \\
     \\
-    \<sub>(\Pi(\bar{x: \tau_1}); \Pi(\bar{y: \tau_2}))                           & =  & c_0                                                \\
-    \quad \mathtt{where}                                                                                                                   \\
-    \quad \quad c_n                                                              & =  & \<sub>(\tau_{1_n}, \tau_{2_n})                     \\
+    \<sub>(\Pi(\bar{x: \tau_1}); \Pi(\bar{y: \tau_2}))                           & =  & c_0                                       \\
+    \quad \mathtt{where}                                                                                                          \\
+    \quad \quad c_n                                                              & =  & \<sub>(\tau_{1_n}, \tau_{2_n})            \\
     \quad \quad c_i                                                              & =  &
-    (x_i: \tau_{1_i}) => c_{i+1} \wedge \<sub>(\tau_{1_i}, \tau_{2_i})                                                                     \\
+    (x_i: \tau_{1_i}) => c_{i+1} \wedge \<sub>(\tau_{1_i}, \tau_{2_i})                                                            \\
     \bottomrule
   \end{array}
 \end{displaymath}
