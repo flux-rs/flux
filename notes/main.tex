@@ -24,6 +24,8 @@
 \basictype{int,bool}
 \reservestyle{\auxfun}{\mathtt}
 \auxfun{cgen,synth,self,sub,map,reduce}
+\reservestyle{\syntaxset}{\textit}
+\syntaxset{Place,Val,Op,RVal,FuncBody,BType,Type,Pred,TEnv,KEnv,Constraint}
 \renewcommand{\bar}{\overline}
 
 \newcommand{\refinement}[2]{\ensuremath{\{#1\mid#2\}}}
@@ -43,20 +45,20 @@
 \section{Syntax}
 
 \begin{displaymath}
-  \begin{array}{rrcl}
-    \textbf{Places}          & p     & ::=  & x \mid p.n                                                           \\
-    \textbf{Values}          & v     & ::=  & \<false> \mid \<true> \mid z                                         \\
-    \textbf{Operands}        & o     & ::=  & p \mid v                                                             \\
-    \textbf{Rvalues}         & R     & ::=  & o\mid o_1 \oplus o_2 \mid o_1 < o_2 \mid o_1 = o_2                   \\
-    \textbf{Function Bodies} & F     & ::=  & \<let> x = R \<in> F \mid \<letcont> k(\bar{x:\tau}) = F_1 \<in> F_2
-    \mid \<jump> k(\bar{x})  \mid \<abort>                                                                         \\
-                             &       & \mid & \<call> f(\bar{x}) \<ret> k \mid \<if> p \<then> F_1 \<else> F_2     \\
-    \textbf{Basic Types}     & \beta & ::=  & \<bool> \mid \<int>                                                  \\
-    \textbf{Types}           & \tau  & ::=  & \<fn>(\bar{x:\tau}) -> \tau \mid \r{x:\beta | r}
-    \mid \Pi(\bar{x:\tau})                                                                                         \\
-    \textbf{Refinements}     & r     & ::=  & \dots                                                                \\
-                             & \tenv & ::=  & \emptyset \mid \tenv, x: \tau \mid \tenv, r                          \\
-                             & \kenv & ::=  & \emptyset \mid \kenv, k: \<cont>(\bar{x:\tau})
+  \begin{array}{rcrcl}
+    \<Place>    & \ni & p     & ::=  & x \mid p.n                                                           \\
+    \<Val>      & \ni & v     & ::=  & \<false> \mid \<true> \mid z                                         \\
+    \<Op>       & \ni & o     & ::=  & p \mid v                                                             \\
+    \<RVal>     & \ni & R     & ::=  & o\mid o_1 \oplus o_2 \mid o_1 < o_2 \mid o_1 = o_2                   \\
+    \<FuncBody> & \ni & F     & ::=  & \<let> x = R \<in> F \mid \<letcont> k(\bar{x:\tau}) = F_1 \<in> F_2
+    \mid \<jump> k(\bar{x})   \mid \<abort>                                                                 \\
+                &     &       & \mid & \<call> f(\bar{x}) \<ret> k \mid \<if> p \<then> F_1 \<else> F_2     \\
+    \<BType>    & \ni & \beta & ::=  & \<bool> \mid \<int>                                                  \\
+    \<Type>     & \ni & \tau  & ::=  & \<fn>(\bar{x:\tau}) -> \tau \mid \r{x:\beta | r}
+    \mid \Pi(\bar{x:\tau})                                                                                  \\
+    \<Pred>     & \ni & r     & ::=  & \dots                                                                \\
+    \<TEnv>     & \ni & \tenv & ::=  & \emptyset \mid \tenv, x: \tau \mid \tenv, r                          \\
+    \<KEnv>     & \ni & \kenv & ::=  & \emptyset \mid \kenv, k: \<cont>(\bar{x:\tau})
   \end{array}
 \end{displaymath}
 
@@ -155,10 +157,23 @@
 \begin{displaymath}
   \begin{array}{lcl}
     \toprule
-    \mathtt{single}                      & : & (Place \times Type) -> Type    \\
+    \mathtt{single}                                 & :: & (\<Place> \times \<Type>) -> \<Type>       \\
     \midrule
-    \mathtt{single}(p, \r{x: \beta | r}) & = & \r{x: \beta | r  \wedge x = p} \\
-    \mathtt{single}(p, \tau)             & = & \tau                           \\
+    \mathtt{single}(p, \r{x: \beta | r})            & =  & \r{x: \beta | r  \wedge x = p}             \\
+    \\
+    \mathtt{single}(p, \tau)                        & =  & \tau                                       \\
+    \toprule
+    \llbracket \cdot \rrbracket                     & :: & \<TEnv> -> \<Pred>                         \\
+    \midrule
+    \llbracket \emptyset \rrbracket                 & =  & \<true>                                    \\
+    \\
+    \llbracket \tenv,r \rrbracket                   & =  & \llbracket \tenv \rrbracket \wedge r       \\
+    \\
+    \llbracket \tenv,x: \r{y: \beta | r} \rrbracket & =  & \llbracket \tenv \rrbracket \wedge r[x/y]  \\
+    \\
+    \llbracket \tenv, \Pi(\bar{x: \tau}) \rrbracket & =  & \llbracket \tenv, \bar{x: \tau} \rrbracket \\
+    \\
+    \llbracket \tenv, \tau \rrbracket               & =  & \llbracket \tenv  \rrbracket               \\
     \bottomrule
   \end{array}
 \end{displaymath}
@@ -213,37 +228,37 @@
 
 \section{Constraint generation}
 \begin{displaymath}
-  \begin{array}{rrcl}
-    \textbf{Constraints} & c & ::= r \mid c_1 \wedge c_2 \mid \forall x: \beta. r => c \mid r => c &
+  \begin{array}{rcl}
+    \<Constraint> \ni c & ::= & r \mid c_1 \wedge c_2 \mid \forall x: \beta. r => c \mid r => c
   \end{array}
 \end{displaymath}
 
 \begin{displaymath}
   \begin{array}{lcl}
     \toprule
-    (=>)                                                                         & :: & (TypEnv \times Constraint) -> Constraint  \\
+    (=>)                                                                         & :: & (\<TEnv> \times \<Constraint>) -> \<Constraint> \\
     \midrule
-    (\tenv, x: \r{y: \beta | r}) => c                                            & =  & \tenv => \forall x: \beta . r[x/y] => c   \\
+    (\tenv, x: \r{y: \beta | r}) => c                                            & =  & \tenv => \forall x: \beta . r[x/y] => c         \\
     \\
-    (\tenv, x: \Pi(\bar{y: \tau})) => c                                          & =  & (\tenv, \bar{y: \tau}) => c               \\
+    (\tenv, x: \Pi(\bar{y: \tau})) => c                                          & =  & (\tenv, \bar{y: \tau}) => c                     \\
     \\
-    (\tenv, x: \tau) => c                                                        & =  & \tenv => c                                \\
+    (\tenv, x: \tau) => c                                                        & =  & \tenv => c                                      \\
     \toprule
-    \<sub>                                                                       & :: & (Type \times Type) -> Constraint          \\
+    \<sub>                                                                       & :: & (\<Type> \times \<Type>) -> \<Constraint>       \\
     \midrule
-    \<sub>(\r{x: \beta | r_1}; \r{y: \beta | r_2})                               & =  & \forall x: \beta. r_1 => r_2[x/y]         \\
+    \<sub>(\r{x: \beta | r_1}; \r{y: \beta | r_2})                               & =  & \forall x: \beta. r_1 => r_2[x/y]               \\
     \\
-    \<sub>(\<fn>(\bar{x: \tau_1}) -> \tau'_1; \<fn>(\bar{y: \tau_2}) -> \tau'_2) & =  & c_0                                       \\
-    \quad \mathtt{where}                                                                                                          \\
-    \quad \quad c_{n+1}                                                          & =  & \<sub>(\tau'_1[\bar{y}/\bar{x}], \tau'_2) \\
+    \<sub>(\<fn>(\bar{x: \tau_1}) -> \tau'_1; \<fn>(\bar{y: \tau_2}) -> \tau'_2) & =  & c_0                                             \\
+    \quad \mathtt{where}                                                                                                                \\
+    \quad \quad c_{n+1}                                                          & =  & \<sub>(\tau'_1[\bar{y}/\bar{x}], \tau'_2)       \\
     \quad \quad c_i                                                              & =  & (y_i: \tau_{2_i}) => c_{i+1} \wedge
-    \<sub>(\tau_{2_i}, \tau_{1_i}[\bar{y}/\bar{x}])                                                                               \\
+    \<sub>(\tau_{2_i}, \tau_{1_i}[\bar{y}/\bar{x}])                                                                                     \\
     \\
-    \<sub>(\Pi(\bar{x: \tau_1}); \Pi(\bar{y: \tau_2}))                           & =  & c_0                                       \\
-    \quad \mathtt{where}                                                                                                          \\
-    \quad \quad c_n                                                              & =  & \<sub>(\tau_{1_n}, \tau_{2_n})            \\
+    \<sub>(\Pi(\bar{x: \tau_1}); \Pi(\bar{y: \tau_2}))                           & =  & c_0                                             \\
+    \quad \mathtt{where}                                                                                                                \\
+    \quad \quad c_n                                                              & =  & \<sub>(\tau_{1_n}, \tau_{2_n})                  \\
     \quad \quad c_i                                                              & =  &
-    (x_i: \tau_{1_i}) => c_{i+1} \wedge \<sub>(\tau_{1_i}, \tau_{2_i})                                                            \\
+    (x_i: \tau_{1_i}) => c_{i+1} \wedge \<sub>(\tau_{1_i}, \tau_{2_i})                                                                  \\
     \bottomrule
   \end{array}
 \end{displaymath}
@@ -252,41 +267,43 @@
 \begin{displaymath}
   \begin{array}{lcl}
     \toprule
-    \<cgen> \mathrel{::} (TypeEnv \times ContEnv \times FuncBody) -> Constraint                                                              \\
+    \<cgen>                                                            & :: & (\<TEnv> \times \<KEnv> \times \<FuncBody>) -> \<Constraint>    \\
     \midrule
-    \<cgen>(\tenv; \kenv; \<let> x = R \<in> F)                        & = & (x: \tau) => \<cgen>(\tenv,x: \tau;\kenv;F)                     \\
-    \quad \mathtt{where}\quad                                                                                                                \\
-    \quad \quad\tau                                                    & = & \<synth>(\tenv; R)                                              \\
+    \<cgen>(\tenv; \kenv; \<let> x = R \<in> F)                        & =  & (x: \tau) => \<cgen>(\tenv,x: \tau;\kenv;F)                     \\
+    \quad \mathtt{where}\quad                                                                                                                 \\
+    \quad \quad\tau                                                    & =  & \<synth>(\tenv; R)                                              \\
     \\
-    \<cgen>(\tenv; \kenv; \<letcont> k(\bar{x: \tau}) = F_1 \<in> F_2) & = & (\bar{x : \tau}) => c_1 \wedge c_2                              \\
-    \quad \mathtt{where}                                                                                                                     \\
-    \quad \quad c_1                                                    & = & \<cgen>(\tenv,\bar{x: \tau};\kenv,k:\<cont>(\bar{x: \tau});F_1) \\
-    \quad \quad c_2                                                    & = & \<cgen>(\tenv;\kenv,k:\<cont>(\bar{x: \tau});F_2)               \\
+    \<cgen>(\tenv; \kenv; \<letcont> k(\bar{x: \tau}) = F_1 \<in> F_2) & =  & (\bar{x : \tau}) => c_1 \wedge c_2                              \\
+    \quad \mathtt{where}                                                                                                                      \\
+    \quad \quad c_1                                                    & =  & \<cgen>(\tenv,\bar{x: \tau};\kenv,k:\<cont>(\bar{x: \tau});F_1) \\
+    \quad \quad c_2                                                    & =  & \<cgen>(\tenv;\kenv,k:\<cont>(\bar{x: \tau});F_2)               \\
     \\
-    \<cgen>(\tenv;\kenv,k: \<cont>(\bar{x:\tau'});\<jump> k(\bar{y}))  & = & \bigwedge c_i                                                   \\
-    \quad \mathtt{where}                                                                                                                     \\
-    \quad \quad \tau_i                                                 & = & \<synth>(\tenv; y_i)                                            \\
-    \quad \quad c_i                                                    & = & \<sub>(\tau_i, \tau'_i[\bar{y}/\bar{x}])                        \\
+    \<cgen>(\tenv;\kenv;\<jump> k(\bar{y}))                            & =  & \bigwedge c_i                                                   \\
+    \quad \mathtt{where}                                                                                                                      \\
+    \quad \quad \<cont>(\bar{x:\tau'})                                 & =  & \kenv(k)                                                        \\
+    \quad \quad \tau_i                                                 & =  & \<synth>(\tenv; y_i)                                            \\
+    \quad \quad c_i                                                    & =  & \<sub>(\tau_i, \tau'_i[\bar{y}/\bar{x}])                        \\
     \\
-    \<cgen>(\tenv,f: \<fn>(\bar{x: \tau'})-> \tau_f;\kenv, k:\<cont>(z: \tau_k)
-    ; \<call> f(\bar{y}) \<ret> k)                                     & = & \bigwedge c_i \wedge c                                          \\
-    \quad \mathtt{where}                                                                                                                     \\
-    \quad \quad \tau_i                                                 & = & \<synth>(\tenv; y)                                              \\
-    \quad \quad c_i                                                    & = & \<sub>(\tau_i, \tau'_i[\bar{y}/\bar{x}])                        \\
-    \quad \quad c                                                      & = & \<sub>(\tau_f[\bar{y}/\bar{x}], \tau_k)                         \\
+    \<cgen>(\tenv;\kenv; \<call> f(\bar{y}) \<ret> k)                  & =  & \bigwedge c_i \wedge c                                          \\
+    \quad \mathtt{where}                                                                                                                      \\
+    \quad \quad \<fn>(\bar{x: \tau'})-> \tau_f                         & =  & \tenv(f)                                                        \\
+    \quad \quad \<cont>(z: \tau_k)                                     & =  & \kenv(k)                                                        \\
+    \quad \quad \tau_i                                                 & =  & \<synth>(\tenv; y)                                              \\
+    \quad \quad c_i                                                    & =  & \<sub>(\tau_i, \tau'_i[\bar{y}/\bar{x}])                        \\
+    \quad \quad c                                                      & =  & \<sub>(\tau_f[\bar{y}/\bar{x}], \tau_k)                         \\
     \\
-    \<cgen>(\tenv;\kenv;\<if> p \<then> F_1 \<else> F_2)               & = & c_1 \wedge c_2                                                  \\
-    \quad \mathtt{where}                                                                                                                     \\
-    \quad \quad c_1                                                    & = & p => \<cgen>(\tenv;\kenv;F_1)                                   \\
-    \quad \quad c_2                                                    & = & \neg p => \<cgen>(\tenv;\kenv;F_2)                              \\
+    \<cgen>(\tenv;\kenv;\<if> p \<then> F_1 \<else> F_2)               & =  & c_1 \wedge c_2                                                  \\
+    \quad \mathtt{where}                                                                                                                      \\
+    \quad \quad c_1                                                    & =  & p => \<cgen>(\tenv;\kenv;F_1)                                   \\
+    \quad \quad c_2                                                    & =  & \neg p => \<cgen>(\tenv;\kenv;F_2)                              \\
     \\
-    \<cgen>(\tenv;\kenv;\<abort>)                                      & = & \<true>                                                         \\
+    \<cgen>(\tenv;\kenv;\<abort>)                                      & =  & \<true>                                                         \\
     \toprule
-    \<synth> \mathrel{::} (TypEnv \times RValue) -> Type                                                                                     \\
+    \<synth>                                                           & :: & (\<TEnv> \times \<RVal>) -> Type                                \\
     \midrule
-    \<synth>(\tenv;x)                                                  & = & \<self>(x; \tenv(x))                                            \\
-    \<synth>(\tenv;p_1 \oplus p_2)                                     & = & \Pi(\r{x: \<int> | p_1 + p_2}, \<bool>)                         \\
-    \dots                                                                                                                                    \\
+    \<synth>(\tenv;x)                                                  & =  & \<self>(x; \tenv(x))                                            \\
+    \<synth>(\tenv;p_1 \oplus p_2)                                     & =  & \Pi(\r{x: \<int> | p_1 + p_2}, \<bool>)                         \\
+    \dots                                                                                                                                     \\
     \bottomrule
   \end{array}
 \end{displaymath}
