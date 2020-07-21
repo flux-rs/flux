@@ -96,20 +96,25 @@
   \textbf{Subtyping}\hfill \boxed{\tenv |- \tau_1 \preceq \tau_2}
   \\
   \infer[$\preceq$-refine]
-  {\tenv |- \r{x: \beta | r_1}\\ \tenv |- \r{y: \beta | r_2}\\ \mathtt{Valid}(\llbracket\tenv\rrbracket \wedge r_1 => r_2[x/y])}
+  {
+    \mathtt{Valid}(\llbracket\tenv\rrbracket \wedge r_1 => r_2[x/y])
+    \\\\
+    \tenv |- \r{x: \beta | r_1}\\ \tenv |- \r{y: \beta | r_2}
+  }
   {\tenv |- \r{x: \beta | r_1} \preceq \r{y: \beta | r_2}}
+
 
   \infer[$\preceq$-fun]
   {
-  \tenv,y_0: \tau_{2_0},\dots,y_{2_{i-1}}: \tau_{2_{i_1}} |- \tau_{2_i} \preceq \tau_{1_i}[\bar{x}/\bar{y}]
-  \\
   \tenv, \bar{y: \tau_2} |- \tau'_1[\bar{y}/\bar{x}] \preceq \tau'_2
+  \\\\
+  \tenv,y_0: \tau_{2_0},\dots,y_{2_{i-1}}: \tau_{2_{i-1}} |- \tau_{2_i} \preceq \tau_{1_i}[\bar{x}/\bar{y}]
   }
   {\tenv |- \<fn>(\bar{x: \tau_1}) -> \tau'_1 \preceq \<fn>(\bar{y: \tau_2}) -> \tau'_2}
 
   \infer[$\preceq$-prod]
   {
-  \tenv,x_0: \tau_0,\dots,x_{i-1}: \tau_{i_1} |- \tau_i \preceq \tau'_i[\bar{x}/\bar{y}]
+  \tenv,x_0: \tau_0,\dots,x_{i-1}: \tau_{i-1} |- \tau_i \preceq \tau'_i[\bar{x}/\bar{y}]
   }
   {\tenv |- \Pi(\bar{x: \tau}) \preceq \Pi(\bar{y: \tau'})}
 \end{mathpar}
