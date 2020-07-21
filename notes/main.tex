@@ -1,0 +1,370 @@
+\documentclass{article}
+\usepackage{fullpage}
+\usepackage{amsmath}
+\usepackage{minted}
+\usepackage{semantic}
+\usepackage{xparse}
+\usepackage{fancyvrb}
+\usepackage{lmodern}
+\usepackage{xspace}
+\usepackage{mathpartir}
+\usepackage{stmaryrd}
+\usepackage{booktabs}
+
+% \mathlig{|-}{\vdash}
+\mathlig{<=>}{\Leftrightarrow}
+\renewcommand{\k}{\kappa}
+\DeclareMathSymbol{:}{\mathpunct}{operators}{"3A}
+\usemintedstyle[lambda_lr_cps.py -x]{bw}
+
+
+\reservestyle{\keyword}{\mathbf}
+\keyword{true,false,let[let\;],in[\;in\;],letcont[letcont\;],ret[\;ret\;],if[if\;],then[\;then\;],else[\;else\;],jump[jump\;],call[call\;],cont,fn,abort}
+\reservestyle{\basictype}{\mathtt}
+\basictype{int,bool}
+\reservestyle{\auxfun}{\mathtt}
+\auxfun{cgen,synth,self,sub,map,reduce}
+\renewcommand{\bar}{\overline}
+
+\newcommand{\refinement}[2]{\ensuremath{\{#1\mid#2\}}}
+
+\RenewDocumentCommand\r
+  {>{\SplitArgument{1}{|}}m}{\refinement#1 }
+
+\newcommand{\tenv}{\mathbf{T}}
+\newcommand{\kenv}{\mathbf{K}}
+
+% \title{}
+% \author{Nico Lehmann}
+
+\begin{document}
+% \maketitle
+
+\section{Syntax}
+
+\begin{displaymath}
+  \begin{array}{rrcl}
+    \textbf{Places}          & p     & ::=  & x \mid p.n                                                           \\
+    \textbf{Values}          & v     & ::=  & \<false> \mid \<true> \mid z                                         \\
+    \textbf{Operands}        & o     & ::=  & p \mid v                                                             \\
+    \textbf{Rvalues}         & R     & ::=  & o\mid o_1 \oplus o_2 \mid o_1 < o_2 \mid o_1 = o_2                   \\
+    \textbf{Function Bodies} & F     & ::=  & \<let> x = R \<in> F \mid \<letcont> k(\bar{x:\tau}) = F_1 \<in> F_2
+    \mid \<jump> k(\bar{x})  \mid \<abort>                                                                         \\
+                             &       & \mid & \<call> f(\bar{x}) \<ret> k \mid \<if> p \<then> F_1 \<else> F_2     \\
+    \textbf{Basic Types}     & \beta & ::=  & \<bool> \mid \<int>                                                  \\
+    \textbf{Types}           & \tau  & ::=  & \<fn>(\bar{x:\tau}) -> \tau \mid \r{\nu:\beta | r}
+    \mid \Pi(\bar{x:\tau})                                                                                         \\
+    \textbf{Refinements}     & r     & ::=  & \dots                                                                \\
+                             & \tenv & ::=  & \emptyset \mid \tenv, x: \tau \mid \tenv, r                          \\
+                             & \kenv & ::=  & \emptyset \mid \kenv, k: \<cont>(\bar{x:\tau})
+  \end{array}
+\end{displaymath}
+
+\section{Typing}
+
+\begin{mathpar}
+  \textbf{Well-formed types and environments}\hfill \boxed{\tenv |- \tau \text{ and } |- \tenv}
+  \\
+  \infer[Wf-fn]
+  {\tenv |- \Pi(\bar{x: \tau}) \\ \tenv,\bar{x:\tau} |- \tau'}
+  {\tenv |- \<fn>(\bar{x:\tau}) -> \tau'}
+
+  \infer[Wf-refine]
+  {\tenv |- r \colon \<bool>}
+  {\tenv |- \r{\nu: \beta | r}}
+
+  \infer[Wf-prod]
+  {\tenv, x_0:\tau_0,\dots,x_{i-1}: \tau_{i-1} |- \tau_{i}}
+  {\tenv |- \Pi(\bar{x:\tau})}
+
+  \infer[Wf-empty]
+  {\\}
+  {|- \emptyset}
+
+  \infer[Wf-binding]
+  {|- \tenv\\ \tenv |- \tau}
+  {|- \tenv, x: \tau}
+
+  \infer[Wf-pred]
+  {|- \tenv\\ \tenv |- r \colon \<bool>}
+  {|- \tenv, r}
+\end{mathpar}
+
+\begin{mathpar}
+  \textbf{Subtyping}\hfill \boxed{\tenv |- \tau_1 \preceq \tau_2}
+  \\
+  \infer[$\preceq$-refine]
+  {\tenv |- \r{x: \beta | r_1}\\ \tenv |- \r{y: \beta | r_2}\\ \mathtt{Valid}(\llbracket\tenv\rrbracket \wedge r_1 => r_2[x/y])}
+  {\tenv |- \r{x: \beta | r_1} \preceq \r{y: \beta | r_2}}
+
+  \infer[$\preceq$-fun]
+  {
+  \tenv |- \Pi(\bar{y: \tau_2}) \preceq \Pi(\bar{x: \tau_1})
+  \\
+  \tenv, \bar{y: \tau_2} |- \tau'_1[\bar{y}/\bar{x}] \prec \tau'_2
+  }
+  {\tenv |- \<fn>(\bar{x: \tau_1}) -> \tau'_1 \preceq \<fn>(\bar{y: \tau_2}) -> \tau'_2}
+
+  \infer[$\preceq$-prod]
+  {
+  \tenv,x_0: \tau_0,\dots,x_{i-1}: \tau_{i_1} |- \tau_i \preceq \tau'_i[\bar{x}/\bar{y}]
+  }
+  {\tenv |- \Pi(\bar{x: \tau}) \preceq \Pi(\bar{y: \tau'})}
+\end{mathpar}
+
+\begin{mathpar}
+  \\
+  \textbf{Well-typed rvalues}\hfill \boxed{\tenv |- R \colon T}
+  \\
+  \infer
+  [\textsc{R-var}]
+  {|- \tenv \\ \tenv(x) = \tau }
+  {\tenv |- x \colon \mathtt{self}(x, \tau)}
+
+  \infer
+  [\textsc{R-proj}]
+  {\tenv |- p \colon \Pi(x_1: \tau_1 \dots x_n: \tau_n \dots x_m: \tau_m)}
+  {\tenv |- p.n \colon \mathtt{self}(p.n, \tau_n)}
+
+  \infer
+  [\textsc{R-add}]
+  {\tenv |- o_1 \colon \r{\nu:\<int> | r_1} \\ \tenv |- o_2 \colon \r{\nu:\<int> | r_2}}
+  {\tenv |- o_1 \oplus o_2 \colon \Pi(\r{\nu:\<int> | \nu = o_1 + o_2}, \<bool>)}
+
+  \infer
+  [\textsc{R-lt}]
+  {\tenv |- o_1 \colon \r{\nu: \<int> | r_1} \\ \tenv |- o_2 \colon \r{\nu:\<int> | r_2}}
+  {\tenv |- o_1 < o_2 \colon \r{\nu:\<bool> | \nu <=> o_1 < o_2}}
+
+  \infer
+  [\textsc{R-eq}]
+  {\tenv |- o_1 \colon \r{\nu: \beta | r_1 }\\ \tenv |- o_2 \colon \r{\nu: \beta | r_2}}
+  {\tenv |- o_1 = o_2 \colon \r{\nu:\<bool> | \nu <=> o_1 = o_2}}
+
+  \infer
+  [\textsc{R-bool}]
+  {b=\<true> \text{ or } b=\<false>}
+  {\tenv |- b \colon \r{\nu:\<bool> | \nu = b}}
+
+  \infer
+  [\textsc{R-int}]
+  {\\}
+  {\tenv |- z \colon \r{\nu:\<int> | \nu = z}}
+\end{mathpar}
+
+\begin{displaymath}
+  \begin{array}{lcl}
+    \toprule
+    \mathtt{single}                        & : & (Place \times Type) -> Type        \\
+    \midrule
+    \mathtt{single}(p, \r{\nu: \beta | r}) & = & \r{\nu: \beta | r  \wedge \nu = p} \\
+    \mathtt{single}(p, \tau)               & = & \tau                               \\
+    \bottomrule
+  \end{array}
+\end{displaymath}
+
+\begin{mathpar}
+  \\
+  \textbf{Well-typed functions}\hfill \boxed{\tenv|\kenv |- F}
+  \\
+  \infer
+  [\textsc{F-let}]
+  {\tenv |- R \colon \tau \\ \tenv,x: \tau|\kenv |- F}
+  {\tenv|\kenv |- \<let> x = R \<in> F}
+
+  \infer
+  [\textsc{F-letcont}]
+  {
+    \tenv,\bar{x:\tau}|\kenv,k: \<cont>(\bar{x: \tau}) |- F_1
+    \\
+    \tenv |\kenv,k: \<cont>(\bar{x:\tau}) |- F_2
+    \\
+    \tenv |- \Pi(\bar{x: \tau})
+  }
+  {\tenv|\kenv |- \<letcont> k(\bar{x:\tau}) = F_1 \<in> F_2}
+
+  \infer
+  [\textsc{F-jump}]
+  {\tenv |- y_i \colon \tau_i \\ \tenv |- \Pi(\bar{y: \tau})\preceq \Pi(\bar{x: \tau'})}
+  {\tenv|\kenv,k: \<cont>(\bar{x:\tau'}) |- \<jump> k(\bar{y})}
+
+  \infer
+  [\textsc{F-call}]
+  {
+    \tenv |- y_i \colon \tau_i \\
+    \tenv |- \Pi(\bar{y: \tau}) \preceq \Pi(\bar{x: \tau'}) \\
+    \tenv |- \tau_f[\bar{y}/\bar{x}] \preceq \tau_k
+  }
+  {\tenv,f: \<fn>(\bar{x:\tau'}) \rightarrow \tau_f \mid \kenv,k: \<cont>(z: \tau_k) |- \<call> f(\bar{y}) \<ret> k}
+
+  \infer
+  [\textsc{F-if}]
+  {
+    \tenv,p |\kenv |- F_1 \\
+    \tenv,\neg p|\kenv |- F_2
+  }
+  {\tenv|\kenv |- \<if> p \<then> F_1 \<else> F_2}
+
+  \infer
+  [\textsc{F-abort}]
+  {\\}
+  {\tenv|\kenv |- \<abort>}
+\end{mathpar}
+
+\section{Constraint generation}
+\begin{displaymath}
+  \begin{array}{rrcl}
+    \textbf{Constraints} & c & ::= r \mid c_1 \wedge c_2 \mid \forall x: \beta. r => c \mid r => c &
+  \end{array}
+\end{displaymath}
+
+\begin{displaymath}
+  \begin{array}{lcl}
+    \toprule
+    (=>)                                                                         & :: & (TypEnv \times Constraint) -> Constraint           \\
+    \midrule
+    (\tenv, x: \r{y: \beta | r}) => c                                            & =  & \tenv => \forall x: \beta . r[x/y] => c            \\
+    \\
+    (\tenv, x: \Pi(\bar{y: \tau})) => c                                          & =  & (\tenv, \bar{y: \tau}) => c                        \\
+    \\
+    (\tenv, x: \tau) => c                                                        & =  & \tenv => c                                         \\
+    \toprule
+    \<sub>                                                                       & :: & (Type \times Type) -> Constraint                   \\
+    \midrule
+    \<sub>(\r{x: \beta | r_1}; \r{y: \beta | r_2})                               & =  & \forall x: \beta. r_1 => r_2[x/y]                  \\
+    \\
+    \<sub>(\<fn>(\bar{x: \tau_1}) -> \tau'_1; \<fn>(\bar{y: \tau_2}) -> \tau'_2) & =  & c_1 \wedge (\bar{y: \tau_2}) => c_2                \\
+    \quad \mathtt{where}                                                                                                                   \\
+    \quad \quad c_1                                                              & =  & \<sub>(\Pi(\bar{x: \tau_2}), \Pi(\bar{x: \tau_1})) \\
+    \quad \quad c_2                                                              & =  & \<sub>(\tau'_1[\bar{y}/\bar{x}], \tau'_2)          \\
+    \\
+    \<sub>(\Pi(\bar{x: \tau_1}); \Pi(\bar{y: \tau_2}))                           & =  & c_0                                                \\
+    \quad \mathtt{where}                                                                                                                   \\
+    \quad \quad c_n                                                              & =  & \<sub>(\tau_{1_n}, \tau_{2_n})                     \\
+    \quad \quad c_i                                                              & =  &
+    (x_i: \tau_{1_i}) => c_{i+1} \wedge \<sub>(\tau_{1_i}, \tau_{2_i})                                                                     \\
+    \bottomrule
+  \end{array}
+\end{displaymath}
+
+
+\begin{displaymath}
+  \begin{array}{lcl}
+    \toprule
+    \<cgen> \mathrel{::} (TypeEnv \times ContEnv \times FuncBody) -> Constraint                                                              \\
+    \midrule
+    \<cgen>(\tenv; \kenv; \<let> x = R \<in> F)                        & = & (x: \tau) => \<cgen>(\tenv,x: \tau;\kenv;F)                     \\
+    \quad \mathtt{where}\quad                                                                                                                \\
+    \quad \quad\tau                                                    & = & \<synth>(\tenv; R)                                              \\
+    \\
+    \<cgen>(\tenv; \kenv; \<letcont> k(\bar{x: \tau}) = F_1 \<in> F_2) & = & (\bar{x : \tau}) => c_1 \wedge c_2                              \\
+    \quad \mathtt{where}                                                                                                                     \\
+    \quad \quad c_1                                                    & = & \<cgen>(\tenv,\bar{x: \tau};\kenv,k:\<cont>(\bar{x: \tau});F_1) \\
+    \quad \quad c_2                                                    & = & \<cgen>(\tenv;\kenv,k:\<cont>(\bar{x: \tau});F_2)               \\
+    \\
+    \<cgen>(\tenv;\kenv,k: \<cont>(\bar{x:\tau'});\<jump> k(\bar{y}))  & = & \<sub>(\Pi(\bar{y: \tau}), \Pi(\bar{x: \tau'}))                 \\
+    \quad \mathtt{where}                                                                                                                     \\
+    \quad \quad \bar{y: \tau}                                          & = & \bar{y: \<synth>(\tenv; y)}                                     \\
+    \\
+    \<cgen>(\tenv,f: \<fn>(\bar{x: \tau'})-> \tau_f;\kenv, k:\<cont>(z: \tau_k)
+    ; \<call> f(\bar{y}) \<ret> k)                                     & = & c_1 \wedge c_2                                                  \\
+    \quad \mathtt{where}                                                                                                                     \\
+    \quad \quad \bar{y: \tau}                                          & = & \bar{y: \<synth>(\tenv; y)}                                     \\
+    \quad \quad c_1                                                    & = & \<sub>(\Pi(\bar{y: \tau}), \Pi(\bar{x: \tau'}))                 \\
+    \quad \quad c_2                                                    & = & \<sub>(\tau_f[\bar{y}/\bar{x}], \tau_k)                         \\
+    \\
+    \<cgen>(\tenv;\kenv;\<if> p \<then> F_1 \<else> F_2)               & = & c_1 \wedge c_2                                                  \\
+    \quad \mathtt{where}                                                                                                                     \\
+    \quad \quad c_1                                                    & = & p => \<cgen>(\tenv;\kenv;F_1)                                   \\
+    \quad \quad c_2                                                    & = & \neg p => \<cgen>(\tenv;\kenv;F_2)                              \\
+    \\
+    \<cgen>(\tenv;\kenv;\<abort>)                                      & = & \<true>                                                         \\
+    \toprule
+    \<synth> \mathrel{::} (TypEnv \times RValue) -> Type                                                                                     \\
+    \midrule
+    \<synth>(\tenv;x)                                                  & = & \<self>(x; \tenv(x))                                            \\
+    \<synth>(\tenv;p_1 \oplus p_2)                                     & = & \Pi(\r{x: \<int> | p_1 + p_2}, \<bool>)                         \\
+    \dots                                                                                                                                    \\
+    \bottomrule
+  \end{array}
+\end{displaymath}
+
+\newpage
+
+\section{Examples}
+
+\subsection{Example 1}
+
+\begin{minted}{rust}
+fn sum(n: {i32 | n >= 0}) -> {v: i32 | v >= n} {
+  let mut i = 0;
+  let mut r = 0;
+  while (i <= n) {
+    r += i;
+    i += 1;
+  }
+  r
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier, mathescape=true]{lambda_lr_cps.py -x}
+fn sum(n: {i32 | n %$\ge$% 0}) ret k(v: {i32 | v %$\ge$% n}) =
+  letcont loop(i1: {i32 | i1 %$\ge$% 0}, r1: {i32 | r1 %$\ge$% i1)} =
+    let t0 = i1 %$\le$% n in
+    if t0 then
+      let t1 = r1 + i1 in
+      if t1.1 then
+        let t2 = i1 + 1 in
+        if t2.1 then jump loop(t1.0, t2.0) else abort
+      else
+        abort
+    else
+      jump k(r2)
+  in
+  let i0 = 0, r0 = 0 in jump loop(i0, r0)
+\end{minted}
+
+\newpage
+\subsection{Example 2}
+
+\begin{minted}{rust}
+fn f(n: {i32 | n >= 0}) -> i32;
+
+fn count_zeros(limit: {i32 | n >= 0}) -> {v: i32 | v >= 0} {
+  let mut i = 0;
+  let mut c = 0;
+  while (i < limit) {
+    if (f(i) == 0) {
+      c += 1;
+    }
+    i += 1;
+  }
+  c
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier, mathescape=true]{lambda_lr_cps.py -x}
+fn count_zeros(limit: {i32 | n %$\geq$% 0}) ret k(v: {i32 | v >= 0}) =
+  letcont b0(i1: {i32 | n %$\geq$% 0}, c1: {i32 | c %$\geq$% 0}) =
+    let t0 = i1 < limit in
+    if t0 then
+      letcont b1(x: i32) =
+        letcont b2(c3: {i32 | c3 %$\geq$% 0}) =
+          let t3 = i1 + 1 in
+          if t3.1 then jump b0(i2, t3.0) else abort
+        in
+        let t1 = x == 0 in
+        if t1 in
+          let t2 = c1 + 1 in
+          if t2.1 then jump b2(t2.0) else abort
+        else
+          jump b2(c1)
+      in
+      call f(i1) ret b1
+    else
+      jump k(c1)
+  in
+  let i0 = 0, c0 = 0 in jump b0(i0, c0)
+\end{minted}
+
+\end{document}
