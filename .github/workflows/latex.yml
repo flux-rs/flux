@@ -1,0 +1,31 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Latex Notes
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+    
+jobs:
+  latex:
+    runs-on: ubuntu-latest
+  
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Compile Latex
+      uses: xu-cheng/latex-action@v2
+      with:
+        root_file: main.tex
+        working_directory: notes   
+        
+    - name: Upload PDF to Google Cloud Storage
+      uses: actions-hub/gcloud@300.0.0
+      env:
+        PROJECT_ID: liquid-rust 
+        APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+      with:
+        args: cp notes/main.pdf gs://liquid-rust
+        cli: gsutil
