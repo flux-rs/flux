@@ -22,6 +22,7 @@ extern crate rustc_target;
 
 pub mod annots;
 pub mod context;
+pub mod cps;
 pub mod names;
 pub mod refinements;
 pub mod reft_lowering;
