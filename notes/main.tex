@@ -16,6 +16,7 @@
 \renewcommand{\k}{\kappa}
 \DeclareMathSymbol{:}{\mathpunct}{operators}{"3A}
 \usemintedstyle[lambda_lr_cps.py -x]{bw}
+\newcommand{\own}[1]{\mathbf{own}\left(#1\right)}
 
 
 \reservestyle{\keyword}{\mathbf}
@@ -391,4 +392,140 @@ fn count_zeros(limit: {i32 | n %$\geq$% 0}) ret k(v: {i32 | v >= 0}) =
   let i0 = 0, c0 = 0 in jump b0(i0, c0)
 \end{minted}
 
+\newpage
+\section{Examples with references}
+
+\subsection{Tracking variable versions}
+\begin{minted}{rust}
+fn ris() {
+  let mut p = (1, 2);
+  let x = p.0;
+  p.0 = 3;
+  let y = p.0;
+  let z = p.1;
+  // What can we say about x, y and z?
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier,mathescape]{lambda_lr_cps.py -x}
+fn ris() ret k(()) =
+  let p = new(2) in   // $\ell^p_0: \lightning_2, p: \own{\ell^p_0}$
+  p.0 := 1;           // $\dots, \ell^p_1: \r{i32 | \nu = 1} \times \lightning_1, p: \own{\ell^p_1}$
+  p.1 := 2;           // $\dots, \ell^p_2: \r{i32 | \nu = 1} \times \r{i32 | \nu = 2}, p: \own{\ell^p_2}$
+  let x = new(1) in   // $\dots, \ell^x_0: \lightning_1, x: \own{\ell^x_0}$
+  x := *p.0;          // $\dots, \ell^x_1: \r{i32 | \nu = \ell^p_2.0}, x: \own{\ell^x_1}$
+  p.0 := 3;           // $\dots, \ell^p_3: \r{i32 | \nu = 3} \times \r{i32 | \nu = 2}, p: \own{\ell^p_3}$
+  let y = new(1) in   // $\dots, \ell^y_0: \lightning_1, y: \own{\ell^y_0}$
+  y := *p.0;          // $\dots, \ell^y_0: \r{i32 | \nu = \ell^p_3.0}, y: \own{\ell^y_1}$
+  let z = new(1) in   // $\dots, \ell^z_0: \lightning_1, y: \own{\ell^z_0}$
+  z := *p.1;          // $\dots, \ell^z_1: \r{i32 | \nu = \ell^p_3.1}, z: \own{\ell^z_1}$
+  jump(())
+\end{minted}
+
+\subsection{Basic control flow}
+
+\begin{minted}{rust}
+fn abs(mut x: i32) -> i32 {
+  if (x < 0)  {
+    x -= 1;
+  }
+  x
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier,mathescape]{lambda_lr_cps.py -x}
+fn abs(x: own(i32)) ret k(own({i32 | %$\nu$% > 0})) =
+  // $\ell^x_0: i32, x: \own{\ell^x_0}$
+  let t0 = *x in     // $\dots, t_0: \r{i32 | \nu = \ell^x_0}$
+  let b = t0 < 0 in  // $\dots, b: \r{bool | \nu \Leftrightarrow 0 > t_0}$
+  if b then          // $\dots, b$
+    let t1 = *x in   // $\dots, t_1: \r{i32 | \nu = \ell^x_0}$
+    x := t1 - 1      // $\dots, \ell^x_1: \r{i32 | \nu = t_1 \text{ - } 1}, x: \own{\ell^x_1}$
+    jump k(x)
+  else               // $\dots, \neg b$
+    jump k(x)
+\end{minted}
+
+
+\clearpage
+\subsection{Dependent function}
+\begin{minted}[escapeinside=\%\%]{rust}
+fn ira(a: i32, b: {i32 | b > a}) -> {i32 | v > 0} {
+  b - a
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier,mathescape]{lambda_lr_cps.py -x}
+fn ira(a: own(%$\ell^a_0$%, i32), b: own(%$\ell^b_0$%, {i32 | %$\nu$% > %$\ell^a_0$%})) ret k(own({i32 | %$\nu$% > 0})) =
+  // $\ell^a_0: i32, a: \own{\ell^a_0}, \ell^b_0: \r{i32 | \nu > \ell^a_0}, b: \own{\ell^b_0}$
+  let t0 = new(1) in   // $\dots, \ell^{t_0}_0: \lightning_1, t_0: \own{\ell^{t_0}_0}$
+  let t1 = *a in       // $\dots, t_1: \r{i32 | \nu = \ell^a_0}$
+  let t2 = *b in       // $\dots, t_2: \r{i32 | \nu = \ell^b_0}$
+  let t3 = t2 - t1 in  // $\dots, t_3: \r{i32 | \nu = t_2 \text{ - } t_1}$
+  t0 := t3;            // $\dots, \ell^{t_0}_1: \r{i32 | \nu = t_3}, t_0: \own{\ell^{t_0}_1}$
+  jump k(t0)
+\end{minted}
+
+\subsection{The sum example with references}
+\begin{minted}[escapeinside=\%\%]{rust}
+fn sum(n: i32) -> {i32 | v >= n} {
+  let mut i = 0;
+  let mut r = 0;
+  while (i < n) {
+    i += 1;
+    r += i;
+  }
+  r
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier,mathescape]{lambda_lr_cps.py -x}
+fn sum(n: own(%$\ell^n_0$%, i32)) ret k(own({i32 | %$\nu$% %$\geq$% %$\ell^n_0$%})) =
+  // $\ell^n_0: i32, n: \own{\ell^n_0}$
+  letcont loop(i: own(%$\ell^i_1$%, i32), r: own(%$\ell^r_1$%, {i32 | %$\nu$% %$\geq$% %$\ell^i_1$%})) =
+    // $\dots, \ell^i_1: i32, i: \own{\ell^i_1}, \ell^r_1: \r{i32 | \nu \geq \ell^i_1}, r: \own{\ell^r_1}$
+    let t0 = *i in     // $\dots, t_0: \r{i32 | \nu = \ell^i_0}$
+    let t1 = *n in     // $\dots, t_1: \r{i32 | \nu = \ell^n_0}$
+    let b = t0 < t1 in // $\dots, b: \r{i32 | \nu \Leftrightarrow t_1 > t_0}$
+    if b then          // $\dots, b$
+      i := t0 + 1;     // $\dots, \ell^i_2: \r{i32 | \nu = t_0 + 1}, i: \own{\ell^i_2}$
+      let t2 = *i in   // $\dots, t_2: \r{i32 | \nu = \ell^i_2}$
+      let t3 = *r in   // $\dots, t_3: \r{i32 | \nu = \ell^r_2}$
+      r := t2 + t3;    // $\dots, \ell^r_2: \r{i32 | \nu = t_2 + t_3}, r: \own{\ell^r_2} $
+      jump loop(i, r)
+    else
+      jump k(r)
+  in
+  let i = new(1) in
+  i := 0;            // $\dots, \ell^i_0: \r{i32 | \nu = 0}, i: \own{\ell^i_0}$
+  let r = new(1) in
+  r := 0;            // $\dots, \ell^r_0: \r{i32 | \nu = 0}, r: \own{\ell^r_0}$
+  jump loop(i, r)
+\end{minted}
+
+\clearpage
+\subsection{Non-copy type}
+\begin{minted}{rust}
+// Types are by default non-copy
+struct Point {
+  x: i32,
+  y: i32
+}
+
+fn hipa(r: (Point, Point)) -> i32 {
+  let a = r.0;
+  a.x + r.1.y
+}
+\end{minted}
+
+\begin{minted}[escapeinside=\%\%,fontfamily=courier,mathescape]{lambda_lr_cps.py -x}
+fn hipa(r: own%$(\ell^{r}_0$%, Point %$\times$% Point)) ret k(own(i32)) =
+  // $\ell^{r}_0: Point \times Point, r: \own{\ell^r_0}$
+  let a = new(Point) in
+  a := *r.0;             // $\ell^r_0.0: Point, \ell^r_0.1: Point, r.1: \own{\ell^r_0.1}, a: \own{\ell^r_0.1}$
+  let t0 = *a.0 in       // $\dots, t_0: \r{i32 | \nu = \ell^r_0.0}$
+  let t1 = *r.1.y in     // $\dots, t_1: \r{i32 | \nu = \ell^r_0.1}$
+  let t2 = t0 + t1 in    // $\dots, t_2: \r{i32 | \nu = t_0 + t_1}$
+  jump k(t2)
+\end{minted}
 \end{document}
