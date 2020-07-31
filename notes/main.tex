@@ -522,9 +522,9 @@ fn hipa(r: (Point, Point)) -> i32 {
 fn hipa(r: own%$(\ell^{r}_0$%, Point %$\times$% Point)) ret k(own(i32)) =
   // $\ell^{r}_0: Point \times Point, r: \own{\ell^r_0}$
   let a = new(Point) in
-  a := *r.0;             // $\ell^r_0.0: Point, \ell^r_0.1: Point, r.1: \own{\ell^r_0.1}, a: \own{\ell^r_0.1}$
+  a := *r.0;             // $\ell^r_0.0: Point\times Point, \ell^r_1.0: \lightning_{Point},r.0: \own{\ell^r_1.0}, r.1: \own{\ell^r_0.1}, a: \own{\ell^r_0.1}$
   let t0 = *a.0 in       // $\dots, t_0: \r{i32 | \nu = \ell^r_0.0}$
-  let t1 = *r.1.y in     // $\dots, t_1: \r{i32 | \nu = \ell^r_0.1}$
+  let t1 = *r.1.1 in     // $\dots, t_1: \r{i32 | \nu = \ell^r_0.1}$
   let t2 = t0 + t1 in    // $\dots, t_2: \r{i32 | \nu = t_0 + t_1}$
   jump k(t2)
 \end{minted}
