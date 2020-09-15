@@ -1,16 +1,17 @@
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
+use crate::cps_ref::context::LiquidRustCtxt;
 
-grammar;
+grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>);
 
-pub Fn: FnDef =
+pub Fn: FnDef<'lr> =
  "fn" <name: Symbol>
  "(" <heap: Heap> ";" <args: Args> ")"
  "ret" <ret: Symbol> "(" <out_heap: Heap> ";" <ret_loc: Location> ")"
  "=" <body: FnBody> => FnDef { <> };
 
-FnBody: Box<FnBody> = {
+FnBody: Box<FnBody<'lr>> = {
   "letcont" <name: Symbol> "(" <heap: Heap> ";" <env: Env> ";" <params: Args> ")"
     "=" <body: FnBody> "in" <rest: FnBody>
       => Box::new(FnBody::LetCont{ <> }),
@@ -63,11 +64,11 @@ Place: Place = <local: Local> <projection: Projection*> => Place { <> };
 
 Projection: u32 = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
 
-Type: Type = {
-  RefType => Type::Ref(<>),
+Ty: Ty<'lr> = {
+  RefType => cx.mk_ty(TyS::Ref(<>)),
   "{" <bind: Var> ":" <ty: BasicType> "|" <pred: PredLevel1> "}"
-    => Type::Refine { bind, ty, pred: *pred },
-  "(" <Comma<Binding<Var, Type>>> ")" => Type::Tuple(<>)
+    => cx.mk_ty(TyS::Refine { bind, ty, pred }),
+  "(" <Comma<Binding<Var, Ty>>> ")" => cx.mk_ty(TyS::Tuple(<>))
 }
 
 RefType: RefType = "own" "(" <Location> ")" => RefType::Own(<>);
@@ -76,16 +77,16 @@ PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2>;
 
 PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3>;
 
-PredLevel3: Box<Pred> = {
-  Constant => Box::new(Pred::Constant(<>)),
-  <var: Var> <projection: Projection*> => Box::new(Pred::Place { <> })
+PredLevel3: Pred<'lr> = {
+  Constant => cx.mk_pred(PredS::Constant(<>)),
+  <var: Var> <projection: Projection*> => cx.mk_pred(PredS::Place { <> })
 }
 
 Var: Var = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Var::intern(<>);
 
 Args = Comma<Binding<Local, Location>>;
 Env = Comma<Binding<Local, RefType>>;
-Heap = Comma<Binding<Location, Type>>;
+Heap = Comma<Binding<Location, Ty>>;
 
 Symbol: Symbol = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Symbol::intern(<>);
 Local: Local = Symbol => Local(<>);
@@ -120,10 +121,10 @@ Comma<T>: Vec<T> = {
     }
 };
 
-LeftAssoc<OpGroup, NextExprLevel>: Box<Pred> = {
+LeftAssoc<OpGroup, NextExprLevel>: Pred<'lr> = {
     <lhs: LeftAssoc<OpGroup,NextExprLevel>>
     <op: OpGroup>
     <rhs: NextExprLevel>
-      => Box::new(Pred::BinaryOp(op, lhs, rhs)),
+      => cx.mk_pred(PredS::BinaryOp(op, lhs, rhs)),
     NextExprLevel,
 };

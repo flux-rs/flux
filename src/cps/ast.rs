@@ -81,7 +81,6 @@ pub enum FuncBody {
     Jump(ContIdent, Vec<Path>),
     Abort,
 }
-    
 
 /// A BasicType is a primitive type in the CPS IR; there are bools and ints.
 #[derive(Debug)]
@@ -127,5 +126,3 @@ pub enum PredBinOp {
     Ge,
     Gt,
 }
-
-        

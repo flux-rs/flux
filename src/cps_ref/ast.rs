@@ -2,11 +2,11 @@ use rustc_span::Symbol;
 
 /// A function definition
 #[derive(Debug)]
-pub struct FnDef {
+pub struct FnDef<'lr> {
     /// Name of the function.
     pub name: Symbol,
     /// The input heap.
-    pub heap: Heap,
+    pub heap: Heap<'lr>,
     /// Formal arguments of the function. These are always owned references so we
     /// represent them directly as locations in the input heap.
     pub args: Vec<(Local, Location)>,
@@ -14,30 +14,30 @@ pub struct FnDef {
     pub ret: Symbol,
     /// The output heap. This is right now only used to add refinements for the returned
     /// reference but it should be extended to capture the state of the output heap.
-    pub out_heap: Heap,
+    pub out_heap: Heap<'lr>,
     /// Location in the output heap of the returned owned reference.
     pub ret_loc: Location,
     /// Body of the function.
-    pub body: Box<FnBody>,
+    pub body: Box<FnBody<'lr>>,
 }
 
 /// Function body in cps.
 #[derive(Debug)]
-pub enum FnBody {
+pub enum FnBody<'lr> {
     /// A continuation definition.
     LetCont {
         /// Name of the continuation.
         name: Symbol,
         /// Heap required to call the continuation.
-        heap: Heap,
+        heap: Heap<'lr>,
         /// Environment required to call the continuation.
         env: Env,
         /// Additional parameters for the continuation.
         params: Vec<(Local, Location)>,
         /// The body of the continuation.
-        body: Box<FnBody>,
+        body: Box<FnBody<'lr>>,
         /// The rest of the function body.
-        rest: Box<FnBody>,
+        rest: Box<FnBody<'lr>>,
     },
 
     /// Evaluates either the then or else branch depending on the value of the discriminant
@@ -45,9 +45,9 @@ pub enum FnBody {
         /// The discriminant value being tested.
         discr: Place,
         /// The branch to execute if the discriminant is true.
-        then_branch: Box<FnBody>,
+        then_branch: Box<FnBody<'lr>>,
         /// The branch to execute if the discriminant is false.
-        else_branch: Box<FnBody>,
+        else_branch: Box<FnBody<'lr>>,
     },
 
     /// Function call
@@ -70,7 +70,7 @@ pub enum FnBody {
     },
 
     /// Sequencing of a statement and the rest of the function body
-    Seq(Statement, Box<FnBody>),
+    Seq(Statement, Box<FnBody<'lr>>),
 
     /// Aborts the execution of the program
     Abort,
@@ -112,13 +112,13 @@ pub enum Operand {
     Constant(Constant),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Constant {
     Bool(bool),
     Int(u128),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BinOp {
     Add,
     Sub,
@@ -130,7 +130,7 @@ pub enum BinOp {
 }
 
 /// The heap is a mapping between location and types.
-pub type Heap = Vec<(Location, Type)>;
+pub type Heap<'lr> = Vec<(Location, Ty<'lr>)>;
 
 /// A location into a block of memory in the heap.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
@@ -147,23 +147,25 @@ pub struct Local(pub Symbol);
 
 /// A reference type. For now this only contains owned references
 /// but it should be extended with shared and mutable references.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum RefType {
     Own(Location),
 }
 
-#[derive(Debug)]
-pub enum Type {
+pub type Ty<'lr> = &'lr TyS<'lr>;
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub enum TyS<'lr> {
     /// A function type
     Fn {
         /// The input heap.
-        in_heap: Heap,
+        in_heap: Heap<'lr>,
         /// Formal arguments of the function. These are always owned references so we
         /// represent them directly as locations in the input heap.
         args: Vec<Location>,
         /// The output heap. This is right now only used to add a refinement for the returned
         /// reference but it should be extended to capture the state of the output heap.
-        out_heap: Heap,
+        out_heap: Heap<'lr>,
         /// Location in the output heap of the returned owned reference.
         ret_loc: Location,
     },
@@ -173,10 +175,10 @@ pub enum Type {
     Refine {
         bind: Var,
         ty: BasicType,
-        pred: Pred,
+        pred: Pred<'lr>,
     },
     /// A dependent tuple.
-    Tuple(Vec<(Var, Type)>),
+    Tuple(Vec<(Var, &'lr TyS<'lr>)>),
     /// Unitialized
     Uninit(u32),
 }
@@ -190,21 +192,23 @@ pub enum TypeLayout {
     Block(u32),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BasicType {
     Bool,
     Int,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Var(pub Symbol);
 
+pub type Pred<'lr> = &'lr PredS<'lr>;
+
 /// A refinement type predicate
-#[derive(Debug)]
-pub enum Pred {
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub enum PredS<'lr> {
     Constant(Constant),
     Place { var: Var, projection: Vec<u32> },
-    BinaryOp(BinOp, Box<Pred>, Box<Pred>),
+    BinaryOp(BinOp, &'lr PredS<'lr>, &'lr PredS<'lr>),
 }
 
 impl Var {

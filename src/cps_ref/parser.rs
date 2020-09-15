@@ -1,8 +1,9 @@
 // auto-generated: "lalrpop 0.19.1"
-// sha256: 533b992134ceeb86f2c87e239df5df65bc654ac6505c8cef594e395c125add
+// sha256: ce9d9d5d3016826db8121da3fd49fc9f6a5f6cdbec67cc47d6278e8bd06d
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
+use crate::cps_ref::context::LiquidRustCtxt;
 #[allow(unused_extern_crates)]
 extern crate lalrpop_util as __lalrpop_util;
 #[allow(unused_imports)]
@@ -15,23 +16,24 @@ mod __parse__Fn {
     use std::str::FromStr;
     use crate::cps_ref::ast::*;
     use rustc_span::Symbol;
+    use crate::cps_ref::context::LiquidRustCtxt;
     #[allow(unused_extern_crates)]
     extern crate lalrpop_util as __lalrpop_util;
     #[allow(unused_imports)]
     use self::__lalrpop_util::state_machine as __state_machine;
     use self::__lalrpop_util::lexer::Token;
     #[allow(dead_code)]
-    pub enum __Symbol<'input>
+    pub enum __Symbol<'input, 'lr>
      {
         Variant0(&'input str),
         Variant1((Local, Location)),
         Variant2(::std::vec::Vec<(Local, Location)>),
         Variant3((Local, RefType)),
         Variant4(::std::vec::Vec<(Local, RefType)>),
-        Variant5((Location, Type)),
-        Variant6(::std::vec::Vec<(Location, Type)>),
-        Variant7((Var, Type)),
-        Variant8(::std::vec::Vec<(Var, Type)>),
+        Variant5((Location, Ty<'lr>)),
+        Variant6(::std::vec::Vec<(Location, Ty<'lr>)>),
+        Variant7((Var, Ty<'lr>)),
+        Variant8(::std::vec::Vec<(Var, Ty<'lr>)>),
         Variant9(Local),
         Variant10(::std::vec::Vec<Local>),
         Variant11(TypeLayout),
@@ -41,17 +43,17 @@ mod __parse__Fn {
         Variant15(BinOp),
         Variant16(::std::option::Option<(Local, Location)>),
         Variant17(::std::option::Option<(Local, RefType)>),
-        Variant18(::std::option::Option<(Location, Type)>),
-        Variant19(::std::option::Option<(Var, Type)>),
+        Variant18(::std::option::Option<(Location, Ty<'lr>)>),
+        Variant19(::std::option::Option<(Var, Ty<'lr>)>),
         Variant20(Vec<(Local, RefType)>),
-        Variant21(Vec<(Location, Type)>),
-        Variant22(Vec<(Var, Type)>),
+        Variant21(Vec<(Location, Ty<'lr>)>),
+        Variant22(Vec<(Var, Ty<'lr>)>),
         Variant23(Vec<Local>),
         Variant24(Vec<TypeLayout>),
         Variant25(Constant),
-        Variant26(FnDef),
-        Variant27(Box<FnBody>),
-        Variant28(Box<Pred>),
+        Variant26(FnDef<'lr>),
+        Variant27(Box<FnBody<'lr>>),
+        Variant28(Pred<'lr>),
         Variant29(::std::option::Option<Local>),
         Variant30(Location),
         Variant31(Operand),
@@ -62,7 +64,7 @@ mod __parse__Fn {
         Variant36(Rvalue),
         Variant37(Statement),
         Variant38(Symbol),
-        Variant39(Type),
+        Variant39(Ty<'lr>),
         Variant40(::std::option::Option<TypeLayout>),
         Variant41(Var),
     }
@@ -952,21 +954,22 @@ mod __parse__Fn {
             }
         }).collect()
     }
-    pub struct __StateMachine<'input>
-    where 
+    pub struct __StateMachine<'input, 'lr>
+    where 'lr: 'lr
     {
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
-        __phantom: ::std::marker::PhantomData<(&'input ())>,
+        __phantom: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     }
-    impl<'input> __state_machine::ParserDefinition for __StateMachine<'input>
-    where 
+    impl<'input, 'lr> __state_machine::ParserDefinition for __StateMachine<'input, 'lr>
+    where 'lr: 'lr
     {
         type Location = usize;
         type Error = &'static str;
         type Token = Token<'input>;
         type TokenIndex = usize;
-        type Symbol = __Symbol<'input>;
-        type Success = FnDef;
+        type Symbol = __Symbol<'input, 'lr>;
+        type Success = FnDef<'lr>;
         type StateIndex = i16;
         type Action = i16;
         type ReduceIndex = i16;
@@ -984,7 +987,7 @@ mod __parse__Fn {
 
         #[inline]
         fn token_to_index(&self, token: &Self::Token) -> Option<usize> {
-            __token_to_integer(token, ::std::marker::PhantomData::<(&())>)
+            __token_to_integer(token, ::std::marker::PhantomData::<(&(), &())>)
         }
 
         #[inline]
@@ -1008,7 +1011,7 @@ mod __parse__Fn {
         }
 
         fn token_to_symbol(&self, token_index: usize, token: Self::Token) -> Self::Symbol {
-            __token_to_symbol(token_index, token, ::std::marker::PhantomData::<(&())>)
+            __token_to_symbol(token_index, token, ::std::marker::PhantomData::<(&(), &())>)
         }
 
         fn expected_tokens(&self, state: i16) -> Vec<String> {
@@ -1036,12 +1039,13 @@ mod __parse__Fn {
             symbols: &mut Vec<__state_machine::SymbolTriple<Self>>,
         ) -> Option<__state_machine::ParseResult<Self>> {
             __reduce(
+                self.cx,
                 self.input,
                 action,
                 start_location,
                 states,
                 symbols,
-                ::std::marker::PhantomData::<(&())>,
+                ::std::marker::PhantomData::<(&(), &())>,
             )
         }
 
@@ -1051,9 +1055,10 @@ mod __parse__Fn {
     }
     fn __token_to_integer<
         'input,
+        'lr,
     >(
         __token: &Token<'input>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> Option<usize>
     {
         match *__token {
@@ -1100,11 +1105,12 @@ mod __parse__Fn {
     }
     fn __token_to_symbol<
         'input,
+        'lr,
     >(
         __token_index: usize,
         __token: Token<'input>,
-        _: ::std::marker::PhantomData<(&'input ())>,
-    ) -> __Symbol<'input>
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> __Symbol<'input, 'lr>
     {
         match __token_index {
             0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 => match __token {
@@ -1131,16 +1137,19 @@ mod __parse__Fn {
         #[allow(dead_code)]
         pub fn parse<
             'input,
+            'lr,
         >(
             &self,
+            cx: &'lr LiquidRustCtxt<'lr>,
             input: &'input str,
-        ) -> Result<FnDef, __lalrpop_util::ParseError<usize, Token<'input>, &'static str>>
+        ) -> Result<FnDef<'lr>, __lalrpop_util::ParseError<usize, Token<'input>, &'static str>>
         {
             let mut __tokens = self.builder.matcher(input);
             __state_machine::Parser::drive(
                 __StateMachine {
+                    cx,
                     input,
-                    __phantom: ::std::marker::PhantomData::<(&())>,
+                    __phantom: ::std::marker::PhantomData::<(&(), &())>,
                 },
                 __tokens,
             )
@@ -1148,415 +1157,417 @@ mod __parse__Fn {
     }
     pub(crate) fn __reduce<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __action: i16,
         __lookahead_start: Option<&usize>,
         __states: &mut ::std::vec::Vec<i16>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
-    ) -> Option<Result<FnDef,__lalrpop_util::ParseError<usize, Token<'input>, &'static str>>>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> Option<Result<FnDef<'lr>,__lalrpop_util::ParseError<usize, Token<'input>, &'static str>>>
     {
         let (__pop_states, __nonterminal) = match __action {
             0 => {
-                __reduce0(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce0(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             1 => {
-                __reduce1(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce1(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             2 => {
-                __reduce2(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce2(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             3 => {
-                __reduce3(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce3(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             4 => {
-                __reduce4(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce4(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             5 => {
-                __reduce5(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce5(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             6 => {
-                __reduce6(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce6(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             7 => {
-                __reduce7(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce7(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             8 => {
-                __reduce8(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce8(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             9 => {
-                __reduce9(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce9(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             10 => {
-                __reduce10(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce10(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             11 => {
-                __reduce11(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce11(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             12 => {
-                __reduce12(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce12(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             13 => {
-                __reduce13(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce13(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             14 => {
-                __reduce14(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce14(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             15 => {
-                __reduce15(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce15(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             16 => {
-                __reduce16(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce16(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             17 => {
-                __reduce17(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce17(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             18 => {
-                __reduce18(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce18(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             19 => {
-                __reduce19(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce19(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             20 => {
-                __reduce20(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce20(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             21 => {
-                __reduce21(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce21(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             22 => {
-                __reduce22(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce22(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             23 => {
-                __reduce23(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce23(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             24 => {
-                __reduce24(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce24(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             25 => {
-                __reduce25(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce25(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             26 => {
-                __reduce26(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce26(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             27 => {
-                __reduce27(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce27(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             28 => {
-                __reduce28(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce28(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             29 => {
-                __reduce29(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce29(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             30 => {
-                __reduce30(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce30(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             31 => {
-                __reduce31(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce31(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             32 => {
-                __reduce32(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce32(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             33 => {
-                __reduce33(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce33(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             34 => {
-                __reduce34(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce34(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             35 => {
-                __reduce35(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce35(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             36 => {
-                __reduce36(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce36(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             37 => {
-                __reduce37(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce37(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             38 => {
-                __reduce38(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce38(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             39 => {
-                __reduce39(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce39(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             40 => {
-                __reduce40(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce40(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             41 => {
-                __reduce41(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce41(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             42 => {
-                __reduce42(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce42(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             43 => {
-                __reduce43(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce43(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             44 => {
-                __reduce44(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce44(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             45 => {
-                __reduce45(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce45(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             46 => {
-                __reduce46(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce46(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             47 => {
-                __reduce47(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce47(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             48 => {
-                __reduce48(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce48(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             49 => {
-                __reduce49(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce49(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             50 => {
-                __reduce50(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce50(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             51 => {
-                __reduce51(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce51(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             52 => {
-                __reduce52(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce52(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             53 => {
-                __reduce53(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce53(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             54 => {
-                __reduce54(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce54(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             55 => {
-                __reduce55(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce55(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             56 => {
-                __reduce56(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce56(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             57 => {
-                __reduce57(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce57(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             58 => {
-                __reduce58(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce58(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             59 => {
-                __reduce59(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce59(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             60 => {
-                __reduce60(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce60(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             61 => {
-                __reduce61(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce61(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             62 => {
-                __reduce62(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce62(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             63 => {
-                __reduce63(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce63(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             64 => {
-                __reduce64(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce64(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             65 => {
-                __reduce65(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce65(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             66 => {
-                __reduce66(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce66(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             67 => {
-                __reduce67(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce67(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             68 => {
-                __reduce68(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce68(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             69 => {
-                __reduce69(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce69(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             70 => {
-                __reduce70(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce70(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             71 => {
-                __reduce71(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce71(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             72 => {
-                __reduce72(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce72(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             73 => {
-                __reduce73(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce73(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             74 => {
-                __reduce74(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce74(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             75 => {
-                __reduce75(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce75(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             76 => {
-                __reduce76(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce76(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             77 => {
-                __reduce77(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce77(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             78 => {
-                __reduce78(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce78(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             79 => {
-                __reduce79(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce79(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             80 => {
-                __reduce80(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce80(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             81 => {
-                __reduce81(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce81(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             82 => {
-                __reduce82(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce82(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             83 => {
-                __reduce83(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce83(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             84 => {
-                __reduce84(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce84(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             85 => {
-                __reduce85(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce85(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             86 => {
-                __reduce86(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce86(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             87 => {
-                __reduce87(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce87(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             88 => {
-                __reduce88(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce88(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             89 => {
-                __reduce89(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce89(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             90 => {
-                __reduce90(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce90(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             91 => {
-                __reduce91(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce91(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             92 => {
-                __reduce92(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce92(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             93 => {
-                __reduce93(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce93(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             94 => {
-                __reduce94(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce94(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             95 => {
-                __reduce95(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce95(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             96 => {
-                __reduce96(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce96(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             97 => {
-                __reduce97(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce97(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             98 => {
-                __reduce98(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce98(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             99 => {
-                __reduce99(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce99(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             100 => {
-                __reduce100(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce100(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             101 => {
-                __reduce101(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce101(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             102 => {
-                __reduce102(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce102(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             103 => {
-                __reduce103(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce103(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             104 => {
-                __reduce104(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce104(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             105 => {
-                __reduce105(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce105(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             106 => {
-                __reduce106(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce106(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             107 => {
-                __reduce107(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce107(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             108 => {
-                __reduce108(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce108(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             109 => {
-                __reduce109(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce109(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             110 => {
-                __reduce110(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce110(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             111 => {
-                __reduce111(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce111(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             112 => {
-                __reduce112(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce112(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             113 => {
-                __reduce113(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce113(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             114 => {
-                __reduce114(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce114(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             115 => {
-                __reduce115(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce115(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             116 => {
-                __reduce116(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce116(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             117 => {
-                __reduce117(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce117(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             118 => {
-                __reduce118(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce118(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             119 => {
-                __reduce119(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce119(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             120 => {
-                __reduce120(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce120(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             121 => {
-                __reduce121(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce121(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             122 => {
-                __reduce122(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce122(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             123 => {
-                __reduce123(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce123(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             124 => {
-                __reduce124(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce124(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             125 => {
-                __reduce125(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce125(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             126 => {
-                __reduce126(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce126(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             127 => {
-                __reduce127(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce127(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             128 => {
-                __reduce128(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce128(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             129 => {
-                __reduce129(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce129(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             130 => {
-                __reduce130(input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&())>)
+                __reduce130(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             131 => {
                 // __Fn = Fn => ActionFn(0);
                 let __sym0 = __pop_Variant26(__symbols);
                 let __start = __sym0.0.clone();
                 let __end = __sym0.2.clone();
-                let __nt = super::__action0::<>(input, __sym0);
+                let __nt = super::__action0::<>(cx, input, __sym0);
                 return Some(Ok(__nt));
             }
             _ => panic!("invalid action code {}", __action)
@@ -1574,8 +1585,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant1<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, (Local, Location), usize)
      {
         match __symbols.pop() {
@@ -1585,8 +1597,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant3<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, (Local, RefType), usize)
      {
         match __symbols.pop() {
@@ -1596,9 +1609,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant5<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, (Location, Type), usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, (Location, Ty<'lr>), usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant5(__v), __r)) => (__l, __v, __r),
@@ -1607,9 +1621,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant7<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, (Var, Type), usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, (Var, Ty<'lr>), usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant7(__v), __r)) => (__l, __v, __r),
@@ -1618,8 +1633,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant14<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, BasicType, usize)
      {
         match __symbols.pop() {
@@ -1629,8 +1645,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant15<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, BinOp, usize)
      {
         match __symbols.pop() {
@@ -1640,30 +1657,21 @@ mod __parse__Fn {
     }
     fn __pop_Variant27<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Box<FnBody>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, Box<FnBody<'lr>>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant27(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant28<
-      'input,
-    >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Box<Pred>, usize)
-     {
-        match __symbols.pop() {
-            Some((__l, __Symbol::Variant28(__v), __r)) => (__l, __v, __r),
-            _ => __symbol_type_mismatch()
-        }
-    }
     fn __pop_Variant25<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Constant, usize)
      {
         match __symbols.pop() {
@@ -1673,9 +1681,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant26<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, FnDef, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, FnDef<'lr>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant26(__v), __r)) => (__l, __v, __r),
@@ -1684,8 +1693,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant9<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Local, usize)
      {
         match __symbols.pop() {
@@ -1695,8 +1705,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant30<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Location, usize)
      {
         match __symbols.pop() {
@@ -1706,8 +1717,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant31<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Operand, usize)
      {
         match __symbols.pop() {
@@ -1717,8 +1729,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant32<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Place, usize)
      {
         match __symbols.pop() {
@@ -1726,10 +1739,23 @@ mod __parse__Fn {
             _ => __symbol_type_mismatch()
         }
     }
+    fn __pop_Variant28<
+      'input,
+      'lr,
+    >(
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, Pred<'lr>, usize)
+     {
+        match __symbols.pop() {
+            Some((__l, __Symbol::Variant28(__v), __r)) => (__l, __v, __r),
+            _ => __symbol_type_mismatch()
+        }
+    }
     fn __pop_Variant35<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, RefType, usize)
      {
         match __symbols.pop() {
@@ -1739,8 +1765,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant36<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Rvalue, usize)
      {
         match __symbols.pop() {
@@ -1750,8 +1777,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant37<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Statement, usize)
      {
         match __symbols.pop() {
@@ -1761,8 +1789,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant38<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Symbol, usize)
      {
         match __symbols.pop() {
@@ -1772,9 +1801,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant39<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Type, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, Ty<'lr>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant39(__v), __r)) => (__l, __v, __r),
@@ -1783,8 +1813,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant11<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, TypeLayout, usize)
      {
         match __symbols.pop() {
@@ -1794,8 +1825,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant41<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Var, usize)
      {
         match __symbols.pop() {
@@ -1805,8 +1837,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant13<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Vec<(Local, Location)>, usize)
      {
         match __symbols.pop() {
@@ -1816,8 +1849,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant20<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Vec<(Local, RefType)>, usize)
      {
         match __symbols.pop() {
@@ -1827,9 +1861,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant21<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Vec<(Location, Type)>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, Vec<(Location, Ty<'lr>)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant21(__v), __r)) => (__l, __v, __r),
@@ -1838,9 +1873,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant22<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, Vec<(Var, Type)>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, Vec<(Var, Ty<'lr>)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant22(__v), __r)) => (__l, __v, __r),
@@ -1849,8 +1885,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant23<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Vec<Local>, usize)
      {
         match __symbols.pop() {
@@ -1860,8 +1897,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant24<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, Vec<TypeLayout>, usize)
      {
         match __symbols.pop() {
@@ -1871,8 +1909,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant33<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, u32, usize)
      {
         match __symbols.pop() {
@@ -1882,8 +1921,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant16<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::option::Option<(Local, Location)>, usize)
      {
         match __symbols.pop() {
@@ -1893,8 +1933,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant17<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::option::Option<(Local, RefType)>, usize)
      {
         match __symbols.pop() {
@@ -1904,9 +1945,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant18<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::option::Option<(Location, Type)>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant18(__v), __r)) => (__l, __v, __r),
@@ -1915,9 +1957,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant19<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::option::Option<(Var, Type)>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, ::std::option::Option<(Var, Ty<'lr>)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant19(__v), __r)) => (__l, __v, __r),
@@ -1926,8 +1969,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant29<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::option::Option<Local>, usize)
      {
         match __symbols.pop() {
@@ -1937,8 +1981,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant40<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::option::Option<TypeLayout>, usize)
      {
         match __symbols.pop() {
@@ -1948,8 +1993,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant2<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::vec::Vec<(Local, Location)>, usize)
      {
         match __symbols.pop() {
@@ -1959,8 +2005,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant4<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::vec::Vec<(Local, RefType)>, usize)
      {
         match __symbols.pop() {
@@ -1970,9 +2017,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant6<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::vec::Vec<(Location, Type)>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant6(__v), __r)) => (__l, __v, __r),
@@ -1981,9 +2029,10 @@ mod __parse__Fn {
     }
     fn __pop_Variant8<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
-    ) -> (usize, ::std::vec::Vec<(Var, Type)>, usize)
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
+    ) -> (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant8(__v), __r)) => (__l, __v, __r),
@@ -1992,8 +2041,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant10<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::vec::Vec<Local>, usize)
      {
         match __symbols.pop() {
@@ -2003,8 +2053,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant12<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::vec::Vec<TypeLayout>, usize)
      {
         match __symbols.pop() {
@@ -2014,8 +2065,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant34<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, ::std::vec::Vec<u32>, usize)
      {
         match __symbols.pop() {
@@ -2025,8 +2077,9 @@ mod __parse__Fn {
     }
     fn __pop_Variant0<
       'input,
+      'lr,
     >(
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>
     ) -> (usize, &'input str, usize)
      {
         match __symbols.pop() {
@@ -2036,11 +2089,13 @@ mod __parse__Fn {
     }
     pub(crate) fn __reduce0<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, Location>> ",") = Binding<Local, Location>, "," => ActionFn(88);
@@ -2049,50 +2104,56 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action88::<>(input, __sym0, __sym1);
+        let __nt = super::__action88::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (2, 0)
     }
     pub(crate) fn __reduce1<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, Location>> ",")* =  => ActionFn(86);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action86::<>(input, &__start, &__end);
+        let __nt = super::__action86::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (0, 1)
     }
     pub(crate) fn __reduce2<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, Location>> ",")* = (<Binding<Local, Location>> ",")+ => ActionFn(87);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action87::<>(input, __sym0);
+        let __nt = super::__action87::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (1, 1)
     }
     pub(crate) fn __reduce3<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, Location>> ",")+ = Binding<Local, Location>, "," => ActionFn(111);
@@ -2101,17 +2162,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action111::<>(input, __sym0, __sym1);
+        let __nt = super::__action111::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (2, 2)
     }
     pub(crate) fn __reduce4<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, Location>> ",")+ = (<Binding<Local, Location>> ",")+, Binding<Local, Location>, "," => ActionFn(112);
@@ -2121,17 +2184,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action112::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action112::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (3, 2)
     }
     pub(crate) fn __reduce5<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, RefType>> ",") = Binding<Local, RefType>, "," => ActionFn(93);
@@ -2140,50 +2205,56 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action93::<>(input, __sym0, __sym1);
+        let __nt = super::__action93::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (2, 3)
     }
     pub(crate) fn __reduce6<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, RefType>> ",")* =  => ActionFn(91);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action91::<>(input, &__start, &__end);
+        let __nt = super::__action91::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (0, 4)
     }
     pub(crate) fn __reduce7<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, RefType>> ",")* = (<Binding<Local, RefType>> ",")+ => ActionFn(92);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action92::<>(input, __sym0);
+        let __nt = super::__action92::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (1, 4)
     }
     pub(crate) fn __reduce8<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, RefType>> ",")+ = Binding<Local, RefType>, "," => ActionFn(115);
@@ -2192,17 +2263,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action115::<>(input, __sym0, __sym1);
+        let __nt = super::__action115::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (2, 5)
     }
     pub(crate) fn __reduce9<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Binding<Local, RefType>> ",")+ = (<Binding<Local, RefType>> ",")+, Binding<Local, RefType>, "," => ActionFn(116);
@@ -2212,199 +2285,221 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action116::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action116::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (3, 5)
     }
     pub(crate) fn __reduce10<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Type>> ",") = Binding<Location, Type>, "," => ActionFn(98);
+        // (<Binding<Location, Ty>> ",") = Binding<Location, Ty>, "," => ActionFn(98);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action98::<>(input, __sym0, __sym1);
+        let __nt = super::__action98::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (2, 6)
     }
     pub(crate) fn __reduce11<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Type>> ",")* =  => ActionFn(96);
+        // (<Binding<Location, Ty>> ",")* =  => ActionFn(96);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action96::<>(input, &__start, &__end);
+        let __nt = super::__action96::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (0, 7)
     }
     pub(crate) fn __reduce12<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Type>> ",")* = (<Binding<Location, Type>> ",")+ => ActionFn(97);
+        // (<Binding<Location, Ty>> ",")* = (<Binding<Location, Ty>> ",")+ => ActionFn(97);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action97::<>(input, __sym0);
+        let __nt = super::__action97::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (1, 7)
     }
     pub(crate) fn __reduce13<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Type>> ",")+ = Binding<Location, Type>, "," => ActionFn(119);
+        // (<Binding<Location, Ty>> ",")+ = Binding<Location, Ty>, "," => ActionFn(119);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action119::<>(input, __sym0, __sym1);
+        let __nt = super::__action119::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (2, 8)
     }
     pub(crate) fn __reduce14<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Type>> ",")+ = (<Binding<Location, Type>> ",")+, Binding<Location, Type>, "," => ActionFn(120);
+        // (<Binding<Location, Ty>> ",")+ = (<Binding<Location, Ty>> ",")+, Binding<Location, Ty>, "," => ActionFn(120);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant5(__symbols);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action120::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action120::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (3, 8)
     }
     pub(crate) fn __reduce15<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Var, Type>> ",") = Binding<Var, Type>, "," => ActionFn(83);
+        // (<Binding<Var, Ty>> ",") = Binding<Var, Ty>, "," => ActionFn(83);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action83::<>(input, __sym0, __sym1);
+        let __nt = super::__action83::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (2, 9)
     }
     pub(crate) fn __reduce16<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Var, Type>> ",")* =  => ActionFn(81);
+        // (<Binding<Var, Ty>> ",")* =  => ActionFn(81);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action81::<>(input, &__start, &__end);
+        let __nt = super::__action81::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (0, 10)
     }
     pub(crate) fn __reduce17<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Var, Type>> ",")* = (<Binding<Var, Type>> ",")+ => ActionFn(82);
+        // (<Binding<Var, Ty>> ",")* = (<Binding<Var, Ty>> ",")+ => ActionFn(82);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action82::<>(input, __sym0);
+        let __nt = super::__action82::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (1, 10)
     }
     pub(crate) fn __reduce18<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Var, Type>> ",")+ = Binding<Var, Type>, "," => ActionFn(123);
+        // (<Binding<Var, Ty>> ",")+ = Binding<Var, Ty>, "," => ActionFn(123);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action123::<>(input, __sym0, __sym1);
+        let __nt = super::__action123::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (2, 11)
     }
     pub(crate) fn __reduce19<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Var, Type>> ",")+ = (<Binding<Var, Type>> ",")+, Binding<Var, Type>, "," => ActionFn(124);
+        // (<Binding<Var, Ty>> ",")+ = (<Binding<Var, Ty>> ",")+, Binding<Var, Ty>, "," => ActionFn(124);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant7(__symbols);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action124::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action124::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (3, 11)
     }
     pub(crate) fn __reduce20<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Local> ",") = Local, "," => ActionFn(69);
@@ -2413,50 +2508,56 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action69::<>(input, __sym0, __sym1);
+        let __nt = super::__action69::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (2, 12)
     }
     pub(crate) fn __reduce21<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Local> ",")* =  => ActionFn(67);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action67::<>(input, &__start, &__end);
+        let __nt = super::__action67::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (0, 13)
     }
     pub(crate) fn __reduce22<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Local> ",")* = (<Local> ",")+ => ActionFn(68);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action68::<>(input, __sym0);
+        let __nt = super::__action68::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (1, 13)
     }
     pub(crate) fn __reduce23<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Local> ",")+ = Local, "," => ActionFn(127);
@@ -2465,17 +2566,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action127::<>(input, __sym0, __sym1);
+        let __nt = super::__action127::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (2, 14)
     }
     pub(crate) fn __reduce24<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<Local> ",")+ = (<Local> ",")+, Local, "," => ActionFn(128);
@@ -2485,17 +2588,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action128::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action128::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (3, 14)
     }
     pub(crate) fn __reduce25<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<TypeLayout> ",") = TypeLayout, "," => ActionFn(76);
@@ -2504,50 +2609,56 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action76::<>(input, __sym0, __sym1);
+        let __nt = super::__action76::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (2, 15)
     }
     pub(crate) fn __reduce26<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<TypeLayout> ",")* =  => ActionFn(74);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action74::<>(input, &__start, &__end);
+        let __nt = super::__action74::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (0, 16)
     }
     pub(crate) fn __reduce27<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<TypeLayout> ",")* = (<TypeLayout> ",")+ => ActionFn(75);
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action75::<>(input, __sym0);
+        let __nt = super::__action75::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (1, 16)
     }
     pub(crate) fn __reduce28<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<TypeLayout> ",")+ = TypeLayout, "," => ActionFn(131);
@@ -2556,17 +2667,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action131::<>(input, __sym0, __sym1);
+        let __nt = super::__action131::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (2, 17)
     }
     pub(crate) fn __reduce29<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // (<TypeLayout> ",")+ = (<TypeLayout> ",")+, TypeLayout, "," => ActionFn(132);
@@ -2576,221 +2689,247 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action132::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action132::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (3, 17)
     }
     pub(crate) fn __reduce30<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Args = Comma<Binding<Local, Location>> => ActionFn(32);
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action32::<>(input, __sym0);
+        let __nt = super::__action32::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (1, 18)
     }
     pub(crate) fn __reduce31<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BasicType = "int" => ActionFn(17);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action17::<>(input, __sym0);
+        let __nt = super::__action17::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 19)
     }
     pub(crate) fn __reduce32<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BasicType = "bool" => ActionFn(18);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action18::<>(input, __sym0);
+        let __nt = super::__action18::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 19)
     }
     pub(crate) fn __reduce33<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOp = BinOpGroup1 => ActionFn(45);
         let __sym0 = __pop_Variant15(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action45::<>(input, __sym0);
+        let __nt = super::__action45::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 20)
     }
     pub(crate) fn __reduce34<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOp = BinOpGroup2 => ActionFn(46);
         let __sym0 = __pop_Variant15(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action46::<>(input, __sym0);
+        let __nt = super::__action46::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 20)
     }
     pub(crate) fn __reduce35<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup1 = "+" => ActionFn(38);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action38::<>(input, __sym0);
+        let __nt = super::__action38::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 21)
     }
     pub(crate) fn __reduce36<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup1 = "-" => ActionFn(39);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action39::<>(input, __sym0);
+        let __nt = super::__action39::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 21)
     }
     pub(crate) fn __reduce37<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup2 = "<" => ActionFn(40);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action40::<>(input, __sym0);
+        let __nt = super::__action40::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
     pub(crate) fn __reduce38<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup2 = "<=" => ActionFn(41);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action41::<>(input, __sym0);
+        let __nt = super::__action41::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
     pub(crate) fn __reduce39<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup2 = "==" => ActionFn(42);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action42::<>(input, __sym0);
+        let __nt = super::__action42::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
     pub(crate) fn __reduce40<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup2 = ">=" => ActionFn(43);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action43::<>(input, __sym0);
+        let __nt = super::__action43::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
     pub(crate) fn __reduce41<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // BinOpGroup2 = ">" => ActionFn(44);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action44::<>(input, __sym0);
+        let __nt = super::__action44::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
     pub(crate) fn __reduce42<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Binding<Local, Location> = Local, ":", Location => ActionFn(52);
@@ -2800,50 +2939,56 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action52::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action52::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (3, 23)
     }
     pub(crate) fn __reduce43<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Binding<Local, Location>? = Binding<Local, Location> => ActionFn(84);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action84::<>(input, __sym0);
+        let __nt = super::__action84::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 24)
     }
     pub(crate) fn __reduce44<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Binding<Local, Location>? =  => ActionFn(85);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action85::<>(input, &__start, &__end);
+        let __nt = super::__action85::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (0, 24)
     }
     pub(crate) fn __reduce45<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Binding<Local, RefType> = Local, ":", RefType => ActionFn(50);
@@ -2853,189 +2998,211 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action50::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action50::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (3, 25)
     }
     pub(crate) fn __reduce46<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Binding<Local, RefType>? = Binding<Local, RefType> => ActionFn(89);
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action89::<>(input, __sym0);
+        let __nt = super::__action89::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (1, 26)
     }
     pub(crate) fn __reduce47<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Binding<Local, RefType>? =  => ActionFn(90);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action90::<>(input, &__start, &__end);
+        let __nt = super::__action90::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (0, 26)
     }
     pub(crate) fn __reduce48<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Location, Type> = Location, ":", Type => ActionFn(48);
+        // Binding<Location, Ty> = Location, ":", Ty => ActionFn(48);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant39(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action48::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action48::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (3, 27)
     }
     pub(crate) fn __reduce49<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Location, Type>? = Binding<Location, Type> => ActionFn(94);
+        // Binding<Location, Ty>? = Binding<Location, Ty> => ActionFn(94);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action94::<>(input, __sym0);
+        let __nt = super::__action94::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
         (1, 28)
     }
     pub(crate) fn __reduce50<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Location, Type>? =  => ActionFn(95);
+        // Binding<Location, Ty>? =  => ActionFn(95);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action95::<>(input, &__start, &__end);
+        let __nt = super::__action95::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
         (0, 28)
     }
     pub(crate) fn __reduce51<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Var, Type> = Var, ":", Type => ActionFn(58);
+        // Binding<Var, Ty> = Var, ":", Ty => ActionFn(58);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant39(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant41(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action58::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action58::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (3, 29)
     }
     pub(crate) fn __reduce52<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Var, Type>? = Binding<Var, Type> => ActionFn(79);
+        // Binding<Var, Ty>? = Binding<Var, Ty> => ActionFn(79);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action79::<>(input, __sym0);
+        let __nt = super::__action79::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (1, 30)
     }
     pub(crate) fn __reduce53<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Var, Type>? =  => ActionFn(80);
+        // Binding<Var, Ty>? =  => ActionFn(80);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action80::<>(input, &__start, &__end);
+        let __nt = super::__action80::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (0, 30)
     }
     pub(crate) fn __reduce54<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, Location>> = Binding<Local, Location> => ActionFn(135);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action135::<>(input, __sym0);
+        let __nt = super::__action135::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (1, 31)
     }
     pub(crate) fn __reduce55<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, Location>> =  => ActionFn(136);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action136::<>(input, &__start, &__end);
+        let __nt = super::__action136::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (0, 31)
     }
     pub(crate) fn __reduce56<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, Location>> = (<Binding<Local, Location>> ",")+, Binding<Local, Location> => ActionFn(137);
@@ -3044,67 +3211,75 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action137::<>(input, __sym0, __sym1);
+        let __nt = super::__action137::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (2, 31)
     }
     pub(crate) fn __reduce57<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, Location>> = (<Binding<Local, Location>> ",")+ => ActionFn(138);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action138::<>(input, __sym0);
+        let __nt = super::__action138::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (1, 31)
     }
     pub(crate) fn __reduce58<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, RefType>> = Binding<Local, RefType> => ActionFn(139);
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action139::<>(input, __sym0);
+        let __nt = super::__action139::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 32)
     }
     pub(crate) fn __reduce59<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, RefType>> =  => ActionFn(140);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action140::<>(input, &__start, &__end);
+        let __nt = super::__action140::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (0, 32)
     }
     pub(crate) fn __reduce60<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, RefType>> = (<Binding<Local, RefType>> ",")+, Binding<Local, RefType> => ActionFn(141);
@@ -3113,205 +3288,229 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action141::<>(input, __sym0, __sym1);
+        let __nt = super::__action141::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 32)
     }
     pub(crate) fn __reduce61<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Binding<Local, RefType>> = (<Binding<Local, RefType>> ",")+ => ActionFn(142);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action142::<>(input, __sym0);
+        let __nt = super::__action142::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 32)
     }
     pub(crate) fn __reduce62<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Type>> = Binding<Location, Type> => ActionFn(143);
+        // Comma<Binding<Location, Ty>> = Binding<Location, Ty> => ActionFn(143);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action143::<>(input, __sym0);
+        let __nt = super::__action143::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 33)
     }
     pub(crate) fn __reduce63<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Type>> =  => ActionFn(144);
+        // Comma<Binding<Location, Ty>> =  => ActionFn(144);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action144::<>(input, &__start, &__end);
+        let __nt = super::__action144::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (0, 33)
     }
     pub(crate) fn __reduce64<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Type>> = (<Binding<Location, Type>> ",")+, Binding<Location, Type> => ActionFn(145);
+        // Comma<Binding<Location, Ty>> = (<Binding<Location, Ty>> ",")+, Binding<Location, Ty> => ActionFn(145);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant5(__symbols);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action145::<>(input, __sym0, __sym1);
+        let __nt = super::__action145::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (2, 33)
     }
     pub(crate) fn __reduce65<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Type>> = (<Binding<Location, Type>> ",")+ => ActionFn(146);
+        // Comma<Binding<Location, Ty>> = (<Binding<Location, Ty>> ",")+ => ActionFn(146);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action146::<>(input, __sym0);
+        let __nt = super::__action146::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 33)
     }
     pub(crate) fn __reduce66<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Var, Type>> = Binding<Var, Type> => ActionFn(147);
+        // Comma<Binding<Var, Ty>> = Binding<Var, Ty> => ActionFn(147);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action147::<>(input, __sym0);
+        let __nt = super::__action147::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (1, 34)
     }
     pub(crate) fn __reduce67<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Var, Type>> =  => ActionFn(148);
+        // Comma<Binding<Var, Ty>> =  => ActionFn(148);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action148::<>(input, &__start, &__end);
+        let __nt = super::__action148::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (0, 34)
     }
     pub(crate) fn __reduce68<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Var, Type>> = (<Binding<Var, Type>> ",")+, Binding<Var, Type> => ActionFn(149);
+        // Comma<Binding<Var, Ty>> = (<Binding<Var, Ty>> ",")+, Binding<Var, Ty> => ActionFn(149);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant7(__symbols);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action149::<>(input, __sym0, __sym1);
+        let __nt = super::__action149::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (2, 34)
     }
     pub(crate) fn __reduce69<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Var, Type>> = (<Binding<Var, Type>> ",")+ => ActionFn(150);
+        // Comma<Binding<Var, Ty>> = (<Binding<Var, Ty>> ",")+ => ActionFn(150);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action150::<>(input, __sym0);
+        let __nt = super::__action150::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (1, 34)
     }
     pub(crate) fn __reduce70<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Local> = Local => ActionFn(153);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action153::<>(input, __sym0);
+        let __nt = super::__action153::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (1, 35)
     }
     pub(crate) fn __reduce71<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Local> =  => ActionFn(154);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action154::<>(input, &__start, &__end);
+        let __nt = super::__action154::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (0, 35)
     }
     pub(crate) fn __reduce72<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Local> = (<Local> ",")+, Local => ActionFn(155);
@@ -3320,67 +3519,75 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action155::<>(input, __sym0, __sym1);
+        let __nt = super::__action155::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (2, 35)
     }
     pub(crate) fn __reduce73<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<Local> = (<Local> ",")+ => ActionFn(156);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action156::<>(input, __sym0);
+        let __nt = super::__action156::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (1, 35)
     }
     pub(crate) fn __reduce74<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<TypeLayout> = TypeLayout => ActionFn(161);
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action161::<>(input, __sym0);
+        let __nt = super::__action161::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (1, 36)
     }
     pub(crate) fn __reduce75<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<TypeLayout> =  => ActionFn(162);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action162::<>(input, &__start, &__end);
+        let __nt = super::__action162::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (0, 36)
     }
     pub(crate) fn __reduce76<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<TypeLayout> = (<TypeLayout> ",")+, TypeLayout => ActionFn(163);
@@ -3389,102 +3596,114 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action163::<>(input, __sym0, __sym1);
+        let __nt = super::__action163::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (2, 36)
     }
     pub(crate) fn __reduce77<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Comma<TypeLayout> = (<TypeLayout> ",")+ => ActionFn(164);
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action164::<>(input, __sym0);
+        let __nt = super::__action164::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (1, 36)
     }
     pub(crate) fn __reduce78<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Constant = "true" => ActionFn(14);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action14::<>(input, __sym0);
+        let __nt = super::__action14::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (1, 37)
     }
     pub(crate) fn __reduce79<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Constant = "false" => ActionFn(15);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action15::<>(input, __sym0);
+        let __nt = super::__action15::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (1, 37)
     }
     pub(crate) fn __reduce80<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Constant = r#"[0-9]+"# => ActionFn(16);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action16::<>(input, __sym0);
+        let __nt = super::__action16::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (1, 37)
     }
     pub(crate) fn __reduce81<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Env = Comma<Binding<Local, RefType>> => ActionFn(33);
         let __sym0 = __pop_Variant20(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action33::<>(input, __sym0);
+        let __nt = super::__action33::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 38)
     }
     pub(crate) fn __reduce82<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Fn = "fn", Symbol, "(", Heap, ";", Args, ")", "ret", Symbol, "(", Heap, ";", Location, ")", "=", FnBody => ActionFn(1);
@@ -3507,17 +3726,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym15.2.clone();
-        let __nt = super::__action1::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9, __sym10, __sym11, __sym12, __sym13, __sym14, __sym15);
+        let __nt = super::__action1::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9, __sym10, __sym11, __sym12, __sym13, __sym14, __sym15);
         __symbols.push((__start, __Symbol::Variant26(__nt), __end));
         (16, 39)
     }
     pub(crate) fn __reduce83<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = "letcont", Symbol, "(", Heap, ";", Env, ";", Args, ")", "=", FnBody, "in", FnBody => ActionFn(2);
@@ -3537,17 +3758,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym12.2.clone();
-        let __nt = super::__action2::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9, __sym10, __sym11, __sym12);
+        let __nt = super::__action2::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9, __sym10, __sym11, __sym12);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (13, 40)
     }
     pub(crate) fn __reduce84<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = "if", "*", Place, "then", FnBody, "else", FnBody => ActionFn(3);
@@ -3561,17 +3784,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action3::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action3::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (7, 40)
     }
     pub(crate) fn __reduce85<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = "call", Symbol, "(", Comma<Local>, ")", "ret", Symbol => ActionFn(4);
@@ -3585,17 +3810,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action4::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action4::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (7, 40)
     }
     pub(crate) fn __reduce86<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = "jump", Symbol, "(", ")" => ActionFn(151);
@@ -3606,17 +3833,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action151::<>(input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action151::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (4, 40)
     }
     pub(crate) fn __reduce87<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = "jump", Symbol, "(", Local+, ")" => ActionFn(152);
@@ -3628,17 +3857,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym4.2.clone();
-        let __nt = super::__action152::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __nt = super::__action152::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (5, 40)
     }
     pub(crate) fn __reduce88<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = Statement, ";", FnBody => ActionFn(6);
@@ -3648,51 +3879,57 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant37(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action6::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action6::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (3, 40)
     }
     pub(crate) fn __reduce89<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // FnBody = "abort" => ActionFn(7);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action7::<>(input, __sym0);
+        let __nt = super::__action7::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (1, 40)
     }
     pub(crate) fn __reduce90<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Heap = Comma<Binding<Location, Type>> => ActionFn(34);
+        // Heap = Comma<Binding<Location, Ty>> => ActionFn(34);
         let __sym0 = __pop_Variant21(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action34::<>(input, __sym0);
+        let __nt = super::__action34::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 41)
     }
     pub(crate) fn __reduce91<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // LeftAssoc<BinOpGroup1, PredLevel2> = LeftAssoc<BinOpGroup1, PredLevel2>, BinOpGroup1, PredLevel2 => ActionFn(55);
@@ -3702,34 +3939,38 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action55::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action55::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (3, 42)
     }
     pub(crate) fn __reduce92<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // LeftAssoc<BinOpGroup1, PredLevel2> = PredLevel2 => ActionFn(56);
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action56::<>(input, __sym0);
+        let __nt = super::__action56::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 42)
     }
     pub(crate) fn __reduce93<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // LeftAssoc<BinOpGroup2, PredLevel3> = LeftAssoc<BinOpGroup2, PredLevel3>, BinOpGroup2, PredLevel3 => ActionFn(53);
@@ -3739,101 +3980,113 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action53::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action53::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (3, 43)
     }
     pub(crate) fn __reduce94<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // LeftAssoc<BinOpGroup2, PredLevel3> = PredLevel3 => ActionFn(54);
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action54::<>(input, __sym0);
+        let __nt = super::__action54::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 43)
     }
     pub(crate) fn __reduce95<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local = Symbol => ActionFn(36);
         let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action36::<>(input, __sym0);
+        let __nt = super::__action36::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 44)
     }
     pub(crate) fn __reduce96<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local* =  => ActionFn(62);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action62::<>(input, &__start, &__end);
+        let __nt = super::__action62::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (0, 45)
     }
     pub(crate) fn __reduce97<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local* = Local+ => ActionFn(63);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action63::<>(input, __sym0);
+        let __nt = super::__action63::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (1, 45)
     }
     pub(crate) fn __reduce98<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local+ = Local => ActionFn(70);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action70::<>(input, __sym0);
+        let __nt = super::__action70::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (1, 46)
     }
     pub(crate) fn __reduce99<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local+ = Local+, Local => ActionFn(71);
@@ -3842,67 +4095,75 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action71::<>(input, __sym0, __sym1);
+        let __nt = super::__action71::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (2, 46)
     }
     pub(crate) fn __reduce100<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local? = Local => ActionFn(65);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action65::<>(input, __sym0);
+        let __nt = super::__action65::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant29(__nt), __end));
         (1, 47)
     }
     pub(crate) fn __reduce101<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Local? =  => ActionFn(66);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action66::<>(input, &__start, &__end);
+        let __nt = super::__action66::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant29(__nt), __end));
         (0, 47)
     }
     pub(crate) fn __reduce102<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Location = Symbol => ActionFn(37);
         let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action37::<>(input, __sym0);
+        let __nt = super::__action37::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (1, 48)
     }
     pub(crate) fn __reduce103<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Operand = "*", Place => ActionFn(12);
@@ -3911,51 +4172,57 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action12::<>(input, __sym0, __sym1);
+        let __nt = super::__action12::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (2, 49)
     }
     pub(crate) fn __reduce104<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Operand = Constant => ActionFn(13);
         let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action13::<>(input, __sym0);
+        let __nt = super::__action13::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 49)
     }
     pub(crate) fn __reduce105<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Place = Local => ActionFn(157);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action157::<>(input, __sym0);
+        let __nt = super::__action157::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant32(__nt), __end));
         (1, 50)
     }
     pub(crate) fn __reduce106<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Place = Local, Projection+ => ActionFn(158);
@@ -3964,85 +4231,95 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action158::<>(input, __sym0, __sym1);
+        let __nt = super::__action158::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant32(__nt), __end));
         (2, 50)
     }
     pub(crate) fn __reduce107<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2> => ActionFn(27);
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action27::<>(input, __sym0);
+        let __nt = super::__action27::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 51)
     }
     pub(crate) fn __reduce108<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3> => ActionFn(28);
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action28::<>(input, __sym0);
+        let __nt = super::__action28::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 52)
     }
     pub(crate) fn __reduce109<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // PredLevel3 = Constant => ActionFn(29);
         let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action29::<>(input, __sym0);
+        let __nt = super::__action29::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 53)
     }
     pub(crate) fn __reduce110<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // PredLevel3 = Var => ActionFn(159);
         let __sym0 = __pop_Variant41(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action159::<>(input, __sym0);
+        let __nt = super::__action159::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 53)
     }
     pub(crate) fn __reduce111<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // PredLevel3 = Var, Projection+ => ActionFn(160);
@@ -4051,17 +4328,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant41(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action160::<>(input, __sym0, __sym1);
+        let __nt = super::__action160::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (2, 53)
     }
     pub(crate) fn __reduce112<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Projection = ".", r#"[0-9]+"# => ActionFn(22);
@@ -4070,67 +4349,75 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action22::<>(input, __sym0, __sym1);
+        let __nt = super::__action22::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant33(__nt), __end));
         (2, 54)
     }
     pub(crate) fn __reduce113<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Projection* =  => ActionFn(59);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action59::<>(input, &__start, &__end);
+        let __nt = super::__action59::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (0, 55)
     }
     pub(crate) fn __reduce114<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Projection* = Projection+ => ActionFn(60);
         let __sym0 = __pop_Variant34(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action60::<>(input, __sym0);
+        let __nt = super::__action60::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (1, 55)
     }
     pub(crate) fn __reduce115<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Projection+ = Projection => ActionFn(77);
         let __sym0 = __pop_Variant33(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action77::<>(input, __sym0);
+        let __nt = super::__action77::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (1, 56)
     }
     pub(crate) fn __reduce116<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Projection+ = Projection+, Projection => ActionFn(78);
@@ -4139,17 +4426,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant34(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action78::<>(input, __sym0, __sym1);
+        let __nt = super::__action78::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (2, 56)
     }
     pub(crate) fn __reduce117<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // RefType = "own", "(", Location, ")" => ActionFn(26);
@@ -4160,34 +4449,38 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action26::<>(input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action26::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant35(__nt), __end));
         (4, 57)
     }
     pub(crate) fn __reduce118<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Rvalue = Operand => ActionFn(10);
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action10::<>(input, __sym0);
+        let __nt = super::__action10::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant36(__nt), __end));
         (1, 58)
     }
     pub(crate) fn __reduce119<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Rvalue = Operand, BinOp, Operand => ActionFn(11);
@@ -4197,17 +4490,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action11::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action11::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant36(__nt), __end));
         (3, 58)
     }
     pub(crate) fn __reduce120<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Statement = "let", Local, "=", "new", "(", TypeLayout, ")" => ActionFn(8);
@@ -4221,17 +4516,19 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action8::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action8::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant37(__nt), __end));
         (7, 59)
     }
     pub(crate) fn __reduce121<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Statement = Place, ":=", Rvalue => ActionFn(9);
@@ -4241,54 +4538,60 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant32(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action9::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action9::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant37(__nt), __end));
         (3, 59)
     }
     pub(crate) fn __reduce122<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Symbol = r#"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)"# => ActionFn(35);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action35::<>(input, __sym0);
+        let __nt = super::__action35::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
         (1, 60)
     }
     pub(crate) fn __reduce123<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Type = RefType => ActionFn(23);
+        // Ty = RefType => ActionFn(23);
         let __sym0 = __pop_Variant35(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action23::<>(input, __sym0);
+        let __nt = super::__action23::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant39(__nt), __end));
         (1, 61)
     }
     pub(crate) fn __reduce124<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Type = "{", Var, ":", BasicType, "|", PredLevel1, "}" => ActionFn(24);
+        // Ty = "{", Var, ":", BasicType, "|", PredLevel1, "}" => ActionFn(24);
         assert!(__symbols.len() >= 7);
         let __sym6 = __pop_Variant0(__symbols);
         let __sym5 = __pop_Variant28(__symbols);
@@ -4299,54 +4602,60 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action24::<>(input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action24::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant39(__nt), __end));
         (7, 61)
     }
     pub(crate) fn __reduce125<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Type = "(", Comma<Binding<Var, Type>>, ")" => ActionFn(25);
+        // Ty = "(", Comma<Binding<Var, Ty>>, ")" => ActionFn(25);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant22(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action25::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action25::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant39(__nt), __end));
         (3, 61)
     }
     pub(crate) fn __reduce126<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // TypeLayout = r#"[0-9]+"# => ActionFn(19);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action19::<>(input, __sym0);
+        let __nt = super::__action19::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (1, 62)
     }
     pub(crate) fn __reduce127<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // TypeLayout = "(", Comma<TypeLayout>, ")" => ActionFn(20);
@@ -4356,57 +4665,63 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action20::<>(input, __sym0, __sym1, __sym2);
+        let __nt = super::__action20::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (3, 62)
     }
     pub(crate) fn __reduce128<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // TypeLayout? = TypeLayout => ActionFn(72);
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action72::<>(input, __sym0);
+        let __nt = super::__action72::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
         (1, 63)
     }
     pub(crate) fn __reduce129<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // TypeLayout? =  => ActionFn(73);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action73::<>(input, &__start, &__end);
+        let __nt = super::__action73::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
         (0, 63)
     }
     pub(crate) fn __reduce130<
         'input,
+        'lr,
     >(
+        cx: &'lr LiquidRustCtxt<'lr>,
         input: &'input str,
         __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input>,usize)>,
-        _: ::std::marker::PhantomData<(&'input ())>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
         // Var = r#"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)"# => ActionFn(31);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action31::<>(input, __sym0);
+        let __nt = super::__action31::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant41(__nt), __end));
         (1, 64)
     }
@@ -4418,6 +4733,7 @@ mod __intern_token {
     use std::str::FromStr;
     use crate::cps_ref::ast::*;
     use rustc_span::Symbol;
+    use crate::cps_ref::context::LiquidRustCtxt;
     #[allow(unused_extern_crates)]
     extern crate lalrpop_util as __lalrpop_util;
     #[allow(unused_imports)]
@@ -4472,10 +4788,12 @@ pub use self::__lalrpop_util::lexer::Token;
 #[allow(unused_variables)]
 fn __action0<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, FnDef, usize),
-) -> FnDef
+    (_, __0, _): (usize, FnDef<'lr>, usize),
+) -> FnDef<'lr>
 {
     __0
 }
@@ -4483,25 +4801,27 @@ fn __action0<
 #[allow(unused_variables)]
 fn __action1<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, name, _): (usize, Symbol, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, heap, _): (usize, Vec<(Location, Type)>, usize),
+    (_, heap, _): (usize, Vec<(Location, Ty<'lr>)>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, args, _): (usize, Vec<(Local, Location)>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, ret, _): (usize, Symbol, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, out_heap, _): (usize, Vec<(Location, Type)>, usize),
+    (_, out_heap, _): (usize, Vec<(Location, Ty<'lr>)>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, ret_loc, _): (usize, Location, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, body, _): (usize, Box<FnBody>, usize),
-) -> FnDef
+    (_, body, _): (usize, Box<FnBody<'lr>>, usize),
+) -> FnDef<'lr>
 {
     FnDef { name:name, heap:heap, args:args, ret:ret, out_heap:out_heap, ret_loc:ret_loc, body:body }
 }
@@ -4509,22 +4829,24 @@ fn __action1<
 #[allow(unused_variables)]
 fn __action2<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, name, _): (usize, Symbol, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, heap, _): (usize, Vec<(Location, Type)>, usize),
+    (_, heap, _): (usize, Vec<(Location, Ty<'lr>)>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, env, _): (usize, Vec<(Local, RefType)>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, params, _): (usize, Vec<(Local, Location)>, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, body, _): (usize, Box<FnBody>, usize),
+    (_, body, _): (usize, Box<FnBody<'lr>>, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, rest, _): (usize, Box<FnBody>, usize),
-) -> Box<FnBody>
+    (_, rest, _): (usize, Box<FnBody<'lr>>, usize),
+) -> Box<FnBody<'lr>>
 {
     Box::new(FnBody::LetCont{ name:name, heap:heap, env:env, params:params, body:body, rest:rest })
 }
@@ -4532,16 +4854,18 @@ fn __action2<
 #[allow(unused_variables)]
 fn __action3<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, discr, _): (usize, Place, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, then_branch, _): (usize, Box<FnBody>, usize),
+    (_, then_branch, _): (usize, Box<FnBody<'lr>>, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, else_branch, _): (usize, Box<FnBody>, usize),
-) -> Box<FnBody>
+    (_, else_branch, _): (usize, Box<FnBody<'lr>>, usize),
+) -> Box<FnBody<'lr>>
 {
     Box::new(FnBody::Ite{ discr:discr, then_branch:then_branch, else_branch:else_branch })
 }
@@ -4549,7 +4873,9 @@ fn __action3<
 #[allow(unused_variables)]
 fn __action4<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, func, _): (usize, Symbol, usize),
@@ -4558,7 +4884,7 @@ fn __action4<
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, ret, _): (usize, Symbol, usize),
-) -> Box<FnBody>
+) -> Box<FnBody<'lr>>
 {
     Box::new(FnBody::Call{ func:func, args:args, ret:ret })
 }
@@ -4566,14 +4892,16 @@ fn __action4<
 #[allow(unused_variables)]
 fn __action5<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, target, _): (usize, Symbol, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, args, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, _, _): (usize, &'input str, usize),
-) -> Box<FnBody>
+) -> Box<FnBody<'lr>>
 {
     Box::new(FnBody::Jump{ target:target, args:args })
 }
@@ -4581,12 +4909,14 @@ fn __action5<
 #[allow(unused_variables)]
 fn __action6<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Statement, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, __1, _): (usize, Box<FnBody>, usize),
-) -> Box<FnBody>
+    (_, __1, _): (usize, Box<FnBody<'lr>>, usize),
+) -> Box<FnBody<'lr>>
 {
     Box::new(FnBody::Seq(__0, __1))
 }
@@ -4594,10 +4924,12 @@ fn __action6<
 #[allow(unused_variables)]
 fn __action7<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
-) -> Box<FnBody>
+) -> Box<FnBody<'lr>>
 {
     Box::new(FnBody::Abort)
 }
@@ -4605,7 +4937,9 @@ fn __action7<
 #[allow(unused_variables)]
 fn __action8<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Local, usize),
@@ -4622,7 +4956,9 @@ fn __action8<
 #[allow(unused_variables)]
 fn __action9<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Place, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -4635,7 +4971,9 @@ fn __action9<
 #[allow(unused_variables)]
 fn __action10<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Operand, usize),
 ) -> Rvalue
@@ -4646,7 +4984,9 @@ fn __action10<
 #[allow(unused_variables)]
 fn __action11<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, lhs, _): (usize, Operand, usize),
     (_, op, _): (usize, BinOp, usize),
@@ -4659,7 +4999,9 @@ fn __action11<
 #[allow(unused_variables)]
 fn __action12<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Place, usize),
@@ -4671,7 +5013,9 @@ fn __action12<
 #[allow(unused_variables)]
 fn __action13<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Constant, usize),
 ) -> Operand
@@ -4682,7 +5026,9 @@ fn __action13<
 #[allow(unused_variables)]
 fn __action14<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Constant
@@ -4693,7 +5039,9 @@ fn __action14<
 #[allow(unused_variables)]
 fn __action15<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Constant
@@ -4704,7 +5052,9 @@ fn __action15<
 #[allow(unused_variables)]
 fn __action16<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Constant
@@ -4715,7 +5065,9 @@ fn __action16<
 #[allow(unused_variables)]
 fn __action17<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BasicType
@@ -4726,7 +5078,9 @@ fn __action17<
 #[allow(unused_variables)]
 fn __action18<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BasicType
@@ -4737,7 +5091,9 @@ fn __action18<
 #[allow(unused_variables)]
 fn __action19<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> TypeLayout
@@ -4748,7 +5104,9 @@ fn __action19<
 #[allow(unused_variables)]
 fn __action20<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Vec<TypeLayout>, usize),
@@ -4761,7 +5119,9 @@ fn __action20<
 #[allow(unused_variables)]
 fn __action21<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, local, _): (usize, Local, usize),
     (_, projection, _): (usize, ::std::vec::Vec<u32>, usize),
@@ -4773,7 +5133,9 @@ fn __action21<
 #[allow(unused_variables)]
 fn __action22<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, &'input str, usize),
@@ -4785,48 +5147,56 @@ fn __action22<
 #[allow(unused_variables)]
 fn __action23<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, RefType, usize),
-) -> Type
+) -> Ty<'lr>
 {
-    Type::Ref(__0)
+    cx.mk_ty(TyS::Ref(__0))
 }
 
 #[allow(unused_variables)]
 fn __action24<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, bind, _): (usize, Var, usize),
     (_, _, _): (usize, &'input str, usize),
     (_, ty, _): (usize, BasicType, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, pred, _): (usize, Box<Pred>, usize),
+    (_, pred, _): (usize, Pred<'lr>, usize),
     (_, _, _): (usize, &'input str, usize),
-) -> Type
+) -> Ty<'lr>
 {
-    Type::Refine { bind, ty, pred: *pred }
+    cx.mk_ty(TyS::Refine { bind, ty, pred })
 }
 
 #[allow(unused_variables)]
 fn __action25<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
-    (_, __0, _): (usize, Vec<(Var, Type)>, usize),
+    (_, __0, _): (usize, Vec<(Var, Ty<'lr>)>, usize),
     (_, _, _): (usize, &'input str, usize),
-) -> Type
+) -> Ty<'lr>
 {
-    Type::Tuple(__0)
+    cx.mk_ty(TyS::Tuple(__0))
 }
 
 #[allow(unused_variables)]
 fn __action26<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -4840,10 +5210,12 @@ fn __action26<
 #[allow(unused_variables)]
 fn __action27<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, Box<Pred>, usize),
-) -> Box<Pred>
+    (_, __0, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
 {
     __0
 }
@@ -4851,10 +5223,12 @@ fn __action27<
 #[allow(unused_variables)]
 fn __action28<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, Box<Pred>, usize),
-) -> Box<Pred>
+    (_, __0, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
 {
     __0
 }
@@ -4862,30 +5236,36 @@ fn __action28<
 #[allow(unused_variables)]
 fn __action29<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Constant, usize),
-) -> Box<Pred>
+) -> Pred<'lr>
 {
-    Box::new(Pred::Constant(__0))
+    cx.mk_pred(PredS::Constant(__0))
 }
 
 #[allow(unused_variables)]
 fn __action30<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, var, _): (usize, Var, usize),
     (_, projection, _): (usize, ::std::vec::Vec<u32>, usize),
-) -> Box<Pred>
+) -> Pred<'lr>
 {
-    Box::new(Pred::Place { var:var, projection:projection })
+    cx.mk_pred(PredS::Place { var:var, projection:projection })
 }
 
 #[allow(unused_variables)]
 fn __action31<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Var
@@ -4896,7 +5276,9 @@ fn __action31<
 #[allow(unused_variables)]
 fn __action32<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Vec<(Local, Location)>, usize),
 ) -> Vec<(Local, Location)>
@@ -4907,7 +5289,9 @@ fn __action32<
 #[allow(unused_variables)]
 fn __action33<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Vec<(Local, RefType)>, usize),
 ) -> Vec<(Local, RefType)>
@@ -4918,10 +5302,12 @@ fn __action33<
 #[allow(unused_variables)]
 fn __action34<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, Vec<(Location, Type)>, usize),
-) -> Vec<(Location, Type)>
+    (_, __0, _): (usize, Vec<(Location, Ty<'lr>)>, usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     __0
 }
@@ -4929,7 +5315,9 @@ fn __action34<
 #[allow(unused_variables)]
 fn __action35<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Symbol
@@ -4940,7 +5328,9 @@ fn __action35<
 #[allow(unused_variables)]
 fn __action36<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Symbol, usize),
 ) -> Local
@@ -4951,7 +5341,9 @@ fn __action36<
 #[allow(unused_variables)]
 fn __action37<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Symbol, usize),
 ) -> Location
@@ -4962,7 +5354,9 @@ fn __action37<
 #[allow(unused_variables)]
 fn __action38<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -4973,7 +5367,9 @@ fn __action38<
 #[allow(unused_variables)]
 fn __action39<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -4984,7 +5380,9 @@ fn __action39<
 #[allow(unused_variables)]
 fn __action40<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -4995,7 +5393,9 @@ fn __action40<
 #[allow(unused_variables)]
 fn __action41<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -5006,7 +5406,9 @@ fn __action41<
 #[allow(unused_variables)]
 fn __action42<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -5017,7 +5419,9 @@ fn __action42<
 #[allow(unused_variables)]
 fn __action43<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -5028,7 +5432,9 @@ fn __action43<
 #[allow(unused_variables)]
 fn __action44<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -5039,7 +5445,9 @@ fn __action44<
 #[allow(unused_variables)]
 fn __action45<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, BinOp, usize),
 ) -> BinOp
@@ -5050,7 +5458,9 @@ fn __action45<
 #[allow(unused_variables)]
 fn __action46<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, BinOp, usize),
 ) -> BinOp
@@ -5061,11 +5471,13 @@ fn __action46<
 #[allow(unused_variables)]
 fn __action47<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<(Location, Type)>, usize),
-    (_, e, _): (usize, ::std::option::Option<(Location, Type)>, usize),
-) -> Vec<(Location, Type)>
+    (_, v, _): (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+    (_, e, _): (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     match e {
         None => v,
@@ -5080,12 +5492,14 @@ fn __action47<
 #[allow(unused_variables)]
 fn __action48<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Location, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, __1, _): (usize, Type, usize),
-) -> (Location, Type)
+    (_, __1, _): (usize, Ty<'lr>, usize),
+) -> (Location, Ty<'lr>)
 {
     (__0, __1)
 }
@@ -5093,7 +5507,9 @@ fn __action48<
 #[allow(unused_variables)]
 fn __action49<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, RefType)>, usize),
     (_, e, _): (usize, ::std::option::Option<(Local, RefType)>, usize),
@@ -5112,7 +5528,9 @@ fn __action49<
 #[allow(unused_variables)]
 fn __action50<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -5125,7 +5543,9 @@ fn __action50<
 #[allow(unused_variables)]
 fn __action51<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, Location)>, usize),
     (_, e, _): (usize, ::std::option::Option<(Local, Location)>, usize),
@@ -5144,7 +5564,9 @@ fn __action51<
 #[allow(unused_variables)]
 fn __action52<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -5157,23 +5579,27 @@ fn __action52<
 #[allow(unused_variables)]
 fn __action53<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, lhs, _): (usize, Box<Pred>, usize),
+    (_, lhs, _): (usize, Pred<'lr>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, rhs, _): (usize, Box<Pred>, usize),
-) -> Box<Pred>
+    (_, rhs, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
 {
-    Box::new(Pred::BinaryOp(op, lhs, rhs))
+    cx.mk_pred(PredS::BinaryOp(op, lhs, rhs))
 }
 
 #[allow(unused_variables)]
 fn __action54<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, Box<Pred>, usize),
-) -> Box<Pred>
+    (_, __0, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
 {
     __0
 }
@@ -5181,23 +5607,27 @@ fn __action54<
 #[allow(unused_variables)]
 fn __action55<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, lhs, _): (usize, Box<Pred>, usize),
+    (_, lhs, _): (usize, Pred<'lr>, usize),
     (_, op, _): (usize, BinOp, usize),
-    (_, rhs, _): (usize, Box<Pred>, usize),
-) -> Box<Pred>
+    (_, rhs, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
 {
-    Box::new(Pred::BinaryOp(op, lhs, rhs))
+    cx.mk_pred(PredS::BinaryOp(op, lhs, rhs))
 }
 
 #[allow(unused_variables)]
 fn __action56<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, Box<Pred>, usize),
-) -> Box<Pred>
+    (_, __0, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
 {
     __0
 }
@@ -5205,11 +5635,13 @@ fn __action56<
 #[allow(unused_variables)]
 fn __action57<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<(Var, Type)>, usize),
-    (_, e, _): (usize, ::std::option::Option<(Var, Type)>, usize),
-) -> Vec<(Var, Type)>
+    (_, v, _): (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+    (_, e, _): (usize, ::std::option::Option<(Var, Ty<'lr>)>, usize),
+) -> Vec<(Var, Ty<'lr>)>
 {
     match e {
         None => v,
@@ -5224,12 +5656,14 @@ fn __action57<
 #[allow(unused_variables)]
 fn __action58<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Var, usize),
     (_, _, _): (usize, &'input str, usize),
-    (_, __1, _): (usize, Type, usize),
-) -> (Var, Type)
+    (_, __1, _): (usize, Ty<'lr>, usize),
+) -> (Var, Ty<'lr>)
 {
     (__0, __1)
 }
@@ -5237,7 +5671,9 @@ fn __action58<
 #[allow(unused_variables)]
 fn __action59<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5249,7 +5685,9 @@ fn __action59<
 #[allow(unused_variables)]
 fn __action60<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<u32>, usize),
 ) -> ::std::vec::Vec<u32>
@@ -5260,7 +5698,9 @@ fn __action60<
 #[allow(unused_variables)]
 fn __action61<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<TypeLayout>, usize),
     (_, e, _): (usize, ::std::option::Option<TypeLayout>, usize),
@@ -5279,7 +5719,9 @@ fn __action61<
 #[allow(unused_variables)]
 fn __action62<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5291,7 +5733,9 @@ fn __action62<
 #[allow(unused_variables)]
 fn __action63<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
 ) -> ::std::vec::Vec<Local>
@@ -5302,7 +5746,9 @@ fn __action63<
 #[allow(unused_variables)]
 fn __action64<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, e, _): (usize, ::std::option::Option<Local>, usize),
@@ -5321,7 +5767,9 @@ fn __action64<
 #[allow(unused_variables)]
 fn __action65<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> ::std::option::Option<Local>
@@ -5332,7 +5780,9 @@ fn __action65<
 #[allow(unused_variables)]
 fn __action66<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5344,7 +5794,9 @@ fn __action66<
 #[allow(unused_variables)]
 fn __action67<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5356,7 +5808,9 @@ fn __action67<
 #[allow(unused_variables)]
 fn __action68<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
 ) -> ::std::vec::Vec<Local>
@@ -5367,7 +5821,9 @@ fn __action68<
 #[allow(unused_variables)]
 fn __action69<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -5379,7 +5835,9 @@ fn __action69<
 #[allow(unused_variables)]
 fn __action70<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> ::std::vec::Vec<Local>
@@ -5390,7 +5848,9 @@ fn __action70<
 #[allow(unused_variables)]
 fn __action71<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, e, _): (usize, Local, usize),
@@ -5402,7 +5862,9 @@ fn __action71<
 #[allow(unused_variables)]
 fn __action72<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, TypeLayout, usize),
 ) -> ::std::option::Option<TypeLayout>
@@ -5413,7 +5875,9 @@ fn __action72<
 #[allow(unused_variables)]
 fn __action73<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5425,7 +5889,9 @@ fn __action73<
 #[allow(unused_variables)]
 fn __action74<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5437,7 +5903,9 @@ fn __action74<
 #[allow(unused_variables)]
 fn __action75<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<TypeLayout>, usize),
 ) -> ::std::vec::Vec<TypeLayout>
@@ -5448,7 +5916,9 @@ fn __action75<
 #[allow(unused_variables)]
 fn __action76<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, TypeLayout, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -5460,7 +5930,9 @@ fn __action76<
 #[allow(unused_variables)]
 fn __action77<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, u32, usize),
 ) -> ::std::vec::Vec<u32>
@@ -5471,7 +5943,9 @@ fn __action77<
 #[allow(unused_variables)]
 fn __action78<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<u32>, usize),
     (_, e, _): (usize, u32, usize),
@@ -5483,10 +5957,12 @@ fn __action78<
 #[allow(unused_variables)]
 fn __action79<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, (Var, Type), usize),
-) -> ::std::option::Option<(Var, Type)>
+    (_, __0, _): (usize, (Var, Ty<'lr>), usize),
+) -> ::std::option::Option<(Var, Ty<'lr>)>
 {
     Some(__0)
 }
@@ -5494,11 +5970,13 @@ fn __action79<
 #[allow(unused_variables)]
 fn __action80<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> ::std::option::Option<(Var, Type)>
+) -> ::std::option::Option<(Var, Ty<'lr>)>
 {
     None
 }
@@ -5506,11 +5984,13 @@ fn __action80<
 #[allow(unused_variables)]
 fn __action81<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> ::std::vec::Vec<(Var, Type)>
+) -> ::std::vec::Vec<(Var, Ty<'lr>)>
 {
     vec![]
 }
@@ -5518,10 +5998,12 @@ fn __action81<
 #[allow(unused_variables)]
 fn __action82<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<(Var, Type)>, usize),
-) -> ::std::vec::Vec<(Var, Type)>
+    (_, v, _): (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+) -> ::std::vec::Vec<(Var, Ty<'lr>)>
 {
     v
 }
@@ -5529,11 +6011,13 @@ fn __action82<
 #[allow(unused_variables)]
 fn __action83<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, (Var, Type), usize),
+    (_, __0, _): (usize, (Var, Ty<'lr>), usize),
     (_, _, _): (usize, &'input str, usize),
-) -> (Var, Type)
+) -> (Var, Ty<'lr>)
 {
     __0
 }
@@ -5541,7 +6025,9 @@ fn __action83<
 #[allow(unused_variables)]
 fn __action84<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, (Local, Location), usize),
 ) -> ::std::option::Option<(Local, Location)>
@@ -5552,7 +6038,9 @@ fn __action84<
 #[allow(unused_variables)]
 fn __action85<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5564,7 +6052,9 @@ fn __action85<
 #[allow(unused_variables)]
 fn __action86<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5576,7 +6066,9 @@ fn __action86<
 #[allow(unused_variables)]
 fn __action87<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, Location)>, usize),
 ) -> ::std::vec::Vec<(Local, Location)>
@@ -5587,7 +6079,9 @@ fn __action87<
 #[allow(unused_variables)]
 fn __action88<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, (Local, Location), usize),
     (_, _, _): (usize, &'input str, usize),
@@ -5599,7 +6093,9 @@ fn __action88<
 #[allow(unused_variables)]
 fn __action89<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, (Local, RefType), usize),
 ) -> ::std::option::Option<(Local, RefType)>
@@ -5610,7 +6106,9 @@ fn __action89<
 #[allow(unused_variables)]
 fn __action90<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5622,7 +6120,9 @@ fn __action90<
 #[allow(unused_variables)]
 fn __action91<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -5634,7 +6134,9 @@ fn __action91<
 #[allow(unused_variables)]
 fn __action92<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, RefType)>, usize),
 ) -> ::std::vec::Vec<(Local, RefType)>
@@ -5645,7 +6147,9 @@ fn __action92<
 #[allow(unused_variables)]
 fn __action93<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, (Local, RefType), usize),
     (_, _, _): (usize, &'input str, usize),
@@ -5657,10 +6161,12 @@ fn __action93<
 #[allow(unused_variables)]
 fn __action94<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, (Location, Type), usize),
-) -> ::std::option::Option<(Location, Type)>
+    (_, __0, _): (usize, (Location, Ty<'lr>), usize),
+) -> ::std::option::Option<(Location, Ty<'lr>)>
 {
     Some(__0)
 }
@@ -5668,11 +6174,13 @@ fn __action94<
 #[allow(unused_variables)]
 fn __action95<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> ::std::option::Option<(Location, Type)>
+) -> ::std::option::Option<(Location, Ty<'lr>)>
 {
     None
 }
@@ -5680,11 +6188,13 @@ fn __action95<
 #[allow(unused_variables)]
 fn __action96<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> ::std::vec::Vec<(Location, Type)>
+) -> ::std::vec::Vec<(Location, Ty<'lr>)>
 {
     vec![]
 }
@@ -5692,10 +6202,12 @@ fn __action96<
 #[allow(unused_variables)]
 fn __action97<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<(Location, Type)>, usize),
-) -> ::std::vec::Vec<(Location, Type)>
+    (_, v, _): (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+) -> ::std::vec::Vec<(Location, Ty<'lr>)>
 {
     v
 }
@@ -5703,11 +6215,13 @@ fn __action97<
 #[allow(unused_variables)]
 fn __action98<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, (Location, Type), usize),
+    (_, __0, _): (usize, (Location, Ty<'lr>), usize),
     (_, _, _): (usize, &'input str, usize),
-) -> (Location, Type)
+) -> (Location, Ty<'lr>)
 {
     __0
 }
@@ -5715,10 +6229,12 @@ fn __action98<
 #[allow(unused_variables)]
 fn __action99<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, (Location, Type), usize),
-) -> ::std::vec::Vec<(Location, Type)>
+    (_, __0, _): (usize, (Location, Ty<'lr>), usize),
+) -> ::std::vec::Vec<(Location, Ty<'lr>)>
 {
     vec![__0]
 }
@@ -5726,11 +6242,13 @@ fn __action99<
 #[allow(unused_variables)]
 fn __action100<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<(Location, Type)>, usize),
-    (_, e, _): (usize, (Location, Type), usize),
-) -> ::std::vec::Vec<(Location, Type)>
+    (_, v, _): (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+    (_, e, _): (usize, (Location, Ty<'lr>), usize),
+) -> ::std::vec::Vec<(Location, Ty<'lr>)>
 {
     { let mut v = v; v.push(e); v }
 }
@@ -5738,7 +6256,9 @@ fn __action100<
 #[allow(unused_variables)]
 fn __action101<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, (Local, RefType), usize),
 ) -> ::std::vec::Vec<(Local, RefType)>
@@ -5749,7 +6269,9 @@ fn __action101<
 #[allow(unused_variables)]
 fn __action102<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, RefType)>, usize),
     (_, e, _): (usize, (Local, RefType), usize),
@@ -5761,7 +6283,9 @@ fn __action102<
 #[allow(unused_variables)]
 fn __action103<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, (Local, Location), usize),
 ) -> ::std::vec::Vec<(Local, Location)>
@@ -5772,7 +6296,9 @@ fn __action103<
 #[allow(unused_variables)]
 fn __action104<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, Location)>, usize),
     (_, e, _): (usize, (Local, Location), usize),
@@ -5784,10 +6310,12 @@ fn __action104<
 #[allow(unused_variables)]
 fn __action105<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, __0, _): (usize, (Var, Type), usize),
-) -> ::std::vec::Vec<(Var, Type)>
+    (_, __0, _): (usize, (Var, Ty<'lr>), usize),
+) -> ::std::vec::Vec<(Var, Ty<'lr>)>
 {
     vec![__0]
 }
@@ -5795,11 +6323,13 @@ fn __action105<
 #[allow(unused_variables)]
 fn __action106<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, v, _): (usize, ::std::vec::Vec<(Var, Type)>, usize),
-    (_, e, _): (usize, (Var, Type), usize),
-) -> ::std::vec::Vec<(Var, Type)>
+    (_, v, _): (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+    (_, e, _): (usize, (Var, Ty<'lr>), usize),
+) -> ::std::vec::Vec<(Var, Ty<'lr>)>
 {
     { let mut v = v; v.push(e); v }
 }
@@ -5807,7 +6337,9 @@ fn __action106<
 #[allow(unused_variables)]
 fn __action107<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, TypeLayout, usize),
 ) -> ::std::vec::Vec<TypeLayout>
@@ -5818,7 +6350,9 @@ fn __action107<
 #[allow(unused_variables)]
 fn __action108<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<TypeLayout>, usize),
     (_, e, _): (usize, TypeLayout, usize),
@@ -5830,7 +6364,9 @@ fn __action108<
 #[allow(unused_variables)]
 fn __action109<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> ::std::vec::Vec<Local>
@@ -5841,7 +6377,9 @@ fn __action109<
 #[allow(unused_variables)]
 fn __action110<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, e, _): (usize, Local, usize),
@@ -5853,7 +6391,9 @@ fn __action110<
 #[allow(unused_variables)]
 fn __action111<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, (Local, Location), usize),
     __1: (usize, &'input str, usize),
@@ -5862,12 +6402,14 @@ fn __action111<
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action88(
+        cx,
         input,
         __0,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action103(
+        cx,
         input,
         __temp0,
     )
@@ -5876,7 +6418,9 @@ fn __action111<
 #[allow(unused_variables)]
 fn __action112<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, Location)>, usize),
     __1: (usize, (Local, Location), usize),
@@ -5886,12 +6430,14 @@ fn __action112<
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
     let __temp0 = __action88(
+        cx,
         input,
         __1,
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action104(
+        cx,
         input,
         __0,
         __temp0,
@@ -5901,7 +6447,9 @@ fn __action112<
 #[allow(unused_variables)]
 fn __action113<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::option::Option<(Local, Location)>, usize),
 ) -> Vec<(Local, Location)>
@@ -5909,12 +6457,14 @@ fn __action113<
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
     let __temp0 = __action86(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action51(
+        cx,
         input,
         __temp0,
         __0,
@@ -5924,7 +6474,9 @@ fn __action113<
 #[allow(unused_variables)]
 fn __action114<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, Location)>, usize),
     __1: (usize, ::std::option::Option<(Local, Location)>, usize),
@@ -5933,11 +6485,13 @@ fn __action114<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action87(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action51(
+        cx,
         input,
         __temp0,
         __1,
@@ -5947,7 +6501,9 @@ fn __action114<
 #[allow(unused_variables)]
 fn __action115<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, (Local, RefType), usize),
     __1: (usize, &'input str, usize),
@@ -5956,12 +6512,14 @@ fn __action115<
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action93(
+        cx,
         input,
         __0,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action101(
+        cx,
         input,
         __temp0,
     )
@@ -5970,7 +6528,9 @@ fn __action115<
 #[allow(unused_variables)]
 fn __action116<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, RefType)>, usize),
     __1: (usize, (Local, RefType), usize),
@@ -5980,12 +6540,14 @@ fn __action116<
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
     let __temp0 = __action93(
+        cx,
         input,
         __1,
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action102(
+        cx,
         input,
         __0,
         __temp0,
@@ -5995,7 +6557,9 @@ fn __action116<
 #[allow(unused_variables)]
 fn __action117<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::option::Option<(Local, RefType)>, usize),
 ) -> Vec<(Local, RefType)>
@@ -6003,12 +6567,14 @@ fn __action117<
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
     let __temp0 = __action91(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action49(
+        cx,
         input,
         __temp0,
         __0,
@@ -6018,7 +6584,9 @@ fn __action117<
 #[allow(unused_variables)]
 fn __action118<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, RefType)>, usize),
     __1: (usize, ::std::option::Option<(Local, RefType)>, usize),
@@ -6027,11 +6595,13 @@ fn __action118<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action92(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action49(
+        cx,
         input,
         __temp0,
         __1,
@@ -6041,21 +6611,25 @@ fn __action118<
 #[allow(unused_variables)]
 fn __action119<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, (Location, Type), usize),
+    __0: (usize, (Location, Ty<'lr>), usize),
     __1: (usize, &'input str, usize),
-) -> ::std::vec::Vec<(Location, Type)>
+) -> ::std::vec::Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action98(
+        cx,
         input,
         __0,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action99(
+        cx,
         input,
         __temp0,
     )
@@ -6064,22 +6638,26 @@ fn __action119<
 #[allow(unused_variables)]
 fn __action120<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Location, Type)>, usize),
-    __1: (usize, (Location, Type), usize),
+    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+    __1: (usize, (Location, Ty<'lr>), usize),
     __2: (usize, &'input str, usize),
-) -> ::std::vec::Vec<(Location, Type)>
+) -> ::std::vec::Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
     let __temp0 = __action98(
+        cx,
         input,
         __1,
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action100(
+        cx,
         input,
         __0,
         __temp0,
@@ -6089,20 +6667,24 @@ fn __action120<
 #[allow(unused_variables)]
 fn __action121<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::option::Option<(Location, Type)>, usize),
-) -> Vec<(Location, Type)>
+    __0: (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
     let __temp0 = __action96(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action47(
+        cx,
         input,
         __temp0,
         __0,
@@ -6112,20 +6694,24 @@ fn __action121<
 #[allow(unused_variables)]
 fn __action122<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Location, Type)>, usize),
-    __1: (usize, ::std::option::Option<(Location, Type)>, usize),
-) -> Vec<(Location, Type)>
+    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+    __1: (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action97(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action47(
+        cx,
         input,
         __temp0,
         __1,
@@ -6135,21 +6721,25 @@ fn __action122<
 #[allow(unused_variables)]
 fn __action123<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, (Var, Type), usize),
+    __0: (usize, (Var, Ty<'lr>), usize),
     __1: (usize, &'input str, usize),
-) -> ::std::vec::Vec<(Var, Type)>
+) -> ::std::vec::Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action83(
+        cx,
         input,
         __0,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action105(
+        cx,
         input,
         __temp0,
     )
@@ -6158,22 +6748,26 @@ fn __action123<
 #[allow(unused_variables)]
 fn __action124<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Var, Type)>, usize),
-    __1: (usize, (Var, Type), usize),
+    __0: (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+    __1: (usize, (Var, Ty<'lr>), usize),
     __2: (usize, &'input str, usize),
-) -> ::std::vec::Vec<(Var, Type)>
+) -> ::std::vec::Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
     let __temp0 = __action83(
+        cx,
         input,
         __1,
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action106(
+        cx,
         input,
         __0,
         __temp0,
@@ -6183,20 +6777,24 @@ fn __action124<
 #[allow(unused_variables)]
 fn __action125<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::option::Option<(Var, Type)>, usize),
-) -> Vec<(Var, Type)>
+    __0: (usize, ::std::option::Option<(Var, Ty<'lr>)>, usize),
+) -> Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
     let __temp0 = __action81(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action57(
+        cx,
         input,
         __temp0,
         __0,
@@ -6206,20 +6804,24 @@ fn __action125<
 #[allow(unused_variables)]
 fn __action126<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Var, Type)>, usize),
-    __1: (usize, ::std::option::Option<(Var, Type)>, usize),
-) -> Vec<(Var, Type)>
+    __0: (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+    __1: (usize, ::std::option::Option<(Var, Ty<'lr>)>, usize),
+) -> Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action82(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action57(
+        cx,
         input,
         __temp0,
         __1,
@@ -6229,7 +6831,9 @@ fn __action126<
 #[allow(unused_variables)]
 fn __action127<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, Local, usize),
     __1: (usize, &'input str, usize),
@@ -6238,12 +6842,14 @@ fn __action127<
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action69(
+        cx,
         input,
         __0,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action109(
+        cx,
         input,
         __temp0,
     )
@@ -6252,7 +6858,9 @@ fn __action127<
 #[allow(unused_variables)]
 fn __action128<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
     __1: (usize, Local, usize),
@@ -6262,12 +6870,14 @@ fn __action128<
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
     let __temp0 = __action69(
+        cx,
         input,
         __1,
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action110(
+        cx,
         input,
         __0,
         __temp0,
@@ -6277,7 +6887,9 @@ fn __action128<
 #[allow(unused_variables)]
 fn __action129<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::option::Option<Local>, usize),
 ) -> Vec<Local>
@@ -6285,12 +6897,14 @@ fn __action129<
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
     let __temp0 = __action67(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action64(
+        cx,
         input,
         __temp0,
         __0,
@@ -6300,7 +6914,9 @@ fn __action129<
 #[allow(unused_variables)]
 fn __action130<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
     __1: (usize, ::std::option::Option<Local>, usize),
@@ -6309,11 +6925,13 @@ fn __action130<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action68(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action64(
+        cx,
         input,
         __temp0,
         __1,
@@ -6323,7 +6941,9 @@ fn __action130<
 #[allow(unused_variables)]
 fn __action131<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, TypeLayout, usize),
     __1: (usize, &'input str, usize),
@@ -6332,12 +6952,14 @@ fn __action131<
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action76(
+        cx,
         input,
         __0,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action107(
+        cx,
         input,
         __temp0,
     )
@@ -6346,7 +6968,9 @@ fn __action131<
 #[allow(unused_variables)]
 fn __action132<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
     __1: (usize, TypeLayout, usize),
@@ -6356,12 +6980,14 @@ fn __action132<
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
     let __temp0 = __action76(
+        cx,
         input,
         __1,
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action108(
+        cx,
         input,
         __0,
         __temp0,
@@ -6371,7 +6997,9 @@ fn __action132<
 #[allow(unused_variables)]
 fn __action133<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::option::Option<TypeLayout>, usize),
 ) -> Vec<TypeLayout>
@@ -6379,12 +7007,14 @@ fn __action133<
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
     let __temp0 = __action74(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action61(
+        cx,
         input,
         __temp0,
         __0,
@@ -6394,7 +7024,9 @@ fn __action133<
 #[allow(unused_variables)]
 fn __action134<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
     __1: (usize, ::std::option::Option<TypeLayout>, usize),
@@ -6403,11 +7035,13 @@ fn __action134<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action75(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action61(
+        cx,
         input,
         __temp0,
         __1,
@@ -6417,7 +7051,9 @@ fn __action134<
 #[allow(unused_variables)]
 fn __action135<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, (Local, Location), usize),
 ) -> Vec<(Local, Location)>
@@ -6425,11 +7061,13 @@ fn __action135<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action84(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action113(
+        cx,
         input,
         __temp0,
     )
@@ -6438,7 +7076,9 @@ fn __action135<
 #[allow(unused_variables)]
 fn __action136<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -6447,12 +7087,14 @@ fn __action136<
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
     let __temp0 = __action85(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action113(
+        cx,
         input,
         __temp0,
     )
@@ -6461,7 +7103,9 @@ fn __action136<
 #[allow(unused_variables)]
 fn __action137<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, Location)>, usize),
     __1: (usize, (Local, Location), usize),
@@ -6470,11 +7114,13 @@ fn __action137<
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action84(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action114(
+        cx,
         input,
         __0,
         __temp0,
@@ -6484,7 +7130,9 @@ fn __action137<
 #[allow(unused_variables)]
 fn __action138<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, Location)>, usize),
 ) -> Vec<(Local, Location)>
@@ -6492,12 +7140,14 @@ fn __action138<
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action85(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action114(
+        cx,
         input,
         __0,
         __temp0,
@@ -6507,7 +7157,9 @@ fn __action138<
 #[allow(unused_variables)]
 fn __action139<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, (Local, RefType), usize),
 ) -> Vec<(Local, RefType)>
@@ -6515,11 +7167,13 @@ fn __action139<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action89(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action117(
+        cx,
         input,
         __temp0,
     )
@@ -6528,7 +7182,9 @@ fn __action139<
 #[allow(unused_variables)]
 fn __action140<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -6537,12 +7193,14 @@ fn __action140<
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
     let __temp0 = __action90(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action117(
+        cx,
         input,
         __temp0,
     )
@@ -6551,7 +7209,9 @@ fn __action140<
 #[allow(unused_variables)]
 fn __action141<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, RefType)>, usize),
     __1: (usize, (Local, RefType), usize),
@@ -6560,11 +7220,13 @@ fn __action141<
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action89(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action118(
+        cx,
         input,
         __0,
         __temp0,
@@ -6574,7 +7236,9 @@ fn __action141<
 #[allow(unused_variables)]
 fn __action142<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, RefType)>, usize),
 ) -> Vec<(Local, RefType)>
@@ -6582,12 +7246,14 @@ fn __action142<
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action90(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action118(
+        cx,
         input,
         __0,
         __temp0,
@@ -6597,19 +7263,23 @@ fn __action142<
 #[allow(unused_variables)]
 fn __action143<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, (Location, Type), usize),
-) -> Vec<(Location, Type)>
+    __0: (usize, (Location, Ty<'lr>), usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action94(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action121(
+        cx,
         input,
         __temp0,
     )
@@ -6618,21 +7288,25 @@ fn __action143<
 #[allow(unused_variables)]
 fn __action144<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> Vec<(Location, Type)>
+) -> Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
     let __temp0 = __action95(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action121(
+        cx,
         input,
         __temp0,
     )
@@ -6641,20 +7315,24 @@ fn __action144<
 #[allow(unused_variables)]
 fn __action145<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Location, Type)>, usize),
-    __1: (usize, (Location, Type), usize),
-) -> Vec<(Location, Type)>
+    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+    __1: (usize, (Location, Ty<'lr>), usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action94(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action122(
+        cx,
         input,
         __0,
         __temp0,
@@ -6664,20 +7342,24 @@ fn __action145<
 #[allow(unused_variables)]
 fn __action146<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Location, Type)>, usize),
-) -> Vec<(Location, Type)>
+    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action95(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action122(
+        cx,
         input,
         __0,
         __temp0,
@@ -6687,19 +7369,23 @@ fn __action146<
 #[allow(unused_variables)]
 fn __action147<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, (Var, Type), usize),
-) -> Vec<(Var, Type)>
+    __0: (usize, (Var, Ty<'lr>), usize),
+) -> Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action79(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action125(
+        cx,
         input,
         __temp0,
     )
@@ -6708,21 +7394,25 @@ fn __action147<
 #[allow(unused_variables)]
 fn __action148<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> Vec<(Var, Type)>
+) -> Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
     let __temp0 = __action80(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action125(
+        cx,
         input,
         __temp0,
     )
@@ -6731,20 +7421,24 @@ fn __action148<
 #[allow(unused_variables)]
 fn __action149<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Var, Type)>, usize),
-    __1: (usize, (Var, Type), usize),
-) -> Vec<(Var, Type)>
+    __0: (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+    __1: (usize, (Var, Ty<'lr>), usize),
+) -> Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action79(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action126(
+        cx,
         input,
         __0,
         __temp0,
@@ -6754,20 +7448,24 @@ fn __action149<
 #[allow(unused_variables)]
 fn __action150<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Var, Type)>, usize),
-) -> Vec<(Var, Type)>
+    __0: (usize, ::std::vec::Vec<(Var, Ty<'lr>)>, usize),
+) -> Vec<(Var, Ty<'lr>)>
 {
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action80(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action126(
+        cx,
         input,
         __0,
         __temp0,
@@ -6777,23 +7475,27 @@ fn __action150<
 #[allow(unused_variables)]
 fn __action151<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, &'input str, usize),
     __1: (usize, Symbol, usize),
     __2: (usize, &'input str, usize),
     __3: (usize, &'input str, usize),
-) -> Box<FnBody>
+) -> Box<FnBody<'lr>>
 {
     let __start0 = __2.2.clone();
     let __end0 = __3.0.clone();
     let __temp0 = __action62(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action5(
+        cx,
         input,
         __0,
         __1,
@@ -6806,23 +7508,27 @@ fn __action151<
 #[allow(unused_variables)]
 fn __action152<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, &'input str, usize),
     __1: (usize, Symbol, usize),
     __2: (usize, &'input str, usize),
     __3: (usize, ::std::vec::Vec<Local>, usize),
     __4: (usize, &'input str, usize),
-) -> Box<FnBody>
+) -> Box<FnBody<'lr>>
 {
     let __start0 = __3.0.clone();
     let __end0 = __3.2.clone();
     let __temp0 = __action63(
+        cx,
         input,
         __3,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action5(
+        cx,
         input,
         __0,
         __1,
@@ -6835,7 +7541,9 @@ fn __action152<
 #[allow(unused_variables)]
 fn __action153<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, Local, usize),
 ) -> Vec<Local>
@@ -6843,11 +7551,13 @@ fn __action153<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action65(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action129(
+        cx,
         input,
         __temp0,
     )
@@ -6856,7 +7566,9 @@ fn __action153<
 #[allow(unused_variables)]
 fn __action154<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -6865,12 +7577,14 @@ fn __action154<
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
     let __temp0 = __action66(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action129(
+        cx,
         input,
         __temp0,
     )
@@ -6879,7 +7593,9 @@ fn __action154<
 #[allow(unused_variables)]
 fn __action155<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
     __1: (usize, Local, usize),
@@ -6888,11 +7604,13 @@ fn __action155<
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action65(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action130(
+        cx,
         input,
         __0,
         __temp0,
@@ -6902,7 +7620,9 @@ fn __action155<
 #[allow(unused_variables)]
 fn __action156<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
 ) -> Vec<Local>
@@ -6910,12 +7630,14 @@ fn __action156<
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action66(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action130(
+        cx,
         input,
         __0,
         __temp0,
@@ -6925,7 +7647,9 @@ fn __action156<
 #[allow(unused_variables)]
 fn __action157<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, Local, usize),
 ) -> Place
@@ -6933,12 +7657,14 @@ fn __action157<
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action59(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action21(
+        cx,
         input,
         __0,
         __temp0,
@@ -6948,7 +7674,9 @@ fn __action157<
 #[allow(unused_variables)]
 fn __action158<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, Local, usize),
     __1: (usize, ::std::vec::Vec<u32>, usize),
@@ -6957,11 +7685,13 @@ fn __action158<
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action60(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action21(
+        cx,
         input,
         __0,
         __temp0,
@@ -6971,20 +7701,24 @@ fn __action158<
 #[allow(unused_variables)]
 fn __action159<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, Var, usize),
-) -> Box<Pred>
+) -> Pred<'lr>
 {
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action59(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action30(
+        cx,
         input,
         __0,
         __temp0,
@@ -6994,20 +7728,24 @@ fn __action159<
 #[allow(unused_variables)]
 fn __action160<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, Var, usize),
     __1: (usize, ::std::vec::Vec<u32>, usize),
-) -> Box<Pred>
+) -> Pred<'lr>
 {
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action60(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action30(
+        cx,
         input,
         __0,
         __temp0,
@@ -7017,7 +7755,9 @@ fn __action160<
 #[allow(unused_variables)]
 fn __action161<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, TypeLayout, usize),
 ) -> Vec<TypeLayout>
@@ -7025,11 +7765,13 @@ fn __action161<
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action72(
+        cx,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action133(
+        cx,
         input,
         __temp0,
     )
@@ -7038,7 +7780,9 @@ fn __action161<
 #[allow(unused_variables)]
 fn __action162<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7047,12 +7791,14 @@ fn __action162<
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
     let __temp0 = __action73(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action133(
+        cx,
         input,
         __temp0,
     )
@@ -7061,7 +7807,9 @@ fn __action162<
 #[allow(unused_variables)]
 fn __action163<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
     __1: (usize, TypeLayout, usize),
@@ -7070,11 +7818,13 @@ fn __action163<
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
     let __temp0 = __action72(
+        cx,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action134(
+        cx,
         input,
         __0,
         __temp0,
@@ -7084,7 +7834,9 @@ fn __action163<
 #[allow(unused_variables)]
 fn __action164<
     'input,
+    'lr,
 >(
+    cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
 ) -> Vec<TypeLayout>
@@ -7092,28 +7844,30 @@ fn __action164<
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
     let __temp0 = __action73(
+        cx,
         input,
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action134(
+        cx,
         input,
         __0,
         __temp0,
     )
 }
 
-pub trait __ToTriple<'input, > {
+pub trait __ToTriple<'input, 'lr, > {
     fn to_triple(value: Self) -> Result<(usize,Token<'input>,usize), __lalrpop_util::ParseError<usize, Token<'input>, &'static str>>;
 }
 
-impl<'input, > __ToTriple<'input, > for (usize, Token<'input>, usize) {
+impl<'input, 'lr, > __ToTriple<'input, 'lr, > for (usize, Token<'input>, usize) {
     fn to_triple(value: Self) -> Result<(usize,Token<'input>,usize), __lalrpop_util::ParseError<usize, Token<'input>, &'static str>> {
         Ok(value)
     }
 }
-impl<'input, > __ToTriple<'input, > for Result<(usize, Token<'input>, usize), &'static str> {
+impl<'input, 'lr, > __ToTriple<'input, 'lr, > for Result<(usize, Token<'input>, usize), &'static str> {
     fn to_triple(value: Self) -> Result<(usize,Token<'input>,usize), __lalrpop_util::ParseError<usize, Token<'input>, &'static str>> {
         match value {
             Ok(v) => Ok(v),
