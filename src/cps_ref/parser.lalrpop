@@ -1,0 +1,129 @@
+use std::str::FromStr;
+use crate::cps_ref::ast::*;
+use rustc_span::Symbol;
+
+grammar;
+
+pub Fn: FnDef =
+ "fn" <name: Symbol>
+ "(" <heap: Heap> ";" <args: Args> ")"
+ "ret" <ret: Symbol> "(" <out_heap: Heap> ";" <ret_loc: Location> ")"
+ "=" <body: FnBody> => FnDef { <> };
+
+FnBody: Box<FnBody> = {
+  "letcont" <name: Symbol> "(" <heap: Heap> ";" <env: Env> ";" <params: Args> ")"
+    "=" <body: FnBody> "in" <rest: FnBody>
+      => Box::new(FnBody::LetCont{ <> }),
+
+  "if" "*" <discr: Place> "then" <then_branch: FnBody> "else" <else_branch: FnBody>
+    => Box::new(FnBody::Ite{ <> }),
+
+  "call" <func: Symbol> "(" <args: Comma<Local>> ")" "ret" <ret: Symbol>
+    => Box::new(FnBody::Call{ <> }),
+
+  "jump" <target: Symbol> "(" <args: Local*> ")" => Box::new(FnBody::Jump{ <> }),
+
+  <Statement> ";" <FnBody> => Box::new(FnBody::Seq(<>)),
+
+  "abort" => Box::new(FnBody::Abort)
+}
+
+Statement: Statement = {
+  "let" <Local> "=" "new" "(" <TypeLayout> ")" => Statement::Let(<>),
+  <Place> ":=" <Rvalue> => Statement::Assign(<>)
+}
+
+Rvalue: Rvalue = {
+  Operand => Rvalue::Use(<>),
+  <lhs: Operand> <op: BinOp> <rhs: Operand> => Rvalue::BinaryOp(op, lhs, rhs)
+}
+
+Operand: Operand = {
+  "*" <Place> => Operand::Deref(<>),
+  <Constant> => Operand::Constant(<>),
+}
+
+Constant: Constant = {
+  "true" => Constant::Bool(true),
+  "false" => Constant::Bool(false),
+  r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap())
+}
+
+BasicType: BasicType = {
+  "int" => BasicType::Int,
+  "bool" => BasicType::Bool
+}
+
+TypeLayout: TypeLayout = {
+  r"[0-9]+" => TypeLayout::Block(u32::from_str(<>).unwrap()),
+  "(" <Comma<TypeLayout>> ")" => TypeLayout::Tuple(<>)
+}
+
+Place: Place = <local: Local> <projection: Projection*> => Place { <> };
+
+Projection: u32 = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
+
+Type: Type = {
+  RefType => Type::Ref(<>),
+  "{" <bind: Var> ":" <ty: BasicType> "|" <pred: PredLevel1> "}"
+    => Type::Refine { bind, ty, pred: *pred },
+  "(" <Comma<Binding<Var, Type>>> ")" => Type::Tuple(<>)
+}
+
+RefType: RefType = "own" "(" <Location> ")" => RefType::Own(<>);
+
+PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2>;
+
+PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3>;
+
+PredLevel3: Box<Pred> = {
+  Constant => Box::new(Pred::Constant(<>)),
+  <var: Var> <projection: Projection*> => Box::new(Pred::Place { <> })
+}
+
+Var: Var = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Var::intern(<>);
+
+Args = Comma<Binding<Local, Location>>;
+Env = Comma<Binding<Local, RefType>>;
+Heap = Comma<Binding<Location, Type>>;
+
+Symbol: Symbol = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Symbol::intern(<>);
+Local: Local = Symbol => Local(<>);
+Location: Location = Symbol => Location(<>);
+Binding<Name, T> = <Name> ":" <T>;
+
+BinOpGroup1: BinOp = {
+  "+" => BinOp::Add,
+  "-" => BinOp::Sub
+}
+
+BinOpGroup2: BinOp = {
+  "<" => BinOp::Lt,
+  "<=" => BinOp::Le,
+  "==" => BinOp::Eq,
+  ">=" => BinOp::Ge,
+  ">" => BinOp::Gt,
+};
+
+BinOp = {
+  BinOpGroup1, BinOpGroup2
+}
+
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+LeftAssoc<OpGroup, NextExprLevel>: Box<Pred> = {
+    <lhs: LeftAssoc<OpGroup,NextExprLevel>>
+    <op: OpGroup>
+    <rhs: NextExprLevel>
+      => Box::new(Pred::BinaryOp(op, lhs, rhs)),
+    NextExprLevel,
+};

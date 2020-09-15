@@ -1,0 +1,475 @@
+\documentclass{article}
+\input{defs}
+
+\begin{document}
+
+\section{Syntax}
+
+\begin{displaymath}
+  \begin{array}{rcrcl}
+\<Path>     & \ni & q       & ::=  & \epsilon \mid q.n                                             \\
+\<Place>    & \ni & \pi     & ::=  & x.q                                                           \\
+\<Place>    & \ni & p       & ::=  & \ell.q                                                        \\
+\<Const>    & \ni & c       & ::=  & \<false> \mid \<true> \mid z                                  \\
+\<RVal>     & \ni & R       & ::=  & c \mid *\pi \mid *\pi_1 + *\pi_2                              \\
+\<Instr>    & \ni & I       & ::=  & \letvar{x}{\new{n}} \mid \assign{\pi}{R}                      \\
+\<FuncBody> & \ni & F       & ::=  & I; F \mid \letcont[k]{\Gamma;\tenv;\bar{x:\ell\,}}{F_1}{F_2}
+                                     \mid \jump{k(\bar{x})}                                        \\
+            &     &         & \mid & \call{f(\bar{x})}{k} \mid \ite{*\pi}{F_1}{F_2}  \mid \abort   \\
+\<BType>    & \ni & \beta   & ::=  & \<bool> \mid \<int>                                           \\
+            &     & \reftyp & ::=  & \own{\ell}                                                    \\
+\<Type>     & \ni & \tau    & ::=  & \fn{\Gamma;\bar{\ell\,}}{\Gamma';\ell} \mid \r{x:\beta | r}
+                                     \mid \reftyp \mid \Pi(\bar{x:\tau})                           \\
+\<Pred>     & \ni & r       & ::=  & \dots                                                         \\
+\<GEnv>     & \ni & \Gamma  & ::=  & \emptyset \mid \Gamma, \ell:\tau \mid \Gamma, r               \\
+\<TEnv>     & \ni & \tenv   & ::=  & \emptyset \mid \tenv, x: \reftyp                              \\
+\<KEnv>     & \ni & \kenv   & ::=  & \emptyset \mid \kenv, k: \cont{\Gamma;\tenv;\bar{\reftyp}}
+  \end{array}
+\end{displaymath}
+
+\section{Typing}
+
+\begin{mathpar}
+  \\
+  \textbf{Well-typed rvalues}\hfill \boxed{\trval{\Gamma}{\tenv}{R}{\tau}{\Gamma'}{\tenv'}}
+  \\
+  \infer
+  [\textsc{R-add}]
+  {
+    \lookup{\Gamma}{\tenv}{\pi_1} = (p_1, \r{\<int> | r_1}) \\\\
+    \lookup{\Gamma}{\tenv}{\pi_2} = (p_2, \r{\<int> | r_2})
+  }
+  {\trval{\Gamma}{\tenv}{*\pi_1 + *\pi_2}{\r{\<int> | \nu = p_1 + p_2}}{\Gamma}{\tenv}}
+
+  \infer
+  [\textsc{R-copy}]
+  {\lookup{\Gamma}{\tenv}{\pi} = (p,\tau) \\ \iscopy{\tau}}
+  {\trval{\Gamma}{\tenv}{*\pi}{\self{p;\tau}}{\Gamma}{\tenv}}
+
+  \infer
+  [\textsc{R-move}]
+  {\lookup{\Gamma}{\tenv}{\pi} = (p,\tau) \\ \isnoncopy{\tau} \\ n = \text{size}(\tau)}
+  {\trval{\Gamma}{\tenv}{*\pi}{\tau}{(\Gamma}{\tenv)[\pi\mapsto \uninit_n]}}
+
+  \infer
+  [\textsc{R-const}]
+  {}
+  {\trval{\Gamma}{\tenv}{c}{\r{\delta(c) | \nu = c}}{\Gamma}{\tenv}}
+\end{mathpar}
+
+\begin{mathpar}
+  \\
+  \textbf{Well-typed instructions}\hfill \boxed{\tinstr{\Gamma}{\tenv}{I}{\Gamma}{\tenv'}}
+  \\
+  \infer
+  [\textsc{I-new}]
+  {\Gamma'=\Gamma*\ell:\uninit_n \\ \tenv=\tenv*x:\own{\ell}}
+  {\tinstr{\Gamma}{\tenv}{\letvar{x}{\new{n}}}{\Gamma'}{\tenv'}}
+
+  \infer
+  [\textsc{R-assign}]
+  {
+    \trval{\Gamma}{\tenv}{R}{\tau'}{\Gamma'}{\tenv'} \\\\
+    \lookup{\Gamma}{\tenv}{\pi} = (p, \tau) \\ \text{size}(\tau) = \text{size}(\tau')
+  }
+  {\tinstr{\Gamma}{\tenv}{\assign{\pi}{R}}{(\Gamma'}{\tenv')[\pi\mapsto\tau']}}
+\end{mathpar}
+
+\begin{mathpar}
+  \\
+  \textbf{Well-typed functions}\hfill \boxed{\tenv|\kenv |- F}
+  \\
+  \infer
+  [\textsc{F-instr}]
+  { \tinstr{\Gamma}{\tenv}{I}{\Gamma'}{\tenv'} \\
+    \tfun{\Gamma}{\tenv}{\kenv}{F}
+  }
+  {\tfun{\Gamma}{\tenv}{\kenv}{I;F}}
+
+  \infer
+  [\textsc{F-letcont}]
+  {
+    \tfun{\Gamma,\Gamma'}{\tenv,\bar{x:\own{\ell}}}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell\,}}}{F_1}
+    \\\\
+    \tfun{\Gamma}{\tenv}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell}}}{F_2}
+  }
+  {\tfun{\Gamma}{\tenv}{\kenv}{\letcont[k]{\Gamma';\tenv';\bar{\ell\,}}{F_1}{F_2}}}
+
+  \infer
+  [\textsc{F-jump}]
+  {
+    \kenv(k) = \cont{\Gamma';\tenv';\bar{\ell\,}} \\\\
+    \theta = \subst{\tenv;\tenv'*\bar{x:\own{\ell}}} \\\\
+    \envincl{\tenv}{\tenv'} \\
+    \Gamma \preceq \theta \Gamma'
+  }
+  {\tfun{\Gamma}{\tenv}{\kenv}{\jump{k(\bar{x})}}}
+
+  \infer
+  [\textsc{F-call}]
+  {
+    \tenv(f)=\fn{\Gamma_f;\bar{\ell_f}}{\Gamma_o;\ell_o} \\
+    \kenv(k) = \cont{\Gamma_k;\tenv_k;\ell_k}
+    \\\\
+    \theta_1 = \subst{\tenv; \bar{x:\own{\ell_f}}} \\
+    \theta_2 = \subst{\tenv; \tenv_k}\cdot[\ell_o/\ell_k] \\
+    \\\\
+    \Gamma \preceq \theta_1\Gamma_f \\
+    \Gamma*\theta_1\Gamma_o \preceq \theta_2\Gamma_k \\
+    \envincl{\tenv}{\bar{x:\own{\ell_f}}*\tenv_k}
+  }
+  {\tfun{\Gamma}{\tenv}{\kenv}{\call{f(\bar{x})}{k}}}
+
+  \infer
+  [\textsc{F-if}]
+  {
+    \lookup{\Gamma}{\tenv}{\pi} = (p, \r{\<bool>|r}) \\\\
+    \tfun{\Gamma,p}{\tenv}{\kenv}{F_1} \\
+    \tfun{\Gamma,\neg p}{\tenv}{\kenv}{F_2}
+  }
+  {\tfun{\Gamma}{\tenv}{\kenv}{\ite{*\pi}{F_1}{F_2}}}
+
+  \infer
+  [\textsc{F-abort}]
+  {}
+  {\tfun{\Gamma}{\tenv}{\kenv}{\abort}}
+\end{mathpar}
+
+\section{Environment inclusion}
+
+\begin{mathpar}
+  \textbf{Environment inclusion}\hfill\boxed{\envincl{\tenv_1}{\tenv_2}}
+  \\
+  \infer
+  {\text{dom}(\tenv_2) \subseteq \text{dom}(\tenv_1)}
+  {\envincl{\tenv_1}{\tenv_2}}
+\end{mathpar}
+
+
+% \begin{mathpar}
+%   \textbf{Well-formed types and environments}\hfill \boxed{\tenv |- \tau \text{ and } |- \tenv}
+%   \\
+%   \infer[Wf-fn]
+%   {\tenv |- \Pi(\bar{x: \tau}) \\ \tenv,\bar{x:\tau} |- \tau'}
+%   {\tenv |- \<fn>(\bar{x:\tau}) -> \tau'}
+
+%   \infer[Wf-refine]
+%   {\lfloor \tenv \rfloor,x: \beta |- r \colon \<bool>}
+%   {\tenv |- \r{x: \beta | r}}
+
+%   \infer[Wf-prod]
+%   {\tenv, x_0:\tau_0,\dots,x_{i-1}: \tau_{i-1} |- \tau_{i}}
+%   {\tenv |- \Pi(\bar{x:\tau})}
+
+%   \infer[Wf-empty]
+%   {\\}
+%   {|- \emptyset}
+
+%   \infer[Wf-binding]
+%   {|- \tenv\\ \tenv |- \tau}
+%   {|- \tenv, x: \tau}
+
+%   \infer[Wf-pred]
+%   {|- \tenv\\ \tenv |- r \colon \<bool>}
+%   {|- \tenv, r}
+% \end{mathpar}
+
+\section{Subtyping}
+
+\begin{mathpar}
+  \textbf{Environment subtyping}\hfill \boxed{\Gamma_1 \preceq \Gamma_2}
+  \\
+  \infer[$\preceq$-env-empty]
+  {}
+  {\Gamma_1 \preceq \emptyset}
+
+  \infer[$\preceq$-env-var]
+  {\Gamma_1 \preceq \Gamma_2 \\ \Gamma_1 |- \Gamma_1(x) \preceq \tau}
+  {\Gamma_1 \preceq x:\tau, \Gamma_2}
+\end{mathpar}
+
+\begin{mathpar}
+  \textbf{Subtyping}\hfill \boxed{\Gamma |- \tau_1 \preceq \tau_2}
+  \\
+  \infer[$\preceq$-refine]
+  {\mathtt{Valid}(\extract{\Gamma} \wedge r_1 => r_2[x/y])}
+  {\Gamma |- \r{x: \beta | r_1} \preceq \r{y: \beta | r_2}}
+
+  \infer[$\preceq$-fun]
+  {
+    \theta = [\bar{\ell_2}/\bar{\ell_1}]   \\\\
+    \Gamma*\Gamma_2 \preceq \theta\Gamma_1                 \\
+    \Gamma*\Gamma_2*\theta\Gamma_1' \preceq \Gamma_2'[\ell'_1/\ell'_2]
+  }
+  {\Gamma |- \fn{\Gamma_1;\bar{\ell_1}}{\Gamma_1';\ell'_1} \preceq \fn{\Gamma_2;\bar{\ell_2}}{\Gamma_2';\ell'_2}}
+
+  \infer[$\preceq$-prod]
+  {\Gamma*\bar{\ell:\tau} \preceq (\bar{\ell:\tau'})[\bar{\ell}/\bar{y}]}
+  {\Gamma |- \Pi(\bar{x: \tau}) \preceq \Pi(\bar{y: \tau'})}
+\end{mathpar}
+
+\section{Metafunctions}
+
+\begin{metafun}{\Gamma_1*\Gamma_2=\Gamma}
+  \Gamma_1*\Gamma_2,\ell:\tau &=& \Gamma_1,\ell:\tau * \Gamma_2 \\
+  \where{\ell \notin \mathtt{dom}(\Gamma_1)}
+\end{metafun}
+
+\begin{metafun}{\tenv_1*\tenv_2=\tenv}
+  \tenv_1*\tenv_2,x:\tau &=& \tenv_1,x:\tau * \tenv_2 \\
+  \where{x \notin \mathtt{dom}(\tenv_1)}
+\end{metafun}
+
+% \begin{metafun}{\tau_1[\pi\mapsto \tau']=\tau_2,n}
+%   \tau[\epsilon \mapsto \tau'] &=& \tau'                      \\
+%   \uninit_m[\pi.n\mapsto \tau']  &=& \Pi(x_0:\uninit_{n},y: \k )\\
+%   \Pi(x_0:\tau_0,\dotsc,x_i:\tau_i,\dotsc,x_m:\tau_m)[n.p \mapsto \tau'] &=& \Pi(x_0:\tau_0,\dotsc,x_i:\tau_i',x_m:\tau_m) \\
+%   \where{\sum_{j<i}\text{size}(\tau_j) = n}
+%   \where*{\tau'_i = \tau_i[p\mapsto \tau']}
+% \end{metafun}
+
+\begin{metafun}{(\Gamma;\tenv)[\pi\mapsto \tau] = \Gamma;\tenv}
+  (\Gamma;\tenv)[x.p\mapsto\tau] &=& (\Gamma,\ell': \tau'; \tenv[x\mapsto \own{\ell'}]) \\
+  \whereblock {
+    \own{\ell} &=& \tenv(x)                    \\
+    \tau'      &=& \Gamma(\ell)[p\mapsto \tau]
+  }
+  \where*{\text{fresh}~\ell'}
+\end{metafun}
+
+\begin{metafun}{\subst{\tenv_1;\tenv_2} = \theta}
+  \subst{\tenv_1;\tenv_2,x:\own{x}} &=& \theta \cdot [z/y] \\
+  \whereblock{
+    \own{x} &=& \tenv_1(x)               \\
+    \theta  &=& \subst{\tenv_1; \tenv_2}
+  }
+\end{metafun}
+
+\begin{metafun}{\tau.q = \tau'}
+  \tau.\epsilon &=& \tau \\
+  \Pi(x_0:\tau_0,\dotsc,x_n: \tau_n,x_m: \tau_m).n.q &=& \tau_n.q \\
+  % \where{\sum_{j<i}\text{size}(\tau_j) = n}
+\end{metafun}
+
+\begin{metafun}{\lookup{\Gamma}{\tenv}{\pi} = (p, \tau)}
+  \lookup{\Gamma}{\tenv}{x.q} &=& (\ell.q, \tau.q) \\
+  \whereblock{
+    \own{\ell} &=& \tenv(x) \\
+    \tau       &=& \Gamma(y)
+  }
+\end{metafun}
+
+\begin{metafun}{\mathtt{self}(p, \tau) = \tau'}
+  \mathtt{self}(p,\r{x:\beta | r}) &=& \r{x:\beta | x = p} \\
+  \mathtt{self}(p, \tau)           &=& \tau
+\end{metafun}
+
+\begin{metafun}{\extract{\Gamma} = r}
+  \extract{\emptyset               } &=& \<true> \\
+  \extract{\Gamma,r                } &=& \extract{\Gamma} \wedge r                     \\
+  \extract{\Gamma,\ell:\tau        } &=& \extract{\Gamma} \wedge \extract{\tau}_{\ell} \\
+\end{metafun}
+
+\begin{metafun}{\extract{\tau}_p = r}
+  \extract{\r{y: \beta | r}}_p      &=& r[p/y]                           \\
+  \extract{\Pi(\bar{x_i:\tau_i})}_p &=& \bigwedge_i \extract{\tau}_{p.i} \\
+  \extract{\tau}_p                  &=& \<true>                          \\
+\end{metafun}
+
+\newpage
+
+\section{Examples}
+
+\subsection{Tracking variable versions}
+\begin{minted}{rust}
+fn ris() {
+  let mut p = (1, 2);
+  let x = p.0;
+  p.0 = 3;
+  let y = p.0;
+  let z = p.1;
+  // What can we say about x, y and z?
+}
+\end{minted}
+
+\begin{lambdalr}
+fn ris(;;) ret k($r_0: ()$; $r_0$) =
+  let p = new(2) in   // $p_0: \lightning_2; p: \own{p_0}$
+  p.0 := 1;           // $\dots, p_1: \r{i32 | \nu = 1} \times \lightning_1; p: \own{p_1}$
+  p.1 := 2;           // $\dots, p_2: \r{i32 | \nu = 1} \times \r{i32 | \nu = 2}; p: \own{p_2}$
+  let x = new(1) in   // $\dots, x_0: \lightning_1; p: \own{p_2}, x: \own{x_0}$
+  x := *p.0;          // $\dots, x_1: \r{i32 | \nu = p_2.0}; p: \own{p_2}, x: \own{x_1}$
+  p.0 := 3;           // $\dots, p_3: \r{i32 | \nu = 3} \times \r{i32 | \nu = 2}; p: \own{p_3}, x:\own{x_1}$
+  let y = new(1) in   // $\dots, y_0: \lightning_1; p: \own{p_3}, x:\own{x_1}, y: \own{y_0}$
+  y := *p.0;          // $\dots, y_0: \r{i32 | \nu = p_3.0}; p: \own{p_3}, x:\own{x_1}, y: \own{y_1}$
+  let z = new(1) in   // $\dots, z_0: \lightning_1; p: \own{p_3}, x:\own{x_1}, y:\own{y_1}, z:\own{z_0}$
+  z := *p.1;          // $\dots, z_1: \r{i32 | \nu = p_3.1}; p:\own{p_3}, x:\own{x_1}, y:\own{y_1}, z:\own{z_1}$
+  jump(())
+\end{lambdalr}
+
+\subsection{Basic control flow}
+
+\begin{minted}{rust}
+fn abs(mut x: i32) -> i32 {
+  if (x < 0)  {
+    x = -x;
+  }
+  x
+}
+\end{minted}
+
+\begin{lambdalr}
+fn abs($x_0: i32$; x: own($x_0$)) ret k($r_0:\r{i32|\nu > 0}$; r: own($r_0$)) =
+  // $x_0: i32$; $x: \own{x_0}$
+  let b: bool = *x < 0 in  // $\dots, b_0:\r{bool | \nu \Leftrightarrow x_0 < 0}$; $b:\own{b_0}$
+  if b then                // $\dots, b$
+    x := 0 - *x            // $\dots, x_1: \r{i32 | \nu = 0 - x_0}$; $x: \own{x_1}$
+    jump k(x)
+      // $x_0: i32, b_0:\r{i32 | \nu \Leftrightarrow x_0 < 0}, b, x_1:\r{i32 | \nu = 0-x_0}$; $x:\own{x_1}, b:\own{b_0}$
+      // $\preceq$
+      // $m_0:\r{i32 | \nu > 0}$; $m:\own{m_0}$
+
+  else  // $\dots, \neg b$
+    jump k(x)
+      // $x_0: i32, b_0:\r{i32 | \nu \Leftrightarrow x_0 < 0}, \neg b$; $x:\own{x_1}, b:\own{b_0}$
+      // $\preceq$
+      // $r_0:\r{i32 | \nu > 0}$; $x:\own{r_0}$
+\end{lambdalr}
+
+
+\clearpage
+\subsection{Dependent function}
+
+\begin{minted}[escapeinside=\%\%]{rust}
+fn ira(a: i32, b: {i32 | b > a}) -> {i32 | v > 0} {
+  b - a
+}
+\end{minted}
+
+\begin{lambdalr}
+fn ira($a_0: i32$,$b_0:\r{i32|\nu>a_0}$; a:own($a_0$), b:own($b_0$)) ret k($r_0:\r{i32 | \nu>0}$; own($r_0$)) =
+  // $a_0: i32,b_0:\r{i32 | \nu > a_0}$; $a : \own{a_0}$, $b : \own{b_0}$
+  let t = new(1);  // $\dots,t_0: \lightning_1$; $\dots,t$ $:$ own($b_0$)
+  t := *a - *b;    // $\dots,t_1: \r{i32 | \nu = a_0 - b_0}$; $\dots,t : \own{t_1}$
+  jump k(t) // $a_0: i32, b_0: \r{i32 | \nu > a_0}, t_0: \lightning_1,t_1: \r{i32 | \nu = a_0 - b_0}$;$a: \own{a_0}, b: \own{b_0}, t: \own{t_1}$
+            // $\preceq$
+            // $r_0:\r{i32 | \nu > 0}; t:\own{r_0}$
+\end{lambdalr}
+
+\subsection{Function call}
+
+\begin{minted}{rust}
+fn f(y: {i32 | y >= 0}) -> {i32 | v >= y};
+
+fn count_zeros(n: {i32 | n >= 0}) -> {v: i32 | v >= 0} {
+  let mut i = 0;
+  let mut c = 0;
+  while (i < n) {
+    if (f(i) == 0) {
+      c += 1;
+    }
+    i += 1;
+  }
+  c
+}
+\end{minted}
+
+\begin{lambdalr}
+fn count_zeros($n_0: \r{i32|\nu \geq 0}$; n: own($n_0$)) ret k($r_0: \r{i32 | \nu \geq 0}$;own($r_0$)) =
+  letcont b0($i_1: \r{i32| \nu \geq 0}, c_1: \r{i32 | c \geq 0}$; n: own($n_0$), i: own($i_1$); c: own($c_1$); ) =
+    let t1: bool = *i < *n;
+    if *t1 then
+      letcont b1($x_0: i32$; $n:\own{n_0}, i:\own{i_1}, c:\own{c_1}$; x:$\own{x_0}$) =
+        letcont b2(; $n:\own{n_0}, i:\own{i_1}, c:\own{c_1}$; ) =
+          i := *i + 1;
+          jump b0()
+        in
+        let t2: bool = *x == 0;
+        if *t2 then
+          c := *c + 1;
+          jump b2()
+        else
+          jump b2()
+      in
+      call f(i) ret b1
+        // $n_0:\r{i32|\nu\geq 0}, i_1:\r{i32|\nu\geq 0}, c_1:\r{i32|c\geq 0},t1_0:\r{bool|i_1<n_0},t1_0$
+        // ;$n:\own{n_0},i:\own{i_1},c:\own{c_1}$
+        // $\preceq$
+        // $y_0: \r{i32 | \nu\geq 0}$; $i:\own{y_0}$
+        //
+        // $n_0:\r{i32|\nu\geq 0}, i_1:\r{i32|\nu\geq 0}, c_1:\r{i32|c\geq 0},t1_0:\r{bool|i_1<n_0},t1_0,r_0:\r{i32|\nu\geq y_0[y_0/i_1]}$;
+        // $n:\own{n_0},i:\own{i_1},c:\own{c_1}, r:\own{r_0}$
+        // $\preceq$
+        // $x_0: i32$; $n: \own{n_0}, i:\own{i_1}, c:\own{c_1}, r:\own{x_0}$
+    else
+      jump k(c1)
+  in
+  let i: int = 0;
+  let c: int = 0;
+  jump b0()
+\end{lambdalr}
+
+\subsection{The sum example with references}
+\begin{minted}{rust}
+fn sum(n: i32) -> {i32 | v >= n} {
+  let mut i = 0;
+  let mut r = 0;
+  while (i < n) {
+    i += 1;
+    r += i;
+  }
+  r
+}
+\end{minted}
+
+\begin{lambdalr}
+fn sum($n_0: i32$; $n$: own($n_0$)) ret k($m_0: \r{i32 | \nu \geq n_0}$; m: own($m_0$)) =
+  // $n_0: i32$; $n: \own{n_0}$
+  let i = new(1);
+  i := 0;           // $\dots, i_0:\r{i32 | \nu = 0}$; $\dots, i:\own{i_0}$
+  let r = new(1);
+  r := 0;           // $\dots, r_0:\r{i32 | \nu = 0}$; $\dots, r:\own{r_0}$
+  letcont loop($i_1: i32, r_1: \r{i32 | \nu \geq i_1}$; n: own($n_0$), i: own($i_1$), r: own($r_1$)) =
+    // $\dots, i_1: i32, r_1:\r{i32 | \nu \geq i_1}$; $n: \own{n_0}, i: \own{i_1}, r: \own{r_1}$
+    let b = new(1);
+    b := *i < *n;   // $\dots, b_0:\r{i32|\nu \Leftrightarrow i_1 > n_0}$; $b: \own{b_0}$
+    if b then
+      i := *i + 1;  // $\dots, i_2:\r{i32 | \nu = i_1 + 1}$; $i: \own{i_2}$
+      r := *i + *r; // $\dots, r_2:\r{i32 | \nu = i_2 + r_1}$; $r: \own{r_2}$
+      jump loop()
+        // $n_0: i32, i_0:\r{i32 | \nu = 0},r_0:\r{i32 | \nu=0}, i_1: i32, r_1:\r{i32 | \nu \geq i_1},b_0:\r{i32|\nu \Leftrightarrow i_1 > n_0},$
+        // $b, i_2:\r{i32 | \nu = i_1 + 1}, r_2:\r{i32 | \nu = i_2 + r_1}$;
+        // $n:\own{n_0}, i:\own{i_2}, r:\own{r_2}$
+        // $\preceq$
+        // $i_1: i32, r_1 : \r{i32 | \nu \geq i_1}$;
+        // $n: \own{n_0}, i:\own{i_1}, r:\own{r_1}$
+    else
+      jump k(r)
+  jump loop()
+\end{lambdalr}
+
+\clearpage
+\subsection{Non-copy type}
+\begin{minted}{rust}
+// Types are by default non-copy
+struct Point {
+  x: i32,
+  y: i32
+}
+
+fn hipa(r: (Point, Point)) -> i32 {
+  let a = r.0;
+  a.x + r.1.y
+}
+\end{minted}
+
+\begin{lambdalr}
+fn hipa($r_0: \verb|Point|\times\verb|Point|$, r: own($r_0$)) ret k($m_0: i32$; m: own($m_0$))
+  // $r_0: \verb|Point|\times\verb|Point|$; $r: \own{r_0}$
+  let a: Point = *r.0 in  // $\dots, r_1:\lightning_2\times \verb|Point|$; $r: \own{r_1}, a:\own{r_0.0}$
+  let b: i32 = *a.0 in    // $\dots, b_0:\r{i32 | \nu = r_0.0}$; $\dots, b: \own{b_0}$
+  let c: i32 = *r.1.1 in  // $\dots, c_0:\r{i32 | \nu = r_1.1.1}$; $\dots,c: \own{c_0}$
+  let d: i32 = *b + *d in // $\dots, d_0:\r{i32 | \nu = b_0 + d_0}$; $\dots, d: \own{d_0}$
+  jump k(d)
+\end{lambdalr}
+\end{document}
