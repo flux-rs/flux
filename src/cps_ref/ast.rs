@@ -7,16 +7,15 @@ pub struct FnDef<'lr> {
     pub name: Symbol,
     /// The input heap.
     pub heap: Heap<'lr>,
-    /// Formal arguments of the function. These are always owned references so we
-    /// represent them directly as locations in the input heap.
-    pub args: Vec<(Local, Location)>,
+    /// Formal arguments of the function. These are always owned references.
+    pub args: Vec<(Local, OwnRef)>,
     /// The return continuation.
     pub ret: Symbol,
     /// The output heap. This is right now only used to add refinements for the returned
     /// reference but it should be extended to capture the state of the output heap.
     pub out_heap: Heap<'lr>,
-    /// Location in the output heap of the returned owned reference.
-    pub ret_loc: Location,
+    /// Returned owned reference.
+    pub out_ty: OwnRef,
     /// Body of the function.
     pub body: Box<FnBody<'lr>>,
 }
@@ -33,7 +32,7 @@ pub enum FnBody<'lr> {
         /// Environment required to call the continuation.
         env: Env,
         /// Additional parameters for the continuation.
-        params: Vec<(Local, Location)>,
+        params: Vec<(Local, OwnRef)>,
         /// The body of the continuation.
         body: Box<FnBody<'lr>>,
         /// The rest of the function body.
@@ -136,21 +135,17 @@ pub type Heap<'lr> = Vec<(Location, Ty<'lr>)>;
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Location(pub Symbol);
 
-/// An environment maps locals to types.
-/// These are restricted to reference types.
-pub type Env = Vec<(Local, RefType)>;
+/// An environment maps locals to owned references.
+pub type Env = Vec<(Local, OwnRef)>;
 
 /// A Local is an identifier to some local variable introduced with a let
 /// statement.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Local(pub Symbol);
 
-/// A reference type. For now this only contains owned references
-/// but it should be extended with shared and mutable references.
+/// An owned reference to a location. This is used for arguments and return types.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum RefType {
-    Own(Location),
-}
+pub struct OwnRef(pub Location);
 
 pub type Ty<'lr> = &'lr TyS<'lr>;
 
@@ -162,16 +157,16 @@ pub enum TyS<'lr> {
         in_heap: Heap<'lr>,
         /// Formal arguments of the function. These are always owned references so we
         /// represent them directly as locations in the input heap.
-        args: Vec<Location>,
+        args: Vec<OwnRef>,
         /// The output heap. This is right now only used to add a refinement for the returned
         /// reference but it should be extended to capture the state of the output heap.
         out_heap: Heap<'lr>,
         /// Location in the output heap of the returned owned reference.
-        ret_loc: Location,
+        ret: OwnRef,
     },
-    /// A reference type
-    Ref(RefType),
-    /// A refinement type { bind: ty | pred }
+    /// An owned reference
+    OwnRef(Location),
+    /// A refinement type { bind: ty | pred }.
     Refine {
         bind: Var,
         ty: BasicType,
@@ -212,7 +207,15 @@ pub enum PredS<'lr> {
 }
 
 impl Var {
-    pub fn intern(string: &str) -> Var {
+    pub fn intern(string: &str) -> Self {
         Var(Symbol::intern(string))
+    }
+
+    pub fn nu() -> Self {
+        Self::intern("_v")
+    }
+
+    pub fn field(n: u32) -> Self {
+        Self::intern(&format!("_{}", n))
     }
 }

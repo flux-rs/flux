@@ -17,13 +17,12 @@
                                      \mid \jump{k(\bar{x})}                                        \\
             &     &         & \mid & \call{f(\bar{x})}{k} \mid \ite{*\pi}{F_1}{F_2}  \mid \abort   \\
 \<BType>    & \ni & \beta   & ::=  & \<bool> \mid \<int>                                           \\
-            &     & \reftyp & ::=  & \own{\ell}                                                    \\
-\<Type>     & \ni & \tau    & ::=  & \fn{\Gamma;\bar{\ell\,}}{\Gamma';\ell} \mid \r{x:\beta | r}
-                                     \mid \reftyp \mid \Pi(\bar{x:\tau})                           \\
+\<Type>     & \ni & \tau    & ::=  & \fn{\Gamma;\bar{\ell\,}}{\Gamma';\ell}
+                                     \mid \r{x:\beta | r} \mid \Pi(\bar{x:\tau})                   \\
 \<Pred>     & \ni & r       & ::=  & \dots                                                         \\
 \<GEnv>     & \ni & \Gamma  & ::=  & \emptyset \mid \Gamma, \ell:\tau \mid \Gamma, r               \\
-\<TEnv>     & \ni & \tenv   & ::=  & \emptyset \mid \tenv, x: \reftyp                              \\
-\<KEnv>     & \ni & \kenv   & ::=  & \emptyset \mid \kenv, k: \cont{\Gamma;\tenv;\bar{\reftyp}}
+\<TEnv>     & \ni & \tenv   & ::=  & \emptyset \mid \tenv, x: \own{\ell}                           \\
+\<KEnv>     & \ni & \kenv   & ::=  & \emptyset \mid \kenv, k: \cont{\Gamma;\tenv;\bar{\ell\,}}
   \end{array}
 \end{displaymath}
 

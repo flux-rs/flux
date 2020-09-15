@@ -8,7 +8,7 @@ grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>);
 pub Fn: FnDef<'lr> =
  "fn" <name: Symbol>
  "(" <heap: Heap> ";" <args: Args> ")"
- "ret" <ret: Symbol> "(" <out_heap: Heap> ";" <ret_loc: Location> ")"
+ "ret" <ret: Symbol> "(" <out_heap: Heap> ";" <out_ty: OwnRef> ")"
  "=" <body: FnBody> => FnDef { <> };
 
 FnBody: Box<FnBody<'lr>> = {
@@ -65,13 +65,13 @@ Place: Place = <local: Local> <projection: Projection*> => Place { <> };
 Projection: u32 = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
 
 Ty: Ty<'lr> = {
-  RefType => cx.mk_ty(TyS::Ref(<>)),
+  "own" "(" <Location> ")" => cx.mk_ty(TyS::OwnRef(<>)),
   "{" <bind: Var> ":" <ty: BasicType> "|" <pred: PredLevel1> "}"
     => cx.mk_ty(TyS::Refine { bind, ty, pred }),
   "(" <Comma<Binding<Var, Ty>>> ")" => cx.mk_ty(TyS::Tuple(<>))
 }
 
-RefType: RefType = "own" "(" <Location> ")" => RefType::Own(<>);
+OwnRef: OwnRef= "own" "(" <Location> ")" => OwnRef(<>);
 
 PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2>;
 
@@ -84,8 +84,8 @@ PredLevel3: Pred<'lr> = {
 
 Var: Var = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Var::intern(<>);
 
-Args = Comma<Binding<Local, Location>>;
-Env = Comma<Binding<Local, RefType>>;
+Args = Comma<Binding<Local, OwnRef>>;
+Env = Comma<Binding<Local, OwnRef>>;
 Heap = Comma<Binding<Location, Ty>>;
 
 Symbol: Symbol = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Symbol::intern(<>);
