@@ -88,7 +88,7 @@
   \infer
   [\textsc{F-letcont}]
   {
-    \tfun{\Gamma,\Gamma'}{\tenv,\bar{x:\own{\ell}}}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell\,}}}{F_1}
+    \tfun{\Gamma'}{\tenv',\bar{x:\own{\ell}}}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell\,}}}{F_1}
     \\\\
     \tfun{\Gamma}{\tenv}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell}}}{F_2}
   }
@@ -98,8 +98,8 @@
   [\textsc{F-jump}]
   {
     \kenv(k) = \cont{\Gamma';\tenv';\bar{\ell\,}} \\\\
-    \theta = \subst{\tenv;\tenv'*\bar{x:\own{\ell}}} \\\\
-    \envincl{\tenv}{\tenv'} \\
+    \envsubst{\Gamma;\tenv}{\Gamma';\tenv'*\bar{x:\own{\ell}}}{\theta} \\\\
+    \envincl{\tenv}{\bar{x:\own{\ell}}*\tenv'} \\
     \Gamma \preceq \theta \Gamma'
   }
   {\tfun{\Gamma}{\tenv}{\kenv}{\jump{k(\bar{x})}}}
@@ -110,8 +110,8 @@
     \tenv(f)=\fn{\Gamma_f;\bar{\ell_f}}{\Gamma_o;\ell_o} \\
     \kenv(k) = \cont{\Gamma_k;\tenv_k;\ell_k}
     \\\\
-    \theta_1 = \subst{\tenv; \bar{x:\own{\ell_f}}} \\
-    \theta_2 = \subst{\tenv; \tenv_k}\cdot[\ell_o/\ell_k] \\
+    \envsubst{\Gamma;\tenv}{\Gamma_f;\bar{x:\own{\ell_f}}}{\theta_1} \\
+    \envsubst{\Gamma;\tenv*y:\own{\ell_o}}{\Gamma_k;\tenv_k*y:\own{\ell_k}}{\theta_2} \\
     \\\\
     \Gamma \preceq \theta_1\Gamma_f \\
     \Gamma*\theta_1\Gamma_o \preceq \theta_2\Gamma_k \\
@@ -236,12 +236,31 @@
   \where*{\text{fresh}~\ell'}
 \end{metafun}
 
-\begin{metafun}{\subst{\tenv_1;\tenv_2} = \theta}
-  \subst{\tenv_1;\tenv_2,x:\own{x}} &=& \theta \cdot [z/y] \\
-  \whereblock{
-    \own{x} &=& \tenv_1(x)               \\
-    \theta  &=& \subst{\tenv_1; \tenv_2}
+\begin{mathpar}
+  \boxed{\envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\tenv_2}{\theta}}\hfill\,
+  \\
+
+  \infer{}{\envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\emptyset}{\emptyset}}
+
+  \infer
+  {\own{\ell_1} = \tenv_1(x) \\ \envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\tenv_2}{\theta_1} \\
+   \subst{\Gamma_1(\ell_1);\Gamma_2(\ell_2)} = \theta_2
   }
+  {\envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\tenv_2,x:\own{\ell_2}}{\theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2]}}
+\end{mathpar}
+
+% \begin{metafun}{\subst{\Gamma_1,\tenv_1;\Gamma_2,\tenv_2} = \theta}
+%   \subst{\Gamma_1,\tenv_1;\Gamma_2,\tenv_2,x:\own{\ell_2}} &=& \theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2] \\
+%   \whereblock{
+%     \own{\ell_1} &=& \tenv_1(x)                                \\
+%     \theta_2     &=& \subst{\tenv_1; \tenv_2}                  \\
+%     \theta_2     &=& \subst{\Gamma_1(\ell_1);\Gamma_2(\ell_2)}
+%   }
+% \end{metafun}
+
+\begin{metafun}{\subst{\tau_1;\tau_2} = \theta}
+  \subst{\own{\ell_1};\own{\ell_2}} &=& [\ell_1/\ell_2] \\
+  \subst{\tau_1; \tau_2}            &=& \emptyset
 \end{metafun}
 
 \begin{metafun}{\tau.q = \tau'}
@@ -264,9 +283,9 @@
 \end{metafun}
 
 \begin{metafun}{\extract{\Gamma} = r}
-  \extract{\emptyset               } &=& \<true> \\
-  \extract{\Gamma,r                } &=& \extract{\Gamma} \wedge r                     \\
-  \extract{\Gamma,\ell:\tau        } &=& \extract{\Gamma} \wedge \extract{\tau}_{\ell} \\
+  \extract{\emptyset       } &=& \<true> \\
+  \extract{\Gamma,r        } &=& \extract{\Gamma} \wedge r                     \\
+  \extract{\Gamma,\ell:\tau} &=& \extract{\Gamma} \wedge \extract{\tau}_{\ell} \\
 \end{metafun}
 
 \begin{metafun}{\extract{\tau}_p = r}

@@ -19,7 +19,7 @@ FnBody: Box<FnBody<'lr>> = {
   "if" "*" <discr: Place> "then" <then_branch: FnBody> "else" <else_branch: FnBody>
     => Box::new(FnBody::Ite{ <> }),
 
-  "call" <func: Symbol> "(" <args: Comma<Local>> ")" "ret" <ret: Symbol>
+  "call" <func: Place> "(" <args: Comma<Local>> ")" "ret" <ret: Symbol>
     => Box::new(FnBody::Call{ <> }),
 
   "jump" <target: Symbol> "(" <args: Local*> ")" => Box::new(FnBody::Jump{ <> }),

@@ -1,17 +1,28 @@
 pub mod ast;
 pub mod context;
 pub mod parser;
+pub mod typeck;
 
 #[cfg(test)]
 mod tests {
-    use super::context::{Arena, LiquidRustCtxt};
+    use super::parser::FnParser;
+    use super::{
+        context::{Arena, LiquidRustCtxt},
+        typeck::TypeCk,
+    };
     use rustc_ast::attr::with_default_session_globals;
 
-    fn assert_parse(string: &str) {
+    fn session(act: impl for<'lr> FnOnce(&'lr LiquidRustCtxt<'lr>)) {
         with_default_session_globals(|| {
             let arena = Arena::default();
             let cx = LiquidRustCtxt::new(&arena);
-            let expr = super::parser::FnParser::new().parse(&cx, string);
+            act(&cx);
+        })
+    }
+
+    fn assert_parse(string: &str) {
+        session(|cx| {
+            let expr = FnParser::new().parse(&cx, string);
             assert!(expr.is_ok());
         })
     }

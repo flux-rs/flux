@@ -81,6 +81,8 @@
 
 
 %% METAFUNCTIONS
+\NewDocumentCommand\envsubst{>{\SplitArgument{1}{;}}m>{\SplitArgument{1}{;}}mm}
+  {\@jointwo#1 \Rightarrow^{#3} \@jointwo#2}
 \NewDocumentCommand\subst{>{\SplitArgument{1}{;}}m}{\mathtt{subst}(\@jointwo#1)}
 \NewDocumentCommand\self{>{\SplitArgument{1}{;}}m}{\mathtt{self}(\@jointwo[,]#1)}
 \newcommand{\sizeof}[1]{\mathtt{size}(#1)}

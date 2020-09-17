@@ -1,4 +1,4 @@
-use rustc_span::Symbol;
+pub use rustc_span::Symbol;
 
 /// A function definition
 #[derive(Debug)]
@@ -52,7 +52,7 @@ pub enum FnBody<'lr> {
     /// Function call
     Call {
         /// Name of the function to be called.
-        func: Symbol,
+        func: Place,
         /// Arguments the function is called with. These are owned by the callee, which is free
         /// to modify them, i.e., arguments are always moved.
         args: Vec<Local>,
@@ -198,12 +198,46 @@ pub struct Var(pub Symbol);
 
 pub type Pred<'lr> = &'lr PredS<'lr>;
 
+pub struct Cont<'a, 'lr> {
+    pub heap: &'a Heap<'lr>,
+    pub env: &'a Env,
+    pub params: Vec<OwnRef>,
+}
+
 /// A refinement type predicate
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum PredS<'lr> {
     Constant(Constant),
     Place { var: Var, projection: Vec<u32> },
     BinaryOp(BinOp, &'lr PredS<'lr>, &'lr PredS<'lr>),
+}
+
+impl<'lr> TyS<'lr> {
+    pub fn is_int(&self) -> bool {
+        matches!(self, TyS::Refine { ty: BasicType::Int, .. })
+    }
+
+    pub fn project(&self, proj: &[u32]) -> Ty<'lr> {
+        match (self, proj) {
+            (TyS::Tuple(fields), [n, ..]) => fields[*n as usize].1.project(&proj[1..]),
+            _ => bug!("Wrong projection: `{:?}.{:?}`", self, proj),
+        }
+    }
+
+    pub fn is_copy(&self) -> bool {
+        // TODO
+        true
+    }
+
+    pub fn size(&self) -> u32 {
+        match self {
+            TyS::Fn { .. } => 1,
+            TyS::OwnRef(_) => 1,
+            TyS::Refine { .. } => 1,
+            TyS::Tuple(fields) => fields.iter().map(|f| f.1.size()).sum(),
+            TyS::Uninit(size) => *size,
+        }
+    }
 }
 
 impl Var {
@@ -217,5 +251,20 @@ impl Var {
 
     pub fn field(n: u32) -> Self {
         Self::intern(&format!("_{}", n))
+    }
+}
+
+impl From<Location> for Var {
+    fn from(l: Location) -> Self {
+        Var(l.0)
+    }
+}
+
+impl Constant {
+    pub fn ty(&self) -> BasicType {
+        match self {
+            Constant::Bool(_) => BasicType::Bool,
+            Constant::Int(_) => BasicType::Int,
+        }
     }
 }
