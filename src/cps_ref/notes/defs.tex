@@ -16,6 +16,7 @@
 \usepackage{xcolor}
 
 \makeatletter
+\input{widebar}
 
 \renewcommand{\ttdefault}{pcr}
 
@@ -38,10 +39,10 @@
 \newcommand\kw[1]{\mathbf{#1}} % keywords
 
 \newcommand\letvar[2]{\kw{let}\;#1=#2}
-\NewDocumentCommand\letcont{r[]>{\SplitArgument{2}{;}}mmm}
-  {\kw{letcont}\;#1(\@jointhree#2)=#3\;\kw{in}\;#4}
+\NewDocumentCommand\letcont{m>{\SplitArgument{1}{;}}r[]mmmm}
+  {\kw{letcont}\;#1[\@jointwo#2](\bar{#3}.#4) = #5\;\kw{in}\;#6}
 \newcommand\ite[3]{\kw{if}\;{#1}\;\kw{then}\;#2\;\kw{else}\;#3}
-\newcommand\call[2]{\kw{call}\;#1\;\kw{ret}\;#2}
+\newcommand\call[4]{\kw{call}\;#1[#2](#3)\;\kw{ret}\;#4}
 \newcommand\assign[2]{#1 \coloneqq #2}
 \newcommand\jump[1]{\kw{jump}\; #1}
 \newcommand\new[1]{\kw{new}(#1)}
@@ -56,14 +57,16 @@
 
 
 % TYPES
-\NewDocumentCommand\cont{>{\SplitArgument{2}{;}}m}{\kw{cont}(\@jointhree#1)}
+\NewDocumentCommand\cont{>{\SplitArgument{1}{;}}r[]>{\SplitArgument{1}{;}}m}
+  {\kw{cont}[\@jointwo#1](\@jointwo#2)}
 \NewDocumentCommand\fn
-  {>{\SplitArgument{1}{;}}m>{\SplitArgument{1}{;}}m}
-  {\kw{fn}(\@jointwo#1) \to \@jointwo[/]#2}
+  {>{\SplitArgument{2}{;}}m>{\SplitArgument{1}{;}}m}
+  {\kw{fn}\@fn#1 \to \@jointwo[/]#2}
+\newcommand\@fn[3]{[#1;#2](#3)}
 \newcommand{\reft}[2]{\ensuremath{\{#1\mid#2\}}}
 \RenewDocumentCommand\r{>{\SplitArgument{1}{|}}m}{\reft#1}
 \newcommand{\uninit}{\lightning}
-\newcommand{\own}[1]{\text{\ttfamily \bfseries own}\left(#1\right)}
+\newcommand{\own}[1]{\text{\ttfamily \bfseries own}_{#1}}
 
 
 %% JUDGEMENTS
@@ -74,10 +77,12 @@
 \newcommand{\trval}[6]{#1;#2\vdash \colorbox{light-gray}{$#3$}~: #4 \rightsquigarrow #5;#6}
 \newcommand{\tinstr}[5]{#1;#2\vdash \colorbox{light-gray}{$#3$} \rightsquigarrow #4;#5}
 \newcommand{\tfun}[4]{#1;#2|#3\vdash \colorbox{light-gray}{$#4$}}
-\newcommand{\envincl}[2]{#1 \Subset #2}
+\newcommand{\envincl}[2]{#1 \Rightarrow #2}
 \newcommand{\lookup}[3]{(#1;#2)(#3)}
-\newcommand{\tenv}{\mathbf{T}}
-\newcommand{\kenv}{\mathbf{K}}
+\newcommand{\venv}{\mathbf{T}}  % Value context
+\newcommand{\cenv}{\mathbf{C}}  % Constraints
+\newcommand{\lenv}{\Delta}      % Location context
+\newcommand{\kenv}{\mathbf{K}}  % Continuation context
 
 
 %% METAFUNCTIONS
@@ -111,7 +116,7 @@
 
 
 %% MISC
-\renewcommand{\bar}{\overline}
+\renewcommand{\bar}{\widebar}
 \renewcommand{\k}{\kappa}
 \providecommand{\leftsquigarrow}{%
   \mathrel{\mathpalette\reflect@squig\relax}%

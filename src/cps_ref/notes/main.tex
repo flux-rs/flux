@@ -6,23 +6,26 @@
 \section{Syntax}
 
 \begin{displaymath}
-  \begin{array}{rcrcl}
-\<Path>     & \ni & q       & ::=  & \epsilon \mid q.n                                             \\
-\<Place>    & \ni & \pi     & ::=  & x.q                                                           \\
-\<Place>    & \ni & p       & ::=  & \ell.q                                                        \\
-\<Const>    & \ni & c       & ::=  & \<false> \mid \<true> \mid z                                  \\
-\<RVal>     & \ni & R       & ::=  & c \mid *\pi \mid *\pi_1 + *\pi_2                              \\
-\<Instr>    & \ni & I       & ::=  & \letvar{x}{\new{n}} \mid \assign{\pi}{R}                      \\
-\<FuncBody> & \ni & F       & ::=  & I; F \mid \letcont[k]{\Gamma;\tenv;\bar{x:\ell\,}}{F_1}{F_2}
-                                     \mid \jump{k(\bar{x})}                                        \\
-            &     &         & \mid & \call{f(\bar{x})}{k} \mid \ite{*\pi}{F_1}{F_2}  \mid \abort   \\
-\<BType>    & \ni & \beta   & ::=  & \<bool> \mid \<int>                                           \\
-\<Type>     & \ni & \tau    & ::=  & \fn{\Gamma;\bar{\ell\,}}{\Gamma';\ell}
-                                     \mid \r{x:\beta | r} \mid \Pi(\bar{x:\tau})                   \\
-\<Pred>     & \ni & r       & ::=  & \dots                                                         \\
-\<GEnv>     & \ni & \Gamma  & ::=  & \emptyset \mid \Gamma, \ell:\tau \mid \Gamma, r               \\
-\<TEnv>     & \ni & \tenv   & ::=  & \emptyset \mid \tenv, x: \own{\ell}                           \\
-\<KEnv>     & \ni & \kenv   & ::=  & \emptyset \mid \kenv, k: \cont{\Gamma;\tenv;\bar{\ell\,}}
+  \begin{array}{rrcl}
+\textit{path}       & q     & ::= & \epsilon \mid q.n                                           \\
+\textit{places}     & \pi   & ::= & x.q                                                         \\
+\textit{constants}  & c     & ::= & \<false> \mid \<true> \mid z                                \\
+\textit{rvalues}    & R     & ::= & c \mid *\pi \mid *\pi_1 + *\pi_2                            \\
+\textit{statements} & S     & ::= & \letvar{x}{\new{n}} \mid \assign{\pi}{R}                    \\
+\textit{func body}  & F     & ::= & S; F                                                      \mid
+                                    \letcont{k}[\lenv;\cenv]{x}{\venv}{F_1}{F_2} \mid
+                                    \jump{k(\bar{x})}                                           \\
+                    &       &\mid & \call{f}{\bar{\ell}}{\bar{x}}{k}                          \mid
+                                    \ite{*\pi}{F_1}{F_2}                                      \mid
+                                    \abort                                                      \\
+\textit{base types} & \beta & ::= & \<bool> \mid \<int>                                         \\
+\textit{types}      & \tau  & ::= & \fn{\lenv;\cenv;\bar{\own{\ell'}}}{\cenv';\own{\ell_o}}
+                                   \mid \r{x:\beta | r} \mid \Pi(\bar{x:\tau})                  \\
+\textit{predicates}  & r     & ::= & \dots                                                      \\
+\textit{constraints} & \cenv & ::= & \emptyset \mid \cenv, \ell:\tau \mid \cenv, r              \\
+\textit{value ctxts} & \venv & ::= & \emptyset \mid \venv, x: \own{\ell}                        \\
+\textit{cont. ctxts} & \kenv & ::= & \emptyset \mid \kenv, k: \cont[\lenv;\cenv]{x}{\venv}      \\
+\textit{type ctxts}  & \lenv & ::= & \emptyset \mid \lenv,\ell
   \end{array}
 \end{displaymath}
 
@@ -30,193 +33,192 @@
 
 \begin{mathpar}
   \\
-  \textbf{Well-typed rvalues}\hfill \boxed{\trval{\Gamma}{\tenv}{R}{\tau}{\Gamma'}{\tenv'}}
+  \textbf{Well-typed rvalues}\hfill \boxed{\trval{\cenv}{\venv}{R}{\tau}{\cenv'}{\venv'}}
   \\
   \infer
   [\textsc{R-add}]
   {
-    \lookup{\Gamma}{\tenv}{\pi_1} = (p_1, \r{\<int> | r_1}) \\\\
-    \lookup{\Gamma}{\tenv}{\pi_2} = (p_2, \r{\<int> | r_2})
+    \lookup{\cenv}{\venv}{\pi_1} = (r_1, \r{\<int> | r'_1}) \\\\
+    \lookup{\cenv}{\venv}{\pi_2} = (r_2, \r{\<int> | r'_2})
   }
-  {\trval{\Gamma}{\tenv}{*\pi_1 + *\pi_2}{\r{\<int> | \nu = p_1 + p_2}}{\Gamma}{\tenv}}
+  {\trval{\cenv}{\venv}{*\pi_1 + *\pi_2}{\r{\<int> | \nu = r_1 + r_2}}{\cenv}{\venv}}
 
   \infer
   [\textsc{R-copy}]
-  {\lookup{\Gamma}{\tenv}{\pi} = (p,\tau) \\ \iscopy{\tau}}
-  {\trval{\Gamma}{\tenv}{*\pi}{\self{p;\tau}}{\Gamma}{\tenv}}
+  {\lookup{\cenv}{\venv}{\pi} = (r,\tau) \\ \iscopy{\tau}}
+  {\trval{\cenv}{\venv}{*\pi}{\self{r;\tau}}{\cenv}{\venv}}
 
   \infer
   [\textsc{R-move}]
-  {\lookup{\Gamma}{\tenv}{\pi} = (p,\tau) \\ \isnoncopy{\tau} \\ n = \text{size}(\tau)}
-  {\trval{\Gamma}{\tenv}{*\pi}{\tau}{(\Gamma}{\tenv)[\pi\mapsto \uninit_n]}}
+  {\lookup{\cenv}{\venv}{\pi} = (r,\tau) \\ \isnoncopy{\tau} \\ n = \text{size}(\tau)}
+  {\trval{\cenv}{\venv}{*\pi}{\tau}{(\cenv}{\venv)[\pi\mapsto \uninit_n]}}
 
   \infer
   [\textsc{R-const}]
   {}
-  {\trval{\Gamma}{\tenv}{c}{\r{\delta(c) | \nu = c}}{\Gamma}{\tenv}}
+  {\trval{\cenv}{\venv}{c}{\r{\delta(c) | \nu = c}}{\cenv}{\venv}}
 \end{mathpar}
 
 \begin{mathpar}
   \\
-  \textbf{Well-typed instructions}\hfill \boxed{\tinstr{\Gamma}{\tenv}{I}{\Gamma}{\tenv'}}
+  \textbf{Well-typed instructions}\hfill \boxed{\tinstr{\cenv}{\venv}{S}{\cenv}{\venv'}}
   \\
   \infer
-  [\textsc{I-new}]
-  {\Gamma'=\Gamma*\ell:\uninit_n \\ \tenv=\tenv*x:\own{\ell}}
-  {\tinstr{\Gamma}{\tenv}{\letvar{x}{\new{n}}}{\Gamma'}{\tenv'}}
+  [\textsc{S-new}]
+  {\cenv'=\cenv*\ell:\uninit_n \\ \venv=\venv*x:\own{\ell}}
+  {\tinstr{\cenv}{\venv}{\letvar{x}{\new{n}}}{\cenv'}{\venv'}}
 
   \infer
-  [\textsc{R-assign}]
+  [\textsc{S-assign}]
   {
-    \trval{\Gamma}{\tenv}{R}{\tau'}{\Gamma'}{\tenv'} \\\\
-    \lookup{\Gamma}{\tenv}{\pi} = (p, \tau) \\ \text{size}(\tau) = \text{size}(\tau')
+    \trval{\cenv}{\venv}{R}{\tau'}{\cenv'}{\venv'} \\\\
+    \lookup{\cenv}{\venv}{\pi} = (r, \tau) \\ \text{size}(\tau) = \text{size}(\tau')
   }
-  {\tinstr{\Gamma}{\tenv}{\assign{\pi}{R}}{(\Gamma'}{\tenv')[\pi\mapsto\tau']}}
+  {\tinstr{\cenv}{\venv}{\assign{\pi}{R}}{(\cenv'}{\venv')[\pi\mapsto\tau']}}
 \end{mathpar}
 
 \begin{mathpar}
   \\
-  \textbf{Well-typed functions}\hfill \boxed{\tenv|\kenv |- F}
+  \textbf{Well-typed functions}\hfill \boxed{\venv|\kenv |- F}
   \\
   \infer
   [\textsc{F-instr}]
-  { \tinstr{\Gamma}{\tenv}{I}{\Gamma'}{\tenv'} \\
-    \tfun{\Gamma}{\tenv}{\kenv}{F}
+  { \tinstr{\cenv}{\venv}{S}{\cenv'}{\venv'} \\
+    \tfun{\cenv}{\venv}{\kenv}{F}
   }
-  {\tfun{\Gamma}{\tenv}{\kenv}{I;F}}
+  {\tfun{\cenv}{\venv}{\kenv}{S;F}}
 
   \infer
   [\textsc{F-letcont}]
   {
-    \tfun{\Gamma'}{\tenv',\bar{x:\own{\ell}}}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell\,}}}{F_1}
+    \tfun{\cenv'}{\venv',\bar{x:\own{\ell}}}{\kenv,k:\cont[\lenv';\cenv']{x}{\venv'}}{F_1}
     \\\\
-    \tfun{\Gamma}{\tenv}{\kenv,k:\cont{\Gamma';\tenv';\bar{\ell}}}{F_2}
+    \tfun{\cenv}{\venv}{\kenv,k:\cont[\lenv';\cenv']{x}{\venv'}}{F_2}
   }
-  {\tfun{\Gamma}{\tenv}{\kenv}{\letcont[k]{\Gamma';\tenv';\bar{\ell\,}}{F_1}{F_2}}}
+  {\tfun{\cenv}{\venv}{\kenv}{\letcont{k}[\lenv';\cenv']{x}{\venv'}{F_1}{F_2}}}
 
   \infer
   [\textsc{F-jump}]
   {
-    \kenv(k) = \cont{\Gamma';\tenv';\bar{\ell\,}} \\\\
-    \envsubst{\Gamma;\tenv}{\Gamma';\tenv'*\bar{x:\own{\ell}}}{\theta} \\\\
-    \envincl{\tenv}{\bar{x:\own{\ell}}*\tenv'} \\
-    \Gamma \preceq \theta \Gamma'
+    \kenv(k) = \cont[\lenv';\cenv']{x}{\venv'} \\\\
+    % \envsubst{\cenv;\venv}{\cenv';\venv'*\bar{x:\own{\ell}}}{\theta} \\\\
+    \envincl{\venv}{\bar{x:\own{\ell}}*\venv'} \\
+    \cenv \preceq \theta \cenv'
   }
-  {\tfun{\Gamma}{\tenv}{\kenv}{\jump{k(\bar{x})}}}
+  {\tfun{\cenv}{\venv}{\kenv}{\jump{k(\bar{x})}}}
 
   \infer
   [\textsc{F-call}]
   {
-    \tenv(f)=\fn{\Gamma_f;\bar{\ell_f}}{\Gamma_o;\ell_o} \\
-    \kenv(k) = \cont{\Gamma_k;\tenv_k;\ell_k}
-    \\\\
-    \envsubst{\Gamma;\tenv}{\Gamma_f;\bar{x:\own{\ell_f}}}{\theta_1} \\
-    \envsubst{\Gamma;\tenv*y:\own{\ell_o}}{\Gamma_k;\tenv_k*y:\own{\ell_k}}{\theta_2} \\
-    \\\\
-    \Gamma \preceq \theta_1\Gamma_f \\
-    \Gamma*\theta_1\Gamma_o \preceq \theta_2\Gamma_k \\
-    \envincl{\tenv}{\bar{x:\own{\ell_f}}*\tenv_k}
+    \venv(f)=\fn{\lenv_f;\cenv_f;\bar{\own{\ell_f}}}{\cenv_{o};\own{\ell_{o}}} \\
+    \kenv(k) = \cont[\lenv_k;\cenv_k]{\venv_k;\own{\ell_k}} \\\\
+    % \\\\
+    \theta_1 = [\bar{\ell}/\lenv_f] \\ \theta_2 = [\bar{\ell}/\lenv_k]\cdot[\ell_o/\ell_k] \\
+    \envincl{\cenv;\venv}{\theta_1(\cenv_f;\bar{x:\own{\ell_f}})} \\\\
+    \envincl{\cenv*\theta_1\cenv_o;\venv - \{\bar{x}\}, y:\own{\ell_o}}{\theta_2(\cenv_k;y:\own{\ell_k}*\venv_k)}
+    % \envincl{\cenv*\cenv_o;}
+    % \envincl{\cenv,\cenv_o[\bar{\ell}/\lenv_f];\venv}{(\cenv_k;\venv_k)[\bar{\ell}/\lenv_k]}
   }
-  {\tfun{\Gamma}{\tenv}{\kenv}{\call{f(\bar{x})}{k}}}
+  {\tfun{\cenv}{\venv}{\kenv}{\call{f}{\bar{\ell}}{\bar{x}}{k}}}
 
   \infer
   [\textsc{F-if}]
   {
-    \lookup{\Gamma}{\tenv}{\pi} = (p, \r{\<bool>|r}) \\\\
-    \tfun{\Gamma,p}{\tenv}{\kenv}{F_1} \\
-    \tfun{\Gamma,\neg p}{\tenv}{\kenv}{F_2}
+    \lookup{\cenv}{\venv}{\pi} = (r, \r{\<bool>|r'}) \\\\
+    \tfun{\cenv,r}{\venv}{\kenv}{F_1} \\
+    \tfun{\cenv,\neg r}{\venv}{\kenv}{F_2}
   }
-  {\tfun{\Gamma}{\tenv}{\kenv}{\ite{*\pi}{F_1}{F_2}}}
+  {\tfun{\cenv}{\venv}{\kenv}{\ite{*\pi}{F_1}{F_2}}}
 
   \infer
   [\textsc{F-abort}]
   {}
-  {\tfun{\Gamma}{\tenv}{\kenv}{\abort}}
+  {\tfun{\cenv}{\venv}{\kenv}{\abort}}
 \end{mathpar}
 
 \section{Environment inclusion}
 
 \begin{mathpar}
-  \textbf{Environment inclusion}\hfill\boxed{\envincl{\tenv_1}{\tenv_2}}
+  \textbf{Environment inclusion}\hfill\boxed{\envincl{\venv_1}{\venv_2}}
   \\
   \infer
-  {\text{dom}(\tenv_2) \subseteq \text{dom}(\tenv_1)}
-  {\envincl{\tenv_1}{\tenv_2}}
+  {\text{dom}(\venv_2) \subseteq \text{dom}(\venv_1)}
+  {\envincl{\venv_1}{\venv_2}}
 \end{mathpar}
 
 
 % \begin{mathpar}
-%   \textbf{Well-formed types and environments}\hfill \boxed{\tenv |- \tau \text{ and } |- \tenv}
+%   \textbf{Well-formed types and environments}\hfill \boxed{\venv |- \tau \text{ and } |- \venv}
 %   \\
 %   \infer[Wf-fn]
-%   {\tenv |- \Pi(\bar{x: \tau}) \\ \tenv,\bar{x:\tau} |- \tau'}
-%   {\tenv |- \<fn>(\bar{x:\tau}) -> \tau'}
+%   {\venv |- \Pi(\bar{x: \tau}) \\ \venv,\bar{x:\tau} |- \tau'}
+%   {\venv |- \<fn>(\bar{x:\tau}) -> \tau'}
 
 %   \infer[Wf-refine]
-%   {\lfloor \tenv \rfloor,x: \beta |- r \colon \<bool>}
-%   {\tenv |- \r{x: \beta | r}}
+%   {\lfloor \venv \rfloor,x: \beta |- r \colon \<bool>}
+%   {\venv |- \r{x: \beta | r}}
 
 %   \infer[Wf-prod]
-%   {\tenv, x_0:\tau_0,\dots,x_{i-1}: \tau_{i-1} |- \tau_{i}}
-%   {\tenv |- \Pi(\bar{x:\tau})}
+%   {\venv, x_0:\tau_0,\dots,x_{i-1}: \tau_{i-1} |- \tau_{i}}
+%   {\venv |- \Pi(\bar{x:\tau})}
 
 %   \infer[Wf-empty]
 %   {\\}
 %   {|- \emptyset}
 
 %   \infer[Wf-binding]
-%   {|- \tenv\\ \tenv |- \tau}
-%   {|- \tenv, x: \tau}
+%   {|- \venv\\ \venv |- \tau}
+%   {|- \venv, x: \tau}
 
 %   \infer[Wf-pred]
-%   {|- \tenv\\ \tenv |- r \colon \<bool>}
-%   {|- \tenv, r}
+%   {|- \venv\\ \venv |- r \colon \<bool>}
+%   {|- \venv, r}
 % \end{mathpar}
 
 \section{Subtyping}
 
 \begin{mathpar}
-  \textbf{Environment subtyping}\hfill \boxed{\Gamma_1 \preceq \Gamma_2}
+  \textbf{Environment subtyping}\hfill \boxed{\cenv_1 \preceq \cenv_2}
   \\
   \infer[$\preceq$-env-empty]
   {}
-  {\Gamma_1 \preceq \emptyset}
+  {\cenv_1 \preceq \emptyset}
 
   \infer[$\preceq$-env-var]
-  {\Gamma_1 \preceq \Gamma_2 \\ \Gamma_1 |- \Gamma_1(x) \preceq \tau}
-  {\Gamma_1 \preceq x:\tau, \Gamma_2}
+  {\cenv_1 \preceq \cenv_2 \\ \cenv_1 |- \cenv_1(x) \preceq \tau}
+  {\cenv_1 \preceq x:\tau, \cenv_2}
 \end{mathpar}
 
 \begin{mathpar}
-  \textbf{Subtyping}\hfill \boxed{\Gamma |- \tau_1 \preceq \tau_2}
+  \textbf{Subtyping}\hfill \boxed{\cenv |- \tau_1 \preceq \tau_2}
   \\
   \infer[$\preceq$-refine]
-  {\mathtt{Valid}(\extract{\Gamma} \wedge r_1 => r_2[x/y])}
-  {\Gamma |- \r{x: \beta | r_1} \preceq \r{y: \beta | r_2}}
+  {\mathtt{Valid}(\extract{\cenv} \wedge r_1 => r_2[x/y])}
+  {\cenv |- \r{x: \beta | r_1} \preceq \r{y: \beta | r_2}}
 
   \infer[$\preceq$-fun]
   {
     \theta = [\bar{\ell_2}/\bar{\ell_1}]   \\\\
-    \Gamma*\Gamma_2 \preceq \theta\Gamma_1                 \\
-    \Gamma*\Gamma_2*\theta\Gamma_1' \preceq \Gamma_2'[\ell'_1/\ell'_2]
+    \cenv*\cenv_2 \preceq \theta\cenv_1                 \\
+    \cenv*\cenv_2*\theta\cenv_1' \preceq \cenv_2'[\ell'_1/\ell'_2]
   }
-  {\Gamma |- \fn{\Gamma_1;\bar{\ell_1}}{\Gamma_1';\ell'_1} \preceq \fn{\Gamma_2;\bar{\ell_2}}{\Gamma_2';\ell'_2}}
+  {\cenv |- \fn{\cenv_1;\bar{\ell_1}}{\cenv_1';\ell'_1} \preceq \fn{\cenv_2;\bar{\ell_2}}{\cenv_2';\ell'_2}}
 
   \infer[$\preceq$-prod]
-  {\Gamma*\bar{\ell:\tau} \preceq (\bar{\ell:\tau'})[\bar{\ell}/\bar{y}]}
-  {\Gamma |- \Pi(\bar{x: \tau}) \preceq \Pi(\bar{y: \tau'})}
+  {\cenv*\bar{\ell:\tau} \preceq (\bar{\ell:\tau'})[\bar{\ell}/\bar{y}]}
+  {\cenv |- \Pi(\bar{x: \tau}) \preceq \Pi(\bar{y: \tau'})}
 \end{mathpar}
 
 \section{Metafunctions}
 
-\begin{metafun}{\Gamma_1*\Gamma_2=\Gamma}
-  \Gamma_1*\Gamma_2,\ell:\tau &=& \Gamma_1,\ell:\tau * \Gamma_2 \\
-  \where{\ell \notin \mathtt{dom}(\Gamma_1)}
+\begin{metafun}{\cenv_1*\cenv_2=\cenv}
+  \cenv_1*\cenv_2,\ell:\tau &=& \cenv_1,\ell:\tau * \cenv_2 \\
+  \where{\ell \notin \mathtt{dom}(\cenv_1)}
 \end{metafun}
 
-\begin{metafun}{\tenv_1*\tenv_2=\tenv}
-  \tenv_1*\tenv_2,x:\tau &=& \tenv_1,x:\tau * \tenv_2 \\
-  \where{x \notin \mathtt{dom}(\tenv_1)}
+\begin{metafun}{\venv_1*\venv_2=\venv}
+  \venv_1*\venv_2,x:\tau &=& \venv_1,x:\tau * \venv_2 \\
+  \where{x \notin \mathtt{dom}(\venv_1)}
 \end{metafun}
 
 % \begin{metafun}{\tau_1[\pi\mapsto \tau']=\tau_2,n}
@@ -227,34 +229,34 @@
 %   \where*{\tau'_i = \tau_i[p\mapsto \tau']}
 % \end{metafun}
 
-\begin{metafun}{(\Gamma;\tenv)[\pi\mapsto \tau] = \Gamma;\tenv}
-  (\Gamma;\tenv)[x.p\mapsto\tau] &=& (\Gamma,\ell': \tau'; \tenv[x\mapsto \own{\ell'}]) \\
+\begin{metafun}{(\cenv;\venv)[\pi\mapsto \tau] = \cenv;\venv}
+  (\cenv;\venv)[x.p\mapsto\tau] &=& (\cenv,\ell': \tau'; \venv[x\mapsto \own{\ell'}]) \\
   \whereblock {
-    \own{\ell} &=& \tenv(x)                    \\
-    \tau'      &=& \Gamma(\ell)[p\mapsto \tau]
+    \own{\ell} &=& \venv(x)                    \\
+    \tau'      &=& \cenv(\ell)[p\mapsto \tau]
   }
   \where*{\text{fresh}~\ell'}
 \end{metafun}
 
 \begin{mathpar}
-  \boxed{\envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\tenv_2}{\theta}}\hfill\,
+  \boxed{\envsubst{\cenv_1;\venv_1}{\cenv_2;\venv_2}{\theta}}\hfill\,
   \\
 
-  \infer{}{\envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\emptyset}{\emptyset}}
+  \infer{}{\envsubst{\cenv_1;\venv_1}{\cenv_2;\emptyset}{\emptyset}}
 
   \infer
-  {\own{\ell_1} = \tenv_1(x) \\ \envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\tenv_2}{\theta_1} \\
-   \subst{\Gamma_1(\ell_1);\Gamma_2(\ell_2)} = \theta_2
+  {\own{\ell_1} = \venv_1(x) \\ \envsubst{\cenv_1;\venv_1}{\cenv_2;\venv_2}{\theta_1} \\
+   \subst{\cenv_1(\ell_1);\cenv_2(\ell_2)} = \theta_2
   }
-  {\envsubst{\Gamma_1;\tenv_1}{\Gamma_2;\tenv_2,x:\own{\ell_2}}{\theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2]}}
+  {\envsubst{\cenv_1;\venv_1}{\cenv_2;\venv_2,x:\own{\ell_2}}{\theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2]}}
 \end{mathpar}
 
-% \begin{metafun}{\subst{\Gamma_1,\tenv_1;\Gamma_2,\tenv_2} = \theta}
-%   \subst{\Gamma_1,\tenv_1;\Gamma_2,\tenv_2,x:\own{\ell_2}} &=& \theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2] \\
+% \begin{metafun}{\subst{\cenv_1,\venv_1;\cenv_2,\venv_2} = \theta}
+%   \subst{\cenv_1,\venv_1;\cenv_2,\venv_2,x:\own{\ell_2}} &=& \theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2] \\
 %   \whereblock{
-%     \own{\ell_1} &=& \tenv_1(x)                                \\
-%     \theta_2     &=& \subst{\tenv_1; \tenv_2}                  \\
-%     \theta_2     &=& \subst{\Gamma_1(\ell_1);\Gamma_2(\ell_2)}
+%     \own{\ell_1} &=& \venv_1(x)                                \\
+%     \theta_2     &=& \subst{\venv_1; \venv_2}                  \\
+%     \theta_2     &=& \subst{\cenv_1(\ell_1);\cenv_2(\ell_2)}
 %   }
 % \end{metafun}
 
@@ -269,11 +271,11 @@
   % \where{\sum_{j<i}\text{size}(\tau_j) = n}
 \end{metafun}
 
-\begin{metafun}{\lookup{\Gamma}{\tenv}{\pi} = (p, \tau)}
-  \lookup{\Gamma}{\tenv}{x.q} &=& (\ell.q, \tau.q) \\
+\begin{metafun}{\lookup{\cenv}{\venv}{\pi} = (r, \tau)}
+  \lookup{\cenv}{\venv}{x.q} &=& (\ell.q, \tau.q) \\
   \whereblock{
-    \own{\ell} &=& \tenv(x) \\
-    \tau       &=& \Gamma(y)
+    \own{\ell} &=& \venv(x) \\
+    \tau       &=& \cenv(y)
   }
 \end{metafun}
 
@@ -282,10 +284,10 @@
   \mathtt{self}(p, \tau)           &=& \tau
 \end{metafun}
 
-\begin{metafun}{\extract{\Gamma} = r}
+\begin{metafun}{\extract{\cenv} = r}
   \extract{\emptyset       } &=& \<true> \\
-  \extract{\Gamma,r        } &=& \extract{\Gamma} \wedge r                     \\
-  \extract{\Gamma,\ell:\tau} &=& \extract{\Gamma} \wedge \extract{\tau}_{\ell} \\
+  \extract{\cenv,r        } &=& \extract{\cenv} \wedge r                     \\
+  \extract{\cenv,\ell:\tau} &=& \extract{\cenv} \wedge \extract{\tau}_{\ell} \\
 \end{metafun}
 
 \begin{metafun}{\extract{\tau}_p = r}
