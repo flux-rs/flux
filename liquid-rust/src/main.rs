@@ -6,9 +6,20 @@ extern crate rustc_interface;
 extern crate rustc_mir;
 
 use rustc_driver::{Callbacks, Compilation};
-use rustc_hir::ItemKind;
+use rustc_hir::itemlikevisit::ItemLikeVisitor;
+use rustc_hir::{ImplItem, Item, TraitItem};
 use rustc_interface::{interface::Compiler, Queries};
-use rustc_mir::util::write_mir_pretty;
+// use rustc_mir::util::write_mir_pretty;
+
+struct MyVisitor;
+
+impl<'hir> ItemLikeVisitor<'hir> for MyVisitor {
+    fn visit_item(&mut self, item: &'hir Item<'hir>) {
+        println!("{:?}: {:?}", item.ident, item.attrs);
+    }
+    fn visit_trait_item(&mut self, trait_item: &'hir TraitItem<'hir>) {}
+    fn visit_impl_item(&mut self, impl_item: &'hir ImplItem<'hir>) {}
+}
 
 struct CompilerCalls;
 
@@ -19,17 +30,18 @@ impl Callbacks for CompilerCalls {
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let hir = tcx.hir();
+            let krate = tcx.hir().krate().visit_all_item_likes(&mut MyVisitor);
 
-            for (&hir_id, item) in &tcx.hir().krate().items {
-                if let ItemKind::Fn(_, _, _) = item.kind {
-                    let def_id = hir.local_def_id(hir_id);
-                    // let _mir = tcx.optimized_mir(def_id);
-                    println!("{:?}", hir.attrs(hir_id));
-                    write_mir_pretty(tcx, Some(def_id.to_def_id()), &mut std::io::stdout())
-                        .unwrap();
-                }
-            }
+            // for (&hir_id, item) in &tcx.hir().krate().items {
+            //     let def_id = hir.local_def_id(hir_id);
+            //     println!("{:?} {:?}", def_id, hir.attrs(hir_id));
+            //
+            //     if let ItemKind::Fn(..) = item.kind {
+            //         let _mir = tcx.optimized_mir(def_id);
+            //         // write_mir_pretty(tcx, Some(def_id.to_def_id()), &mut std::io::stdout())
+            //         //     .unwrap();
+            //     }
+            // }
         });
 
         Compilation::Continue
