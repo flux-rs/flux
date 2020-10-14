@@ -1,8 +1,10 @@
 use rustc_middle::mir::Body;
 
+use crate::ty::RefinedTy;
+
 #[derive(Debug)]
 pub enum Annotation {
-    Ty(String),
+    Ty(RefinedTy),
 }
 
 #[derive(Debug)]

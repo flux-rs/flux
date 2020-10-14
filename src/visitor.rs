@@ -20,7 +20,6 @@ impl<'hir, 'tcx> ItemLikeVisitor<'hir> for MyVisitor<'tcx> {
             let anns = self.get_anns(attrs);
 
             let func = Function::new(body, anns);
-
             println!("\n{}:", item.ident);
             println!("{:?}", func);
 
@@ -56,8 +55,12 @@ impl<'tcx> MyVisitor<'tcx> {
                     Some(fst) if *fst == "liquid" => match path.get(1) {
                         Some(snd) if *snd == "ty" => {
                             if let MacArgs::Delimited(_, _, token_stream) = args {
-                                let args = tts_to_string(token_stream);
-                                anns.push(Annotation::Ty(args));
+                                let ty_string = tts_to_string(token_stream);
+                                let (rem, ty) =
+                                    crate::parser::parse_ty(&ty_string.trim_matches('"')).unwrap();
+                                assert!(rem.is_empty());
+
+                                anns.push(Annotation::Ty(ty));
                             } else {
                                 panic!();
                             }

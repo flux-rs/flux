@@ -8,8 +8,9 @@ extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_mir;
 
-
 mod item;
+mod parser;
+mod ty;
 mod visitor;
 
 use rustc_driver::{Callbacks, Compilation};
