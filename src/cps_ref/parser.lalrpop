@@ -3,7 +3,7 @@ use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
 use crate::cps_ref::context::LiquidRustCtxt;
 
-grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>);
+grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>, holes: &mut u32);
 
 pub Fn: FnDef<'lr> =
  "fn" <name: Symbol>
@@ -12,11 +12,10 @@ pub Fn: FnDef<'lr> =
  "=" <body: FnBody> => FnDef { <> };
 
 FnBody: Box<FnBody<'lr>> = {
-  "letcont" <name: Symbol> "(" <heap: Heap> ";" <env: Env> ";" <params: Args> ")"
-    "=" <body: FnBody> "in" <rest: FnBody>
+  "letcont" <def: ContDef> "in" <rest: FnBody>
       => Box::new(FnBody::LetCont{ <> }),
 
-  "if" "*" <discr: Place> "then" <then_branch: FnBody> "else" <else_branch: FnBody>
+  "if" "*" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
     => Box::new(FnBody::Ite{ <> }),
 
   "call" <func: Place> "(" <args: Comma<Local>> ")" "ret" <ret: Symbol>
@@ -27,6 +26,11 @@ FnBody: Box<FnBody<'lr>> = {
   <Statement> ";" <FnBody> => Box::new(FnBody::Seq(<>)),
 
   "abort" => Box::new(FnBody::Abort)
+}
+
+ContDef: ContDef<'lr> = {
+  <name: Symbol> "(" <heap: Heap> ";" <env: Env> ";" <params: Args> ")" "=" <body: FnBody> =>
+    ContDef { <> }
 }
 
 Statement: Statement = {
@@ -56,7 +60,7 @@ BasicType: BasicType = {
 }
 
 TypeLayout: TypeLayout = {
-  r"[0-9]+" => TypeLayout::Block(u32::from_str(<>).unwrap()),
+  r"[0-9]+"                   => TypeLayout::Block(u32::from_str(<>).unwrap()),
   "(" <Comma<TypeLayout>> ")" => TypeLayout::Tuple(<>)
 }
 
@@ -65,10 +69,13 @@ Place: Place = <local: Local> <projection: Projection*> => Place { <> };
 Projection: u32 = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
 
 Ty: Ty<'lr> = {
-  "own" "(" <Location> ")" => cx.mk_ty(TyS::OwnRef(<>)),
-  "{" <bind: Var> ":" <ty: BasicType> "|" <pred: PredLevel1> "}"
-    => cx.mk_ty(TyS::Refine { bind, ty, pred }),
-  "(" <Comma<Binding<Var, Ty>>> ")" => cx.mk_ty(TyS::Tuple(<>))
+  "own" "(" <Location> ")"                       => cx.mk_ty(TyS::OwnRef(<>)),
+  "{" <ty: BasicType> "|" <pred: PredLevel1> "}" => cx.mk_ty(TyS::Refine { <> }),
+  "{" <ty: BasicType> "|" "_" "}"                => {
+    *holes += 1;
+    cx.mk_ty(TyS::RefineHole {ty, n: *holes})
+  },
+  "(" <Comma<Binding<Field, Ty>>> ")"            => cx.mk_ty(TyS::Tuple(<>))
 }
 
 OwnRef: OwnRef= "own" "(" <Location> ")" => OwnRef(<>);
@@ -78,19 +85,24 @@ PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2>;
 PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3>;
 
 PredLevel3: Pred<'lr> = {
-  Constant => cx.mk_pred(PredS::Constant(<>)),
+  Constant                             => cx.mk_pred(PredS::Constant(<>)),
   <var: Var> <projection: Projection*> => cx.mk_pred(PredS::Place { <> })
 }
 
-Var: Var = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Var::intern(<>);
+Var: Var = {
+  Location => Var::Location(<>),
+  Field    => Var::Field(<>),
+  "V"      => Var::Nu
+}
 
 Args = Comma<Binding<Local, OwnRef>>;
-Env = Comma<Binding<Local, OwnRef>>;
+Env  = Comma<Binding<Local, OwnRef>>;
 Heap = Comma<Binding<Location, Ty>>;
 
-Symbol: Symbol = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Symbol::intern(<>);
+Symbol: Symbol = r"[a-z][a-zA-Z0-9_]*" => Symbol::intern(<>);
 Local: Local = Symbol => Local(<>);
 Location: Location = Symbol => Location(<>);
+Field: Field = r"@[a-zA-Z][a-zA-Z0-9_]*" => Field::intern(&<>[1..]);
 Binding<Name, T> = <Name> ":" <T>;
 
 BinOpGroup1: BinOp = {
@@ -99,11 +111,11 @@ BinOpGroup1: BinOp = {
 }
 
 BinOpGroup2: BinOp = {
-  "<" => BinOp::Lt,
+  "<"  => BinOp::Lt,
   "<=" => BinOp::Le,
   "==" => BinOp::Eq,
   ">=" => BinOp::Ge,
-  ">" => BinOp::Gt,
+  ">"  => BinOp::Gt,
 };
 
 BinOp = {

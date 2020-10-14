@@ -100,10 +100,9 @@
   \infer
   [\textsc{F-jump}]
   {
-    \kenv(k) = \cont[\lenv';\cenv']{x}{\venv'} \\\\
+    \kenv(k) = \cont[\lenv';\cenv']{\venv';\bar{\own{\ell}}} \\\\
     % \envsubst{\cenv;\venv}{\cenv';\venv'*\bar{x:\own{\ell}}}{\theta} \\\\
-    \envincl{\venv}{\bar{x:\own{\ell}}*\venv'} \\
-    \cenv \preceq \theta \cenv'
+    \envincl{\cenv;\venv}{\theta(\cenv';\bar{x:\own{\ell}}*\venv')} \\
   }
   {\tfun{\cenv}{\venv}{\kenv}{\jump{k(\bar{x})}}}
 
@@ -245,10 +244,11 @@
   \infer{}{\envsubst{\cenv_1;\venv_1}{\cenv_2;\emptyset}{\emptyset}}
 
   \infer
-  {\own{\ell_1} = \venv_1(x) \\ \envsubst{\cenv_1;\venv_1}{\cenv_2;\venv_2}{\theta_1} \\
-   \subst{\cenv_1(\ell_1);\cenv_2(\ell_2)} = \theta_2
+  {
+    \envsubst{\cenv_1;\venv_1}{\cenv_2; \venv_2}{\theta_1}   \\
+    \typsubst{\cenv_1;\venv_1(x)}{\cenv_2; \own{\ell_2}}{\theta_2}
   }
-  {\envsubst{\cenv_1;\venv_1}{\cenv_2;\venv_2,x:\own{\ell_2}}{\theta_1 \cdot \theta_2 \cdot [\ell_1/\ell_2]}}
+  {\envsubst{\cenv_1;\venv_1}{\cenv_2;\venv_2,x:\own{\ell_2}}{\theta_1\cdot\theta_2}}
 \end{mathpar}
 
 % \begin{metafun}{\subst{\cenv_1,\venv_1;\cenv_2,\venv_2} = \theta}
@@ -259,6 +259,19 @@
 %     \theta_2     &=& \subst{\cenv_1(\ell_1);\cenv_2(\ell_2)}
 %   }
 % \end{metafun}
+
+\begin{mathpar}
+  \boxed{\typsubst{\cenv_1;\tau_1}{\cenv_2;\tau_2}{\theta}}\hfill\,
+  \\
+
+  \infer
+  {\typsubst{\cenv_1;\cenv_1(\ell_1)}{\cenv_2;\cenv_2(\ell_2)}{\theta}}
+  {\typsubst{\cenv_1;\own{\ell_1}}{\cenv_2;\own{\ell_2}}{\theta\cdot[\ell_1/\ell_2]}}
+
+  \infer
+  {\tau_1 \neq \own{\ell_1} \vee \tau_2 \neq \own{\ell_2}}
+  {\typsubst{\cenv_1;\tau_1}{\cenv_2;\tau_2}{\emptyset}}
+\end{mathpar}
 
 \begin{metafun}{\subst{\tau_1;\tau_2} = \theta}
   \subst{\own{\ell_1};\own{\ell_2}} &=& [\ell_1/\ell_2] \\
@@ -290,10 +303,11 @@
   \extract{\cenv,\ell:\tau} &=& \extract{\cenv} \wedge \extract{\tau}_{\ell} \\
 \end{metafun}
 
-\begin{metafun}{\extract{\tau}_p = r}
-  \extract{\r{y: \beta | r}}_p      &=& r[p/y]                           \\
-  \extract{\Pi(\bar{x_i:\tau_i})}_p &=& \bigwedge_i \extract{\tau}_{p.i} \\
-  \extract{\tau}_p                  &=& \<true>                          \\
+\begin{metafun}{\extract{\tau}_{\ell.q} = r}
+  \extract{\r{y: \beta | r}}_{\ell.q}      &=& r[\ell.q/y]                                       \\
+  \extract{\Pi(\bar{x_i:\tau_i})}_{\ell.q} &=& \theta (\bigwedge_i \extract{\tau_i}_{\ell.q.i}) \\
+  \where{\theta = [\bar{\ell.q.i}/\bar{x_i}]}
+  \extract{\tau}_{\ell.q}                  &=& \<true>                                           \\
 \end{metafun}
 
 \newpage

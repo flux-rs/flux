@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 pub use rustc_span::Symbol;
 
 /// A function definition
@@ -20,21 +22,27 @@ pub struct FnDef<'lr> {
     pub body: Box<FnBody<'lr>>,
 }
 
+#[derive(Debug)]
+pub struct ContDef<'lr> {
+    /// Name of the continuation.
+    pub name: Symbol,
+    /// Heap required to call the continuation.
+    pub heap: Heap<'lr>,
+    /// Environment required to call the continuation.
+    pub env: Env,
+    /// Additional parameters for the continuation.
+    pub params: Vec<(Local, OwnRef)>,
+    /// The body of the continuation.
+    pub body: Box<FnBody<'lr>>,
+}
+
 /// Function body in cps.
 #[derive(Debug)]
 pub enum FnBody<'lr> {
     /// A continuation definition.
     LetCont {
-        /// Name of the continuation.
-        name: Symbol,
-        /// Heap required to call the continuation.
-        heap: Heap<'lr>,
-        /// Environment required to call the continuation.
-        env: Env,
-        /// Additional parameters for the continuation.
-        params: Vec<(Local, OwnRef)>,
-        /// The body of the continuation.
-        body: Box<FnBody<'lr>>,
+        /// Continuation definition.
+        def: ContDef<'lr>,
         /// The rest of the function body.
         rest: Box<FnBody<'lr>>,
     },
@@ -44,9 +52,9 @@ pub enum FnBody<'lr> {
         /// The discriminant value being tested.
         discr: Place,
         /// The branch to execute if the discriminant is true.
-        then_branch: Box<FnBody<'lr>>,
+        then: Box<FnBody<'lr>>,
         /// The branch to execute if the discriminant is false.
-        else_branch: Box<FnBody<'lr>>,
+        else_: Box<FnBody<'lr>>,
     },
 
     /// Function call
@@ -92,6 +100,7 @@ pub enum Rvalue {
     Use(Operand),
     BinaryOp(BinOp, Operand, Operand),
     CheckedBinaryOp(BinOp, Operand, Operand),
+    UnaryOp(UnOp, Operand),
 }
 
 /// A path to a value
@@ -99,6 +108,15 @@ pub enum Rvalue {
 pub struct Place {
     pub local: Local,
     pub projection: Vec<u32>,
+}
+
+impl From<Local> for Place {
+    fn from(local: Local) -> Self {
+        Place {
+            local,
+            projection: vec![],
+        }
+    }
 }
 
 /// These are values that can appear inside an rvalue. They are intentionally limited to prevent
@@ -111,13 +129,13 @@ pub enum Operand {
     Constant(Constant),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Constant {
     Bool(bool),
     Int(u128),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BinOp {
     Add,
     Sub,
@@ -128,11 +146,16 @@ pub enum BinOp {
     Gt,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub enum UnOp {
+    Not,
+}
+
 /// The heap is a mapping between location and types.
 pub type Heap<'lr> = Vec<(Location, Ty<'lr>)>;
 
 /// A location into a block of memory in the heap.
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Location(pub Symbol);
 
 /// An environment maps locals to owned references.
@@ -140,7 +163,7 @@ pub type Env = Vec<(Local, OwnRef)>;
 
 /// A Local is an identifier to some local variable introduced with a let
 /// statement.
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Local(pub Symbol);
 
 /// An owned reference to a location. This is used for arguments and return types.
@@ -149,7 +172,7 @@ pub struct OwnRef(pub Location);
 
 pub type Ty<'lr> = &'lr TyS<'lr>;
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash)]
 pub enum TyS<'lr> {
     /// A function type
     Fn {
@@ -157,7 +180,7 @@ pub enum TyS<'lr> {
         in_heap: Heap<'lr>,
         /// Formal arguments of the function. These are always owned references so we
         /// represent them directly as locations in the input heap.
-        args: Vec<OwnRef>,
+        params: Vec<OwnRef>,
         /// The output heap. This is right now only used to add a refinement for the returned
         /// reference but it should be extended to capture the state of the output heap.
         out_heap: Heap<'lr>,
@@ -167,15 +190,13 @@ pub enum TyS<'lr> {
     /// An owned reference
     OwnRef(Location),
     /// A refinement type { bind: ty | pred }.
-    Refine {
-        bind: Var,
-        ty: BasicType,
-        pred: Pred<'lr>,
-    },
+    Refine { ty: BasicType, pred: Pred<'lr> },
     /// A dependent tuple.
-    Tuple(Vec<(Var, &'lr TyS<'lr>)>),
+    Tuple(Vec<(Field, &'lr TyS<'lr>)>),
     /// Unitialized
     Uninit(u32),
+    /// A refinment that need to be inferred
+    RefineHole { ty: BasicType, n: u32 },
 }
 
 /// A type layout is used to describe the recursive structure of a type.
@@ -193,23 +214,27 @@ pub enum BasicType {
     Int,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Var(pub Symbol);
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Field(pub Symbol);
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Var {
+    Nu,
+    Location(Location),
+    Field(Field),
+}
 
 pub type Pred<'lr> = &'lr PredS<'lr>;
 
-pub struct Cont<'a, 'lr> {
-    pub heap: &'a Heap<'lr>,
-    pub env: &'a Env,
-    pub params: Vec<OwnRef>,
-}
-
 /// A refinement type predicate
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash)]
 pub enum PredS<'lr> {
     Constant(Constant),
     Place { var: Var, projection: Vec<u32> },
     BinaryOp(BinOp, &'lr PredS<'lr>, &'lr PredS<'lr>),
+    UnaryOp(UnOp, &'lr PredS<'lr>),
+    Iff(&'lr PredS<'lr>, &'lr PredS<'lr>),
+    Kvar(u32, Vec<Var>),
 }
 
 impl<'lr> TyS<'lr> {
@@ -217,8 +242,9 @@ impl<'lr> TyS<'lr> {
         matches!(self, TyS::Refine { ty: BasicType::Int, .. })
     }
 
-    pub fn project(&self, proj: &[u32]) -> Ty<'lr> {
+    pub fn project(&'lr self, proj: &[u32]) -> Ty<'lr> {
         match (self, proj) {
+            (_, []) => self,
             (TyS::Tuple(fields), [n, ..]) => fields[*n as usize].1.project(&proj[1..]),
             _ => bug!("Wrong projection: `{:?}.{:?}`", self, proj),
         }
@@ -233,30 +259,32 @@ impl<'lr> TyS<'lr> {
         match self {
             TyS::Fn { .. } => 1,
             TyS::OwnRef(_) => 1,
-            TyS::Refine { .. } => 1,
+            TyS::Refine { .. } | TyS::RefineHole { .. } => 1,
             TyS::Tuple(fields) => fields.iter().map(|f| f.1.size()).sum(),
             TyS::Uninit(size) => *size,
         }
     }
 }
 
-impl Var {
+impl Field {
     pub fn intern(string: &str) -> Self {
-        Var(Symbol::intern(string))
+        Self(Symbol::intern(string))
     }
 
-    pub fn nu() -> Self {
-        Self::intern("_v")
-    }
-
-    pub fn field(n: u32) -> Self {
-        Self::intern(&format!("_{}", n))
+    pub fn nth(n: u32) -> Self {
+        Self::intern(&format!("{}", n))
     }
 }
 
 impl From<Location> for Var {
-    fn from(l: Location) -> Self {
-        Var(l.0)
+    fn from(v: Location) -> Self {
+        Var::Location(v)
+    }
+}
+
+impl From<Field> for Var {
+    fn from(f: Field) -> Self {
+        Var::Field(f)
     }
 }
 
@@ -265,6 +293,115 @@ impl Constant {
         match self {
             Constant::Bool(_) => BasicType::Bool,
             Constant::Int(_) => BasicType::Int,
+        }
+    }
+}
+
+impl<'a> Into<TyS<'a>> for OwnRef {
+    fn into(self) -> TyS<'a> {
+        TyS::OwnRef(self.0)
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+// DEBUG
+// -------------------------------------------------------------------------------------------------
+
+impl Debug for Local {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl Debug for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl Debug for Constant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Constant::Bool(b) => write!(f, "{}", b),
+            Constant::Int(i) => write!(f, "{}", i),
+        }
+    }
+}
+
+impl Debug for BinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Eq => write!(f, "="),
+            BinOp::Ge => write!(f, ">="),
+            BinOp::Gt => write!(f, ">"),
+        }
+    }
+}
+
+impl Debug for PredS<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PredS::Constant(c) => Debug::fmt(&c, f)?,
+            PredS::Place { var, projection } => {
+                write!(f, "{:?}", var)?;
+                for p in projection {
+                    write!(f, ".{}", p)?
+                }
+            }
+            PredS::BinaryOp(op, lhs, rhs) => {
+                write!(f, "({:?} {:?} {:?})", lhs, op, rhs)?;
+            }
+            PredS::UnaryOp(op, operand) => {
+                write!(f, "{:?}({:?})", op, operand)?;
+            }
+            PredS::Iff(rhs, lhs) => {
+                write!(f, "({:?} <=> {:?})", rhs, lhs)?;
+            }
+            PredS::Kvar(n, vars) => {
+                write!(f, "$k{}{:?}", n, vars)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Debug for TyS<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TyS::Fn { .. } => write!(f, "function"),
+            TyS::OwnRef(l) => write!(f, "OwnRef({:?})", l),
+            TyS::Refine { ty, pred } => write!(f, "{{ {:?} | {:?} }}", ty, pred),
+            TyS::Tuple(fields) => write!(f, "{:?}", fields),
+            TyS::Uninit(size) => write!(f, "Uninit({})", size),
+            TyS::RefineHole { ty, .. } => write!(f, "{{ {:?} | _ }}", ty),
+        }
+    }
+}
+
+impl Debug for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "@{}", self.0)
+    }
+}
+
+impl Debug for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Var::Nu => write!(f, "_v"),
+            Var::Location(s) => write!(f, "l${}", s.0),
+            Var::Field(s) => write!(f, "f${}", s.0),
+        }
+    }
+}
+
+impl Debug for UnOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnOp::Not => write!(f, "¬"),
         }
     }
 }
