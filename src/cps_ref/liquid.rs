@@ -4,31 +4,64 @@ use super::{
     utils::ScopedHashMap,
 };
 use ast::BasicType;
+use serde;
 use std::{
-    fs::{File, OpenOptions},
     io::{self, BufWriter, Write},
-    path::Path,
-    process::Command,
+    process::{Child, ChildStdin, Command, Stdio},
 };
 
+#[derive(serde::Deserialize, Eq, PartialEq)]
+enum Safeness {
+    #[serde(rename(deserialize = "safe"))]
+    Safe,
+    #[serde(rename(deserialize = "unsafe"))]
+    Unsafe,
+}
+
+#[derive(serde::Deserialize)]
+struct LiquidResult {
+    result: Safeness,
+}
+
 pub struct LiquidSolver {
-    buf: BufWriter<File>,
+    buf: BufWriter<ChildStdin>,
+    kid: Child,
 }
 
 impl LiquidSolver {
     pub fn new() -> io::Result<Self> {
-        let path = Path::new("file.smt2");
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-        let buf = BufWriter::with_capacity(1000, file);
+        let mut kid = Command::new("fixpoint")
+            .arg("-q")
+            .arg("--stdin")
+            .arg("--json")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let mut stdin = None;
+        ::std::mem::swap(&mut stdin, &mut kid.stdin);
 
-        Ok(Self { buf })
+        Ok(Self {
+            buf: BufWriter::new(stdin.unwrap()),
+            kid,
+        })
     }
 
     pub fn check(mut self, c: &Constraint) -> io::Result<bool> {
+        self.write_qualifs()?;
+        self.write_kvars(c, &mut ScopedHashMap::new())?;
+        self.write_constraint(c)?;
+
+        // Close the pipe to reach EOF
+        drop(self.buf);
+
+        let out = self.kid.wait_with_output()?;
+        let res: LiquidResult = serde_json::from_slice(&out.stdout)?;
+
+        Ok(res.result == Safeness::Safe)
+    }
+
+    fn write_qualifs(&mut self) -> io::Result<()> {
         write!(
             self.buf,
             "
@@ -38,18 +71,7 @@ impl LiquidSolver {
 (qualif GeZero ((x int)) (x >= 0))
 (qualif GtZero ((x int)) (x > 0))
 "
-        )?;
-        self.write_kvars(c, &mut ScopedHashMap::new())?;
-        write!(self.buf, "\n(constraint")?;
-        self.write_constraint(c, 2)?;
-        write!(self.buf, ")")?;
-        self.buf.flush()?;
-        let st = Command::new("fixpoint")
-            .arg("file.smt2")
-            // .stdout(Stdio::piped())
-            // .stderr(Stdio::piped())
-            .status()?;
-        Ok(st.success())
+        )
     }
 
     fn write_kvars(
@@ -100,7 +122,14 @@ impl LiquidSolver {
         Ok(())
     }
 
-    fn write_constraint(&mut self, c: &Constraint, indent: usize) -> io::Result<()> {
+    fn write_constraint(&mut self, c: &Constraint) -> io::Result<()> {
+        write!(self.buf, "\n(constraint")?;
+        self.write_constraint_(c, 2)?;
+        write!(self.buf, ")")?;
+        Ok(())
+    }
+
+    fn write_constraint_(&mut self, c: &Constraint, indent: usize) -> io::Result<()> {
         match c {
             Constraint::Pred(p) => {
                 write!(self.buf, "\n{:>1$}((", "", indent + 2)?;
@@ -109,11 +138,11 @@ impl LiquidSolver {
             }
             Constraint::Conj(cs) => match cs.len() {
                 0 => write!(self.buf, "{:>1$}true", "", indent)?,
-                1 => self.write_constraint(&cs[0], indent)?,
+                1 => self.write_constraint_(&cs[0], indent)?,
                 _ => {
                     write!(self.buf, "\n{:>1$}(and", "", indent)?;
                     for c in cs {
-                        self.write_constraint(c, indent + 2)?;
+                        self.write_constraint_(c, indent + 2)?;
                     }
                     write!(self.buf, ")")?;
                 }
@@ -129,14 +158,14 @@ impl LiquidSolver {
                 write!(self.buf, ") (")?;
                 self.write_pred(hyp, &[])?;
                 write!(self.buf, "))")?;
-                self.write_constraint(body, indent + 2)?;
+                self.write_constraint_(body, indent + 2)?;
                 write!(self.buf, ")")?;
             }
             Constraint::Guard(p, c) => {
                 write!(self.buf, "\n{:>1$}(forall ((_ int) (", "", indent)?;
                 self.write_pred(p, &[])?;
                 write!(self.buf, "))")?;
-                self.write_constraint(c, indent + 2)?;
+                self.write_constraint_(c, indent + 2)?;
                 write!(self.buf, ")")?;
             }
             Constraint::True => write!(self.buf, "{:>1$}true", "", indent)?,

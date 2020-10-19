@@ -63,7 +63,7 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
             let c = sess.check(
                 r####"
     fn sum(n0: {int | V >= 0}; n: own(n0)) ret k(r: {int | V >= n0}; own(r)) =
-      letcont loop( n1: {int | V == n0}, i1: {int | V >= 0}, r1: {int | V >= i1}
+      letcont loop( n1: {int | _ }, i1: {int | _ }, r1: {int | _ }
                   ; i: own(i1), r: own(r1), n: own(n1);) =
         let t0 = new(1);
         t0 := *i <= *n;
@@ -81,7 +81,7 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       jump loop()
     "####,
             );
-            assert!(LiquidSolver::new().unwrap().check(&c).is_ok());
+            assert!(LiquidSolver::new().unwrap().check(&c).unwrap());
         })
     }
 
@@ -137,7 +137,7 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       jump k(r)
     "####,
             );
-            assert!(LiquidSolver::new().unwrap().check(&c).is_ok());
+            assert!(LiquidSolver::new().unwrap().check(&c).unwrap());
         });
     }
 
@@ -152,7 +152,7 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       jump k(t)
     "####,
             );
-            assert!(LiquidSolver::new().unwrap().check(&c).is_ok());
+            assert!(LiquidSolver::new().unwrap().check(&c).unwrap());
         });
     }
 
@@ -168,7 +168,7 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       jump k(p)
     "####,
             );
-            assert!(LiquidSolver::new().unwrap().check(&c).is_ok());
+            assert!(LiquidSolver::new().unwrap().check(&c).unwrap());
         });
     }
 }

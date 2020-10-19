@@ -578,8 +578,9 @@ impl<'lr> TyS<'lr> {
                 cx.mk_tuple(&fields)
             }
             &TyS::RefineHole { ty, n } => {
-                let mut vars: Vec<Var> = vars_in_scope.clone();
-                vars.push(Var::Nu);
+                // Nu needs to be the first argument because of liquid-fixpoint restrictions
+                let mut vars: Vec<Var> = vec![Var::Nu];
+                vars.extend(vars_in_scope.iter().copied());
                 cx.mk_refine(ty, cx.mk_pred(PredS::Kvar(n, vars)))
             }
             _ => self,
