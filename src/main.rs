@@ -9,8 +9,8 @@ extern crate rustc_middle;
 extern crate rustc_mir;
 
 mod item;
-mod visitor;
 mod refinements;
+mod visitor;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};

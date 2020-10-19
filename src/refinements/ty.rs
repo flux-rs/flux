@@ -1,9 +1,16 @@
-pub use rustc_middle::mir::Local;
-
-pub use crate::refinements::common::{BaseTy, BinOp, Literal, UnOp, IntSize};
+pub use crate::refinements::{
+    common::{BaseTy, BinOp, IntTy, Literal, UintTy, UnOp},
+    Generator,
+};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct Variable(Local);
+pub struct Variable(usize);
+
+impl Variable {
+    pub fn generator() -> Generator<Self> {
+        Generator::new(Self)
+    }
+}
 
 #[derive(Debug)]
 pub enum Predicate {

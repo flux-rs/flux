@@ -9,7 +9,7 @@ use nom::{
 };
 
 use crate::refinements::ast::{
-    BaseTy, BinOp, IntSize, Literal, Predicate, RefinedTy, UnOp, Variable,
+    BaseTy, BinOp, IntTy, Literal, Predicate, RefinedTy, UintTy, UnOp, Variable,
 };
 
 fn symbol(string: &'static str) -> impl Fn(&str) -> IResult<&str, &str> {
@@ -47,20 +47,31 @@ fn literal(input: &str) -> IResult<&str, Literal> {
 
 fn base_ty(input: &str) -> IResult<&str, BaseTy> {
     alt((
-        map(preceded(char('u'), int_base), BaseTy::Uint),
-        map(preceded(char('i'), int_base), BaseTy::Int),
+        map(preceded(char('u'), uint_ty), BaseTy::Uint),
+        map(preceded(char('i'), int_ty), BaseTy::Int),
         map(symbol("bool"), |_| BaseTy::Bool),
     ))(input)
 }
 
-fn int_base(input: &str) -> IResult<&str, IntSize> {
+fn int_ty(input: &str) -> IResult<&str, IntTy> {
     alt((
-        map(symbol("8"), |_| IntSize::Size8),
-        map(symbol("16"), |_| IntSize::Size16),
-        map(symbol("32"), |_| IntSize::Size32),
-        map(symbol("64"), |_| IntSize::Size64),
-        map(symbol("128"), |_| IntSize::Size128),
-        map(symbol("size"), |_| IntSize::SizePtr),
+        map(symbol("8"), |_| IntTy::I8),
+        map(symbol("16"), |_| IntTy::I16),
+        map(symbol("32"), |_| IntTy::I32),
+        map(symbol("64"), |_| IntTy::I64),
+        map(symbol("128"), |_| IntTy::I128),
+        map(symbol("size"), |_| IntTy::Isize),
+    ))(input)
+}
+
+fn uint_ty(input: &str) -> IResult<&str, UintTy> {
+    alt((
+        map(symbol("8"), |_| UintTy::U8),
+        map(symbol("16"), |_| UintTy::U16),
+        map(symbol("32"), |_| UintTy::U32),
+        map(symbol("64"), |_| UintTy::U64),
+        map(symbol("128"), |_| UintTy::U128),
+        map(symbol("size"), |_| UintTy::Usize),
     ))(input)
 }
 
