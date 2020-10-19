@@ -56,8 +56,11 @@ impl<'tcx> MyVisitor<'tcx> {
                         Some(snd) if *snd == "ty" => {
                             if let MacArgs::Delimited(_, _, token_stream) = args {
                                 let ty_string = tts_to_string(token_stream);
-                                let (rem, ty) =
-                                    crate::parser::parse_ty(&ty_string.trim_matches('"')).unwrap();
+                                let (rem, ty) = crate::refinements::parser::parse_ty(
+                                    &ty_string.trim_matches('"'),
+                                )
+                                .unwrap();
+
                                 assert!(rem.is_empty());
 
                                 anns.push(Annotation::Ty(ty));

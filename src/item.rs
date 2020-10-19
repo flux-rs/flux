@@ -1,6 +1,6 @@
 use rustc_middle::mir::Body;
 
-use crate::ty::RefinedTy;
+use crate::refinements::ast::RefinedTy;
 
 #[derive(Debug)]
 pub enum Annotation {
