@@ -1,7 +1,7 @@
 pub use rustc_ast::ast::{IntTy, UintTy};
 use rustc_middle::ty::{Ty, TyKind};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BaseTy {
     Uint(UintTy),
     Int(IntTy),
@@ -19,13 +19,13 @@ impl<'tcx> BaseTy {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     Bool(bool),
     Int(i128),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinOp {
     Add,
     Sub,
@@ -40,7 +40,7 @@ pub enum BinOp {
     Gte,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnOp {
     Not,
     Neg,

@@ -12,7 +12,7 @@ impl Variable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Predicate {
     Var(Variable),
     Lit(Literal),
@@ -62,7 +62,18 @@ pub enum Constraint {
     ForAll(Variable, BaseTy, Predicate, Box<Self>),
 }
 
-#[derive(Debug)]
+impl Constraint {
+    pub fn implication(var: Variable, ty: RefinedTy, constr: Self) -> Self {
+        if let RefinedTy::RefBase(var2, base_ty, mut pred) = ty {
+            pred.replace(var2, var);
+            Self::ForAll(var, base_ty, pred, Box::new(constr))
+        } else {
+            constr
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum RefinedTy {
     RefBase(Variable, BaseTy, Predicate),
     RefFunc(Vec<(Variable, Self)>, Box<Self>),

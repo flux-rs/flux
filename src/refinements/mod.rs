@@ -1,14 +1,23 @@
 pub mod ast;
+mod checking;
 mod common;
 pub mod parser;
+mod synthesis;
 pub mod ty;
 
-use rustc_middle::{mir::Local, ty::TyCtxt};
+use rustc_index::vec::IndexVec;
+use rustc_middle::mir::Local;
+use rustc_middle::ty::TyCtxt;
+
+use std::collections::HashMap;
+
+use checking::Checking;
+use synthesis::Synthesis;
 
 pub struct Context<'tcx> {
     var_generator: Generator<ty::Variable>,
     vars: Vec<(ast::Variable, ty::Variable)>,
-    locals: Vec<(ty::Variable, Local)>,
+    ty_vars: HashMap<ty::Variable, ty::RefinedTy>,
     tcx: TyCtxt<'tcx>,
 }
 
@@ -17,7 +26,7 @@ impl<'tcx> Context<'tcx> {
         Self {
             var_generator: ty::Variable::generator(),
             vars: vec![],
-            locals: vec![],
+            ty_vars: HashMap::default(),
             tcx,
         }
     }
@@ -47,10 +56,6 @@ impl<'tcx> Context<'tcx> {
         var
     }
 
-    fn tag_local(&mut self, var: ty::Variable, local: Local) {
-        self.locals.push((var, local));
-    }
-
     fn is_well_formed(&mut self, ty: &ty::RefinedTy) -> bool {
         todo!()
     }
@@ -61,6 +66,21 @@ impl<'tcx> Context<'tcx> {
 
     fn is_subtype(&mut self, ty1: &ty::RefinedTy, ty2: ty::RefinedTy) -> bool {
         todo!()
+    }
+}
+
+struct FnContext<'tcx> {
+    ctx: &'tcx mut Context<'tcx>,
+    vars: IndexVec<Local, ty::Variable>,
+}
+
+impl<'tcx> FnContext<'tcx> {
+    fn synth(&mut self, t: impl Synthesis<'tcx>) -> (ty::Constraint, ty::RefinedTy) {
+        t.synth(self)
+    }
+
+    fn check(&mut self, t: impl Checking<'tcx>, ty: &ty::RefinedTy) -> ty::Constraint {
+        t.check(self, ty)
     }
 }
 
