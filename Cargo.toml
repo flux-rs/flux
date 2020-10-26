@@ -1,5 +1,6 @@
 [workspace]
 
 members = [
-    "liquid-rust-driver"
+    "liquid-rust-driver",
+    "liquid-rust-lang"
 ]
