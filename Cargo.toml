@@ -1,9 +1,5 @@
-[package]
-name = "liquid-rust"
-version = "0.1.0"
-authors = ["Christian Poveda <git@christianpoveda.xyz>"]
-edition = "2018"
+[workspace]
 
-[dependencies]
-rustc-workspace-hack = "1.0.0"
-nom = "5.1.2"
+members = [
+    "liquid-rust-driver"
+]
