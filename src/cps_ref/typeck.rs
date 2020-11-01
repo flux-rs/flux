@@ -1,75 +1,101 @@
 use std::collections::HashMap;
 
 use super::{
-    ast::*, constraint::Constraint, context::LiquidRustCtxt, subst::DeferredSubst, subst::Subst,
-    utils::OrderedHashMap,
+    ast::*, constraint::Constraint, constraint::Kvar, constraint::Sort, context::LiquidRustCtxt,
+    subst::DeferredSubst, subst::Subst, utils::Dict, utils::OrderedHashMap, utils::Scoped,
 };
 
 type LocalsMap = HashMap<Local, OwnRef>;
 type LocationsMap<'lr> = OrderedHashMap<Location, Ty<'lr>>;
-type Bindings<'lr> = Vec<(Location, Ty<'lr>)>;
+type Binding<'lr> = (Var, Ty<'lr>);
+type Bindings<'lr> = Vec<Binding<'lr>>;
 
 struct TyCtxt<'lr> {
     cx: &'lr LiquidRustCtxt<'lr>,
-    frames: Vec<CtxtFrame<'lr>>,
+    locations: Scoped<LocationsMap<'lr>>,
+    locals: Vec<LocalsMap>,
     curr_location: u32,
-}
-
-struct CtxtFrame<'lr> {
-    locations: LocationsMap<'lr>,
-    locals: LocalsMap,
+    kenv: HashMap<Symbol, Cont<'lr>>,
+    kvars: Vec<Kvar>,
 }
 
 impl<'lr> TyCtxt<'lr> {
-    pub fn new(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        locations: LocationsMap<'lr>,
-        locals: LocalsMap,
-    ) -> Self {
-        let frame = CtxtFrame { locations, locals };
+    pub fn new(cx: &'lr LiquidRustCtxt<'lr>) -> Self {
         Self {
-            frames: vec![frame],
             cx,
+            locations: Scoped::default(),
+            locals: vec![],
+            kenv: HashMap::new(),
             curr_location: 0,
+            kvars: vec![],
         }
     }
 
-    pub fn vars_in_scope(&self) -> Vec<Var> {
-        self.frames
-            .iter()
-            .flat_map(|f| f.locations.keys())
-            .map(|l| l.into())
-            .collect()
+    pub fn enter_fn_def(
+        &mut self,
+        fn_def: &FnDef<'lr>,
+        mut act: impl for<'a> FnMut(&'a mut Self) -> Constraint,
+    ) -> Constraint {
+        let locations = self.insert_kvars_heap(&fn_def.heap);
+        self.locations.push(locations);
+        self.locals.push(fn_def.args.iter().copied().collect());
+
+        let locations = self.insert_kvars_heap(&fn_def.out_heap);
+        self.kenv.insert(
+            fn_def.ret,
+            Cont {
+                heap: locations,
+                env: vec![],
+                params: vec![fn_def.out_ty],
+            },
+        );
+        self.locations.push(OrderedHashMap::default());
+        let c = act(self);
+        self.locations.pop();
+        self.locals.pop();
+        Constraint::from_bindings(self.locations.pop().unwrap().into_iter(), c)
     }
 
-    pub fn enter_cont_def<T>(
+    fn bindings(&self) -> impl DoubleEndedIterator<Item = Binding<'lr>> + '_ {
+        self.locations.iter().map(|(&l, &t)| (Var::from(l), t))
+    }
+
+    pub fn enter_cont_def(
         &mut self,
         cont_def: &ContDef<'lr>,
-        mut act: impl for<'a> FnMut(&'a mut Self) -> T,
-    ) -> T {
-        let frame = CtxtFrame {
-            locals: cont_def
+        mut act: impl for<'a> FnMut(&'a mut Self) -> Constraint,
+    ) -> Constraint {
+        let locations = self.insert_kvars_heap(&cont_def.heap);
+        self.locations.push(locations.clone());
+        self.locals.push(
+            cont_def
                 .env
                 .iter()
                 .chain(cont_def.params.iter())
                 .copied()
                 .collect(),
-            locations: insert_kvars(self.cx, &cont_def.heap, self.vars_in_scope()),
-        };
-        self.frames.push(frame);
-        let t = act(self);
-        self.frames.pop();
-        t
+        );
+        self.kenv.insert(
+            cont_def.name,
+            Cont {
+                heap: locations,
+                env: cont_def.env.clone(),
+                params: cont_def.params.iter().map(|p| p.1).collect(),
+            },
+        );
+        self.locations.push(OrderedHashMap::default());
+        let c = act(self);
+        self.locations.pop();
+        self.locals.pop();
+        Constraint::from_bindings(self.locations.pop().unwrap().into_iter(), c)
     }
 
     pub fn enter_branch<T>(&mut self, mut act: impl for<'a> FnMut(&'a mut Self) -> T) -> T {
-        let frame = CtxtFrame {
-            locals: self.frames.last().unwrap().locals.clone(),
-            locations: LocationsMap::new(),
-        };
-        self.frames.push(frame);
+        self.locations.push(LocationsMap::new());
+        self.locals.push(self.locals.last().unwrap().clone());
         let r = act(self);
-        self.frames.pop();
+        self.locals.pop();
+        self.locations.pop();
         r
     }
 
@@ -81,27 +107,20 @@ impl<'lr> TyCtxt<'lr> {
     }
 
     fn lookup_local(&self, x: Local) -> Option<OwnRef> {
-        self.frames.last().and_then(|f| f.locals.get(&x).copied())
+        self.locals.last().and_then(|m| m.get(&x).copied())
     }
 
     fn lookup_location(&self, l: Location) -> Option<Ty<'lr>> {
-        for frame in self.frames.iter().rev() {
-            if let Some(typ) = frame.locations.get(&l) {
-                return Some(typ);
-            }
-        }
-        None
+        self.locations.get(&l).copied()
     }
 
     fn insert_location(&mut self, l: Location, typ: Ty<'lr>) {
         debug_assert!(self.lookup_location(l).is_none());
-        let frame = self.frames.last_mut().unwrap();
-        frame.locations.insert(l, typ);
+        self.locations.insert(l, typ);
     }
 
     fn insert_local(&mut self, x: Local, ownref: OwnRef) {
-        let frame = self.frames.last_mut().unwrap();
-        frame.locals.insert(x, ownref);
+        self.locals.last_mut().unwrap().insert(x, ownref);
     }
 
     pub fn uninit(&mut self, place: &Place) {
@@ -109,7 +128,7 @@ impl<'lr> TyCtxt<'lr> {
         self.update(place, self.cx.mk_uninit(t.size()));
     }
 
-    pub fn update(&mut self, place: &Place, typ: Ty<'lr>) -> (Location, Ty<'lr>) {
+    pub fn update(&mut self, place: &Place, typ: Ty<'lr>) -> (Var, Ty<'lr>) {
         let OwnRef(l) = self.lookup_local(place.local).unwrap();
         let updated_typ =
             self.lookup_location(l)
@@ -118,7 +137,7 @@ impl<'lr> TyCtxt<'lr> {
         let fresh_l = self.fresh_location();
         self.insert_location(fresh_l, updated_typ);
         self.insert_local(place.local, OwnRef(fresh_l));
-        (fresh_l, updated_typ)
+        (Var::from(fresh_l), updated_typ)
     }
 
     pub fn alloc(&mut self, x: Local, layout: &TypeLayout) {
@@ -141,16 +160,21 @@ impl<'lr> TyCtxt<'lr> {
         out_heap: &Heap<'lr>,
         out_ty: OwnRef,
         args: &[Local],
-        cont: &Cont<'_, 'lr>,
+        ret: Symbol,
     ) -> Result<Constraint, TypeError<'lr>> {
         if args.len() != params.len() {
             return Err(TypeError::ArgCount);
         }
         // Check against function arguments
-        // TODO: pass vars in scope
-        let locations_f = insert_kvars(self.cx, &in_heap, vec![]);
+        let locations_f = self.insert_kvars_heap(&in_heap);
         let locals_f = args.iter().copied().zip(params.iter().copied()).collect();
-        let c1 = self.env_incl(&locations_f, &locals_f)?;
+        let c1 = env_incl(
+            self.cx,
+            &self.locations,
+            self.locals.last().unwrap(),
+            &locations_f,
+            &locals_f,
+        )?;
 
         // Update context after function call
         let fresh_x = Local(Symbol::intern("$")); // FIXME
@@ -164,167 +188,88 @@ impl<'lr> TyCtxt<'lr> {
         self.insert_local(fresh_x, out_ty);
 
         let c2 =
-            Constraint::from_bindings(out_heap.iter().copied(), self.check_jump(cont, &[fresh_x])?);
+            Constraint::from_bindings(out_heap.iter().copied(), self.check_jump(ret, &[fresh_x])?);
         Ok(Constraint::Conj(vec![c1, c2]))
     }
 
     pub fn check_jump(
         &mut self,
-        cont: &Cont<'_, 'lr>,
+        ret: Symbol,
         args: &[Local],
     ) -> Result<Constraint, TypeError<'lr>> {
+        let cont = &self.kenv[&ret];
         if args.len() != cont.params.len() {
             return Err(TypeError::ArgCount);
         }
-        let locals = cont.locals_map(args)?;
-        self.env_incl(&cont.heap, &locals)
+        let locations1 = &self.locations;
+        let locals1 = self.locals.last().unwrap();
+        let locations2 = &cont.heap;
+        let locals2 = &cont.locals_map(args)?;
+        env_incl(self.cx, locations1, locals1, locations2, locals2)
     }
 
-    fn env_incl(
-        &mut self,
-        locations: &LocationsMap<'lr>,
-        locals: &LocalsMap,
-    ) -> Result<Constraint, TypeError<'lr>> {
-        let subst = self.infer_subst_ctxt(&locations, locals);
-        let locations = DeferredSubst::new(subst, locations);
-        let mut vec = vec![];
-        for (x, OwnRef(l2)) in locals {
-            let OwnRef(l1) = self.lookup_local(*x).unwrap();
-            let p = self.cx.mk_place(l1.into(), &[]);
-            let typ1 = selfify(self.cx, p, self.lookup_location(l1).unwrap()).into();
-            let typ2 = locations.get(l2);
-            vec.push(self.subtype(&locations, typ1, typ2)?);
+    fn insert_kvars_heap<'a>(&mut self, heap: &Heap<'lr>) -> LocationsMap<'lr> {
+        let mut bindings = self.bindings().collect();
+        heap.iter()
+            .map(|&(l, t)| {
+                let t = self.insert_kvars_typ(t, &mut bindings);
+                bindings.push((Var::from(l), t));
+                (l, t)
+            })
+            .collect()
+    }
+
+    fn insert_kvars_typ(&mut self, typ: Ty<'lr>, bindings: &mut Bindings<'lr>) -> Ty<'lr> {
+        match typ {
+            TyS::Fn { .. } => todo!(),
+            TyS::Tuple(fields) => {
+                let fields: Vec<(Field, Ty)> = fields
+                    .iter()
+                    .map(|&(f, t)| {
+                        let t = self.insert_kvars_typ(t, bindings);
+                        bindings.push((Var::from(f), t));
+                        (f, t)
+                    })
+                    .collect();
+                bindings.truncate(bindings.len() - fields.len());
+                self.cx.mk_tuple(&fields)
+            }
+            &TyS::RefineHole { ty, n: _ } => {
+                // liquid-fixpoint requires Nu to be the first argument
+                let mut vars: Vec<Var> = vec![Var::Nu];
+                vars.extend(bindings.iter().map(|&(x, _)| x));
+                let kvar_n = self.fresh_kvar(ty, bindings);
+                self.cx
+                    .mk_refine(ty, self.cx.mk_pred(PredS::Kvar(kvar_n, vars)))
+            }
+            _ => typ,
         }
-        Ok(Constraint::Conj(vec))
     }
 
-    fn subtype(
-        &mut self,
-        locations: &DeferredSubst<&LocationsMap<'lr>>,
-        typ1: DeferredSubst<Ty<'lr>>,
-        typ2: DeferredSubst<Ty<'lr>>,
-    ) -> Result<Constraint, TypeError<'lr>> {
-        let (subst1, typ1) = typ1.split();
-        let (subst2, typ2) = typ2.split();
-        let c = match (typ1, typ2) {
-            (TyS::Fn { .. }, TyS::Fn { .. }) => todo!("implement function subtyping"),
-            (TyS::OwnRef(l1), TyS::OwnRef(l2)) => {
-                let p = self.cx.mk_place((*l1).into(), &[]);
-                let typ1 = selfify(self.cx, p, self.lookup_location(*l1).unwrap()).into();
-                let typ2 = locations.get(l2);
-                self.subtype(locations, typ1, typ2)?
-            }
-            (
-                TyS::Refine {
-                    ty: ty1,
-                    pred: pred1,
-                },
-                TyS::Refine {
-                    ty: ty2,
-                    pred: pred2,
-                },
-            ) => {
-                if ty1 != ty2 {
-                    return Err(TypeError::SubtypingError(typ1, typ2));
-                }
-                Constraint::from_subtype(
-                    *ty1,
-                    DeferredSubst::new(subst1, pred1),
-                    DeferredSubst::new(subst2, pred2),
-                )
-            }
-            (TyS::Tuple(fields1), TyS::Tuple(fields2)) => {
-                if fields1.len() != fields2.len() {
-                    return Err(TypeError::SubtypingError(typ1, typ2));
-                }
-                let subst2 =
-                    subst2.extend2(fields2.iter().map(|f| f.0), fields1.iter().map(|f| f.0));
-                let mut iter = fields1.iter().zip(fields2).rev();
-                if let Some(((_, t1), (_, t2))) = iter.next() {
-                    let t1 = DeferredSubst::new(subst1.clone(), *t1);
-                    let t2 = DeferredSubst::new(subst2.clone(), *t2);
-                    let mut c = self.subtype(locations, t1, t2)?;
-                    for ((x1, t1), (_, t2)) in iter {
-                        let t1 = DeferredSubst::new(subst1.clone(), *t1);
-                        let t2 = DeferredSubst::new(subst2.clone(), *t2);
-                        c = Constraint::Conj(vec![
-                            self.subtype(locations, t1.clone(), t2)?,
-                            Constraint::from_binding(*x1, t1, c),
-                        ]);
-                    }
-                    c
-                } else {
-                    Constraint::True
-                }
-            }
-            (_, TyS::Uninit(_)) => Constraint::True,
-            _ => return Err(TypeError::SubtypingError(typ1, typ2)),
-        };
-        Ok(c)
-    }
-
-    fn infer_subst_ctxt(&self, locations: &LocationsMap, locals: &LocalsMap) -> Subst {
-        let mut v = Vec::new();
-        for (x, OwnRef(l2)) in locals {
-            let OwnRef(l1) = self.lookup_local(*x).unwrap();
-            self.infer_subst_typ(
-                locations,
-                self.cx.mk_own_ref(l1),
-                self.cx.mk_own_ref(*l2),
-                &mut v,
-            );
-        }
-        Subst::from(v)
-    }
-
-    fn infer_subst_typ(
-        &self,
-        locations: &LocationsMap,
-        typ1: Ty,
-        typ2: Ty,
-        v: &mut Vec<(Var, Var)>,
-    ) {
-        match (typ1, typ2) {
-            (TyS::OwnRef(l1), TyS::OwnRef(l2)) => {
-                self.infer_subst_typ(
-                    locations,
-                    self.lookup_location(*l1).unwrap(),
-                    locations[l2],
-                    v,
-                );
-                v.push((Var::Location(*l2), Var::Location(*l1)));
-            }
-            _ => {}
-        }
+    fn fresh_kvar(&mut self, nu_ty: BasicType, bindings: &Bindings) -> u32 {
+        let n = self.kvars.len() as u32;
+        let mut vars = vec![Sort::from(nu_ty)];
+        vars.extend(bindings.iter().map(|&(_, t)| Sort::from(t)));
+        self.kvars.push((n, vars));
+        n
     }
 }
 
-pub struct TypeCk<'a, 'b, 'lr> {
+pub struct TypeCk<'lr> {
     cx: &'lr LiquidRustCtxt<'lr>,
-    kenv: &'a mut HashMap<Symbol, Cont<'b, 'lr>>,
     errors: Vec<TypeError<'lr>>,
 }
 
-impl<'b, 'lr> TypeCk<'_, 'b, 'lr> {
+impl<'lr> TypeCk<'lr> {
     pub fn cgen(
         cx: &'lr LiquidRustCtxt<'lr>,
         fn_def: &FnDef<'lr>,
-    ) -> Result<Constraint, Vec<TypeError<'lr>>> {
-        let mut kenv = HashMap::default();
-        kenv.insert(fn_def.ret, Cont::from_fn_def(cx, fn_def));
-        let mut checker = TypeCk {
-            cx,
-            kenv: &mut kenv,
-            errors: vec![],
-        };
-        let locations = insert_kvars(cx, &fn_def.heap, vec![]);
-        let locals = fn_def.args.iter().copied().collect();
-        let c = Constraint::from_bindings(
-            locations.clone().iter().map(|(&l, &t)| (l, t)),
-            checker.wt_fn_body(&mut TyCtxt::new(cx, locations, locals), &fn_def.body),
-        );
+    ) -> Result<(Constraint, Vec<Kvar>), Vec<TypeError<'lr>>> {
+        let mut checker = Self { cx, errors: vec![] };
+        let mut tcx = TyCtxt::new(cx);
+        let c = tcx.enter_fn_def(fn_def, |tcx| checker.wt_fn_body(tcx, &fn_def.body));
         if checker.errors.is_empty() {
-            Ok(c)
+            Ok((c, tcx.kvars))
         } else {
             Err(checker.errors)
         }
@@ -450,16 +395,10 @@ impl<'b, 'lr> TypeCk<'_, 'b, 'lr> {
         }
     }
 
-    fn wt_fn_body(&mut self, tcx: &mut TyCtxt<'lr>, fn_body: &'b FnBody<'lr>) -> Constraint {
+    fn wt_fn_body(&mut self, tcx: &mut TyCtxt<'lr>, fn_body: &FnBody<'lr>) -> Constraint {
         match fn_body {
             FnBody::LetCont { def, rest } => {
-                let cont = Cont::from_cont_def(self.cx, def, tcx.vars_in_scope());
-                self.kenv.insert(def.name, cont);
                 let c1 = tcx.enter_cont_def(def, |tcx| self.wt_fn_body(tcx, &def.body));
-                let c1 = Constraint::from_bindings(
-                    self.kenv[&def.name].heap.iter().map(|(&l, &t)| (l, t)),
-                    c1,
-                );
                 let c2 = self.wt_fn_body(tcx, rest);
                 Constraint::Conj(vec![c1, c2])
             }
@@ -484,7 +423,6 @@ impl<'b, 'lr> TypeCk<'_, 'b, 'lr> {
                 }
             }
             FnBody::Call { func, ret, args } => {
-                let cont = &self.kenv[ret];
                 let (_, typ) = tcx.lookup(func);
                 match typ {
                     TyS::Fn {
@@ -492,7 +430,7 @@ impl<'b, 'lr> TypeCk<'_, 'b, 'lr> {
                         params,
                         out_heap,
                         ret: out_ty,
-                    } => match tcx.check_call(in_heap, params, out_heap, *out_ty, args, cont) {
+                    } => match tcx.check_call(in_heap, params, out_heap, *out_ty, args, *ret) {
                         Ok(c) => c,
                         Err(err) => {
                             self.errors.push(err);
@@ -505,7 +443,7 @@ impl<'b, 'lr> TypeCk<'_, 'b, 'lr> {
                     }
                 }
             }
-            FnBody::Jump { target, args } => tcx.check_jump(&self.kenv[target], args).unwrap(),
+            FnBody::Jump { target, args } => tcx.check_jump(*target, args).unwrap(),
             FnBody::Seq(statement, rest) => match self.wt_statement(tcx, statement) {
                 Ok(bindings) => {
                     Constraint::from_bindings(bindings.iter().copied(), self.wt_fn_body(tcx, rest))
@@ -529,7 +467,7 @@ fn selfify<'lr>(cx: &'lr LiquidRustCtxt<'lr>, pred: Pred<'lr>, typ: Ty<'lr>) -> 
     }
 }
 
-impl<'lr> Cont<'_, 'lr> {
+impl<'lr> Cont<'lr> {
     fn locals_map(&self, args: &[Local]) -> Result<LocalsMap, TypeError<'lr>> {
         debug_assert!(args.len() == self.params.len());
         let mut ctxt: LocalsMap = self.env.iter().copied().collect();
@@ -543,77 +481,10 @@ impl<'lr> Cont<'_, 'lr> {
     }
 }
 
-fn insert_kvars<'lr, 'a>(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    heap: &Heap<'lr>,
-    mut vars_in_scope: Vec<Var>,
-) -> LocationsMap<'lr> {
-    heap.iter()
-        .map(|&(l, t)| {
-            let t = t.insert_kvars(cx, &mut vars_in_scope);
-            vars_in_scope.push(l.into());
-            (l, t)
-        })
-        .collect()
-}
-
-impl<'lr> TyS<'lr> {
-    fn insert_kvars(
-        &'lr self,
-        cx: &'lr LiquidRustCtxt<'lr>,
-        vars_in_scope: &mut Vec<Var>,
-    ) -> Ty<'lr> {
-        match self {
-            TyS::Fn { .. } => todo!(),
-            TyS::Tuple(fields) => {
-                let fields: Vec<(Field, Ty)> = fields
-                    .iter()
-                    .map(|&(f, t)| {
-                        let t = t.insert_kvars(cx, vars_in_scope);
-                        vars_in_scope.push(Var::from(f));
-                        (f, t)
-                    })
-                    .collect();
-                vars_in_scope.truncate(vars_in_scope.len() - fields.len());
-                cx.mk_tuple(&fields)
-            }
-            &TyS::RefineHole { ty, n } => {
-                // Nu needs to be the first argument because of liquid-fixpoint restrictions
-                let mut vars: Vec<Var> = vec![Var::Nu];
-                vars.extend(vars_in_scope.iter().copied());
-                cx.mk_refine(ty, cx.mk_pred(PredS::Kvar(n, vars)))
-            }
-            _ => self,
-        }
-    }
-}
-struct Cont<'a, 'lr> {
+struct Cont<'lr> {
     pub heap: LocationsMap<'lr>,
-    pub env: &'a Env,
+    pub env: Env,
     pub params: Vec<OwnRef>,
-}
-
-const EMPTY_ENV: &Env = &vec![];
-impl<'a, 'lr> Cont<'a, 'lr> {
-    fn from_cont_def(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        def: &'a ContDef<'lr>,
-        vars_in_scope: Vec<Var>,
-    ) -> Self {
-        Self {
-            heap: insert_kvars(cx, &def.heap, vars_in_scope),
-            env: &def.env,
-            params: def.params.iter().map(|p| p.1).collect(),
-        }
-    }
-
-    fn from_fn_def(cx: &'lr LiquidRustCtxt<'lr>, def: &'a FnDef<'lr>) -> Self {
-        Self {
-            heap: insert_kvars(cx, &def.out_heap, vec![]),
-            env: EMPTY_ENV,
-            params: vec![def.out_ty],
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -626,4 +497,125 @@ pub enum TypeError<'lr> {
     NotFun(Ty<'lr>),
     NotBool(Ty<'lr>),
     ArgCount,
+}
+
+fn env_incl<'lr>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    locations1: &Scoped<LocationsMap<'lr>>,
+    locals1: &LocalsMap,
+    locations2: &LocationsMap<'lr>,
+    locals2: &LocalsMap,
+) -> Result<Constraint, TypeError<'lr>> {
+    let subst = infer_subst_ctxt(locations1, locals1, locations2, locals2);
+    let locations2 = &DeferredSubst::new(subst, locations2);
+    let mut vec = vec![];
+    for (x, OwnRef(l2)) in locals2 {
+        let OwnRef(l1) = locals1[x];
+        let p = cx.mk_place(l1.into(), &[]);
+        let typ1 = selfify(cx, p, locations1[l1]);
+        let typ2 = locations2.get(l2);
+        vec.push(subtype(cx, locations1, typ1.into(), locations2, typ2)?);
+    }
+    Ok(Constraint::Conj(vec))
+}
+
+fn subtype<'lr>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    locations1: &Scoped<LocationsMap<'lr>>,
+    typ1: DeferredSubst<Ty<'lr>>,
+    locations2: &DeferredSubst<&LocationsMap<'lr>>,
+    typ2: DeferredSubst<Ty<'lr>>,
+) -> Result<Constraint, TypeError<'lr>> {
+    let (subst1, typ1) = typ1.split();
+    let (subst2, typ2) = typ2.split();
+    let c = match (typ1, typ2) {
+        (TyS::Fn { .. }, TyS::Fn { .. }) => todo!("implement function subtyping"),
+        (TyS::OwnRef(l1), TyS::OwnRef(l2)) => {
+            let p = cx.mk_place((*l1).into(), &[]);
+            let typ1 = selfify(cx, p, locations1[*l1]).into();
+            let typ2 = locations2.get(l2);
+            subtype(cx, locations1, typ1, locations2, typ2)?
+        }
+        (
+            TyS::Refine {
+                ty: ty1,
+                pred: pred1,
+            },
+            TyS::Refine {
+                ty: ty2,
+                pred: pred2,
+            },
+        ) => {
+            if ty1 != ty2 {
+                return Err(TypeError::SubtypingError(typ1, typ2));
+            }
+            Constraint::from_subtype(
+                *ty1,
+                DeferredSubst::new(subst1, pred1),
+                DeferredSubst::new(subst2, pred2),
+            )
+        }
+        (TyS::Tuple(fields1), TyS::Tuple(fields2)) => {
+            if fields1.len() != fields2.len() {
+                return Err(TypeError::SubtypingError(typ1, typ2));
+            }
+            let subst2 = subst2.extend2(fields2.iter().map(|f| f.0), fields1.iter().map(|f| f.0));
+            let mut iter = fields1.iter().zip(fields2).rev();
+            if let Some(((_, t1), (_, t2))) = iter.next() {
+                let t1 = DeferredSubst::new(subst1.clone(), *t1);
+                let t2 = DeferredSubst::new(subst2.clone(), *t2);
+                let mut c = subtype(cx, locations1, t1, locations2, t2)?;
+                for ((x1, t1), (_, t2)) in iter {
+                    let t1 = DeferredSubst::new(subst1.clone(), *t1);
+                    let t2 = DeferredSubst::new(subst2.clone(), *t2);
+                    c = Constraint::Conj(vec![
+                        subtype(cx, locations1, t1.clone(), locations2, t2)?,
+                        Constraint::from_binding(*x1, t1, c),
+                    ]);
+                }
+                c
+            } else {
+                Constraint::True
+            }
+        }
+        (_, TyS::Uninit(_)) => Constraint::True,
+        _ => return Err(TypeError::SubtypingError(typ1, typ2)),
+    };
+    Ok(c)
+}
+
+fn infer_subst_ctxt<'lr>(
+    locations1: &Scoped<LocationsMap<'lr>>,
+    locals1: &LocalsMap,
+    locations2: &LocationsMap<'lr>,
+    locals2: &LocalsMap,
+) -> Subst {
+    let mut v = Vec::new();
+    for (x, &OwnRef(l2)) in locals2 {
+        let OwnRef(l1) = locals1[x];
+        infer_subst_typ(
+            locations1,
+            &TyS::OwnRef(l1),
+            locations2,
+            &TyS::OwnRef(l2),
+            &mut v,
+        );
+    }
+    Subst::from(v)
+}
+
+fn infer_subst_typ(
+    locations1: &Scoped<LocationsMap>,
+    typ1: Ty,
+    locations2: &LocationsMap,
+    typ2: Ty,
+    v: &mut Vec<(Var, Var)>,
+) {
+    match (typ1, typ2) {
+        (TyS::OwnRef(l1), TyS::OwnRef(l2)) => {
+            infer_subst_typ(locations1, locations1[*l1], locations2, locations2[l2], v);
+            v.push((Var::Location(*l2), Var::Location(*l1)));
+        }
+        _ => {}
+    }
 }

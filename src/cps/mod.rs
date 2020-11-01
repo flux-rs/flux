@@ -4,7 +4,7 @@ pub mod parser;
 #[cfg(test)]
 mod tests {
     use rustc_ast::attr::with_default_session_globals;
-    
+
     const CPS_SUM_TEXT: &str = "fn sum(n: {i32 | n >= 0}) ret k(v: {i32 | v >= n}) =
   letcont loop(i1: {i32 | i1 >= 0}, r1: {i32 | r1 >= i1}) =
     let t0 = i1 <= n in
@@ -23,7 +23,8 @@ mod tests {
   jump loop(i0, r0)
 ";
 
-    const CPS_COUNT_ZEROS_TEXT: &str = "fn count_zeros(limit: {i32 | n >= 0}) ret k(v: {i32 | v >= 0}) =
+    const CPS_COUNT_ZEROS_TEXT: &str =
+        "fn count_zeros(limit: {i32 | n >= 0}) ret k(v: {i32 | v >= 0}) =
   letcont b0(i1: {i32 | i1 >= 0}, c1: {i32 | r1 >= 0}) =
     let t0 = i1 < limit in
     if t0 then
@@ -50,9 +51,7 @@ mod tests {
     #[test]
     fn cps_sum() {
         with_default_session_globals(|| {
-            let expr = super::parser::FnsParser::new()
-                .parse(CPS_SUM_TEXT)
-                .unwrap();
+            let expr = super::parser::FnsParser::new().parse(CPS_SUM_TEXT).unwrap();
 
             dbg!(expr);
         });

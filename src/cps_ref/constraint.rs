@@ -7,8 +7,8 @@ pub enum Constraint {
     Pred(PredC),
     Conj(Vec<Constraint>),
     Forall {
-        bind: Symbol,
-        ty: BasicType,
+        bind: Var,
+        sort: Sort,
         hyp: PredC,
         body: Box<Constraint>,
     },
@@ -17,13 +17,47 @@ pub enum Constraint {
     Err,
 }
 
+#[derive(Debug)]
+pub enum Sort {
+    Int,
+    Bool,
+    Tuple(Vec<Sort>),
+}
+
+impl From<BasicType> for Sort {
+    fn from(ty: BasicType) -> Self {
+        match ty {
+            BasicType::Bool => Sort::Bool,
+            BasicType::Int => Sort::Int,
+        }
+    }
+}
+
+pub type Kvar = (u32, Vec<Sort>);
+
+impl From<Ty<'_>> for Sort {
+    fn from(typ: Ty<'_>) -> Self {
+        match typ {
+            TyS::Tuple(fields) => Sort::Tuple(fields.iter().map(|&(_, t)| Sort::from(t)).collect()),
+            &TyS::Refine { ty, .. } => Sort::from(ty),
+            TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) => Self::Int,
+            TyS::RefineHole { .. } => bug!(),
+        }
+    }
+}
+pub struct Place {
+    pub var: Var,
+    pub proj: Vec<u32>,
+}
+
 pub enum PredC {
-    Var(Symbol),
+    Place(Place),
     Constant(Constant),
     BinaryOp(BinOp, Box<PredC>, Box<PredC>),
+    Conj(Vec<PredC>),
     UnaryOp(UnOp, Box<PredC>),
     Iff(Box<PredC>, Box<PredC>),
-    Kvar(u32, Vec<Symbol>),
+    Kvar(u32, Vec<Place>),
 }
 
 impl Constraint {
@@ -34,13 +68,13 @@ impl Constraint {
         T: Into<DeferredSubst<Ty<'a>>>,
     {
         for (x, typ) in bindings.rev() {
-            for (y, ty, hyp) in embed(x.into(), typ.into()).into_iter().rev() {
-                body = Constraint::Forall {
-                    bind: y,
-                    ty,
-                    hyp,
-                    body: box body,
-                }
+            let bind = x.into();
+            let (sort, hyp) = embed(bind, typ.into());
+            body = Constraint::Forall {
+                bind,
+                sort,
+                hyp,
+                body: box body,
             }
         }
         body
@@ -60,8 +94,8 @@ impl Constraint {
         pred2: DeferredSubst<Pred<'a>>,
     ) -> Self {
         Constraint::Forall {
-            bind: Symbol::intern(&format!("{:?}", Var::Nu)),
-            ty,
+            bind: Var::Nu,
+            sort: Sort::from(ty),
             hyp: pred1.apply(),
             body: box Constraint::Pred(pred2.apply()),
         }
@@ -81,26 +115,24 @@ impl<'a> ApplySubst<PredC> for Pred<'a> {
                 var: x,
                 projection: outter,
             } => {
-                let (y, inner) = subst.get(*x).unwrap_or((*x, vec![]));
-                PredC::Var(place_to_symbol(y, inner.iter().chain(outter)))
+                let (var, mut proj) = subst.get(*x).unwrap_or((*x, vec![]));
+                proj.extend(outter);
+                PredC::Place(Place { var, proj })
             }
             PredS::BinaryOp(op, lhs, rhs) => {
                 PredC::BinaryOp(*op, box lhs.apply(subst), box rhs.apply(subst))
             }
             PredS::UnaryOp(op, p) => PredC::UnaryOp(*op, box p.apply(subst)),
             PredS::Iff(lhs, rhs) => PredC::Iff(box lhs.apply(subst), box rhs.apply(subst)),
-            PredS::Kvar(n, vars) => {
-                let vars = vars.iter().map(|v| v.apply(subst)).collect();
-                PredC::Kvar(*n, vars)
-            }
+            PredS::Kvar(n, vars) => PredC::Kvar(*n, vars.iter().map(|v| v.apply(subst)).collect()),
         }
     }
 }
 
-impl ApplySubst<Symbol> for Var {
-    fn apply(&self, subst: &Subst) -> Symbol {
-        let (x, proj) = subst.get(*self).unwrap_or((*self, vec![]));
-        place_to_symbol(x, &proj)
+impl<'a> ApplySubst<Place> for Var {
+    fn apply(&self, subst: &Subst) -> Place {
+        let (var, proj) = subst.get(*self).unwrap_or((*self, vec![]));
+        Place { var, proj }
     }
 }
 
@@ -110,12 +142,36 @@ impl<'a> From<Pred<'a>> for PredC {
     }
 }
 
-fn embed(x: Var, typ: DeferredSubst<Ty>) -> Vec<(Symbol, BasicType, PredC)> {
+fn embed(x: Var, typ: DeferredSubst<Ty>) -> (Sort, PredC) {
     let (subst, typ) = typ.split();
     let mut v = Vec::new();
     collect_field_map(x, &vec![], typ, &mut v);
     let subst = subst.extend(v);
-    embed_(x, &mut vec![], typ, &subst)
+    (Sort::from(typ), embed_rec(x, typ, &subst, &mut vec![]))
+}
+
+fn embed_rec(x: Var, typ: Ty, subst: &Subst, proj: &mut Vec<u32>) -> PredC {
+    match typ {
+        &TyS::Refine { pred, .. } => {
+            let subst = subst.extend(vec![(Var::Nu, (x, proj.clone()))]);
+            pred.apply(&subst)
+        }
+        TyS::Tuple(fields) => {
+            let preds = fields
+                .iter()
+                .enumerate()
+                .map(|(i, (_, t))| {
+                    proj.push(i as u32);
+                    let pred = embed_rec(x, t, subst, proj);
+                    proj.pop();
+                    pred
+                })
+                .collect();
+            PredC::Conj(preds)
+        }
+        TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) => PredC::Constant(Constant::Bool(true)),
+        TyS::RefineHole { .. } => bug!(),
+    }
 }
 
 fn collect_field_map(x: Var, proj: &Vec<u32>, typ: Ty, v: &mut Vec<(Var, (Var, Vec<u32>))>) {
@@ -132,43 +188,15 @@ fn collect_field_map(x: Var, proj: &Vec<u32>, typ: Ty, v: &mut Vec<(Var, (Var, V
     }
 }
 
-fn embed_(x: Var, proj: &mut Vec<u32>, typ: Ty, subst: &Subst) -> Vec<(Symbol, BasicType, PredC)> {
-    match typ {
-        TyS::Refine { pred, ty } => {
-            let subst = subst.extend(vec![(Var::Nu, (x, proj.clone()))]);
-            vec![(place_to_symbol(x, proj.iter()), *ty, pred.apply(&subst))]
-        }
-        TyS::Tuple(fields) => {
-            let mut v = vec![];
-            for i in 0..fields.len() {
-                proj.push(i as u32);
-                v.extend(embed_(x, proj, fields[i].1, subst));
-                proj.pop();
-            }
-            v
-        }
-        TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) => vec![],
-        TyS::RefineHole { .. } => bug!(""),
-    }
-}
-
-fn place_to_symbol<'a, I>(var: Var, projection: I) -> Symbol
-where
-    I: IntoIterator<Item = &'a u32>,
-{
-    let mut s = format!("{:?}", var);
-    for p in projection {
-        s.push_str(&format!(".{}", p));
-    }
-    Symbol::intern(&s)
-}
-
 impl fmt::Debug for PredC {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PredC::Constant(c) => write!(f, "{:?}", c)?,
-            PredC::Var(s) => {
-                write!(f, "{}", &*s.as_str())?;
+            PredC::Place(Place { var, proj }) => {
+                write!(f, "{:?}", var)?;
+                for p in proj {
+                    write!(f, ".{}", p)?
+                }
             }
             PredC::BinaryOp(op, lhs, rhs) => {
                 write!(f, "({:?} {:?} {:?})", lhs, op, rhs)?;
@@ -179,7 +207,27 @@ impl fmt::Debug for PredC {
             PredC::Iff(lhs, rhs) => {
                 write!(f, "({:?} <=> {:?})", lhs, rhs)?;
             }
-            PredC::Kvar(_, _) => todo!(),
+            PredC::Kvar(n, vars) => {
+                write!(f, "$k{}{:?}", n, vars)?;
+            }
+            PredC::Conj(preds) => {
+                let joined = preds
+                    .iter()
+                    .map(|p| format!("({:?})", p))
+                    .collect::<Vec<_>>()
+                    .join(" && ");
+                write!(f, "{}", joined)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Place {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.var)?;
+        for p in &self.proj {
+            write!(f, ".{}", p)?
         }
         Ok(())
     }

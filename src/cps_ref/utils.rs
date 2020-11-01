@@ -1,43 +1,81 @@
 use std::collections::HashMap;
 
-pub struct ScopedHashMap<K, V>(Vec<HashMap<K, V>>);
+pub trait Dict<K> {
+    type Output;
+    fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Self::Output>
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq;
 
-impl<K, V> ScopedHashMap<K, V> {
-    pub fn new() -> Self {
-        Self(vec![HashMap::new()])
+    fn insert(&mut self, k: K, v: Self::Output);
+}
+
+impl<K: Eq + std::hash::Hash, V> Dict<K> for HashMap<K, V> {
+    type Output = V;
+    fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        HashMap::get(self, k)
     }
 
-    pub fn enter_scope<T>(&mut self, f: impl for<'a> FnOnce(&'a mut Self) -> T) -> T {
-        self.0.push(HashMap::new());
-        let t = f(self);
-        self.0.pop();
-        t
+    fn insert(&mut self, k: K, v: V) {
+        self.insert(k, v);
     }
 }
 
-impl<K, V> ScopedHashMap<K, V>
+#[derive(Debug, Default)]
+pub struct Scoped<T>(Vec<T>);
+
+impl<K, V, T> Dict<K> for Scoped<T>
 where
-    K: Eq + std::hash::Hash,
+    T: Dict<K, Output = V>,
 {
-    pub fn insert(&mut self, k: K, v: V) {
+    type Output = V;
+    fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        for frame in self.0.iter().rev() {
+            if let Some(v) = frame.get(k) {
+                return Some(v);
+            }
+        }
+        None
+    }
+
+    fn insert(&mut self, k: K, v: V) {
         self.0.last_mut().unwrap().insert(k, v);
     }
 }
 
-impl<'a, K, Q: ?Sized, V> std::ops::Index<&'a Q> for ScopedHashMap<K, V>
+impl<T> Scoped<T> {
+    pub fn push(&mut self, frame: T) {
+        self.0.push(frame);
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.0.pop()
+    }
+}
+
+impl<K: Eq + std::hash::Hash, V: Sized> Scoped<OrderedHashMap<K, V>> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (&K, &V)> + '_ {
+        self.0.iter().flat_map(|x| x.iter())
+    }
+}
+
+impl<K, V, T> std::ops::Index<K> for Scoped<T>
 where
-    K: Eq + std::hash::Hash + std::borrow::Borrow<Q>,
-    Q: Eq + std::hash::Hash,
+    T: Dict<K, Output = V>,
+    K: Eq + std::hash::Hash,
 {
     type Output = V;
 
-    fn index(&self, index: &'a Q) -> &Self::Output {
-        for frame in self.0.iter().rev() {
-            if let Some(v) = frame.get(index) {
-                return v;
-            }
-        }
-        panic!("no entry found for key");
+    fn index(&self, index: K) -> &Self::Output {
+        self.get(&index).expect("no entry found for key")
     }
 }
 
@@ -45,6 +83,15 @@ where
 pub struct OrderedHashMap<K, V> {
     map: HashMap<K, V>,
     keys: Vec<K>,
+}
+
+impl<K, V> Default for OrderedHashMap<K, V> {
+    fn default() -> Self {
+        Self {
+            map: HashMap::default(),
+            keys: Vec::default(),
+        }
+    }
 }
 
 impl<K, V> OrderedHashMap<K, V>
@@ -67,11 +114,18 @@ impl<K, V> OrderedHashMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (&K, &V)> {
-        self.keys.iter().map(move |k| (k, &self.map[k]))
+    pub fn iter(&self) -> OrderedHashMapIter<'_, K, V> {
+        OrderedHashMapIter {
+            keys_iter: self.keys.iter(),
+            map: self,
+        }
     }
+}
 
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+impl<K: Eq + std::hash::Hash + Copy, V> Dict<K> for OrderedHashMap<K, V> {
+    type Output = V;
+
+    fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
     where
         K: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + Eq,
@@ -79,12 +133,10 @@ where
         self.map.get(k)
     }
 
-    pub fn insert(&mut self, k: K, v: V) -> Option<V>
-    where
-        K: Copy,
-    {
-        self.keys.push(k);
-        self.map.insert(k, v)
+    fn insert(&mut self, k: K, v: V) {
+        if self.map.insert(k, v).is_none() {
+            self.keys.push(k);
+        };
     }
 }
 
@@ -108,5 +160,83 @@ where
         let mut keys = Vec::new();
         let map = iter.into_iter().inspect(|(k, _)| keys.push(*k)).collect();
         Self { keys, map }
+    }
+}
+
+pub struct OrderedHashMapIter<'a, K, V> {
+    keys_iter: std::slice::Iter<'a, K>,
+    map: &'a OrderedHashMap<K, V>,
+}
+
+impl<'a, K: Eq + std::hash::Hash, V> Iterator for OrderedHashMapIter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(k) = self.keys_iter.next() {
+            Some((k, &self.map[k]))
+        } else {
+            None
+        }
+    }
+}
+impl<'a, K: Eq + std::hash::Hash, V> DoubleEndedIterator for OrderedHashMapIter<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if let Some(k) = self.keys_iter.next_back() {
+            Some((k, &self.map[k]))
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, K: Eq + std::hash::Hash, V> IntoIterator for &'a OrderedHashMap<K, V> {
+    type Item = (&'a K, &'a V);
+
+    type IntoIter = OrderedHashMapIter<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+pub struct OrderedHashMapIntoIter<K, V> {
+    keys_iter: std::vec::IntoIter<K>,
+    map: HashMap<K, V>,
+}
+
+impl<K: Eq + std::hash::Hash, V> Iterator for OrderedHashMapIntoIter<K, V> {
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(k) = self.keys_iter.next() {
+            let v = self.map.remove(&k).unwrap();
+            Some((k, v))
+        } else {
+            None
+        }
+    }
+}
+
+impl<K: Eq + std::hash::Hash, V> DoubleEndedIterator for OrderedHashMapIntoIter<K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if let Some(k) = self.keys_iter.next_back() {
+            let v = self.map.remove(&k).unwrap();
+            Some((k, v))
+        } else {
+            None
+        }
+    }
+}
+
+impl<K: Eq + std::hash::Hash, V> IntoIterator for OrderedHashMap<K, V> {
+    type Item = (K, V);
+
+    type IntoIter = OrderedHashMapIntoIter<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        OrderedHashMapIntoIter {
+            keys_iter: self.keys.into_iter(),
+            map: self.map,
+        }
     }
 }

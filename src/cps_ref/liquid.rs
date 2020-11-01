@@ -1,15 +1,15 @@
 use super::{
     ast,
-    constraint::{Constraint, PredC},
-    utils::ScopedHashMap,
+    constraint::{self, Constraint, PredC},
+    utils::Dict,
+    utils::Scoped,
 };
-use ast::BasicType;
 use serde;
 use std::{
+    collections::HashMap,
     io::{self, BufWriter, Write},
     process::{Child, ChildStdin, Command, Stdio},
 };
-
 #[derive(serde::Deserialize, Eq, PartialEq)]
 enum Safeness {
     #[serde(rename(deserialize = "safe"))]
@@ -18,17 +18,32 @@ enum Safeness {
     Unsafe,
 }
 
+enum Sort {
+    Bool,
+    Int,
+}
+
+impl std::fmt::Display for Sort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Sort::Bool => write!(f, "bool"),
+            Sort::Int => write!(f, "int"),
+        }
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct LiquidResult {
     result: Safeness,
 }
 
-pub struct LiquidSolver {
+pub struct LiquidSolver<'a> {
     buf: BufWriter<ChildStdin>,
     kid: Child,
+    map: Scoped<HashMap<ast::Var, &'a constraint::Sort>>,
 }
 
-impl LiquidSolver {
+impl<'a> LiquidSolver<'a> {
     pub fn new() -> io::Result<Self> {
         let mut kid = Command::new("fixpoint")
             .arg("-q")
@@ -43,13 +58,18 @@ impl LiquidSolver {
 
         Ok(Self {
             buf: BufWriter::new(stdin.unwrap()),
+            map: Scoped::default(),
             kid,
         })
     }
 
-    pub fn check(mut self, c: &Constraint) -> io::Result<bool> {
+    pub fn check(
+        mut self,
+        c: &'a Constraint,
+        kvars: &[(u32, Vec<constraint::Sort>)],
+    ) -> io::Result<bool> {
         self.write_qualifs()?;
-        self.write_kvars(c, &mut ScopedHashMap::new())?;
+        self.write_kvars(kvars)?;
         self.write_constraint(c)?;
 
         // Close the pipe to reach EOF
@@ -74,98 +94,77 @@ impl LiquidSolver {
         )
     }
 
-    fn write_kvars(
-        &mut self,
-        c: &Constraint,
-        tys: &mut ScopedHashMap<ast::Symbol, BasicType>,
-    ) -> io::Result<()> {
-        match c {
-            Constraint::Conj(cs) => {
-                for c in cs {
-                    tys.enter_scope(|tys| self.write_kvars(c, tys))?;
-                }
-            }
-            &Constraint::Forall {
-                bind,
-                ty,
-                ref hyp,
-                ref body,
-            } => {
-                tys.insert(bind, ty);
-                match hyp {
-                    PredC::Kvar(n, vars) => {
-                        write!(self.buf, "(var $k{} (", n)?;
-                        for v in vars {
-                            write!(self.buf, " (")?;
-                            self.write_ty(tys[v])?;
-                            write!(self.buf, ")")?;
-                        }
-                        write!(self.buf, "))\n")?;
-                    }
-                    _ => {}
-                }
-                self.write_kvars(body, tys)?;
-            }
-            Constraint::Guard(_, p) => {
-                self.write_kvars(p, tys)?;
-            }
-            _ => {}
+    fn write_kvars(&mut self, kvars: &[(u32, Vec<constraint::Sort>)]) -> io::Result<()> {
+        for &(n, ref sorts) in kvars {
+            let mut v = vec![];
+            sorts
+                .iter()
+                .for_each(|s| s.flatten(|(sort, _)| v.push(format!("({})", sort))));
+            write!(self.buf, "\n(var $k{} ({}))", n, v.join(" "))?;
         }
         Ok(())
     }
 
-    fn write_ty(&mut self, ty: BasicType) -> io::Result<()> {
-        match ty {
-            BasicType::Bool => write!(self.buf, "bool")?,
-            BasicType::Int => write!(self.buf, "int")?,
-        }
-        Ok(())
-    }
-
-    fn write_constraint(&mut self, c: &Constraint) -> io::Result<()> {
+    fn write_constraint(&mut self, c: &'a Constraint) -> io::Result<()> {
         write!(self.buf, "\n(constraint")?;
-        self.write_constraint_(c, 2)?;
+        self.map.push(HashMap::default());
+        self.write_constraint_rec(c, 2)?;
         write!(self.buf, ")")?;
         Ok(())
     }
 
-    fn write_constraint_(&mut self, c: &Constraint, indent: usize) -> io::Result<()> {
+    fn write_constraint_rec(&mut self, c: &'a Constraint, mut indent: usize) -> io::Result<()> {
         match c {
             Constraint::Pred(p) => {
                 write!(self.buf, "\n{:>1$}((", "", indent + 2)?;
-                self.write_pred(p, &[])?;
+                self.write_pred(p)?;
                 write!(self.buf, "))")?;
             }
             Constraint::Conj(cs) => match cs.len() {
                 0 => write!(self.buf, "{:>1$}true", "", indent)?,
-                1 => self.write_constraint_(&cs[0], indent)?,
+                1 => self.write_constraint_rec(&cs[0], indent)?,
                 _ => {
                     write!(self.buf, "\n{:>1$}(and", "", indent)?;
                     for c in cs {
-                        self.write_constraint_(c, indent + 2)?;
+                        self.map.push(HashMap::new());
+                        self.write_constraint_rec(c, indent + 2)?;
+                        self.map.pop();
                     }
                     write!(self.buf, ")")?;
                 }
             },
             &Constraint::Forall {
                 bind,
-                ty,
+                ref sort,
                 ref hyp,
                 ref body,
             } => {
-                write!(self.buf, "\n{:>2$}(forall (({} ", "", bind, indent)?;
-                self.write_ty(ty)?;
-                write!(self.buf, ") (")?;
-                self.write_pred(hyp, &[])?;
+                self.map.insert(bind, sort);
+                let mut bindings = vec![];
+                sort.flatten(|(sort, proj)| bindings.push((place_to_string(bind, proj), sort)));
+                let mut n = 1;
+                for i in 0..bindings.len() - 1 {
+                    let (x, sort) = &bindings[i];
+                    write!(
+                        self.buf,
+                        "\n{:>3$}(forall (({} {}) (true))",
+                        "", x, sort, indent
+                    )?;
+                    indent += 2;
+                    n += 1;
+                }
+                let (x, sort) = bindings.last().unwrap();
+                write!(self.buf, "\n{:>3$}(forall (({} {}) (", "", x, sort, indent)?;
+                self.write_pred(hyp)?;
                 write!(self.buf, "))")?;
-                self.write_constraint_(body, indent + 2)?;
-                write!(self.buf, ")")?;
+                self.write_constraint_rec(body, indent + 2)?;
+                write!(self.buf, "{:)>1$}", ")", n)?;
             }
             Constraint::Guard(p, c) => {
                 write!(self.buf, "\n{:>1$}(forall ((_ int) (", "", indent)?;
-                self.write_pred(p, &[])?;
+                self.write_pred(p)?;
                 write!(self.buf, "))")?;
-                self.write_constraint_(c, indent + 2)?;
+                self.write_constraint_rec(c, indent + 2)?;
                 write!(self.buf, ")")?;
             }
             Constraint::True => write!(self.buf, "{:>1$}true", "", indent)?,
@@ -174,43 +173,86 @@ impl LiquidSolver {
         Ok(())
     }
 
-    fn write_pred(&mut self, p: &PredC, vars: &[ast::Symbol]) -> io::Result<()> {
+    fn write_pred(&mut self, p: &PredC) -> io::Result<()> {
         match p {
-            PredC::Var(v) => {
-                write!(self.buf, "{}", &*v.as_str())?;
+            PredC::Place(constraint::Place { var, proj }) => {
+                write!(self.buf, "{}", place_to_string(*var, proj.iter()))?;
             }
-            PredC::Constant(c) => {
-                write!(self.buf, "{:?}", c)?;
-            }
+            &PredC::Constant(c) => match c {
+                ast::Constant::Bool(b) => write!(self.buf, "{}", if b { "true" } else { "false" })?,
+                ast::Constant::Int(n) => write!(self.buf, "{}", n)?,
+            },
             PredC::BinaryOp(op, lhs, rhs) => {
                 write!(self.buf, "(")?;
-                self.write_pred(lhs, vars)?;
+                self.write_pred(lhs)?;
                 write!(self.buf, " {:?} ", op)?;
-                self.write_pred(rhs, vars)?;
+                self.write_pred(rhs)?;
                 write!(self.buf, ")")?;
             }
             PredC::UnaryOp(op, operand) => match op {
                 ast::UnOp::Not => {
                     write!(self.buf, "(not ")?;
-                    self.write_pred(operand, vars)?;
+                    self.write_pred(operand)?;
                     write!(self.buf, ")")?;
                 }
             },
             PredC::Iff(lhs, rhs) => {
                 write!(self.buf, "(")?;
-                self.write_pred(lhs, vars)?;
+                self.write_pred(lhs)?;
                 write!(self.buf, " <=> ")?;
-                self.write_pred(rhs, vars)?;
+                self.write_pred(rhs)?;
                 write!(self.buf, ")")?;
             }
-            PredC::Kvar(n, vars) => {
-                write!(self.buf, "$k{}", n)?;
-                for v in vars {
-                    write!(self.buf, " {}", &*v.as_str())?;
+            PredC::Kvar(n, places) => {
+                write!(self.buf, "$k{} ", n)?;
+                let mut expanded = vec![];
+                for p in places {
+                    self.map[p.var].flatten(|(_, proj)| {
+                        expanded.push(place_to_string(p.var, p.proj.iter().chain(proj)));
+                    });
                 }
-                // write!(self.buf, ")")?;
+                write!(self.buf, "{}", expanded.join(" "))?;
+            }
+            PredC::Conj(preds) => {
+                let mut iter = preds.iter();
+                self.write_pred(iter.next().unwrap())?;
+                for p in preds.iter() {
+                    write!(self.buf, " && ")?;
+                    self.write_pred(p)?;
+                }
             }
         }
         Ok(())
+    }
+}
+
+fn place_to_string<'a, I>(var: ast::Var, projection: I) -> String
+where
+    I: IntoIterator<Item = &'a u32>,
+{
+    let mut s = format!("{:?}", var);
+    for p in projection {
+        s.push_str(&format!(".{}", p));
+    }
+    s
+}
+
+impl constraint::Sort {
+    fn flatten(&self, mut act: impl for<'a> FnMut((Sort, &'a Vec<u32>))) {
+        self.flatten_rec(&mut act, &mut vec![]);
+    }
+
+    fn flatten_rec(&self, act: &mut impl for<'a> FnMut((Sort, &'a Vec<u32>)), proj: &mut Vec<u32>) {
+        match self {
+            constraint::Sort::Int => act((Sort::Int, proj)),
+            constraint::Sort::Bool => act((Sort::Bool, proj)),
+            constraint::Sort::Tuple(sorts) => {
+                for (i, sort) in sorts.iter().enumerate() {
+                    proj.push(i as u32);
+                    sort.flatten_rec(act, proj);
+                    proj.pop();
+                }
+            }
+        }
     }
 }

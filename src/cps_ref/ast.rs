@@ -392,8 +392,8 @@ impl Debug for Var {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Var::Nu => write!(f, "_v"),
-            Var::Location(s) => write!(f, "l${}", s.0),
-            Var::Field(s) => write!(f, "f${}", s.0),
+            Var::Location(s) => write!(f, "l${}", *&s.0),
+            Var::Field(s) => write!(f, "f${}", *&s.0),
         }
     }
 }
