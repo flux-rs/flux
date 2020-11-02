@@ -92,22 +92,30 @@ pub enum Statement {
     Let(Local, TypeLayout),
     /// Either moves or copies the rvalue to a place.
     Assign(Place, Rvalue),
+    Drop(Local),
 }
 
 /// An rvalue appears at the right hand side of an assignment.
 #[derive(Debug)]
 pub enum Rvalue {
     Use(Operand),
+    RefMut(Place),
     BinaryOp(BinOp, Operand, Operand),
     CheckedBinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
 }
 
 /// A path to a value
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Hash, Clone)]
 pub struct Place {
     pub local: Local,
-    pub projection: Vec<u32>,
+    pub projection: Vec<Projection>,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+pub enum Projection {
+    Field(u32),
+    Deref,
 }
 
 impl From<Local> for Place {
@@ -172,6 +180,56 @@ pub struct OwnRef(pub Location);
 
 pub type Ty<'lr> = &'lr TyS<'lr>;
 
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+pub struct Region(Vec<Place>);
+
+impl Region {
+    pub fn new(p: Place) -> Self {
+        Self(vec![p])
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn contains(&self, rhs: &Region) -> bool {
+        for p in &rhs.0 {
+            if self.0.iter().find(|&x| p == x).is_none() {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Place> + '_ {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Region {
+    type Item = &'a Place;
+
+    type IntoIter = std::slice::Iter<'a, Place>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl From<Vec<Place>> for Region {
+    fn from(v: Vec<Place>) -> Self {
+        Self(v)
+    }
+}
+
+impl std::ops::Index<usize> for Region {
+    type Output = Place;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
 #[derive(Eq, PartialEq, Hash)]
 pub enum TyS<'lr> {
     /// A function type
@@ -189,6 +247,8 @@ pub enum TyS<'lr> {
     },
     /// An owned reference
     OwnRef(Location),
+    /// A mutable reference
+    MutRef(Region, Location),
     /// A refinement type { bind: ty | pred }.
     Refine { ty: BasicType, pred: Pred<'lr> },
     /// A dependent tuple.
@@ -242,14 +302,6 @@ impl<'lr> TyS<'lr> {
         matches!(self, TyS::Refine { ty: BasicType::Int, .. })
     }
 
-    pub fn project(&'lr self, proj: &[u32]) -> Ty<'lr> {
-        match (self, proj) {
-            (_, []) => self,
-            (TyS::Tuple(fields), [n, ..]) => fields[*n as usize].1.project(&proj[1..]),
-            _ => bug!("Wrong projection: `{:?}.{:?}`", self, proj),
-        }
-    }
-
     pub fn is_copy(&self) -> bool {
         // TODO
         true
@@ -257,8 +309,7 @@ impl<'lr> TyS<'lr> {
 
     pub fn size(&self) -> u32 {
         match self {
-            TyS::Fn { .. } => 1,
-            TyS::OwnRef(_) => 1,
+            TyS::Fn { .. } | TyS::OwnRef(_) | TyS::MutRef(_, _) => 1,
             TyS::Refine { .. } | TyS::RefineHole { .. } => 1,
             TyS::Tuple(fields) => fields.iter().map(|f| f.1.size()).sum(),
             TyS::Uninit(size) => *size,
@@ -309,13 +360,13 @@ impl<'a> Into<TyS<'a>> for OwnRef {
 
 impl Debug for Local {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(&self.0, f)
+        write!(f, "{}", &*self.0.as_str())
     }
 }
 
 impl Debug for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(&self.0, f)
+        write!(f, "{}", &*self.0.as_str())
     }
 }
 
@@ -378,6 +429,7 @@ impl Debug for TyS<'_> {
             TyS::Tuple(fields) => write!(f, "{:?}", fields),
             TyS::Uninit(size) => write!(f, "Uninit({})", size),
             TyS::RefineHole { ty, .. } => write!(f, "{{ {:?} | _ }}", ty),
+            TyS::MutRef(r, l) => write!(f, "&mut({:?}, {:?})", r, l),
         }
     }
 }
@@ -403,5 +455,18 @@ impl Debug for UnOp {
         match self {
             UnOp::Not => write!(f, "¬"),
         }
+    }
+}
+
+impl Debug for Place {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.local)?;
+        for p in &self.projection {
+            match p {
+                Projection::Field(n) => write!(f, ".{:?}", n)?,
+                Projection::Deref => write!(f, ".*")?,
+            }
+        }
+        Ok(())
     }
 }

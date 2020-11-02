@@ -15,7 +15,7 @@ FnBody: Box<FnBody<'lr>> = {
   "letcont" <def: ContDef> "in" <rest: FnBody>
       => Box::new(FnBody::LetCont{ <> }),
 
-  "if" "*" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
+  "if" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
     => Box::new(FnBody::Ite{ <> }),
 
   "call" <func: Place> "(" <args: Comma<Local>> ")" "ret" <ret: Symbol>
@@ -35,16 +35,18 @@ ContDef: ContDef<'lr> = {
 
 Statement: Statement = {
   "let" <Local> "=" "new" "(" <TypeLayout> ")" => Statement::Let(<>),
-  <Place> ":=" <Rvalue> => Statement::Assign(<>)
+  <Place> ":=" <Rvalue>                        => Statement::Assign(<>),
+  "drop" "(" <Local> ")"                       => Statement::Drop(<>)
 }
 
 Rvalue: Rvalue = {
-  Operand => Rvalue::Use(<>),
-  <lhs: Operand> <op: BinOp> <rhs: Operand> => Rvalue::BinaryOp(op, lhs, rhs)
+  Operand                                   => Rvalue::Use(<>),
+  <lhs: Operand> <op: BinOp> <rhs: Operand> => Rvalue::BinaryOp(op, lhs, rhs),
+  "&" "mut" <Place>                         => Rvalue::RefMut(<>)
 }
 
 Operand: Operand = {
-  "*" <Place> => Operand::Deref(<>),
+  <Place>    => Operand::Deref(<>),
   <Constant> => Operand::Constant(<>),
 }
 
@@ -64,9 +66,54 @@ TypeLayout: TypeLayout = {
   "(" <Comma<TypeLayout>> ")" => TypeLayout::Tuple(<>)
 }
 
-Place: Place = <local: Local> <projection: Projection*> => Place { <> };
+Place: Place = {
+  <p: PlaceLevel1> => {
+    let (local, projection) = p;
+    Place { local, projection }
+  }
+}
+
+PlaceLevel1: (Local, Vec<Projection>) = {
+  <p: PlaceLevel2> <path: Path_> => {
+      let (local, mut proj) = p;
+      proj.extend(path);
+      (local, proj)
+  },
+}
+
+PlaceLevel2: (Local, Vec<Projection>) = {
+  "*" <PlaceLevel3>  => {
+    let (local, mut proj) = <>;
+    proj.push(Projection::Deref);
+    (local, proj)
+  },
+  PlaceLevel3
+}
+
+PlaceLevel3: (Local, Vec<Projection>) = {
+  <Local>  => (<>, vec![]),
+  "(" <PlaceLevel1> ")"
+}
+
+Place_: (Local, Vec<Projection>) = {
+  <local: Local>                  => (local, vec![]),
+  <p: Place_> "." <f: r"[0-9]+">  => {
+    let (local, mut proj) = p;
+    proj.push(Projection::Field(u32::from_str(f).unwrap()));
+    (local, proj)
+  },
+  "*" "(" <p: Place_> ")"         => {
+    let (local, mut proj) = p;
+    proj.push(Projection::Deref);
+    (local, proj)
+  }
+}
 
 Projection: u32 = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
+
+Path_: Vec<Projection> = ("." <r"[0-9]+">)* => {
+  <>.iter().map(|s| Projection::Field(u32::from_str(s).unwrap())).collect()
+};
 
 Ty: Ty<'lr> = {
   "own" "(" <Location> ")"                       => cx.mk_ty(TyS::OwnRef(<>)),
@@ -75,7 +122,12 @@ Ty: Ty<'lr> = {
     *holes += 1;
     cx.mk_ty(TyS::RefineHole {ty, n: *holes})
   },
+  "&" "mut" "(" <Region> "," <Location> ")"      => cx.mk_ty(TyS::MutRef(<>)),
   "(" <Comma<Binding<Field, Ty>>> ")"            => cx.mk_ty(TyS::Tuple(<>))
+}
+
+Region: Region = {
+  "{" <Comma<Place>> "}" => Region::from(<>)
 }
 
 OwnRef: OwnRef= "own" "(" <Location> ")" => OwnRef(<>);

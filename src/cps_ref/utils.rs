@@ -33,6 +33,11 @@ where
     T: Dict<K, Output = V>,
 {
     type Output = V;
+
+    fn insert(&mut self, k: K, v: V) {
+        self.0.last_mut().unwrap().insert(k, v);
+    }
+
     fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
     where
         K: std::borrow::Borrow<Q>,
@@ -44,10 +49,6 @@ where
             }
         }
         None
-    }
-
-    fn insert(&mut self, k: K, v: V) {
-        self.0.last_mut().unwrap().insert(k, v);
     }
 }
 

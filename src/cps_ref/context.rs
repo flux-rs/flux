@@ -151,7 +151,7 @@ impl<'lr> TyS<'lr> {
                 assert!(self.size() == typ.size());
                 typ
             }
-            (TyS::Tuple(fields), [n, ..]) => {
+            (TyS::Tuple(fields), [.., n]) => {
                 let mut fields = fields.clone();
                 let f = &mut fields[*n as usize];
                 f.1 = f.1.update_at(cx, &proj[1..], typ);

@@ -139,7 +139,6 @@ impl<'a> LiquidSolver<'a> {
                 ref hyp,
                 ref body,
             } => {
-                self.map.insert(bind, sort);
                 let mut bindings = vec![];
                 sort.flatten(|(sort, proj)| bindings.push((place_to_string(bind, proj), sort)));
                 let mut n = 1;
@@ -153,9 +152,11 @@ impl<'a> LiquidSolver<'a> {
                     indent += 2;
                     n += 1;
                 }
-                let (x, sort) = bindings.last().unwrap();
-                write!(self.buf, "\n{:>3$}(forall (({} {}) (", "", x, sort, indent)?;
+                let (x, sort2) = bindings.last().unwrap();
+                write!(self.buf, "\n{:>3$}(forall (({} {}) (", "", x, sort2, indent)?;
                 self.write_pred(hyp)?;
+
+                self.map.insert(bind, sort);
                 write!(self.buf, "))")?;
                 self.write_constraint_rec(body, indent + 2)?;
                 write!(self.buf, "{:)>1$}", ")", n)?;
@@ -167,7 +168,7 @@ impl<'a> LiquidSolver<'a> {
                 self.write_constraint_rec(c, indent + 2)?;
                 write!(self.buf, ")")?;
             }
-            Constraint::True => write!(self.buf, "{:>1$}true", "", indent)?,
+            Constraint::True => write!(self.buf, "\n{:>1$}((true))", "", indent)?,
             Constraint::Err => bug!(),
         }
         Ok(())
@@ -207,18 +208,22 @@ impl<'a> LiquidSolver<'a> {
                 write!(self.buf, "$k{} ", n)?;
                 let mut expanded = vec![];
                 for p in places {
-                    self.map[p.var].flatten(|(_, proj)| {
-                        expanded.push(place_to_string(p.var, p.proj.iter().chain(proj)));
-                    });
+                    if let Some(sort) = self.map.get(&p.var) {
+                        sort.flatten(|(_, proj)| {
+                            expanded.push(place_to_string(p.var, p.proj.iter().chain(proj)));
+                        });
+                    } else {
+                        expanded.push(place_to_string(p.var, p.proj.iter()));
+                    }
                 }
                 write!(self.buf, "{}", expanded.join(" "))?;
             }
             PredC::Conj(preds) => {
-                let mut iter = preds.iter();
-                self.write_pred(iter.next().unwrap())?;
-                for p in preds.iter() {
-                    write!(self.buf, " && ")?;
+                write!(self.buf, "and")?;
+                for p in preds {
+                    write!(self.buf, " (")?;
                     self.write_pred(p)?;
+                    write!(self.buf, ")")?;
                 }
             }
         }
