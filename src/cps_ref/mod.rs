@@ -9,6 +9,8 @@ pub mod utils;
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use super::{
         ast::FnDef,
         constraint::{Constraint, Kvar},
@@ -34,38 +36,51 @@ mod tests {
             })
         }
 
+        fn run_unwrap(act: impl for<'a> FnOnce(Session<'a>) -> Result<(), Box<dyn Error + 'a>>) {
+            with_default_session_globals(|| {
+                let arena = Arena::default();
+                let cx = LiquidRustCtxt::new(&arena);
+                act(Session { cx: &cx }).unwrap();
+            })
+        }
+
         fn parse(&self, string: &str) -> Option<FnDef<'lr>> {
             FnParser::new().parse(self.cx, &mut 0, string).ok()
         }
 
-        fn check(&self, string: &str) -> (Constraint, Vec<Kvar>) {
-            TypeCk::cgen(self.cx, &self.parse(string).unwrap()).unwrap()
+        fn cgen<'a>(&self, string: &'a str) -> Result<(Constraint, Vec<Kvar>), Box<dyn Error + 'a>>
+        where
+            'lr: 'a,
+        {
+            let parsed = FnParser::new().parse(self.cx, &mut 0, string)?;
+            Ok(TypeCk::cgen(&self.cx, &parsed)?)
         }
     }
 
     #[test]
     fn abs() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
-fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
-  let b = new(1);
-  b := n <= 0;
-  if b then
-    n := 0 - n;
-    jump k(n)
-  else
-    jump k(n)
-"####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
+              let b = new(1);
+              b := n <= 0;
+              if b then
+                n := 0 & n;
+                jump k(n)
+              else
+                jump k(n)
+            "####,
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn sum() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn sum(n0: {int | V >= 0}; n: own(n0)) ret k(r: {int | V >= n0}; own(r)) =
       letcont loop( n1: {int | _ }, i1: {int | _ }, r1: {int | _ }
@@ -85,8 +100,9 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       r := 0;
       jump loop()
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         })
     }
 
@@ -130,8 +146,8 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
 
     #[test]
     fn alloc_pair() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn alloc_pair(;) ret k(r: {int | true}; own(r))=
       let p = new((1, 1));
@@ -141,30 +157,32 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       r := p.0;
       jump k(r)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn length() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn length(p0: (@x: {int | true}, @y: {int | V >= @x}); p: own(p0)) ret k(r: {int | V >= 0}; own(r))=
       let t = new(1);
       t := p.1 - p.0;
       jump k(t)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn pair_subtyping() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(;) ret k(r0: (@x: {int | true}, @y: {int | V >= @x}); own(r0))=
       let p = new((1, 1));
@@ -172,15 +190,16 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       p.1 := 1;
       jump k(p)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn tuple_invariant() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(p0: (@a: {int | true}, @b: {int | V >= @a}); p: own(p0)) ret k(r0: {int | V > 0}; own(r0))=
       p.1 := p.1 + 1;
@@ -188,15 +207,16 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       r := p.1 - p.0;
       jump k(r)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn kvar_with_tuples() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(x0: (@a: {int | true}, @b: {int | V > @a}); x: own(x0)) ret k(r0: {int | V >= x0.0}; own(r0))=
       letcont b0(y1: {int | _ }; ; y: own(y1)) =
@@ -206,15 +226,16 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       y := x.1;
       jump k(y)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn mut_ref_strong_update() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(;) ret k(r0: {int | V > 0}; own(r0))=
       let n = new(1);
@@ -225,15 +246,16 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       drop(p);
       jump k(n)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn mut_ref_strong_update_pair() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(x0: {int | true}, y0: {int | true}; x: own(x0), y: own(y0)) ret k(r0: {int | V == 1}; own(r0))=
       let p = new((1, 1));
@@ -246,15 +268,16 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
       r := y - x;
       jump k(r)
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn mut_ref_join() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(b0: {bool | true}; b: own(b0)) ret k(r0: {int | V > 0}; own(r0))=
       letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &mut({x, y}, l1)
@@ -278,15 +301,16 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
         p := &mut y;
         jump b0()
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 
     #[test]
     fn mut_ref_join_tuple() {
-        Session::run(|sess| {
-            let (c, kvars) = sess.check(
+        Session::run_unwrap(|sess| {
+            let (c, kvars) = sess.cgen(
                 r####"
     fn foo(b0: {bool | true}; b: own(b0)) ret k(r0: {int | V > 0}; own(r0))=
       letcont b0(  x1: (@a: {int | _ }, @b: {int | _ }),
@@ -316,8 +340,9 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
         p := &mut y;
         jump b0()
     "####,
-            );
-            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+            )?;
+            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
+            Ok(())
         });
     }
 }

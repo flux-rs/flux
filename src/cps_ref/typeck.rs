@@ -8,6 +8,8 @@ use super::{
     utils::{Dict, OrderedHashMap, Scoped},
 };
 
+use thiserror::Error;
+
 type LocalsMap = HashMap<Local, OwnRef>;
 type LocationsMap<'lr> = OrderedHashMap<Location, Ty<'lr>>;
 type Binding<'lr> = (Var, Ty<'lr>);
@@ -411,14 +413,14 @@ impl<'lr> TypeCk<'lr> {
     pub fn cgen(
         cx: &'lr LiquidRustCtxt<'lr>,
         fn_def: &FnDef<'lr>,
-    ) -> Result<(Constraint, Vec<Kvar>), Vec<TypeError<'lr>>> {
+    ) -> Result<(Constraint, Vec<Kvar>), TypeErrors<'lr>> {
         let mut checker = Self { cx, errors: vec![] };
         let mut tcx = TyCtxt::new(cx);
         let c = tcx.enter_fn_def(fn_def, |tcx| checker.wt_fn_body(tcx, &fn_def.body));
         if checker.errors.is_empty() {
             Ok((c, tcx.kvars))
         } else {
-            Err(checker.errors)
+            Err(TypeErrors(checker.errors))
         }
     }
 
@@ -670,15 +672,27 @@ struct Cont<'lr> {
     pub params: Vec<OwnRef>,
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
+#[error("{0:?}")]
+pub struct TypeErrors<'lr>(Vec<TypeError<'lr>>);
+
+#[derive(Error, Debug)]
 pub enum TypeError<'lr> {
+    #[error("{0:?} is not a subtype of {1:?}")]
     SubtypingError(Ty<'lr>, Ty<'lr>),
+    #[error("{0:?} doesn't have the same size than {1:?}")]
     SizeMismatch(Ty<'lr>, Ty<'lr>),
+    #[error("duplicate local {0:?}")]
     DupLocal(Local),
+    #[error("invalid operator application {0:?} for values of type {1:?} and {2:?}")]
     BinOpMismatch(BinOp, Ty<'lr>, Ty<'lr>),
+    #[error("invalid operator application {0:?} for value of type {1:?}")]
     UnOpMismatch(UnOp, Ty<'lr>),
+    #[error("{0:?} is not a function type")]
     NotFun(Ty<'lr>),
+    #[error("{0:?} is not a boolean type")]
     NotBool(Ty<'lr>),
+    #[error("wrong number of arguments")]
     ArgCount,
 }
 
