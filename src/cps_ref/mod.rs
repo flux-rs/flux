@@ -178,6 +178,22 @@ fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
     }
 
     #[test]
+    fn tuple_invariant() {
+        Session::run(|sess| {
+            let (c, kvars) = sess.check(
+                r####"
+    fn foo(p0: (@a: {int | true}, @b: {int | V >= @a}); p: own(p0)) ret k(r0: {int | V > 0}; own(r0))=
+      p.1 := p.1 + 1;
+      let r = new(1);
+      r := p.1 - p.0;
+      jump k(r)
+    "####,
+            );
+            assert!(LiquidSolver::new().unwrap().check(&c, &kvars).unwrap());
+        });
+    }
+
+    #[test]
     fn kvar_with_tuples() {
         Session::run(|sess| {
             let (c, kvars) = sess.check(

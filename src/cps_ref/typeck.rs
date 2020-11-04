@@ -220,7 +220,8 @@ impl<'lr> TyCtxt<'lr> {
     pub fn update(&mut self, place: &Place, new_typ: Ty<'lr>) -> Bindings<'lr> {
         let OwnRef(l) = self.lookup_local(place.local).unwrap();
         let typ = self.lookup_location(l).unwrap();
-        let (typ, mut bindings) = self.update_typ(typ, &place.projection, new_typ);
+        let (typ, mut bindings) =
+            self.update_typ(Var::from(l), &mut vec![], typ, &place.projection, new_typ);
         let fresh = self.fresh_location();
         bindings.push((fresh, typ));
         for &(l, t) in &bindings {
@@ -235,6 +236,8 @@ impl<'lr> TyCtxt<'lr> {
 
     fn update_typ(
         &mut self,
+        var: Var,
+        path: &mut Vec<u32>,
         typ: Ty<'lr>,
         proj: &[Projection],
         new_typ: Ty<'lr>,
@@ -245,15 +248,27 @@ impl<'lr> TyCtxt<'lr> {
                 (new_typ, vec![])
             }
             (TyS::Tuple(fields), [Projection::Field(n), ..]) => {
-                let mut fields = fields.clone();
+                let mut fields = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(f, t))| {
+                        path.push(i as u32);
+                        let t = selfify(self.cx, var, path, t);
+                        path.pop();
+                        (f, t)
+                    })
+                    .collect::<Vec<_>>();
+                path.push(*n);
                 let f = &mut fields[*n as usize];
-                let (t, bindings) = self.update_typ(f.1, &proj[1..], new_typ);
+                let (t, bindings) = self.update_typ(var, path, f.1, &proj[1..], new_typ);
                 f.1 = t;
+                path.pop();
                 (self.cx.mk_tuple(&fields), bindings)
             }
             (TyS::MutRef(r, l), [Projection::Deref, ..]) => {
                 let referee = self.lookup_location(*l).unwrap();
-                let (t, mut bindings) = self.update_typ(referee, &proj[1..], new_typ);
+                let (t, mut bindings) =
+                    self.update_typ(Var::from(*l), &mut vec![], referee, &proj[1..], new_typ);
                 let l = self.fresh_location();
                 bindings.push((l, t));
                 (self.cx.mk_ty(TyS::MutRef(r.clone(), l)), bindings)
@@ -471,7 +486,13 @@ impl<'lr> TypeCk<'lr> {
         let r = match val {
             Rvalue::Use(operand) => {
                 let (p, typ, bindings) = self.wt_operand(tcx, operand);
-                (selfify(self.cx, p, &typ), bindings)
+                match p {
+                    PredS::Place { var, projection } => (
+                        selfify(self.cx, *var, &mut projection.clone(), &typ),
+                        bindings,
+                    ),
+                    _ => (typ, bindings),
+                }
             }
             Rvalue::BinaryOp(op, lhs, rhs) => self.wt_binop(tcx, *op, rhs, lhs)?,
             Rvalue::CheckedBinaryOp(op, lhs, rhs) => {
@@ -518,7 +539,6 @@ impl<'lr> TypeCk<'lr> {
         let r = match statement {
             Statement::Let(x, layout) => {
                 tcx.alloc(*x, layout);
-                // println!("let {:?}", tcx);
                 (vec![], Constraint::True)
             }
             Statement::Assign(place, rval) => {
@@ -529,14 +549,11 @@ impl<'lr> TypeCk<'lr> {
                     return Err(TypeError::SizeMismatch(t1, t2));
                 }
                 bindings.extend(tcx.update(place, t2));
-                // println!("assign {:?}", tcx);
                 (bindings, Constraint::True)
             }
             Statement::Drop(p) => {
                 // TODO: check ownership safety
-                let a = tcx.drop(*p)?;
-                // println!("drop {:?}", tcx);
-                a
+                tcx.drop(*p)?
             }
         };
         Ok(r)
@@ -605,11 +622,29 @@ impl<'lr> TypeCk<'lr> {
         }
     }
 }
-fn selfify<'lr>(cx: &'lr LiquidRustCtxt<'lr>, pred: Pred<'lr>, typ: Ty<'lr>) -> Ty<'lr> {
+fn selfify<'lr>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    var: Var,
+    proj: &mut Vec<u32>,
+    typ: Ty<'lr>,
+) -> Ty<'lr> {
     match typ {
         TyS::Refine { ty, .. } => {
-            let r = cx.mk_binop(BinOp::Eq, cx.preds.nu, pred);
+            let r = cx.mk_binop(BinOp::Eq, cx.preds.nu, cx.mk_place(var, &proj));
             cx.mk_refine(*ty, r)
+        }
+        TyS::Tuple(fields) => {
+            let fields = fields
+                .iter()
+                .enumerate()
+                .map(|(i, &(f, t))| {
+                    proj.push(i as u32);
+                    let t = selfify(cx, var, proj, t);
+                    proj.pop();
+                    (f, t)
+                })
+                .collect::<Vec<_>>();
+            cx.mk_tuple(&fields)
         }
         _ => typ,
     }
@@ -659,8 +694,7 @@ fn env_incl<'lr>(
     let mut vec = vec![];
     for (x, OwnRef(l2)) in locals2 {
         let OwnRef(l1) = locals1[x];
-        let p = cx.mk_place(l1.into(), &[]);
-        let typ1 = selfify(cx, p, locations1[l1]);
+        let typ1 = selfify(cx, Var::from(l1), &mut vec![], locations1[l1]);
         let typ2 = locations2.get(l2);
         vec.push(subtype(cx, locations1, typ1.into(), locations2, typ2)?);
     }
@@ -679,19 +713,17 @@ fn subtype<'lr>(
     let c = match (typ1, typ2) {
         (TyS::Fn { .. }, TyS::Fn { .. }) => todo!("implement function subtyping"),
         (TyS::OwnRef(l1), TyS::OwnRef(l2)) => {
-            let p = cx.mk_place((*l1).into(), &[]);
-            let typ1 = selfify(cx, p, locations1[*l1]).into();
+            let typ1 = selfify(cx, Var::from(*l1), &mut vec![], locations1[*l1]);
             let typ2 = locations2.get(l2);
-            subtype(cx, locations1, typ1, locations2, typ2)?
+            subtype(cx, locations1, typ1.into(), locations2, typ2)?
         }
         (TyS::MutRef(r1, l1), TyS::MutRef(r2, l2)) => {
             if !r2.contains(r1) {
                 todo!("")
             }
-            let p = cx.mk_place((*l1).into(), &[]);
-            let typ1 = selfify(cx, p, locations1[*l1]).into();
+            let typ1 = selfify(cx, Var::from(*l1), &mut vec![], locations1[*l1]);
             let typ2 = locations2.get(l2);
-            subtype(cx, locations1, typ1, locations2, typ2)?
+            subtype(cx, locations1, typ1.into(), locations2, typ2)?
         }
         (
             TyS::Refine {
@@ -750,17 +782,15 @@ fn inner_subtype<'lr>(
     let c = match (typ1, typ2) {
         (TyS::Fn { .. }, TyS::Fn { .. }) => todo!("implement function subtyping"),
         (TyS::OwnRef(l1), TyS::OwnRef(l2)) => {
-            let p = cx.mk_place((*l1).into(), &[]);
-            let typ1 = selfify(cx, p, locations[*l1]);
+            let typ1 = selfify(cx, Var::from(*l1), &mut vec![], locations[*l1]);
             let typ2 = locations[*l2];
-            inner_subtype(cx, locations, typ1, typ2)?
+            inner_subtype(cx, locations, typ1.into(), typ2)?
         }
         (TyS::MutRef(r1, l1), TyS::MutRef(r2, l2)) => {
             if !r2.contains(r1) {
                 todo!("")
             }
-            let p = cx.mk_place((*l1).into(), &[]);
-            let typ1 = selfify(cx, p, locations[*l1]);
+            let typ1 = selfify(cx, Var::from(*l1), &mut vec![], locations[*l1]);
             let typ2 = locations[*l2];
             inner_subtype(cx, locations, typ1, typ2)?
         }
