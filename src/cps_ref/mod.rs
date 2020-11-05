@@ -66,7 +66,7 @@ mod tests {
               let b = new(1);
               b := n <= 0;
               if b then
-                n := 0 & n;
+                n := 0 - n;
                 jump k(n)
               else
                 jump k(n)
@@ -280,7 +280,7 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn foo(b0: {bool | true}; b: own(b0)) ret k(r0: {int | V > 0}; own(r0))=
-      letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &mut({x, y}, l1)
+      letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &mut({mut^x, mut^y}, l1)
                 ; x: own(x1), y: own(y1), p: own(l2)
                 ;
                 ) =
@@ -316,7 +316,7 @@ mod tests {
       letcont b0(  x1: (@a: {int | _ }, @b: {int | _ }),
                    y1: (@a: {int | _ }, @b: {int | _ }),
                    l1: (@a: {int | _ }, @b: {int | _ }),
-                   l2: &mut({x, y}, l1)
+                   l2: &mut({mut^x, mut^y}, l1)
                 ; x: own(x1), y: own(y1), p: own(l2)
                 ;
                 ) =

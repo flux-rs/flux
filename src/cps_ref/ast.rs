@@ -99,7 +99,7 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum Rvalue {
     Use(Operand),
-    RefMut(Place),
+    Ref(BorrowKind, Place),
     BinaryOp(BinOp, Operand, Operand),
     CheckedBinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
@@ -181,53 +181,61 @@ pub struct OwnRef(pub Location);
 pub type Ty<'lr> = &'lr TyS<'lr>;
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
-pub struct Region(Vec<Place>);
+pub struct Region(Vec<Borrow>);
 
 impl Region {
-    pub fn new(p: Place) -> Self {
-        Self(vec![p])
+    pub fn new(kind: BorrowKind, place: Place) -> Self {
+        Self(vec![(kind, place)])
     }
 
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    pub fn contains(&self, rhs: &Region) -> bool {
-        for p in &rhs.0 {
-            if self.0.iter().find(|&x| p == x).is_none() {
-                return false;
+    pub fn subset_of(&self, rhs: &Region) -> bool {
+        for borrow in &self.0 {
+            if rhs.iter().any(|b| borrow == b) {
+                return true;
             }
         }
-        true
+        false
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Place> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = &Borrow> + '_ {
         self.0.iter()
     }
 }
 
 impl<'a> IntoIterator for &'a Region {
-    type Item = &'a Place;
+    type Item = &'a Borrow;
 
-    type IntoIter = std::slice::Iter<'a, Place>;
+    type IntoIter = std::slice::Iter<'a, Borrow>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
 }
 
-impl From<Vec<Place>> for Region {
-    fn from(v: Vec<Place>) -> Self {
+impl From<Vec<Borrow>> for Region {
+    fn from(v: Vec<Borrow>) -> Self {
         Self(v)
     }
 }
 
 impl std::ops::Index<usize> for Region {
-    type Output = Place;
+    type Output = Borrow;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
+}
+
+pub type Borrow = (BorrowKind, Place);
+
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, PartialOrd)]
+pub enum BorrowKind {
+    Shared,
+    Mut,
 }
 
 #[derive(Eq, PartialEq, Hash)]
@@ -248,7 +256,7 @@ pub enum TyS<'lr> {
     /// An owned reference
     OwnRef(Location),
     /// A mutable reference
-    MutRef(Region, Location),
+    Ref(BorrowKind, Region, Location),
     /// A refinement type { bind: ty | pred }.
     Refine { ty: BasicType, pred: Pred<'lr> },
     /// A dependent tuple.
@@ -309,7 +317,7 @@ impl<'lr> TyS<'lr> {
 
     pub fn size(&self) -> u32 {
         match self {
-            TyS::Fn { .. } | TyS::OwnRef(_) | TyS::MutRef(_, _) => 1,
+            TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Ref(..) => 1,
             TyS::Refine { .. } | TyS::RefineHole { .. } => 1,
             TyS::Tuple(fields) => fields.iter().map(|f| f.1.size()).sum(),
             TyS::Uninit(size) => *size,
@@ -429,7 +437,8 @@ impl Debug for TyS<'_> {
             TyS::Tuple(fields) => write!(f, "{:?}", fields),
             TyS::Uninit(size) => write!(f, "Uninit({})", size),
             TyS::RefineHole { ty, .. } => write!(f, "{{ {:?} | _ }}", ty),
-            TyS::MutRef(r, l) => write!(f, "&mut({:?}, {:?})", r, l),
+            TyS::Ref(BorrowKind::Mut, r, l) => write!(f, "&mut({:?}, {:?})", r, l),
+            TyS::Ref(BorrowKind::Shared, r, l) => write!(f, "&({:?}, {:?})", r, l),
         }
     }
 }

@@ -40,7 +40,7 @@ impl From<Ty<'_>> for Sort {
         match typ {
             TyS::Tuple(fields) => Sort::Tuple(fields.iter().map(|&(_, t)| Sort::from(t)).collect()),
             &TyS::Refine { ty, .. } => Sort::from(ty),
-            TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) | TyS::MutRef(_, _) => Self::Int,
+            TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) | TyS::Ref(..) => Self::Int,
             TyS::RefineHole { .. } => bug!(),
         }
     }
@@ -169,7 +169,7 @@ fn embed_rec(x: Var, typ: Ty, subst: &Subst, proj: &mut Vec<u32>) -> PredC {
                 .collect();
             PredC::Conj(preds)
         }
-        TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) | TyS::MutRef(_, _) => {
+        TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) | TyS::Ref(..) => {
             PredC::Constant(Constant::Bool(true))
         }
         TyS::RefineHole { .. } => bug!(),

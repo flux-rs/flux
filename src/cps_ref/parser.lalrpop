@@ -42,7 +42,8 @@ Statement: Statement = {
 Rvalue: Rvalue = {
   Operand                                   => Rvalue::Use(<>),
   <lhs: Operand> <op: BinOp> <rhs: Operand> => Rvalue::BinaryOp(op, lhs, rhs),
-  "&" "mut" <Place>                         => Rvalue::RefMut(<>)
+  "&" <p: Place>                            => Rvalue::Ref(BorrowKind::Shared, p),
+  "&" "mut" <p: Place>                      => Rvalue::Ref(BorrowKind::Mut, p),
 }
 
 Operand: Operand = {
@@ -122,12 +123,19 @@ Ty: Ty<'lr> = {
     *holes += 1;
     cx.mk_ty(TyS::RefineHole {ty, n: *holes})
   },
-  "&" "mut" "(" <Region> "," <Location> ")"      => cx.mk_ty(TyS::MutRef(<>)),
-  "(" <Comma<Binding<Field, Ty>>> ")"            => cx.mk_ty(TyS::Tuple(<>))
+  "&" "(" <Region> "," <Location> ")"          => cx.mk_ty(TyS::Ref(BorrowKind::Shared, <>)),
+  "&" "shared" "(" <Region> "," <Location> ")" => cx.mk_ty(TyS::Ref(BorrowKind::Shared, <>)),
+  "&" "mut" "(" <Region> "," <Location> ")"    => cx.mk_ty(TyS::Ref(BorrowKind::Mut, <>)),
+  "(" <Comma<Binding<Field, Ty>>> ")"          => cx.mk_ty(TyS::Tuple(<>))
+}
+
+Borrow: Borrow = {
+  <Place>            => (BorrowKind::Shared, <>),
+  "mut" "^" <Place> => (BorrowKind::Mut, <>),
 }
 
 Region: Region = {
-  "{" <Comma<Place>> "}" => Region::from(<>)
+  "{" <Comma<Borrow>> "}" => Region::from(<>)
 }
 
 OwnRef: OwnRef= "own" "(" <Location> ")" => OwnRef(<>);

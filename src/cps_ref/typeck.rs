@@ -115,7 +115,7 @@ impl<'lr> TyCtxt<'lr> {
                     typ = fields[n as usize].1;
                     v.push(n);
                 }
-                (TyS::MutRef(_, l), Projection::Deref) => {
+                (TyS::Ref(.., l), Projection::Deref) => {
                     v.clear();
                     location = *l;
                     typ = self.lookup_location(location).unwrap();
@@ -166,16 +166,16 @@ impl<'lr> TyCtxt<'lr> {
                 }
                 Ok(Constraint::True)
             }
-            TyS::MutRef(r, l) => {
+            TyS::Ref(BorrowKind::Mut, r, l) => {
                 let t = self.lookup_location(*l).unwrap();
                 if r.len() == 1 {
-                    bindings.extend(self.update(&r[0], t));
+                    bindings.extend(self.update(&r[0].1, t));
                     Ok(Constraint::True)
                 } else {
                     let mut cs = vec![];
                     let t_join = self.replace_refine_with_kvars(t, &mut self.bindings().collect());
                     cs.push(inner_subtype(self.cx, &self.locations, t, t_join)?);
-                    for p in r {
+                    for (_, p) in r {
                         let (_, t2) = self.lookup(p);
                         cs.push(inner_subtype(self.cx, &self.locations, t2, t_join)?);
                         bindings.extend(self.update(p, t_join));
@@ -184,6 +184,7 @@ impl<'lr> TyCtxt<'lr> {
                 }
             }
             TyS::Refine { .. }
+            | TyS::Ref(BorrowKind::Shared, ..)
             | TyS::OwnRef(_)
             | TyS::Fn { .. }
             | TyS::Uninit(_)
@@ -214,7 +215,7 @@ impl<'lr> TyCtxt<'lr> {
             TyS::Uninit(_)
             | TyS::Fn { .. }
             | TyS::OwnRef(_)
-            | TyS::MutRef(_, _)
+            | TyS::Ref(..)
             | TyS::RefineHole { .. } => typ,
         }
     }
@@ -267,13 +268,13 @@ impl<'lr> TyCtxt<'lr> {
                 path.pop();
                 (self.cx.mk_tuple(&fields), bindings)
             }
-            (TyS::MutRef(r, l), [Projection::Deref, ..]) => {
+            (TyS::Ref(kind, r, l), [Projection::Deref, ..]) => {
                 let referee = self.lookup_location(*l).unwrap();
                 let (t, mut bindings) =
                     self.update_typ(Var::from(*l), &mut vec![], referee, &proj[1..], new_typ);
                 let l = self.fresh_location();
                 bindings.push((l, t));
-                (self.cx.mk_ty(TyS::MutRef(r.clone(), l)), bindings)
+                (self.cx.mk_ty(TyS::Ref(*kind, r.clone(), l)), bindings)
             }
             _ => bug!(""),
         }
@@ -286,12 +287,13 @@ impl<'lr> TyCtxt<'lr> {
         self.insert_local(x, OwnRef(fresh_l));
     }
 
-    pub fn borrow(&mut self, place: &Place) -> (Ty<'lr>, Bindings<'lr>) {
+    pub fn borrow(&mut self, kind: BorrowKind, place: &Place) -> (Ty<'lr>, Bindings<'lr>) {
         let (_, typ) = self.lookup(place);
         let l = self.fresh_location();
         self.insert_location(l, typ);
         (
-            self.cx.mk_ty(TyS::MutRef(Region::new(place.clone()), l)),
+            self.cx
+                .mk_ty(TyS::Ref(kind, Region::new(kind, place.clone()), l)),
             vec![(Var::from(l), typ)],
         )
     }
@@ -525,9 +527,9 @@ impl<'lr> TypeCk<'lr> {
                     }
                 }
             }
-            Rvalue::RefMut(place) => {
+            Rvalue::Ref(kind, place) => {
                 // TODO: check ownership safety
-                tcx.borrow(place)
+                tcx.borrow(*kind, place)
             }
         };
         Ok(r)
@@ -731,9 +733,12 @@ fn subtype<'lr>(
             let typ2 = locations2.get(l2);
             subtype(cx, locations1, typ1.into(), locations2, typ2)?
         }
-        (TyS::MutRef(r1, l1), TyS::MutRef(r2, l2)) => {
-            if !r2.contains(r1) {
-                todo!("")
+        (TyS::Ref(kind1, r1, l1), TyS::Ref(kind2, r2, l2)) => {
+            if !r1.subset_of(r2) {
+                todo!("{:?} {:?}", r1, r2)
+            }
+            if kind1 != kind2 {
+                todo!("{:?} {:?}", kind1, kind2)
             }
             let typ1 = selfify(cx, Var::from(*l1), &mut vec![], locations1[*l1]);
             let typ2 = locations2.get(l2);
@@ -800,8 +805,11 @@ fn inner_subtype<'lr>(
             let typ2 = locations[*l2];
             inner_subtype(cx, locations, typ1.into(), typ2)?
         }
-        (TyS::MutRef(r1, l1), TyS::MutRef(r2, l2)) => {
-            if !r2.contains(r1) {
+        (TyS::Ref(kind1, r1, l1), TyS::Ref(kind2, r2, l2)) => {
+            if !r1.subset_of(r2) {
+                todo!("")
+            }
+            if kind1 != kind2 {
                 todo!("")
             }
             let typ1 = selfify(cx, Var::from(*l1), &mut vec![], locations[*l1]);
