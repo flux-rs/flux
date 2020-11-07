@@ -169,13 +169,13 @@ impl<'lr> TyCtxt<'lr> {
             TyS::Ref(BorrowKind::Mut, r, l) => {
                 let t = self.lookup_location(*l).unwrap();
                 if r.len() == 1 {
-                    bindings.extend(self.update(&r[0].1, t));
+                    bindings.extend(self.update(&r[0], t));
                     Ok(Constraint::True)
                 } else {
                     let mut cs = vec![];
                     let t_join = self.replace_refine_with_kvars(t, &mut self.bindings().collect());
                     cs.push(inner_subtype(self.cx, &self.locations, t, t_join)?);
-                    for (_, p) in r {
+                    for p in r {
                         let (_, t2) = self.lookup(p);
                         cs.push(inner_subtype(self.cx, &self.locations, t2, t_join)?);
                         bindings.extend(self.update(p, t_join));
@@ -292,8 +292,7 @@ impl<'lr> TyCtxt<'lr> {
         let l = self.fresh_location();
         self.insert_location(l, typ);
         (
-            self.cx
-                .mk_ty(TyS::Ref(kind, Region::new(kind, place.clone()), l)),
+            self.cx.mk_ty(TyS::Ref(kind, Region::new(place.clone()), l)),
             vec![(Var::from(l), typ)],
         )
     }

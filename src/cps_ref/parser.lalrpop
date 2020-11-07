@@ -129,13 +129,8 @@ Ty: Ty<'lr> = {
   "(" <Comma<Binding<Field, Ty>>> ")"          => cx.mk_ty(TyS::Tuple(<>))
 }
 
-Borrow: Borrow = {
-  <Place>            => (BorrowKind::Shared, <>),
-  "mut" "^" <Place> => (BorrowKind::Mut, <>),
-}
-
 Region: Region = {
-  "{" <Comma<Borrow>> "}" => Region::from(<>)
+  "{" <Comma<Place>> "}" => Region::from(<>)
 }
 
 OwnRef: OwnRef= "own" "(" <Location> ")" => OwnRef(<>);

@@ -181,11 +181,11 @@ pub struct OwnRef(pub Location);
 pub type Ty<'lr> = &'lr TyS<'lr>;
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
-pub struct Region(Vec<Borrow>);
+pub struct Region(Vec<Place>);
 
 impl Region {
-    pub fn new(kind: BorrowKind, place: Place) -> Self {
-        Self(vec![(kind, place)])
+    pub fn new(place: Place) -> Self {
+        Self(vec![place])
     }
 
     pub fn len(&self) -> usize {
@@ -201,36 +201,34 @@ impl Region {
         false
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Borrow> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = &Place> + '_ {
         self.0.iter()
     }
 }
 
 impl<'a> IntoIterator for &'a Region {
-    type Item = &'a Borrow;
+    type Item = &'a Place;
 
-    type IntoIter = std::slice::Iter<'a, Borrow>;
+    type IntoIter = std::slice::Iter<'a, Place>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
 }
 
-impl From<Vec<Borrow>> for Region {
-    fn from(v: Vec<Borrow>) -> Self {
+impl From<Vec<Place>> for Region {
+    fn from(v: Vec<Place>) -> Self {
         Self(v)
     }
 }
 
 impl std::ops::Index<usize> for Region {
-    type Output = Borrow;
+    type Output = Place;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
 }
-
-pub type Borrow = (BorrowKind, Place);
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, PartialOrd)]
 pub enum BorrowKind {
