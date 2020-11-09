@@ -8,8 +8,10 @@ use nom::{
     IResult,
 };
 
-use crate::refinements::ast::{
-    BaseTy, BinOp, IntTy, Literal, Predicate, RefinedTy, UintTy, UnOp, Variable,
+use crate::{
+    ast::{Predicate, Ty, Variable},
+    ir::{BinOp, Literal, UnOp},
+    ty::{BaseTy, IntSize},
 };
 
 fn symbol(string: &'static str) -> impl Fn(&str) -> IResult<&str, &str> {
@@ -24,65 +26,52 @@ fn variable(input: &str) -> IResult<&str, Variable> {
     map(alpha1, |slice: &str| Variable(slice.to_owned()))(input)
 }
 
-fn integer(input: &str) -> IResult<&str, i128> {
-    map(
-        pair(opt(char('-')), digit1),
-        |(sign, digits): (Option<char>, &str)| {
-            let mut number = digits.parse::<i128>().unwrap();
-            if sign.is_some() {
-                number *= -1;
-            }
-            number
-        },
-    )(input)
+fn integer(input: &str) -> IResult<&str, u128> {
+    map(digit1, |digits: &str| digits.parse::<u128>().unwrap())(input)
 }
 
 fn literal(input: &str) -> IResult<&str, Literal> {
     alt((
         map(symbol("true"), |_| Literal::Bool(true)),
         map(symbol("false"), |_| Literal::Bool(false)),
-        map(integer, Literal::Int),
+        map(
+            separated_pair(integer, symbol("_u"), int_size),
+            |(int, size)| Literal::Uint(int, size),
+        ),
+        map(
+            separated_pair(integer, symbol("_i"), int_size),
+            |(int, size)| Literal::Int(int as i128, size),
+        ),
     ))(input)
 }
 
 fn base_ty(input: &str) -> IResult<&str, BaseTy> {
     alt((
-        map(preceded(char('u'), uint_ty), BaseTy::Uint),
-        map(preceded(char('i'), int_ty), BaseTy::Int),
+        map(preceded(char('u'), int_size), BaseTy::Uint),
+        map(preceded(char('i'), int_size), BaseTy::Int),
         map(symbol("bool"), |_| BaseTy::Bool),
     ))(input)
 }
 
-fn int_ty(input: &str) -> IResult<&str, IntTy> {
+fn int_size(input: &str) -> IResult<&str, IntSize> {
     alt((
-        map(symbol("8"), |_| IntTy::I8),
-        map(symbol("16"), |_| IntTy::I16),
-        map(symbol("32"), |_| IntTy::I32),
-        map(symbol("64"), |_| IntTy::I64),
-        map(symbol("128"), |_| IntTy::I128),
-        map(symbol("size"), |_| IntTy::Isize),
-    ))(input)
-}
-
-fn uint_ty(input: &str) -> IResult<&str, UintTy> {
-    alt((
-        map(symbol("8"), |_| UintTy::U8),
-        map(symbol("16"), |_| UintTy::U16),
-        map(symbol("32"), |_| UintTy::U32),
-        map(symbol("64"), |_| UintTy::U64),
-        map(symbol("128"), |_| UintTy::U128),
-        map(symbol("size"), |_| UintTy::Usize),
+        map(symbol("8"), |_| IntSize::Size8),
+        map(symbol("16"), |_| IntSize::Size16),
+        map(symbol("32"), |_| IntSize::Size32),
+        map(symbol("64"), |_| IntSize::Size64),
+        map(symbol("128"), |_| IntSize::Size128),
+        map(symbol("size"), |_| IntSize::SizePtr),
     ))(input)
 }
 
 fn bin_app<'a>(
-    bin_op: impl Fn(&'a str) -> IResult<&'a str, BinOp>,
-    op: impl Fn(&'a str) -> IResult<&'a str, Predicate>,
+    bin_op: impl FnMut(&'a str) -> IResult<&'a str, BinOp>,
+    mut op: impl FnMut(&'a str) -> IResult<&'a str, Predicate>,
     input: &'a str,
 ) -> IResult<&'a str, Predicate> {
     let (mut input, mut pred) = op(input)?;
 
-    let app = opt(pair(bin_op, op));
+    let mut app = opt(pair(bin_op, op));
 
     while let (output, Some((op, tail))) = app(input)? {
         pred = Predicate::BinApp(op, Box::new(pred), Box::new(tail));
@@ -149,9 +138,9 @@ fn predicate(input: &str) -> IResult<&str, Predicate> {
     bin_app_1(input)
 }
 
-pub fn parse_ty(input: &str) -> IResult<&str, RefinedTy> {
+pub fn parse_ty(input: &str) -> IResult<&str, Ty> {
     alt((
-        map(base_ty, RefinedTy::Base),
+        map(base_ty, Ty::Base),
         map(
             terminated(
                 preceded(
@@ -163,7 +152,7 @@ pub fn parse_ty(input: &str) -> IResult<&str, RefinedTy> {
                 ),
                 symbol("}"),
             ),
-            |((var, ty), pred)| RefinedTy::RefBase(var, ty, pred),
+            |((var, ty), pred)| Ty::RefBase(var, ty, pred),
         ),
         map(
             separated_pair(
@@ -177,7 +166,7 @@ pub fn parse_ty(input: &str) -> IResult<&str, RefinedTy> {
                 symbol("->"),
                 parse_ty,
             ),
-            |(params, ret)| RefinedTy::RefFunc(params, Box::new(ret)),
+            |(params, ret)| Ty::RefFunc(params, Box::new(ret)),
         ),
     ))(input)
 }

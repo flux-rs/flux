@@ -9,9 +9,8 @@ extern crate rustc_middle;
 extern crate rustc_mir;
 extern crate rustc_index;
 
-mod item;
-mod refinements;
 mod visitor;
+mod lower;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
@@ -30,6 +29,8 @@ impl Callbacks for CompilerCalls {
             let mut visitor = MyVisitor::from_tcx(tcx);
             tcx.hir().krate().visit_all_item_likes(&mut visitor);
         });
+
+
 
         Compilation::Continue
     }
