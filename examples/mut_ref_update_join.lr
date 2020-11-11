@@ -1,0 +1,20 @@
+fn foo(b0: {bool | true}; b: own(b0)) ret k(r0: {int | V > 0}; own(r0))=
+  letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &mut({x, y}, l1)
+            ; x: own(x1), y: own(y1), p: own(l2)
+            ;
+            ) =
+    *p := 5;
+    drop(p);
+    jump k(x)
+  in
+  let x = alloc(1);
+  let y = alloc(1);
+  let p = alloc(1);
+  x := 1;
+  y := 2;
+  if b then
+    p := &mut x;
+    jump b0()
+  else
+    p := &mut y;
+    jump b0()

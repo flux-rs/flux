@@ -1,0 +1,30 @@
+{
+    "name": "liquid-rust",
+    "displayName": "liquid-rust",
+    "description": "Language suport for LiquidRust IR",
+    "publisher": "nlehmann",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/nilehmann/liquid-rust"
+    },
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.51.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "liquidrust",
+            "aliases": ["LiquidRust", "liquidrust"],
+            "extensions": ["lr"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "liquidrust",
+            "scopeName": "source.liquidrust",
+            "path": "./syntaxes/liquidrust.tmLanguage.json"
+        }]
+    }
+}

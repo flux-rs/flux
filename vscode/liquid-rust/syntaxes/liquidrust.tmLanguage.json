@@ -1,0 +1,175 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "LiquidRust",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#jump"
+		},
+		{
+			"include": "#fn"
+		},
+		{
+			"include": "#letcont"
+		},
+		{
+			"include": "#types"
+		},
+		{
+			"include": "#constants"
+		},
+		{
+			"include": "#identifiers"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.liquidrust",
+					"begin": "//",
+					"end": "$"
+				},
+				{
+					"name": "comment.block.liquidrust",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"types": {
+			"patterns": [
+				{
+					"name": "entity.name.type.primitive.liquidrust",
+					"match": "int|bool"
+				},
+				{
+					"begin": "(own)\\(",
+					"end": "\\)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.type.own.liquidrust"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#identifiers"
+						}
+					]
+				}
+			]
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "constant.numeric.liquidrust",
+					"match": "[0-9]+"
+				},
+				{
+					"name": "constant.language.bool.liquidrust",
+					"match": "\\b(true|false)\\b"
+				}
+			]
+		},
+		"identifiers": {
+			"patterns": [
+				{
+					"name": "variable.other.liquidrust",
+					"match": "\\b[a-z][a-zA-Z0-9_]*\\b"
+				},
+				{
+					"name": "variable.other.field.liquidrust",
+					"match": "@[a-zA-Z0-9_]+\\b"
+				},
+				{
+					"name": "variable.language.nu.liquidrust",
+					"match": "\\bV\\b"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.liquidrust",
+					"match": "\\b(if|then|else)\\b"
+				},
+				{
+					"name": "keyword.other.liquidrust",
+					"match": "\\b(let|in|mut)\\b"
+				},
+				{
+					"name": "entity.name.function.primitive.liquidrust",
+					"match": "\\b(drop|alloc)\\b"
+				}
+			]
+		},
+		"fn": {
+			"name": "meta.definition.fn.liquidrust",
+			"begin": "(fn)\\s+(\\w+)\\s*\\(",
+			"end": "(ret)\\s+(\\w+)\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.liquidrust"
+				},
+				"2": {
+					"name": "entity.name.function.liquidrust"
+				}
+			},
+			"endCaptures": {
+				"1": {
+					"name": "keyword.other.liquidrust"
+				},
+				"2": {
+					"name": "entity.name.function.continuation.liquidrust"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#types"
+				},
+				{
+					"include": "#keywords"
+				},
+				{
+					"include": "#constants"
+				},
+				{
+					"include": "#identifiers"
+				}
+			]
+		},
+		"jump": {
+			"name": "meta.jump.liquidrust",
+			"match": "(jump)\\s+(\\w+)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.liquidrust"
+				},
+				"2": {
+					"name": "entity.name.function.continuation.liquidrust"
+				}
+			}
+		},
+		"letcont": {
+			"name": "meta.definition.cont.liquidrust",
+			"match": "(letcont)\\s+(\\w+)",
+			"captures": {
+				"1": {
+					"name": "keyword.other.liquidrust"
+				},
+				"2": {
+					"name": "entity.name.function.continuation.liquidrust"
+				}
+			}
+		}
+	},
+	"scopeName": "source.liquidrust"
+}

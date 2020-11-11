@@ -1,0 +1,8 @@
+fn foo(;) ret k(r0: {int | V > 0}; own(r0))=
+  let n = alloc(1);
+  let p = alloc(1);
+  n  := 0;
+  p  := &mut n;
+  *p := 1;
+  drop(p);
+  jump k(n)
