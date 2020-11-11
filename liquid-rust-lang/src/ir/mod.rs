@@ -1,17 +1,19 @@
+mod literal;
+
+pub use literal::Literal;
+
 use std::collections::HashMap;
 
 use crate::{
-    ast::Ty as AstTy,
-    ctx::{FnContext, UnifyError},
-    ty::{BaseTy, IntSize, Ty},
-    Generator,
+    generator::{Generable, Generator},
+    ty::BaseTy,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct BlockId(usize);
 
-impl BlockId {
-    pub fn generator() -> Generator<Self> {
+impl Generable for BlockId {
+    fn generator() -> Generator<Self> {
         Generator::new(Self)
     }
 }
@@ -19,8 +21,8 @@ impl BlockId {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct FuncId(usize);
 
-impl FuncId {
-    pub fn generator() -> Generator<Self> {
+impl Generable for FuncId {
+    fn generator() -> Generator<Self> {
         Generator::new(Self)
     }
 }
@@ -28,23 +30,10 @@ impl FuncId {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Local(usize);
 
-impl Local {
-    pub fn generator() -> Generator<Self> {
+impl Generable for Local {
+    fn generator() -> Generator<Self> {
         Generator::new(Self)
     }
-
-    pub fn args(arity: usize) -> impl Iterator<Item = Self> {
-        (0..arity).map(|index| Self(index + 1))
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Literal {
-    Bool(bool),
-    Int(i128, IntSize),
-    Uint(u128, IntSize),
-    Unit,
-    Fn(FuncId),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -104,20 +93,9 @@ pub struct BasicBlock(pub Vec<Statement>, pub Terminator);
 
 #[derive(Debug)]
 pub struct Func {
-    pub arg_count: usize,
-    pub local_decls: Vec<(Local, BaseTy)>,
+    pub args: Vec<(Local, BaseTy)>,
+    pub ret_local: Local,
+    pub ret_ty: BaseTy,
+    pub locals: Vec<(Local, BaseTy)>,
     pub basic_blocks: HashMap<BlockId, BasicBlock>,
-    pub ty: Option<Ty>,
 }
-
-impl Func {
-    pub fn set_ty(&mut self, ty: &AstTy) -> Result<(), UnifyError> {
-        let mut ctx = FnContext::new(self);
-        let ty = ctx.check_ty(ty)?;
-        self.ty = Some(ty);
-
-        Ok(())
-    }
-}
-
-pub struct Program(pub HashMap<FuncId, Func>);

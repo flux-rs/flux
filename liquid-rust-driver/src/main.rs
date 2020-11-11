@@ -4,18 +4,23 @@ extern crate rustc_ast;
 extern crate rustc_ast_pretty;
 extern crate rustc_driver;
 extern crate rustc_hir;
+extern crate rustc_index;
 extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_mir;
-extern crate rustc_index;
 
-mod visitor;
 mod lower;
+mod visitor;
+
+use lower::{LowerCtx, LowerMap};
+use visitor::DefIdCollector;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
 
-use visitor::MyVisitor;
+use std::collections::HashMap;
+
+use liquid_rust_lang::{ir::FuncId, tycheck::TyCtx};
 
 struct CompilerCalls;
 
@@ -25,12 +30,24 @@ impl Callbacks for CompilerCalls {
         _compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
+        let mut funcs = HashMap::new();
+        let mut func_ids = LowerMap::<_, FuncId>::new();
+        let mut annotations = HashMap::new();
+
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let mut visitor = MyVisitor::from_tcx(tcx);
+            let mut visitor = DefIdCollector::new(tcx, &mut annotations, &mut func_ids);
             tcx.hir().krate().visit_all_item_likes(&mut visitor);
+
+            for (&def_id, &func_id) in func_ids.iter() {
+                let mut lcx = LowerCtx::new(tcx, &func_ids);
+                let body = tcx.optimized_mir(def_id);
+                let func = lcx.lower_body(body).unwrap();
+                println!("{:?} => {:?}", func_id, func);
+                funcs.insert(func_id, func);
+            }
         });
 
-
+        let _tcx = TyCtx::new(funcs, annotations).unwrap();
 
         Compilation::Continue
     }

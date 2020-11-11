@@ -1,6 +1,6 @@
 use crate::{
     ir::{BinOp, Literal, UnOp},
-    ty::{BaseTy},
+    ty::BaseTy,
 };
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
@@ -27,4 +27,3 @@ pub enum Ty {
 pub enum Annotation {
     Ty(Ty),
 }
-

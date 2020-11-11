@@ -1,34 +1,44 @@
 use rustc_ast::ast::{AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_ast_pretty::pprust::tts_to_string;
-use rustc_hir::{itemlikevisit::ItemLikeVisitor, ImplItem, Item, ItemKind, TraitItem};
+use rustc_hir::{
+    def_id::DefId, itemlikevisit::ItemLikeVisitor, ImplItem, Item, ItemKind, TraitItem,
+};
 use rustc_middle::ty::TyCtxt;
+
+use liquid_rust_lang::{ast::Annotation, ir::FuncId, parser::parse_ty};
 
 use std::collections::HashMap;
 
-use liquid_rust_lang::{ast::Annotation, ir::Program, parser::parse_ty};
+use crate::lower::LowerMap;
 
-use crate::lower::LowerCtx;
-
-pub struct MyVisitor<'tcx> {
-    program: Program,
+pub struct DefIdCollector<'tcx, 'low> {
     tcx: TyCtxt<'tcx>,
-    lcx: LowerCtx<'tcx>,
+    anns: &'low mut HashMap<FuncId, Vec<Annotation>>,
+    func_ids: &'low mut LowerMap<DefId, FuncId>,
 }
 
-impl<'hir, 'tcx> ItemLikeVisitor<'hir> for MyVisitor<'tcx> {
+impl<'tcx, 'low> DefIdCollector<'tcx, 'low> {
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        anns: &'low mut HashMap<FuncId, Vec<Annotation>>,
+        func_ids: &'low mut LowerMap<DefId, FuncId>,
+    ) -> Self {
+        Self {
+            tcx,
+            anns,
+            func_ids,
+        }
+    }
+}
+
+impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_, '_> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
-            let def_id = self.tcx.hir().local_def_id(item.hir_id);
-            let body = self.tcx.optimized_mir(def_id).clone();
+            let def_id = self.tcx.hir().local_def_id(item.hir_id).to_def_id();
+            let anns = extract_annotations(item.attrs);
 
-            let anns = self.get_anns(item.attrs);
-
-            self.lcx.set_annotations(anns);
-
-            let (func_id, func) = self.lcx.lower_body(def_id.to_def_id(), body).unwrap();
-            println!("{:?} => {:?}", func_id, func);
-
-            self.program.0.insert(func_id, func);
+            let func_id = self.func_ids.store(def_id);
+            self.anns.insert(func_id, anns);
         }
     }
 
@@ -36,48 +46,37 @@ impl<'hir, 'tcx> ItemLikeVisitor<'hir> for MyVisitor<'tcx> {
     fn visit_impl_item(&mut self, _impl_item: &'hir ImplItem<'hir>) {}
 }
 
-impl<'tcx> MyVisitor<'tcx> {
-    pub fn from_tcx(tcx: TyCtxt<'tcx>) -> Self {
-        Self {
-            program: Program(HashMap::default()),
-            tcx,
-            lcx: LowerCtx::from_tcx(tcx),
-        }
-    }
+fn extract_annotations(attrs: &[Attribute]) -> Vec<Annotation> {
+    let mut anns = vec![];
 
-    fn get_anns(&mut self, attrs: &[Attribute]) -> Vec<Annotation> {
-        let mut anns = vec![];
+    for attr in attrs {
+        if let AttrKind::Normal(AttrItem { path, args, .. }) = &attr.kind {
+            let mut path = path.segments.iter().map(|segment| segment.ident.as_str());
 
-        for attr in attrs {
-            if let AttrKind::Normal(AttrItem { path, args, .. }) = &attr.kind {
-                let path = path
-                    .segments
-                    .iter()
-                    .map(|segment| segment.ident.as_str())
-                    .collect::<Vec<_>>();
-
-                match path.get(0) {
-                    Some(fst) if *fst == "liquid" => match path.get(1) {
-                        Some(snd) if *snd == "ty" => {
+            match path.next() {
+                Some(fst) if fst == "liquid" => match path.next() {
+                    Some(snd) => {
+                        if snd == "ty" {
                             if let MacArgs::Delimited(_, _, token_stream) = args {
                                 let ty_string = tts_to_string(token_stream);
 
-                                let (rem, ast_ty) = parse_ty(&ty_string.trim_matches('"')).unwrap();
-
-                                assert!(rem.is_empty());
+                                let (_rem, ast_ty) = parse_ty(&ty_string.trim_matches('"'))
+                                    .expect("Parsing type annotation failed");
 
                                 anns.push(Annotation::Ty(ast_ty));
                             } else {
-                                panic!();
+                                panic!("Type annotations must have the syntax `#[liquid::ty(\"<type>\")]`");
                             }
+                        } else {
+                            panic!("Unsupported annotation kind {}", snd);
                         }
-                        _ => panic!(),
-                    },
-                    _ => (),
-                }
+                    }
+                    _ => panic!("Missing annotation kind"),
+                },
+                _ => (),
             }
         }
-
-        anns
     }
+
+    anns
 }

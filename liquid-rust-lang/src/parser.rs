@@ -177,8 +177,9 @@ mod tests {
 
     #[test]
     fn it_works() {
-        dbg!(parse_ty(
-            "fn(x: usize) -> { x: usize | x * (1 + 0) > 0 + 1 }"
-        ));
+        dbg!(
+            parse_ty("fn(x: usize) -> { x: usize | x * 1_usize + 0_usize > 0_usize + 1_usize }")
+                .unwrap()
+        );
     }
 }
