@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.19.1"
-// sha256: 373a763b48747483ff630c9a4a9a19ec7f831b38139f360e56f974dd2dfba
+// sha256: 58217796289c36c4f97eff572e25b5b1e1b668347aed424f4995f566a3cb98e
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
@@ -125,11 +125,11 @@ mod __parse__Fn {
         // State 24
         0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66,
         // State 25
-        0, 0, 0, 0, 135, 0, 136, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -124, 0, 0, 0,
+        0, 0, 0, 0, 135, 0, 136, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -121, 0, 0, 0,
         // State 26
-        0, 0, 0, 0, -125, 0, -125, 0, 0, 0, 0, 137, 138, 0, 139, 140, 141, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -125, 0, 0, 0,
+        0, 0, 0, 0, -122, 0, -122, 0, 0, 0, 0, 137, 138, 0, 139, 140, 141, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -122, 0, 0, 0,
         // State 27
-        0, 0, 0, 0, -127, 0, -127, 144, 0, 0, 0, -127, -127, 0, -127, -127, -127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -127, 0, 0, 0,
+        0, 0, 0, 0, -124, 0, -124, 144, 0, 0, 0, -124, -124, 0, -124, -124, -124, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -124, 0, 0, 0,
         // State 28
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -66, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66,
         // State 29
@@ -141,7 +141,7 @@ mod __parse__Fn {
         // State 32
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 120, 0, 0, 0, 0, 0, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 91, 124, 66,
         // State 33
-        0, 0, 0, 0, -128, 0, -128, 144, 0, 0, 0, -128, -128, 0, -128, -128, -128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -128, 0, 0, 0,
+        0, 0, 0, 0, -125, 0, -125, 144, 0, 0, 0, -125, -125, 0, -125, -125, -125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -125, 0, 0, 0,
         // State 34
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 97, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 35
@@ -163,7 +163,7 @@ mod __parse__Fn {
         // State 43
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66,
         // State 44
-        0, 0, 0, 0, 135, 0, 136, 0, 0, 0, -135, 137, 138, 0, 139, 140, 141, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 135, 0, 136, 0, 0, 0, -132, 137, 138, 0, 139, 140, 141, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 45
         0, 24, 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66,
         // State 46
@@ -205,7 +205,7 @@ mod __parse__Fn {
         // State 64
         0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 65
-        0, -142, -142, 0, -142, -142, -142, -142, -142, -142, -142, -142, -142, -142, -142, -142, -142, 0, 0, 0, 0, 0, 0, -142, 0, 0, 0, -142, 0, 0, 0, 0, 0, 0, 0, 0, 0, -142, 0, 0, 0, -142, 0, 0, -142,
+        0, -139, -139, 0, -139, -139, -139, -139, -139, -139, -139, -139, -139, -139, -139, -139, -139, 0, 0, 0, 0, 0, 0, -139, 0, 0, 0, -139, 0, 0, 0, 0, 0, 0, 0, 0, 0, -139, 0, 0, 0, -139, 0, 0, -139,
         // State 66
         0, 0, 0, 0, 0, 73, 0, 0, 0, 0, -65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 67
@@ -275,7 +275,7 @@ mod __parse__Fn {
         // State 99
         0, 0, -9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -9, 0, 0,
         // State 100
-        0, 0, -149, 0, 0, -149, 0, 0, 0, 0, -149, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -146, 0, 0, -146, 0, 0, 0, 0, -146, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 101
         0, 0, 113, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 102
@@ -299,13 +299,13 @@ mod __parse__Fn {
         // State 111
         0, 0, -48, 0, 0, -48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 112
-        0, 0, -143, 0, 0, -143, 0, 0, 0, 0, -143, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -140, 0, 0, -140, 0, 0, 0, 0, -140, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 113
-        0, 0, 0, 0, -126, 0, -126, 0, 0, 0, 0, -126, -126, 0, -126, -126, -126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -126, 0, 0, 0,
+        0, 0, 0, 0, -123, 0, -123, 0, 0, 0, 0, -123, -123, 0, -123, -123, -123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -123, 0, 0, 0,
         // State 114
-        0, 0, 0, 0, -155, 0, -155, -155, 0, 0, 0, -155, -155, 0, -155, -155, -155, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -155, 0, 0, 0,
+        0, 0, 0, 0, -152, 0, -152, -152, 0, 0, 0, -152, -152, 0, -152, -152, -152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -152, 0, 0, 0,
         // State 115
-        0, 0, 0, 0, -154, 0, -154, -154, 0, 0, 0, -154, -154, 0, -154, -154, -154, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -154, 0, 0, 0,
+        0, 0, 0, 0, -151, 0, -151, -151, 0, 0, 0, -151, -151, 0, -151, -151, -151, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -151, 0, 0, 0,
         // State 116
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142, 0, 0, 0,
         // State 117
@@ -313,7 +313,7 @@ mod __parse__Fn {
         // State 118
         0, 0, 0, 0, -99, 0, -99, 0, 0, 0, 0, -99, -99, 0, -99, -99, -99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -99, 0, 0, 0,
         // State 119
-        0, 0, 0, 0, -156, 0, -156, -156, 0, 0, 0, -156, -156, 0, -156, -156, -156, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -156, 0, 0, 0,
+        0, 0, 0, 0, -153, 0, -153, -153, 0, 0, 0, -153, -153, 0, -153, -153, -153, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -153, 0, 0, 0,
         // State 120
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0,
         // State 121
@@ -329,7 +329,7 @@ mod __parse__Fn {
         // State 126
         0, 0, 0, 0, 0, 149, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -75, 0, 0, 0,
         // State 127
-        0, 0, 0, 0, 0, -134, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 128
         0, -29, 0, -29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -29, 0, 0, -29,
         // State 129
@@ -357,19 +357,19 @@ mod __parse__Fn {
         // State 140
         0, -46, 0, -46, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -46, 0, 0, 0, 0, 0, 0, -46, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -46, 0, 0, 0, -46, -46, -46,
         // State 141
-        0, 0, -144, 0, 0, -144, 0, 0, 0, 0, -144, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -141, 0, 0, -141, 0, 0, 0, 0, -141, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 142
-        0, 0, 0, 0, -132, 0, -132, -132, 0, 0, 0, -132, -132, 0, -132, -132, -132, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -132, 0, 0, 0,
+        0, 0, 0, 0, -129, 0, -129, -129, 0, 0, 0, -129, -129, 0, -129, -129, -129, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -129, 0, 0, 0,
         // State 143
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 158, 0,
         // State 144
-        0, 0, -145, 0, 0, -145, 0, 0, 0, 0, -145, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -142, 0, 0, -142, 0, 0, 0, 0, -142, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 145
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 146
         0, 0, -110, 0, 0, -110, 0, 0, 0, 0, -110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 147
-        0, 0, -146, 0, 0, -146, 0, 0, 0, 0, -146, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -143, 0, 0, -143, 0, 0, 0, 0, -143, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 148
         0, -30, 0, -30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -30, 0, 0, -30,
         // State 149
@@ -387,15 +387,15 @@ mod __parse__Fn {
         // State 155
         0, 0, 0, 0, -98, 0, -98, 0, 0, 0, 0, -98, -98, 0, -98, -98, -98, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -98, 0, 0, 0,
         // State 156
-        0, 0, 0, 0, -133, 0, -133, -133, 0, 0, 0, -133, -133, 0, -133, -133, -133, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -133, 0, 0, 0,
+        0, 0, 0, 0, -130, 0, -130, -130, 0, 0, 0, -130, -130, 0, -130, -130, -130, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -130, 0, 0, 0,
         // State 157
-        0, 0, 0, 0, -129, 0, -129, -129, 0, 0, 0, -129, -129, 0, -129, -129, -129, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -129, 0, 0, 0,
+        0, 0, 0, 0, -126, 0, -126, -126, 0, 0, 0, -126, -126, 0, -126, -126, -126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -126, 0, 0, 0,
         // State 158
         0, -5, -5, 0, -5, -5, -5, -5, 0, -5, -5, -5, -5, 0, -5, -5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -5, 0, 0, 0, -5, 0, 0, 0,
         // State 159
-        0, 0, -148, 0, 0, -148, 0, 0, 0, 0, -148, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -145, 0, 0, -145, 0, 0, 0, 0, -145, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 160
-        0, 0, -147, 0, 0, -147, 0, 0, 0, 0, -147, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -144, 0, 0, -144, 0, 0, 0, 0, -144, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 161
         0, 0, 163, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 162
@@ -427,7 +427,7 @@ mod __parse__Fn {
         // State 175
         0, 0, 0, 0, -108, 0, -108, 0, 0, 0, -108, -108, -108, 0, -108, -108, -108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 176
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -140, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -137, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 177
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -93, 0, 0, 0, -93, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 178
@@ -439,13 +439,13 @@ mod __parse__Fn {
         // State 181
         0, -40, 0, -40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -40, 0, 0, 0, 0, -40, -40,
         // State 182
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -137, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -134, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 183
         0, 0, 196, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 184
         0, 0, -69, 0, 0, 197, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 185
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -141, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -138, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 186
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 56, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 187
@@ -459,9 +459,9 @@ mod __parse__Fn {
         // State 191
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 192
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -136, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -133, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 193
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -138, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -135, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 194
         0, 0, -71, 0, 0, 200, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 195
@@ -479,7 +479,7 @@ mod __parse__Fn {
         // State 201
         0, 0, 207, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 202
-        0, 0, -150, 0, 0, -150, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -147, 0, 0, -147, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 203
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -85, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 204
@@ -487,7 +487,7 @@ mod __parse__Fn {
         // State 205
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -90, 0, 0, 0, -90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 206
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -139, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -136, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 207
         0, 0, 211, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 208
@@ -495,7 +495,7 @@ mod __parse__Fn {
         // State 209
         0, 0, -79, 0, 0, 214, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 210
-        0, 0, -151, 0, 0, -151, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, -148, 0, 0, -148, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 211
         0, -34, -34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -34, 0,
         // State 212
@@ -638,11 +638,11 @@ mod __parse__Fn {
         // State 62
         0,
         // State 63
-        -157,
+        -154,
         // State 64
         0,
         // State 65
-        -142,
+        -139,
         // State 66
         0,
         // State 67
@@ -1062,28 +1062,28 @@ mod __parse__Fn {
                 24 => 133,
                 _ => 107,
             },
-            61 => 116,
-            62 => match state {
+            60 => 116,
+            61 => match state {
                 31 => 154,
                 _ => 117,
             },
-            63 => match state {
+            62 => match state {
                 32 => 155,
                 _ => 118,
             },
-            64 => match state {
+            63 => match state {
                 33 => 156,
                 _ => 142,
             },
-            66 => 33,
-            67 => match state {
+            65 => 33,
+            66 => match state {
                 15 => 108,
                 16 => 109,
                 _ => 97,
             },
-            68 => 176,
-            69 => 165,
-            70 => match state {
+            67 => 176,
+            68 => 165,
+            69 => match state {
                 1 => 64,
                 2..=3 | 12 | 18..=20 | 28..=32 | 50 => 70,
                 13 => 102,
@@ -1092,16 +1092,16 @@ mod __parse__Fn {
                 58 => 205,
                 _ => 78,
             },
-            71 => match state {
+            70 => match state {
                 17 => 111,
                 _ => 79,
             },
-            72 => match state {
+            71 => match state {
                 59 => 208,
                 60 => 209,
                 _ => 201,
             },
-            74 => 27,
+            73 => 27,
             _ => 0,
         }
     }
@@ -1849,15 +1849,6 @@ mod __parse__Fn {
                 __reduce152(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             153 => {
-                __reduce153(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
-            }
-            154 => {
-                __reduce154(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
-            }
-            155 => {
-                __reduce155(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
-            }
-            156 => {
                 // __Fn = Fn => ActionFn(0);
                 let __sym0 = __pop_Variant28(__symbols);
                 let __start = __sym0.0.clone();
@@ -2454,13 +2445,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // ("." <r#"[0-9]+"#>) = ".", r#"[0-9]+"# => ActionFn(83);
+        // ("." <r#"[0-9]+"#>) = ".", r#"[0-9]+"# => ActionFn(80);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action83::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action80::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant0(__nt), __end));
         (2, 0)
     }
@@ -2476,10 +2467,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // ("." <r#"[0-9]+"#>)* =  => ActionFn(81);
+        // ("." <r#"[0-9]+"#>)* =  => ActionFn(78);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action81::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action78::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (0, 1)
     }
@@ -2495,11 +2486,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // ("." <r#"[0-9]+"#>)* = ("." <r#"[0-9]+"#>)+ => ActionFn(82);
+        // ("." <r#"[0-9]+"#>)* = ("." <r#"[0-9]+"#>)+ => ActionFn(79);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action82::<>(cx, holes, input, __sym0);
+        let __nt = super::__action79::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (1, 1)
     }
@@ -2515,13 +2506,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // ("." <r#"[0-9]+"#>)+ = ".", r#"[0-9]+"# => ActionFn(136);
+        // ("." <r#"[0-9]+"#>)+ = ".", r#"[0-9]+"# => ActionFn(133);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action136::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action133::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (2, 2)
     }
@@ -2537,14 +2528,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // ("." <r#"[0-9]+"#>)+ = ("." <r#"[0-9]+"#>)+, ".", r#"[0-9]+"# => ActionFn(137);
+        // ("." <r#"[0-9]+"#>)+ = ("." <r#"[0-9]+"#>)+, ".", r#"[0-9]+"# => ActionFn(134);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action137::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action134::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (3, 2)
     }
@@ -2560,13 +2551,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Field, Ty>> ",") = Binding<Field, Ty>, "," => ActionFn(106);
+        // (<Binding<Field, Ty>> ",") = Binding<Field, Ty>, "," => ActionFn(103);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action106::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action103::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (2, 3)
     }
@@ -2582,10 +2573,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Field, Ty>> ",")* =  => ActionFn(104);
+        // (<Binding<Field, Ty>> ",")* =  => ActionFn(101);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action104::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action101::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (0, 4)
     }
@@ -2601,11 +2592,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Field, Ty>> ",")* = (<Binding<Field, Ty>> ",")+ => ActionFn(105);
+        // (<Binding<Field, Ty>> ",")* = (<Binding<Field, Ty>> ",")+ => ActionFn(102);
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action105::<>(cx, holes, input, __sym0);
+        let __nt = super::__action102::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (1, 4)
     }
@@ -2621,13 +2612,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Field, Ty>> ",")+ = Binding<Field, Ty>, "," => ActionFn(140);
+        // (<Binding<Field, Ty>> ",")+ = Binding<Field, Ty>, "," => ActionFn(137);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action140::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action137::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (2, 5)
     }
@@ -2643,14 +2634,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Field, Ty>> ",")+ = (<Binding<Field, Ty>> ",")+, Binding<Field, Ty>, "," => ActionFn(141);
+        // (<Binding<Field, Ty>> ",")+ = (<Binding<Field, Ty>> ",")+, Binding<Field, Ty>, "," => ActionFn(138);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant2(__symbols);
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action141::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action138::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (3, 5)
     }
@@ -2666,13 +2657,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Local, OwnRef>> ",") = Binding<Local, OwnRef>, "," => ActionFn(118);
+        // (<Binding<Local, OwnRef>> ",") = Binding<Local, OwnRef>, "," => ActionFn(115);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action118::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action115::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (2, 6)
     }
@@ -2688,10 +2679,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Local, OwnRef>> ",")* =  => ActionFn(116);
+        // (<Binding<Local, OwnRef>> ",")* =  => ActionFn(113);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action116::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action113::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (0, 7)
     }
@@ -2707,11 +2698,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Local, OwnRef>> ",")* = (<Binding<Local, OwnRef>> ",")+ => ActionFn(117);
+        // (<Binding<Local, OwnRef>> ",")* = (<Binding<Local, OwnRef>> ",")+ => ActionFn(114);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action117::<>(cx, holes, input, __sym0);
+        let __nt = super::__action114::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (1, 7)
     }
@@ -2727,13 +2718,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Local, OwnRef>> ",")+ = Binding<Local, OwnRef>, "," => ActionFn(144);
+        // (<Binding<Local, OwnRef>> ",")+ = Binding<Local, OwnRef>, "," => ActionFn(141);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action144::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action141::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (2, 8)
     }
@@ -2749,14 +2740,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Local, OwnRef>> ",")+ = (<Binding<Local, OwnRef>> ",")+, Binding<Local, OwnRef>, "," => ActionFn(145);
+        // (<Binding<Local, OwnRef>> ",")+ = (<Binding<Local, OwnRef>> ",")+, Binding<Local, OwnRef>, "," => ActionFn(142);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant4(__symbols);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action145::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action142::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (3, 8)
     }
@@ -2772,13 +2763,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Ty>> ",") = Binding<Location, Ty>, "," => ActionFn(123);
+        // (<Binding<Location, Ty>> ",") = Binding<Location, Ty>, "," => ActionFn(120);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action123::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action120::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (2, 9)
     }
@@ -2794,10 +2785,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Ty>> ",")* =  => ActionFn(121);
+        // (<Binding<Location, Ty>> ",")* =  => ActionFn(118);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action121::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action118::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (0, 10)
     }
@@ -2813,11 +2804,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Ty>> ",")* = (<Binding<Location, Ty>> ",")+ => ActionFn(122);
+        // (<Binding<Location, Ty>> ",")* = (<Binding<Location, Ty>> ",")+ => ActionFn(119);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action122::<>(cx, holes, input, __sym0);
+        let __nt = super::__action119::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (1, 10)
     }
@@ -2833,13 +2824,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Ty>> ",")+ = Binding<Location, Ty>, "," => ActionFn(148);
+        // (<Binding<Location, Ty>> ",")+ = Binding<Location, Ty>, "," => ActionFn(145);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action148::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action145::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (2, 11)
     }
@@ -2855,14 +2846,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Binding<Location, Ty>> ",")+ = (<Binding<Location, Ty>> ",")+, Binding<Location, Ty>, "," => ActionFn(149);
+        // (<Binding<Location, Ty>> ",")+ = (<Binding<Location, Ty>> ",")+, Binding<Location, Ty>, "," => ActionFn(146);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action149::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action146::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (3, 11)
     }
@@ -2878,13 +2869,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Local> ",") = Local, "," => ActionFn(92);
+        // (<Local> ",") = Local, "," => ActionFn(89);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action92::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action89::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (2, 12)
     }
@@ -2900,10 +2891,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Local> ",")* =  => ActionFn(90);
+        // (<Local> ",")* =  => ActionFn(87);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action90::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action87::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (0, 13)
     }
@@ -2919,11 +2910,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Local> ",")* = (<Local> ",")+ => ActionFn(91);
+        // (<Local> ",")* = (<Local> ",")+ => ActionFn(88);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action91::<>(cx, holes, input, __sym0);
+        let __nt = super::__action88::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 13)
     }
@@ -2939,13 +2930,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Local> ",")+ = Local, "," => ActionFn(152);
+        // (<Local> ",")+ = Local, "," => ActionFn(149);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action152::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action149::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (2, 14)
     }
@@ -2961,14 +2952,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Local> ",")+ = (<Local> ",")+, Local, "," => ActionFn(153);
+        // (<Local> ",")+ = (<Local> ",")+, Local, "," => ActionFn(150);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant8(__symbols);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action153::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action150::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (3, 14)
     }
@@ -2984,13 +2975,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Place> ",") = Place, "," => ActionFn(111);
+        // (<Place> ",") = Place, "," => ActionFn(108);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action111::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action108::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (2, 15)
     }
@@ -3006,10 +2997,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Place> ",")* =  => ActionFn(109);
+        // (<Place> ",")* =  => ActionFn(106);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action109::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action106::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (0, 16)
     }
@@ -3025,11 +3016,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Place> ",")* = (<Place> ",")+ => ActionFn(110);
+        // (<Place> ",")* = (<Place> ",")+ => ActionFn(107);
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action110::<>(cx, holes, input, __sym0);
+        let __nt = super::__action107::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (1, 16)
     }
@@ -3045,13 +3036,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Place> ",")+ = Place, "," => ActionFn(156);
+        // (<Place> ",")+ = Place, "," => ActionFn(153);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action156::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action153::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (2, 17)
     }
@@ -3067,14 +3058,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<Place> ",")+ = (<Place> ",")+, Place, "," => ActionFn(157);
+        // (<Place> ",")+ = (<Place> ",")+, Place, "," => ActionFn(154);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant10(__symbols);
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action157::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action154::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (3, 17)
     }
@@ -3090,13 +3081,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<TypeLayout> ",") = TypeLayout, "," => ActionFn(99);
+        // (<TypeLayout> ",") = TypeLayout, "," => ActionFn(96);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action99::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action96::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (2, 18)
     }
@@ -3112,10 +3103,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<TypeLayout> ",")* =  => ActionFn(97);
+        // (<TypeLayout> ",")* =  => ActionFn(94);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action97::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action94::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (0, 19)
     }
@@ -3131,11 +3122,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<TypeLayout> ",")* = (<TypeLayout> ",")+ => ActionFn(98);
+        // (<TypeLayout> ",")* = (<TypeLayout> ",")+ => ActionFn(95);
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action98::<>(cx, holes, input, __sym0);
+        let __nt = super::__action95::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (1, 19)
     }
@@ -3151,13 +3142,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<TypeLayout> ",")+ = TypeLayout, "," => ActionFn(160);
+        // (<TypeLayout> ",")+ = TypeLayout, "," => ActionFn(157);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action160::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action157::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (2, 20)
     }
@@ -3173,14 +3164,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // (<TypeLayout> ",")+ = (<TypeLayout> ",")+, TypeLayout, "," => ActionFn(161);
+        // (<TypeLayout> ",")+ = (<TypeLayout> ",")+, TypeLayout, "," => ActionFn(158);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant12(__symbols);
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action161::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action158::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (3, 20)
     }
@@ -3196,11 +3187,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Args = Comma<Binding<Local, OwnRef>> => ActionFn(52);
+        // Args = Comma<Binding<Local, OwnRef>> => ActionFn(49);
         let __sym0 = __pop_Variant14(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action52::<>(cx, holes, input, __sym0);
+        let __nt = super::__action49::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 21)
     }
@@ -3256,11 +3247,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOp = BinOpGroup1 => ActionFn(66);
+        // BinOp = BinOpGroup1 => ActionFn(63);
         let __sym0 = __pop_Variant16(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action66::<>(cx, holes, input, __sym0);
+        let __nt = super::__action63::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 23)
     }
@@ -3276,11 +3267,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOp = BinOpGroup2 => ActionFn(67);
+        // BinOp = BinOpGroup2 => ActionFn(64);
         let __sym0 = __pop_Variant16(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action67::<>(cx, holes, input, __sym0);
+        let __nt = super::__action64::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 23)
     }
@@ -3296,11 +3287,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup1 = "+" => ActionFn(59);
+        // BinOpGroup1 = "+" => ActionFn(56);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action59::<>(cx, holes, input, __sym0);
+        let __nt = super::__action56::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 24)
     }
@@ -3316,11 +3307,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup1 = "-" => ActionFn(60);
+        // BinOpGroup1 = "-" => ActionFn(57);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action60::<>(cx, holes, input, __sym0);
+        let __nt = super::__action57::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 24)
     }
@@ -3336,11 +3327,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup2 = "<" => ActionFn(61);
+        // BinOpGroup2 = "<" => ActionFn(58);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action61::<>(cx, holes, input, __sym0);
+        let __nt = super::__action58::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3356,11 +3347,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup2 = "<=" => ActionFn(62);
+        // BinOpGroup2 = "<=" => ActionFn(59);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action62::<>(cx, holes, input, __sym0);
+        let __nt = super::__action59::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3376,11 +3367,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup2 = "==" => ActionFn(63);
+        // BinOpGroup2 = "==" => ActionFn(60);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action63::<>(cx, holes, input, __sym0);
+        let __nt = super::__action60::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3396,11 +3387,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup2 = ">=" => ActionFn(64);
+        // BinOpGroup2 = ">=" => ActionFn(61);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action64::<>(cx, holes, input, __sym0);
+        let __nt = super::__action61::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3416,11 +3407,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // BinOpGroup2 = ">" => ActionFn(65);
+        // BinOpGroup2 = ">" => ActionFn(62);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action65::<>(cx, holes, input, __sym0);
+        let __nt = super::__action62::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3436,14 +3427,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Field, Ty> = Field, ":", Ty => ActionFn(80);
+        // Binding<Field, Ty> = Field, ":", Ty => ActionFn(77);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant44(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant27(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action80::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action77::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (3, 26)
     }
@@ -3459,11 +3450,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Field, Ty>? = Binding<Field, Ty> => ActionFn(102);
+        // Binding<Field, Ty>? = Binding<Field, Ty> => ActionFn(99);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action102::<>(cx, holes, input, __sym0);
+        let __nt = super::__action99::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (1, 27)
     }
@@ -3479,10 +3470,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Field, Ty>? =  => ActionFn(103);
+        // Binding<Field, Ty>? =  => ActionFn(100);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action103::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action100::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (0, 27)
     }
@@ -3498,14 +3489,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Local, OwnRef> = Local, ":", OwnRef => ActionFn(71);
+        // Binding<Local, OwnRef> = Local, ":", OwnRef => ActionFn(68);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant34(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action71::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action68::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (3, 28)
     }
@@ -3521,11 +3512,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Local, OwnRef>? = Binding<Local, OwnRef> => ActionFn(114);
+        // Binding<Local, OwnRef>? = Binding<Local, OwnRef> => ActionFn(111);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action114::<>(cx, holes, input, __sym0);
+        let __nt = super::__action111::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
         (1, 29)
     }
@@ -3541,10 +3532,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Local, OwnRef>? =  => ActionFn(115);
+        // Binding<Local, OwnRef>? =  => ActionFn(112);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action115::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action112::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
         (0, 29)
     }
@@ -3560,14 +3551,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Location, Ty> = Location, ":", Ty => ActionFn(69);
+        // Binding<Location, Ty> = Location, ":", Ty => ActionFn(66);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant44(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant32(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action69::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action66::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (3, 30)
     }
@@ -3583,11 +3574,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Location, Ty>? = Binding<Location, Ty> => ActionFn(119);
+        // Binding<Location, Ty>? = Binding<Location, Ty> => ActionFn(116);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action119::<>(cx, holes, input, __sym0);
+        let __nt = super::__action116::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (1, 31)
     }
@@ -3603,10 +3594,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Binding<Location, Ty>? =  => ActionFn(120);
+        // Binding<Location, Ty>? =  => ActionFn(117);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action120::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action117::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (0, 31)
     }
@@ -3622,11 +3613,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Field, Ty>> = Binding<Field, Ty> => ActionFn(164);
+        // Comma<Binding<Field, Ty>> = Binding<Field, Ty> => ActionFn(161);
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action164::<>(cx, holes, input, __sym0);
+        let __nt = super::__action161::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 32)
     }
@@ -3642,10 +3633,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Field, Ty>> =  => ActionFn(165);
+        // Comma<Binding<Field, Ty>> =  => ActionFn(162);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action165::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action162::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (0, 32)
     }
@@ -3661,13 +3652,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Field, Ty>> = (<Binding<Field, Ty>> ",")+, Binding<Field, Ty> => ActionFn(166);
+        // Comma<Binding<Field, Ty>> = (<Binding<Field, Ty>> ",")+, Binding<Field, Ty> => ActionFn(163);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant2(__symbols);
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action166::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action163::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 32)
     }
@@ -3683,11 +3674,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Field, Ty>> = (<Binding<Field, Ty>> ",")+ => ActionFn(167);
+        // Comma<Binding<Field, Ty>> = (<Binding<Field, Ty>> ",")+ => ActionFn(164);
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action167::<>(cx, holes, input, __sym0);
+        let __nt = super::__action164::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 32)
     }
@@ -3703,11 +3694,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Local, OwnRef>> = Binding<Local, OwnRef> => ActionFn(168);
+        // Comma<Binding<Local, OwnRef>> = Binding<Local, OwnRef> => ActionFn(165);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action168::<>(cx, holes, input, __sym0);
+        let __nt = super::__action165::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 33)
     }
@@ -3723,10 +3714,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Local, OwnRef>> =  => ActionFn(169);
+        // Comma<Binding<Local, OwnRef>> =  => ActionFn(166);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action169::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action166::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (0, 33)
     }
@@ -3742,13 +3733,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Local, OwnRef>> = (<Binding<Local, OwnRef>> ",")+, Binding<Local, OwnRef> => ActionFn(170);
+        // Comma<Binding<Local, OwnRef>> = (<Binding<Local, OwnRef>> ",")+, Binding<Local, OwnRef> => ActionFn(167);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant4(__symbols);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action170::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action167::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (2, 33)
     }
@@ -3764,11 +3755,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Local, OwnRef>> = (<Binding<Local, OwnRef>> ",")+ => ActionFn(171);
+        // Comma<Binding<Local, OwnRef>> = (<Binding<Local, OwnRef>> ",")+ => ActionFn(168);
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action171::<>(cx, holes, input, __sym0);
+        let __nt = super::__action168::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 33)
     }
@@ -3784,11 +3775,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Ty>> = Binding<Location, Ty> => ActionFn(172);
+        // Comma<Binding<Location, Ty>> = Binding<Location, Ty> => ActionFn(169);
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action172::<>(cx, holes, input, __sym0);
+        let __nt = super::__action169::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 34)
     }
@@ -3804,10 +3795,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Ty>> =  => ActionFn(173);
+        // Comma<Binding<Location, Ty>> =  => ActionFn(170);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action173::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action170::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (0, 34)
     }
@@ -3823,13 +3814,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Ty>> = (<Binding<Location, Ty>> ",")+, Binding<Location, Ty> => ActionFn(174);
+        // Comma<Binding<Location, Ty>> = (<Binding<Location, Ty>> ",")+, Binding<Location, Ty> => ActionFn(171);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action174::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action171::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (2, 34)
     }
@@ -3845,11 +3836,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Binding<Location, Ty>> = (<Binding<Location, Ty>> ",")+ => ActionFn(175);
+        // Comma<Binding<Location, Ty>> = (<Binding<Location, Ty>> ",")+ => ActionFn(172);
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action175::<>(cx, holes, input, __sym0);
+        let __nt = super::__action172::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 34)
     }
@@ -3865,11 +3856,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Local> = Local => ActionFn(178);
+        // Comma<Local> = Local => ActionFn(175);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action178::<>(cx, holes, input, __sym0);
+        let __nt = super::__action175::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (1, 35)
     }
@@ -3885,10 +3876,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Local> =  => ActionFn(179);
+        // Comma<Local> =  => ActionFn(176);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action179::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action176::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (0, 35)
     }
@@ -3904,13 +3895,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Local> = (<Local> ",")+, Local => ActionFn(180);
+        // Comma<Local> = (<Local> ",")+, Local => ActionFn(177);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant8(__symbols);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action180::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action177::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (2, 35)
     }
@@ -3926,11 +3917,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Local> = (<Local> ",")+ => ActionFn(181);
+        // Comma<Local> = (<Local> ",")+ => ActionFn(178);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action181::<>(cx, holes, input, __sym0);
+        let __nt = super::__action178::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (1, 35)
     }
@@ -3946,11 +3937,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Place> = Place => ActionFn(182);
+        // Comma<Place> = Place => ActionFn(179);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action182::<>(cx, holes, input, __sym0);
+        let __nt = super::__action179::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (1, 36)
     }
@@ -3966,10 +3957,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Place> =  => ActionFn(183);
+        // Comma<Place> =  => ActionFn(180);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action183::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action180::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (0, 36)
     }
@@ -3985,13 +3976,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Place> = (<Place> ",")+, Place => ActionFn(184);
+        // Comma<Place> = (<Place> ",")+, Place => ActionFn(181);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant10(__symbols);
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action184::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action181::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (2, 36)
     }
@@ -4007,11 +3998,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<Place> = (<Place> ",")+ => ActionFn(185);
+        // Comma<Place> = (<Place> ",")+ => ActionFn(182);
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action185::<>(cx, holes, input, __sym0);
+        let __nt = super::__action182::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (1, 36)
     }
@@ -4027,11 +4018,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<TypeLayout> = TypeLayout => ActionFn(188);
+        // Comma<TypeLayout> = TypeLayout => ActionFn(185);
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action188::<>(cx, holes, input, __sym0);
+        let __nt = super::__action185::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (1, 37)
     }
@@ -4047,10 +4038,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<TypeLayout> =  => ActionFn(189);
+        // Comma<TypeLayout> =  => ActionFn(186);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action189::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action186::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (0, 37)
     }
@@ -4066,13 +4057,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<TypeLayout> = (<TypeLayout> ",")+, TypeLayout => ActionFn(190);
+        // Comma<TypeLayout> = (<TypeLayout> ",")+, TypeLayout => ActionFn(187);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant12(__symbols);
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action190::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action187::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (2, 37)
     }
@@ -4088,11 +4079,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Comma<TypeLayout> = (<TypeLayout> ",")+ => ActionFn(191);
+        // Comma<TypeLayout> = (<TypeLayout> ",")+ => ActionFn(188);
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action191::<>(cx, holes, input, __sym0);
+        let __nt = super::__action188::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (1, 37)
     }
@@ -4198,11 +4189,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Env = Comma<Binding<Local, OwnRef>> => ActionFn(53);
+        // Env = Comma<Binding<Local, OwnRef>> => ActionFn(50);
         let __sym0 = __pop_Variant14(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action53::<>(cx, holes, input, __sym0);
+        let __nt = super::__action50::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 40)
     }
@@ -4218,11 +4209,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Field = r#"@[a-zA-Z][a-zA-Z0-9_]*"# => ActionFn(58);
+        // Field = r#"@[a-zA-Z][a-zA-Z0-9_]*"# => ActionFn(55);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action58::<>(cx, holes, input, __sym0);
+        let __nt = super::__action55::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (1, 41)
     }
@@ -4351,7 +4342,7 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // FnBody = "jump", Symbol, "(", ")" => ActionFn(176);
+        // FnBody = "jump", Symbol, "(", ")" => ActionFn(173);
         assert!(__symbols.len() >= 4);
         let __sym3 = __pop_Variant0(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
@@ -4359,7 +4350,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action176::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action173::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant29(__nt), __end));
         (4, 43)
     }
@@ -4375,7 +4366,7 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // FnBody = "jump", Symbol, "(", Local+, ")" => ActionFn(177);
+        // FnBody = "jump", Symbol, "(", Local+, ")" => ActionFn(174);
         assert!(__symbols.len() >= 5);
         let __sym4 = __pop_Variant0(__symbols);
         let __sym3 = __pop_Variant9(__symbols);
@@ -4384,7 +4375,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym4.2.clone();
-        let __nt = super::__action177::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __nt = super::__action174::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
         __symbols.push((__start, __Symbol::Variant29(__nt), __end));
         (5, 43)
     }
@@ -4443,11 +4434,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Heap = Comma<Binding<Location, Ty>> => ActionFn(54);
+        // Heap = Comma<Binding<Location, Ty>> => ActionFn(51);
         let __sym0 = __pop_Variant21(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action54::<>(cx, holes, input, __sym0);
+        let __nt = super::__action51::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 44)
     }
@@ -4463,14 +4454,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // LeftAssoc<BinOpGroup1, PredLevel2> = LeftAssoc<BinOpGroup1, PredLevel2>, BinOpGroup1, PredLevel2 => ActionFn(76);
+        // LeftAssoc<BinOpGroup1, PredLevel2> = LeftAssoc<BinOpGroup1, PredLevel2>, BinOpGroup1, PredLevel2 => ActionFn(73);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant30(__symbols);
         let __sym1 = __pop_Variant16(__symbols);
         let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action76::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action73::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (3, 45)
     }
@@ -4486,11 +4477,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // LeftAssoc<BinOpGroup1, PredLevel2> = PredLevel2 => ActionFn(77);
+        // LeftAssoc<BinOpGroup1, PredLevel2> = PredLevel2 => ActionFn(74);
         let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action77::<>(cx, holes, input, __sym0);
+        let __nt = super::__action74::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (1, 45)
     }
@@ -4506,14 +4497,14 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // LeftAssoc<BinOpGroup2, PredLevel3> = LeftAssoc<BinOpGroup2, PredLevel3>, BinOpGroup2, PredLevel3 => ActionFn(74);
+        // LeftAssoc<BinOpGroup2, PredLevel3> = LeftAssoc<BinOpGroup2, PredLevel3>, BinOpGroup2, PredLevel3 => ActionFn(71);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant30(__symbols);
         let __sym1 = __pop_Variant16(__symbols);
         let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action74::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action71::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (3, 46)
     }
@@ -4529,11 +4520,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // LeftAssoc<BinOpGroup2, PredLevel3> = PredLevel3 => ActionFn(75);
+        // LeftAssoc<BinOpGroup2, PredLevel3> = PredLevel3 => ActionFn(72);
         let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action75::<>(cx, holes, input, __sym0);
+        let __nt = super::__action72::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (1, 46)
     }
@@ -4549,11 +4540,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local = Symbol => ActionFn(56);
+        // Local = Symbol => ActionFn(53);
         let __sym0 = __pop_Variant43(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action56::<>(cx, holes, input, __sym0);
+        let __nt = super::__action53::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (1, 47)
     }
@@ -4569,10 +4560,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local* =  => ActionFn(85);
+        // Local* =  => ActionFn(82);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action85::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action82::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (0, 48)
     }
@@ -4588,11 +4579,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local* = Local+ => ActionFn(86);
+        // Local* = Local+ => ActionFn(83);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action86::<>(cx, holes, input, __sym0);
+        let __nt = super::__action83::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 48)
     }
@@ -4608,11 +4599,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local+ = Local => ActionFn(93);
+        // Local+ = Local => ActionFn(90);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action93::<>(cx, holes, input, __sym0);
+        let __nt = super::__action90::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 49)
     }
@@ -4628,13 +4619,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local+ = Local+, Local => ActionFn(94);
+        // Local+ = Local+, Local => ActionFn(91);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant8(__symbols);
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action94::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action91::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (2, 49)
     }
@@ -4650,11 +4641,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local? = Local => ActionFn(88);
+        // Local? = Local => ActionFn(85);
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action88::<>(cx, holes, input, __sym0);
+        let __nt = super::__action85::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 50)
     }
@@ -4670,10 +4661,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Local? =  => ActionFn(89);
+        // Local? =  => ActionFn(86);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action89::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action86::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (0, 50)
     }
@@ -4689,11 +4680,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Location = Symbol => ActionFn(57);
+        // Location = Symbol => ActionFn(54);
         let __sym0 = __pop_Variant43(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action57::<>(cx, holes, input, __sym0);
+        let __nt = super::__action54::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant32(__nt), __end));
         (1, 51)
     }
@@ -4749,7 +4740,7 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // OwnRef = "own", "(", Location, ")" => ActionFn(44);
+        // OwnRef = "own", "(", Location, ")" => ActionFn(41);
         assert!(__symbols.len() >= 4);
         let __sym3 = __pop_Variant0(__symbols);
         let __sym2 = __pop_Variant32(__symbols);
@@ -4757,7 +4748,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action44::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action41::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (4, 53)
     }
@@ -4773,10 +4764,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Path_ =  => ActionFn(138);
+        // Path_ =  => ActionFn(135);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action138::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action135::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant35(__nt), __end));
         (0, 54)
     }
@@ -4792,11 +4783,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Path_ = ("." <r#"[0-9]+"#>)+ => ActionFn(139);
+        // Path_ = ("." <r#"[0-9]+"#>)+ => ActionFn(136);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action139::<>(cx, holes, input, __sym0);
+        let __nt = super::__action136::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant35(__nt), __end));
         (1, 54)
     }
@@ -4832,11 +4823,11 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Place? = Place => ActionFn(107);
+        // Place? = Place => ActionFn(104);
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action107::<>(cx, holes, input, __sym0);
+        let __nt = super::__action104::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant36(__nt), __end));
         (1, 56)
     }
@@ -4852,10 +4843,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Place? =  => ActionFn(108);
+        // Place? =  => ActionFn(105);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action108::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action105::<>(cx, holes, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant36(__nt), __end));
         (0, 56)
     }
@@ -4978,12 +4969,12 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Place_ = Local => ActionFn(31);
-        let __sym0 = __pop_Variant8(__symbols);
+        // PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2> => ActionFn(42);
+        let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action31::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant37(__nt), __end));
+        let __nt = super::__action42::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (1, 60)
     }
     pub(crate) fn __reduce121<
@@ -4998,16 +4989,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Place_ = Place_, ".", r#"[0-9]+"# => ActionFn(32);
-        assert!(__symbols.len() >= 3);
-        let __sym2 = __pop_Variant0(__symbols);
-        let __sym1 = __pop_Variant0(__symbols);
-        let __sym0 = __pop_Variant37(__symbols);
+        // PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3> => ActionFn(43);
+        let __sym0 = __pop_Variant30(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym2.2.clone();
-        let __nt = super::__action32::<>(cx, holes, input, __sym0, __sym1, __sym2);
-        __symbols.push((__start, __Symbol::Variant37(__nt), __end));
-        (3, 60)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action43::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
+        (1, 61)
     }
     pub(crate) fn __reduce122<
         'input,
@@ -5021,17 +5009,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Place_ = "*", "(", Place_, ")" => ActionFn(33);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant0(__symbols);
-        let __sym2 = __pop_Variant37(__symbols);
-        let __sym1 = __pop_Variant0(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
+        // PredLevel3 = Constant => ActionFn(44);
+        let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action33::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
-        __symbols.push((__start, __Symbol::Variant37(__nt), __end));
-        (4, 60)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action44::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
+        (1, 62)
     }
     pub(crate) fn __reduce123<
         'input,
@@ -5045,13 +5029,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2> => ActionFn(45);
-        let __sym0 = __pop_Variant30(__symbols);
+        // PredLevel3 = Var => ActionFn(183);
+        let __sym0 = __pop_Variant46(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action45::<>(cx, holes, input, __sym0);
+        let __nt = super::__action183::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (1, 61)
+        (1, 62)
     }
     pub(crate) fn __reduce124<
         'input,
@@ -5065,13 +5049,15 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3> => ActionFn(46);
-        let __sym0 = __pop_Variant30(__symbols);
+        // PredLevel3 = Var, Projection+ => ActionFn(184);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant39(__symbols);
+        let __sym0 = __pop_Variant46(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action46::<>(cx, holes, input, __sym0);
+        let __end = __sym1.2.clone();
+        let __nt = super::__action184::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (1, 62)
+        (2, 62)
     }
     pub(crate) fn __reduce125<
         'input,
@@ -5085,13 +5071,15 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PredLevel3 = Constant => ActionFn(47);
-        let __sym0 = __pop_Variant25(__symbols);
+        // Projection = ".", r#"[0-9]+"# => ActionFn(31);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant0(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action47::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (1, 63)
+        let __end = __sym1.2.clone();
+        let __nt = super::__action31::<>(cx, holes, input, __sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant38(__nt), __end));
+        (2, 63)
     }
     pub(crate) fn __reduce126<
         'input,
@@ -5105,13 +5093,12 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PredLevel3 = Var => ActionFn(186);
-        let __sym0 = __pop_Variant46(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action186::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (1, 63)
+        // Projection* =  => ActionFn(69);
+        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
+        let __end = __start.clone();
+        let __nt = super::__action69::<>(cx, holes, input, &__start, &__end);
+        __symbols.push((__start, __Symbol::Variant39(__nt), __end));
+        (0, 64)
     }
     pub(crate) fn __reduce127<
         'input,
@@ -5125,15 +5112,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PredLevel3 = Var, Projection+ => ActionFn(187);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant39(__symbols);
-        let __sym0 = __pop_Variant46(__symbols);
+        // Projection* = Projection+ => ActionFn(70);
+        let __sym0 = __pop_Variant39(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action187::<>(cx, holes, input, __sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (2, 63)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action70::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant39(__nt), __end));
+        (1, 64)
     }
     pub(crate) fn __reduce128<
         'input,
@@ -5147,15 +5132,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Projection = ".", r#"[0-9]+"# => ActionFn(34);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant0(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
+        // Projection+ = Projection => ActionFn(109);
+        let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action34::<>(cx, holes, input, __sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant38(__nt), __end));
-        (2, 64)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action109::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant39(__nt), __end));
+        (1, 65)
     }
     pub(crate) fn __reduce129<
         'input,
@@ -5169,12 +5152,15 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Projection* =  => ActionFn(72);
-        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
-        let __end = __start.clone();
-        let __nt = super::__action72::<>(cx, holes, input, &__start, &__end);
+        // Projection+ = Projection+, Projection => ActionFn(110);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant38(__symbols);
+        let __sym0 = __pop_Variant39(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym1.2.clone();
+        let __nt = super::__action110::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant39(__nt), __end));
-        (0, 65)
+        (2, 65)
     }
     pub(crate) fn __reduce130<
         'input,
@@ -5188,80 +5174,18 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Projection* = Projection+ => ActionFn(73);
-        let __sym0 = __pop_Variant39(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action73::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant39(__nt), __end));
-        (1, 65)
-    }
-    pub(crate) fn __reduce131<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Projection+ = Projection => ActionFn(112);
-        let __sym0 = __pop_Variant38(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action112::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant39(__nt), __end));
-        (1, 66)
-    }
-    pub(crate) fn __reduce132<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Projection+ = Projection+, Projection => ActionFn(113);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant38(__symbols);
-        let __sym0 = __pop_Variant39(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action113::<>(cx, holes, input, __sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant39(__nt), __end));
-        (2, 66)
-    }
-    pub(crate) fn __reduce133<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Region = "{", Comma<Place>, "}" => ActionFn(43);
+        // Region = "{", Comma<Place>, "}" => ActionFn(40);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant23(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action43::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action40::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
-        (3, 67)
+        (3, 66)
     }
-    pub(crate) fn __reduce134<
+    pub(crate) fn __reduce131<
         'input,
         'lr,
     >(
@@ -5279,9 +5203,9 @@ mod __parse__Fn {
         let __end = __sym0.2.clone();
         let __nt = super::__action12::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant41(__nt), __end));
-        (1, 68)
+        (1, 67)
     }
-    pub(crate) fn __reduce135<
+    pub(crate) fn __reduce132<
         'input,
         'lr,
     >(
@@ -5302,9 +5226,9 @@ mod __parse__Fn {
         let __end = __sym2.2.clone();
         let __nt = super::__action13::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant41(__nt), __end));
-        (3, 68)
+        (3, 67)
     }
-    pub(crate) fn __reduce136<
+    pub(crate) fn __reduce133<
         'input,
         'lr,
     >(
@@ -5324,9 +5248,9 @@ mod __parse__Fn {
         let __end = __sym1.2.clone();
         let __nt = super::__action14::<>(cx, holes, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant41(__nt), __end));
-        (2, 68)
+        (2, 67)
     }
-    pub(crate) fn __reduce137<
+    pub(crate) fn __reduce134<
         'input,
         'lr,
     >(
@@ -5347,9 +5271,9 @@ mod __parse__Fn {
         let __end = __sym2.2.clone();
         let __nt = super::__action15::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant41(__nt), __end));
-        (3, 68)
+        (3, 67)
     }
-    pub(crate) fn __reduce138<
+    pub(crate) fn __reduce135<
         'input,
         'lr,
     >(
@@ -5374,9 +5298,9 @@ mod __parse__Fn {
         let __end = __sym6.2.clone();
         let __nt = super::__action9::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
-        (7, 69)
+        (7, 68)
     }
-    pub(crate) fn __reduce139<
+    pub(crate) fn __reduce136<
         'input,
         'lr,
     >(
@@ -5397,9 +5321,9 @@ mod __parse__Fn {
         let __end = __sym2.2.clone();
         let __nt = super::__action10::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
-        (3, 69)
+        (3, 68)
     }
-    pub(crate) fn __reduce140<
+    pub(crate) fn __reduce137<
         'input,
         'lr,
     >(
@@ -5421,7 +5345,76 @@ mod __parse__Fn {
         let __end = __sym3.2.clone();
         let __nt = super::__action11::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
-        (4, 69)
+        (4, 68)
+    }
+    pub(crate) fn __reduce138<
+        'input,
+        'lr,
+    >(
+        cx: &'lr LiquidRustCtxt<'lr>,
+        holes: &mut u32,
+        input: &'input str,
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> (usize, usize)
+    {
+        // Symbol = r#"[a-z][a-zA-Z0-9_]*"# => ActionFn(52);
+        let __sym0 = __pop_Variant0(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym0.2.clone();
+        let __nt = super::__action52::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant43(__nt), __end));
+        (1, 69)
+    }
+    pub(crate) fn __reduce139<
+        'input,
+        'lr,
+    >(
+        cx: &'lr LiquidRustCtxt<'lr>,
+        holes: &mut u32,
+        input: &'input str,
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> (usize, usize)
+    {
+        // Ty = "own", "(", Location, ")" => ActionFn(33);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant0(__symbols);
+        let __sym2 = __pop_Variant32(__symbols);
+        let __sym1 = __pop_Variant0(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym3.2.clone();
+        let __nt = super::__action33::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant44(__nt), __end));
+        (4, 70)
+    }
+    pub(crate) fn __reduce140<
+        'input,
+        'lr,
+    >(
+        cx: &'lr LiquidRustCtxt<'lr>,
+        holes: &mut u32,
+        input: &'input str,
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> (usize, usize)
+    {
+        // Ty = "{", BasicType, "|", PredLevel1, "}" => ActionFn(34);
+        assert!(__symbols.len() >= 5);
+        let __sym4 = __pop_Variant0(__symbols);
+        let __sym3 = __pop_Variant30(__symbols);
+        let __sym2 = __pop_Variant0(__symbols);
+        let __sym1 = __pop_Variant15(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym4.2.clone();
+        let __nt = super::__action34::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        __symbols.push((__start, __Symbol::Variant44(__nt), __end));
+        (5, 70)
     }
     pub(crate) fn __reduce141<
         'input,
@@ -5435,13 +5428,18 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Symbol = r#"[a-z][a-zA-Z0-9_]*"# => ActionFn(55);
+        // Ty = "{", BasicType, "|", "_", "}" => ActionFn(35);
+        assert!(__symbols.len() >= 5);
+        let __sym4 = __pop_Variant0(__symbols);
+        let __sym3 = __pop_Variant0(__symbols);
+        let __sym2 = __pop_Variant0(__symbols);
+        let __sym1 = __pop_Variant15(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action55::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant43(__nt), __end));
-        (1, 70)
+        let __end = __sym4.2.clone();
+        let __nt = super::__action35::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        __symbols.push((__start, __Symbol::Variant44(__nt), __end));
+        (5, 70)
     }
     pub(crate) fn __reduce142<
         'input,
@@ -5455,17 +5453,19 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Ty = "own", "(", Location, ")" => ActionFn(36);
-        assert!(__symbols.len() >= 4);
+        // Ty = "&", "(", Region, ",", Location, ")" => ActionFn(36);
+        assert!(__symbols.len() >= 6);
+        let __sym5 = __pop_Variant0(__symbols);
+        let __sym4 = __pop_Variant32(__symbols);
         let __sym3 = __pop_Variant0(__symbols);
-        let __sym2 = __pop_Variant32(__symbols);
+        let __sym2 = __pop_Variant40(__symbols);
         let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action36::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __end = __sym5.2.clone();
+        let __nt = super::__action36::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5);
         __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (4, 71)
+        (6, 70)
     }
     pub(crate) fn __reduce143<
         'input,
@@ -5479,18 +5479,20 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Ty = "{", BasicType, "|", PredLevel1, "}" => ActionFn(37);
-        assert!(__symbols.len() >= 5);
+        // Ty = "&", "shared", "(", Region, ",", Location, ")" => ActionFn(37);
+        assert!(__symbols.len() >= 7);
+        let __sym6 = __pop_Variant0(__symbols);
+        let __sym5 = __pop_Variant32(__symbols);
         let __sym4 = __pop_Variant0(__symbols);
-        let __sym3 = __pop_Variant30(__symbols);
+        let __sym3 = __pop_Variant40(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
-        let __sym1 = __pop_Variant15(__symbols);
+        let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym4.2.clone();
-        let __nt = super::__action37::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __end = __sym6.2.clone();
+        let __nt = super::__action37::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (5, 71)
+        (7, 70)
     }
     pub(crate) fn __reduce144<
         'input,
@@ -5504,18 +5506,20 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Ty = "{", BasicType, "|", "_", "}" => ActionFn(38);
-        assert!(__symbols.len() >= 5);
+        // Ty = "&", "mut", "(", Region, ",", Location, ")" => ActionFn(38);
+        assert!(__symbols.len() >= 7);
+        let __sym6 = __pop_Variant0(__symbols);
+        let __sym5 = __pop_Variant32(__symbols);
         let __sym4 = __pop_Variant0(__symbols);
-        let __sym3 = __pop_Variant0(__symbols);
+        let __sym3 = __pop_Variant40(__symbols);
         let __sym2 = __pop_Variant0(__symbols);
-        let __sym1 = __pop_Variant15(__symbols);
+        let __sym1 = __pop_Variant0(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym4.2.clone();
-        let __nt = super::__action38::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __end = __sym6.2.clone();
+        let __nt = super::__action38::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (5, 71)
+        (7, 70)
     }
     pub(crate) fn __reduce145<
         'input,
@@ -5529,98 +5533,18 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // Ty = "&", "(", Region, ",", Location, ")" => ActionFn(39);
-        assert!(__symbols.len() >= 6);
-        let __sym5 = __pop_Variant0(__symbols);
-        let __sym4 = __pop_Variant32(__symbols);
-        let __sym3 = __pop_Variant0(__symbols);
-        let __sym2 = __pop_Variant40(__symbols);
-        let __sym1 = __pop_Variant0(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym5.2.clone();
-        let __nt = super::__action39::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5);
-        __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (6, 71)
-    }
-    pub(crate) fn __reduce146<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Ty = "&", "shared", "(", Region, ",", Location, ")" => ActionFn(40);
-        assert!(__symbols.len() >= 7);
-        let __sym6 = __pop_Variant0(__symbols);
-        let __sym5 = __pop_Variant32(__symbols);
-        let __sym4 = __pop_Variant0(__symbols);
-        let __sym3 = __pop_Variant40(__symbols);
-        let __sym2 = __pop_Variant0(__symbols);
-        let __sym1 = __pop_Variant0(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym6.2.clone();
-        let __nt = super::__action40::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
-        __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (7, 71)
-    }
-    pub(crate) fn __reduce147<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Ty = "&", "mut", "(", Region, ",", Location, ")" => ActionFn(41);
-        assert!(__symbols.len() >= 7);
-        let __sym6 = __pop_Variant0(__symbols);
-        let __sym5 = __pop_Variant32(__symbols);
-        let __sym4 = __pop_Variant0(__symbols);
-        let __sym3 = __pop_Variant40(__symbols);
-        let __sym2 = __pop_Variant0(__symbols);
-        let __sym1 = __pop_Variant0(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym6.2.clone();
-        let __nt = super::__action41::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
-        __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (7, 71)
-    }
-    pub(crate) fn __reduce148<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Ty = "(", Comma<Binding<Field, Ty>>, ")" => ActionFn(42);
+        // Ty = "(", Comma<Binding<Field, Ty>>, ")" => ActionFn(39);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant0(__symbols);
         let __sym1 = __pop_Variant20(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action42::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action39::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant44(__nt), __end));
-        (3, 71)
+        (3, 70)
     }
-    pub(crate) fn __reduce149<
+    pub(crate) fn __reduce146<
         'input,
         'lr,
     >(
@@ -5638,9 +5562,9 @@ mod __parse__Fn {
         let __end = __sym0.2.clone();
         let __nt = super::__action23::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
-        (1, 72)
+        (1, 71)
     }
-    pub(crate) fn __reduce150<
+    pub(crate) fn __reduce147<
         'input,
         'lr,
     >(
@@ -5661,7 +5585,66 @@ mod __parse__Fn {
         let __end = __sym2.2.clone();
         let __nt = super::__action24::<>(cx, holes, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
-        (3, 72)
+        (3, 71)
+    }
+    pub(crate) fn __reduce148<
+        'input,
+        'lr,
+    >(
+        cx: &'lr LiquidRustCtxt<'lr>,
+        holes: &mut u32,
+        input: &'input str,
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> (usize, usize)
+    {
+        // TypeLayout? = TypeLayout => ActionFn(92);
+        let __sym0 = __pop_Variant12(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym0.2.clone();
+        let __nt = super::__action92::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant45(__nt), __end));
+        (1, 72)
+    }
+    pub(crate) fn __reduce149<
+        'input,
+        'lr,
+    >(
+        cx: &'lr LiquidRustCtxt<'lr>,
+        holes: &mut u32,
+        input: &'input str,
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> (usize, usize)
+    {
+        // TypeLayout? =  => ActionFn(93);
+        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
+        let __end = __start.clone();
+        let __nt = super::__action93::<>(cx, holes, input, &__start, &__end);
+        __symbols.push((__start, __Symbol::Variant45(__nt), __end));
+        (0, 72)
+    }
+    pub(crate) fn __reduce150<
+        'input,
+        'lr,
+    >(
+        cx: &'lr LiquidRustCtxt<'lr>,
+        holes: &mut u32,
+        input: &'input str,
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
+        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
+    ) -> (usize, usize)
+    {
+        // Var = Location => ActionFn(46);
+        let __sym0 = __pop_Variant32(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym0.2.clone();
+        let __nt = super::__action46::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant46(__nt), __end));
+        (1, 73)
     }
     pub(crate) fn __reduce151<
         'input,
@@ -5675,12 +5658,12 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // TypeLayout? = TypeLayout => ActionFn(95);
-        let __sym0 = __pop_Variant12(__symbols);
+        // Var = Field => ActionFn(47);
+        let __sym0 = __pop_Variant27(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action95::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant45(__nt), __end));
+        let __nt = super::__action47::<>(cx, holes, input, __sym0);
+        __symbols.push((__start, __Symbol::Variant46(__nt), __end));
         (1, 73)
     }
     pub(crate) fn __reduce152<
@@ -5695,72 +5678,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // TypeLayout? =  => ActionFn(96);
-        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
-        let __end = __start.clone();
-        let __nt = super::__action96::<>(cx, holes, input, &__start, &__end);
-        __symbols.push((__start, __Symbol::Variant45(__nt), __end));
-        (0, 73)
-    }
-    pub(crate) fn __reduce153<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Var = Location => ActionFn(49);
-        let __sym0 = __pop_Variant32(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action49::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant46(__nt), __end));
-        (1, 74)
-    }
-    pub(crate) fn __reduce154<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Var = Field => ActionFn(50);
-        let __sym0 = __pop_Variant27(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action50::<>(cx, holes, input, __sym0);
-        __symbols.push((__start, __Symbol::Variant46(__nt), __end));
-        (1, 74)
-    }
-    pub(crate) fn __reduce155<
-        'input,
-        'lr,
-    >(
-        cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
-        input: &'input str,
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
-        _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
-    ) -> (usize, usize)
-    {
-        // Var = "V" => ActionFn(51);
+        // Var = "V" => ActionFn(48);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action51::<>(cx, holes, input, __sym0);
+        let __nt = super::__action48::<>(cx, holes, input, __sym0);
         __symbols.push((__start, __Symbol::Variant46(__nt), __end));
-        (1, 74)
+        (1, 73)
     }
 }
 pub use self::__parse__Fn::FnParser;
@@ -6348,61 +6272,6 @@ fn __action31<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    (_, local, _): (usize, Local, usize),
-) -> (Local, Vec<Projection>)
-{
-    (local, vec![])
-}
-
-#[allow(unused_variables)]
-fn __action32<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    (_, p, _): (usize, (Local, Vec<Projection>), usize),
-    (_, _, _): (usize, &'input str, usize),
-    (_, f, _): (usize, &'input str, usize),
-) -> (Local, Vec<Projection>)
-{
-    {
-    let (local, mut proj) = p;
-    proj.push(Projection::Field(u32::from_str(f).unwrap()));
-    (local, proj)
-  }
-}
-
-#[allow(unused_variables)]
-fn __action33<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    (_, _, _): (usize, &'input str, usize),
-    (_, _, _): (usize, &'input str, usize),
-    (_, p, _): (usize, (Local, Vec<Projection>), usize),
-    (_, _, _): (usize, &'input str, usize),
-) -> (Local, Vec<Projection>)
-{
-    {
-    let (local, mut proj) = p;
-    proj.push(Projection::Deref);
-    (local, proj)
-  }
-}
-
-#[allow(unused_variables)]
-fn __action34<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, &'input str, usize),
 ) -> u32
@@ -6411,7 +6280,7 @@ fn __action34<
 }
 
 #[allow(unused_variables)]
-fn __action35<
+fn __action32<
     'input,
     'lr,
 >(
@@ -6427,7 +6296,7 @@ fn __action35<
 }
 
 #[allow(unused_variables)]
-fn __action36<
+fn __action33<
     'input,
     'lr,
 >(
@@ -6444,7 +6313,7 @@ fn __action36<
 }
 
 #[allow(unused_variables)]
-fn __action37<
+fn __action34<
     'input,
     'lr,
 >(
@@ -6462,7 +6331,7 @@ fn __action37<
 }
 
 #[allow(unused_variables)]
-fn __action38<
+fn __action35<
     'input,
     'lr,
 >(
@@ -6483,7 +6352,7 @@ fn __action38<
 }
 
 #[allow(unused_variables)]
-fn __action39<
+fn __action36<
     'input,
     'lr,
 >(
@@ -6502,7 +6371,7 @@ fn __action39<
 }
 
 #[allow(unused_variables)]
-fn __action40<
+fn __action37<
     'input,
     'lr,
 >(
@@ -6522,7 +6391,7 @@ fn __action40<
 }
 
 #[allow(unused_variables)]
-fn __action41<
+fn __action38<
     'input,
     'lr,
 >(
@@ -6542,7 +6411,7 @@ fn __action41<
 }
 
 #[allow(unused_variables)]
-fn __action42<
+fn __action39<
     'input,
     'lr,
 >(
@@ -6558,7 +6427,7 @@ fn __action42<
 }
 
 #[allow(unused_variables)]
-fn __action43<
+fn __action40<
     'input,
     'lr,
 >(
@@ -6574,7 +6443,7 @@ fn __action43<
 }
 
 #[allow(unused_variables)]
-fn __action44<
+fn __action41<
     'input,
     'lr,
 >(
@@ -6591,7 +6460,7 @@ fn __action44<
 }
 
 #[allow(unused_variables)]
-fn __action45<
+fn __action42<
     'input,
     'lr,
 >(
@@ -6605,7 +6474,7 @@ fn __action45<
 }
 
 #[allow(unused_variables)]
-fn __action46<
+fn __action43<
     'input,
     'lr,
 >(
@@ -6619,7 +6488,7 @@ fn __action46<
 }
 
 #[allow(unused_variables)]
-fn __action47<
+fn __action44<
     'input,
     'lr,
 >(
@@ -6633,7 +6502,7 @@ fn __action47<
 }
 
 #[allow(unused_variables)]
-fn __action48<
+fn __action45<
     'input,
     'lr,
 >(
@@ -6648,7 +6517,7 @@ fn __action48<
 }
 
 #[allow(unused_variables)]
-fn __action49<
+fn __action46<
     'input,
     'lr,
 >(
@@ -6662,7 +6531,7 @@ fn __action49<
 }
 
 #[allow(unused_variables)]
-fn __action50<
+fn __action47<
     'input,
     'lr,
 >(
@@ -6676,7 +6545,7 @@ fn __action50<
 }
 
 #[allow(unused_variables)]
-fn __action51<
+fn __action48<
     'input,
     'lr,
 >(
@@ -6690,7 +6559,7 @@ fn __action51<
 }
 
 #[allow(unused_variables)]
-fn __action52<
+fn __action49<
     'input,
     'lr,
 >(
@@ -6704,7 +6573,7 @@ fn __action52<
 }
 
 #[allow(unused_variables)]
-fn __action53<
+fn __action50<
     'input,
     'lr,
 >(
@@ -6718,7 +6587,7 @@ fn __action53<
 }
 
 #[allow(unused_variables)]
-fn __action54<
+fn __action51<
     'input,
     'lr,
 >(
@@ -6732,7 +6601,7 @@ fn __action54<
 }
 
 #[allow(unused_variables)]
-fn __action55<
+fn __action52<
     'input,
     'lr,
 >(
@@ -6746,7 +6615,7 @@ fn __action55<
 }
 
 #[allow(unused_variables)]
-fn __action56<
+fn __action53<
     'input,
     'lr,
 >(
@@ -6760,7 +6629,7 @@ fn __action56<
 }
 
 #[allow(unused_variables)]
-fn __action57<
+fn __action54<
     'input,
     'lr,
 >(
@@ -6774,7 +6643,7 @@ fn __action57<
 }
 
 #[allow(unused_variables)]
-fn __action58<
+fn __action55<
     'input,
     'lr,
 >(
@@ -6788,7 +6657,7 @@ fn __action58<
 }
 
 #[allow(unused_variables)]
-fn __action59<
+fn __action56<
     'input,
     'lr,
 >(
@@ -6802,7 +6671,7 @@ fn __action59<
 }
 
 #[allow(unused_variables)]
-fn __action60<
+fn __action57<
     'input,
     'lr,
 >(
@@ -6816,7 +6685,7 @@ fn __action60<
 }
 
 #[allow(unused_variables)]
-fn __action61<
+fn __action58<
     'input,
     'lr,
 >(
@@ -6830,7 +6699,7 @@ fn __action61<
 }
 
 #[allow(unused_variables)]
-fn __action62<
+fn __action59<
     'input,
     'lr,
 >(
@@ -6844,7 +6713,7 @@ fn __action62<
 }
 
 #[allow(unused_variables)]
-fn __action63<
+fn __action60<
     'input,
     'lr,
 >(
@@ -6858,7 +6727,7 @@ fn __action63<
 }
 
 #[allow(unused_variables)]
-fn __action64<
+fn __action61<
     'input,
     'lr,
 >(
@@ -6872,7 +6741,7 @@ fn __action64<
 }
 
 #[allow(unused_variables)]
-fn __action65<
+fn __action62<
     'input,
     'lr,
 >(
@@ -6886,7 +6755,7 @@ fn __action65<
 }
 
 #[allow(unused_variables)]
-fn __action66<
+fn __action63<
     'input,
     'lr,
 >(
@@ -6900,7 +6769,7 @@ fn __action66<
 }
 
 #[allow(unused_variables)]
-fn __action67<
+fn __action64<
     'input,
     'lr,
 >(
@@ -6914,7 +6783,7 @@ fn __action67<
 }
 
 #[allow(unused_variables)]
-fn __action68<
+fn __action65<
     'input,
     'lr,
 >(
@@ -6936,7 +6805,7 @@ fn __action68<
 }
 
 #[allow(unused_variables)]
-fn __action69<
+fn __action66<
     'input,
     'lr,
 >(
@@ -6952,7 +6821,7 @@ fn __action69<
 }
 
 #[allow(unused_variables)]
-fn __action70<
+fn __action67<
     'input,
     'lr,
 >(
@@ -6974,7 +6843,7 @@ fn __action70<
 }
 
 #[allow(unused_variables)]
-fn __action71<
+fn __action68<
     'input,
     'lr,
 >(
@@ -6990,7 +6859,7 @@ fn __action71<
 }
 
 #[allow(unused_variables)]
-fn __action72<
+fn __action69<
     'input,
     'lr,
 >(
@@ -7005,7 +6874,7 @@ fn __action72<
 }
 
 #[allow(unused_variables)]
-fn __action73<
+fn __action70<
     'input,
     'lr,
 >(
@@ -7019,6 +6888,52 @@ fn __action73<
 }
 
 #[allow(unused_variables)]
+fn __action71<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    (_, lhs, _): (usize, Pred<'lr>, usize),
+    (_, op, _): (usize, BinOp, usize),
+    (_, rhs, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
+{
+    cx.mk_pred(PredS::BinaryOp(op, lhs, rhs))
+}
+
+#[allow(unused_variables)]
+fn __action72<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    (_, __0, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
+{
+    __0
+}
+
+#[allow(unused_variables)]
+fn __action73<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    (_, lhs, _): (usize, Pred<'lr>, usize),
+    (_, op, _): (usize, BinOp, usize),
+    (_, rhs, _): (usize, Pred<'lr>, usize),
+) -> Pred<'lr>
+{
+    cx.mk_pred(PredS::BinaryOp(op, lhs, rhs))
+}
+
+#[allow(unused_variables)]
 fn __action74<
     'input,
     'lr,
@@ -7026,60 +6941,14 @@ fn __action74<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    (_, lhs, _): (usize, Pred<'lr>, usize),
-    (_, op, _): (usize, BinOp, usize),
-    (_, rhs, _): (usize, Pred<'lr>, usize),
+    (_, __0, _): (usize, Pred<'lr>, usize),
 ) -> Pred<'lr>
 {
-    cx.mk_pred(PredS::BinaryOp(op, lhs, rhs))
+    __0
 }
 
 #[allow(unused_variables)]
 fn __action75<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    (_, __0, _): (usize, Pred<'lr>, usize),
-) -> Pred<'lr>
-{
-    __0
-}
-
-#[allow(unused_variables)]
-fn __action76<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    (_, lhs, _): (usize, Pred<'lr>, usize),
-    (_, op, _): (usize, BinOp, usize),
-    (_, rhs, _): (usize, Pred<'lr>, usize),
-) -> Pred<'lr>
-{
-    cx.mk_pred(PredS::BinaryOp(op, lhs, rhs))
-}
-
-#[allow(unused_variables)]
-fn __action77<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    (_, __0, _): (usize, Pred<'lr>, usize),
-) -> Pred<'lr>
-{
-    __0
-}
-
-#[allow(unused_variables)]
-fn __action78<
     'input,
     'lr,
 >(
@@ -7101,7 +6970,7 @@ fn __action78<
 }
 
 #[allow(unused_variables)]
-fn __action79<
+fn __action76<
     'input,
     'lr,
 >(
@@ -7123,7 +6992,7 @@ fn __action79<
 }
 
 #[allow(unused_variables)]
-fn __action80<
+fn __action77<
     'input,
     'lr,
 >(
@@ -7139,7 +7008,7 @@ fn __action80<
 }
 
 #[allow(unused_variables)]
-fn __action81<
+fn __action78<
     'input,
     'lr,
 >(
@@ -7154,7 +7023,7 @@ fn __action81<
 }
 
 #[allow(unused_variables)]
-fn __action82<
+fn __action79<
     'input,
     'lr,
 >(
@@ -7168,7 +7037,7 @@ fn __action82<
 }
 
 #[allow(unused_variables)]
-fn __action83<
+fn __action80<
     'input,
     'lr,
 >(
@@ -7183,7 +7052,7 @@ fn __action83<
 }
 
 #[allow(unused_variables)]
-fn __action84<
+fn __action81<
     'input,
     'lr,
 >(
@@ -7205,7 +7074,7 @@ fn __action84<
 }
 
 #[allow(unused_variables)]
-fn __action85<
+fn __action82<
     'input,
     'lr,
 >(
@@ -7220,7 +7089,7 @@ fn __action85<
 }
 
 #[allow(unused_variables)]
-fn __action86<
+fn __action83<
     'input,
     'lr,
 >(
@@ -7234,7 +7103,7 @@ fn __action86<
 }
 
 #[allow(unused_variables)]
-fn __action87<
+fn __action84<
     'input,
     'lr,
 >(
@@ -7256,7 +7125,7 @@ fn __action87<
 }
 
 #[allow(unused_variables)]
-fn __action88<
+fn __action85<
     'input,
     'lr,
 >(
@@ -7270,7 +7139,7 @@ fn __action88<
 }
 
 #[allow(unused_variables)]
-fn __action89<
+fn __action86<
     'input,
     'lr,
 >(
@@ -7285,7 +7154,7 @@ fn __action89<
 }
 
 #[allow(unused_variables)]
-fn __action90<
+fn __action87<
     'input,
     'lr,
 >(
@@ -7300,7 +7169,7 @@ fn __action90<
 }
 
 #[allow(unused_variables)]
-fn __action91<
+fn __action88<
     'input,
     'lr,
 >(
@@ -7314,7 +7183,7 @@ fn __action91<
 }
 
 #[allow(unused_variables)]
-fn __action92<
+fn __action89<
     'input,
     'lr,
 >(
@@ -7329,7 +7198,7 @@ fn __action92<
 }
 
 #[allow(unused_variables)]
-fn __action93<
+fn __action90<
     'input,
     'lr,
 >(
@@ -7343,7 +7212,7 @@ fn __action93<
 }
 
 #[allow(unused_variables)]
-fn __action94<
+fn __action91<
     'input,
     'lr,
 >(
@@ -7358,7 +7227,7 @@ fn __action94<
 }
 
 #[allow(unused_variables)]
-fn __action95<
+fn __action92<
     'input,
     'lr,
 >(
@@ -7372,7 +7241,7 @@ fn __action95<
 }
 
 #[allow(unused_variables)]
-fn __action96<
+fn __action93<
     'input,
     'lr,
 >(
@@ -7387,7 +7256,7 @@ fn __action96<
 }
 
 #[allow(unused_variables)]
-fn __action97<
+fn __action94<
     'input,
     'lr,
 >(
@@ -7402,7 +7271,7 @@ fn __action97<
 }
 
 #[allow(unused_variables)]
-fn __action98<
+fn __action95<
     'input,
     'lr,
 >(
@@ -7416,7 +7285,7 @@ fn __action98<
 }
 
 #[allow(unused_variables)]
-fn __action99<
+fn __action96<
     'input,
     'lr,
 >(
@@ -7431,7 +7300,7 @@ fn __action99<
 }
 
 #[allow(unused_variables)]
-fn __action100<
+fn __action97<
     'input,
     'lr,
 >(
@@ -7445,7 +7314,7 @@ fn __action100<
 }
 
 #[allow(unused_variables)]
-fn __action101<
+fn __action98<
     'input,
     'lr,
 >(
@@ -7460,7 +7329,7 @@ fn __action101<
 }
 
 #[allow(unused_variables)]
-fn __action102<
+fn __action99<
     'input,
     'lr,
 >(
@@ -7474,7 +7343,7 @@ fn __action102<
 }
 
 #[allow(unused_variables)]
-fn __action103<
+fn __action100<
     'input,
     'lr,
 >(
@@ -7489,7 +7358,7 @@ fn __action103<
 }
 
 #[allow(unused_variables)]
-fn __action104<
+fn __action101<
     'input,
     'lr,
 >(
@@ -7504,7 +7373,7 @@ fn __action104<
 }
 
 #[allow(unused_variables)]
-fn __action105<
+fn __action102<
     'input,
     'lr,
 >(
@@ -7518,7 +7387,7 @@ fn __action105<
 }
 
 #[allow(unused_variables)]
-fn __action106<
+fn __action103<
     'input,
     'lr,
 >(
@@ -7533,7 +7402,7 @@ fn __action106<
 }
 
 #[allow(unused_variables)]
-fn __action107<
+fn __action104<
     'input,
     'lr,
 >(
@@ -7547,7 +7416,7 @@ fn __action107<
 }
 
 #[allow(unused_variables)]
-fn __action108<
+fn __action105<
     'input,
     'lr,
 >(
@@ -7562,7 +7431,7 @@ fn __action108<
 }
 
 #[allow(unused_variables)]
-fn __action109<
+fn __action106<
     'input,
     'lr,
 >(
@@ -7577,7 +7446,7 @@ fn __action109<
 }
 
 #[allow(unused_variables)]
-fn __action110<
+fn __action107<
     'input,
     'lr,
 >(
@@ -7591,7 +7460,7 @@ fn __action110<
 }
 
 #[allow(unused_variables)]
-fn __action111<
+fn __action108<
     'input,
     'lr,
 >(
@@ -7606,7 +7475,7 @@ fn __action111<
 }
 
 #[allow(unused_variables)]
-fn __action112<
+fn __action109<
     'input,
     'lr,
 >(
@@ -7620,7 +7489,7 @@ fn __action112<
 }
 
 #[allow(unused_variables)]
-fn __action113<
+fn __action110<
     'input,
     'lr,
 >(
@@ -7635,7 +7504,7 @@ fn __action113<
 }
 
 #[allow(unused_variables)]
-fn __action114<
+fn __action111<
     'input,
     'lr,
 >(
@@ -7649,7 +7518,7 @@ fn __action114<
 }
 
 #[allow(unused_variables)]
-fn __action115<
+fn __action112<
     'input,
     'lr,
 >(
@@ -7664,7 +7533,7 @@ fn __action115<
 }
 
 #[allow(unused_variables)]
-fn __action116<
+fn __action113<
     'input,
     'lr,
 >(
@@ -7679,7 +7548,7 @@ fn __action116<
 }
 
 #[allow(unused_variables)]
-fn __action117<
+fn __action114<
     'input,
     'lr,
 >(
@@ -7693,7 +7562,7 @@ fn __action117<
 }
 
 #[allow(unused_variables)]
-fn __action118<
+fn __action115<
     'input,
     'lr,
 >(
@@ -7708,7 +7577,7 @@ fn __action118<
 }
 
 #[allow(unused_variables)]
-fn __action119<
+fn __action116<
     'input,
     'lr,
 >(
@@ -7722,7 +7591,7 @@ fn __action119<
 }
 
 #[allow(unused_variables)]
-fn __action120<
+fn __action117<
     'input,
     'lr,
 >(
@@ -7737,7 +7606,7 @@ fn __action120<
 }
 
 #[allow(unused_variables)]
-fn __action121<
+fn __action118<
     'input,
     'lr,
 >(
@@ -7752,7 +7621,7 @@ fn __action121<
 }
 
 #[allow(unused_variables)]
-fn __action122<
+fn __action119<
     'input,
     'lr,
 >(
@@ -7766,7 +7635,7 @@ fn __action122<
 }
 
 #[allow(unused_variables)]
-fn __action123<
+fn __action120<
     'input,
     'lr,
 >(
@@ -7781,7 +7650,7 @@ fn __action123<
 }
 
 #[allow(unused_variables)]
-fn __action124<
+fn __action121<
     'input,
     'lr,
 >(
@@ -7795,7 +7664,7 @@ fn __action124<
 }
 
 #[allow(unused_variables)]
-fn __action125<
+fn __action122<
     'input,
     'lr,
 >(
@@ -7810,7 +7679,7 @@ fn __action125<
 }
 
 #[allow(unused_variables)]
-fn __action126<
+fn __action123<
     'input,
     'lr,
 >(
@@ -7824,7 +7693,7 @@ fn __action126<
 }
 
 #[allow(unused_variables)]
-fn __action127<
+fn __action124<
     'input,
     'lr,
 >(
@@ -7839,7 +7708,7 @@ fn __action127<
 }
 
 #[allow(unused_variables)]
-fn __action128<
+fn __action125<
     'input,
     'lr,
 >(
@@ -7853,7 +7722,7 @@ fn __action128<
 }
 
 #[allow(unused_variables)]
-fn __action129<
+fn __action126<
     'input,
     'lr,
 >(
@@ -7868,7 +7737,7 @@ fn __action129<
 }
 
 #[allow(unused_variables)]
-fn __action130<
+fn __action127<
     'input,
     'lr,
 >(
@@ -7882,7 +7751,7 @@ fn __action130<
 }
 
 #[allow(unused_variables)]
-fn __action131<
+fn __action128<
     'input,
     'lr,
 >(
@@ -7897,7 +7766,7 @@ fn __action131<
 }
 
 #[allow(unused_variables)]
-fn __action132<
+fn __action129<
     'input,
     'lr,
 >(
@@ -7911,7 +7780,7 @@ fn __action132<
 }
 
 #[allow(unused_variables)]
-fn __action133<
+fn __action130<
     'input,
     'lr,
 >(
@@ -7926,7 +7795,7 @@ fn __action133<
 }
 
 #[allow(unused_variables)]
-fn __action134<
+fn __action131<
     'input,
     'lr,
 >(
@@ -7940,7 +7809,7 @@ fn __action134<
 }
 
 #[allow(unused_variables)]
-fn __action135<
+fn __action132<
     'input,
     'lr,
 >(
@@ -7955,7 +7824,7 @@ fn __action135<
 }
 
 #[allow(unused_variables)]
-fn __action136<
+fn __action133<
     'input,
     'lr,
 >(
@@ -7968,7 +7837,7 @@ fn __action136<
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action83(
+    let __temp0 = __action80(
         cx,
         holes,
         input,
@@ -7976,7 +7845,97 @@ fn __action136<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action100(
+    __action97(
+        cx,
+        holes,
+        input,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action134<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, ::std::vec::Vec<&'input str>, usize),
+    __1: (usize, &'input str, usize),
+    __2: (usize, &'input str, usize),
+) -> ::std::vec::Vec<&'input str>
+{
+    let __start0 = __1.0.clone();
+    let __end0 = __2.2.clone();
+    let __temp0 = __action80(
+        cx,
+        holes,
+        input,
+        __1,
+        __2,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action98(
+        cx,
+        holes,
+        input,
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action135<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __lookbehind: &usize,
+    __lookahead: &usize,
+) -> Vec<Projection>
+{
+    let __start0 = __lookbehind.clone();
+    let __end0 = __lookahead.clone();
+    let __temp0 = __action78(
+        cx,
+        holes,
+        input,
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action32(
+        cx,
+        holes,
+        input,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action136<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, ::std::vec::Vec<&'input str>, usize),
+) -> Vec<Projection>
+{
+    let __start0 = __0.0.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action79(
+        cx,
+        holes,
+        input,
+        __0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action32(
         cx,
         holes,
         input,
@@ -7992,103 +7951,13 @@ fn __action137<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<&'input str>, usize),
-    __1: (usize, &'input str, usize),
-    __2: (usize, &'input str, usize),
-) -> ::std::vec::Vec<&'input str>
-{
-    let __start0 = __1.0.clone();
-    let __end0 = __2.2.clone();
-    let __temp0 = __action83(
-        cx,
-        holes,
-        input,
-        __1,
-        __2,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action101(
-        cx,
-        holes,
-        input,
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action138<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __lookbehind: &usize,
-    __lookahead: &usize,
-) -> Vec<Projection>
-{
-    let __start0 = __lookbehind.clone();
-    let __end0 = __lookahead.clone();
-    let __temp0 = __action81(
-        cx,
-        holes,
-        input,
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action35(
-        cx,
-        holes,
-        input,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action139<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __0: (usize, ::std::vec::Vec<&'input str>, usize),
-) -> Vec<Projection>
-{
-    let __start0 = __0.0.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action82(
-        cx,
-        holes,
-        input,
-        __0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action35(
-        cx,
-        holes,
-        input,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action140<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
     __0: (usize, (Field, Ty<'lr>), usize),
     __1: (usize, &'input str, usize),
 ) -> ::std::vec::Vec<(Field, Ty<'lr>)>
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action106(
+    let __temp0 = __action103(
         cx,
         holes,
         input,
@@ -8096,7 +7965,7 @@ fn __action140<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action130(
+    __action127(
         cx,
         holes,
         input,
@@ -8105,7 +7974,7 @@ fn __action140<
 }
 
 #[allow(unused_variables)]
-fn __action141<
+fn __action138<
     'input,
     'lr,
 >(
@@ -8119,7 +7988,7 @@ fn __action141<
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
-    let __temp0 = __action106(
+    let __temp0 = __action103(
         cx,
         holes,
         input,
@@ -8127,7 +7996,7 @@ fn __action141<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action131(
+    __action128(
         cx,
         holes,
         input,
@@ -8137,7 +8006,7 @@ fn __action141<
 }
 
 #[allow(unused_variables)]
-fn __action142<
+fn __action139<
     'input,
     'lr,
 >(
@@ -8149,7 +8018,7 @@ fn __action142<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
-    let __temp0 = __action104(
+    let __temp0 = __action101(
         cx,
         holes,
         input,
@@ -8157,7 +8026,7 @@ fn __action142<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action79(
+    __action76(
         cx,
         holes,
         input,
@@ -8167,7 +8036,7 @@ fn __action142<
 }
 
 #[allow(unused_variables)]
-fn __action143<
+fn __action140<
     'input,
     'lr,
 >(
@@ -8180,14 +8049,14 @@ fn __action143<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action105(
+    let __temp0 = __action102(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action79(
+    __action76(
         cx,
         holes,
         input,
@@ -8197,7 +8066,7 @@ fn __action143<
 }
 
 #[allow(unused_variables)]
-fn __action144<
+fn __action141<
     'input,
     'lr,
 >(
@@ -8210,7 +8079,7 @@ fn __action144<
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action118(
+    let __temp0 = __action115(
         cx,
         holes,
         input,
@@ -8218,7 +8087,7 @@ fn __action144<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action126(
+    __action123(
         cx,
         holes,
         input,
@@ -8227,7 +8096,7 @@ fn __action144<
 }
 
 #[allow(unused_variables)]
-fn __action145<
+fn __action142<
     'input,
     'lr,
 >(
@@ -8241,7 +8110,7 @@ fn __action145<
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
-    let __temp0 = __action118(
+    let __temp0 = __action115(
         cx,
         holes,
         input,
@@ -8249,7 +8118,7 @@ fn __action145<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action127(
+    __action124(
         cx,
         holes,
         input,
@@ -8259,7 +8128,7 @@ fn __action145<
 }
 
 #[allow(unused_variables)]
-fn __action146<
+fn __action143<
     'input,
     'lr,
 >(
@@ -8271,7 +8140,7 @@ fn __action146<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
-    let __temp0 = __action116(
+    let __temp0 = __action113(
         cx,
         holes,
         input,
@@ -8279,7 +8148,7 @@ fn __action146<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action70(
+    __action67(
         cx,
         holes,
         input,
@@ -8289,7 +8158,7 @@ fn __action146<
 }
 
 #[allow(unused_variables)]
-fn __action147<
+fn __action144<
     'input,
     'lr,
 >(
@@ -8302,14 +8171,14 @@ fn __action147<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action117(
+    let __temp0 = __action114(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action70(
+    __action67(
         cx,
         holes,
         input,
@@ -8319,7 +8188,7 @@ fn __action147<
 }
 
 #[allow(unused_variables)]
-fn __action148<
+fn __action145<
     'input,
     'lr,
 >(
@@ -8332,7 +8201,7 @@ fn __action148<
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action123(
+    let __temp0 = __action120(
         cx,
         holes,
         input,
@@ -8340,7 +8209,7 @@ fn __action148<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action124(
+    __action121(
         cx,
         holes,
         input,
@@ -8349,7 +8218,7 @@ fn __action148<
 }
 
 #[allow(unused_variables)]
-fn __action149<
+fn __action146<
     'input,
     'lr,
 >(
@@ -8363,7 +8232,7 @@ fn __action149<
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
-    let __temp0 = __action123(
+    let __temp0 = __action120(
         cx,
         holes,
         input,
@@ -8371,7 +8240,7 @@ fn __action149<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action125(
+    __action122(
         cx,
         holes,
         input,
@@ -8381,7 +8250,7 @@ fn __action149<
 }
 
 #[allow(unused_variables)]
-fn __action150<
+fn __action147<
     'input,
     'lr,
 >(
@@ -8393,7 +8262,7 @@ fn __action150<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
-    let __temp0 = __action121(
+    let __temp0 = __action118(
         cx,
         holes,
         input,
@@ -8401,7 +8270,7 @@ fn __action150<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action68(
+    __action65(
         cx,
         holes,
         input,
@@ -8411,7 +8280,7 @@ fn __action150<
 }
 
 #[allow(unused_variables)]
-fn __action151<
+fn __action148<
     'input,
     'lr,
 >(
@@ -8424,14 +8293,14 @@ fn __action151<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action122(
+    let __temp0 = __action119(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action68(
+    __action65(
         cx,
         holes,
         input,
@@ -8441,7 +8310,7 @@ fn __action151<
 }
 
 #[allow(unused_variables)]
-fn __action152<
+fn __action149<
     'input,
     'lr,
 >(
@@ -8454,7 +8323,7 @@ fn __action152<
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action92(
+    let __temp0 = __action89(
         cx,
         holes,
         input,
@@ -8462,7 +8331,7 @@ fn __action152<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action134(
+    __action131(
         cx,
         holes,
         input,
@@ -8471,7 +8340,7 @@ fn __action152<
 }
 
 #[allow(unused_variables)]
-fn __action153<
+fn __action150<
     'input,
     'lr,
 >(
@@ -8485,7 +8354,7 @@ fn __action153<
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
-    let __temp0 = __action92(
+    let __temp0 = __action89(
         cx,
         holes,
         input,
@@ -8493,7 +8362,7 @@ fn __action153<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action135(
+    __action132(
         cx,
         holes,
         input,
@@ -8503,7 +8372,7 @@ fn __action153<
 }
 
 #[allow(unused_variables)]
-fn __action154<
+fn __action151<
     'input,
     'lr,
 >(
@@ -8515,7 +8384,7 @@ fn __action154<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
-    let __temp0 = __action90(
+    let __temp0 = __action87(
         cx,
         holes,
         input,
@@ -8523,7 +8392,7 @@ fn __action154<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action87(
+    __action84(
         cx,
         holes,
         input,
@@ -8533,7 +8402,7 @@ fn __action154<
 }
 
 #[allow(unused_variables)]
-fn __action155<
+fn __action152<
     'input,
     'lr,
 >(
@@ -8546,14 +8415,14 @@ fn __action155<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action91(
+    let __temp0 = __action88(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action87(
+    __action84(
         cx,
         holes,
         input,
@@ -8563,7 +8432,7 @@ fn __action155<
 }
 
 #[allow(unused_variables)]
-fn __action156<
+fn __action153<
     'input,
     'lr,
 >(
@@ -8576,7 +8445,7 @@ fn __action156<
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action111(
+    let __temp0 = __action108(
         cx,
         holes,
         input,
@@ -8584,7 +8453,7 @@ fn __action156<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action128(
+    __action125(
         cx,
         holes,
         input,
@@ -8593,7 +8462,7 @@ fn __action156<
 }
 
 #[allow(unused_variables)]
-fn __action157<
+fn __action154<
     'input,
     'lr,
 >(
@@ -8607,7 +8476,7 @@ fn __action157<
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
-    let __temp0 = __action111(
+    let __temp0 = __action108(
         cx,
         holes,
         input,
@@ -8615,7 +8484,7 @@ fn __action157<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action129(
+    __action126(
         cx,
         holes,
         input,
@@ -8625,7 +8494,7 @@ fn __action157<
 }
 
 #[allow(unused_variables)]
-fn __action158<
+fn __action155<
     'input,
     'lr,
 >(
@@ -8637,7 +8506,7 @@ fn __action158<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
-    let __temp0 = __action109(
+    let __temp0 = __action106(
         cx,
         holes,
         input,
@@ -8645,7 +8514,7 @@ fn __action158<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action78(
+    __action75(
         cx,
         holes,
         input,
@@ -8655,7 +8524,7 @@ fn __action158<
 }
 
 #[allow(unused_variables)]
-fn __action159<
+fn __action156<
     'input,
     'lr,
 >(
@@ -8668,14 +8537,14 @@ fn __action159<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action110(
+    let __temp0 = __action107(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action78(
+    __action75(
         cx,
         holes,
         input,
@@ -8685,7 +8554,7 @@ fn __action159<
 }
 
 #[allow(unused_variables)]
-fn __action160<
+fn __action157<
     'input,
     'lr,
 >(
@@ -8698,7 +8567,7 @@ fn __action160<
 {
     let __start0 = __0.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action99(
+    let __temp0 = __action96(
         cx,
         holes,
         input,
@@ -8706,7 +8575,7 @@ fn __action160<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action132(
+    __action129(
         cx,
         holes,
         input,
@@ -8715,7 +8584,7 @@ fn __action160<
 }
 
 #[allow(unused_variables)]
-fn __action161<
+fn __action158<
     'input,
     'lr,
 >(
@@ -8729,7 +8598,7 @@ fn __action161<
 {
     let __start0 = __1.0.clone();
     let __end0 = __2.2.clone();
-    let __temp0 = __action99(
+    let __temp0 = __action96(
         cx,
         holes,
         input,
@@ -8737,7 +8606,7 @@ fn __action161<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action133(
+    __action130(
         cx,
         holes,
         input,
@@ -8747,7 +8616,7 @@ fn __action161<
 }
 
 #[allow(unused_variables)]
-fn __action162<
+fn __action159<
     'input,
     'lr,
 >(
@@ -8759,7 +8628,7 @@ fn __action162<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.0.clone();
-    let __temp0 = __action97(
+    let __temp0 = __action94(
         cx,
         holes,
         input,
@@ -8767,7 +8636,7 @@ fn __action162<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action84(
+    __action81(
         cx,
         holes,
         input,
@@ -8777,7 +8646,7 @@ fn __action162<
 }
 
 #[allow(unused_variables)]
-fn __action163<
+fn __action160<
     'input,
     'lr,
 >(
@@ -8790,14 +8659,14 @@ fn __action163<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action98(
+    let __temp0 = __action95(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action84(
+    __action81(
         cx,
         holes,
         input,
@@ -8807,7 +8676,7 @@ fn __action163<
 }
 
 #[allow(unused_variables)]
-fn __action164<
+fn __action161<
     'input,
     'lr,
 >(
@@ -8819,14 +8688,14 @@ fn __action164<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action102(
+    let __temp0 = __action99(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action142(
+    __action139(
         cx,
         holes,
         input,
@@ -8835,7 +8704,7 @@ fn __action164<
 }
 
 #[allow(unused_variables)]
-fn __action165<
+fn __action162<
     'input,
     'lr,
 >(
@@ -8848,7 +8717,7 @@ fn __action165<
 {
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
-    let __temp0 = __action103(
+    let __temp0 = __action100(
         cx,
         holes,
         input,
@@ -8856,7 +8725,95 @@ fn __action165<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action142(
+    __action139(
+        cx,
+        holes,
+        input,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action163<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
+    __1: (usize, (Field, Ty<'lr>), usize),
+) -> Vec<(Field, Ty<'lr>)>
+{
+    let __start0 = __1.0.clone();
+    let __end0 = __1.2.clone();
+    let __temp0 = __action99(
+        cx,
+        holes,
+        input,
+        __1,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action140(
+        cx,
+        holes,
+        input,
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action164<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
+) -> Vec<(Field, Ty<'lr>)>
+{
+    let __start0 = __0.2.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action100(
+        cx,
+        holes,
+        input,
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action140(
+        cx,
+        holes,
+        input,
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action165<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, (Local, OwnRef), usize),
+) -> Vec<(Local, OwnRef)>
+{
+    let __start0 = __0.0.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action111(
+        cx,
+        holes,
+        input,
+        __0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action143(
         cx,
         holes,
         input,
@@ -8872,24 +8829,24 @@ fn __action166<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
-    __1: (usize, (Field, Ty<'lr>), usize),
-) -> Vec<(Field, Ty<'lr>)>
+    __lookbehind: &usize,
+    __lookahead: &usize,
+) -> Vec<(Local, OwnRef)>
 {
-    let __start0 = __1.0.clone();
-    let __end0 = __1.2.clone();
-    let __temp0 = __action102(
+    let __start0 = __lookbehind.clone();
+    let __end0 = __lookahead.clone();
+    let __temp0 = __action112(
         cx,
         holes,
         input,
-        __1,
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action143(
         cx,
         holes,
         input,
-        __0,
         __temp0,
     )
 }
@@ -8902,20 +8859,20 @@ fn __action167<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
-) -> Vec<(Field, Ty<'lr>)>
+    __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
+    __1: (usize, (Local, OwnRef), usize),
+) -> Vec<(Local, OwnRef)>
 {
-    let __start0 = __0.2.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action103(
+    let __start0 = __1.0.clone();
+    let __end0 = __1.2.clone();
+    let __temp0 = __action111(
         cx,
         holes,
         input,
-        &__start0,
-        &__end0,
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action143(
+    __action144(
         cx,
         holes,
         input,
@@ -8932,22 +8889,24 @@ fn __action168<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, (Local, OwnRef), usize),
+    __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
 ) -> Vec<(Local, OwnRef)>
 {
-    let __start0 = __0.0.clone();
+    let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action114(
+    let __temp0 = __action112(
+        cx,
+        holes,
+        input,
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action144(
         cx,
         holes,
         input,
         __0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action146(
-        cx,
-        holes,
-        input,
         __temp0,
     )
 }
@@ -8960,21 +8919,19 @@ fn __action169<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __lookbehind: &usize,
-    __lookahead: &usize,
-) -> Vec<(Local, OwnRef)>
+    __0: (usize, (Location, Ty<'lr>), usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
-    let __start0 = __lookbehind.clone();
-    let __end0 = __lookahead.clone();
-    let __temp0 = __action115(
+    let __start0 = __0.0.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action116(
         cx,
         holes,
         input,
-        &__start0,
-        &__end0,
+        __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action146(
+    __action147(
         cx,
         holes,
         input,
@@ -8990,24 +8947,24 @@ fn __action170<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
-    __1: (usize, (Local, OwnRef), usize),
-) -> Vec<(Local, OwnRef)>
+    __lookbehind: &usize,
+    __lookahead: &usize,
+) -> Vec<(Location, Ty<'lr>)>
 {
-    let __start0 = __1.0.clone();
-    let __end0 = __1.2.clone();
-    let __temp0 = __action114(
+    let __start0 = __lookbehind.clone();
+    let __end0 = __lookahead.clone();
+    let __temp0 = __action117(
         cx,
         holes,
         input,
-        __1,
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action147(
         cx,
         holes,
         input,
-        __0,
         __temp0,
     )
 }
@@ -9020,20 +8977,20 @@ fn __action171<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
-) -> Vec<(Local, OwnRef)>
+    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
+    __1: (usize, (Location, Ty<'lr>), usize),
+) -> Vec<(Location, Ty<'lr>)>
 {
-    let __start0 = __0.2.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action115(
+    let __start0 = __1.0.clone();
+    let __end0 = __1.2.clone();
+    let __temp0 = __action116(
         cx,
         holes,
         input,
-        &__start0,
-        &__end0,
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action147(
+    __action148(
         cx,
         holes,
         input,
@@ -9050,118 +9007,30 @@ fn __action172<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, (Location, Ty<'lr>), usize),
+    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
 ) -> Vec<(Location, Ty<'lr>)>
 {
-    let __start0 = __0.0.clone();
+    let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action119(
+    let __temp0 = __action117(
+        cx,
+        holes,
+        input,
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action148(
         cx,
         holes,
         input,
         __0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action150(
-        cx,
-        holes,
-        input,
         __temp0,
     )
 }
 
 #[allow(unused_variables)]
 fn __action173<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __lookbehind: &usize,
-    __lookahead: &usize,
-) -> Vec<(Location, Ty<'lr>)>
-{
-    let __start0 = __lookbehind.clone();
-    let __end0 = __lookahead.clone();
-    let __temp0 = __action120(
-        cx,
-        holes,
-        input,
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action150(
-        cx,
-        holes,
-        input,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action174<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
-    __1: (usize, (Location, Ty<'lr>), usize),
-) -> Vec<(Location, Ty<'lr>)>
-{
-    let __start0 = __1.0.clone();
-    let __end0 = __1.2.clone();
-    let __temp0 = __action119(
-        cx,
-        holes,
-        input,
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action151(
-        cx,
-        holes,
-        input,
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action175<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
-) -> Vec<(Location, Ty<'lr>)>
-{
-    let __start0 = __0.2.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action120(
-        cx,
-        holes,
-        input,
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action151(
-        cx,
-        holes,
-        input,
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action176<
     'input,
     'lr,
 >(
@@ -9176,7 +9045,7 @@ fn __action176<
 {
     let __start0 = __2.2.clone();
     let __end0 = __3.0.clone();
-    let __temp0 = __action85(
+    let __temp0 = __action82(
         cx,
         holes,
         input,
@@ -9197,7 +9066,7 @@ fn __action176<
 }
 
 #[allow(unused_variables)]
-fn __action177<
+fn __action174<
     'input,
     'lr,
 >(
@@ -9213,7 +9082,7 @@ fn __action177<
 {
     let __start0 = __3.0.clone();
     let __end0 = __3.2.clone();
-    let __temp0 = __action86(
+    let __temp0 = __action83(
         cx,
         holes,
         input,
@@ -9233,7 +9102,7 @@ fn __action177<
 }
 
 #[allow(unused_variables)]
-fn __action178<
+fn __action175<
     'input,
     'lr,
 >(
@@ -9245,14 +9114,14 @@ fn __action178<
 {
     let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action88(
+    let __temp0 = __action85(
         cx,
         holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action154(
+    __action151(
         cx,
         holes,
         input,
@@ -9261,7 +9130,7 @@ fn __action178<
 }
 
 #[allow(unused_variables)]
-fn __action179<
+fn __action176<
     'input,
     'lr,
 >(
@@ -9274,7 +9143,7 @@ fn __action179<
 {
     let __start0 = __lookbehind.clone();
     let __end0 = __lookahead.clone();
-    let __temp0 = __action89(
+    let __temp0 = __action86(
         cx,
         holes,
         input,
@@ -9282,7 +9151,95 @@ fn __action179<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action154(
+    __action151(
+        cx,
+        holes,
+        input,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action177<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, ::std::vec::Vec<Local>, usize),
+    __1: (usize, Local, usize),
+) -> Vec<Local>
+{
+    let __start0 = __1.0.clone();
+    let __end0 = __1.2.clone();
+    let __temp0 = __action85(
+        cx,
+        holes,
+        input,
+        __1,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action152(
+        cx,
+        holes,
+        input,
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action178<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, ::std::vec::Vec<Local>, usize),
+) -> Vec<Local>
+{
+    let __start0 = __0.2.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action86(
+        cx,
+        holes,
+        input,
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action152(
+        cx,
+        holes,
+        input,
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(unused_variables)]
+fn __action179<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    holes: &mut u32,
+    input: &'input str,
+    __0: (usize, Place, usize),
+) -> Vec<Place>
+{
+    let __start0 = __0.0.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action104(
+        cx,
+        holes,
+        input,
+        __0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action155(
         cx,
         holes,
         input,
@@ -9298,24 +9255,24 @@ fn __action180<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Local>, usize),
-    __1: (usize, Local, usize),
-) -> Vec<Local>
+    __lookbehind: &usize,
+    __lookahead: &usize,
+) -> Vec<Place>
 {
-    let __start0 = __1.0.clone();
-    let __end0 = __1.2.clone();
-    let __temp0 = __action88(
+    let __start0 = __lookbehind.clone();
+    let __end0 = __lookahead.clone();
+    let __temp0 = __action105(
         cx,
         holes,
         input,
-        __1,
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action155(
         cx,
         holes,
         input,
-        __0,
         __temp0,
     )
 }
@@ -9328,20 +9285,20 @@ fn __action181<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Local>, usize),
-) -> Vec<Local>
+    __0: (usize, ::std::vec::Vec<Place>, usize),
+    __1: (usize, Place, usize),
+) -> Vec<Place>
 {
-    let __start0 = __0.2.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action89(
+    let __start0 = __1.0.clone();
+    let __end0 = __1.2.clone();
+    let __temp0 = __action104(
         cx,
         holes,
         input,
-        &__start0,
-        &__end0,
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action155(
+    __action156(
         cx,
         holes,
         input,
@@ -9358,22 +9315,24 @@ fn __action182<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, Place, usize),
+    __0: (usize, ::std::vec::Vec<Place>, usize),
 ) -> Vec<Place>
 {
-    let __start0 = __0.0.clone();
+    let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action107(
+    let __temp0 = __action105(
+        cx,
+        holes,
+        input,
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action156(
         cx,
         holes,
         input,
         __0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action158(
-        cx,
-        holes,
-        input,
         __temp0,
     )
 }
@@ -9386,13 +9345,12 @@ fn __action183<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __lookbehind: &usize,
-    __lookahead: &usize,
-) -> Vec<Place>
+    __0: (usize, Var, usize),
+) -> Pred<'lr>
 {
-    let __start0 = __lookbehind.clone();
-    let __end0 = __lookahead.clone();
-    let __temp0 = __action108(
+    let __start0 = __0.2.clone();
+    let __end0 = __0.2.clone();
+    let __temp0 = __action69(
         cx,
         holes,
         input,
@@ -9400,10 +9358,11 @@ fn __action183<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action158(
+    __action45(
         cx,
         holes,
         input,
+        __0,
         __temp0,
     )
 }
@@ -9416,20 +9375,20 @@ fn __action184<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Place>, usize),
-    __1: (usize, Place, usize),
-) -> Vec<Place>
+    __0: (usize, Var, usize),
+    __1: (usize, ::std::vec::Vec<u32>, usize),
+) -> Pred<'lr>
 {
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action107(
+    let __temp0 = __action70(
         cx,
         holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action159(
+    __action45(
         cx,
         holes,
         input,
@@ -9446,24 +9405,22 @@ fn __action185<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, ::std::vec::Vec<Place>, usize),
-) -> Vec<Place>
+    __0: (usize, TypeLayout, usize),
+) -> Vec<TypeLayout>
 {
-    let __start0 = __0.2.clone();
+    let __start0 = __0.0.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action108(
+    let __temp0 = __action92(
         cx,
         holes,
         input,
-        &__start0,
-        &__end0,
+        __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action159(
         cx,
         holes,
         input,
-        __0,
         __temp0,
     )
 }
@@ -9476,12 +9433,13 @@ fn __action186<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, Var, usize),
-) -> Pred<'lr>
+    __lookbehind: &usize,
+    __lookahead: &usize,
+) -> Vec<TypeLayout>
 {
-    let __start0 = __0.2.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action72(
+    let __start0 = __lookbehind.clone();
+    let __end0 = __lookahead.clone();
+    let __temp0 = __action93(
         cx,
         holes,
         input,
@@ -9489,11 +9447,10 @@ fn __action186<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action48(
+    __action159(
         cx,
         holes,
         input,
-        __0,
         __temp0,
     )
 }
@@ -9506,20 +9463,20 @@ fn __action187<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, Var, usize),
-    __1: (usize, ::std::vec::Vec<u32>, usize),
-) -> Pred<'lr>
+    __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
+    __1: (usize, TypeLayout, usize),
+) -> Vec<TypeLayout>
 {
     let __start0 = __1.0.clone();
     let __end0 = __1.2.clone();
-    let __temp0 = __action73(
+    let __temp0 = __action92(
         cx,
         holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action48(
+    __action160(
         cx,
         holes,
         input,
@@ -9536,100 +9493,12 @@ fn __action188<
     cx: &'lr LiquidRustCtxt<'lr>,
     holes: &mut u32,
     input: &'input str,
-    __0: (usize, TypeLayout, usize),
-) -> Vec<TypeLayout>
-{
-    let __start0 = __0.0.clone();
-    let __end0 = __0.2.clone();
-    let __temp0 = __action95(
-        cx,
-        holes,
-        input,
-        __0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action162(
-        cx,
-        holes,
-        input,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action189<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __lookbehind: &usize,
-    __lookahead: &usize,
-) -> Vec<TypeLayout>
-{
-    let __start0 = __lookbehind.clone();
-    let __end0 = __lookahead.clone();
-    let __temp0 = __action96(
-        cx,
-        holes,
-        input,
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action162(
-        cx,
-        holes,
-        input,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action190<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
-    __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
-    __1: (usize, TypeLayout, usize),
-) -> Vec<TypeLayout>
-{
-    let __start0 = __1.0.clone();
-    let __end0 = __1.2.clone();
-    let __temp0 = __action95(
-        cx,
-        holes,
-        input,
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action163(
-        cx,
-        holes,
-        input,
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(unused_variables)]
-fn __action191<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
-    input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
 ) -> Vec<TypeLayout>
 {
     let __start0 = __0.2.clone();
     let __end0 = __0.2.clone();
-    let __temp0 = __action96(
+    let __temp0 = __action93(
         cx,
         holes,
         input,
@@ -9637,7 +9506,7 @@ fn __action191<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action163(
+    __action160(
         cx,
         holes,
         input,

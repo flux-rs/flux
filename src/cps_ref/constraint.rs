@@ -144,9 +144,7 @@ impl<'a> From<Pred<'a>> for PredC {
 
 fn embed(x: Var, typ: DeferredSubst<Ty>) -> (Sort, PredC) {
     let (subst, typ) = typ.split();
-    let mut v = Vec::new();
-    collect_field_map(x, &vec![], typ, &mut v);
-    let subst = subst.extend(v);
+    let subst = subst.extend(collect_field_map(x, typ));
     (Sort::from(typ), embed_rec(x, typ, &subst, &mut vec![]))
 }
 
@@ -176,18 +174,20 @@ fn embed_rec(x: Var, typ: Ty, subst: &Subst, proj: &mut Vec<u32>) -> PredC {
     }
 }
 
-fn collect_field_map(x: Var, proj: &Vec<u32>, typ: Ty, v: &mut Vec<(Var, (Var, Vec<u32>))>) {
-    match typ {
+fn collect_field_map(x: Var, typ: Ty) -> Vec<(Var, (Var, Vec<u32>))> {
+    let mut v = vec![];
+    typ.walk(|path, typ| match typ {
         TyS::Tuple(fields) => {
-            for (i, (f, t)) in fields.iter().enumerate() {
-                let mut clone = proj.clone();
+            for (i, &(f, _)) in fields.iter().enumerate() {
+                let mut clone = path.clone();
                 clone.push(i as u32);
-                collect_field_map(x, &clone, t, v);
-                v.push(((*f).into(), (x, clone)));
+                v.push((Var::from(f), (x, clone)));
             }
+            Walk::Continue::<()>
         }
-        _ => {}
-    }
+        _ => Walk::Continue,
+    });
+    v
 }
 
 impl fmt::Debug for PredC {

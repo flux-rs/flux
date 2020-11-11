@@ -96,20 +96,6 @@ PlaceLevel3: (Local, Vec<Projection>) = {
   "(" <PlaceLevel1> ")"
 }
 
-Place_: (Local, Vec<Projection>) = {
-  <local: Local>                  => (local, vec![]),
-  <p: Place_> "." <f: r"[0-9]+">  => {
-    let (local, mut proj) = p;
-    proj.push(Projection::Field(u32::from_str(f).unwrap()));
-    (local, proj)
-  },
-  "*" "(" <p: Place_> ")"         => {
-    let (local, mut proj) = p;
-    proj.push(Projection::Deref);
-    (local, proj)
-  }
-}
-
 Projection: u32 = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
 
 Path_: Vec<Projection> = ("." <r"[0-9]+">)* => {

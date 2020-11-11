@@ -112,7 +112,54 @@ pub struct Place {
     pub projection: Vec<Projection>,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+impl Place {
+    pub fn new(local: Local, projection: Vec<Projection>) -> Self {
+        Place { local, projection }
+    }
+
+    pub fn extend<'a, I>(&self, rhs: I) -> Place
+    where
+        I: IntoIterator<Item = &'a Projection>,
+    {
+        Place {
+            local: self.local,
+            projection: self
+                .projection
+                .iter()
+                .copied()
+                .chain(rhs.into_iter().copied())
+                .collect(),
+        }
+    }
+
+    pub fn overlaps(&self, rhs: &Place) -> bool {
+        if self.local != rhs.local {
+            return false;
+        }
+        for (&p1, &p2) in self.projection.iter().zip(&rhs.projection) {
+            if p1 != p2 {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn equals(&self, local: Local, path: &Vec<u32>) -> bool {
+        if self.local != local {
+            return false;
+        }
+        for (&proj, &i) in self.projection.iter().zip(path) {
+            if let Projection::Field(n) = proj {
+                if n != i {
+                    return false;
+                }
+            }
+        }
+        path.len() == self.projection.len()
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub enum Projection {
     Field(u32),
     Deref,
@@ -193,8 +240,8 @@ impl Region {
     }
 
     pub fn subset_of(&self, rhs: &Region) -> bool {
-        for borrow in &self.0 {
-            if rhs.iter().any(|b| borrow == b) {
+        for place in &self.0 {
+            if rhs.iter().any(|p| place == p) {
                 return true;
             }
         }
@@ -234,6 +281,15 @@ impl std::ops::Index<usize> for Region {
 pub enum BorrowKind {
     Shared,
     Mut,
+}
+
+impl BorrowKind {
+    pub fn is_mut(&self) -> bool {
+        match self {
+            BorrowKind::Shared => false,
+            BorrowKind::Mut => true,
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Hash)]
@@ -321,6 +377,38 @@ impl<'lr> TyS<'lr> {
             TyS::Uninit(size) => *size,
         }
     }
+
+    pub fn walk<T>(&'lr self, mut act: impl FnMut(&Vec<u32>, Ty<'lr>) -> Walk<T>) -> Option<T> {
+        self.walk_(&mut act, &mut vec![])
+    }
+
+    fn walk_<T>(
+        &'lr self,
+        act: &mut impl FnMut(&Vec<u32>, Ty<'lr>) -> Walk<T>,
+        path: &mut Vec<u32>,
+    ) -> Option<T> {
+        if let Walk::Stop(t) = act(path, self) {
+            return Some(t);
+        }
+        match self {
+            TyS::Tuple(fields) => {
+                for i in 0..fields.len() {
+                    path.push(i as u32);
+                    if let Some(r) = fields[i].1.walk_(act, path) {
+                        return Some(r);
+                    }
+                    path.pop();
+                }
+            }
+            _ => {}
+        }
+        None
+    }
+}
+
+pub enum Walk<T = ()> {
+    Continue,
+    Stop(T),
 }
 
 impl Field {
