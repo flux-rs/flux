@@ -13,6 +13,10 @@ serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
 
+[[bin]]
+name = "lr"
+path = "src/cps_ref/main.rs"
+
 [build-dependencies.lalrpop]
 version = "0.19"
 features = ["lexer"]

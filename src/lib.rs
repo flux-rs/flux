@@ -4,7 +4,6 @@
 #![feature(const_fn)]
 #![feature(const_panic)]
 #![feature(try_blocks)]
-#![feature(try_trait)]
 
 extern crate rustc_arena;
 extern crate rustc_ast;
