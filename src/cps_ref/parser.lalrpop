@@ -5,6 +5,13 @@ use crate::cps_ref::context::LiquidRustCtxt;
 
 grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>, holes: &mut u32);
 
+match {
+  r"\s*" => {}, // The default whitespace skipping is disabled if an `ignore pattern` is specified
+  r"//[^\n\r]*[\n\r]*" => { },                          // Skip `// comments`
+  r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { }, // Skip `/* comments */`
+  _,
+}
+
 pub Fn: FnDef<'lr> =
  "fn" <name: Symbol>
  "(" <heap: Heap> ";" <args: Args> ")"

@@ -39,7 +39,7 @@ fn main() -> std::io::Result<()> {
         };
         match r {
             Ok(b) => println!("{:}", if b { "Safe" } else { "Unsafe" }),
-            Err(e) => println!("{:?}", e),
+            Err(e) => println!("{:#}", e),
         }
     });
     Ok(())

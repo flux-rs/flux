@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.19.1"
-// sha256: 653560634688c481c2b9361e6f19bfdf90396d3ba7d36469c7564bc99fae72fe
+// sha256: ccc27aa6ddd763eb5cddcd22965e9933ef6026df474b80666daeaa380d966
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
@@ -5746,7 +5746,9 @@ mod __intern_token {
             ("^(\\{)", false),
             ("^(\\|)", false),
             ("^(\\})", false),
-            (r"^(\s*)", true),
+            ("^(//[\u{0}-\t\u{b}-\u{c}\u{e}-\u{10ffff}]*[\n\r]*)", true),
+            ("^(/\\*([\u{0}-\\)\\+-\u{10ffff}]*\\*+[\u{0}-\\)\\+-\\.0-\u{10ffff}])*([\u{0}-\\)\\+-\u{10ffff}]*\\*+|[\u{0}-\\)\\+-\u{10ffff}])*\\*/)", true),
+            ("^([\t-\r \u{85}\u{a0}\u{1680}\u{2000}-\u{200a}\u{2028}-\u{2029}\u{202f}\u{205f}\u{3000}]*)", true),
         ];
         __lalrpop_util::lexer::MatcherBuilder::new(__strs.iter().copied()).unwrap()
     }
