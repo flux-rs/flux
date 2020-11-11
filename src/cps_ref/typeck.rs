@@ -152,48 +152,36 @@ impl<'lr> TyCtxt<'lr> {
     pub fn drop(&mut self, x: Local) -> Result<(Bindings<'lr>, Constraint), TypeError<'lr>> {
         let OwnRef(l) = self.lookup_local(x).unwrap();
         let typ = self.lookup_location(l).unwrap();
-        let mut bindings = vec![];
-        let c = self.drop_typ(typ, &mut bindings)?;
+        let (c, mut bindings) = self.drop_typ(typ)?;
         bindings.extend(self.update(&Place::from(x), self.cx.mk_uninit(typ.size())));
         Ok((bindings, c))
     }
 
-    fn drop_typ(
-        &mut self,
-        typ: Ty<'lr>,
-        bindings: &mut Bindings<'lr>,
-    ) -> Result<Constraint, TypeError<'lr>> {
-        match typ {
-            TyS::Tuple(fields) => {
-                for (_, t) in fields {
-                    self.drop_typ(t, bindings)?;
-                }
-                Ok(Constraint::True)
-            }
-            TyS::Ref(BorrowKind::Mut, r, l) => {
-                let t = self.lookup_location(*l).unwrap();
-                if r.len() == 1 {
-                    bindings.extend(self.update(&r[0], t));
-                    Ok(Constraint::True)
-                } else {
-                    let mut cs = vec![];
-                    let t_join = self.replace_refine_with_kvars(t, &mut self.bindings().collect());
-                    cs.push(inner_subtype(self.cx, &self.locations, t, t_join)?);
-                    for p in r {
-                        let (_, t2) = self.lookup(p);
-                        cs.push(inner_subtype(self.cx, &self.locations, t2, t_join)?);
-                        bindings.extend(self.update(p, t_join));
+    fn drop_typ(&mut self, typ: Ty<'lr>) -> Result<(Constraint, Bindings<'lr>), TypeError<'lr>> {
+        let mut constraints = vec![];
+        let mut bindings = vec![];
+        typ.try_walk(|_, typ| {
+            match typ {
+                TyS::Ref(BorrowKind::Mut, r, l) => {
+                    let t = self.lookup_location(*l).unwrap();
+                    if r.len() == 1 {
+                        bindings.extend(self.update(&r[0], t));
+                    } else {
+                        let t_join =
+                            self.replace_refine_with_kvars(t, &mut self.bindings().collect());
+                        constraints.push(inner_subtype(self.cx, &self.locations, t, t_join)?);
+                        for p in r {
+                            let (_, t2) = self.lookup(p);
+                            constraints.push(inner_subtype(self.cx, &self.locations, t2, t_join)?);
+                            bindings.extend(self.update(p, t_join));
+                        }
                     }
-                    Ok(Constraint::Conj(cs))
                 }
+                _ => {}
             }
-            TyS::Refine { .. }
-            | TyS::Ref(BorrowKind::Shared, ..)
-            | TyS::OwnRef(_)
-            | TyS::Fn { .. }
-            | TyS::Uninit(_)
-            | TyS::RefineHole { .. } => Ok(Constraint::True),
-        }
+            Ok(())
+        })?;
+        Ok((Constraint::Conj(constraints), bindings))
     }
 
     fn replace_refine_with_kvars(&mut self, typ: Ty<'lr>, bindings: &mut Bindings<'lr>) -> Ty<'lr> {
@@ -415,24 +403,24 @@ impl<'lr> TyCtxt<'lr> {
     fn ownership(&self, kind: BorrowKind, place: &Place, reborrow_list: &mut Vec<Place>) {
         for (&x, &OwnRef(l)) in self.locals() {
             let t = self.lookup_location(l).unwrap();
-            let conflict = t.walk(|path, typ| {
+            let conflict = t.try_walk(|path, typ| {
                 match typ {
                     TyS::Ref(k, r, _) => {
                         if reborrow_list.iter().any(|p| p.equals(x, path)) {
-                            return Walk::Continue;
+                            return Ok(());
                         }
 
                         for p in r {
                             if place.overlaps(p) && (kind.is_mut() || k.is_mut()) {
-                                return Walk::Stop(typ);
+                                return Err(typ);
                             }
                         }
                     }
                     _ => {}
                 }
-                Walk::Continue
+                Ok(())
             });
-            if let Some(t) = conflict {
+            if let Err(t) = conflict {
                 todo!("Conflicting borrow {:?} {:?}", x, t);
             }
         }

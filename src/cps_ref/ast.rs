@@ -378,37 +378,36 @@ impl<'lr> TyS<'lr> {
         }
     }
 
-    pub fn walk<T>(&'lr self, mut act: impl FnMut(&Vec<u32>, Ty<'lr>) -> Walk<T>) -> Option<T> {
+    pub fn walk(&'lr self, mut act: impl FnMut(&Vec<u32>, Ty<'lr>)) {
+        self.walk_(&mut |path, typ| Ok::<(), ()>(act(path, typ)), &mut vec![])
+            .unwrap()
+    }
+
+    pub fn try_walk<T>(
+        &'lr self,
+        mut act: impl FnMut(&Vec<u32>, Ty<'lr>) -> Result<(), T>,
+    ) -> Result<(), T> {
         self.walk_(&mut act, &mut vec![])
     }
 
     fn walk_<T>(
         &'lr self,
-        act: &mut impl FnMut(&Vec<u32>, Ty<'lr>) -> Walk<T>,
+        act: &mut impl FnMut(&Vec<u32>, Ty<'lr>) -> Result<(), T>,
         path: &mut Vec<u32>,
-    ) -> Option<T> {
-        if let Walk::Stop(t) = act(path, self) {
-            return Some(t);
-        }
+    ) -> Result<(), T> {
+        act(path, self)?;
         match self {
             TyS::Tuple(fields) => {
                 for i in 0..fields.len() {
                     path.push(i as u32);
-                    if let Some(r) = fields[i].1.walk_(act, path) {
-                        return Some(r);
-                    }
+                    fields[i].1.walk_(act, path)?;
                     path.pop();
                 }
             }
             _ => {}
         }
-        None
+        Ok(())
     }
-}
-
-pub enum Walk<T = ()> {
-    Continue,
-    Stop(T),
 }
 
 impl Field {

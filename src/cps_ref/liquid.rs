@@ -121,7 +121,7 @@ impl<'a> LiquidSolver<'a> {
                 write!(self.buf, "))")?;
             }
             Constraint::Conj(cs) => match cs.len() {
-                0 => write!(self.buf, "{:>1$}true", "", indent)?,
+                0 => write!(self.buf, "\n{:>1$}((true))", "", indent)?,
                 1 => self.write_constraint_rec(&cs[0], indent)?,
                 _ => {
                     write!(self.buf, "\n{:>1$}(and", "", indent)?;

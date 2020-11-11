@@ -183,9 +183,8 @@ fn collect_field_map(x: Var, typ: Ty) -> Vec<(Var, (Var, Vec<u32>))> {
                 clone.push(i as u32);
                 v.push((Var::from(f), (x, clone)));
             }
-            Walk::Continue::<()>
         }
-        _ => Walk::Continue,
+        _ => {}
     });
     v
 }
