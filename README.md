@@ -2,7 +2,7 @@
 
 After installing rustup, run the following commands:
 ```bash
-rustup override set nightly-2020-10-09
+rustup override set nightly-2020-11-09
 rustup component add rust-src rustc-dev llvm-tools-preview
 ```
 
@@ -18,12 +18,12 @@ You can use `cargo run <file>` to compile any Rust source code file.
 
 1. Compile a release build of `liquid-rust` running `cargo build --release`.
 
-2. Locate the `rustc_driver` dynamic library. It should be located at `~/.rustup/toolchains/nightly-2020-10-09-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/`.
+2. Locate the `rustc_driver` dynamic library. It should be located at `~/.rustup/toolchains/nightly-2020-11-09-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/`.
 
 3. Create an executable shell script with the following contents:
     ```bash
     #!/bin/sh
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<PATH_FOUND_IN_2> <PATH_TO_THIS_PROJECT>/target/release/liquid-rust "$@"
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<PATH_FOUND_IN_2> <PATH_TO_THIS_PROJECT>/target/release/liquid-rust-driver "$@"
     ```
     Be sure the script has execution permission.
 

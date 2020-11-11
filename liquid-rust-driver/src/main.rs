@@ -77,7 +77,7 @@ fn run_compiler(mut args: Vec<String>, callbacks: &mut (dyn Callbacks + Send)) -
     }
 
     let exit_code = rustc_driver::catch_with_exit_code(move || {
-        rustc_driver::run_compiler(&args, callbacks, None, None, None)
+        rustc_driver::RunCompiler::new(&args, callbacks).run()
     });
 
     std::process::exit(exit_code)

@@ -84,7 +84,7 @@ pub struct Branch(pub Literal, pub BlockId);
 pub enum Terminator {
     Return,
     Goto(BlockId),
-    Switch(Local, Vec<Branch>, BlockId),
+    Switch(Operand, Vec<Branch>, BlockId),
     Call(Local, Operand, Vec<Operand>, BlockId),
 }
 

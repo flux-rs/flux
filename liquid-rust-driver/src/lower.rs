@@ -8,8 +8,8 @@ use std::{collections::HashMap, hash::Hash};
 use liquid_rust_lang::{
     generator::{Generable, Generator},
     ir::{
-        BasicBlock, BinOp, BlockId, Func, FuncId, Literal, Local, Operand, Rvalue, Statement,
-        Terminator, UnOp,
+        BasicBlock, BinOp, BlockId, Branch, Func, FuncId, Literal, Local, Operand, Rvalue,
+        Statement, Terminator, UnOp,
     },
     ty::{BaseTy, IntSize},
 };
@@ -285,8 +285,40 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
         let terminator = match &self.kind {
             mir::TerminatorKind::Return => Terminator::Return,
-            mir::TerminatorKind::Goto { .. } => todo!(),
-            mir::TerminatorKind::SwitchInt { .. } => todo!(),
+            mir::TerminatorKind::Goto { target } => Terminator::Goto(target.lower(lcx)?),
+            mir::TerminatorKind::SwitchInt {
+                discr,
+                targets,
+                switch_ty,
+                ..
+            } => {
+                let discr = discr.lower(lcx)?;
+
+                let otherwise = targets.otherwise().lower(lcx)?;
+
+                let targets = targets
+                    .iter()
+                    .map(|(bits, target)| {
+                        let lit = match switch_ty.kind() {
+                            TyKind::Bool => Literal::Bool(bits != 0),
+                            TyKind::Uint(size) => Literal::Uint(bits, size.lower(lcx)?),
+                            TyKind::Int(size) => Literal::Int(bits as i128, size.lower(lcx)?),
+                            TyKind::FnDef(def_id, _) => {
+                                if let Some(func_id) = lcx.func_ids.get(def_id).copied() {
+                                    Literal::Fn(func_id)
+                                } else {
+                                    return Err(LowerError::UndefinedDefId(*def_id));
+                                }
+                            }
+
+                            _ => return Err(LowerError::UnsupportedTy(*switch_ty)),
+                        };
+                        Ok(Branch(lit, target.lower(lcx)?))
+                    })
+                    .collect::<Result<Vec<Branch>, _>>()?;
+
+                Terminator::Switch(discr, targets, otherwise)
+            }
             mir::TerminatorKind::Call {
                 func,
                 args,
