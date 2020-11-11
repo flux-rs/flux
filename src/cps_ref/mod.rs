@@ -63,7 +63,7 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
             fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
-              let b = new(1);
+              let b = alloc(1);
               b := n <= 0;
               if b then
                 n := 0 - n;
@@ -85,7 +85,7 @@ mod tests {
     fn sum(n0: {int | V >= 0}; n: own(n0)) ret k(r: {int | V >= n0}; own(r)) =
       letcont loop( n1: {int | _ }, i1: {int | _ }, r1: {int | _ }
                   ; i: own(i1), r: own(r1), n: own(n1);) =
-        let t0 = new(1);
+        let t0 = alloc(1);
         t0 := i <= n;
         if t0 then
           i := i + 1;
@@ -94,8 +94,8 @@ mod tests {
         else
           jump k(r)
       in
-      let i = new(1);
-      let r = new(1);
+      let i = alloc(1);
+      let r = alloc(1);
       i := 0;
       r := 0;
       jump loop()
@@ -114,14 +114,14 @@ mod tests {
     fn count_zeros(n0: {int | V >= 0}; n: own(n0)) ret k(r: {int | V >= 0}; own(r))=
       letcont b0( n1: {int | V >= 0}, i1: {int | V >= 0}, c1: {int | V >= 0}
                 ; i: own(i1), c: own(c1), n: own(n1); ) =
-        let t0 = new(1);
+        let t0 = alloc(1);
         t0 := i < n;
         if *t0 then
           letcont b1( n2: {int | V >= 0}, i2: {int | V >= 0}, c2: {int | V >= 0}, x0: {int | true}
                     ; i: own(i2), c: own(c2), n: own(n2)
                     ; x: own(x0)
                     ) =
-            let t1 = new(1);
+            let t1 = alloc(1);
             t1 := x == 0;
             if t1 then
               c := c + 1;
@@ -133,8 +133,8 @@ mod tests {
         else
           jump k(c)
       in
-      let i = new(1);
-      let c = new(1);
+      let i = alloc(1);
+      let c = alloc(1);
       i := 0;
       c := 0;
       jump b0()
@@ -150,10 +150,10 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn alloc_pair(;) ret k(r: {int | true}; own(r))=
-      let p = new((1, 1));
+      let p = alloc((1, 1));
       p.0 := 1;
       p.1 := 2;
-      let r = new(1);
+      let r = alloc(1);
       r := p.0;
       jump k(r)
     "####,
@@ -169,7 +169,7 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn length(p0: (@x: {int | true}, @y: {int | V >= @x}); p: own(p0)) ret k(r: {int | V >= 0}; own(r))=
-      let t = new(1);
+      let t = alloc(1);
       t := p.1 - p.0;
       jump k(t)
     "####,
@@ -185,7 +185,7 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn foo(;) ret k(r0: (@x: {int | true}, @y: {int | V >= @x}); own(r0))=
-      let p = new((1, 1));
+      let p = alloc((1, 1));
       p.0 := 0;
       p.1 := 1;
       jump k(p)
@@ -203,7 +203,7 @@ mod tests {
                 r####"
     fn foo(p0: (@a: {int | true}, @b: {int | V >= @a}); p: own(p0)) ret k(r0: {int | V > 0}; own(r0))=
       p.1 := p.1 + 1;
-      let r = new(1);
+      let r = alloc(1);
       r := p.1 - p.0;
       jump k(r)
     "####,
@@ -222,7 +222,7 @@ mod tests {
       letcont b0(y1: {int | _ }; ; y: own(y1)) =
         jump k(y)
       in
-      let y = new(1);
+      let y = alloc(1);
       y := x.1;
       jump k(y)
     "####,
@@ -238,8 +238,8 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn foo(;) ret k(r0: {int | V > 0}; own(r0))=
-      let n = new(1);
-      let p = new(1);
+      let n = alloc(1);
+      let p = alloc(1);
       n    := 0;
       p    := &mut n;
       *(p) := 1;
@@ -258,13 +258,13 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn foo(x0: {int | true}, y0: {int | true}; x: own(x0), y: own(y0)) ret k(r0: {int | V == 1}; own(r0))=
-      let p = new((1, 1));
+      let p = alloc((1, 1));
       p.0 := &mut x;
       p.1 := &mut y;
       *(p.0) := 1;
       *(p.1) := 2;
       drop(p);
-      let r = new(1);
+      let r = alloc(1);
       r := y - x;
       jump k(r)
     "####,
@@ -286,14 +286,14 @@ mod tests {
                 ) =
         *(p) := 5;
         drop(p);
-        let r = new(1);
+        let r = alloc(1);
         jump k(x)
       in
-      let x = new(1);
+      let x = alloc(1);
       x := 1;
-      let y = new(1);
+      let y = alloc(1);
       y := 2;
-      let p = new(1);
+      let p = alloc(1);
       if b then
         p := &mut x;
         jump b0()
@@ -322,17 +322,17 @@ mod tests {
                 ) =
         (*p).1 := (*p).1 + 1;
         drop(p);
-        let r = new(1);
+        let r = alloc(1);
         r := y.1 + y.0;
         jump k(r)
       in
-      let x = new((1, 1));
+      let x = alloc((1, 1));
       x.0 := 1;
       x.1 := 2;
-      let y = new((1, 1));
+      let y = alloc((1, 1));
       y.0 := 2;
       y.1 := 2;
-      let p = new(1);
+      let p = alloc(1);
       if b then
         p := &mut x;
         jump b0()
@@ -353,9 +353,9 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn foo(r0: {int | true}; r:own(r0)) ret k(r1: {int | true}; own(r1))=
-      let x = new(1);
-      let p1 = new(1);
-      let p2 = new(1);
+      let x = alloc(1);
+      let p1 = alloc(1);
+      let p2 = alloc(1);
       p1 := &x;
       p2 := &mut x;
       jump k(r)
@@ -372,8 +372,8 @@ mod tests {
             let (c, kvars) = sess.cgen(
                 r####"
     fn foo(r0: {int | true}; r:own(r0)) ret k(r1: {int | true}; own(r1))=
-      let x = new(1);
-      let p = new(1);
+      let x = alloc(1);
+      let p = alloc(1);
       p := &mut x;
       *p := 4;
       jump k(r)

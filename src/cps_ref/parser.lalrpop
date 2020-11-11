@@ -34,9 +34,9 @@ ContDef: ContDef<'lr> = {
 }
 
 Statement: Statement = {
-  "let" <Local> "=" "new" "(" <TypeLayout> ")" => Statement::Let(<>),
-  <Place> ":=" <Rvalue>                        => Statement::Assign(<>),
-  "drop" "(" <Local> ")"                       => Statement::Drop(<>)
+  "let" <Local> "=" "alloc" "(" <TypeLayout> ")" => Statement::Let(<>),
+  <Place> ":=" <Rvalue>                          => Statement::Assign(<>),
+  "drop" "(" <Local> ")"                         => Statement::Drop(<>)
 }
 
 Rvalue: Rvalue = {
