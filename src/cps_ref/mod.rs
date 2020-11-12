@@ -46,15 +46,12 @@ mod tests {
         constraint::{Constraint, Kvar},
         liquid::LiquidSolver,
         parser::FnParser,
-        translate::Transformer,
     };
     use super::{
         context::{Arena, LiquidRustCtxt},
         typeck::TypeCk,
     };
     use rustc_ast::attr::with_default_session_globals;
-    use rustc_middle::ty;
-    use rustc_mir::transform::MirSource;
 
     struct Session<'lr> {
         cx: &'lr LiquidRustCtxt<'lr>,
@@ -78,14 +75,14 @@ mod tests {
         }
 
         fn parse(&self, string: &str) -> Option<FnDef<'lr>> {
-            FnParser::new().parse(self.cx, &mut 0, string).ok()
+            FnParser::new().parse(self.cx, string).ok()
         }
 
         fn cgen<'a>(&self, string: &'a str) -> Result<(Constraint, Vec<Kvar>), Box<dyn Error + 'a>>
         where
             'lr: 'a,
         {
-            let parsed = FnParser::new().parse(self.cx, &mut 0, string)?;
+            let parsed = FnParser::new().parse(self.cx, string)?;
             Ok(TypeCk::cgen(&self.cx, &parsed)?)
         }
     }

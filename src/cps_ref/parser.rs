@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.19.1"
-// sha256: 66c672c087663f91456ca3db8b938b6c2041b8277ccfa1f7a71f73b33b5963
+// sha256: 3bfe9bfd81fb7680b0897e65eddeb2eede7cb2e25b2b8d6a6295910bbab28
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
@@ -1181,15 +1181,14 @@ mod __parse__Fn {
             }
         }).collect()
     }
-    pub struct __StateMachine<'input, 'lr, '__2>
+    pub struct __StateMachine<'input, 'lr>
     where 'lr: 'lr
     {
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &'__2 mut u32,
         input: &'input str,
         __phantom: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     }
-    impl<'input, 'lr, '__2> __state_machine::ParserDefinition for __StateMachine<'input, 'lr, '__2>
+    impl<'input, 'lr> __state_machine::ParserDefinition for __StateMachine<'input, 'lr>
     where 'lr: 'lr
     {
         type Location = usize;
@@ -1268,7 +1267,6 @@ mod __parse__Fn {
         ) -> Option<__state_machine::ParseResult<Self>> {
             __reduce(
                 self.cx,
-                self.holes,
                 self.input,
                 action,
                 start_location,
@@ -1377,7 +1375,6 @@ mod __parse__Fn {
         >(
             &self,
             cx: &'lr LiquidRustCtxt<'lr>,
-            holes: &mut u32,
             input: &'input str,
         ) -> Result<FnDef<'lr>, __lalrpop_util::ParseError<usize, Token<'input>, &'static str>>
         {
@@ -1385,7 +1382,6 @@ mod __parse__Fn {
             __state_machine::Parser::drive(
                 __StateMachine {
                     cx,
-                    holes,
                     input,
                     __phantom: ::std::marker::PhantomData::<(&(), &())>,
                 },
@@ -1398,7 +1394,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __action: i16,
         __lookahead_start: Option<&usize>,
@@ -1409,482 +1404,482 @@ mod __parse__Fn {
     {
         let (__pop_states, __nonterminal) = match __action {
             0 => {
-                __reduce0(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce0(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             1 => {
-                __reduce1(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce1(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             2 => {
-                __reduce2(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce2(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             3 => {
-                __reduce3(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce3(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             4 => {
-                __reduce4(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce4(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             5 => {
-                __reduce5(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce5(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             6 => {
-                __reduce6(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce6(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             7 => {
-                __reduce7(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce7(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             8 => {
-                __reduce8(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce8(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             9 => {
-                __reduce9(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce9(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             10 => {
-                __reduce10(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce10(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             11 => {
-                __reduce11(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce11(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             12 => {
-                __reduce12(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce12(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             13 => {
-                __reduce13(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce13(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             14 => {
-                __reduce14(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce14(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             15 => {
-                __reduce15(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce15(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             16 => {
-                __reduce16(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce16(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             17 => {
-                __reduce17(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce17(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             18 => {
-                __reduce18(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce18(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             19 => {
-                __reduce19(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce19(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             20 => {
-                __reduce20(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce20(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             21 => {
-                __reduce21(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce21(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             22 => {
-                __reduce22(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce22(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             23 => {
-                __reduce23(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce23(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             24 => {
-                __reduce24(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce24(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             25 => {
-                __reduce25(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce25(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             26 => {
-                __reduce26(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce26(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             27 => {
-                __reduce27(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce27(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             28 => {
-                __reduce28(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce28(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             29 => {
-                __reduce29(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce29(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             30 => {
-                __reduce30(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce30(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             31 => {
-                __reduce31(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce31(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             32 => {
-                __reduce32(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce32(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             33 => {
-                __reduce33(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce33(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             34 => {
-                __reduce34(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce34(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             35 => {
-                __reduce35(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce35(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             36 => {
-                __reduce36(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce36(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             37 => {
-                __reduce37(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce37(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             38 => {
-                __reduce38(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce38(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             39 => {
-                __reduce39(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce39(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             40 => {
-                __reduce40(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce40(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             41 => {
-                __reduce41(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce41(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             42 => {
-                __reduce42(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce42(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             43 => {
-                __reduce43(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce43(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             44 => {
-                __reduce44(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce44(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             45 => {
-                __reduce45(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce45(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             46 => {
-                __reduce46(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce46(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             47 => {
-                __reduce47(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce47(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             48 => {
-                __reduce48(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce48(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             49 => {
-                __reduce49(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce49(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             50 => {
-                __reduce50(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce50(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             51 => {
-                __reduce51(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce51(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             52 => {
-                __reduce52(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce52(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             53 => {
-                __reduce53(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce53(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             54 => {
-                __reduce54(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce54(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             55 => {
-                __reduce55(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce55(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             56 => {
-                __reduce56(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce56(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             57 => {
-                __reduce57(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce57(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             58 => {
-                __reduce58(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce58(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             59 => {
-                __reduce59(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce59(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             60 => {
-                __reduce60(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce60(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             61 => {
-                __reduce61(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce61(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             62 => {
-                __reduce62(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce62(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             63 => {
-                __reduce63(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce63(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             64 => {
-                __reduce64(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce64(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             65 => {
-                __reduce65(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce65(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             66 => {
-                __reduce66(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce66(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             67 => {
-                __reduce67(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce67(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             68 => {
-                __reduce68(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce68(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             69 => {
-                __reduce69(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce69(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             70 => {
-                __reduce70(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce70(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             71 => {
-                __reduce71(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce71(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             72 => {
-                __reduce72(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce72(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             73 => {
-                __reduce73(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce73(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             74 => {
-                __reduce74(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce74(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             75 => {
-                __reduce75(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce75(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             76 => {
-                __reduce76(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce76(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             77 => {
-                __reduce77(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce77(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             78 => {
-                __reduce78(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce78(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             79 => {
-                __reduce79(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce79(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             80 => {
-                __reduce80(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce80(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             81 => {
-                __reduce81(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce81(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             82 => {
-                __reduce82(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce82(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             83 => {
-                __reduce83(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce83(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             84 => {
-                __reduce84(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce84(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             85 => {
-                __reduce85(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce85(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             86 => {
-                __reduce86(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce86(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             87 => {
-                __reduce87(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce87(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             88 => {
-                __reduce88(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce88(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             89 => {
-                __reduce89(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce89(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             90 => {
-                __reduce90(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce90(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             91 => {
-                __reduce91(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce91(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             92 => {
-                __reduce92(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce92(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             93 => {
-                __reduce93(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce93(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             94 => {
-                __reduce94(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce94(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             95 => {
-                __reduce95(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce95(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             96 => {
-                __reduce96(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce96(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             97 => {
-                __reduce97(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce97(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             98 => {
-                __reduce98(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce98(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             99 => {
-                __reduce99(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce99(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             100 => {
-                __reduce100(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce100(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             101 => {
-                __reduce101(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce101(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             102 => {
-                __reduce102(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce102(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             103 => {
-                __reduce103(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce103(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             104 => {
-                __reduce104(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce104(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             105 => {
-                __reduce105(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce105(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             106 => {
-                __reduce106(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce106(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             107 => {
-                __reduce107(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce107(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             108 => {
-                __reduce108(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce108(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             109 => {
-                __reduce109(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce109(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             110 => {
-                __reduce110(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce110(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             111 => {
-                __reduce111(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce111(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             112 => {
-                __reduce112(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce112(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             113 => {
-                __reduce113(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce113(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             114 => {
-                __reduce114(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce114(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             115 => {
-                __reduce115(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce115(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             116 => {
-                __reduce116(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce116(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             117 => {
-                __reduce117(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce117(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             118 => {
-                __reduce118(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce118(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             119 => {
-                __reduce119(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce119(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             120 => {
-                __reduce120(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce120(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             121 => {
-                __reduce121(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce121(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             122 => {
-                __reduce122(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce122(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             123 => {
-                __reduce123(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce123(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             124 => {
-                __reduce124(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce124(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             125 => {
-                __reduce125(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce125(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             126 => {
-                __reduce126(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce126(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             127 => {
-                __reduce127(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce127(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             128 => {
-                __reduce128(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce128(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             129 => {
-                __reduce129(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce129(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             130 => {
-                __reduce130(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce130(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             131 => {
-                __reduce131(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce131(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             132 => {
-                __reduce132(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce132(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             133 => {
-                __reduce133(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce133(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             134 => {
-                __reduce134(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce134(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             135 => {
-                __reduce135(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce135(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             136 => {
-                __reduce136(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce136(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             137 => {
-                __reduce137(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce137(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             138 => {
-                __reduce138(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce138(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             139 => {
-                __reduce139(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce139(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             140 => {
-                __reduce140(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce140(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             141 => {
-                __reduce141(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce141(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             142 => {
-                __reduce142(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce142(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             143 => {
-                __reduce143(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce143(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             144 => {
-                __reduce144(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce144(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             145 => {
-                __reduce145(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce145(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             146 => {
-                __reduce146(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce146(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             147 => {
-                __reduce147(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce147(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             148 => {
-                __reduce148(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce148(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             149 => {
-                __reduce149(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce149(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             150 => {
-                __reduce150(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce150(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             151 => {
-                __reduce151(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce151(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             152 => {
-                __reduce152(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce152(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             153 => {
-                __reduce153(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce153(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             154 => {
-                __reduce154(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce154(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             155 => {
-                __reduce155(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce155(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             156 => {
-                __reduce156(cx, holes, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
+                __reduce156(cx, input, __lookahead_start, __symbols, ::std::marker::PhantomData::<(&(), &())>)
             }
             157 => {
                 // __Fn = Fn => ActionFn(0);
                 let __sym0 = __pop_Variant29(__symbols);
                 let __start = __sym0.0.clone();
                 let __end = __sym0.2.clone();
-                let __nt = super::__action0::<>(cx, holes, input, __sym0);
+                let __nt = super::__action0::<>(cx, input, __sym0);
                 return Some(Ok(__nt));
             }
             _ => panic!("invalid action code {}", __action)
@@ -2481,7 +2476,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2494,7 +2488,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action84::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action84::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant0(__nt), __end));
         (2, 0)
     }
@@ -2503,7 +2497,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2513,7 +2506,7 @@ mod __parse__Fn {
         // ("." <r#"[0-9]+"#>)* =  => ActionFn(82);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action82::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action82::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (0, 1)
     }
@@ -2522,7 +2515,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2533,7 +2525,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action83::<>(cx, holes, input, __sym0);
+        let __nt = super::__action83::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (1, 1)
     }
@@ -2542,7 +2534,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2555,7 +2546,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action137::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action137::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (2, 2)
     }
@@ -2564,7 +2555,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2578,7 +2568,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action138::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action138::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant1(__nt), __end));
         (3, 2)
     }
@@ -2587,7 +2577,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2600,7 +2589,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action107::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action107::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (2, 3)
     }
@@ -2609,7 +2598,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2619,7 +2607,7 @@ mod __parse__Fn {
         // (<Binding<Field, Ty>> ",")* =  => ActionFn(105);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action105::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action105::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (0, 4)
     }
@@ -2628,7 +2616,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2639,7 +2626,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action106::<>(cx, holes, input, __sym0);
+        let __nt = super::__action106::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (1, 4)
     }
@@ -2648,7 +2635,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2661,7 +2647,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action141::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action141::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (2, 5)
     }
@@ -2670,7 +2656,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2684,7 +2669,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action142::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action142::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant3(__nt), __end));
         (3, 5)
     }
@@ -2693,7 +2678,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2706,7 +2690,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action119::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action119::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (2, 6)
     }
@@ -2715,7 +2699,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2725,7 +2708,7 @@ mod __parse__Fn {
         // (<Binding<Local, OwnRef>> ",")* =  => ActionFn(117);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action117::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action117::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (0, 7)
     }
@@ -2734,7 +2717,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2745,7 +2727,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action118::<>(cx, holes, input, __sym0);
+        let __nt = super::__action118::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (1, 7)
     }
@@ -2754,7 +2736,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2767,7 +2748,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action145::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action145::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (2, 8)
     }
@@ -2776,7 +2757,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2790,7 +2770,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action146::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action146::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant5(__nt), __end));
         (3, 8)
     }
@@ -2799,7 +2779,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2812,7 +2791,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action124::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action124::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (2, 9)
     }
@@ -2821,7 +2800,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2831,7 +2809,7 @@ mod __parse__Fn {
         // (<Binding<Location, Ty>> ",")* =  => ActionFn(122);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action122::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action122::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (0, 10)
     }
@@ -2840,7 +2818,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2851,7 +2828,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action123::<>(cx, holes, input, __sym0);
+        let __nt = super::__action123::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (1, 10)
     }
@@ -2860,7 +2837,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2873,7 +2849,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action149::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action149::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (2, 11)
     }
@@ -2882,7 +2858,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2896,7 +2871,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action150::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action150::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant7(__nt), __end));
         (3, 11)
     }
@@ -2905,7 +2880,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2918,7 +2892,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action93::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action93::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (2, 12)
     }
@@ -2927,7 +2901,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2937,7 +2910,7 @@ mod __parse__Fn {
         // (<Local> ",")* =  => ActionFn(91);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action91::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action91::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (0, 13)
     }
@@ -2946,7 +2919,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2957,7 +2929,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action92::<>(cx, holes, input, __sym0);
+        let __nt = super::__action92::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 13)
     }
@@ -2966,7 +2938,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -2979,7 +2950,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action153::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action153::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (2, 14)
     }
@@ -2988,7 +2959,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3002,7 +2972,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action154::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action154::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (3, 14)
     }
@@ -3011,7 +2981,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3024,7 +2993,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action112::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action112::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (2, 15)
     }
@@ -3033,7 +3002,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3043,7 +3011,7 @@ mod __parse__Fn {
         // (<Place> ",")* =  => ActionFn(110);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action110::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action110::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (0, 16)
     }
@@ -3052,7 +3020,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3063,7 +3030,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action111::<>(cx, holes, input, __sym0);
+        let __nt = super::__action111::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (1, 16)
     }
@@ -3072,7 +3039,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3085,7 +3051,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action157::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action157::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (2, 17)
     }
@@ -3094,7 +3060,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3108,7 +3073,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action158::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action158::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant11(__nt), __end));
         (3, 17)
     }
@@ -3117,7 +3082,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3130,7 +3094,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action100::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action100::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (2, 18)
     }
@@ -3139,7 +3103,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3149,7 +3112,7 @@ mod __parse__Fn {
         // (<TypeLayout> ",")* =  => ActionFn(98);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action98::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action98::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (0, 19)
     }
@@ -3158,7 +3121,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3169,7 +3131,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action99::<>(cx, holes, input, __sym0);
+        let __nt = super::__action99::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (1, 19)
     }
@@ -3178,7 +3140,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3191,7 +3152,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action161::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action161::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (2, 20)
     }
@@ -3200,7 +3161,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3214,7 +3174,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action162::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action162::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (3, 20)
     }
@@ -3223,7 +3183,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3234,7 +3193,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant14(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action53::<>(cx, holes, input, __sym0);
+        let __nt = super::__action53::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 21)
     }
@@ -3243,7 +3202,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3254,7 +3212,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action25::<>(cx, holes, input, __sym0);
+        let __nt = super::__action25::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
@@ -3263,7 +3221,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3274,7 +3231,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action26::<>(cx, holes, input, __sym0);
+        let __nt = super::__action26::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (1, 22)
     }
@@ -3283,7 +3240,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3294,7 +3250,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant16(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action67::<>(cx, holes, input, __sym0);
+        let __nt = super::__action67::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 23)
     }
@@ -3303,7 +3259,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3314,7 +3269,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant16(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action68::<>(cx, holes, input, __sym0);
+        let __nt = super::__action68::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 23)
     }
@@ -3323,7 +3278,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3334,7 +3288,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action60::<>(cx, holes, input, __sym0);
+        let __nt = super::__action60::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 24)
     }
@@ -3343,7 +3297,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3354,7 +3307,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action61::<>(cx, holes, input, __sym0);
+        let __nt = super::__action61::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 24)
     }
@@ -3363,7 +3316,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3374,7 +3326,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action62::<>(cx, holes, input, __sym0);
+        let __nt = super::__action62::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3383,7 +3335,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3394,7 +3345,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action63::<>(cx, holes, input, __sym0);
+        let __nt = super::__action63::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3403,7 +3354,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3414,7 +3364,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action64::<>(cx, holes, input, __sym0);
+        let __nt = super::__action64::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3423,7 +3373,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3434,7 +3383,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action65::<>(cx, holes, input, __sym0);
+        let __nt = super::__action65::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3443,7 +3392,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3454,7 +3402,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action66::<>(cx, holes, input, __sym0);
+        let __nt = super::__action66::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 25)
     }
@@ -3463,7 +3411,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3477,7 +3424,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action81::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action81::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant2(__nt), __end));
         (3, 26)
     }
@@ -3486,7 +3433,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3497,7 +3443,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action103::<>(cx, holes, input, __sym0);
+        let __nt = super::__action103::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (1, 27)
     }
@@ -3506,7 +3452,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3516,7 +3461,7 @@ mod __parse__Fn {
         // Binding<Field, Ty>? =  => ActionFn(104);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action104::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action104::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (0, 27)
     }
@@ -3525,7 +3470,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3539,7 +3483,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action72::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action72::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant4(__nt), __end));
         (3, 28)
     }
@@ -3548,7 +3492,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3559,7 +3502,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action115::<>(cx, holes, input, __sym0);
+        let __nt = super::__action115::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
         (1, 29)
     }
@@ -3568,7 +3511,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3578,7 +3520,7 @@ mod __parse__Fn {
         // Binding<Local, OwnRef>? =  => ActionFn(116);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action116::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action116::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
         (0, 29)
     }
@@ -3587,7 +3529,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3601,7 +3542,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant33(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action70::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action70::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant6(__nt), __end));
         (3, 30)
     }
@@ -3610,7 +3551,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3621,7 +3561,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action120::<>(cx, holes, input, __sym0);
+        let __nt = super::__action120::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (1, 31)
     }
@@ -3630,7 +3570,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3640,7 +3579,7 @@ mod __parse__Fn {
         // Binding<Location, Ty>? =  => ActionFn(121);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action121::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action121::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (0, 31)
     }
@@ -3649,7 +3588,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3660,7 +3598,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant2(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action165::<>(cx, holes, input, __sym0);
+        let __nt = super::__action165::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 32)
     }
@@ -3669,7 +3607,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3679,7 +3616,7 @@ mod __parse__Fn {
         // Comma<Binding<Field, Ty>> =  => ActionFn(166);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action166::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action166::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (0, 32)
     }
@@ -3688,7 +3625,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3701,7 +3637,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action167::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action167::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 32)
     }
@@ -3710,7 +3646,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3721,7 +3656,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant3(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action168::<>(cx, holes, input, __sym0);
+        let __nt = super::__action168::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 32)
     }
@@ -3730,7 +3665,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3741,7 +3675,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action169::<>(cx, holes, input, __sym0);
+        let __nt = super::__action169::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 33)
     }
@@ -3750,7 +3684,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3760,7 +3693,7 @@ mod __parse__Fn {
         // Comma<Binding<Local, OwnRef>> =  => ActionFn(170);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action170::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action170::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (0, 33)
     }
@@ -3769,7 +3702,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3782,7 +3714,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action171::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action171::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (2, 33)
     }
@@ -3791,7 +3723,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3802,7 +3733,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action172::<>(cx, holes, input, __sym0);
+        let __nt = super::__action172::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 33)
     }
@@ -3811,7 +3742,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3822,7 +3752,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant6(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action173::<>(cx, holes, input, __sym0);
+        let __nt = super::__action173::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 34)
     }
@@ -3831,7 +3761,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3841,7 +3770,7 @@ mod __parse__Fn {
         // Comma<Binding<Location, Ty>> =  => ActionFn(174);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action174::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action174::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (0, 34)
     }
@@ -3850,7 +3779,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3863,7 +3791,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action175::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action175::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (2, 34)
     }
@@ -3872,7 +3800,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3883,7 +3810,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant7(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action176::<>(cx, holes, input, __sym0);
+        let __nt = super::__action176::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 34)
     }
@@ -3892,7 +3819,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3903,7 +3829,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action179::<>(cx, holes, input, __sym0);
+        let __nt = super::__action179::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (1, 35)
     }
@@ -3912,7 +3838,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3922,7 +3847,7 @@ mod __parse__Fn {
         // Comma<Local> =  => ActionFn(180);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action180::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action180::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (0, 35)
     }
@@ -3931,7 +3856,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3944,7 +3868,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action181::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action181::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (2, 35)
     }
@@ -3953,7 +3877,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3964,7 +3887,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action182::<>(cx, holes, input, __sym0);
+        let __nt = super::__action182::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (1, 35)
     }
@@ -3973,7 +3896,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -3984,7 +3906,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action183::<>(cx, holes, input, __sym0);
+        let __nt = super::__action183::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (1, 36)
     }
@@ -3993,7 +3915,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4003,7 +3924,7 @@ mod __parse__Fn {
         // Comma<Place> =  => ActionFn(184);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action184::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action184::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (0, 36)
     }
@@ -4012,7 +3933,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4025,7 +3945,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action185::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action185::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (2, 36)
     }
@@ -4034,7 +3954,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4045,7 +3964,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant11(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action186::<>(cx, holes, input, __sym0);
+        let __nt = super::__action186::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant23(__nt), __end));
         (1, 36)
     }
@@ -4054,7 +3973,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4065,7 +3983,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action189::<>(cx, holes, input, __sym0);
+        let __nt = super::__action189::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (1, 37)
     }
@@ -4074,7 +3992,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4084,7 +4001,7 @@ mod __parse__Fn {
         // Comma<TypeLayout> =  => ActionFn(190);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action190::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action190::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (0, 37)
     }
@@ -4093,7 +4010,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4106,7 +4022,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action191::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action191::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (2, 37)
     }
@@ -4115,7 +4031,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4126,7 +4041,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant13(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action192::<>(cx, holes, input, __sym0);
+        let __nt = super::__action192::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (1, 37)
     }
@@ -4135,7 +4050,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4146,7 +4060,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action18::<>(cx, holes, input, __sym0);
+        let __nt = super::__action18::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (1, 38)
     }
@@ -4155,7 +4069,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4166,7 +4079,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action19::<>(cx, holes, input, __sym0);
+        let __nt = super::__action19::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (1, 38)
     }
@@ -4175,7 +4088,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4186,7 +4098,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action20::<>(cx, holes, input, __sym0);
+        let __nt = super::__action20::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (1, 38)
     }
@@ -4195,7 +4107,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4208,7 +4119,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action21::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action21::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (2, 38)
     }
@@ -4217,7 +4128,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4228,7 +4138,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action22::<>(cx, holes, input, __sym0);
+        let __nt = super::__action22::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant26(__nt), __end));
         (1, 39)
     }
@@ -4237,7 +4147,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4248,7 +4157,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action23::<>(cx, holes, input, __sym0);
+        let __nt = super::__action23::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant26(__nt), __end));
         (1, 39)
     }
@@ -4257,7 +4166,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4268,7 +4176,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action24::<>(cx, holes, input, __sym0);
+        let __nt = super::__action24::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant26(__nt), __end));
         (1, 39)
     }
@@ -4277,7 +4185,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4298,7 +4205,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant44(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym9.2.clone();
-        let __nt = super::__action8::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9);
+        let __nt = super::__action8::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (10, 40)
     }
@@ -4307,7 +4214,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4318,7 +4224,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant14(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action54::<>(cx, holes, input, __sym0);
+        let __nt = super::__action54::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant14(__nt), __end));
         (1, 41)
     }
@@ -4327,7 +4233,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4338,7 +4243,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action59::<>(cx, holes, input, __sym0);
+        let __nt = super::__action59::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant28(__nt), __end));
         (1, 42)
     }
@@ -4347,7 +4252,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4374,7 +4278,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym15.2.clone();
-        let __nt = super::__action1::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9, __sym10, __sym11, __sym12, __sym13, __sym14, __sym15);
+        let __nt = super::__action1::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6, __sym7, __sym8, __sym9, __sym10, __sym11, __sym12, __sym13, __sym14, __sym15);
         __symbols.push((__start, __Symbol::Variant29(__nt), __end));
         (16, 43)
     }
@@ -4383,7 +4287,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4398,7 +4301,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action2::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action2::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (4, 44)
     }
@@ -4407,7 +4310,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4424,7 +4326,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym5.2.clone();
-        let __nt = super::__action3::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5);
+        let __nt = super::__action3::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (6, 44)
     }
@@ -4433,7 +4335,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4451,7 +4352,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action4::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action4::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (7, 44)
     }
@@ -4460,7 +4361,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4475,7 +4375,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action177::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action177::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (4, 44)
     }
@@ -4484,7 +4384,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4500,7 +4399,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym4.2.clone();
-        let __nt = super::__action178::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __nt = super::__action178::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (5, 44)
     }
@@ -4509,7 +4408,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4523,7 +4421,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant43(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action6::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action6::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (3, 44)
     }
@@ -4532,7 +4430,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4543,7 +4440,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action7::<>(cx, holes, input, __sym0);
+        let __nt = super::__action7::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant30(__nt), __end));
         (1, 44)
     }
@@ -4552,7 +4449,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4563,7 +4459,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant21(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action55::<>(cx, holes, input, __sym0);
+        let __nt = super::__action55::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 45)
     }
@@ -4572,7 +4468,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4586,7 +4481,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action77::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action77::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (3, 46)
     }
@@ -4595,7 +4490,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4606,7 +4500,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action78::<>(cx, holes, input, __sym0);
+        let __nt = super::__action78::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 46)
     }
@@ -4615,7 +4509,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4629,7 +4522,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action75::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action75::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (3, 47)
     }
@@ -4638,7 +4531,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4649,7 +4541,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action76::<>(cx, holes, input, __sym0);
+        let __nt = super::__action76::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 47)
     }
@@ -4658,7 +4550,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4669,7 +4560,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant44(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action57::<>(cx, holes, input, __sym0);
+        let __nt = super::__action57::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant8(__nt), __end));
         (1, 48)
     }
@@ -4678,7 +4569,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4688,7 +4578,7 @@ mod __parse__Fn {
         // Local* =  => ActionFn(86);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action86::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action86::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (0, 49)
     }
@@ -4697,7 +4587,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4708,7 +4597,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action87::<>(cx, holes, input, __sym0);
+        let __nt = super::__action87::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 49)
     }
@@ -4717,7 +4606,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4728,7 +4616,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action94::<>(cx, holes, input, __sym0);
+        let __nt = super::__action94::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (1, 50)
     }
@@ -4737,7 +4625,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4750,7 +4637,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant9(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action95::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action95::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant9(__nt), __end));
         (2, 50)
     }
@@ -4759,7 +4646,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4770,7 +4656,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action89::<>(cx, holes, input, __sym0);
+        let __nt = super::__action89::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant32(__nt), __end));
         (1, 51)
     }
@@ -4779,7 +4665,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4789,7 +4674,7 @@ mod __parse__Fn {
         // Local? =  => ActionFn(90);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action90::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action90::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant32(__nt), __end));
         (0, 51)
     }
@@ -4798,7 +4683,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4809,7 +4693,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant44(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action58::<>(cx, holes, input, __sym0);
+        let __nt = super::__action58::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant33(__nt), __end));
         (1, 52)
     }
@@ -4818,7 +4702,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4829,7 +4712,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action16::<>(cx, holes, input, __sym0);
+        let __nt = super::__action16::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (1, 53)
     }
@@ -4838,7 +4721,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4849,7 +4731,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action17::<>(cx, holes, input, __sym0);
+        let __nt = super::__action17::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant34(__nt), __end));
         (1, 53)
     }
@@ -4858,7 +4740,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4873,7 +4754,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action45::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action45::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant35(__nt), __end));
         (4, 54)
     }
@@ -4882,7 +4763,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4892,7 +4772,7 @@ mod __parse__Fn {
         // Path_ =  => ActionFn(139);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action139::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action139::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant36(__nt), __end));
         (0, 55)
     }
@@ -4901,7 +4781,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4912,7 +4791,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action140::<>(cx, holes, input, __sym0);
+        let __nt = super::__action140::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant36(__nt), __end));
         (1, 55)
     }
@@ -4921,7 +4800,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4932,7 +4810,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action29::<>(cx, holes, input, __sym0);
+        let __nt = super::__action29::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant10(__nt), __end));
         (1, 56)
     }
@@ -4941,7 +4819,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4952,7 +4829,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action108::<>(cx, holes, input, __sym0);
+        let __nt = super::__action108::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant37(__nt), __end));
         (1, 57)
     }
@@ -4961,7 +4838,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4971,7 +4847,7 @@ mod __parse__Fn {
         // Place? =  => ActionFn(109);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action109::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action109::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant37(__nt), __end));
         (0, 57)
     }
@@ -4980,7 +4856,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -4993,7 +4868,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action30::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action30::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
         (2, 58)
     }
@@ -5002,7 +4877,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5015,7 +4889,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action31::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action31::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
         (2, 59)
     }
@@ -5024,7 +4898,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5035,7 +4908,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action32::<>(cx, holes, input, __sym0);
+        let __nt = super::__action32::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
         (1, 59)
     }
@@ -5044,7 +4917,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5055,7 +4927,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant8(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action33::<>(cx, holes, input, __sym0);
+        let __nt = super::__action33::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
         (1, 60)
     }
@@ -5064,7 +4936,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5078,7 +4949,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action34::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action34::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
         (3, 60)
     }
@@ -5087,7 +4958,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5098,7 +4968,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action46::<>(cx, holes, input, __sym0);
+        let __nt = super::__action46::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 61)
     }
@@ -5107,7 +4977,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5118,7 +4987,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action47::<>(cx, holes, input, __sym0);
+        let __nt = super::__action47::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 62)
     }
@@ -5127,7 +4996,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5138,7 +5006,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant26(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action48::<>(cx, holes, input, __sym0);
+        let __nt = super::__action48::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 63)
     }
@@ -5147,7 +5015,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5158,7 +5025,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant47(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action187::<>(cx, holes, input, __sym0);
+        let __nt = super::__action187::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (1, 63)
     }
@@ -5167,7 +5034,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5180,7 +5046,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant47(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action188::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action188::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant31(__nt), __end));
         (2, 63)
     }
@@ -5189,7 +5055,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5202,7 +5067,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action35::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action35::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant39(__nt), __end));
         (2, 64)
     }
@@ -5211,7 +5076,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5221,7 +5085,7 @@ mod __parse__Fn {
         // Projection* =  => ActionFn(73);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action73::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action73::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
         (0, 65)
     }
@@ -5230,7 +5094,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5241,7 +5104,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant40(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action74::<>(cx, holes, input, __sym0);
+        let __nt = super::__action74::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
         (1, 65)
     }
@@ -5250,7 +5113,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5261,7 +5123,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant39(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action113::<>(cx, holes, input, __sym0);
+        let __nt = super::__action113::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
         (1, 66)
     }
@@ -5270,7 +5132,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5283,7 +5144,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant40(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action114::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action114::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant40(__nt), __end));
         (2, 66)
     }
@@ -5292,7 +5153,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5306,7 +5166,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action44::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action44::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant41(__nt), __end));
         (3, 67)
     }
@@ -5315,7 +5175,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5326,7 +5185,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant34(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action12::<>(cx, holes, input, __sym0);
+        let __nt = super::__action12::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
         (1, 68)
     }
@@ -5335,7 +5194,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5349,7 +5207,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant34(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action13::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action13::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
         (3, 68)
     }
@@ -5358,7 +5216,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5371,7 +5228,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action14::<>(cx, holes, input, __sym0, __sym1);
+        let __nt = super::__action14::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
         (2, 68)
     }
@@ -5380,7 +5237,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5394,7 +5250,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action15::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action15::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant42(__nt), __end));
         (3, 68)
     }
@@ -5403,7 +5259,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5421,7 +5276,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action9::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action9::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant43(__nt), __end));
         (7, 69)
     }
@@ -5430,7 +5285,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5444,7 +5298,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant10(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action10::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action10::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant43(__nt), __end));
         (3, 69)
     }
@@ -5453,7 +5307,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5468,7 +5321,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action11::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action11::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant43(__nt), __end));
         (4, 69)
     }
@@ -5477,7 +5330,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5488,7 +5340,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action56::<>(cx, holes, input, __sym0);
+        let __nt = super::__action56::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant44(__nt), __end));
         (1, 70)
     }
@@ -5497,7 +5349,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5512,7 +5363,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action37::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action37::<>(cx, input, __sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (4, 71)
     }
@@ -5521,7 +5372,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5537,7 +5387,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym4.2.clone();
-        let __nt = super::__action38::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __nt = super::__action38::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (5, 71)
     }
@@ -5546,7 +5396,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5562,7 +5411,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym4.2.clone();
-        let __nt = super::__action39::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4);
+        let __nt = super::__action39::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (5, 71)
     }
@@ -5571,7 +5420,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5588,7 +5436,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym5.2.clone();
-        let __nt = super::__action40::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5);
+        let __nt = super::__action40::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (6, 71)
     }
@@ -5597,7 +5445,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5615,7 +5462,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action41::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action41::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (7, 71)
     }
@@ -5624,7 +5471,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5642,7 +5488,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym6.2.clone();
-        let __nt = super::__action42::<>(cx, holes, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
+        let __nt = super::__action42::<>(cx, input, __sym0, __sym1, __sym2, __sym3, __sym4, __sym5, __sym6);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (7, 71)
     }
@@ -5651,7 +5497,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5665,7 +5510,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action43::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action43::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant45(__nt), __end));
         (3, 71)
     }
@@ -5674,7 +5519,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5685,7 +5529,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action27::<>(cx, holes, input, __sym0);
+        let __nt = super::__action27::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (1, 72)
     }
@@ -5694,7 +5538,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5708,7 +5551,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action28::<>(cx, holes, input, __sym0, __sym1, __sym2);
+        let __nt = super::__action28::<>(cx, input, __sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant12(__nt), __end));
         (3, 72)
     }
@@ -5717,7 +5560,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5728,7 +5570,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant12(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action96::<>(cx, holes, input, __sym0);
+        let __nt = super::__action96::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant46(__nt), __end));
         (1, 73)
     }
@@ -5737,7 +5579,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5747,7 +5588,7 @@ mod __parse__Fn {
         // TypeLayout? =  => ActionFn(97);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2.clone())).unwrap_or_default();
         let __end = __start.clone();
-        let __nt = super::__action97::<>(cx, holes, input, &__start, &__end);
+        let __nt = super::__action97::<>(cx, input, &__start, &__end);
         __symbols.push((__start, __Symbol::Variant46(__nt), __end));
         (0, 73)
     }
@@ -5756,7 +5597,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5767,7 +5607,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant33(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action50::<>(cx, holes, input, __sym0);
+        let __nt = super::__action50::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant47(__nt), __end));
         (1, 74)
     }
@@ -5776,7 +5616,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5787,7 +5626,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant28(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action51::<>(cx, holes, input, __sym0);
+        let __nt = super::__action51::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant47(__nt), __end));
         (1, 74)
     }
@@ -5796,7 +5635,6 @@ mod __parse__Fn {
         'lr,
     >(
         cx: &'lr LiquidRustCtxt<'lr>,
-        holes: &mut u32,
         input: &'input str,
         __lookahead_start: Option<&usize>,
         __symbols: &mut ::std::vec::Vec<(usize,__Symbol<'input, 'lr>,usize)>,
@@ -5807,7 +5645,7 @@ mod __parse__Fn {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action52::<>(cx, holes, input, __sym0);
+        let __nt = super::__action52::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant47(__nt), __end));
         (1, 74)
     }
@@ -5886,7 +5724,6 @@ fn __action0<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, FnDef<'lr>, usize),
 ) -> FnDef<'lr>
@@ -5900,7 +5737,6 @@ fn __action1<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, name, _): (usize, Symbol, usize),
@@ -5929,7 +5765,6 @@ fn __action2<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, def, _): (usize, ContDef<'lr>, usize),
@@ -5946,7 +5781,6 @@ fn __action3<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, discr, _): (usize, Place, usize),
@@ -5965,7 +5799,6 @@ fn __action4<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, func, _): (usize, Place, usize),
@@ -5985,7 +5818,6 @@ fn __action5<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, target, _): (usize, Symbol, usize),
@@ -6003,7 +5835,6 @@ fn __action6<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Statement, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6019,7 +5850,6 @@ fn __action7<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Box<FnBody<'lr>>
@@ -6033,7 +5863,6 @@ fn __action8<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, name, _): (usize, Symbol, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6056,7 +5885,6 @@ fn __action9<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Local, usize),
@@ -6076,7 +5904,6 @@ fn __action10<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Place, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6092,7 +5919,6 @@ fn __action11<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6109,7 +5935,6 @@ fn __action12<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Operand, usize),
 ) -> Rvalue
@@ -6123,7 +5948,6 @@ fn __action13<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, lhs, _): (usize, Operand, usize),
     (_, op, _): (usize, BinOp, usize),
@@ -6139,7 +5963,6 @@ fn __action14<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, p, _): (usize, Place, usize),
@@ -6154,7 +5977,6 @@ fn __action15<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6170,7 +5992,6 @@ fn __action16<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Constant, usize),
 ) -> Operand
@@ -6184,7 +6005,6 @@ fn __action17<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Place, usize),
 ) -> Operand
@@ -6198,7 +6018,6 @@ fn __action18<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Constant
@@ -6212,7 +6031,6 @@ fn __action19<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Constant
@@ -6226,7 +6044,6 @@ fn __action20<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Constant
@@ -6240,7 +6057,6 @@ fn __action21<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
     (_, __1, _): (usize, &'input str, usize),
@@ -6255,7 +6071,6 @@ fn __action22<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> ConstantP
@@ -6269,7 +6084,6 @@ fn __action23<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> ConstantP
@@ -6283,7 +6097,6 @@ fn __action24<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> ConstantP
@@ -6297,7 +6110,6 @@ fn __action25<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BasicType
@@ -6311,7 +6123,6 @@ fn __action26<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BasicType
@@ -6325,7 +6136,6 @@ fn __action27<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> TypeLayout
@@ -6339,7 +6149,6 @@ fn __action28<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Vec<TypeLayout>, usize),
@@ -6355,7 +6164,6 @@ fn __action29<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, p, _): (usize, (Local, Vec<Projection>), usize),
 ) -> Place
@@ -6372,7 +6180,6 @@ fn __action30<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, p, _): (usize, (Local, Vec<Projection>), usize),
     (_, path, _): (usize, Vec<Projection>, usize),
@@ -6391,7 +6198,6 @@ fn __action31<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, (Local, Vec<Projection>), usize),
@@ -6410,7 +6216,6 @@ fn __action32<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Local, Vec<Projection>), usize),
 ) -> (Local, Vec<Projection>)
@@ -6424,7 +6229,6 @@ fn __action33<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> (Local, Vec<Projection>)
@@ -6438,7 +6242,6 @@ fn __action34<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, (Local, Vec<Projection>), usize),
@@ -6454,7 +6257,6 @@ fn __action35<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, &'input str, usize),
@@ -6469,7 +6271,6 @@ fn __action36<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, ::std::vec::Vec<&'input str>, usize),
 ) -> Vec<Projection>
@@ -6485,7 +6286,6 @@ fn __action37<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6502,7 +6302,6 @@ fn __action38<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, ty, _): (usize, BasicType, usize),
@@ -6520,7 +6319,6 @@ fn __action39<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, ty, _): (usize, BasicType, usize),
@@ -6529,10 +6327,7 @@ fn __action39<
     (_, _, _): (usize, &'input str, usize),
 ) -> Ty<'lr>
 {
-    {
-    *holes += 1;
-    cx.mk_ty(TyS::RefineHole {ty, n: *holes})
-  }
+    cx.mk_refine_hole(ty)
 }
 
 #[allow(unused_variables)]
@@ -6541,7 +6336,6 @@ fn __action40<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6560,7 +6354,6 @@ fn __action41<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6580,7 +6373,6 @@ fn __action42<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6600,7 +6392,6 @@ fn __action43<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Vec<(Field, Ty<'lr>)>, usize),
@@ -6616,7 +6407,6 @@ fn __action44<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, Vec<Place>, usize),
@@ -6632,7 +6422,6 @@ fn __action45<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -6649,7 +6438,6 @@ fn __action46<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Pred<'lr>, usize),
 ) -> Pred<'lr>
@@ -6663,7 +6451,6 @@ fn __action47<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Pred<'lr>, usize),
 ) -> Pred<'lr>
@@ -6677,7 +6464,6 @@ fn __action48<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, ConstantP, usize),
 ) -> Pred<'lr>
@@ -6691,7 +6477,6 @@ fn __action49<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, var, _): (usize, Var, usize),
     (_, projection, _): (usize, ::std::vec::Vec<u32>, usize),
@@ -6706,7 +6491,6 @@ fn __action50<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Location, usize),
 ) -> Var
@@ -6720,7 +6504,6 @@ fn __action51<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Field, usize),
 ) -> Var
@@ -6734,7 +6517,6 @@ fn __action52<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Var
@@ -6748,7 +6530,6 @@ fn __action53<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Vec<(Local, OwnRef)>, usize),
 ) -> Vec<(Local, OwnRef)>
@@ -6762,7 +6543,6 @@ fn __action54<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Vec<(Local, OwnRef)>, usize),
 ) -> Vec<(Local, OwnRef)>
@@ -6776,7 +6556,6 @@ fn __action55<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Vec<(Location, Ty<'lr>)>, usize),
 ) -> Vec<(Location, Ty<'lr>)>
@@ -6790,7 +6569,6 @@ fn __action56<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Symbol
@@ -6804,7 +6582,6 @@ fn __action57<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Symbol, usize),
 ) -> Local
@@ -6818,7 +6595,6 @@ fn __action58<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Symbol, usize),
 ) -> Location
@@ -6832,7 +6608,6 @@ fn __action59<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> Field
@@ -6846,7 +6621,6 @@ fn __action60<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6860,7 +6634,6 @@ fn __action61<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6874,7 +6647,6 @@ fn __action62<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6888,7 +6660,6 @@ fn __action63<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6902,7 +6673,6 @@ fn __action64<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6916,7 +6686,6 @@ fn __action65<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6930,7 +6699,6 @@ fn __action66<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> BinOp
@@ -6944,7 +6712,6 @@ fn __action67<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, BinOp, usize),
 ) -> BinOp
@@ -6958,7 +6725,6 @@ fn __action68<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, BinOp, usize),
 ) -> BinOp
@@ -6972,7 +6738,6 @@ fn __action69<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
     (_, e, _): (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize),
@@ -6994,7 +6759,6 @@ fn __action70<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Location, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7010,7 +6774,6 @@ fn __action71<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
     (_, e, _): (usize, ::std::option::Option<(Local, OwnRef)>, usize),
@@ -7032,7 +6795,6 @@ fn __action72<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7048,7 +6810,6 @@ fn __action73<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7063,7 +6824,6 @@ fn __action74<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<u32>, usize),
 ) -> ::std::vec::Vec<u32>
@@ -7077,7 +6837,6 @@ fn __action75<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, lhs, _): (usize, Pred<'lr>, usize),
     (_, op, _): (usize, BinOp, usize),
@@ -7093,7 +6852,6 @@ fn __action76<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Pred<'lr>, usize),
 ) -> Pred<'lr>
@@ -7107,7 +6865,6 @@ fn __action77<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, lhs, _): (usize, Pred<'lr>, usize),
     (_, op, _): (usize, BinOp, usize),
@@ -7123,7 +6880,6 @@ fn __action78<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Pred<'lr>, usize),
 ) -> Pred<'lr>
@@ -7137,7 +6893,6 @@ fn __action79<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Place>, usize),
     (_, e, _): (usize, ::std::option::Option<Place>, usize),
@@ -7159,7 +6914,6 @@ fn __action80<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
     (_, e, _): (usize, ::std::option::Option<(Field, Ty<'lr>)>, usize),
@@ -7181,7 +6935,6 @@ fn __action81<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Field, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7197,7 +6950,6 @@ fn __action82<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7212,7 +6964,6 @@ fn __action83<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<&'input str>, usize),
 ) -> ::std::vec::Vec<&'input str>
@@ -7226,7 +6977,6 @@ fn __action84<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, &'input str, usize),
@@ -7241,7 +6991,6 @@ fn __action85<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<TypeLayout>, usize),
     (_, e, _): (usize, ::std::option::Option<TypeLayout>, usize),
@@ -7263,7 +7012,6 @@ fn __action86<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7278,7 +7026,6 @@ fn __action87<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
 ) -> ::std::vec::Vec<Local>
@@ -7292,7 +7039,6 @@ fn __action88<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, e, _): (usize, ::std::option::Option<Local>, usize),
@@ -7314,7 +7060,6 @@ fn __action89<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> ::std::option::Option<Local>
@@ -7328,7 +7073,6 @@ fn __action90<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7343,7 +7087,6 @@ fn __action91<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7358,7 +7101,6 @@ fn __action92<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
 ) -> ::std::vec::Vec<Local>
@@ -7372,7 +7114,6 @@ fn __action93<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7387,7 +7128,6 @@ fn __action94<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> ::std::vec::Vec<Local>
@@ -7401,7 +7141,6 @@ fn __action95<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, e, _): (usize, Local, usize),
@@ -7416,7 +7155,6 @@ fn __action96<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, TypeLayout, usize),
 ) -> ::std::option::Option<TypeLayout>
@@ -7430,7 +7168,6 @@ fn __action97<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7445,7 +7182,6 @@ fn __action98<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7460,7 +7196,6 @@ fn __action99<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<TypeLayout>, usize),
 ) -> ::std::vec::Vec<TypeLayout>
@@ -7474,7 +7209,6 @@ fn __action100<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, TypeLayout, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7489,7 +7223,6 @@ fn __action101<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, &'input str, usize),
 ) -> ::std::vec::Vec<&'input str>
@@ -7503,7 +7236,6 @@ fn __action102<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<&'input str>, usize),
     (_, e, _): (usize, &'input str, usize),
@@ -7518,7 +7250,6 @@ fn __action103<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Field, Ty<'lr>), usize),
 ) -> ::std::option::Option<(Field, Ty<'lr>)>
@@ -7532,7 +7263,6 @@ fn __action104<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7547,7 +7277,6 @@ fn __action105<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7562,7 +7291,6 @@ fn __action106<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
 ) -> ::std::vec::Vec<(Field, Ty<'lr>)>
@@ -7576,7 +7304,6 @@ fn __action107<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Field, Ty<'lr>), usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7591,7 +7318,6 @@ fn __action108<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Place, usize),
 ) -> ::std::option::Option<Place>
@@ -7605,7 +7331,6 @@ fn __action109<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7620,7 +7345,6 @@ fn __action110<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7635,7 +7359,6 @@ fn __action111<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Place>, usize),
 ) -> ::std::vec::Vec<Place>
@@ -7649,7 +7372,6 @@ fn __action112<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Place, usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7664,7 +7386,6 @@ fn __action113<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, u32, usize),
 ) -> ::std::vec::Vec<u32>
@@ -7678,7 +7399,6 @@ fn __action114<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<u32>, usize),
     (_, e, _): (usize, u32, usize),
@@ -7693,7 +7413,6 @@ fn __action115<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Local, OwnRef), usize),
 ) -> ::std::option::Option<(Local, OwnRef)>
@@ -7707,7 +7426,6 @@ fn __action116<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7722,7 +7440,6 @@ fn __action117<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7737,7 +7454,6 @@ fn __action118<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
 ) -> ::std::vec::Vec<(Local, OwnRef)>
@@ -7751,7 +7467,6 @@ fn __action119<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Local, OwnRef), usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7766,7 +7481,6 @@ fn __action120<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Location, Ty<'lr>), usize),
 ) -> ::std::option::Option<(Location, Ty<'lr>)>
@@ -7780,7 +7494,6 @@ fn __action121<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7795,7 +7508,6 @@ fn __action122<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -7810,7 +7522,6 @@ fn __action123<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
 ) -> ::std::vec::Vec<(Location, Ty<'lr>)>
@@ -7824,7 +7535,6 @@ fn __action124<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Location, Ty<'lr>), usize),
     (_, _, _): (usize, &'input str, usize),
@@ -7839,7 +7549,6 @@ fn __action125<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Location, Ty<'lr>), usize),
 ) -> ::std::vec::Vec<(Location, Ty<'lr>)>
@@ -7853,7 +7562,6 @@ fn __action126<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
     (_, e, _): (usize, (Location, Ty<'lr>), usize),
@@ -7868,7 +7576,6 @@ fn __action127<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Local, OwnRef), usize),
 ) -> ::std::vec::Vec<(Local, OwnRef)>
@@ -7882,7 +7589,6 @@ fn __action128<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
     (_, e, _): (usize, (Local, OwnRef), usize),
@@ -7897,7 +7603,6 @@ fn __action129<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Place, usize),
 ) -> ::std::vec::Vec<Place>
@@ -7911,7 +7616,6 @@ fn __action130<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Place>, usize),
     (_, e, _): (usize, Place, usize),
@@ -7926,7 +7630,6 @@ fn __action131<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, (Field, Ty<'lr>), usize),
 ) -> ::std::vec::Vec<(Field, Ty<'lr>)>
@@ -7940,7 +7643,6 @@ fn __action132<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
     (_, e, _): (usize, (Field, Ty<'lr>), usize),
@@ -7955,7 +7657,6 @@ fn __action133<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, TypeLayout, usize),
 ) -> ::std::vec::Vec<TypeLayout>
@@ -7969,7 +7670,6 @@ fn __action134<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<TypeLayout>, usize),
     (_, e, _): (usize, TypeLayout, usize),
@@ -7984,7 +7684,6 @@ fn __action135<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, __0, _): (usize, Local, usize),
 ) -> ::std::vec::Vec<Local>
@@ -7998,7 +7697,6 @@ fn __action136<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     (_, v, _): (usize, ::std::vec::Vec<Local>, usize),
     (_, e, _): (usize, Local, usize),
@@ -8013,7 +7711,6 @@ fn __action137<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, &'input str, usize),
     __1: (usize, &'input str, usize),
@@ -8023,7 +7720,6 @@ fn __action137<
     let __end0 = __1.2.clone();
     let __temp0 = __action84(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8031,7 +7727,6 @@ fn __action137<
     let __temp0 = (__start0, __temp0, __end0);
     __action101(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8043,7 +7738,6 @@ fn __action138<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<&'input str>, usize),
     __1: (usize, &'input str, usize),
@@ -8054,7 +7748,6 @@ fn __action138<
     let __end0 = __2.2.clone();
     let __temp0 = __action84(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8062,7 +7755,6 @@ fn __action138<
     let __temp0 = (__start0, __temp0, __end0);
     __action102(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8075,7 +7767,6 @@ fn __action139<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -8085,7 +7776,6 @@ fn __action139<
     let __end0 = __lookahead.clone();
     let __temp0 = __action82(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8093,7 +7783,6 @@ fn __action139<
     let __temp0 = (__start0, __temp0, __end0);
     __action36(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8105,7 +7794,6 @@ fn __action140<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<&'input str>, usize),
 ) -> Vec<Projection>
@@ -8114,14 +7802,12 @@ fn __action140<
     let __end0 = __0.2.clone();
     let __temp0 = __action83(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action36(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8133,7 +7819,6 @@ fn __action141<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, (Field, Ty<'lr>), usize),
     __1: (usize, &'input str, usize),
@@ -8143,7 +7828,6 @@ fn __action141<
     let __end0 = __1.2.clone();
     let __temp0 = __action107(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8151,7 +7835,6 @@ fn __action141<
     let __temp0 = (__start0, __temp0, __end0);
     __action131(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8163,7 +7846,6 @@ fn __action142<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
     __1: (usize, (Field, Ty<'lr>), usize),
@@ -8174,7 +7856,6 @@ fn __action142<
     let __end0 = __2.2.clone();
     let __temp0 = __action107(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8182,7 +7863,6 @@ fn __action142<
     let __temp0 = (__start0, __temp0, __end0);
     __action132(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8195,7 +7875,6 @@ fn __action143<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::option::Option<(Field, Ty<'lr>)>, usize),
 ) -> Vec<(Field, Ty<'lr>)>
@@ -8204,7 +7883,6 @@ fn __action143<
     let __end0 = __0.0.clone();
     let __temp0 = __action105(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8212,7 +7890,6 @@ fn __action143<
     let __temp0 = (__start0, __temp0, __end0);
     __action80(
         cx,
-        holes,
         input,
         __temp0,
         __0,
@@ -8225,7 +7902,6 @@ fn __action144<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
     __1: (usize, ::std::option::Option<(Field, Ty<'lr>)>, usize),
@@ -8235,14 +7911,12 @@ fn __action144<
     let __end0 = __0.2.clone();
     let __temp0 = __action106(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action80(
         cx,
-        holes,
         input,
         __temp0,
         __1,
@@ -8255,7 +7929,6 @@ fn __action145<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, (Local, OwnRef), usize),
     __1: (usize, &'input str, usize),
@@ -8265,7 +7938,6 @@ fn __action145<
     let __end0 = __1.2.clone();
     let __temp0 = __action119(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8273,7 +7945,6 @@ fn __action145<
     let __temp0 = (__start0, __temp0, __end0);
     __action127(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8285,7 +7956,6 @@ fn __action146<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
     __1: (usize, (Local, OwnRef), usize),
@@ -8296,7 +7966,6 @@ fn __action146<
     let __end0 = __2.2.clone();
     let __temp0 = __action119(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8304,7 +7973,6 @@ fn __action146<
     let __temp0 = (__start0, __temp0, __end0);
     __action128(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8317,7 +7985,6 @@ fn __action147<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::option::Option<(Local, OwnRef)>, usize),
 ) -> Vec<(Local, OwnRef)>
@@ -8326,7 +7993,6 @@ fn __action147<
     let __end0 = __0.0.clone();
     let __temp0 = __action117(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8334,7 +8000,6 @@ fn __action147<
     let __temp0 = (__start0, __temp0, __end0);
     __action71(
         cx,
-        holes,
         input,
         __temp0,
         __0,
@@ -8347,7 +8012,6 @@ fn __action148<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
     __1: (usize, ::std::option::Option<(Local, OwnRef)>, usize),
@@ -8357,14 +8021,12 @@ fn __action148<
     let __end0 = __0.2.clone();
     let __temp0 = __action118(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action71(
         cx,
-        holes,
         input,
         __temp0,
         __1,
@@ -8377,7 +8039,6 @@ fn __action149<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, (Location, Ty<'lr>), usize),
     __1: (usize, &'input str, usize),
@@ -8387,7 +8048,6 @@ fn __action149<
     let __end0 = __1.2.clone();
     let __temp0 = __action124(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8395,7 +8055,6 @@ fn __action149<
     let __temp0 = (__start0, __temp0, __end0);
     __action125(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8407,7 +8066,6 @@ fn __action150<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
     __1: (usize, (Location, Ty<'lr>), usize),
@@ -8418,7 +8076,6 @@ fn __action150<
     let __end0 = __2.2.clone();
     let __temp0 = __action124(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8426,7 +8083,6 @@ fn __action150<
     let __temp0 = (__start0, __temp0, __end0);
     __action126(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8439,7 +8095,6 @@ fn __action151<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize),
 ) -> Vec<(Location, Ty<'lr>)>
@@ -8448,7 +8103,6 @@ fn __action151<
     let __end0 = __0.0.clone();
     let __temp0 = __action122(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8456,7 +8110,6 @@ fn __action151<
     let __temp0 = (__start0, __temp0, __end0);
     __action69(
         cx,
-        holes,
         input,
         __temp0,
         __0,
@@ -8469,7 +8122,6 @@ fn __action152<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
     __1: (usize, ::std::option::Option<(Location, Ty<'lr>)>, usize),
@@ -8479,14 +8131,12 @@ fn __action152<
     let __end0 = __0.2.clone();
     let __temp0 = __action123(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action69(
         cx,
-        holes,
         input,
         __temp0,
         __1,
@@ -8499,7 +8149,6 @@ fn __action153<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, Local, usize),
     __1: (usize, &'input str, usize),
@@ -8509,7 +8158,6 @@ fn __action153<
     let __end0 = __1.2.clone();
     let __temp0 = __action93(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8517,7 +8165,6 @@ fn __action153<
     let __temp0 = (__start0, __temp0, __end0);
     __action135(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8529,7 +8176,6 @@ fn __action154<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
     __1: (usize, Local, usize),
@@ -8540,7 +8186,6 @@ fn __action154<
     let __end0 = __2.2.clone();
     let __temp0 = __action93(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8548,7 +8193,6 @@ fn __action154<
     let __temp0 = (__start0, __temp0, __end0);
     __action136(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8561,7 +8205,6 @@ fn __action155<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::option::Option<Local>, usize),
 ) -> Vec<Local>
@@ -8570,7 +8213,6 @@ fn __action155<
     let __end0 = __0.0.clone();
     let __temp0 = __action91(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8578,7 +8220,6 @@ fn __action155<
     let __temp0 = (__start0, __temp0, __end0);
     __action88(
         cx,
-        holes,
         input,
         __temp0,
         __0,
@@ -8591,7 +8232,6 @@ fn __action156<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
     __1: (usize, ::std::option::Option<Local>, usize),
@@ -8601,14 +8241,12 @@ fn __action156<
     let __end0 = __0.2.clone();
     let __temp0 = __action92(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action88(
         cx,
-        holes,
         input,
         __temp0,
         __1,
@@ -8621,7 +8259,6 @@ fn __action157<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, Place, usize),
     __1: (usize, &'input str, usize),
@@ -8631,7 +8268,6 @@ fn __action157<
     let __end0 = __1.2.clone();
     let __temp0 = __action112(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8639,7 +8275,6 @@ fn __action157<
     let __temp0 = (__start0, __temp0, __end0);
     __action129(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8651,7 +8286,6 @@ fn __action158<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Place>, usize),
     __1: (usize, Place, usize),
@@ -8662,7 +8296,6 @@ fn __action158<
     let __end0 = __2.2.clone();
     let __temp0 = __action112(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8670,7 +8303,6 @@ fn __action158<
     let __temp0 = (__start0, __temp0, __end0);
     __action130(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8683,7 +8315,6 @@ fn __action159<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::option::Option<Place>, usize),
 ) -> Vec<Place>
@@ -8692,7 +8323,6 @@ fn __action159<
     let __end0 = __0.0.clone();
     let __temp0 = __action110(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8700,7 +8330,6 @@ fn __action159<
     let __temp0 = (__start0, __temp0, __end0);
     __action79(
         cx,
-        holes,
         input,
         __temp0,
         __0,
@@ -8713,7 +8342,6 @@ fn __action160<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Place>, usize),
     __1: (usize, ::std::option::Option<Place>, usize),
@@ -8723,14 +8351,12 @@ fn __action160<
     let __end0 = __0.2.clone();
     let __temp0 = __action111(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action79(
         cx,
-        holes,
         input,
         __temp0,
         __1,
@@ -8743,7 +8369,6 @@ fn __action161<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, TypeLayout, usize),
     __1: (usize, &'input str, usize),
@@ -8753,7 +8378,6 @@ fn __action161<
     let __end0 = __1.2.clone();
     let __temp0 = __action100(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -8761,7 +8385,6 @@ fn __action161<
     let __temp0 = (__start0, __temp0, __end0);
     __action133(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8773,7 +8396,6 @@ fn __action162<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
     __1: (usize, TypeLayout, usize),
@@ -8784,7 +8406,6 @@ fn __action162<
     let __end0 = __2.2.clone();
     let __temp0 = __action100(
         cx,
-        holes,
         input,
         __1,
         __2,
@@ -8792,7 +8413,6 @@ fn __action162<
     let __temp0 = (__start0, __temp0, __end0);
     __action134(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8805,7 +8425,6 @@ fn __action163<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::option::Option<TypeLayout>, usize),
 ) -> Vec<TypeLayout>
@@ -8814,7 +8433,6 @@ fn __action163<
     let __end0 = __0.0.clone();
     let __temp0 = __action98(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8822,7 +8440,6 @@ fn __action163<
     let __temp0 = (__start0, __temp0, __end0);
     __action85(
         cx,
-        holes,
         input,
         __temp0,
         __0,
@@ -8835,7 +8452,6 @@ fn __action164<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
     __1: (usize, ::std::option::Option<TypeLayout>, usize),
@@ -8845,14 +8461,12 @@ fn __action164<
     let __end0 = __0.2.clone();
     let __temp0 = __action99(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action85(
         cx,
-        holes,
         input,
         __temp0,
         __1,
@@ -8865,7 +8479,6 @@ fn __action165<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, (Field, Ty<'lr>), usize),
 ) -> Vec<(Field, Ty<'lr>)>
@@ -8874,14 +8487,12 @@ fn __action165<
     let __end0 = __0.2.clone();
     let __temp0 = __action103(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action143(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8893,7 +8504,6 @@ fn __action166<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -8903,7 +8513,6 @@ fn __action166<
     let __end0 = __lookahead.clone();
     let __temp0 = __action104(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8911,7 +8520,6 @@ fn __action166<
     let __temp0 = (__start0, __temp0, __end0);
     __action143(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -8923,7 +8531,6 @@ fn __action167<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
     __1: (usize, (Field, Ty<'lr>), usize),
@@ -8933,14 +8540,12 @@ fn __action167<
     let __end0 = __1.2.clone();
     let __temp0 = __action103(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action144(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8953,7 +8558,6 @@ fn __action168<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Field, Ty<'lr>)>, usize),
 ) -> Vec<(Field, Ty<'lr>)>
@@ -8962,7 +8566,6 @@ fn __action168<
     let __end0 = __0.2.clone();
     let __temp0 = __action104(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -8970,7 +8573,6 @@ fn __action168<
     let __temp0 = (__start0, __temp0, __end0);
     __action144(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -8983,7 +8585,6 @@ fn __action169<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, (Local, OwnRef), usize),
 ) -> Vec<(Local, OwnRef)>
@@ -8992,14 +8593,12 @@ fn __action169<
     let __end0 = __0.2.clone();
     let __temp0 = __action115(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action147(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9011,7 +8610,6 @@ fn __action170<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -9021,7 +8619,6 @@ fn __action170<
     let __end0 = __lookahead.clone();
     let __temp0 = __action116(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9029,7 +8626,6 @@ fn __action170<
     let __temp0 = (__start0, __temp0, __end0);
     __action147(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9041,7 +8637,6 @@ fn __action171<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
     __1: (usize, (Local, OwnRef), usize),
@@ -9051,14 +8646,12 @@ fn __action171<
     let __end0 = __1.2.clone();
     let __temp0 = __action115(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action148(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9071,7 +8664,6 @@ fn __action172<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Local, OwnRef)>, usize),
 ) -> Vec<(Local, OwnRef)>
@@ -9080,7 +8672,6 @@ fn __action172<
     let __end0 = __0.2.clone();
     let __temp0 = __action116(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9088,7 +8679,6 @@ fn __action172<
     let __temp0 = (__start0, __temp0, __end0);
     __action148(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9101,7 +8691,6 @@ fn __action173<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, (Location, Ty<'lr>), usize),
 ) -> Vec<(Location, Ty<'lr>)>
@@ -9110,14 +8699,12 @@ fn __action173<
     let __end0 = __0.2.clone();
     let __temp0 = __action120(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action151(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9129,7 +8716,6 @@ fn __action174<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -9139,7 +8725,6 @@ fn __action174<
     let __end0 = __lookahead.clone();
     let __temp0 = __action121(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9147,7 +8732,6 @@ fn __action174<
     let __temp0 = (__start0, __temp0, __end0);
     __action151(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9159,7 +8743,6 @@ fn __action175<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
     __1: (usize, (Location, Ty<'lr>), usize),
@@ -9169,14 +8752,12 @@ fn __action175<
     let __end0 = __1.2.clone();
     let __temp0 = __action120(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action152(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9189,7 +8770,6 @@ fn __action176<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<(Location, Ty<'lr>)>, usize),
 ) -> Vec<(Location, Ty<'lr>)>
@@ -9198,7 +8778,6 @@ fn __action176<
     let __end0 = __0.2.clone();
     let __temp0 = __action121(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9206,7 +8785,6 @@ fn __action176<
     let __temp0 = (__start0, __temp0, __end0);
     __action152(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9219,7 +8797,6 @@ fn __action177<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, &'input str, usize),
     __1: (usize, Symbol, usize),
@@ -9231,7 +8808,6 @@ fn __action177<
     let __end0 = __3.0.clone();
     let __temp0 = __action86(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9239,7 +8815,6 @@ fn __action177<
     let __temp0 = (__start0, __temp0, __end0);
     __action5(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -9255,7 +8830,6 @@ fn __action178<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, &'input str, usize),
     __1: (usize, Symbol, usize),
@@ -9268,14 +8842,12 @@ fn __action178<
     let __end0 = __3.2.clone();
     let __temp0 = __action87(
         cx,
-        holes,
         input,
         __3,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action5(
         cx,
-        holes,
         input,
         __0,
         __1,
@@ -9291,7 +8863,6 @@ fn __action179<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, Local, usize),
 ) -> Vec<Local>
@@ -9300,14 +8871,12 @@ fn __action179<
     let __end0 = __0.2.clone();
     let __temp0 = __action89(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action155(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9319,7 +8888,6 @@ fn __action180<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -9329,7 +8897,6 @@ fn __action180<
     let __end0 = __lookahead.clone();
     let __temp0 = __action90(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9337,7 +8904,6 @@ fn __action180<
     let __temp0 = (__start0, __temp0, __end0);
     __action155(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9349,7 +8915,6 @@ fn __action181<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
     __1: (usize, Local, usize),
@@ -9359,14 +8924,12 @@ fn __action181<
     let __end0 = __1.2.clone();
     let __temp0 = __action89(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action156(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9379,7 +8942,6 @@ fn __action182<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Local>, usize),
 ) -> Vec<Local>
@@ -9388,7 +8950,6 @@ fn __action182<
     let __end0 = __0.2.clone();
     let __temp0 = __action90(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9396,7 +8957,6 @@ fn __action182<
     let __temp0 = (__start0, __temp0, __end0);
     __action156(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9409,7 +8969,6 @@ fn __action183<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, Place, usize),
 ) -> Vec<Place>
@@ -9418,14 +8977,12 @@ fn __action183<
     let __end0 = __0.2.clone();
     let __temp0 = __action108(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action159(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9437,7 +8994,6 @@ fn __action184<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -9447,7 +9003,6 @@ fn __action184<
     let __end0 = __lookahead.clone();
     let __temp0 = __action109(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9455,7 +9010,6 @@ fn __action184<
     let __temp0 = (__start0, __temp0, __end0);
     __action159(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9467,7 +9021,6 @@ fn __action185<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Place>, usize),
     __1: (usize, Place, usize),
@@ -9477,14 +9030,12 @@ fn __action185<
     let __end0 = __1.2.clone();
     let __temp0 = __action108(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action160(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9497,7 +9048,6 @@ fn __action186<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<Place>, usize),
 ) -> Vec<Place>
@@ -9506,7 +9056,6 @@ fn __action186<
     let __end0 = __0.2.clone();
     let __temp0 = __action109(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9514,7 +9063,6 @@ fn __action186<
     let __temp0 = (__start0, __temp0, __end0);
     __action160(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9527,7 +9075,6 @@ fn __action187<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, Var, usize),
 ) -> Pred<'lr>
@@ -9536,7 +9083,6 @@ fn __action187<
     let __end0 = __0.2.clone();
     let __temp0 = __action73(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9544,7 +9090,6 @@ fn __action187<
     let __temp0 = (__start0, __temp0, __end0);
     __action49(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9557,7 +9102,6 @@ fn __action188<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, Var, usize),
     __1: (usize, ::std::vec::Vec<u32>, usize),
@@ -9567,14 +9111,12 @@ fn __action188<
     let __end0 = __1.2.clone();
     let __temp0 = __action74(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action49(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9587,7 +9129,6 @@ fn __action189<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, TypeLayout, usize),
 ) -> Vec<TypeLayout>
@@ -9596,14 +9137,12 @@ fn __action189<
     let __end0 = __0.2.clone();
     let __temp0 = __action96(
         cx,
-        holes,
         input,
         __0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action163(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9615,7 +9154,6 @@ fn __action190<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -9625,7 +9163,6 @@ fn __action190<
     let __end0 = __lookahead.clone();
     let __temp0 = __action97(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9633,7 +9170,6 @@ fn __action190<
     let __temp0 = (__start0, __temp0, __end0);
     __action163(
         cx,
-        holes,
         input,
         __temp0,
     )
@@ -9645,7 +9181,6 @@ fn __action191<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
     __1: (usize, TypeLayout, usize),
@@ -9655,14 +9190,12 @@ fn __action191<
     let __end0 = __1.2.clone();
     let __temp0 = __action96(
         cx,
-        holes,
         input,
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action164(
         cx,
-        holes,
         input,
         __0,
         __temp0,
@@ -9675,7 +9208,6 @@ fn __action192<
     'lr,
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
-    holes: &mut u32,
     input: &'input str,
     __0: (usize, ::std::vec::Vec<TypeLayout>, usize),
 ) -> Vec<TypeLayout>
@@ -9684,7 +9216,6 @@ fn __action192<
     let __end0 = __0.2.clone();
     let __temp0 = __action97(
         cx,
-        holes,
         input,
         &__start0,
         &__end0,
@@ -9692,7 +9223,6 @@ fn __action192<
     let __temp0 = (__start0, __temp0, __end0);
     __action164(
         cx,
-        holes,
         input,
         __0,
         __temp0,

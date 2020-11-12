@@ -379,7 +379,7 @@ pub enum TyS<'lr> {
     /// Unitialized
     Uninit(u32),
     /// A refinement that need to be inferred
-    RefineHole { ty: BasicType, n: u32 },
+    RefineHole { ty: BasicType },
 }
 
 /// A type layout is used to describe the recursive structure of a type.

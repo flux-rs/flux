@@ -3,7 +3,7 @@ use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
 use crate::cps_ref::context::LiquidRustCtxt;
 
-grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>, holes: &mut u32);
+grammar<'lr>(cx: &'lr LiquidRustCtxt<'lr>);
 
 match {
   r"\s*" => {}, // The default whitespace skipping is disabled if an `ignore pattern` is specified
@@ -119,14 +119,11 @@ Path_: Vec<Projection> = ("." <r"[0-9]+">)* => {
 Ty: Ty<'lr> = {
   "own" "(" <Location> ")"                       => cx.mk_ty(TyS::OwnRef(<>)),
   "{" <ty: BasicType> "|" <pred: PredLevel1> "}" => cx.mk_ty(TyS::Refine { <> }),
-  "{" <ty: BasicType> "|" "_" "}"                => {
-    *holes += 1;
-    cx.mk_ty(TyS::RefineHole {ty, n: *holes})
-  },
-  "&" "(" <Region> "," <Location> ")"          => cx.mk_ty(TyS::Ref(BorrowKind::Shared, <>)),
-  "&" "shared" "(" <Region> "," <Location> ")" => cx.mk_ty(TyS::Ref(BorrowKind::Shared, <>)),
-  "&" "mut" "(" <Region> "," <Location> ")"    => cx.mk_ty(TyS::Ref(BorrowKind::Mut, <>)),
-  "(" <Comma<Binding<Field, Ty>>> ")"          => cx.mk_ty(TyS::Tuple(<>))
+  "{" <ty: BasicType> "|" "_" "}"                => cx.mk_refine_hole(<>),
+  "&" "(" <Region> "," <Location> ")"            => cx.mk_ty(TyS::Ref(BorrowKind::Shared, <>)),
+  "&" "shared" "(" <Region> "," <Location> ")"   => cx.mk_ty(TyS::Ref(BorrowKind::Shared, <>)),
+  "&" "mut" "(" <Region> "," <Location> ")"      => cx.mk_ty(TyS::Ref(BorrowKind::Mut, <>)),
+  "(" <Comma<Binding<Field, Ty>>> ")"            => cx.mk_ty(TyS::Tuple(<>))
 }
 
 Region: Region = {

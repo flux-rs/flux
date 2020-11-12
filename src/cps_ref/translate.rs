@@ -82,9 +82,7 @@ fn translate_const(from: &mir::Constant) -> Operand {
                 ConstValue::Scalar(s) => {
                     match (s, &from.literal.ty.kind) {
                         // Unit
-                        (Scalar::Raw { size: 0, .. }, _t) => {
-                            Operand::Constant(Constant::Unit)
-                        }
+                        (Scalar::Raw { size: 0, .. }, _t) => Operand::Constant(Constant::Unit),
                         // Bool
                         (Scalar::Raw { data: 0, .. }, ty::Bool) => {
                             Operand::Constant(Constant::Bool(false))
@@ -99,7 +97,7 @@ fn translate_const(from: &mir::Constant) -> Operand {
                         }
                         // TODO: Signed ints, when support is added
                         // TODO: Chars, when support is added
-                        _ => todo!(),
+                        _ => todo!("{:?}", from),
                     }
                 }
                 _ => todo!(),
@@ -202,16 +200,14 @@ pub struct Transformer<'lr, 'tcx> {
     cps_cx: &'lr LiquidRustCtxt<'lr>,
     tcx: ty::TyCtxt<'tcx>,
     symbols: HashMap<Symbol, usize>,
-    holes: u32,
 }
 
 impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
     pub fn new(tcx: ty::TyCtxt<'tcx>, cps_cx: &'lr LiquidRustCtxt<'lr>) -> Self {
         Self {
             cps_cx,
-            tcx: tcx,
+            tcx,
             symbols: HashMap::new(),
-            holes: 0,
         }
     }
 
@@ -245,15 +241,6 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
         self.symbols.insert(sym, 1);
     }
 
-    fn fresh_hole(&mut self) -> u32 {
-        self.holes += 1;
-        return self.holes;
-    }
-
-    fn mk_refine_hole(&mut self, bty: BasicType) -> Ty<'lr> {
-        self.cps_cx.mk_refine_hole(bty, self.fresh_hole())
-    }
-
     /// Based on the structure of the type, return either a RefineHole
     /// or a tuple of holy types.
     fn get_holy_type(&mut self, t: ty::Ty<'tcx>) -> Ty<'lr> {
@@ -264,7 +251,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
                     .map(|(i, f)| (Field::nth(i.try_into().unwrap()), self.get_holy_type(f)))
                     .collect::<Vec<_>>(),
             ),
-            _ => self.mk_refine_hole(get_basic_type(t)),
+            _ => self.cps_cx.mk_refine_hole(get_basic_type(t)),
         }
     }
 
@@ -308,7 +295,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
                 if uninited.contains(mpi) {
                     self.cps_cx.mk_uninit(get_size(t))
                 } else {
-                    self.mk_refine_hole(get_basic_type(t))
+                    self.cps_cx.mk_refine_hole(get_basic_type(t))
                 }
             }
         }
@@ -428,7 +415,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
                                 } else {
                                     Rvalue::UnaryOp(UnOp::Not, op)
                                 }
-                            }
+                            },
                         );
 
                         ite = FnBody::Seq(

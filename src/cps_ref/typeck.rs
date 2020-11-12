@@ -377,7 +377,7 @@ impl<'lr> TyCtxt<'lr> {
                 bindings.truncate(bindings.len() - fields.len());
                 self.cx.mk_tuple(&fields)
             }
-            &TyS::RefineHole { ty, n: _ } => {
+            &TyS::RefineHole { ty } => {
                 // liquid-fixpoint requires Nu to be the first argument
                 let mut vars: Vec<Var> = vec![Var::Nu];
                 vars.extend(bindings.iter().map(|&(x, _)| x));
