@@ -33,7 +33,7 @@ fn main() -> std::io::Result<()> {
         let arena = Arena::default();
         let cx = LiquidRustCtxt::new(&arena);
         let r: Result<bool, Box<dyn Error>> = try {
-            let parsed = FnParser::new().parse(&cx, &mut 0, &contents)?;
+            let parsed = FnParser::new().parse(&cx, &contents)?;
             let (c, kvars) = TypeCk::cgen(&cx, &parsed)?;
             LiquidSolver::new()?.check(&c, &kvars)?
         };
