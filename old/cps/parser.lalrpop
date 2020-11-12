@@ -1,0 +1,109 @@
+#![allow(clippy::all)]
+#![allow(unused_parens)]
+use std::str::FromStr;
+use crate::cps::ast::*;
+use rustc_span::Symbol;
+
+grammar;
+
+pub Fns = Fn*;
+
+// Macro def for comma-separated things
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+pub Fn: FnDef =
+    "fn" <name: ContIdent> "(" <args: Args> ")" "ret" <cont: ContIdent> "(" <ret: Tydent> ")" "=" <body: FuncBody> =>
+        FnDef { name, args, cont, ret, body };
+
+Ident: Symbol = r"([a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+)" => Symbol::intern(<>);
+Local: Local = Ident;
+ContIdent: Symbol = Ident;
+
+Tydent: Tydent = <ident: Local> ":" <reft: Type> => Tydent { ident, reft };
+Args = Comma<Tydent>;
+
+Literal: Literal = {
+    "true" => Literal::Bool(true),
+    "false" => Literal::Bool(false),
+    r"[0-9]+" => Literal::Int(i128::from_str(<>).unwrap()),
+};
+
+Projection: Projection = "." <r"[0-9]+"> => u32::from_str(<>).unwrap();
+
+Path: Path = <ident: Local> <projs: Projection*> => Path { <> };
+
+Operand: Operand = {
+    Path => Operand::Path(<>),
+    Literal => Operand::Lit(<>),
+};
+
+RValue: RValue = {
+    Operand => RValue::Op(<>),
+    <arg1: Operand> <op: RBinOp> <arg2: Operand> => RValue::Binary(op, arg1, arg2),
+};
+
+RBinOp: RBinOp = {
+    "+" => RBinOp::CheckedAdd,
+    "<" => RBinOp::Lt,
+    "<=" => RBinOp::Le,
+    "==" => RBinOp::Eq,
+    ">=" => RBinOp::Ge,
+    ">" => RBinOp::Gt,
+};
+
+FuncBody: Box<FuncBody> = {
+    "let" <Local> "=" <RValue> "in" <FuncBody> => Box::new(FuncBody::Let(<>)),
+    "letcont" <ContIdent> "(" <Args> ")" "=" <FuncBody> "in" <FuncBody> => Box::new(FuncBody::LetCont(<>)),
+    "if" <Path> "then" <FuncBody> "else" <FuncBody> => Box::new(FuncBody::Ite(<>)),
+    "call" <ContIdent> "(" <Comma<Path>> ")" "ret" <ContIdent> => Box::new(FuncBody::Call(<>)),
+    "jump" <ContIdent> "(" <Comma<Path>> ")" => Box::new(FuncBody::Jump(<>)),
+    "abort" => Box::new(FuncBody::Abort),
+};
+
+BasicType: BasicType = {
+    "bool" => BasicType::Bool,
+    IntTy => BasicType::Int(<>),
+};
+
+IntTy: IntTy = {
+    "i8" => IntTy::I8,
+    "i16" => IntTy::I16,
+    "i32" => IntTy::I32,
+    "i64" => IntTy::I64,
+    "i128" => IntTy::I128,
+    "u8" => IntTy::U8,
+    "u16" => IntTy::U16,
+    "u32" => IntTy::U32,
+    "u64" => IntTy::U64,
+    "u128" => IntTy::U128,
+};
+
+Type: Type = {
+    "fn" "(" <args: Args> ")" "->" <ret: Tydent> => Type::Fn { args, ret: Box::new(ret) },
+    "{" <ty: BasicType> "|" <pred: Pred> "}" => Type::Reft { ty, pred },
+    "(" <Comma<Tydent>> ")" => Type::Prod(<>),
+    <ty: BasicType> => Type::Reft { ty, pred: Pred::Op(Operand::Lit(Literal::Bool(true))) },
+};
+
+Pred: Pred = {
+    Operand => Pred::Op(<>),
+    <arg1: Operand> <op: PredBinOp> <arg2: Operand> => Pred::Binary(op, arg1, arg2),
+};
+
+PredBinOp: PredBinOp = {
+    "+" => PredBinOp::Add,
+    "<" => PredBinOp::Lt,
+    "<=" => PredBinOp::Le,
+    "==" => PredBinOp::Eq,
+    ">=" => PredBinOp::Ge,
+    ">" => PredBinOp::Gt,
+};
