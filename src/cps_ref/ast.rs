@@ -113,8 +113,14 @@ pub struct Place {
 }
 
 impl Place {
-    pub fn new(local: Local, projection: Vec<Projection>) -> Self {
-        Place { local, projection }
+    pub fn new<T>(local: Local, projection: T) -> Self
+    where
+        T: Into<Vec<Projection>>,
+    {
+        Place {
+            local,
+            projection: projection.into(),
+        }
     }
 
     pub fn extend<'a, I>(&self, rhs: I) -> Place
@@ -159,10 +165,55 @@ impl Place {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Path(pub Vec<u32>);
+
+impl Path {
+    pub fn new() -> Self {
+        Path(vec![])
+    }
+}
+
+impl std::ops::Deref for Path {
+    type Target = Vec<u32>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Path {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<&Path> for Vec<Projection> {
+    fn from(path: &Path) -> Self {
+        path.0.iter().copied().map(Projection::from).collect()
+    }
+}
+
+impl<'a> IntoIterator for &'a Path {
+    type Item = &'a u32;
+
+    type IntoIter = std::slice::Iter<'a, u32>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub enum Projection {
     Field(u32),
     Deref,
+}
+
+impl From<u32> for Projection {
+    fn from(v: u32) -> Self {
+        Projection::Field(v)
+    }
 }
 
 impl From<Local> for Place {
@@ -284,6 +335,15 @@ pub enum BorrowKind {
     Mut,
 }
 
+impl std::fmt::Display for BorrowKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BorrowKind::Shared => write!(f, "shared"),
+            BorrowKind::Mut => write!(f, "mutable"),
+        }
+    }
+}
+
 impl BorrowKind {
     pub fn is_mut(&self) -> bool {
         match self {
@@ -385,22 +445,25 @@ impl<'lr> TyS<'lr> {
         }
     }
 
-    pub fn walk(&'lr self, mut act: impl FnMut(&Vec<u32>, Ty<'lr>)) {
-        self.walk_(&mut |path, typ| Ok::<(), ()>(act(path, typ)), &mut vec![])
-            .unwrap()
+    pub fn walk(&'lr self, mut act: impl FnMut(&Path, Ty<'lr>)) {
+        self.walk_(
+            &mut |path, typ| Ok::<(), ()>(act(path, typ)),
+            &mut Path::new(),
+        )
+        .unwrap()
     }
 
     pub fn try_walk<T>(
         &'lr self,
-        mut act: impl FnMut(&Vec<u32>, Ty<'lr>) -> Result<(), T>,
+        mut act: impl FnMut(&Path, Ty<'lr>) -> Result<(), T>,
     ) -> Result<(), T> {
-        self.walk_(&mut act, &mut vec![])
+        self.walk_(&mut act, &mut Path::new())
     }
 
     fn walk_<T>(
         &'lr self,
-        act: &mut impl FnMut(&Vec<u32>, Ty<'lr>) -> Result<(), T>,
-        path: &mut Vec<u32>,
+        act: &mut impl FnMut(&Path, Ty<'lr>) -> Result<(), T>,
+        path: &mut Path,
     ) -> Result<(), T> {
         act(path, self)?;
         match self {

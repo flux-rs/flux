@@ -179,7 +179,7 @@ fn collect_field_map(x: Var, typ: Ty) -> Vec<(Var, (Var, Vec<u32>))> {
     typ.walk(|path, typ| match typ {
         TyS::Tuple(fields) => {
             for (i, &(f, _)) in fields.iter().enumerate() {
-                let mut clone = path.clone();
+                let mut clone = path.0.clone();
                 clone.push(i as u32);
                 v.push((Var::from(f), (x, clone)));
             }

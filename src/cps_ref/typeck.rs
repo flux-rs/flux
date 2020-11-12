@@ -400,10 +400,15 @@ impl<'lr> TyCtxt<'lr> {
         self.locals.last().unwrap().iter()
     }
 
-    fn ownership(&self, kind: BorrowKind, place: &Place, reborrow_list: &mut Vec<Place>) {
+    fn ownership(
+        &self,
+        kind: BorrowKind,
+        place: &Place,
+        reborrow_list: &mut Vec<Place>,
+    ) -> Result<(), OwnershipError<'lr>> {
         for (&x, &OwnRef(l)) in self.locals() {
             let t = self.lookup_location(l).unwrap();
-            let conflict = t.try_walk(|path, typ| {
+            t.try_walk(|path, typ| {
                 match typ {
                     TyS::Ref(k, r, _) => {
                         if reborrow_list.iter().any(|p| p.equals(x, path)) {
@@ -412,17 +417,17 @@ impl<'lr> TyCtxt<'lr> {
 
                         for p in r {
                             if place.overlaps(p) && (kind.is_mut() || k.is_mut()) {
-                                return Err(typ);
+                                return Err(OwnershipError::ConflictingBorrow(
+                                    Place::new(x, path),
+                                    typ,
+                                ));
                             }
                         }
                     }
                     _ => {}
                 }
                 Ok(())
-            });
-            if let Err(t) = conflict {
-                todo!("Conflicting borrow {:?} {:?}", x, t);
-            }
+            })?;
         }
 
         for i in 0..place.projection.len() {
@@ -433,21 +438,22 @@ impl<'lr> TyCtxt<'lr> {
                     let (_, t) = self.lookup_(place.local, &place.projection[0..i]);
                     if let TyS::Ref(k, region, _) = t {
                         if kind > *k {
-                            todo!("{:?} {:?}", place.local, t);
+                            return Err(OwnershipError::BehindShared);
                         }
                         for p in region {
                             self.ownership(
                                 kind,
                                 &p.extend(&place.projection[i + 1..]),
                                 reborrow_list,
-                            );
+                            )?;
                         }
-                        return;
+                        return Ok(());
                     }
                     reborrow_list.pop();
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -574,7 +580,15 @@ impl<'lr> TypeCk<'lr> {
                 }
             }
             Rvalue::Ref(kind, place) => {
-                tcx.ownership(*kind, place, &mut vec![]);
+                tcx.ownership(*kind, place, &mut vec![])
+                    .map_err(|e| match e {
+                        OwnershipError::ConflictingBorrow(p, t) => {
+                            TypeError::BorrowConflict(place.clone(), *kind, p, t)
+                        }
+                        OwnershipError::BehindShared => {
+                            TypeError::BorrowBehindShared(place.clone())
+                        }
+                    })?;
                 tcx.borrow(*kind, place)
             }
         };
@@ -594,7 +608,15 @@ impl<'lr> TypeCk<'lr> {
             Statement::Assign(place, rval) => {
                 let (_, t1) = tcx.lookup(place);
                 let (t2, mut bindings) = self.wt_rvalue(tcx, rval)?;
-                tcx.ownership(BorrowKind::Mut, place, &mut vec![]);
+                tcx.ownership(BorrowKind::Mut, place, &mut vec![])
+                    .map_err(|e| match e {
+                        OwnershipError::ConflictingBorrow(p, t) => {
+                            TypeError::AssignConflict(place.clone(), p, t)
+                        }
+                        OwnershipError::BehindShared => {
+                            TypeError::AssignBehindShared(place.clone())
+                        }
+                    })?;
                 if t1.size() != t2.size() {
                     return Err(TypeError::SizeMismatch(t1, t2));
                 }
@@ -602,7 +624,13 @@ impl<'lr> TypeCk<'lr> {
                 (bindings, Constraint::True)
             }
             &Statement::Drop(x) => {
-                tcx.ownership(BorrowKind::Mut, &Place::from(x), &mut vec![]);
+                tcx.ownership(BorrowKind::Mut, &Place::from(x), &mut vec![])
+                    .map_err(|e| match e {
+                        OwnershipError::ConflictingBorrow(p, t) => TypeError::DropConflict(x, p, t),
+                        OwnershipError::BehindShared => {
+                            bug!("A local cannot be behind a shared reference")
+                        }
+                    })?;
                 tcx.drop(x)?
             }
         };
@@ -721,14 +749,30 @@ struct Cont<'lr> {
 }
 
 #[derive(Error, Debug)]
-#[error("{0:?}")]
 pub struct TypeErrors<'lr>(Vec<TypeError<'lr>>);
+
+impl<'lr> std::fmt::Display for TypeErrors<'lr> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = self
+            .0
+            .iter()
+            .map(|e| format!("error: {}", e))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        write!(f, "{}\n", s)
+    }
+}
+
+pub enum OwnershipError<'lr> {
+    ConflictingBorrow(Place, Ty<'lr>),
+    BehindShared,
+}
 
 #[derive(Error, Debug)]
 pub enum TypeError<'lr> {
     #[error("{0:?} is not a subtype of {1:?}")]
     SubtypingError(Ty<'lr>, Ty<'lr>),
-    #[error("{0:?} doesn't have the same size than {1:?}")]
+    #[error("{0:?} does not have the same size than {1:?}")]
     SizeMismatch(Ty<'lr>, Ty<'lr>),
     #[error("duplicate local {0:?}")]
     DupLocal(Local),
@@ -742,6 +786,18 @@ pub enum TypeError<'lr> {
     NotBool(Ty<'lr>),
     #[error("wrong number of arguments")]
     ArgCount,
+    #[error("cannot borrow `{0:?}` as {1:} because there is a conflicting borrow at place `{2:?}` of type {3:?}")]
+    BorrowConflict(Place, BorrowKind, Place, Ty<'lr>),
+    #[error("cannot borrow `{0:?}` as mutable because is behind a shared reference")]
+    BorrowBehindShared(Place),
+    #[error("cannot assing to`{0:?}` because there is a conflicting borrow at place `{1:?}` of type {2:?}")]
+    AssignConflict(Place, Place, Ty<'lr>),
+    #[error("cannot assign to `{0:?}` because is behind a shared reference")]
+    AssignBehindShared(Place),
+    #[error(
+        "cannot drop `{0:?}` because there is a conflicting borrow at place `{1:?}` of type {2:?}"
+    )]
+    DropConflict(Local, Place, Ty<'lr>),
 }
 
 fn env_incl<'lr>(
