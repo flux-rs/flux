@@ -1,6 +1,7 @@
 #![feature(try_blocks)]
 #![feature(rustc_private)]
 extern crate rustc_ast;
+extern crate rustc_span;
 
 use std::{
     env,
@@ -15,7 +16,7 @@ use liquid_rust::cps_ref::{
     parser::FnParser,
     typeck::TypeCk,
 };
-use rustc_ast::attr::with_default_session_globals;
+use rustc_span::with_default_session_globals;
 
 fn main() -> std::io::Result<()> {
     let args: Vec<_> = env::args().collect();

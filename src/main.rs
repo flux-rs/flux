@@ -154,7 +154,7 @@ fn main() {
             .chain(allow_unused_doc_comments().into_iter())
             .collect::<Vec<_>>();
 
-        rustc_driver::run_compiler(&args2, &mut LiquidRustDriver, None, None)
+        rustc_driver::RunCompiler::new(&args2, &mut LiquidRustDriver).run()
     })
     .map_err(|e| println!("{:?}", e));
 }

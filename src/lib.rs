@@ -14,6 +14,7 @@ extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_lint;
 extern crate rustc_span;
+extern crate rustc_target;
 
 pub mod cps_ref;
 use rustc_lint::LateContext;

@@ -46,7 +46,7 @@ mod tests {
         context::{Arena, LiquidRustCtxt},
         typeck::TypeCk,
     };
-    use rustc_ast::attr::with_default_session_globals;
+    use rustc_span::with_default_session_globals;
 
     struct Session<'lr> {
         cx: &'lr LiquidRustCtxt<'lr>,
@@ -364,44 +364,6 @@ mod tests {
       else
         p := &mut y;
         jump b0()
-    "####,
-            )?;
-            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
-            Ok(())
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Conflicting borrow")]
-    fn mut_shared() {
-        Session::run_unwrap(|sess| {
-            let (c, kvars) = sess.cgen(
-                r####"
-    fn foo(r0: {int | true}; r:own(r0)) ret k(r1: {int | true}; own(r1))=
-      let x = alloc(1);
-      let p1 = alloc(1);
-      let p2 = alloc(1);
-      p1 := &x;
-      p2 := &mut x;
-      jump k(r)
-    "####,
-            )?;
-            assert!(LiquidSolver::new()?.check(&c, &kvars)?);
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn mutate_borrowed() {
-        Session::run_unwrap(|sess| {
-            let (c, kvars) = sess.cgen(
-                r####"
-    fn foo(r0: {int | true}; r:own(r0)) ret k(r1: {int | true}; own(r1))=
-      let x = alloc(1);
-      let p = alloc(1);
-      p := &mut x;
-      *p := 4;
-      jump k(r)
     "####,
             )?;
             assert!(LiquidSolver::new()?.check(&c, &kvars)?);

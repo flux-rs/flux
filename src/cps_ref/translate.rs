@@ -21,6 +21,7 @@ use rustc_mir::{
     transform::MirSource,
 };
 use rustc_span::Symbol;
+use rustc_target::abi;
 use std::{collections::HashMap, convert::TryInto, mem::size_of};
 
 // TODO: This is ugly as hell, but the MoveDataParamEnv struct fields
@@ -80,20 +81,22 @@ fn translate_const(from: &mir::Constant) -> Operand {
         ty::ConstKind::Value(value) => {
             match value {
                 ConstValue::Scalar(s) => {
-                    match (s, &from.literal.ty.kind) {
+                    match (s, from.literal.ty.kind()) {
                         // Unit
-                        (Scalar::Raw { size: 0, .. }, _t) => Operand::Constant(Constant::Unit),
+                        (Scalar::Int(s), _) if s.size() == abi::Size::ZERO => {
+                            Operand::Constant(Constant::Unit)
+                        }
                         // Bool
-                        (Scalar::Raw { data: 0, .. }, ty::Bool) => {
+                        (Scalar::Int(s), ty::Bool) if s == ty::ScalarInt::FALSE => {
                             Operand::Constant(Constant::Bool(false))
                         }
-                        (Scalar::Raw { data: 1, .. }, ty::Bool) => {
+                        (Scalar::Int(s), ty::Bool) if s == ty::ScalarInt::TRUE => {
                             Operand::Constant(Constant::Bool(true))
                         }
                         // TODO: Floats, when support is added
                         // Int
-                        (Scalar::Raw { data, .. }, ty::Uint(_ui)) => {
-                            Operand::Constant(Constant::Int(data))
+                        (Scalar::Int(s), ty::Uint(_ui)) => {
+                            Operand::Constant(Constant::Int(s.to_bits(s.size()).unwrap()))
                         }
                         // TODO: Signed ints, when support is added
                         // TODO: Chars, when support is added
@@ -136,7 +139,7 @@ impl From<mir::BinOp> for BinOp {
 }
 
 fn get_basic_type<'tcx>(t: ty::Ty<'tcx>) -> BasicType {
-    match &t.kind {
+    match t.kind() {
         ty::TyKind::Bool => BasicType::Bool,
         ty::TyKind::Int(_) | ty::TyKind::Uint(_) => BasicType::Int,
         _ => todo!(),
@@ -185,7 +188,7 @@ fn get_layout<'tcx>(t: ty::Ty<'tcx>) -> TypeLayout {
     //     }
     //     _ => todo!(),
     // }
-    match &t.kind {
+    match t.kind() {
         ty::TyKind::Tuple(_) => {
             TypeLayout::Tuple(t.tuple_fields().map(|c| get_layout(c)).collect::<Vec<_>>())
         }
@@ -244,7 +247,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
     /// Based on the structure of the type, return either a RefineHole
     /// or a tuple of holy types.
     fn get_holy_type(&mut self, t: ty::Ty<'tcx>) -> Ty<'lr> {
-        match &t.kind {
+        match t.kind() {
             ty::TyKind::Tuple(_) => self.cps_cx.mk_tuple(
                 &t.tuple_fields()
                     .enumerate()
@@ -266,7 +269,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
         ps: &mut Vec<mir::PlaceElem<'tcx>>,
         t: ty::Ty<'tcx>,
     ) -> Ty<'lr> {
-        match &t.kind {
+        match t.kind() {
             ty::TyKind::Tuple(_) => self.cps_cx.mk_tuple(
                 &t.tuple_fields()
                     .enumerate()
@@ -321,7 +324,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
         let mdpe = create_mpde(mdpe_move_data, param_env);
 
         let mut results = MaybeUninitializedPlaces::new(self.tcx, body, &mdpe)
-            .into_engine(self.tcx, body, source.def_id())
+            .into_engine(self.tcx, body)
             .iterate_to_fixpoint()
             .into_results_cursor(body);
 
@@ -352,26 +355,26 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
                 TerminatorKind::SwitchInt {
                     discr,
                     targets,
-                    values,
                     switch_ty,
-                    ..
                 } => {
                     // We have to test our operand against each provided target value.
                     // This will turn into nested conditionals: if {} else { if ... }
 
                     // We first start with the else branch, since that's at the leaf of our
                     // if-else-if-else chain, and build backwards from there.
-                    let mut tgs = targets.iter().rev();
-
-                    let otherwise = tgs.next().unwrap();
                     let mut ite = FnBody::Jump {
-                        target: Symbol::intern(format!("bb{}", otherwise.as_u32()).as_str()),
+                        target: Symbol::intern(
+                            format!("bb{}", targets.otherwise().as_u32()).as_str(),
+                        ),
                         args: vec![],
                     };
 
                     // Then for each value remaining, we create a new FnBody::Ite, jumping to
                     // the specified target.
-                    for (val, target) in values.iter().zip(tgs) {
+                    // We need to collect it because SwitchTargetsIter doesn't implment
+                    // DoubleEndedIterator
+                    let targets: Vec<_> = targets.iter().collect();
+                    for (val, target) in targets.into_iter().rev() {
                         // We first have to translate our discriminator into an AST Operand.
                         let op = translate_op(discr);
 
@@ -397,7 +400,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
 
                         // If the discr type is a bool, we compare to a bool constant.
                         // otherwise, compare with an int constant.
-                        let is_bool = match switch_ty.kind {
+                        let is_bool = match switch_ty.kind() {
                             ty::TyKind::Bool => true,
                             _ => false,
                         };
@@ -407,10 +410,10 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
                                 Rvalue::BinaryOp(
                                     BinOp::Eq,
                                     op,
-                                    Operand::Constant(Constant::Int(*val)),
+                                    Operand::Constant(Constant::Int(val)),
                                 )
                             } else {
-                                if *val != 0 {
+                                if val != 0 {
                                     Rvalue::Use(op)
                                 } else {
                                     Rvalue::UnaryOp(UnOp::Not, op)
@@ -473,7 +476,7 @@ impl<'lr, 'tcx> Transformer<'lr, 'tcx> {
                     let mut fb = match func {
                         mir::Operand::Constant(bc) => {
                             let c = &*bc;
-                            let kind = &c.literal.ty.kind;
+                            let kind = c.literal.ty.kind();
 
                             match kind {
                                 ty::TyKind::FnDef(def_id, _) => {
