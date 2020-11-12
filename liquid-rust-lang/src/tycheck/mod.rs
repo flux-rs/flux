@@ -1,92 +1,13 @@
 mod check;
 mod constraint;
+mod context;
 mod synth;
 
 use check::Check;
 use constraint::Constraint;
+pub use context::TyContext;
+use context::TyContextAt;
 use synth::Synth;
-
-use std::collections::HashMap;
-
-use crate::{
-    ast::{Annotation, Ty as AstTy},
-    generator::Generator,
-    ir::{Func, FuncId, Local},
-    resolve::{ResolveCtx, ResolveError},
-    ty::{Ty, Variable},
-};
-
-pub struct TyCtx {
-    funcs_ty: HashMap<FuncId, Ty>,
-    funcs: HashMap<FuncId, Func>,
-    var_gen: Generator<Variable>,
-}
-
-impl TyCtx {
-    pub fn new(
-        funcs: HashMap<FuncId, Func>,
-        annotations: HashMap<FuncId, Vec<Annotation>>,
-    ) -> Result<Self, ResolveError> {
-        let mut tcx = Self {
-            funcs_ty: HashMap::new(),
-            funcs,
-            var_gen: Variable::generator(),
-        };
-
-        for (func_id, anns) in annotations {
-            for Annotation::Ty(ast_ty) in anns {
-                let ty = tcx.resolve_ty(&ast_ty)?;
-                println!("{:?} => {:?}", func_id, ty);
-                tcx.funcs_ty.insert(func_id, ty);
-            }
-        }
-
-        Ok(tcx)
-    }
-
-    fn resolve_ty(&mut self, ty: &AstTy) -> Result<Ty, ResolveError> {
-        let mut rcx = ResolveCtx::new(self);
-        rcx.resolve_ty(ty)
-    }
-
-    pub(crate) fn new_var(&mut self) -> Variable {
-        self.var_gen.generate()
-    }
-
-    fn at<'a>(&'a mut self, func_id: FuncId) -> TyCtxAt<'a> {
-        TyCtxAt {
-            tcx: self,
-            func_id,
-            vars: HashMap::new(),
-            vars_ty: HashMap::new(),
-        }
-    }
-}
-
-pub struct TyCtxAt<'tcx> {
-    tcx: &'tcx mut TyCtx,
-    func_id: FuncId,
-    vars: HashMap<Local, Variable>,
-    vars_ty: HashMap<Variable, Ty>,
-}
-
-impl<'tcx> TyCtxAt<'tcx> {
-    pub(crate) fn new_var(&mut self) -> Variable {
-        self.tcx.var_gen.generate()
-    }
-
-    fn func(&self) -> &Func {
-        self.tcx.funcs.get(&self.func_id).expect("Orphan FuncId.")
-    }
-
-    fn check<T: Check<'tcx>>(&mut self, term: &T, ty: &Ty) -> Constraint {
-        term.check(self, ty)
-    }
-
-    fn synth<T: Synth<'tcx>>(&mut self, term: &T) -> (Constraint, Ty) {
-        term.synth(self)
-    }
-}
 
 // impl<'func> FnContext<'func> {
 //     fn sub(&mut self, ty1: &Ty, ty2: &Ty) -> Constraint {

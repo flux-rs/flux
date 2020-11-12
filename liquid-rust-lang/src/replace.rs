@@ -41,11 +41,6 @@ impl Replace for Predicate {
             Predicate::UnApp(_, op) => {
                 op.replace(y, z);
             }
-            Predicate::Cond(if_pred, do_pred, else_pred) => {
-                if_pred.replace(y, z);
-                do_pred.replace(y, z);
-                else_pred.replace(y, z);
-            }
             Predicate::App(func, args) => {
                 if *func == y {
                     *func = z;

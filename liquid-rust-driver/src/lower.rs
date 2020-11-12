@@ -403,6 +403,7 @@ impl<'tcx> Lower<'tcx> for mir::Body<'tcx> {
             ret_local,
             ret_ty,
             basic_blocks,
+            initial_block: *lcx.blocks.get(&mir::START_BLOCK).unwrap(),
         })
     }
 }

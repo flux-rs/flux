@@ -1,4 +1,7 @@
-use std::ops::Add;
+use std::{
+    fmt::{Display, Formatter, Result},
+    ops::Add,
+};
 
 use crate::{
     ir::{BinOp, Literal, UnOp},
@@ -11,8 +14,19 @@ pub enum Predicate {
     Lit(Literal),
     BinApp(BinOp, Box<Self>, Box<Self>),
     UnApp(UnOp, Box<Self>),
-    Cond(Box<Self>, Box<Self>, Box<Self>),
     App(Variable, Vec<Self>),
+}
+
+impl Predicate {
+    pub fn eq(self, rhs: impl Into<Predicate>) -> Self {
+        Self::BinApp(BinOp::Eq, Box::new(self), Box::new(rhs.into()))
+    }
+}
+
+impl From<Variable> for Predicate {
+    fn from(var: Variable) -> Self {
+        Self::Var(var)
+    }
 }
 
 impl From<bool> for Predicate {
@@ -26,5 +40,28 @@ impl<Rhs: Into<Predicate>> Add<Rhs> for Predicate {
 
     fn add(self, rhs: Rhs) -> Self::Output {
         Self::Output::BinApp(BinOp::Add, Box::new(self), Box::new(rhs.into()))
+    }
+}
+
+impl Display for Predicate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Var(var) => var.fmt(f),
+            Self::Lit(lit) => lit.fmt(f),
+            Self::BinApp(bin_op, op1, op2) => write!(f, "{} {} {}", op1, bin_op, op2),
+            Self::UnApp(un_op, op1) => write!(f, "{}{}", un_op, op1),
+            Self::App(func, args) => {
+                let mut args = args.iter();
+                if let Some(arg) = args.next() {
+                    write!(f, "{}({}", func, arg)?;
+                    for arg in args {
+                        write!(f, ", {}", arg)?
+                    }
+                    write!(f, ")")
+                } else {
+                    write!(f, "{}()", func)
+                }
+            }
+        }
     }
 }

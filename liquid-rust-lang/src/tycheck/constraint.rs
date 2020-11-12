@@ -1,26 +1,63 @@
+use std::{
+    fmt::{Display, Formatter, Result},
+    ops::BitOr,
+};
+
 use crate::{
+    ir::Literal,
     replace::Replace,
     ty::{BaseTy, Predicate, Ty, Variable},
 };
 
+#[derive(Debug)]
 pub(super) enum Constraint {
     Pred(Predicate),
-    Conj(Box<Self>, Box<Self>),
+    Or(Box<Self>, Box<Self>),
     // forall x : b. p => c
-    Impl(Variable, BaseTy, Predicate, Box<Self>),
+    ForAll(Variable, BaseTy, Predicate, Box<Self>),
 }
 
 impl Constraint {
-    pub(super) fn or(self, rhs: impl Into<Self>) -> Self {
-        Constraint::Conj(Box::new(self), Box::new(rhs.into()))
+    pub(super) fn forall(
+        v: Variable,
+        b: BaseTy,
+        p: impl Into<Predicate>,
+        c: impl Into<Self>,
+    ) -> Self {
+        let p = p.into();
+        let c = c.into();
+
+        match (&p, &c) {
+            (
+                Predicate::Lit(Literal::Bool(true)),
+                Constraint::Pred(Predicate::Lit(Literal::Bool(true))),
+            ) => true.into(),
+            _ => Self::ForAll(v, b, p, Box::new(c)),
+        }
     }
 
-    pub(super) fn implication(x: Variable, t: Ty, c: Self) -> Self {
+    pub(super) fn implication(x: Variable, t: Ty, c: impl Into<Self>) -> Self {
         if let Ty::RefBase(v, b, mut p) = t {
             p.replace(v, x);
-            Self::Impl(x, b, p, Box::new(c))
+            Self::forall(x, b, p, c)
         } else {
-            c
+            c.into()
+        }
+    }
+}
+
+impl<Rhs: Into<Constraint>> BitOr<Rhs> for Constraint {
+    type Output = Self;
+
+    fn bitor(self, rhs: Rhs) -> Self::Output {
+        let rhs = rhs.into();
+
+        if let Constraint::Pred(Predicate::Lit(Literal::Bool(true))) = self {
+            rhs
+        } else if let Constraint::Pred(Predicate::Lit(Literal::Bool(true))) = rhs {
+            self
+        } else {
+            Constraint::Or(Box::new(self), Box::new(rhs))
         }
     }
 }
@@ -28,5 +65,21 @@ impl Constraint {
 impl From<bool> for Constraint {
     fn from(b: bool) -> Self {
         Self::Pred(b.into())
+    }
+}
+
+impl From<Predicate> for Constraint {
+    fn from(p: Predicate) -> Self {
+        Self::Pred(p)
+    }
+}
+
+impl Display for Constraint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Pred(pred) => pred.fmt(f),
+            Self::Or(c1, c2) => write!(f, "({} || {})", c1, c2),
+            Self::ForAll(x, b, p, c) => write!(f, "(forall {}: {} . {} => {})", x, b, p, c),
+        }
     }
 }

@@ -20,7 +20,7 @@ use rustc_interface::{interface::Compiler, Queries};
 
 use std::collections::HashMap;
 
-use liquid_rust_lang::{ir::FuncId, tycheck::TyCtx};
+use liquid_rust_lang::{ir::FuncId, tycheck::TyContext};
 
 struct CompilerCalls;
 
@@ -42,12 +42,12 @@ impl Callbacks for CompilerCalls {
                 let mut lcx = LowerCtx::new(tcx, &func_ids);
                 let body = tcx.optimized_mir(def_id);
                 let func = lcx.lower_body(body).unwrap();
-                println!("{:?} => {:?}", func_id, func);
+                println!("{} = {}", func_id, func);
                 funcs.insert(func_id, func);
             }
         });
 
-        let _tcx = TyCtx::new(funcs, annotations).unwrap();
+        let _tcx = TyContext::new(funcs, annotations).unwrap();
 
         Compilation::Continue
     }

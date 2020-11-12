@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, Result};
+
 use crate::{ir::FuncId, ty::IntSize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -30,5 +32,17 @@ impl From<usize> for Literal {
 impl From<isize> for Literal {
     fn from(int: isize) -> Self {
         Self::Int(int as i128, IntSize::SizePtr)
+    }
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Bool(b) => b.fmt(f),
+            Self::Int(int, _) => int.fmt(f),
+            Self::Uint(uint, _) => uint.fmt(f),
+            Self::Unit => "unit".fmt(f),
+            Self::Fn(func_id) => func_id.fmt(f),
+        }
     }
 }

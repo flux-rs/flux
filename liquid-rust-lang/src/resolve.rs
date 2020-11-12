@@ -1,4 +1,6 @@
-use crate::{ast, ty, tycheck::TyCtx};
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{ast, generator::Generator, ty};
 
 #[derive(Debug)]
 pub enum ResolveError {
@@ -7,16 +9,16 @@ pub enum ResolveError {
     UnboundedVar(ast::Variable),
 }
 
-pub struct ResolveCtx<'tcx> {
+pub struct ResolveCtx {
     vars: Vec<(ast::Variable, ty::Variable)>,
-    tcx: &'tcx mut TyCtx,
+    var_generator: Rc<RefCell<Generator<ty::Variable>>>,
 }
 
-impl<'tcx> ResolveCtx<'tcx> {
-    pub(crate) fn new(tcx: &'tcx mut TyCtx) -> Self {
+impl ResolveCtx {
+    pub(crate) fn new(var_generator: Rc<RefCell<Generator<ty::Variable>>>) -> Self {
         Self {
             vars: Vec::new(),
-            tcx,
+            var_generator,
         }
     }
 
@@ -29,8 +31,12 @@ impl<'tcx> ResolveCtx<'tcx> {
         Err(ResolveError::UnboundedVar(var))
     }
 
+    pub fn new_variable(&self) -> ty::Variable {
+        self.var_generator.borrow_mut().generate()
+    }
+
     fn store_var(&mut self, ast_var: ast::Variable) -> ty::Variable {
-        let var = self.tcx.new_var();
+        let var = self.new_variable();
         self.vars.push((ast_var, var));
         var
     }
@@ -38,7 +44,7 @@ impl<'tcx> ResolveCtx<'tcx> {
     pub(crate) fn resolve_ty(&mut self, ast_ty: &ast::Ty) -> Result<ty::Ty, ResolveError> {
         match ast_ty {
             ast::Ty::Base(base_ty) => {
-                Ok(ty::Ty::RefBase(self.tcx.new_var(), *base_ty, true.into()))
+                Ok(ty::Ty::RefBase(self.new_variable(), *base_ty, true.into()))
             }
 
             ast::Ty::RefBase(var, base_ty, pred) => {
@@ -51,8 +57,7 @@ impl<'tcx> ResolveCtx<'tcx> {
                 let args = args
                     .iter()
                     .map(|(arg, arg_ty)| {
-                        let var = self.tcx.new_var();
-                        self.vars.push((arg.clone(), var));
+                        let var = self.store_var(arg.clone());
                         Ok((var, self.resolve_ty(arg_ty)?))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -78,13 +83,6 @@ impl<'tcx> ResolveCtx<'tcx> {
                 let op = self.resolve_pred(op.as_ref())?;
 
                 ty::Predicate::UnApp(*un_op, Box::new(op))
-            }
-            ast::Predicate::Cond(if_pred, do_pred, else_pred) => {
-                let if_pred = self.resolve_pred(if_pred.as_ref())?;
-                let do_pred = self.resolve_pred(do_pred.as_ref())?;
-                let else_pred = self.resolve_pred(else_pred.as_ref())?;
-
-                ty::Predicate::Cond(Box::new(if_pred), Box::new(do_pred), Box::new(else_pred))
             }
             ast::Predicate::App(func, args) => {
                 let func = self.solve_var(func.clone())?;

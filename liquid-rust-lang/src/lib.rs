@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod ast;
 pub mod generator;
 pub mod ir;

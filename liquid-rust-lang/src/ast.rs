@@ -12,7 +12,6 @@ pub enum Predicate {
     Lit(Literal),
     BinApp(BinOp, Box<Self>, Box<Self>),
     UnApp(UnOp, Box<Self>),
-    Cond(Box<Self>, Box<Self>, Box<Self>),
     App(Variable, Vec<Self>),
 }
 
