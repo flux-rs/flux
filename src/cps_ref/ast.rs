@@ -378,7 +378,7 @@ pub enum TyS<'lr> {
     Tuple(Vec<(Field, &'lr TyS<'lr>)>),
     /// Unitialized
     Uninit(u32),
-    /// A refinment that need to be inferred
+    /// A refinement that need to be inferred
     RefineHole { ty: BasicType, n: u32 },
 }
 

@@ -51,7 +51,7 @@ impl<'lr, 'tcx> DominatorTree<'lr, 'tcx> {
 
     /// Finds all of the predicates we know to be true after going through a
     /// terminator for a particular basic block and calls a callback on each
-    /// new predicate. 
+    /// new predicate.
     pub fn find_terminator_preds(
         cx: &LiquidRustCtxt<'lr, 'tcx>,
         tk: &mir::TerminatorKind<'tcx>,
@@ -95,11 +95,48 @@ impl<'lr, 'tcx> DominatorTree<'lr, 'tcx> {
         }
     }
 
-    pub fn traverse<'dt>(
+    pub fn bfs<'dt>(
         &'dt self,
         start_node: mir::BasicBlock,
-    ) -> DepthFirstTraversal<'dt, 'lr, 'tcx> {
+    ) -> BreadthFirstTraversal<'dt, 'lr, 'tcx> {
+        BreadthFirstTraversal::with_start_node(&self, start_node)
+    }
+
+    pub fn dfs<'dt>(&'dt self, start_node: mir::BasicBlock) -> DepthFirstTraversal<'dt, 'lr, 'tcx> {
         DepthFirstTraversal::with_start_node(&self, start_node)
+    }
+}
+
+pub struct BreadthFirstTraversal<'dt, 'lr, 'tcx> {
+    dom_tree: &'dt DominatorTree<'lr, 'tcx>,
+    queue: Vec<(usize, mir::BasicBlock)>,
+}
+
+impl<'dt, 'lr, 'tcx> BreadthFirstTraversal<'dt, 'lr, 'tcx> {
+    pub fn with_start_node(
+        dom_tree: &'dt DominatorTree<'lr, 'tcx>,
+        start_node: mir::BasicBlock,
+    ) -> Self {
+        let queue = vec![(1, start_node)];
+
+        BreadthFirstTraversal { dom_tree, queue }
+    }
+}
+
+impl<'dt, 'lr, 'tcx> Iterator for BreadthFirstTraversal<'dt, 'lr, 'tcx> {
+    type Item = (usize, Option<&'lr Pred<'lr, 'tcx>>, mir::BasicBlock);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.queue.pop();
+        if let Some((depth, bb)) = next {
+            for domd in self.dom_tree.dom_tree.successors(bb) {
+                self.queue.push((depth + 1, *domd));
+            }
+            let pred = self.dom_tree.known_preds.get(&bb);
+            Some((depth, pred.map(|x| *x), bb))
+        } else {
+            None
+        }
     }
 }
 
@@ -126,7 +163,7 @@ impl<'dt, 'lr, 'tcx> Iterator for DepthFirstTraversal<'dt, 'lr, 'tcx> {
         let next = self.queue.pop();
         if let Some((depth, bb)) = next {
             for domd in self.dom_tree.dom_tree.successors(bb) {
-                self.queue.push((depth + 1, *domd));
+                self.queue.insert(0, (depth + 1, *domd));
             }
             let pred = self.dom_tree.known_preds.get(&bb);
             Some((depth, pred.map(|x| *x), bb))

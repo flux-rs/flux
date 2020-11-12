@@ -7,6 +7,7 @@
 
 extern crate rustc_arena;
 extern crate rustc_ast;
+extern crate rustc_mir;
 #[macro_use]
 extern crate rustc_middle;
 #[macro_use]
@@ -32,7 +33,6 @@ pub mod syntax;
 pub mod wf;
 
 use context::{ArenaInterner, ErrorReported, LiquidRustCtxt};
-use refinements::typeck;
 use rustc_lint::LateContext;
 
 pub fn run<'tcx>(
@@ -55,8 +55,13 @@ pub fn run<'tcx>(
             cx.add_body_refts(body_refts)
         }
 
+        // TODO: For right now, we don't use any of our annotation info
+        // when type-checking our bodies. This will eventually be
+        // more tightly integrated.
+        let arena = cps_ref::context::Arena::default();
+        let new_cx = cps_ref::context::LiquidRustCtxt::new(&arena);
         for body_annots in annots {
-            typeck::check_body(&cx, body_annots.body_id)
+            cps_ref::check_body(&new_cx, cx.hir(), cx.tcx(), body_annots.body_id)
         }
     }
 }

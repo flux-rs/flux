@@ -53,7 +53,7 @@ impl<'a, 'lr, 'tcx> ReftChecker<'a, 'lr, 'tcx> {
         let mut env: Vec<&'lr Pred<'lr, 'tcx>> = Vec::new();
         let mut depths = Vec::new();
 
-        for (depth, op_pred, bb) in dom_tree.traverse(self.mir.start_node()) {
+        for (depth, op_pred, bb) in dom_tree.dfs(self.mir.start_node()) {
             print!("\nbb{}:", bb.index());
             let bbd = &self.mir[bb];
 

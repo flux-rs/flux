@@ -106,6 +106,10 @@ impl<'lr> LiquidRustCtxt<'lr> {
         self.mk_ty(TyS::Refine { ty, pred })
     }
 
+    pub fn mk_refine_hole(&'lr self, ty: BasicType, n: u32) -> Ty<'lr> {
+        self.mk_ty(TyS::RefineHole { ty, n })
+    }
+
     pub fn mk_tuple(&'lr self, fields: &[(Field, Ty<'lr>)]) -> Ty<'lr> {
         self.mk_ty(TyS::Tuple(fields.into()))
     }

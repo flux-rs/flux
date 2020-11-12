@@ -80,7 +80,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OrderedHashMap<K, V> {
     map: HashMap<K, V>,
     keys: Vec<K>,
