@@ -8,7 +8,7 @@ pub mod translate;
 pub mod typeck;
 pub mod utils;
 
-use rustc_middle::{hir::map::Map, ty::TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_mir::transform::MirSource;
 
 use context::LiquidRustCtxt;
@@ -19,14 +19,9 @@ use typeck::TypeCk;
 
 // TODO: deal with errors w/o unwrapping and asserting
 /// Runs the typechecking pipeline on a function body, based on its body id.
-pub fn check_body<'lr>(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    hir: Map<'_>,
-    tcx: TyCtxt<'_>,
-    body_id: BodyId,
-) {
+pub fn check_body<'lr>(cx: &'lr LiquidRustCtxt<'lr>, tcx: TyCtxt<'_>, body_id: BodyId) {
     // We first have to translate the body to the CPS IR.
-    let def_id = hir.body_owner_def_id(body_id);
+    let def_id = tcx.hir().body_owner_def_id(body_id);
     let body = tcx.optimized_mir(def_id);
 
     let mut t = Transformer::new(tcx, cx);
