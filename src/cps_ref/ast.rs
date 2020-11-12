@@ -188,6 +188,7 @@ pub enum Operand {
 pub enum Constant {
     Bool(bool),
     Int(u128),
+    Unit,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -348,10 +349,16 @@ pub enum Var {
 
 pub type Pred<'lr> = &'lr PredS<'lr>;
 
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+pub enum ConstantP {
+    Bool(bool),
+    Int(u128),
+}
+
 /// A refinement type predicate
 #[derive(Eq, PartialEq, Hash)]
 pub enum PredS<'lr> {
-    Constant(Constant),
+    Constant(ConstantP),
     Place { var: Var, projection: Vec<u32> },
     BinaryOp(BinOp, &'lr PredS<'lr>, &'lr PredS<'lr>),
     UnaryOp(UnOp, &'lr PredS<'lr>),
@@ -432,15 +439,6 @@ impl From<Field> for Var {
     }
 }
 
-impl Constant {
-    pub fn ty(&self) -> BasicType {
-        match self {
-            Constant::Bool(_) => BasicType::Bool,
-            Constant::Int(_) => BasicType::Int,
-        }
-    }
-}
-
 impl<'a> Into<TyS<'a>> for OwnRef {
     fn into(self) -> TyS<'a> {
         TyS::OwnRef(self.0)
@@ -468,6 +466,16 @@ impl Debug for Constant {
         match self {
             Constant::Bool(b) => write!(f, "{}", b),
             Constant::Int(i) => write!(f, "{}", i),
+            Constant::Unit => write!(f, "()"),
+        }
+    }
+}
+
+impl Debug for ConstantP {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConstantP::Bool(b) => write!(f, "{}", b),
+            ConstantP::Int(i) => write!(f, "{}", i),
         }
     }
 }

@@ -486,16 +486,17 @@ impl<'lr> TypeCk<'lr> {
                 }
                 (pred, typ, bindings)
             }
-            Operand::Constant(c) => {
-                let pred = self
-                    .cx
-                    .mk_binop(BinOp::Eq, self.cx.preds.nu, self.cx.mk_const(*c));
-                (
-                    self.cx.mk_const(*c),
-                    self.cx.mk_refine(c.ty(), pred),
-                    vec![],
-                )
+            &Operand::Constant(Constant::Bool(b)) => {
+                let c = self.cx.mk_const(ConstantP::Bool(b));
+                let pred = self.cx.mk_binop(BinOp::Eq, self.cx.preds.nu, c);
+                (c, self.cx.mk_refine(BasicType::Bool, pred), vec![])
             }
+            &Operand::Constant(Constant::Int(i)) => {
+                let c = self.cx.mk_const(ConstantP::Int(i));
+                let pred = self.cx.mk_binop(BinOp::Eq, self.cx.preds.nu, c);
+                (c, self.cx.mk_refine(BasicType::Int, pred), vec![])
+            }
+            Operand::Constant(Constant::Unit) => (self.cx.preds.tt, self.cx.types.unit, vec![]),
         }
     }
 

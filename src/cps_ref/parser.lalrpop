@@ -54,14 +54,21 @@ Rvalue: Rvalue = {
 }
 
 Operand: Operand = {
-  <Place>    => Operand::Deref(<>),
   <Constant> => Operand::Constant(<>),
+  <Place>    => Operand::Deref(<>),
 }
 
 Constant: Constant = {
-  "true" => Constant::Bool(true),
-  "false" => Constant::Bool(false),
-  r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap())
+  "true"    => Constant::Bool(true),
+  "false"   => Constant::Bool(false),
+  r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap()),
+  "(" ")"   => Constant::Unit
+}
+
+ConstantP: ConstantP = {
+  "true"    => ConstantP::Bool(true),
+  "false"   => ConstantP::Bool(false),
+  r"[0-9]+" => ConstantP::Int(u128::from_str(<>).unwrap())
 }
 
 BasicType: BasicType = {
@@ -133,7 +140,7 @@ PredLevel1 = LeftAssoc<BinOpGroup1, PredLevel2>;
 PredLevel2 = LeftAssoc<BinOpGroup2, PredLevel3>;
 
 PredLevel3: Pred<'lr> = {
-  Constant                             => cx.mk_pred(PredS::Constant(<>)),
+  ConstantP                            => cx.mk_pred(PredS::Constant(<>)),
   <var: Var> <projection: Projection*> => cx.mk_pred(PredS::Place { <> })
 }
 

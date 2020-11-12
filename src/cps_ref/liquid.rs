@@ -142,22 +142,26 @@ impl<'a> LiquidSolver<'a> {
                 let mut bindings = vec![];
                 sort.flatten(|(sort, proj)| bindings.push((place_to_string(bind, proj), sort)));
                 let mut n = 1;
-                for i in 0..bindings.len() - 1 {
-                    let (x, sort) = &bindings[i];
-                    write!(
-                        self.buf,
-                        "\n{:>3$}(forall (({} {}) (true))",
-                        "", x, sort, indent
-                    )?;
-                    indent += 2;
-                    n += 1;
-                }
-                let (x, sort2) = bindings.last().unwrap();
-                write!(self.buf, "\n{:>3$}(forall (({} {}) (", "", x, sort2, indent)?;
-                self.write_pred(hyp)?;
+                if bindings.is_empty() {
+                    write!(self.buf, "\n{:>1$}(forall ((_ int) (true))", "", indent)?;
+                } else {
+                    for i in 0..bindings.len() - 1 {
+                        let (x, sort) = &bindings[i];
+                        write!(
+                            self.buf,
+                            "\n{:>3$}(forall (({} {}) (true))",
+                            "", x, sort, indent
+                        )?;
+                        indent += 2;
+                        n += 1;
+                    }
+                    let (x, sort2) = bindings.last().unwrap();
+                    write!(self.buf, "\n{:>3$}(forall (({} {}) (", "", x, sort2, indent)?;
+                    self.write_pred(hyp)?;
 
-                self.map.insert(bind, sort);
-                write!(self.buf, "))")?;
+                    self.map.insert(bind, sort);
+                    write!(self.buf, "))")?;
+                }
                 self.write_constraint_rec(body, indent + 2)?;
                 write!(self.buf, "{:)>1$}", ")", n)?;
             }
@@ -180,8 +184,10 @@ impl<'a> LiquidSolver<'a> {
                 write!(self.buf, "{}", place_to_string(*var, proj.iter()))?;
             }
             &PredC::Constant(c) => match c {
-                ast::Constant::Bool(b) => write!(self.buf, "{}", if b { "true" } else { "false" })?,
-                ast::Constant::Int(n) => write!(self.buf, "{}", n)?,
+                ast::ConstantP::Bool(b) => {
+                    write!(self.buf, "{}", if b { "true" } else { "false" })?
+                }
+                ast::ConstantP::Int(n) => write!(self.buf, "{}", n)?,
             },
             PredC::BinaryOp(op, lhs, rhs) => {
                 write!(self.buf, "(")?;

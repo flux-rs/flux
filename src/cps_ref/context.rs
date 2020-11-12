@@ -34,7 +34,7 @@ impl<'lr> CtxtInterners<'lr> {
         }
     }
 
-    fn intern_ty(&'lr self, ty: TyS<'lr>) -> Ty<'lr> {
+    fn intern_ty(&self, ty: TyS<'lr>) -> Ty<'lr> {
         self.types.intern(ty, |ty| self.arena.alloc_ty(ty))
     }
 
@@ -57,8 +57,21 @@ impl<'lr> CommonPreds<'lr> {
                 var: Var::Nu,
                 projection: vec![],
             }),
-            tt: mk(PredS::Constant(Constant::Bool(true))),
-            ff: mk(PredS::Constant(Constant::Bool(false))),
+            tt: mk(PredS::Constant(ConstantP::Bool(true))),
+            ff: mk(PredS::Constant(ConstantP::Bool(false))),
+        }
+    }
+}
+
+pub struct CommonTypes<'lr> {
+    pub unit: Ty<'lr>,
+}
+
+impl<'lr> CommonTypes<'lr> {
+    fn new(interners: &CtxtInterners<'lr>) -> Self {
+        let mk = |typ| interners.intern_ty(typ);
+        CommonTypes {
+            unit: mk(TyS::Tuple(vec![])),
         }
     }
 }
@@ -66,13 +79,19 @@ impl<'lr> CommonPreds<'lr> {
 pub struct LiquidRustCtxt<'lr> {
     interners: CtxtInterners<'lr>,
     pub preds: CommonPreds<'lr>,
+    pub types: CommonTypes<'lr>,
 }
 
 impl<'lr> LiquidRustCtxt<'lr> {
     pub fn new(arena: &'lr Arena<'lr>) -> Self {
         let interners = CtxtInterners::new(arena);
         let preds = CommonPreds::new(&interners);
-        LiquidRustCtxt { interners, preds }
+        let types = CommonTypes::new(&interners);
+        LiquidRustCtxt {
+            interners,
+            preds,
+            types,
+        }
     }
 
     pub fn mk_ty(&'lr self, ty: TyS<'lr>) -> Ty<'lr> {
@@ -132,32 +151,7 @@ impl<'lr> LiquidRustCtxt<'lr> {
         self.mk_pred(PredS::UnaryOp(op, operand))
     }
 
-    pub fn mk_const(&'lr self, c: Constant) -> Pred<'lr> {
+    pub fn mk_const(&'lr self, c: ConstantP) -> Pred<'lr> {
         self.mk_pred(PredS::Constant(c))
-    }
-}
-
-impl<'lr> TyS<'lr> {
-    /// Returns a new type where the type at path `proj` has been
-    /// replaced with `typ`. Sizes must match.
-    pub fn update_at(
-        &'lr self,
-        cx: &'lr LiquidRustCtxt<'lr>,
-        proj: &[u32],
-        typ: Ty<'lr>,
-    ) -> Ty<'lr> {
-        match (self, proj) {
-            (_, []) => {
-                assert!(self.size() == typ.size());
-                typ
-            }
-            (TyS::Tuple(fields), [.., n]) => {
-                let mut fields = fields.clone();
-                let f = &mut fields[*n as usize];
-                f.1 = f.1.update_at(cx, &proj[1..], typ);
-                cx.mk_tuple(&fields)
-            }
-            _ => bug!(""),
-        }
     }
 }

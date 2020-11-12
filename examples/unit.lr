@@ -1,0 +1,4 @@
+fn ipa(;) ret k(r0: (); own(r0)) =
+  let r = alloc(());
+  r := ();
+  jump k(r)

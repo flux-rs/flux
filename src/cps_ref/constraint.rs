@@ -52,7 +52,7 @@ pub struct Place {
 
 pub enum PredC {
     Place(Place),
-    Constant(Constant),
+    Constant(ConstantP),
     BinaryOp(BinOp, Box<PredC>, Box<PredC>),
     Conj(Vec<PredC>),
     UnaryOp(UnOp, Box<PredC>),
@@ -168,7 +168,7 @@ fn embed_rec(x: Var, typ: Ty, subst: &Subst, proj: &mut Vec<u32>) -> PredC {
             PredC::Conj(preds)
         }
         TyS::Fn { .. } | TyS::OwnRef(_) | TyS::Uninit(_) | TyS::Ref(..) => {
-            PredC::Constant(Constant::Bool(true))
+            PredC::Constant(ConstantP::Bool(true))
         }
         TyS::RefineHole { .. } => bug!(),
     }
