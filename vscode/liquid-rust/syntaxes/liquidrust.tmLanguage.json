@@ -110,8 +110,8 @@
 		},
 		"fn": {
 			"name": "meta.definition.fn.liquidrust",
-			"begin": "(fn)\\s+(\\w+)\\s*\\(",
-			"end": "(ret)\\s+(\\w+)\\s*",
+			"begin": "(fn)\\s+(\\w*)",
+			"end": "(ret)\\s+(\\w*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.liquidrust"
@@ -148,7 +148,7 @@
 		},
 		"jump": {
 			"name": "meta.jump.liquidrust",
-			"match": "(jump)\\s+(\\w+)",
+			"match": "(jump)\\s+(\\w*)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.liquidrust"

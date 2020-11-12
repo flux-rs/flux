@@ -1,8 +1,11 @@
 fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
+  letcont b0(n1: {int | _ }; n: own(n1);) =
+    jump k(n)
+  in
   let b = alloc(1);
-  b := n <= 0;
+  b := n < 0;
   if b then
     n := 0 - n;
-    jump k(n)
+    jump b0()
   else
-    jump k(n)
+    jump b0()
