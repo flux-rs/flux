@@ -1,0 +1,13 @@
+fn move_behind_reference(;) ret k(r: (); own(r)) =
+  let x = alloc(1);
+  let p1 = alloc(1);
+  let p2 = alloc(1);
+  let p3 = alloc(1);
+
+  x := 1;
+  p1 := &mut x;
+  p2 := &mut p1;
+  p3 := *p2;
+
+  let r = alloc(());
+  jump k(r)

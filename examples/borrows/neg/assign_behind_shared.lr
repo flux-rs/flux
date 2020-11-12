@@ -1,0 +1,8 @@
+fn assign_behind_shared(;) ret k(r: (); own(r)) =
+  let x = alloc(1);
+  let p = alloc(1);
+  p  := &x;
+  *p := 3;
+
+  let r = alloc(());
+  jump k(r)

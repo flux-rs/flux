@@ -1,0 +1,10 @@
+fn assign_conflict(;) ret k(r: (); own(r)) =
+  let x = alloc(1);
+  let p = alloc(1);
+  x := 3;
+  p := &mut x;
+
+  x := 3;
+
+  let r = alloc(());
+  jump k(r)

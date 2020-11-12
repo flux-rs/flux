@@ -268,6 +268,7 @@ impl<'lr> TyCtxt<'lr> {
                 bindings.push((l, t));
                 (self.cx.mk_ty(TyS::Ref(*kind, r.clone(), l)), bindings)
             }
+            (TyS::OwnRef(_), [Projection::Deref, ..]) => todo!(),
             _ => bug!(""),
         }
     }
@@ -402,7 +403,7 @@ impl<'lr> TyCtxt<'lr> {
 
     fn ownership(
         &self,
-        kind: BorrowKind,
+        kind: OwnershipKind,
         place: &Place,
         reborrow_list: &mut Vec<Place>,
     ) -> Result<(), OwnershipError<'lr>> {
@@ -416,7 +417,7 @@ impl<'lr> TyCtxt<'lr> {
                         }
 
                         for p in r {
-                            if place.overlaps(p) && (kind.is_mut() || k.is_mut()) {
+                            if place.overlaps(p) && (kind >= OwnershipKind::Mut || k.is_mut()) {
                                 return Err(OwnershipError::ConflictingBorrow(
                                     Place::new(x, path),
                                     typ,
@@ -436,18 +437,24 @@ impl<'lr> TyCtxt<'lr> {
                 Projection::Deref => {
                     reborrow_list.push(Place::new(place.local, Vec::from(&place.projection[0..i])));
                     let (_, t) = self.lookup_(place.local, &place.projection[0..i]);
-                    if let TyS::Ref(k, region, _) = t {
-                        if kind > *k {
-                            return Err(OwnershipError::BehindShared);
+                    match t {
+                        TyS::Ref(k, region, _) => {
+                            if kind > *k {
+                                return Err(OwnershipError::BehindRef(*k));
+                            }
+                            for p in region {
+                                self.ownership(
+                                    kind,
+                                    &p.extend(&place.projection[i + 1..]),
+                                    reborrow_list,
+                                )?;
+                            }
+                            return Ok(());
                         }
-                        for p in region {
-                            self.ownership(
-                                kind,
-                                &p.extend(&place.projection[i + 1..]),
-                                reborrow_list,
-                            )?;
+                        TyS::OwnRef(_) => {
+                            todo!();
                         }
-                        return Ok(());
+                        _ => {}
                     }
                     reborrow_list.pop();
                 }
@@ -481,13 +488,21 @@ impl<'lr> TypeCk<'lr> {
         &mut self,
         tcx: &mut TyCtxt<'lr>,
         operand: &Operand,
-    ) -> (Pred<'lr>, Ty<'lr>, Bindings<'lr>) {
-        match operand {
+    ) -> Result<(Pred<'lr>, Ty<'lr>, Bindings<'lr>), TypeError<'lr>> {
+        let r = match operand {
             Operand::Deref(place) => {
                 let mut bindings = vec![];
                 let (pred, typ) = tcx.lookup(place);
                 if !typ.is_copy() {
-                    // TODO: check ownership safety
+                    tcx.ownership(OwnershipKind::Owned, place, &mut vec![])
+                        .map_err(|e| match e {
+                            OwnershipError::ConflictingBorrow(p, t) => {
+                                TypeError::MoveConflict(place.clone(), p, t)
+                            }
+                            OwnershipError::BehindRef(k) => {
+                                TypeError::MoveBehindRef(place.clone(), k)
+                            }
+                        })?;
                     bindings.extend(tcx.update(place, self.cx.mk_uninit(typ.size())));
                 }
                 (pred, typ, bindings)
@@ -503,7 +518,8 @@ impl<'lr> TypeCk<'lr> {
                 (c, self.cx.mk_refine(BasicType::Int, pred), vec![])
             }
             Operand::Constant(Constant::Unit) => (self.cx.preds.tt, self.cx.types.unit, vec![]),
-        }
+        };
+        Ok(r)
     }
 
     fn wt_binop(
@@ -513,8 +529,8 @@ impl<'lr> TypeCk<'lr> {
         rhs: &Operand,
         lhs: &Operand,
     ) -> Result<(Ty<'lr>, Bindings<'lr>), TypeError<'lr>> {
-        let (p1, t1, mut bindings1) = self.wt_operand(tcx, lhs);
-        let (p2, t2, bindings2) = self.wt_operand(tcx, rhs);
+        let (p1, t1, mut bindings1) = self.wt_operand(tcx, lhs)?;
+        let (p2, t2, bindings2) = self.wt_operand(tcx, rhs)?;
         bindings1.extend(bindings2);
         if !t1.is_int() || !t2.is_int() {
             return Err(TypeError::BinOpMismatch(op, t1, t2));
@@ -541,7 +557,7 @@ impl<'lr> TypeCk<'lr> {
     ) -> Result<(Ty<'lr>, Bindings<'lr>), TypeError<'lr>> {
         let r = match val {
             Rvalue::Use(operand) => {
-                let (p, typ, bindings) = self.wt_operand(tcx, operand);
+                let (p, typ, bindings) = self.wt_operand(tcx, operand)?;
                 match p {
                     PredS::Place { var, projection } => (
                         selfify(self.cx, *var, &mut projection.clone(), &typ),
@@ -560,7 +576,7 @@ impl<'lr> TypeCk<'lr> {
                 (tuple, bindings)
             }
             Rvalue::UnaryOp(op, operand) => {
-                let (pred, typ, bindings) = self.wt_operand(tcx, operand);
+                let (pred, typ, bindings) = self.wt_operand(tcx, operand)?;
                 match (op, typ) {
                     (
                         UnOp::Not,
@@ -580,13 +596,13 @@ impl<'lr> TypeCk<'lr> {
                 }
             }
             Rvalue::Ref(kind, place) => {
-                tcx.ownership(*kind, place, &mut vec![])
+                tcx.ownership(OwnershipKind::from(*kind), place, &mut vec![])
                     .map_err(|e| match e {
                         OwnershipError::ConflictingBorrow(p, t) => {
                             TypeError::BorrowConflict(place.clone(), *kind, p, t)
                         }
-                        OwnershipError::BehindShared => {
-                            TypeError::BorrowBehindShared(place.clone())
+                        OwnershipError::BehindRef(k) => {
+                            TypeError::BorrowBehindRef(place.clone(), k)
                         }
                     })?;
                 tcx.borrow(*kind, place)
@@ -608,13 +624,13 @@ impl<'lr> TypeCk<'lr> {
             Statement::Assign(place, rval) => {
                 let (_, t1) = tcx.lookup(place);
                 let (t2, mut bindings) = self.wt_rvalue(tcx, rval)?;
-                tcx.ownership(BorrowKind::Mut, place, &mut vec![])
+                tcx.ownership(OwnershipKind::Mut, place, &mut vec![])
                     .map_err(|e| match e {
                         OwnershipError::ConflictingBorrow(p, t) => {
                             TypeError::AssignConflict(place.clone(), p, t)
                         }
-                        OwnershipError::BehindShared => {
-                            TypeError::AssignBehindShared(place.clone())
+                        OwnershipError::BehindRef(k) => {
+                            TypeError::AssignBehindRef(place.clone(), k)
                         }
                     })?;
                 if t1.size() != t2.size() {
@@ -624,12 +640,13 @@ impl<'lr> TypeCk<'lr> {
                 (bindings, Constraint::True)
             }
             &Statement::Drop(x) => {
-                tcx.ownership(BorrowKind::Mut, &Place::from(x), &mut vec![])
+                let place = Place::from(x);
+                tcx.ownership(OwnershipKind::Owned, &Place::from(x), &mut vec![])
                     .map_err(|e| match e {
-                        OwnershipError::ConflictingBorrow(p, t) => TypeError::DropConflict(x, p, t),
-                        OwnershipError::BehindShared => {
-                            bug!("A local cannot be behind a shared reference")
+                        OwnershipError::ConflictingBorrow(p, t) => {
+                            TypeError::MoveConflict(place, p, t)
                         }
+                        OwnershipError::BehindRef(k) => TypeError::MoveBehindRef(place, k),
                     })?;
                 tcx.drop(x)?
             }
@@ -685,7 +702,13 @@ impl<'lr> TypeCk<'lr> {
                     }
                 }
             }
-            FnBody::Jump { target, args } => tcx.check_jump(*target, args).unwrap(),
+            FnBody::Jump { target, args } => match tcx.check_jump(*target, args) {
+                Ok(c) => c,
+                Err(err) => {
+                    self.errors.push(err);
+                    Constraint::Err
+                }
+            },
             FnBody::Seq(statement, rest) => match self.wt_statement(tcx, statement) {
                 Ok((bindings, c)) => Constraint::Conj(vec![
                     Constraint::from_bindings(bindings.iter().copied(), self.wt_fn_body(tcx, rest)),
@@ -765,7 +788,7 @@ impl<'lr> std::fmt::Display for TypeErrors<'lr> {
 
 pub enum OwnershipError<'lr> {
     ConflictingBorrow(Place, Ty<'lr>),
-    BehindShared,
+    BehindRef(BorrowKind),
 }
 
 #[derive(Error, Debug)]
@@ -788,16 +811,18 @@ pub enum TypeError<'lr> {
     ArgCount,
     #[error("cannot borrow `{0:?}` as {1:} because there is a conflicting borrow at place `{2:?}` of type {3:?}")]
     BorrowConflict(Place, BorrowKind, Place, Ty<'lr>),
-    #[error("cannot borrow `{0:?}` as mutable because is behind a shared reference")]
-    BorrowBehindShared(Place),
+    #[error("cannot borrow `{0:?}` as mutable because is behind a {1:} reference")]
+    BorrowBehindRef(Place, BorrowKind),
     #[error("cannot assing to`{0:?}` because there is a conflicting borrow at place `{1:?}` of type {2:?}")]
     AssignConflict(Place, Place, Ty<'lr>),
-    #[error("cannot assign to `{0:?}` because is behind a shared reference")]
-    AssignBehindShared(Place),
+    #[error("cannot assign to `{0:?}` because is behind a {1:} reference")]
+    AssignBehindRef(Place, BorrowKind),
     #[error(
-        "cannot drop `{0:?}` because there is a conflicting borrow at place `{1:?}` of type {2:?}"
+        "cannot move out of `{0:?}` because there is a conflicting borrow at place `{1:?}` of type {2:?}"
     )]
-    DropConflict(Local, Place, Ty<'lr>),
+    MoveConflict(Place, Place, Ty<'lr>),
+    #[error("cannot move out of `{0:?}` which is behind a {1:} reference")]
+    MoveBehindRef(Place, BorrowKind),
 }
 
 fn env_incl<'lr>(
@@ -994,5 +1019,44 @@ fn infer_subst_typ(
             v.push((Var::Location(*l2), Var::Location(*l1)));
         }
         _ => {}
+    }
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone)]
+enum OwnershipKind {
+    Shared,
+    Mut,
+    Owned,
+}
+
+impl From<BorrowKind> for OwnershipKind {
+    fn from(kind: BorrowKind) -> Self {
+        match kind {
+            BorrowKind::Shared => OwnershipKind::Shared,
+            BorrowKind::Mut => OwnershipKind::Mut,
+        }
+    }
+}
+
+impl std::cmp::PartialEq<BorrowKind> for OwnershipKind {
+    fn eq(&self, other: &BorrowKind) -> bool {
+        match (self, other) {
+            (OwnershipKind::Mut, BorrowKind::Mut) | (OwnershipKind::Shared, BorrowKind::Shared) => {
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+impl std::cmp::PartialOrd<BorrowKind> for OwnershipKind {
+    fn partial_cmp(&self, other: &BorrowKind) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (OwnershipKind::Mut, BorrowKind::Mut) | (OwnershipKind::Shared, BorrowKind::Shared) => {
+                Some(std::cmp::Ordering::Equal)
+            }
+            (OwnershipKind::Shared, _) | (OwnershipKind::Mut, _) => Some(std::cmp::Ordering::Less),
+            _ => Some(std::cmp::Ordering::Greater),
+        }
     }
 }

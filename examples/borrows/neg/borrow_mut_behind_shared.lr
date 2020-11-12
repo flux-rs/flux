@@ -1,0 +1,11 @@
+fn borrow_mut_behind_shared(;) ret k(r: (); own(r)) =
+  let x = alloc(1);
+  let p1 = alloc(1);
+  let p2 = alloc(1);
+
+  x  := 1;
+  p1 := &x;
+  p2 := &mut *p1;
+
+  let r = alloc(());
+  jump k(r)

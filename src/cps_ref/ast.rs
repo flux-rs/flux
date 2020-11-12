@@ -432,8 +432,12 @@ impl<'lr> TyS<'lr> {
     }
 
     pub fn is_copy(&self) -> bool {
-        // TODO
-        true
+        match self {
+            TyS::Refine { .. } => true,
+            TyS::Tuple(fields) => fields.iter().all(|(_, t)| t.is_copy()),
+            TyS::Ref(BorrowKind::Shared, ..) => true,
+            _ => false,
+        }
     }
 
     pub fn size(&self) -> u32 {
