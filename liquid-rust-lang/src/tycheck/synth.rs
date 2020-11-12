@@ -1,6 +1,6 @@
 use crate::{
-    ir::{Literal, Local, Operand, Rvalue, Statement},
-    ty::{BaseTy, Ty},
+    ir::{BinOp, Literal, Local, Operand, Rvalue, Statement},
+    ty::{BaseTy, Predicate, Ty},
     tycheck::{Constraint, TyContextAt},
 };
 
@@ -51,8 +51,49 @@ impl<'tcx> Synth<'tcx> for Rvalue {
     fn synth(&self, ctx: &TyContextAt<'tcx>) -> (Constraint, Ty) {
         match self {
             Self::Use(op) => ctx.synth(op),
-            Rvalue::BinApp(bin_op, op1, op2) => todo!(),
-            Rvalue::UnApp(un_op, op) => todo!(),
+            &Rvalue::BinApp(bin_op, op1, op2) => {
+                let base_ty = match bin_op {
+                    BinOp::Add | BinOp::Sub | BinOp::Mul => ctx.base_type_of_operand(op1),
+                    BinOp::And
+                    | BinOp::Or
+                    | BinOp::Eq
+                    | BinOp::Neq
+                    | BinOp::Lt
+                    | BinOp::Gt
+                    | BinOp::Lte
+                    | BinOp::Gte => BaseTy::Bool,
+                };
+
+                let op1 = ctx.resolve_operand(op1);
+                let op2 = ctx.resolve_operand(op2);
+
+                let var = ctx.new_variable();
+                let ty = Ty::RefBase(
+                    var,
+                    base_ty,
+                    Predicate::from(var).eq(Predicate::BinApp(
+                        bin_op,
+                        Box::new(op1),
+                        Box::new(op2),
+                    )),
+                );
+
+                (true.into(), ty)
+            }
+            &Rvalue::UnApp(un_op, op) => {
+                let base_ty = ctx.base_type_of_operand(op);
+
+                let op = ctx.resolve_operand(op);
+
+                let var = ctx.new_variable();
+                let ty = Ty::RefBase(
+                    var,
+                    base_ty,
+                    Predicate::from(var).eq(Predicate::UnApp(un_op, Box::new(op))),
+                );
+
+                (true.into(), ty)
+            }
         }
     }
 }

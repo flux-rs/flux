@@ -107,7 +107,7 @@ impl Display for UnOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Operand {
     Move(Local),
     Copy(Local),

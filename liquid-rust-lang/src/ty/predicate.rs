@@ -29,6 +29,12 @@ impl From<Variable> for Predicate {
     }
 }
 
+impl From<Literal> for Predicate {
+    fn from(lit: Literal) -> Self {
+        Self::Lit(lit)
+    }
+}
+
 impl From<bool> for Predicate {
     fn from(b: bool) -> Self {
         Self::Lit(b.into())

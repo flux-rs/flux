@@ -1,10 +1,10 @@
 use crate::{
     ast::{Annotation, Ty as AstTy},
     generator::Generator,
-    ir::{Func, FuncId, Local},
+    ir::{Func, FuncId, Literal, Local, Operand},
     replace::Replace,
     resolve::{ResolveCtx, ResolveError},
-    ty::{BaseTy, Ty, Variable},
+    ty::{BaseTy, Predicate, Ty, Variable},
     tycheck::{Check, Constraint, Synth},
 };
 
@@ -110,6 +110,25 @@ impl<'tcx> TyContextAt<'tcx> {
             .expect("FuncIds always map to a Func.")
     }
 
+    pub(crate) fn base_type_of_operand(&self, op: Operand) -> BaseTy {
+        match op {
+            Operand::Lit(lit) => match lit {
+                Literal::Unit => BaseTy::Unit,
+                Literal::Bool(_) => BaseTy::Bool,
+                Literal::Uint(_, size) => BaseTy::Uint(size),
+                Literal::Int(_, size) => BaseTy::Int(size),
+                Literal::Fn(func_id) => unreachable!(),
+            },
+            Operand::Move(local) | Operand::Copy(local) => {
+                if let Ty::RefBase(_, base_ty, _) = self.type_of_local(&local) {
+                    base_ty
+                } else {
+                    unreachable!()
+                }
+            }
+        }
+    }
+
     pub(crate) fn type_of_local(&self, local: &Local) -> Ty {
         let env = self.env.borrow();
 
@@ -130,6 +149,22 @@ impl<'tcx> TyContextAt<'tcx> {
             .get(func_id)
             .expect("Orphan FuncId.")
             .clone()
+    }
+
+    pub(crate) fn resolve_local(&self, local: Local) -> Variable {
+        *self
+            .env
+            .borrow()
+            .vars
+            .get(&local)
+            .expect("Locals always map to a variable.")
+    }
+
+    pub(crate) fn resolve_operand(&self, op: Operand) -> Predicate {
+        match op {
+            Operand::Lit(lit) => lit.into(),
+            Operand::Move(local) | Operand::Copy(local) => self.resolve_local(local).into(),
+        }
     }
 
     pub(crate) fn refined(&self, base_ty: BaseTy) -> Ty {

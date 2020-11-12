@@ -28,10 +28,7 @@ impl Constraint {
         let c = c.into();
 
         match (&p, &c) {
-            (
-                Predicate::Lit(Literal::Bool(true)),
-                Constraint::Pred(Predicate::Lit(Literal::Bool(true))),
-            ) => true.into(),
+            (_, Constraint::Pred(Predicate::Lit(Literal::Bool(true)))) => true.into(),
             _ => Self::ForAll(v, b, p, Box::new(c)),
         }
     }
