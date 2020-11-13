@@ -2,6 +2,7 @@ mod check;
 mod constraint;
 mod context;
 mod synth;
+mod error;
 
 use check::Check;
 use constraint::Constraint;

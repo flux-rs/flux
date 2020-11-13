@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) enum Constraint {
+pub enum Constraint {
     Pred(Predicate),
     And(Box<Self>, Box<Self>),
     // forall x : b. p => c
