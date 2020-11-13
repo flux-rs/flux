@@ -6,5 +6,6 @@ edition = "2018"
 
 [dependencies]
 rustc-workspace-hack = "1.0.0"
+env_logger = "0.8"
 
 liquid-rust-lang = { path = "../liquid-rust-lang" }

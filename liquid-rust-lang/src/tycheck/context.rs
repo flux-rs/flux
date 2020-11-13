@@ -183,11 +183,15 @@ impl<'tcx> TyContextAt<'tcx> {
     pub(super) fn is_subtype(&self, ty1: &Ty, ty2: &Ty) -> Constraint {
         match (ty1, ty2) {
             (&Ty::RefBase(v1, b1, ref p1), &Ty::RefBase(v2, b2, ref p2)) => {
+                log::info!("Running Sub-Base for `{}` and `{}`", ty1, ty2);
                 if b1 == b2 {
                     let p1 = p1.clone();
                     let mut p2 = p2.clone();
                     p2.replace(v2, v1);
-                    Constraint::forall(v1, b1, p1, p2)
+
+                    let c = Constraint::forall(v1, b1, p1, p2);
+                    log::info!("Sub-Base for `{}` and `{}` returns `{}`", ty1, ty2, c);
+                    c
                 } else {
                     panic!("Base type mismatch")
                 }

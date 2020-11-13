@@ -3,6 +3,24 @@ use crate::{
     ty::{BaseTy, Predicate, Ty},
     tycheck::{Constraint, TyContextAt},
 };
+fn begin_rule<'tcx, T: Synth<'tcx> + std::fmt::Display>(rule: &str, term: &T) {
+    log::info!("Running {} for `{}`", rule, term);
+}
+
+fn end_rule<'tcx, T: Synth<'tcx> + std::fmt::Display>(
+    rule: &str,
+    term: &T,
+    (constraint, ty): (Constraint, Ty),
+) -> (Constraint, Ty) {
+    log::info!(
+        "{} for `{}` returns (`{}`, `{}`)",
+        rule,
+        term,
+        constraint,
+        ty
+    );
+    (constraint, ty)
+}
 
 pub(super) trait Synth<'tcx> {
     fn synth(&self, ctx: &TyContextAt<'tcx>) -> (Constraint, Ty);
@@ -10,6 +28,8 @@ pub(super) trait Synth<'tcx> {
 
 impl<'tcx> Synth<'tcx> for Literal {
     fn synth(&self, ctx: &TyContextAt<'tcx>) -> (Constraint, Ty) {
+        begin_rule("Syn-Lit", self);
+
         let var = ctx.new_variable();
 
         let base_ty = match self {
@@ -20,15 +40,17 @@ impl<'tcx> Synth<'tcx> for Literal {
             Self::Fn(id) => return (true.into(), ctx.type_of_func(id)),
         };
 
-        let ty = Ty::RefBase(var, base_ty, true.into());
+        let ty = Ty::RefBase(var, base_ty, Predicate::from(var).eq(*self));
 
-        (true.into(), ty)
+        end_rule("Syn-Lit", self, (true.into(), ty))
     }
 }
 
 impl<'tcx> Synth<'tcx> for Local {
     fn synth(&self, ctx: &TyContextAt<'tcx>) -> (Constraint, Ty) {
-        (true.into(), ctx.type_of_local(self))
+        begin_rule("Syn-Local", self);
+
+        end_rule("Syn-Local", self, (true.into(), ctx.type_of_local(self)))
     }
 }
 
@@ -37,10 +59,18 @@ impl<'tcx> Synth<'tcx> for Statement {
         match self {
             // Syn-Assign
             Self::Assign(local, rvalue) => {
+                begin_rule("Syn-Assign", self);
+
                 let (rhs_constraint, rhs_ty) = ctx.synth(rvalue);
                 let lhs_constraint = ctx.check(local, &rhs_ty);
 
-                (rhs_constraint | lhs_constraint, ctx.refined(BaseTy::Unit))
+                ctx.annotate_variable(ctx.resolve_local(*local), rhs_ty.clone());
+
+                end_rule(
+                    "Syn-Assign",
+                    self,
+                    (rhs_constraint & lhs_constraint, ctx.refined(BaseTy::Unit)),
+                )
             }
             Self::Noop => (true.into(), ctx.refined(BaseTy::Unit)),
         }

@@ -84,5 +84,6 @@ fn run_compiler(mut args: Vec<String>, callbacks: &mut (dyn Callbacks + Send)) -
 }
 
 fn main() {
+    env_logger::init();
     run_compiler(std::env::args().collect::<Vec<_>>(), &mut CompilerCalls);
 }

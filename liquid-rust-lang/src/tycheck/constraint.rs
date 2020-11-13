@@ -1,6 +1,6 @@
 use std::{
     fmt::{Display, Formatter, Result},
-    ops::BitOr,
+    ops::BitAnd,
 };
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 #[derive(Debug)]
 pub(super) enum Constraint {
     Pred(Predicate),
-    Or(Box<Self>, Box<Self>),
+    And(Box<Self>, Box<Self>),
     // forall x : b. p => c
     ForAll(Variable, BaseTy, Predicate, Box<Self>),
 }
@@ -43,10 +43,10 @@ impl Constraint {
     }
 }
 
-impl<Rhs: Into<Constraint>> BitOr<Rhs> for Constraint {
+impl<Rhs: Into<Constraint>> BitAnd<Rhs> for Constraint {
     type Output = Self;
 
-    fn bitor(self, rhs: Rhs) -> Self::Output {
+    fn bitand(self, rhs: Rhs) -> Self::Output {
         let rhs = rhs.into();
 
         if let Constraint::Pred(Predicate::Lit(Literal::Bool(true))) = self {
@@ -54,7 +54,7 @@ impl<Rhs: Into<Constraint>> BitOr<Rhs> for Constraint {
         } else if let Constraint::Pred(Predicate::Lit(Literal::Bool(true))) = rhs {
             self
         } else {
-            Constraint::Or(Box::new(self), Box::new(rhs))
+            Constraint::And(Box::new(self), Box::new(rhs))
         }
     }
 }
@@ -75,7 +75,7 @@ impl Display for Constraint {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Self::Pred(pred) => pred.fmt(f),
-            Self::Or(c1, c2) => write!(f, "({} || {})", c1, c2),
+            Self::And(c1, c2) => write!(f, "({} && {})", c1, c2),
             Self::ForAll(x, b, p, c) => write!(f, "(forall {}: {} . {} => {})", x, b, p, c),
         }
     }
