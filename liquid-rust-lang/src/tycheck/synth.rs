@@ -62,14 +62,13 @@ impl<'tcx> Synth<'tcx> for Statement {
                 begin_rule("Syn-Assign", self);
 
                 let (rhs_constraint, rhs_ty) = ctx.synth(rvalue);
-                let lhs_constraint = ctx.check(local, &rhs_ty);
 
                 ctx.annotate_variable(ctx.resolve_local(*local), rhs_ty.clone());
 
                 end_rule(
                     "Syn-Assign",
                     self,
-                    (rhs_constraint & lhs_constraint, ctx.refined(BaseTy::Unit)),
+                    (rhs_constraint, ctx.refined(BaseTy::Unit)),
                 )
             }
             Self::Noop => (true.into(), ctx.refined(BaseTy::Unit)),
