@@ -1,0 +1,11 @@
+fn mut_ref_strong_update(;) ret k(r0: {int | V > 0}; own(r0)) =
+  let n = alloc(1);
+  let p1 = alloc(1);
+  let p2 = alloc(1);
+  n  := 0;
+  p1 := &mut n;
+  p2 := &mut *p1;
+  *p2 := 1;
+  drop(p2);
+  drop(p1);
+  jump k(n)

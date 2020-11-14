@@ -12,8 +12,8 @@ use thiserror::Error;
 
 type LocalsMap = HashMap<Local, OwnRef>;
 type LocationsMap<'lr> = OrderedHashMap<Location, Ty<'lr>>;
-type Binding<'lr> = (Var, Ty<'lr>);
-type Bindings<'lr> = Vec<Binding<'lr>>;
+type Binding<'lr, T> = (T, Ty<'lr>);
+type Bindings<'lr, T> = Vec<Binding<'lr, T>>;
 
 struct TyCtxt<'lr> {
     cx: &'lr LiquidRustCtxt<'lr>,
@@ -61,8 +61,8 @@ impl<'lr> TyCtxt<'lr> {
         Constraint::from_bindings(self.locations.pop().unwrap().into_iter(), c)
     }
 
-    fn bindings(&self) -> impl DoubleEndedIterator<Item = Binding<'lr>> + '_ {
-        self.locations.iter().map(|(&l, &t)| (Var::from(l), t))
+    fn bindings<T: From<Location>>(&self) -> impl DoubleEndedIterator<Item = Binding<'lr, T>> + '_ {
+        self.locations.iter().map(|(&l, &t)| (T::from(l), t))
     }
 
     pub fn enter_cont_def(
@@ -149,7 +149,10 @@ impl<'lr> TyCtxt<'lr> {
         self.locals.last_mut().unwrap().insert(x, ownref);
     }
 
-    pub fn drop(&mut self, x: Local) -> Result<(Bindings<'lr>, Constraint), TypeError<'lr>> {
+    pub fn drop(
+        &mut self,
+        x: Local,
+    ) -> Result<(Bindings<'lr, Location>, Constraint), TypeError<'lr>> {
         let OwnRef(l) = self.lookup_local(x).unwrap();
         let typ = self.lookup_location(l).unwrap();
         let (c, mut bindings) = self.drop_typ(typ)?;
@@ -157,7 +160,10 @@ impl<'lr> TyCtxt<'lr> {
         Ok((bindings, c))
     }
 
-    fn drop_typ(&mut self, typ: Ty<'lr>) -> Result<(Constraint, Bindings<'lr>), TypeError<'lr>> {
+    fn drop_typ(
+        &mut self,
+        typ: Ty<'lr>,
+    ) -> Result<(Constraint, Bindings<'lr, Location>), TypeError<'lr>> {
         let mut constraints = vec![];
         let mut bindings = vec![];
         typ.try_walk(|_, typ| {
@@ -167,8 +173,8 @@ impl<'lr> TyCtxt<'lr> {
                     if r.len() == 1 {
                         bindings.extend(self.update(&r[0], t));
                     } else {
-                        let t_join =
-                            self.replace_refine_with_kvars(t, &mut self.bindings().collect());
+                        let t_join = self
+                            .replace_refine_with_kvars(t, &mut self.bindings::<Var>().collect());
                         constraints.push(inner_subtype(self.cx, &self.locations, t, t_join)?);
                         for p in r {
                             let (_, t2) = self.lookup(p);
@@ -184,7 +190,11 @@ impl<'lr> TyCtxt<'lr> {
         Ok((Constraint::Conj(constraints), bindings))
     }
 
-    fn replace_refine_with_kvars(&mut self, typ: Ty<'lr>, bindings: &mut Bindings<'lr>) -> Ty<'lr> {
+    fn replace_refine_with_kvars(
+        &mut self,
+        typ: Ty<'lr>,
+        bindings: &mut Bindings<'lr, Var>,
+    ) -> Ty<'lr> {
         match typ {
             TyS::Refine { ty, .. } => {
                 let mut vars: Vec<Var> = vec![Var::Nu];
@@ -212,7 +222,7 @@ impl<'lr> TyCtxt<'lr> {
         }
     }
 
-    pub fn update(&mut self, place: &Place, new_typ: Ty<'lr>) -> Bindings<'lr> {
+    pub fn update(&mut self, place: &Place, new_typ: Ty<'lr>) -> Bindings<'lr, Location> {
         let OwnRef(l) = self.lookup_local(place.local).unwrap();
         let typ = self.lookup_location(l).unwrap();
         let (typ, mut bindings) =
@@ -224,9 +234,6 @@ impl<'lr> TyCtxt<'lr> {
         }
         self.insert_local(place.local, OwnRef(fresh));
         bindings
-            .into_iter()
-            .map(|(l, t)| (Var::from(l), t))
-            .collect()
     }
 
     fn update_typ(
@@ -280,13 +287,17 @@ impl<'lr> TyCtxt<'lr> {
         self.insert_local(x, OwnRef(fresh_l));
     }
 
-    pub fn borrow(&mut self, kind: BorrowKind, place: &Place) -> (Ty<'lr>, Bindings<'lr>) {
+    pub fn borrow(
+        &mut self,
+        kind: BorrowKind,
+        place: &Place,
+    ) -> (Ty<'lr>, Bindings<'lr, Location>) {
         let (_, typ) = self.lookup(place);
         let l = self.fresh_location();
         self.insert_location(l, typ);
         (
             self.cx.mk_ty(TyS::Ref(kind, Region::new(place.clone()), l)),
-            vec![(Var::from(l), typ)],
+            vec![(l, typ)],
         )
     }
 
@@ -362,7 +373,7 @@ impl<'lr> TyCtxt<'lr> {
             .collect()
     }
 
-    fn insert_kvars_typ(&mut self, typ: Ty<'lr>, bindings: &mut Bindings<'lr>) -> Ty<'lr> {
+    fn insert_kvars_typ(&mut self, typ: Ty<'lr>, bindings: &mut Bindings<'lr, Var>) -> Ty<'lr> {
         match typ {
             TyS::Fn { .. } => todo!(),
             TyS::Tuple(fields) => {
@@ -389,7 +400,7 @@ impl<'lr> TyCtxt<'lr> {
         }
     }
 
-    fn fresh_kvar(&mut self, nu_ty: BasicType, bindings: &Bindings) -> u32 {
+    fn fresh_kvar(&mut self, nu_ty: BasicType, bindings: &Bindings<'lr, Var>) -> u32 {
         let n = self.kvars.len() as u32;
         let mut vars = vec![Sort::from(nu_ty)];
         vars.extend(bindings.iter().map(|&(_, t)| Sort::from(t)));
@@ -488,7 +499,7 @@ impl<'lr> TypeCk<'lr> {
         &mut self,
         tcx: &mut TyCtxt<'lr>,
         operand: &Operand,
-    ) -> Result<(Pred<'lr>, Ty<'lr>, Bindings<'lr>), TypeError<'lr>> {
+    ) -> Result<(Pred<'lr>, Ty<'lr>, Bindings<'lr, Location>), TypeError<'lr>> {
         let r = match operand {
             Operand::Deref(place) => {
                 let mut bindings = vec![];
@@ -521,7 +532,7 @@ impl<'lr> TypeCk<'lr> {
         op: BinOp,
         rhs: &Operand,
         lhs: &Operand,
-    ) -> Result<(Ty<'lr>, Bindings<'lr>), TypeError<'lr>> {
+    ) -> Result<(Ty<'lr>, Bindings<'lr, Location>), TypeError<'lr>> {
         let (p1, t1, mut bindings1) = self.wt_operand(tcx, lhs)?;
         let (p2, t2, bindings2) = self.wt_operand(tcx, rhs)?;
         bindings1.extend(bindings2);
@@ -547,7 +558,7 @@ impl<'lr> TypeCk<'lr> {
         &mut self,
         tcx: &mut TyCtxt<'lr>,
         val: &Rvalue,
-    ) -> Result<(Ty<'lr>, Bindings<'lr>), TypeError<'lr>> {
+    ) -> Result<(Ty<'lr>, Bindings<'lr, Location>), TypeError<'lr>> {
         let r = match val {
             Rvalue::Use(operand) => {
                 let (p, typ, bindings) = self.wt_operand(tcx, operand)?;
@@ -601,8 +612,8 @@ impl<'lr> TypeCk<'lr> {
         &mut self,
         tcx: &mut TyCtxt<'lr>,
         statement: &Statement,
-    ) -> Result<(Bindings<'lr>, Constraint), TypeError<'lr>> {
-        let r = match statement {
+    ) -> Result<(Bindings<'lr, Location>, Constraint), TypeError<'lr>> {
+        Ok(match statement {
             Statement::Let(x, layout) => {
                 tcx.alloc(*x, layout);
                 (vec![], Constraint::True)
@@ -624,8 +635,11 @@ impl<'lr> TypeCk<'lr> {
                     .map_err(|e| TypeError::CannotMove(place, e))?;
                 tcx.drop(x)?
             }
-        };
-        Ok(r)
+            Statement::Debug => {
+                println!("{}", tcx);
+                (vec![], Constraint::True)
+            }
+        })
     }
 
     fn wt_fn_body(&mut self, tcx: &mut TyCtxt<'lr>, fn_body: &FnBody<'lr>) -> Constraint {
@@ -1038,5 +1052,26 @@ impl std::cmp::PartialOrd<BorrowKind> for RefKind {
             (RefKind::Owned, BorrowKind::Shared) => Some(std::cmp::Ordering::Greater),
             (RefKind::Owned, BorrowKind::Mut) => Some(std::cmp::Ordering::Greater),
         }
+    }
+}
+
+impl std::fmt::Display for TyCtxt<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let locations = self
+            .bindings::<Location>()
+            .map(|(x, t)| format!("{}: {}", x, t))
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "[ {} ]\n", locations)?;
+        let locals = self
+            .locals
+            .last()
+            .unwrap_or(&HashMap::new())
+            .iter()
+            .map(|(x, t)| format!("{}: {}", x, t))
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "[ {} ]\n", locals)?;
+        Ok(())
     }
 }

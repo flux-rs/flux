@@ -104,7 +104,7 @@
 				},
 				{
 					"name": "entity.name.function.primitive.liquidrust",
-					"match": "\\b(drop|alloc)\\b"
+					"match": "\\b(drop|alloc|debug)\\b"
 				}
 			]
 		},

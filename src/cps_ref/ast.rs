@@ -91,6 +91,7 @@ pub enum Statement {
     /// Either moves or copies the rvalue to a place.
     Assign(Place, Rvalue),
     Drop(Local),
+    Debug,
 }
 
 /// An rvalue appears at the right hand side of an assignment.
