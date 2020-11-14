@@ -20,6 +20,7 @@ impl Generable for BlockId {
         Generator::new(Self)
     }
 }
+
 impl Display for BlockId {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "bb{}", self.0)
@@ -215,7 +216,6 @@ impl Display for BasicBlock {
     }
 }
 
-#[derive(Debug)]
 pub struct Func {
     pub args: Vec<(Local, BaseTy)>,
     pub ret_local: Local,

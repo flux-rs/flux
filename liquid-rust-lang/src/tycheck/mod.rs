@@ -1,8 +1,8 @@
 mod check;
 mod constraint;
 mod context;
-mod synth;
 mod error;
+mod synth;
 
 use check::Check;
 use constraint::Constraint;

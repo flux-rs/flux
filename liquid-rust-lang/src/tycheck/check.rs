@@ -101,7 +101,7 @@ impl<'tcx> Check<'tcx> for Func {
                 let mut constraint = Constraint::from(true);
 
                 for ((var, var_ty), (local, local_ty)) in args.iter().zip(self.args.iter()) {
-                    ctx.annotate_local(*local, *var, var_ty.clone());
+                    ctx.annotate_local(*local, *var, var_ty.clone().selfify(*var));
                     constraint = constraint & ctx.is_subtype(var_ty, &ctx.refined(*local_ty));
                 }
 

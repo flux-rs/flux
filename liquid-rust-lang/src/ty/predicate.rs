@@ -1,6 +1,6 @@
 use std::{
     fmt::{Display, Formatter, Result},
-    ops::Add,
+    ops::{Add, BitAnd},
 };
 
 use crate::{
@@ -38,6 +38,14 @@ impl From<Literal> for Predicate {
 impl From<bool> for Predicate {
     fn from(b: bool) -> Self {
         Self::Lit(b.into())
+    }
+}
+
+impl<Rhs: Into<Predicate>> BitAnd<Rhs> for Predicate {
+    type Output = Self;
+
+    fn bitand(self, rhs: Rhs) -> Self::Output {
+        Self::Output::BinApp(BinOp::And, Box::new(self), Box::new(rhs.into()))
     }
 }
 

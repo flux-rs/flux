@@ -71,6 +71,16 @@ pub enum Ty {
     RefFunc(Vec<(Variable, Self)>, Box<Self>),
 }
 
+impl Ty {
+    pub fn selfify(self, var: Variable) -> Self {
+        if let Self::RefBase(x, base, pred) = self {
+            Self::RefBase(x, base, pred & Predicate::from(x).eq(var))
+        } else {
+            self
+        }
+    }
+}
+
 impl Display for Ty {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {

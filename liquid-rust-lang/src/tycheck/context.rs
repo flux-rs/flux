@@ -191,12 +191,26 @@ impl<'tcx> TyContextAt<'tcx> {
 
                     let c = Constraint::forall(v1, b1, p1, p2);
                     log::info!("Sub-Base for `{}` and `{}` returns `{}`", ty1, ty2, c);
-                    c
+                    self.extend(c)
                 } else {
                     panic!("Base type mismatch")
                 }
             }
             _ => todo!(),
         }
+    }
+
+    pub(super) fn extend(&self, mut c: Constraint) -> Constraint {
+        let env = self.env.borrow();
+        for (var, ty) in &env.vars_ty {
+            if let Ty::RefBase(x, b, p) = ty {
+                let mut p = p.clone();
+                p.replace(*x, *var);
+                c = Constraint::forall(*var, *b, p, c);
+            } else {
+                panic!()
+            }
+        }
+        c
     }
 }
