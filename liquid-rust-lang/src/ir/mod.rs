@@ -3,7 +3,7 @@ mod literal;
 pub use literal::Literal;
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::{Display, Formatter, Result},
 };
 
@@ -12,7 +12,7 @@ use crate::{
     ty::BaseTy,
 };
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct BlockId(usize);
 
 impl Generable for BlockId {
@@ -41,7 +41,7 @@ impl Display for FuncId {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Local(usize);
 
 impl Generable for Local {
@@ -221,7 +221,7 @@ pub struct Func {
     pub ret_local: Local,
     pub ret_ty: BaseTy,
     pub locals: Vec<(Local, BaseTy)>,
-    pub basic_blocks: HashMap<BlockId, BasicBlock>,
+    pub basic_blocks: BTreeMap<BlockId, BasicBlock>,
     pub initial_block: BlockId,
 }
 

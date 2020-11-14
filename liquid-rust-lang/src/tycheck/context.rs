@@ -8,7 +8,11 @@ use crate::{
     tycheck::{Check, Constraint, Synth},
 };
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    rc::Rc,
+};
 
 pub struct TyContext {
     funcs_ty: HashMap<FuncId, Ty>,
@@ -61,8 +65,8 @@ impl TyContext {
 }
 
 struct Env {
-    vars: HashMap<Local, Variable>,
-    vars_ty: HashMap<Variable, Ty>,
+    vars: BTreeMap<Local, Variable>,
+    vars_ty: BTreeMap<Variable, Ty>,
 }
 
 pub(crate) struct TyContextAt<'tcx> {
@@ -77,8 +81,8 @@ impl<'tcx> TyContextAt<'tcx> {
             ctx,
             func_id,
             env: RefCell::new(Env {
-                vars: HashMap::new(),
-                vars_ty: HashMap::new(),
+                vars: BTreeMap::new(),
+                vars_ty: BTreeMap::new(),
             }),
         }
     }
@@ -202,7 +206,7 @@ impl<'tcx> TyContextAt<'tcx> {
 
     pub(super) fn extend(&self, mut c: Constraint) -> Constraint {
         let env = self.env.borrow();
-        for (var, ty) in &env.vars_ty {
+        for (var, ty) in env.vars_ty.iter().rev() {
             if let Ty::RefBase(x, b, p) = ty {
                 let mut p = p.clone();
                 p.replace(*x, *var);
