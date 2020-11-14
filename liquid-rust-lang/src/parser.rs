@@ -3,7 +3,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, char, digit1, space0},
     combinator::{map, opt},
-    multi::many0,
+    multi::separated_list0,
     sequence::{pair, preceded, separated_pair, terminated, tuple},
     IResult,
 };
@@ -159,7 +159,7 @@ pub fn parse_ty(input: &str) -> IResult<&str, Ty> {
                 terminated(
                     preceded(
                         pair(symbol("fn"), symbol("(")),
-                        many0(separated_pair(variable, symbol(":"), parse_ty)),
+                        separated_list0(symbol(","), separated_pair(variable, symbol(":"), parse_ty)),
                     ),
                     symbol(")"),
                 ),
