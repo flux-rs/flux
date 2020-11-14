@@ -192,7 +192,7 @@ impl<'a> LiquidSolver<'a> {
             PredC::BinaryOp(op, lhs, rhs) => {
                 write!(self.buf, "(")?;
                 self.write_pred(lhs)?;
-                write!(self.buf, " {:?} ", op)?;
+                write!(self.buf, " {} ", op)?;
                 self.write_pred(rhs)?;
                 write!(self.buf, ")")?;
             }
@@ -241,7 +241,7 @@ fn place_to_string<'a, I>(var: ast::Var, projection: I) -> String
 where
     I: IntoIterator<Item = &'a u32>,
 {
-    let mut s = format!("{:?}", var);
+    let mut s = format!("{}", var);
     for p in projection {
         s.push_str(&format!(".{}", p));
     }

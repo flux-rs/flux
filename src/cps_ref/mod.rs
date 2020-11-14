@@ -286,8 +286,8 @@ mod tests {
       let p = alloc((1, 1));
       p.0 := &mut x;
       p.1 := &mut y;
-      *(p.0) := 1;
-      *(p.1) := 2;
+      *p.0 := 1;
+      *p.1 := 2;
       drop(p);
       let r = alloc(1);
       r := y - x;
@@ -309,7 +309,7 @@ mod tests {
                 ; x: own(x1), y: own(y1), p: own(l2)
                 ;
                 ) =
-        *(p) := 5;
+        *p := 5;
         drop(p);
         let r = alloc(1);
         jump k(x)

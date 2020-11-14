@@ -200,10 +200,10 @@ impl fmt::Debug for PredC {
                 }
             }
             PredC::BinaryOp(op, lhs, rhs) => {
-                write!(f, "({:?} {:?} {:?})", lhs, op, rhs)?;
+                write!(f, "({:?} {} {:?})", lhs, op, rhs)?;
             }
             PredC::UnaryOp(op, operand) => {
-                write!(f, "{:?}({:?})", op, operand)?;
+                write!(f, "{}({:?})", op, operand)?;
             }
             PredC::Iff(lhs, rhs) => {
                 write!(f, "({:?} <=> {:?})", lhs, rhs)?;
@@ -226,7 +226,7 @@ impl fmt::Debug for PredC {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.var)?;
+        write!(f, "{}", self.var)?;
         for p in &self.proj {
             write!(f, ".{}", p)?
         }

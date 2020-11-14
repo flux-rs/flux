@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 pub use rustc_span::Symbol;
 
 /// A function definition
@@ -106,7 +104,7 @@ pub enum Rvalue {
 }
 
 /// A path to a value
-#[derive(Eq, PartialEq, Hash, Clone)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct Place {
     pub local: Local,
     pub projection: Vec<Projection>,
@@ -235,14 +233,14 @@ pub enum Operand {
     Constant(Constant),
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Constant {
     Bool(bool),
     Int(u128),
     Unit,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum BinOp {
     Add,
     Sub,
@@ -253,7 +251,7 @@ pub enum BinOp {
     Gt,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum UnOp {
     Not,
 }
@@ -262,7 +260,7 @@ pub enum UnOp {
 pub type Heap<'lr> = Vec<(Location, Ty<'lr>)>;
 
 /// A location into a block of memory in the heap.
-#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct Location(pub Symbol);
 
 /// An environment maps locals to owned references.
@@ -270,16 +268,22 @@ pub type Env = Vec<(Local, OwnRef)>;
 
 /// A Local is an identifier to some local variable introduced with a let
 /// statement.
-#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct Local(pub Symbol);
 
 /// An owned reference to a location. This is used for arguments and return types.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct OwnRef(pub Location);
 
+impl std::fmt::Display for OwnRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Own({})", self.0)
+    }
+}
+
 pub type Ty<'lr> = &'lr TyS<'lr>;
 
-#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct Region(Vec<Place>);
 
 impl Region {
@@ -302,6 +306,18 @@ impl Region {
 
     pub fn iter(&self) -> impl Iterator<Item = &Place> + '_ {
         self.0.iter()
+    }
+}
+
+impl std::fmt::Display for Region {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = self
+            .0
+            .iter()
+            .map(|p| format!("{}", p))
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "{{ {} }}", s)
     }
 }
 
@@ -353,7 +369,7 @@ impl BorrowKind {
     }
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Debug)]
 pub enum TyS<'lr> {
     /// A function type
     Fn {
@@ -397,10 +413,19 @@ pub enum BasicType {
     Int,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+impl std::fmt::Display for BasicType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasicType::Bool => write!(f, "bool"),
+            BasicType::Int => write!(f, "int"),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Field(pub Symbol);
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Var {
     Nu,
     Location(Location),
@@ -409,14 +434,14 @@ pub enum Var {
 
 pub type Pred<'lr> = &'lr PredS<'lr>;
 
-#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub enum ConstantP {
     Bool(bool),
     Int(u128),
 }
 
 /// A refinement type predicate
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Debug)]
 pub enum PredS<'lr> {
     Constant(ConstantP),
     Place { var: Var, projection: Vec<u32> },
@@ -516,19 +541,19 @@ impl<'a> Into<TyS<'a>> for OwnRef {
 // DEBUG
 // -------------------------------------------------------------------------------------------------
 
-impl Debug for Local {
+impl std::fmt::Display for Local {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", &*self.0.as_str())
     }
 }
 
-impl Debug for Location {
+impl std::fmt::Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", &*self.0.as_str())
     }
 }
 
-impl Debug for Constant {
+impl std::fmt::Display for Constant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Constant::Bool(b) => write!(f, "{}", b),
@@ -538,7 +563,7 @@ impl Debug for Constant {
     }
 }
 
-impl Debug for ConstantP {
+impl std::fmt::Display for ConstantP {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConstantP::Bool(b) => write!(f, "{}", b),
@@ -547,7 +572,7 @@ impl Debug for ConstantP {
     }
 }
 
-impl Debug for BinOp {
+impl std::fmt::Display for BinOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BinOp::Add => write!(f, "+"),
@@ -561,55 +586,67 @@ impl Debug for BinOp {
     }
 }
 
-impl Debug for PredS<'_> {
+impl std::fmt::Display for PredS<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PredS::Constant(c) => Debug::fmt(&c, f)?,
+            PredS::Constant(c) => write!(f, "{}", c)?,
             PredS::Place { var, projection } => {
-                write!(f, "{:?}", var)?;
+                write!(f, "{}", var)?;
                 for p in projection {
                     write!(f, ".{}", p)?
                 }
             }
             PredS::BinaryOp(op, lhs, rhs) => {
-                write!(f, "({:?} {:?} {:?})", lhs, op, rhs)?;
+                write!(f, "({} {} {})", lhs, op, rhs)?;
             }
             PredS::UnaryOp(op, operand) => {
-                write!(f, "{:?}({:?})", op, operand)?;
+                write!(f, "{}({})", op, operand)?;
             }
             PredS::Iff(rhs, lhs) => {
-                write!(f, "({:?} <=> {:?})", rhs, lhs)?;
+                write!(f, "({} <=> {})", rhs, lhs)?;
             }
             PredS::Kvar(n, vars) => {
-                write!(f, "$k{}{:?}", n, vars)?;
+                let vars = vars
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "$k{}[{}]", n, vars)?;
             }
         }
         Ok(())
     }
 }
 
-impl Debug for TyS<'_> {
+impl std::fmt::Display for TyS<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TyS::Fn { .. } => write!(f, "function"),
-            TyS::OwnRef(l) => write!(f, "OwnRef({:?})", l),
-            TyS::Refine { ty, pred } => write!(f, "{{ {:?} | {:?} }}", ty, pred),
-            TyS::Tuple(fields) => write!(f, "{:?}", fields),
+            TyS::OwnRef(l) => write!(f, "Own({})", l),
+            TyS::Refine { ty, pred } => write!(f, "{{ {} | {} }}", ty, pred),
+            TyS::Tuple(fields) => {
+                let fields = fields
+                    .iter()
+                    .map(|(x, t)| format!("@{}: {}", x, t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "({})", fields)
+            }
             TyS::Uninit(size) => write!(f, "Uninit({})", size),
-            TyS::RefineHole { ty, .. } => write!(f, "{{ {:?} | _ }}", ty),
-            TyS::Ref(BorrowKind::Mut, r, l) => write!(f, "&mut({:?}, {:?})", r, l),
-            TyS::Ref(BorrowKind::Shared, r, l) => write!(f, "&({:?}, {:?})", r, l),
+            TyS::RefineHole { ty, .. } => write!(f, "{{ {} | _ }}", ty),
+            TyS::Ref(BorrowKind::Mut, r, l) => write!(f, "&mut({}, {})", r, l),
+            TyS::Ref(BorrowKind::Shared, r, l) => write!(f, "&({}, {})", r, l),
         }
     }
 }
 
-impl Debug for Field {
+impl std::fmt::Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "@{}", self.0)
     }
 }
 
-impl Debug for Var {
+impl std::fmt::Display for Var {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Var::Nu => write!(f, "_v"),
@@ -619,7 +656,7 @@ impl Debug for Var {
     }
 }
 
-impl Debug for UnOp {
+impl std::fmt::Display for UnOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnOp::Not => write!(f, "¬"),
@@ -627,15 +664,26 @@ impl Debug for UnOp {
     }
 }
 
-impl Debug for Place {
+impl std::fmt::Display for Place {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.local)?;
+        let mut s = format!("{}", self.local);
+        let mut needs_parens = false;
         for p in &self.projection {
             match p {
-                Projection::Field(n) => write!(f, ".{:?}", n)?,
-                Projection::Deref => write!(f, ".*")?,
+                Projection::Field(n) => {
+                    if needs_parens {
+                        s = format!("({}).{}", s, n);
+                        needs_parens = false;
+                    } else {
+                        s = format!("{}.{}", s, n);
+                    }
+                }
+                Projection::Deref => {
+                    s = format!("*{}", s);
+                    needs_parens = true;
+                }
             }
         }
-        Ok(())
+        write!(f, "{}", s)
     }
 }

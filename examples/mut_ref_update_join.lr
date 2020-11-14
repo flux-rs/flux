@@ -1,4 +1,6 @@
-fn mut_ref_(b0: {bool | true}; b: own(b0)) ret k(r0: {int | V >= 0}; own(r0))=
+fn mut_ref_updatejoin(b0: {bool | true}; b: own(b0))
+    ret k(r0: {int | V >= 0}; own(r0)) =
+
   letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &mut({x, y}, l1)
             ; x: own(x1), y: own(y1), p: own(l2)
             ;

@@ -124,7 +124,7 @@ impl<'lr> TyCtxt<'lr> {
                     location = *l;
                     typ = self.lookup_location(location).unwrap();
                 }
-                _ => bug!("{:?} {:?}{:?} {:?}", typ, local, projection, p),
+                _ => bug!("{:?} {:?} {:?} {:?}", typ, local, projection, p),
             }
         }
         let pred = self.cx.mk_place(location.into(), &v);
@@ -772,7 +772,7 @@ impl std::fmt::Display for OwnershipError<'_> {
             OwnershipError::BehindRef(k) => write!(f, "is behind a {} reference", k),
             OwnershipError::ConflictingBorrow(p, t) => write!(
                 f,
-                "there is a conflicting borrow at place `{:?}` with type {:?}",
+                "there is a conficting borrow at place `{}` with type {}",
                 p, t
             ),
         }
@@ -781,28 +781,28 @@ impl std::fmt::Display for OwnershipError<'_> {
 
 #[derive(Error, Debug)]
 pub enum TypeError<'lr> {
-    #[error("{0:?} is not a subtype of {1:?}")]
+    #[error("{0} is not a subtype of {1}")]
     SubtypingError(Ty<'lr>, Ty<'lr>),
-    #[error("{0:?} does not have the same size than {1:?}")]
+    #[error("{0} does not have the same size than {1}")]
     SizeMismatch(Ty<'lr>, Ty<'lr>),
-    #[error("duplicate local {0:?}")]
+    #[error("duplicate local {0}")]
     DupLocal(Local),
-    #[error("invalid operator application {0:?} for values of type {1:?} and {2:?}")]
+    #[error("invalid operator application {0} for values of type {1} and {2}")]
     BinOpMismatch(BinOp, Ty<'lr>, Ty<'lr>),
-    #[error("invalid operator application {0:?} for value of type {1:?}")]
+    #[error("invalid operator application {0} for value of type {1}")]
     UnOpMismatch(UnOp, Ty<'lr>),
-    #[error("{0:?} is not a function type")]
+    #[error("{0} is not a function type")]
     NotFun(Ty<'lr>),
-    #[error("{0:?} is not a boolean type")]
+    #[error("{0} is not a boolean type")]
     NotBool(Ty<'lr>),
     #[error("wrong number of arguments")]
     ArgCount,
 
-    #[error("cannot borrow `{0:?}` as {1:} because {2:}")]
+    #[error("cannot borrow `{0}` as {1} because {2}")]
     CannotBorrow(Place, BorrowKind, OwnershipError<'lr>),
-    #[error("cannot assign to `{0:?}` because {1:}")]
+    #[error("cannot assign to `{0}` because {1}")]
     CannotAssign(Place, OwnershipError<'lr>),
-    #[error("cannot move out of `{0:?}` because {1:}")]
+    #[error("cannot move out of `{0}` because {1}")]
     CannotMove(Place, OwnershipError<'lr>),
 }
 

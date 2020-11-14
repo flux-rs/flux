@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.19.1"
-// sha256: 3bfe9bfd81fb7680b0897e65eddeb2eede7cb2e25b2b8d6a6295910bbab28
+// sha256: b980dbf03d89e9f349e20fde5f6479413ff1beeb640251296fd127dc3eabbaa
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
@@ -124,7 +124,7 @@ mod __parse__Fn {
         // State 23
         0, 24, 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 67,
         // State 24
-        0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 67,
+        0, 24, 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 67,
         // State 25
         0, 0, 0, 0, 136, 0, 137, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -125, 0, 0, 0,
         // State 26
@@ -292,7 +292,7 @@ mod __parse__Fn {
         // State 107
         0, -117, 0, 0, -117, -117, -117, 0, 0, -117, -117, -117, -117, 0, -117, -117, -117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -117, 0, 0, 0, -117, 0, 0, 0,
         // State 108
-        0, -122, -122, 0, -122, -122, -122, -122, 0, -122, -122, -122, -122, 0, -122, -122, -122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -122, 0, 0, 0, -122, 0, 0, 0,
+        0, -121, -121, 0, -121, -121, -121, 0, 0, -121, -121, -121, -121, 0, -121, -121, -121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -121, 0, 0, 0, -121, 0, 0, 0,
         // State 109
         0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 110
@@ -338,13 +338,13 @@ mod __parse__Fn {
         // State 130
         0, -116, -116, 0, -116, -116, -116, 151, 0, -116, -116, -116, -116, 0, -116, -116, -116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -116, 0, 0, 0, -116, 0, 0, 0,
         // State 131
-        0, -120, -120, 0, -120, -120, -120, 0, 0, -120, -120, -120, -120, 0, -120, -120, -120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -120, 0, 0, 0, -120, 0, 0, 0,
+        0, -122, -122, 0, -122, -122, -122, 0, 0, -122, -122, -122, -122, 0, -122, -122, -122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -122, 0, 0, 0, -122, 0, 0, 0,
         // State 132
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 152, 0,
         // State 133
         0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 134
-        0, -121, -121, 0, -121, -121, -121, -121, 0, -121, -121, -121, -121, 0, -121, -121, -121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -121, 0, 0, 0, -121, 0, 0, 0,
+        0, -120, -120, 0, -120, -120, -120, 0, 0, -120, -120, -120, -120, 0, -120, -120, -120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -120, 0, 0, 0, -120, 0, 0, 0,
         // State 135
         0, -41, 0, -41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -41, 0, 0, 0, 0, 0, 0, 0, -41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -41, 0, 0, 0, -41, -41, -41,
         // State 136
@@ -1074,13 +1074,11 @@ mod __parse__Fn {
             },
             58 => match state {
                 23 | 46 => 133,
+                24 => 134,
                 _ => 107,
             },
-            59 => 22,
-            60 => match state {
-                24 => 134,
-                _ => 108,
-            },
+            59 => 108,
+            60 => 22,
             61 => 117,
             62 => match state {
                 31 => 155,
@@ -4862,10 +4860,10 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PlaceLevel1 = PlaceLevel2, Path_ => ActionFn(30);
+        // PlaceLevel1 = "*", PlaceLevel1 => ActionFn(30);
         assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant36(__symbols);
-        let __sym0 = __pop_Variant38(__symbols);
+        let __sym1 = __pop_Variant38(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
         let __nt = super::__action30::<>(cx, input, __sym0, __sym1);
@@ -4883,15 +4881,13 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PlaceLevel2 = "*", PlaceLevel3 => ActionFn(31);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant38(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
+        // PlaceLevel1 = PlaceLevel2 => ActionFn(31);
+        let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action31::<>(cx, input, __sym0, __sym1);
+        let __end = __sym0.2.clone();
+        let __nt = super::__action31::<>(cx, input, __sym0);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
-        (2, 59)
+        (1, 58)
     }
     pub(crate) fn __reduce121<
         'input,
@@ -4904,13 +4900,15 @@ mod __parse__Fn {
         _: ::std::marker::PhantomData<(&'input (), &'lr ())>,
     ) -> (usize, usize)
     {
-        // PlaceLevel2 = PlaceLevel3 => ActionFn(32);
+        // PlaceLevel2 = PlaceLevel3, Path_ => ActionFn(32);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant36(__symbols);
         let __sym0 = __pop_Variant38(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action32::<>(cx, input, __sym0);
+        let __end = __sym1.2.clone();
+        let __nt = super::__action32::<>(cx, input, __sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant38(__nt), __end));
-        (1, 59)
+        (2, 59)
     }
     pub(crate) fn __reduce122<
         'input,
@@ -6181,24 +6179,6 @@ fn __action30<
 >(
     cx: &'lr LiquidRustCtxt<'lr>,
     input: &'input str,
-    (_, p, _): (usize, (Local, Vec<Projection>), usize),
-    (_, path, _): (usize, Vec<Projection>, usize),
-) -> (Local, Vec<Projection>)
-{
-    {
-      let (local, mut proj) = p;
-      proj.extend(path);
-      (local, proj)
-  }
-}
-
-#[allow(unused_variables)]
-fn __action31<
-    'input,
-    'lr,
->(
-    cx: &'lr LiquidRustCtxt<'lr>,
-    input: &'input str,
     (_, _, _): (usize, &'input str, usize),
     (_, __0, _): (usize, (Local, Vec<Projection>), usize),
 ) -> (Local, Vec<Projection>)
@@ -6211,7 +6191,7 @@ fn __action31<
 }
 
 #[allow(unused_variables)]
-fn __action32<
+fn __action31<
     'input,
     'lr,
 >(
@@ -6221,6 +6201,24 @@ fn __action32<
 ) -> (Local, Vec<Projection>)
 {
     __0
+}
+
+#[allow(unused_variables)]
+fn __action32<
+    'input,
+    'lr,
+>(
+    cx: &'lr LiquidRustCtxt<'lr>,
+    input: &'input str,
+    (_, p, _): (usize, (Local, Vec<Projection>), usize),
+    (_, path, _): (usize, Vec<Projection>, usize),
+) -> (Local, Vec<Projection>)
+{
+    {
+      let (local, mut proj) = p;
+      proj.extend(path);
+      (local, proj)
+  }
 }
 
 #[allow(unused_variables)]

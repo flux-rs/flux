@@ -89,20 +89,20 @@ Place: Place = {
 }
 
 PlaceLevel1: (Local, Vec<Projection>) = {
-  <p: PlaceLevel2> <path: Path_> => {
-      let (local, mut proj) = p;
-      proj.extend(path);
-      (local, proj)
-  },
-}
-
-PlaceLevel2: (Local, Vec<Projection>) = {
-  "*" <PlaceLevel3>  => {
+  "*" <PlaceLevel1>  => {
     let (local, mut proj) = <>;
     proj.push(Projection::Deref);
     (local, proj)
   },
-  PlaceLevel3
+  PlaceLevel2
+}
+
+PlaceLevel2: (Local, Vec<Projection>) = {
+  <p: PlaceLevel3> <path: Path_> => {
+      let (local, mut proj) = p;
+      proj.extend(path);
+      (local, proj)
+  },
 }
 
 PlaceLevel3: (Local, Vec<Projection>) = {
