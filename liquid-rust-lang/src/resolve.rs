@@ -41,6 +41,10 @@ impl ResolveCtx {
         var
     }
 
+    fn pop_var(&mut self) {
+        self.vars.pop().unwrap();
+    }
+
     pub(crate) fn resolve_ty(&mut self, ast_ty: &ast::Ty) -> Result<ty::Ty, ResolveError> {
         match ast_ty {
             ast::Ty::Base(base_ty) => {
@@ -50,6 +54,7 @@ impl ResolveCtx {
             ast::Ty::RefBase(var, base_ty, pred) => {
                 let var = self.store_var(var.clone());
                 let pred = self.resolve_pred(pred)?;
+                self.pop_var();
                 Ok(ty::Ty::RefBase(var, *base_ty, pred))
             }
 
@@ -63,6 +68,10 @@ impl ResolveCtx {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 let ret_ty = self.resolve_ty(ret_ty)?;
+
+                for _ in &args {
+                    self.pop_var();
+                }
 
                 Ok(ty::Ty::RefFunc(args, Box::new(ret_ty)))
             }

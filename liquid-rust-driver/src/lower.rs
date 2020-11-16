@@ -3,7 +3,10 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::mir;
 use rustc_middle::ty::{ConstKind, List, ParamEnv, Ty as MirTy, TyCtxt, TyKind};
 
-use std::{collections::HashMap, hash::Hash};
+use std::{
+    collections::{BTreeMap, HashMap},
+    hash::Hash,
+};
 
 use liquid_rust_lang::{
     generator::{Generable, Generator},
@@ -385,7 +388,7 @@ impl<'tcx> Lower<'tcx> for mir::Body<'tcx> {
             locals.push((local, ty));
         }
 
-        let mut basic_blocks = HashMap::new();
+        let mut basic_blocks = BTreeMap::new();
 
         for bb in self.basic_blocks().indices() {
             lcx.blocks.store(bb);
