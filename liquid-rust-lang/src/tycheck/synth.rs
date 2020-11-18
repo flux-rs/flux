@@ -63,7 +63,7 @@ impl<'tcx> Synth<'tcx> for Statement {
 
                 let (rhs_constraint, rhs_ty) = ctx.synth(rvalue);
 
-                ctx.annotate_variable(ctx.resolve_local(*local), rhs_ty.clone());
+                ctx.annotate_local(*local, ctx.new_variable(), rhs_ty.clone());
 
                 end_rule(
                     "Syn-Assign",
