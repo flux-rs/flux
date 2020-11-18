@@ -44,7 +44,7 @@ impl TyContext {
         for (func_id, ty) in &ctx.funcs_ty {
             let ctx = ctx.at(*func_id);
             let constr = ctx.check(ctx.func(), ty);
-            println!("{}", constr);
+            ctx.extend(constr);
         }
 
         Ok(ctx)
@@ -121,7 +121,7 @@ impl<'tcx> TyContextAt<'tcx> {
                 Literal::Bool(_) => BaseTy::Bool,
                 Literal::Uint(_, size) => BaseTy::Uint(size),
                 Literal::Int(_, size) => BaseTy::Int(size),
-                Literal::Fn(func_id) => unreachable!(),
+                Literal::Fn(_) => unreachable!(),
             },
             Operand::Move(local) | Operand::Copy(local) => {
                 if let Ty::RefBase(_, base_ty, _) = self.type_of_local(&local) {
@@ -195,7 +195,7 @@ impl<'tcx> TyContextAt<'tcx> {
 
                     let c = Constraint::forall(v1, b1, p1, p2);
                     log::info!("Sub-Base for `{}` and `{}` returns `{}`", ty1, ty2, c);
-                    self.extend(c)
+                    c
                 } else {
                     panic!("Base type mismatch")
                 }
@@ -204,17 +204,40 @@ impl<'tcx> TyContextAt<'tcx> {
         }
     }
 
-    pub(super) fn extend(&self, mut c: Constraint) -> Constraint {
+    pub(super) fn extend(&self, c: Constraint) {
+        use std::fmt::Write;
+
+        let mut buf = String::new();
+
         let env = self.env.borrow();
-        for (var, ty) in env.vars_ty.iter().rev() {
+        let mut indices = Vec::new();
+        for (i, (var, ty)) in env.vars_ty.iter().enumerate() {
             if let Ty::RefBase(x, b, p) = ty {
-                let mut p = p.clone();
-                p.replace(*x, *var);
-                c = Constraint::forall(*var, *b, p, c);
-            } else {
-                panic!()
+                let base = match b {
+                    BaseTy::Int(_) | BaseTy::Uint(_) => "int",
+                    BaseTy::Bool => "bool",
+                    _ => panic!(),
+                };
+                writeln!(buf, "bind {} {} : {{{} : {} | {}}}", i, var, x, base, p).unwrap();
+                indices.push(format!("{}", i));
             }
         }
-        c
+
+        if let Constraint::ForAll(x, b, lhs, rhs) = c {
+            let base = match b {
+                BaseTy::Int(_) | BaseTy::Uint(_) => "int",
+                BaseTy::Bool => "bool",
+                _ => panic!(),
+            };
+            writeln!(buf, "\nconstraint:").unwrap();
+            writeln!(buf, "    env [{}]", indices.join("; ")).unwrap();
+            writeln!(buf, "    lhs {{{} : {} | {}}}", x, base, lhs).unwrap();
+            writeln!(buf, "    rhs {{{} : {} | {}}}", x, base, rhs).unwrap();
+            writeln!(buf, "    id 1 tag []").unwrap();
+
+            std::fs::write("./output.fq", buf).unwrap();
+        } else {
+            panic!()
+        }
     }
 }
