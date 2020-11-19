@@ -2,5 +2,6 @@
 
 members = [
     "liquid-rust-driver",
+    "liquid-rust-parser",
     "liquid-rust-lang"
 ]
