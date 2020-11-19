@@ -1,0 +1,150 @@
+use crate::{ast, lexer::{LexerError, Token}};
+
+grammar<'source>(source: &'source str);
+
+pub Ty: ast::Ty<'source> = {
+    <BaseTy> => ast::Ty::Base(<>),
+    "{" <Variable> ":" <BaseTy> "|" <Predicate> "}" => ast::Ty::Refined(<>),
+    "fn" "(" <args:Args> ")" "->" <ty:Ty> => ast::Ty::Func(args, Box::new(ty)),
+}
+
+Args: Vec<(ast::Variable<'source>, ast::Ty<'source>)> = {
+    <mut args:(<Arg> ",")*> <arg:Arg?> => match arg {
+        None => args,
+        Some(arg) => {
+            args.push(arg);
+            args
+        }
+    }
+};
+
+Arg: (ast::Variable<'source>, ast::Ty<'source>) = {
+    <Variable> ":" <Ty> => (<>),
+}
+
+Tier<Op, NextTier>: ast::Predicate<'source> = {
+    <p1:Tier<Op, NextTier>> <bin_op:Op> <p2:NextTier> => ast::Predicate::BinApp(bin_op, Box::new(p1), Box::new(p2)),
+    NextTier
+}
+
+Predicate = Tier<BinOp1, BinApp2>;
+BinApp2 = Tier<BinOp2, BinApp3>;
+BinApp3 = Tier<BinOp3, BinApp4>;
+BinApp4 = Tier<BinOp4, BinApp5>;
+BinApp5 = Tier<BinOp5, UnApp>;
+
+BinOp1: ast::BinOp = {
+    "||" => ast::BinOp::Or,
+}
+
+BinOp2: ast::BinOp = {
+    "&&" => ast::BinOp::Or,
+}
+
+BinOp3: ast::BinOp = {
+    "==" => ast::BinOp::Eq,
+    "!=" => ast::BinOp::Neq,
+    ">" => ast::BinOp::Gt,
+    "<" => ast::BinOp::Lt,
+    ">=" => ast::BinOp::Gte,
+    "<=" => ast::BinOp::Lte,
+}
+
+BinOp4: ast::BinOp = {
+    "+" => ast::BinOp::Add,
+    "-" => ast::BinOp::Sub,
+}
+
+BinOp5: ast::BinOp = {
+    "*" => ast::BinOp::Mul,
+}
+
+UnOp: ast::UnOp = {
+    "!" => ast::UnOp::Not,
+    "-" => ast::UnOp::Neg,
+}
+
+UnApp: ast::Predicate<'source> = {
+    <un_op:UnOp> <p:BasePred> => ast::Predicate::UnApp(un_op, Box::new(p)),
+    <BasePred>,
+}
+
+BasePred: ast::Predicate<'source> = {
+    <Variable> => ast::Predicate::Var(<>),
+    <Literal> => ast::Predicate::Lit(<>),
+    "(" <Predicate> ")"
+}
+
+Variable: ast::Variable<'source> = {
+    "var" => ast::Variable(<>),
+}
+
+Literal: ast::Literal = {
+    "(" ")" => ast::Literal::Unit,
+    "true" => ast::Literal::Bool(true),
+    "false" => ast::Literal::Bool(false),
+    "int" => ast::Literal::Int(<>),
+}
+
+BaseTy: ast::BaseTy = {
+    "(" ")" => ast::BaseTy::Unit,
+    "bool" => ast::BaseTy::Bool,
+    "u8" => ast::BaseTy::Uint(ast::IntSize::Size8),
+    "u16" => ast::BaseTy::Uint(ast::IntSize::Size16),
+    "u32" => ast::BaseTy::Uint(ast::IntSize::Size32),
+    "u64" => ast::BaseTy::Uint(ast::IntSize::Size64),
+    "u128" => ast::BaseTy::Uint(ast::IntSize::Size128),
+    "usize" => ast::BaseTy::Uint(ast::IntSize::SizePtr),
+    "i8" => ast::BaseTy::Int(ast::IntSize::Size8),
+    "i16" => ast::BaseTy::Int(ast::IntSize::Size16),
+    "i32" => ast::BaseTy::Int(ast::IntSize::Size32),
+    "i64" => ast::BaseTy::Int(ast::IntSize::Size64),
+    "i128" => ast::BaseTy::Int(ast::IntSize::Size128),
+    "isize" => ast::BaseTy::Int(ast::IntSize::SizePtr),
+};
+
+extern {
+    type Location = usize;
+    type Error = LexerError;
+
+    enum Token<'source> {
+        "bool" => Token::Bool,
+        "u8" => Token::U8,
+        "u16" => Token::U16,
+        "u32" => Token::U32,
+        "u64" => Token::U64,
+        "u128" => Token::U128,
+        "usize" => Token::Usize,
+        "i8" => Token::I8,
+        "i16" => Token::I16,
+        "i32" => Token::I32,
+        "i64" => Token::I64,
+        "i128" => Token::I128,
+        "isize" => Token::Isize,
+        "true" => Token::True,
+        "false" => Token::False,
+        "int" => Token::Integer(<u128>),
+        "var" => Token::Var(<&'source str>),
+        "fn" => Token::Fn,
+        "+" => Token::Add,
+        "-" => Token::Sub,
+        "*" => Token::Mul,
+        "&&" => Token::And,
+        "||" => Token::Or,
+        "!" => Token::Not,
+        "==" => Token::Eq,
+        "!=" => Token::Neq,
+        ">" => Token::Gt,
+        "<" => Token::Lt,
+        ">=" => Token::Gte,
+        "<=" => Token::Lte,
+        "(" => Token::OpenParen,
+        ")" => Token::CloseParen,
+        "{" => Token::OpenBracket,
+        "}" => Token::CloseBracket,
+        "|" => Token::Pipe,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "->" => Token::Arrow,
+    }
+}

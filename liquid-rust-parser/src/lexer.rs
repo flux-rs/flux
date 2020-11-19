@@ -1,32 +1,40 @@
-use logos::Logos;
-
-/// Produce an interator of tokens from a slice.
-pub fn tokenize<'ast>(source: &'ast str) -> impl Iterator<Item = LexerResult<'ast>> {
-    RawToken::lexer(source)
-        .spanned()
-        .map(move |(raw_token, span)| {
-            Token::from_raw(raw_token).ok_or_else(|| LexerError::new(&source[span]))
-        })
-}
+use logos::{Logos, SpannedIter};
 
 /// Helper result type for lexing-related operations.
-pub type LexerResult<'ast, T = Token<'ast>> = Result<T, LexerError<'ast>>;
+pub type LexerResult<'source> = Result<(usize, Token<'source>, usize), LexerError>;
 
-/// Error for invalid tokens. It contains an slice with the invalid characters found by the lexer.
+/// Error for invalid tokens.
 #[derive(Debug)]
-pub struct LexerError<'ast> {
-    slice: &'ast str,
+pub struct LexerError;
+
+pub struct Lexer<'source> {
+    iter: SpannedIter<'source, RawToken<'source>>,
 }
 
-impl<'ast> LexerError<'ast> {
-    fn new(slice: &'ast str) -> Self {
-        Self { slice }
+impl<'source> Lexer<'source> {
+    pub fn new(source: &'source str) -> Self {
+        Self {
+            iter: RawToken::lexer(source).spanned(),
+        }
+    }
+}
+
+impl<'source> Iterator for Lexer<'source> {
+    type Item = LexerResult<'source>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (raw_token, span) = self.iter.next()?;
+        Some(
+            Token::from_raw(raw_token)
+                .map(|token| (span.start, token, span.end))
+                .ok_or(LexerError),
+        )
     }
 }
 
 /// Valid tokens.
-#[derive(Debug)]
-pub enum Token<'ast> {
+#[derive(Debug, Clone)]
+pub enum Token<'source> {
     /// The `bool` token.
     Bool,
     /// The `u8` token.
@@ -60,7 +68,7 @@ pub enum Token<'ast> {
     /// An unsigned integer token.
     Integer(u128),
     /// A token for variables, it follows the rust reference for identifiers.
-    Var(&'ast str),
+    Var(&'source str),
     /// The `fn` token.
     Fn,
     /// The `+` token.
@@ -105,8 +113,8 @@ pub enum Token<'ast> {
     Arrow,
 }
 
-impl<'ast> Token<'ast> {
-    fn from_raw(raw_token: RawToken<'ast>) -> Option<Self> {
+impl<'source> Token<'source> {
+    fn from_raw(raw_token: RawToken<'source>) -> Option<Self> {
         match raw_token {
             RawToken::Bool => Some(Token::Bool),
             RawToken::U8 => Some(Token::U8),
@@ -152,7 +160,7 @@ impl<'ast> Token<'ast> {
 }
 
 #[derive(Logos, Debug)]
-enum RawToken<'ast> {
+enum RawToken<'source> {
     #[token("bool")]
     Bool,
     #[token("u8")]
@@ -186,7 +194,7 @@ enum RawToken<'ast> {
     #[regex("[0-9]+", |lex| lex.slice().parse())]
     Integer(u128),
     #[regex("[a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+")]
-    Var(&'ast str),
+    Var(&'source str),
     #[token("fn")]
     Fn,
     #[token("+")]
@@ -233,16 +241,3 @@ enum RawToken<'ast> {
     #[regex(r"[ \t]+", logos::skip)]
     Error,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::tokenize;
-    #[test]
-    fn it_works() {
-        let lex = tokenize("fn(x: {x: usize | x > 0usize}, f: fn(y: {y: usize | y > 0usize}) -> {m: usize | m >= x + y}) -> {z: usize | z == f(x)}");
-        for token in lex {
-            print!("{:?} ", token);
-        }
-    }
-}
-
