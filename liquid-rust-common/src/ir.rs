@@ -4,9 +4,10 @@ use std::fmt::{Display, Formatter, Result};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Literal {
-    Bool(bool),
-    Int(u128),
     Unit,
+    Bool(bool),
+    Uint(u128, IntSize),
+    Int(i128, IntSize),
 }
 
 impl From<bool> for Literal {
@@ -24,9 +25,10 @@ impl From<()> for Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
-            Self::Bool(b) => b.fmt(f),
-            Self::Int(int) => int.fmt(f),
             Self::Unit => "()".fmt(f),
+            Self::Bool(b) => b.fmt(f),
+            Self::Uint(uint, _) => uint.fmt(f),
+            Self::Int(int, _) => int.fmt(f),
         }
     }
 }

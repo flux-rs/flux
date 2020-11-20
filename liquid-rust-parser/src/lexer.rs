@@ -65,8 +65,30 @@ pub enum Token<'source> {
     True,
     /// The `false` token.
     False,
-    /// An unsigned integer token.
-    Integer(u128),
+    /// An unsigned 8-bit integer token.
+    Uint8(u8),
+    /// An unsigned 16-bit integer token.
+    Uint16(u16),
+    /// An unsigned 32-bit integer token.
+    Uint32(u32),
+    /// An unsigned 64-bit integer token.
+    Uint64(u64),
+    /// An unsigned 128-bit integer token.
+    Uint128(u128),
+    /// An unsigned pointer-sized integer token.
+    UintSize(usize),
+    /// A signed 8-bit integer token.
+    Int8(i8),
+    /// A signed 16-bit integer token.
+    Int16(i16),
+    /// A signed 32-bit integer token.
+    Int32(i32),
+    /// A signed 64-bit integer token.
+    Int64(i64),
+    /// A signed 128-bit integer token.
+    Int128(i128),
+    /// A signed pointer-sized integer token.
+    IntSize(isize),
     /// A token for variables, it follows the rust reference for identifiers.
     Var(&'source str),
     /// The `fn` token.
@@ -131,7 +153,18 @@ impl<'source> Token<'source> {
             RawToken::Isize => Some(Token::Isize),
             RawToken::True => Some(Token::True),
             RawToken::False => Some(Token::False),
-            RawToken::Integer(integer) => Some(Token::Integer(integer)),
+            RawToken::Uint8(uint) => Some(Token::Uint8(uint)),
+            RawToken::Uint16(uint) => Some(Token::Uint16(uint)),
+            RawToken::Uint32(uint) => Some(Token::Uint32(uint)),
+            RawToken::Uint64(uint) => Some(Token::Uint64(uint)),
+            RawToken::Uint128(uint) => Some(Token::Uint128(uint)),
+            RawToken::UintSize(uint) => Some(Token::UintSize(uint)),
+            RawToken::Int8(uint) => Some(Token::Int8(uint)),
+            RawToken::Int16(uint) => Some(Token::Int16(uint)),
+            RawToken::Int32(uint) => Some(Token::Int32(uint)),
+            RawToken::Int64(uint) => Some(Token::Int64(uint)),
+            RawToken::Int128(uint) => Some(Token::Int128(uint)),
+            RawToken::IntSize(uint) => Some(Token::IntSize(uint)),
             RawToken::Var(slice) => Some(Token::Var(slice)),
             RawToken::Fn => Some(Token::Fn),
             RawToken::Add => Some(Token::Add),
@@ -191,8 +224,30 @@ enum RawToken<'source> {
     True,
     #[token("false")]
     False,
-    #[regex("[0-9]+", |lex| lex.slice().parse())]
-    Integer(u128),
+    #[regex("[0-9]+u8", |lex| lex.slice().trim_end_matches("u8").parse())]
+    Uint8(u8),
+    #[regex("[0-9]+u16", |lex| lex.slice().trim_end_matches("u16").parse())]
+    Uint16(u16),
+    #[regex("[0-9]+u32", |lex| lex.slice().trim_end_matches("u32").parse())]
+    Uint32(u32),
+    #[regex("[0-9]+u64", |lex| lex.slice().trim_end_matches("u64").parse())]
+    Uint64(u64),
+    #[regex("[0-9]+u128", |lex| lex.slice().trim_end_matches("u128").parse())]
+    Uint128(u128),
+    #[regex("[0-9]+usize", |lex| lex.slice().trim_end_matches("usize").parse())]
+    UintSize(usize),
+    #[regex("[0-9]+i8", |lex| lex.slice().trim_end_matches("i8").parse())]
+    Int8(i8),
+    #[regex("-?[0-9]+i16", |lex| lex.slice().trim_end_matches("i16").parse())]
+    Int16(i16),
+    #[regex("-?[0-9]+i32", |lex| lex.slice().trim_end_matches("i32").parse())]
+    Int32(i32),
+    #[regex("-?[0-9]+i64", |lex| lex.slice().trim_end_matches("i64").parse())]
+    Int64(i64),
+    #[regex("-?[0-9]+i128", |lex| lex.slice().trim_end_matches("i128").parse())]
+    Int128(i128),
+    #[regex("-?[0-9]+isize", |lex| lex.slice().trim_end_matches("isize").parse())]
+    IntSize(isize),
     #[regex("[a-zA-Z][a-zA-Z0-9_]*|_[a-zA-Z0-9_]+")]
     Var(&'source str),
     #[token("fn")]
