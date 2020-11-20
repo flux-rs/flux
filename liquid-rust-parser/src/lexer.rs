@@ -1,19 +1,25 @@
 use logos::{Logos, SpannedIter};
+use std::ops::Range;
 
 /// Helper result type for lexing-related operations.
 pub type LexerResult<'source> = Result<(usize, Token<'source>, usize), LexerError>;
 
 /// Error for invalid tokens.
 #[derive(Debug)]
-pub struct LexerError;
+pub struct LexerError {
+    token: String,
+    span: Range<usize>,
+}
 
 pub struct Lexer<'source> {
+    source: &'source str,
     iter: SpannedIter<'source, RawToken<'source>>,
 }
 
 impl<'source> Lexer<'source> {
     pub fn new(source: &'source str) -> Self {
         Self {
+    source,
             iter: RawToken::lexer(source).spanned(),
         }
     }
@@ -27,7 +33,10 @@ impl<'source> Iterator for Lexer<'source> {
         Some(
             Token::from_raw(raw_token)
                 .map(|token| (span.start, token, span.end))
-                .ok_or(LexerError),
+                .ok_or(LexerError {
+                    token: String::from(&self.source[span.clone()]),
+                    span,
+                }),
         )
     }
 }
