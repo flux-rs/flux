@@ -5,7 +5,12 @@ grammar<'source>(source: &'source str);
 pub Ty: ast::Ty<'source> = {
     <BaseTy> => ast::Ty::Base(<>),
     "{" <Variable> ":" <BaseTy> "|" <Predicate> "}" => ast::Ty::Refined(<>),
-    "fn" "(" <args:Args> ")" "->" <ty:Ty> => ast::Ty::Func(args, Box::new(ty)),
+    "fn" "(" <args:Args> ")" <ty:("->" Ty)?> => {
+        match ty {
+            Some((_, ty)) => ast::Ty::Func(args, Box::new(ty)),
+            None => ast::Ty::Func(args, Box::new(ast::Ty::Base(ast::BaseTy::Unit))),
+        }
+    }
 }
 
 Args: Vec<(ast::Variable<'source>, ast::Ty<'source>)> = {
