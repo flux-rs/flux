@@ -37,10 +37,9 @@ impl<'tcx> Synth<'tcx> for Literal {
             Self::Bool(_) => BaseTy::Bool,
             Self::Uint(_, size) => BaseTy::Uint(*size),
             Self::Int(_, size) => BaseTy::Int(*size),
-            Self::Fn(id) => return (true.into(), ctx.type_of_func(id)),
         };
 
-        let ty = Ty::RefBase(var, base_ty, Predicate::from(var).eq(*self));
+        let ty = Ty::Refined(var, base_ty, Predicate::from(var).eq(*self));
 
         end_rule("Syn-Lit", self, (true.into(), ty))
     }
@@ -97,7 +96,7 @@ impl<'tcx> Synth<'tcx> for Rvalue {
                 let op2 = ctx.resolve_operand(op2);
 
                 let var = ctx.new_variable();
-                let ty = Ty::RefBase(
+                let ty = Ty::Refined(
                     var,
                     base_ty,
                     Predicate::from(var).eq(Predicate::BinApp(
@@ -115,7 +114,7 @@ impl<'tcx> Synth<'tcx> for Rvalue {
                 let op = ctx.resolve_operand(op);
 
                 let var = ctx.new_variable();
-                let ty = Ty::RefBase(
+                let ty = Ty::Refined(
                     var,
                     base_ty,
                     Predicate::from(var).eq(Predicate::UnApp(un_op, Box::new(op))),
@@ -132,6 +131,7 @@ impl<'tcx> Synth<'tcx> for Operand {
         match self {
             Self::Copy(local) | Self::Move(local) => ctx.synth(local),
             Self::Lit(lit) => ctx.synth(lit),
+            Self::Func(func_id) => (true.into(), ctx.type_of_func(func_id)),
         }
     }
 }

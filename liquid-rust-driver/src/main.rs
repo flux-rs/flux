@@ -18,8 +18,6 @@ use visitor::DefIdCollector;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
 
-use std::collections::HashMap;
-
 use liquid_rust_lang::{ir::FuncId, tycheck::TyContext};
 
 struct CompilerCalls;
@@ -30,12 +28,11 @@ impl Callbacks for CompilerCalls {
         _compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        let mut funcs = HashMap::new();
         let mut func_ids = LowerMap::<_, FuncId>::new();
-        let mut annotations = HashMap::new();
+        let mut ctx = TyContext::new();
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let mut visitor = DefIdCollector::new(tcx, &mut annotations, &mut func_ids);
+            let mut visitor = DefIdCollector::new(tcx, &mut ctx, &mut func_ids);
             tcx.hir().krate().visit_all_item_likes(&mut visitor);
 
             for (&def_id, &func_id) in func_ids.iter() {
@@ -43,11 +40,11 @@ impl Callbacks for CompilerCalls {
                 let body = tcx.optimized_mir(def_id);
                 let func = lcx.lower_body(body).unwrap();
                 println!("{} = {}", func_id, func);
-                funcs.insert(func_id, func);
+                ctx.store_func(func_id, func);
             }
         });
 
-        let _tcx = TyContext::new(funcs, annotations).unwrap();
+        ctx.check_types();
 
         Compilation::Continue
     }

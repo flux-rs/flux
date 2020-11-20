@@ -7,12 +7,12 @@ pub trait Replace {
 impl Replace for Ty {
     fn replace(&mut self, y: Variable, z: Variable) {
         match self {
-            Ty::RefBase(v, _, p) => {
+            Ty::Refined(v, _, p) => {
                 if *v != y {
                     p.replace(y, z);
                 }
             }
-            Ty::RefFunc(args, ret_ty) => {
+            Ty::Func(args, ret_ty) => {
                 for (arg, arg_ty) in args {
                     arg_ty.replace(y, z);
                     if *arg == y {

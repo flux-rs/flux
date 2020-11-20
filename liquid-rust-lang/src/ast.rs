@@ -3,7 +3,7 @@ use crate::{
     ty::BaseTy,
 };
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Variable(pub String);
 
 #[derive(Debug)]
@@ -12,7 +12,6 @@ pub enum Predicate {
     Lit(Literal),
     BinApp(BinOp, Box<Self>, Box<Self>),
     UnApp(UnOp, Box<Self>),
-    App(Variable, Vec<Self>),
 }
 
 #[derive(Debug)]

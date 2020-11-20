@@ -1,3 +1,8 @@
+use crate::lower::LowerMap;
+
+use liquid_rust_lang::{ir::FuncId, ty::Ty, tycheck::TyContext};
+use liquid_rust_parser::parse_ty;
+
 use rustc_ast::ast::{AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_hir::{
@@ -5,29 +10,19 @@ use rustc_hir::{
 };
 use rustc_middle::ty::TyCtxt;
 
-use liquid_rust_lang::{ast::Annotation, ir::FuncId, parser::parse_ty};
-
-use std::collections::HashMap;
-
-use crate::lower::LowerMap;
-
 pub struct DefIdCollector<'tcx, 'low> {
     tcx: TyCtxt<'tcx>,
-    anns: &'low mut HashMap<FuncId, Vec<Annotation>>,
+    ctx: &'low mut TyContext,
     func_ids: &'low mut LowerMap<DefId, FuncId>,
 }
 
 impl<'tcx, 'low> DefIdCollector<'tcx, 'low> {
     pub fn new(
         tcx: TyCtxt<'tcx>,
-        anns: &'low mut HashMap<FuncId, Vec<Annotation>>,
+        ctx: &'low mut TyContext,
         func_ids: &'low mut LowerMap<DefId, FuncId>,
     ) -> Self {
-        Self {
-            tcx,
-            anns,
-            func_ids,
-        }
+        Self { tcx, ctx, func_ids }
     }
 }
 
@@ -35,10 +30,12 @@ impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_, '_> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
             let def_id = self.tcx.hir().local_def_id(item.hir_id).to_def_id();
-            let anns = extract_annotations(item.attrs);
 
             let func_id = self.func_ids.store(def_id);
-            self.anns.insert(func_id, anns);
+
+            if let Some(ty) = extract_annotations(item.attrs, self.ctx) {
+                self.ctx.store_func_ty(func_id, ty);
+            }
         }
     }
 
@@ -46,9 +43,7 @@ impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_, '_> {
     fn visit_impl_item(&mut self, _impl_item: &'hir ImplItem<'hir>) {}
 }
 
-fn extract_annotations(attrs: &[Attribute]) -> Vec<Annotation> {
-    let mut anns = vec![];
-
+fn extract_annotations(attrs: &[Attribute], ctx: &TyContext) -> Option<Ty> {
     for attr in attrs {
         if let AttrKind::Normal(AttrItem { path, args, .. }) = &attr.kind {
             let mut path = path.segments.iter().map(|segment| segment.ident.as_str());
@@ -60,10 +55,12 @@ fn extract_annotations(attrs: &[Attribute]) -> Vec<Annotation> {
                             if let MacArgs::Delimited(_, _, token_stream) = args {
                                 let ty_string = tts_to_string(token_stream);
 
-                                let (_rem, ast_ty) = parse_ty(&ty_string.trim_matches('"'))
+                                let ast_ty = parse_ty(&ty_string.trim_matches('"'))
                                     .expect("Parsing type annotation failed");
 
-                                anns.push(Annotation::Ty(ast_ty));
+                                let ty = ctx.resolve_ty(&ast_ty).expect("Type resolution failed");
+
+                                return Some(ty);
                             } else {
                                 panic!("Type annotations must have the syntax `#[liquid::ty(\"<type>\")]`");
                             }
@@ -77,6 +74,5 @@ fn extract_annotations(attrs: &[Attribute]) -> Vec<Annotation> {
             }
         }
     }
-
-    anns
+    None
 }

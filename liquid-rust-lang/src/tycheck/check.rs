@@ -42,7 +42,6 @@ impl<'tcx> Check<'tcx> for Terminator {
                 begin_rule("Chk-Goto", self, ty);
                 end_rule("Chk-Goto", self, ty, ctx.check(bb, ty))
             }
-            _ => todo!(),
         }
     }
 }
@@ -93,7 +92,7 @@ impl<'tcx> Check<'tcx> for BasicBlock {
 impl<'tcx> Check<'tcx> for Func {
     fn check(&self, ctx: &TyContextAt<'tcx>, ty: &Ty) -> Constraint {
         match ty {
-            Ty::RefFunc(args, ret_ty) => {
+            Ty::Func(args, ret_ty) => {
                 if args.len() != self.args.len() {
                     panic!("Arity mismatch");
                 }
@@ -114,7 +113,7 @@ impl<'tcx> Check<'tcx> for Func {
                     let local = ctx.store_local(local);
 
                     let var = ctx.new_variable();
-                    let ty = Ty::RefBase(var, local_ty, Predicate::from(var).eq(local));
+                    let ty = Ty::Refined(var, local_ty, Predicate::from(var).eq(local));
 
                     ctx.annotate_variable(local, ty);
                 }

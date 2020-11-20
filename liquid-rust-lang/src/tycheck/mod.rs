@@ -1,7 +1,6 @@
 mod check;
 mod constraint;
 mod context;
-mod error;
 mod synth;
 
 use check::Check;

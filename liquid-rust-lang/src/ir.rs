@@ -1,15 +1,13 @@
-mod literal;
+use crate::{
+    generator::{Generable, Generator},
+    ty::BaseTy,
+};
 
-pub use literal::Literal;
+pub use liquid_rust_common::ir::{BinOp, Literal, UnOp};
 
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter, Result},
-};
-
-use crate::{
-    generator::{Generable, Generator},
-    ty::BaseTy,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -56,69 +54,20 @@ impl Display for Local {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    And,
-    Or,
-    Eq,
-    Neq,
-    Lt,
-    Gt,
-    Lte,
-    Gte,
-}
-
-impl Display for BinOp {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let s = match self {
-            Self::Add => "+",
-            Self::Sub => "-",
-            Self::Mul => "*",
-            Self::And => "&&",
-            Self::Or => "||",
-            Self::Eq => "==",
-            Self::Neq => "!=",
-            Self::Lt => "<",
-            Self::Gt => ">",
-            Self::Lte => "<=",
-            Self::Gte => ">=",
-        };
-
-        s.fmt(f)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum UnOp {
-    Not,
-    Neg,
-}
-
-impl Display for UnOp {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let s = match self {
-            Self::Not => "!",
-            Self::Neg => "-",
-        };
-
-        s.fmt(f)
-    }
-}
-
 #[derive(Debug, Copy, Clone)]
 pub enum Operand {
     Move(Local),
     Copy(Local),
     Lit(Literal),
+    Func(FuncId),
 }
+
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Self::Move(local) | Self::Copy(local) => local.fmt(f),
             Self::Lit(lit) => lit.fmt(f),
+            Self::Func(func_id) => func_id.fmt(f),
         }
     }
 }
@@ -168,8 +117,8 @@ impl Display for Branch {
 pub enum Terminator {
     Return,
     Goto(BlockId),
-    Switch(Operand, Vec<Branch>, BlockId),
-    Call(Local, Operand, Vec<Operand>, BlockId),
+    // Switch(Operand, Vec<Branch>, BlockId),
+    // Call(Local, Operand, Vec<Operand>, BlockId),
 }
 
 impl Display for Terminator {
@@ -177,26 +126,26 @@ impl Display for Terminator {
         match self {
             Self::Return => "return".fmt(f),
             Self::Goto(bb) => write!(f, "goto {}", bb),
-            Self::Switch(discr, branches, otherwise) => {
-                writeln!(f, "switch {} {{", discr)?;
-                for branch in branches {
-                    writeln!(f, "\t\t\t{},", branch)?;
-                }
-                writeln!(f, "\t\t\totherwise -> {}", otherwise)?;
-                write!(f, "\t\t}}")
-            }
-            Self::Call(local, func, args, target) => {
-                let mut args = args.iter();
-                if let Some(arg) = args.next() {
-                    write!(f, "{} = {}({}", local, func, arg)?;
-                    for arg in args {
-                        write!(f, ", {}", arg)?;
-                    }
-                    write!(f, ") -> {}", target)
-                } else {
-                    write!(f, "{} = {}() -> {}", local, func, target)
-                }
-            }
+            // Self::Switch(discr, branches, otherwise) => {
+            //     writeln!(f, "switch {} {{", discr)?;
+            //     for branch in branches {
+            //         writeln!(f, "\t\t\t{},", branch)?;
+            //     }
+            //     writeln!(f, "\t\t\totherwise -> {}", otherwise)?;
+            //     write!(f, "\t\t}}")
+            // }
+            // Self::Call(local, func, args, target) => {
+            //     let mut args = args.iter();
+            //     if let Some(arg) = args.next() {
+            //         write!(f, "{} = {}({}", local, func, arg)?;
+            //         for arg in args {
+            //             write!(f, ", {}", arg)?;
+            //         }
+            //         write!(f, ") -> {}", target)
+            //     } else {
+            //         write!(f, "{} = {}() -> {}", local, func, target)
+            //     }
+            // }
         }
     }
 }

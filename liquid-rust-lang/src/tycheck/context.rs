@@ -1,12 +1,13 @@
 use crate::{
-    ast::{Annotation, Ty as AstTy},
     generator::Generator,
     ir::{Func, FuncId, Literal, Local, Operand},
     replace::Replace,
-    resolve::{ResolveCtx, ResolveError},
+    resolve::{ResolveCtx, ResolveResult},
     ty::{BaseTy, Predicate, Ty, Variable},
     tycheck::{Check, Constraint, Synth},
 };
+
+use liquid_rust_parser::ast::Ty as AstTy;
 
 use std::{
     cell::RefCell,
@@ -21,33 +22,20 @@ pub struct TyContext {
 }
 
 impl TyContext {
-    pub fn new(
-        funcs: HashMap<FuncId, Func>,
-        annotations: HashMap<FuncId, Vec<Annotation>>,
-    ) -> Result<Self, ResolveError> {
-        let mut ctx = Self {
+    pub fn new() -> Self {
+        Self {
             funcs_ty: HashMap::new(),
-            funcs,
+            funcs: HashMap::new(),
             var_generator: Rc::new(RefCell::new(Variable::generator())),
-        };
-
-        println!("Type Annotations:");
-
-        for (func_id, anns) in annotations {
-            for Annotation::Ty(ast_ty) in anns {
-                let ty = ctx.resolve_ty(&ast_ty)?;
-                println!("{} : {}", func_id, ty);
-                ctx.funcs_ty.insert(func_id, ty);
-            }
         }
+    }
 
-        for (func_id, ty) in &ctx.funcs_ty {
-            let ctx = ctx.at(*func_id);
+    pub fn check_types(&self) {
+        for (func_id, ty) in &self.funcs_ty {
+            let ctx = self.at(*func_id);
             let constr = ctx.check(ctx.func(), ty);
             ctx.extend(constr);
         }
-
-        Ok(ctx)
     }
 
     pub fn new_variable(&self) -> Variable {
@@ -58,7 +46,15 @@ impl TyContext {
         TyContextAt::new(self, func_id)
     }
 
-    fn resolve_ty(&self, ty: &AstTy) -> Result<Ty, ResolveError> {
+    pub fn store_func(&mut self, func_id: FuncId, func: Func) {
+        self.funcs.insert(func_id, func);
+    }
+
+    pub fn store_func_ty(&mut self, func_id: FuncId, ty: Ty) {
+        self.funcs_ty.insert(func_id, ty);
+    }
+
+    pub fn resolve_ty<'source>(&self, ty: &AstTy<'source>) -> ResolveResult<'source, Ty> {
         let mut rcx = ResolveCtx::new(Rc::clone(&self.var_generator));
         rcx.resolve_ty(ty)
     }
@@ -121,15 +117,15 @@ impl<'tcx> TyContextAt<'tcx> {
                 Literal::Bool(_) => BaseTy::Bool,
                 Literal::Uint(_, size) => BaseTy::Uint(size),
                 Literal::Int(_, size) => BaseTy::Int(size),
-                Literal::Fn(_) => unreachable!(),
             },
             Operand::Move(local) | Operand::Copy(local) => {
-                if let Ty::RefBase(_, base_ty, _) = self.type_of_local(&local) {
+                if let Ty::Refined(_, base_ty, _) = self.type_of_local(&local) {
                     base_ty
                 } else {
-                    unreachable!()
+                    todo!()
                 }
             }
+            Operand::Func(_) => todo!(),
         }
     }
 
@@ -168,12 +164,13 @@ impl<'tcx> TyContextAt<'tcx> {
         match op {
             Operand::Lit(lit) => lit.into(),
             Operand::Move(local) | Operand::Copy(local) => self.resolve_local(local).into(),
+            _ => todo!(),
         }
     }
 
     pub(crate) fn refined(&self, base_ty: BaseTy) -> Ty {
         let var = self.new_variable();
-        Ty::RefBase(var, base_ty, true.into())
+        Ty::Refined(var, base_ty, true.into())
     }
 
     pub(super) fn check<T: Check<'tcx>>(&self, term: &T, ty: &Ty) -> Constraint {
@@ -186,7 +183,7 @@ impl<'tcx> TyContextAt<'tcx> {
 
     pub(super) fn is_subtype(&self, ty1: &Ty, ty2: &Ty) -> Constraint {
         match (ty1, ty2) {
-            (&Ty::RefBase(v1, b1, ref p1), &Ty::RefBase(v2, b2, ref p2)) => {
+            (&Ty::Refined(v1, b1, ref p1), &Ty::Refined(v2, b2, ref p2)) => {
                 log::info!("Running Sub-Base for `{}` and `{}`", ty1, ty2);
                 if b1 == b2 {
                     let p1 = p1.clone();
@@ -212,7 +209,7 @@ impl<'tcx> TyContextAt<'tcx> {
         let env = self.env.borrow();
         let mut indices = Vec::new();
         for (i, (var, ty)) in env.vars_ty.iter().enumerate() {
-            if let Ty::RefBase(x, b, p) = ty {
+            if let Ty::Refined(x, b, p) = ty {
                 let base = match b {
                     BaseTy::Int(_) | BaseTy::Uint(_) => "int",
                     BaseTy::Bool => "bool",

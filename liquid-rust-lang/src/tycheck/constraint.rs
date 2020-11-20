@@ -5,8 +5,7 @@ use std::{
 
 use crate::{
     ir::Literal,
-    replace::Replace,
-    ty::{BaseTy, Predicate, Ty, Variable},
+    ty::{BaseTy, Predicate, Variable},
 };
 
 #[derive(Debug)]
@@ -30,15 +29,6 @@ impl Constraint {
         match (&p, &c) {
             (_, Constraint::Pred(Predicate::Lit(Literal::Bool(true)))) => true.into(),
             _ => Self::ForAll(v, b, p, Box::new(c)),
-        }
-    }
-
-    pub(super) fn implication(x: Variable, t: Ty, c: impl Into<Self>) -> Self {
-        if let Ty::RefBase(v, b, mut p) = t {
-            p.replace(v, x);
-            Self::forall(x, b, p, c)
-        } else {
-            c.into()
         }
     }
 }

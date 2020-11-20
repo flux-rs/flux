@@ -2,7 +2,7 @@ use crate::ty::IntSize;
 
 use std::fmt::{Display, Formatter, Result};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Literal {
     Unit,
     Bool(bool),

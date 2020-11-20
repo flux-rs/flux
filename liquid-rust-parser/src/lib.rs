@@ -1,24 +1,17 @@
 pub mod ast;
 mod lexer;
 
-use lexer::Lexer;
+use lexer::{Lexer, LexerError};
+use ast::Ty;
 
 use lalrpop_util::lalrpop_mod;
+pub use lalrpop_util::ParseError;
 
 lalrpop_mod!(parser);
 
-pub fn parse() {
-    let source = "fn(x: {x: usize | x > 0}) -> {y: usize | y > x}";
-    let lexer = Lexer::new(source);
-    match parser::TyParser::new().parse(source, lexer) {
-        x => println!("{:?}", x),
-    };
-}
+pub type ParseResult<'source, T> = Result<T, ParseError<usize, lexer::Token<'source>, LexerError>>;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        super::parse();
-    }
+pub fn parse_ty<'source>(source: &'source str) -> ParseResult<'source, Ty<'source>> {
+    let lexer = Lexer::new(source);
+    parser::TyParser::new().parse(source, lexer)
 }
