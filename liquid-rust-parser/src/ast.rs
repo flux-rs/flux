@@ -1,9 +1,9 @@
 pub use liquid_rust_common::{
     ir::{BinOp, Literal, UnOp},
-    ty::{IntSize, BaseTy},
+    ty::{BaseTy, IntSize},
 };
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub struct Variable<'source>(pub(crate) &'source str);
 
 #[derive(Debug)]

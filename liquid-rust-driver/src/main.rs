@@ -12,13 +12,13 @@ extern crate rustc_mir;
 mod lower;
 mod visitor;
 
-use lower::{LowerCtx, LowerMap};
+use lower::LowerCtx;
 use visitor::DefIdCollector;
+
+use liquid_rust_common::ir::Program;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
-
-use liquid_rust_lang::{ir::FuncId, tycheck::TyContext};
 
 struct CompilerCalls;
 
@@ -28,23 +28,34 @@ impl Callbacks for CompilerCalls {
         _compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        let mut func_ids = LowerMap::<_, FuncId>::new();
-        let mut ctx = TyContext::new();
-
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let mut visitor = DefIdCollector::new(tcx, &mut ctx, &mut func_ids);
+            let mut visitor = DefIdCollector::new(tcx);
             tcx.hir().krate().visit_all_item_likes(&mut visitor);
+            let annotations = visitor.annotations();
 
-            for (&def_id, &func_id) in func_ids.iter() {
-                let mut lcx = LowerCtx::new(tcx, &func_ids);
+            let mut builder = Program::builder(annotations.len());
+
+            for (func_id, (def_id, ty)) in builder.func_ids().zip(annotations) {
+                let mut lcx = LowerCtx::new(tcx);
                 let body = tcx.optimized_mir(def_id);
-                let func = lcx.lower_body(body).unwrap();
-                println!("{} = {}", func_id, func);
-                ctx.store_func(func_id, func);
-            }
-        });
 
-        ctx.check_types();
+                let mut func_builder = lcx.lower_body(body).unwrap();
+
+                if let Some(ty) = ty {
+                    func_builder.add_ty(ty);
+                }
+
+                let func = func_builder.build().unwrap();
+
+                builder.add_func(func_id, func);
+            }
+
+            let program = builder.build().unwrap();
+
+            println!("{}", program);
+
+            liquid_rust_tycheck::check_program(&program);
+        });
 
         Compilation::Continue
     }

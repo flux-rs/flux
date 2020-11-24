@@ -1,4 +1,3 @@
-pub mod ty;
-pub mod ir;
 pub mod index;
-
+pub mod ir;
+pub mod ty;

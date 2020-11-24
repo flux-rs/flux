@@ -3,6 +3,6 @@
 members = [
     "liquid-rust-common",
     "liquid-rust-parser",
-    "liquid-rust-lang",
+    "liquid-rust-tycheck",
     "liquid-rust-driver",
 ]

@@ -19,7 +19,7 @@ pub struct Lexer<'source> {
 impl<'source> Lexer<'source> {
     pub fn new(source: &'source str) -> Self {
         Self {
-    source,
+            source,
             iter: RawToken::lexer(source).spanned(),
         }
     }

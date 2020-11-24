@@ -1,68 +1,32 @@
-use rustc_ast::ast::{IntTy, UintTy};
-use rustc_hir::def_id::DefId;
-use rustc_middle::mir;
-use rustc_middle::ty::{ConstKind, List, ParamEnv, Ty as MirTy, TyCtxt, TyKind};
-
-use std::{
-    collections::{BTreeMap, HashMap},
-    hash::Hash,
-};
-
-use liquid_rust_lang::{
-    generator::{Generable, Generator},
+use liquid_rust_common::{
     ir::{
-        BasicBlock, BinOp, BlockId, Func, FuncId, Literal, Local, Operand, Rvalue,
-        Statement, Terminator, UnOp,
+        BBlock, BBlockId, BinOp, Func, FuncBuilder, Literal, Local, Operand, Rvalue, Statement,
+        Terminator, UnOp,
     },
     ty::{BaseTy, IntSize},
 };
 
-pub struct LowerMap<K, V> {
-    generator: Generator<V>,
-    map: HashMap<K, V>,
-}
+use rustc_ast::ast::{IntTy, UintTy};
+use rustc_index::vec::IndexVec;
+use rustc_middle::mir;
+use rustc_middle::ty::{ConstKind, List, ParamEnv, Ty as MirTy, TyCtxt, TyKind};
 
-impl<K: Hash + Eq, V: Generable + Copy> LowerMap<K, V> {
-    pub fn new() -> Self {
-        Self {
-            generator: V::generator(),
-            map: HashMap::new(),
-        }
-    }
-
-    pub fn store(&mut self, key: K) -> V {
-        let value = self.generator.generate();
-        self.map.insert(key, value);
-        value
-    }
-
-    pub fn get(&self, key: &K) -> Option<&V> {
-        self.map.get(key)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
-        self.map.iter()
-    }
-}
-
-pub struct LowerCtx<'tcx, 'low> {
+pub struct LowerCtx<'tcx> {
     tcx: TyCtxt<'tcx>,
-    locals: LowerMap<mir::Local, Local>,
-    blocks: LowerMap<mir::BasicBlock, BlockId>,
-    func_ids: &'low LowerMap<DefId, FuncId>,
+    locals: IndexVec<mir::Local, Local>,
+    blocks: IndexVec<mir::BasicBlock, BBlockId>,
 }
 
-impl<'tcx, 'low> LowerCtx<'tcx, 'low> {
-    pub fn new(tcx: TyCtxt<'tcx>, func_ids: &'low LowerMap<DefId, FuncId>) -> Self {
+impl<'tcx> LowerCtx<'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
-            locals: LowerMap::new(),
-            blocks: LowerMap::new(),
-            func_ids,
+            locals: IndexVec::new(),
+            blocks: IndexVec::new(),
         }
     }
 
-    pub fn lower_body(&mut self, body: &mir::Body<'tcx>) -> Result<Func, LowerError> {
+    pub fn lower_body(&mut self, body: &mir::Body<'tcx>) -> Result<FuncBuilder, LowerError> {
         body.lower(self)
     }
 }
@@ -78,20 +42,19 @@ pub enum LowerError<'tcx> {
     UnsupportedStatement(mir::Statement<'tcx>),
     UnsupportedBinOp(mir::BinOp),
     UndefinedBasicBlock(mir::BasicBlock),
-    UndefinedDefId(DefId),
 }
 
 trait Lower<'tcx> {
     type Output;
 
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>>;
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>>;
 }
 
 impl<'tcx> Lower<'tcx> for mir::Local {
     type Output = Local;
 
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
-        if let Some(var) = lcx.locals.get(self) {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
+        if let Some(var) = lcx.locals.get(*self) {
             Ok(*var)
         } else {
             Err(LowerError::UndefinedLocal(*self))
@@ -101,7 +64,7 @@ impl<'tcx> Lower<'tcx> for mir::Local {
 impl<'tcx> Lower<'tcx> for IntTy {
     type Output = IntSize;
 
-    fn lower(&self, _lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, _lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         Ok(match self {
             IntTy::I8 => IntSize::Size8,
             IntTy::I16 => IntSize::Size16,
@@ -116,7 +79,7 @@ impl<'tcx> Lower<'tcx> for IntTy {
 impl<'tcx> Lower<'tcx> for UintTy {
     type Output = IntSize;
 
-    fn lower(&self, _lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, _lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         Ok(match self {
             UintTy::U8 => IntSize::Size8,
             UintTy::U16 => IntSize::Size16,
@@ -131,7 +94,7 @@ impl<'tcx> Lower<'tcx> for UintTy {
 impl<'tcx> Lower<'tcx> for MirTy<'tcx> {
     type Output = BaseTy;
 
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let base_ty = match self.kind() {
             TyKind::Bool => BaseTy::Bool,
             TyKind::Uint(uint_ty) => BaseTy::Uint(uint_ty.lower(lcx)?),
@@ -145,7 +108,7 @@ impl<'tcx> Lower<'tcx> for MirTy<'tcx> {
 
 impl<'tcx> Lower<'tcx> for mir::Statement<'tcx> {
     type Output = Statement;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let statement = match &self.kind {
             mir::StatementKind::Assign(assign) => {
                 let (place, rvalue) = assign.as_ref();
@@ -165,11 +128,11 @@ impl<'tcx> Lower<'tcx> for mir::Statement<'tcx> {
 
 impl<'tcx> Lower<'tcx> for mir::Place<'tcx> {
     type Output = Local;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let mir::Place { local, projection } = self;
 
         if projection.iter().count() == 0 {
-            if let Some(local) = lcx.locals.get(local) {
+            if let Some(local) = lcx.locals.get(*local) {
                 Ok(*local)
             } else {
                 Err(LowerError::UndefinedLocal(*local))
@@ -182,7 +145,7 @@ impl<'tcx> Lower<'tcx> for mir::Place<'tcx> {
 
 impl<'tcx> Lower<'tcx> for mir::Rvalue<'tcx> {
     type Output = Rvalue;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let rvalue = match self {
             mir::Rvalue::Use(operand) => Rvalue::Use(operand.lower(lcx)?),
             mir::Rvalue::BinaryOp(bin_op, op1, op2) => {
@@ -219,15 +182,11 @@ impl<'tcx> Lower<'tcx> for mir::Rvalue<'tcx> {
 
 impl<'tcx> Lower<'tcx> for mir::Operand<'tcx> {
     type Output = Operand;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let operand = match self {
-            mir::Operand::Copy(place) => {
+            mir::Operand::Copy(place) | mir::Operand::Move(place) => {
                 let place = place.lower(lcx)?;
-                Operand::Copy(place)
-            }
-            mir::Operand::Move(place) => {
-                let place = place.lower(lcx)?;
-                Operand::Move(place)
+                Operand::Local(place)
             }
             mir::Operand::Constant(constant) => {
                 let literal = constant.literal;
@@ -249,17 +208,10 @@ impl<'tcx> Lower<'tcx> for mir::Operand<'tcx> {
                                     literal.eval_bits(lcx.tcx, ParamEnv::empty(), literal.ty);
                                 Literal::Int(bits as i128, int_ty.lower(lcx)?)
                             }
-                            TyKind::FnDef(def_id, _) => {
-                                if let Some(func_id) = lcx.func_ids.get(def_id).copied() {
-                                    return Ok(Operand::Func(func_id));
-                                } else {
-                                    return Err(LowerError::UndefinedDefId(*def_id));
-                                }
-                            }
                             _ => return Err(LowerError::UnsupportedTy(literal.ty)),
                         };
 
-                        Operand::Lit(literal)
+                        Operand::Literal(literal)
                     }
                     kind => {
                         return Err(LowerError::UnsupportedConstKind(kind));
@@ -273,9 +225,9 @@ impl<'tcx> Lower<'tcx> for mir::Operand<'tcx> {
 }
 
 impl<'tcx> Lower<'tcx> for mir::BasicBlock {
-    type Output = BlockId;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
-        if let Some(block_id) = lcx.blocks.get(self) {
+    type Output = BBlockId;
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
+        if let Some(block_id) = lcx.blocks.get(*self) {
             Ok(*block_id)
         } else {
             Err(LowerError::UndefinedBasicBlock(*self))
@@ -285,7 +237,7 @@ impl<'tcx> Lower<'tcx> for mir::BasicBlock {
 
 impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
     type Output = Terminator;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let terminator = match &self.kind {
             mir::TerminatorKind::Return => Terminator::Return,
             mir::TerminatorKind::Goto { target } => Terminator::Goto(target.lower(lcx)?),
@@ -348,65 +300,43 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
 }
 
 impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
-    type Output = BasicBlock;
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
-        let statements = self
-            .statements
-            .iter()
-            .map(|statement| statement.lower(lcx))
-            .collect::<Result<Vec<Statement>, _>>()?;
+    type Output = BBlock;
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
+        let mut builder = BBlock::builder();
+        for statement in &self.statements {
+            builder.add_statement(statement.lower(lcx)?);
+        }
 
-        let terminator = self.terminator.as_ref().unwrap().lower(lcx)?;
+        builder.add_terminator(self.terminator.as_ref().unwrap().lower(lcx)?);
 
-        Ok(BasicBlock(statements, terminator))
+        Ok(builder.build().unwrap())
     }
 }
 
 impl<'tcx> Lower<'tcx> for mir::Body<'tcx> {
-    type Output = Func;
+    type Output = FuncBuilder;
 
-    fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError<'tcx>> {
+    fn lower(&self, lcx: &mut LowerCtx<'tcx>) -> Result<Self::Output, LowerError<'tcx>> {
         let arity = self.arg_count;
 
-        let mut args = Vec::new();
-        let mut locals = Vec::new();
+        let mut builder = Func::builder(arity, self.basic_blocks().len());
 
-        let mut local_decls = self.local_decls.iter_enumerated().map(|(mir_local, decl)| {
-            let local = lcx.locals.store(mir_local);
-            Ok((local, decl.ty.lower(lcx)?))
-        });
-
-        let (ret_local, ret_ty) = local_decls.next().unwrap()?;
-
-        for _ in 0..arity {
-            let (local, ty) = local_decls.next().unwrap()?;
-            args.push((local, ty));
+        for decl in &self.local_decls {
+            let ty = decl.ty.lower(lcx)?;
+            let local = builder.add_local_decl(ty);
+            lcx.locals.push(local);
         }
 
-        for res in local_decls {
-            let (local, ty) = res?;
-            locals.push((local, ty));
+        for bb_id in builder.bblock_ids() {
+            lcx.blocks.push(bb_id);
         }
 
-        let mut basic_blocks = BTreeMap::new();
-
-        for bb in self.basic_blocks().indices() {
-            lcx.blocks.store(bb);
+        for (basic_block, basic_block_data) in self.basic_blocks().iter_enumerated() {
+            let bb_id = lcx.blocks[basic_block];
+            let bb = basic_block_data.lower(lcx)?;
+            builder.set_bblock(bb_id, bb);
         }
 
-        for (bb, bb_data) in self.basic_blocks().iter_enumerated() {
-            let block_id = *lcx.blocks.get(&bb).unwrap();
-            let block = bb_data.lower(lcx)?;
-            basic_blocks.insert(block_id, block);
-        }
-
-        Ok(Func {
-            args,
-            locals,
-            ret_local,
-            ret_ty,
-            basic_blocks,
-            initial_block: *lcx.blocks.get(&mir::START_BLOCK).unwrap(),
-        })
+        Ok(builder)
     }
 }
