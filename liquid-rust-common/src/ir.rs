@@ -177,7 +177,7 @@ impl fmt::Display for Terminator {
             Self::Return => "return".fmt(f),
             Self::Goto(bb_id) => write!(f, "goto {}", bb_id),
             Self::Assert(op, true, bb_id) => write!(f, "assert({}) -> {}", op, bb_id),
-            Self::Assert(op, false, bb_id) => write!(f, "assert({}) -> {}", op, bb_id),
+            Self::Assert(op, false, bb_id) => write!(f, "assert(!{}) -> {}", op, bb_id),
         }
     }
 }
