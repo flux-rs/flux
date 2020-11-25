@@ -8,6 +8,7 @@ extern crate rustc_index;
 extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_mir;
+extern crate rustc_span;
 
 mod lower;
 mod visitor;
@@ -19,15 +20,18 @@ use liquid_rust_common::ir::Program;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
+use rustc_middle::bug;
 
 struct CompilerCalls;
 
 impl Callbacks for CompilerCalls {
     fn after_analysis<'tcx>(
         &mut self,
-        _compiler: &Compiler,
+        compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
+        let mut compilation = Compilation::Continue;
+
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             let mut visitor = DefIdCollector::new(tcx);
             tcx.hir().krate().visit_all_item_likes(&mut visitor);
@@ -39,25 +43,45 @@ impl Callbacks for CompilerCalls {
                 let mut lcx = LowerCtx::new(tcx);
                 let body = tcx.optimized_mir(def_id);
 
-                let mut func_builder = lcx.lower_body(body).unwrap();
+                let mut func_builder = match lcx.lower_body(body) {
+                    Ok(builder) => builder,
+                    Err(err) => {
+                        compiler
+                            .session()
+                            .diagnostic()
+                            .struct_span_fatal(err.span(), &err.to_string())
+                            .note("several rust constructs are not supported by liquid rust (yet).")
+                            .emit();
+
+                        compilation = Compilation::Stop;
+                        continue;
+                    }
+                };
 
                 if let Some(ty) = ty {
                     func_builder.add_ty(ty);
                 }
 
-                let func = func_builder.build().unwrap();
+                let func = match func_builder.build() {
+                    Ok(func) => func,
+                    Err(bb_id) => bug!("Basic Block `{}` is missing.", bb_id),
+                };
 
                 builder.add_func(func_id, func);
             }
 
-            let program = builder.build().unwrap();
+            if let Compilation::Continue = compilation {
+                let program = match builder.build() {
+                    Ok(program) => program,
+                    Err(func_id) => bug!("Function `{}` is missing.", func_id),
+                };
 
-            println!("{}", program);
-
-            liquid_rust_tycheck::check_program(&program);
+                println!("{}", program);
+                liquid_rust_tycheck::check_program(&program);
+            }
         });
 
-        Compilation::Continue
+        compilation
     }
 }
 
