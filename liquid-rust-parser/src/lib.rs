@@ -5,7 +5,7 @@ mod resolve;
 use lexer::{Lexer, LexerError, Token};
 use resolve::resolve_ty;
 
-use liquid_rust_common::ty::{Argument, Ty};
+use liquid_rust_ty::{Argument, Ty};
 
 use lalrpop_util::lalrpop_mod;
 use std::{fmt, ops::Range};

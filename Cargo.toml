@@ -4,6 +4,8 @@ members = [
     "liquid-rust-common",
     "liquid-rust-driver",
     "liquid-rust-fixpoint",
+    "liquid-rust-mir",
     "liquid-rust-parser",
+    "liquid-rust-ty",
     "liquid-rust-tycheck",
 ]

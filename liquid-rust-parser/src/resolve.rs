@@ -3,7 +3,7 @@ use crate::{
     ParseError, ParseErrorKind, ParseResult,
 };
 
-use liquid_rust_common::ty::{self, Argument};
+use liquid_rust_ty::{self as ty, Argument};
 
 type Variable = ty::Variable<Argument>;
 type Predicate = ty::Predicate<Argument>;

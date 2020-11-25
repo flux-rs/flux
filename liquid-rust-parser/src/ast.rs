@@ -1,7 +1,8 @@
 pub use liquid_rust_common::{
-    ir::{BinOp, Literal, UnOp},
-    ty::{BaseTy, IntSize},
+    literal::{IntSize, Literal},
+    op::{BinOp, UnOp},
 };
+pub use liquid_rust_ty::BaseTy;
 
 use std::ops::Range;
 

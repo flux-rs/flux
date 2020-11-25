@@ -1,6 +1,6 @@
-use crate::{
-    index::Index,
-    ir::{BinOp, Literal, Local, UnOp},
+use liquid_rust_common::{
+    literal::{IntSize, Literal},
+    op::{BinOp, UnOp},
 };
 
 use std::{fmt, ops::BitAnd};
@@ -30,30 +30,6 @@ impl fmt::Display for BaseTy {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum IntSize {
-    Size8,
-    Size16,
-    Size32,
-    Size64,
-    Size128,
-    SizePtr,
-}
-
-impl fmt::Display for IntSize {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let slice = match self {
-            Self::Size8 => "8",
-            Self::Size16 => "16",
-            Self::Size32 => "32",
-            Self::Size64 => "64",
-            Self::Size128 => "128",
-            Self::SizePtr => "size",
-        };
-
-        slice.fmt(f)
-    }
-}
 #[derive(Clone, Copy, Debug)]
 pub struct Argument {
     pos: usize,
@@ -65,11 +41,12 @@ impl Argument {
         Self { pos, level }
     }
 
-    pub fn as_local(&self) -> Result<Local, usize> {
-        match self.level {
-            0 => Ok(Local::constructor(self.pos + 1)),
-            level => Err(level),
-        }
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
+
+    pub fn level(&self) -> usize {
+        self.level
     }
 }
 
@@ -223,6 +200,24 @@ impl<A> Ty<A> {
             ),
             ty => ty,
         }
+    }
+
+    pub fn singleton(literal: Literal) -> Self {
+        let base_ty = match literal {
+            Literal::Unit => BaseTy::Unit,
+            Literal::Bool(_) => BaseTy::Bool,
+            Literal::Uint(_, size) => BaseTy::Uint(size),
+            Literal::Int(_, size) => BaseTy::Int(size),
+        };
+
+        Ty::Refined(
+            base_ty,
+            Predicate::BinApp(
+                BinOp::Eq,
+                Box::new(Predicate::Var(Variable::Bounded)),
+                Box::new(Predicate::Lit(literal)),
+            ),
+        )
     }
 }
 

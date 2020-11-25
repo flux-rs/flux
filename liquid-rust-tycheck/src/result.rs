@@ -1,6 +1,6 @@
 use crate::Ty;
 
-use liquid_rust_common::ty::BaseTy;
+use liquid_rust_ty::BaseTy;
 
 pub type TyResult<T = ()> = Result<T, TyError>;
 

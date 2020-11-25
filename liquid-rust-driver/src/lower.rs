@@ -1,10 +1,11 @@
 use liquid_rust_common::{
-    ir::{
-        BBlock, BBlockId, BinOp, Func, FuncBuilder, Literal, Local, Operand, Rvalue, Statement,
-        Terminator, UnOp,
-    },
-    ty::{BaseTy, IntSize},
+    literal::{IntSize, Literal},
+    op::{BinOp, UnOp},
 };
+use liquid_rust_mir::{
+    BBlock, BBlockId, Func, FuncBuilder, Local, Operand, Rvalue, Statement, Terminator,
+};
+use liquid_rust_ty::BaseTy;
 
 use rustc_ast::ast::{IntTy, UintTy};
 use rustc_index::vec::IndexVec;

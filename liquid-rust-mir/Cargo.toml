@@ -1,5 +1,5 @@
 [package]
-name = "liquid-rust-fixpoint"
+name = "liquid-rust-mir"
 version = "0.1.0"
 authors = ["Christian Poveda <git@christianpoveda.xyz>"]
 edition = "2018"

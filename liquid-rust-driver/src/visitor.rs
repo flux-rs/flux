@@ -1,5 +1,5 @@
-use liquid_rust_common::ty::Ty;
 use liquid_rust_parser::{parse_ty, ParseResult};
+use liquid_rust_ty::Ty;
 
 use rustc_ast::ast::{AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_ast_pretty::pprust::tts_to_string;

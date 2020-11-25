@@ -16,7 +16,7 @@ mod visitor;
 use lower::LowerCtx;
 use visitor::DefIdCollector;
 
-use liquid_rust_common::ir::Program;
+use liquid_rust_mir::Program;
 
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
@@ -132,6 +132,5 @@ fn run_compiler(mut args: Vec<String>, callbacks: &mut (dyn Callbacks + Send)) -
 }
 
 fn main() {
-    env_logger::init();
     run_compiler(std::env::args().collect::<Vec<_>>(), &mut CompilerCalls);
 }

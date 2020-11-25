@@ -11,6 +11,7 @@ lalrpop = "0.19.0"
 
 [dependencies]
 liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-ty = { path = "../liquid-rust-ty" }
 
 lalrpop-util = "0.19.0"
 logos = "0.11.4"

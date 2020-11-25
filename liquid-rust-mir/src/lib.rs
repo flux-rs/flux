@@ -1,119 +1,25 @@
-use crate::{
+use liquid_rust_common::{
     def_index,
     index::{Index, IndexMap, IndexMapBuilder},
-    ty::{Argument, BaseTy, IntSize, Predicate, Ty, Variable},
 };
+pub use liquid_rust_common::{
+    literal::{IntSize, Literal},
+    op::{BinOp, UnOp},
+};
+use liquid_rust_ty::{Argument, BaseTy, Ty};
 
 use std::fmt;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Literal {
-    Unit,
-    Bool(bool),
-    Uint(u128, IntSize),
-    Int(i128, IntSize),
-}
+def_index!(Local);
 
-impl Literal {
-    pub fn as_singleton<A>(&self) -> Ty<A> {
-        let base_ty = match self {
-            Self::Unit => BaseTy::Unit,
-            Self::Bool(_) => BaseTy::Bool,
-            Self::Uint(_, size) => BaseTy::Uint(*size),
-            Self::Int(_, size) => BaseTy::Int(*size),
-        };
-
-        Ty::Refined(
-            base_ty,
-            Predicate::BinApp(
-                BinOp::Eq,
-                Box::new(Predicate::Var(Variable::Bounded)),
-                Box::new(Predicate::Lit(*self)),
-            ),
-        )
-    }
-}
-
-impl From<bool> for Literal {
-    fn from(b: bool) -> Self {
-        Self::Bool(b)
-    }
-}
-
-impl From<()> for Literal {
-    fn from((): ()) -> Self {
-        Self::Unit
-    }
-}
-
-impl fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unit => "()".fmt(f),
-            Self::Bool(b) => b.fmt(f),
-            Self::Uint(uint, _) => uint.fmt(f),
-            Self::Int(int, _) => int.fmt(f),
+impl Local {
+    pub fn try_from_argument(argument: Argument) -> Result<Self, usize> {
+        match argument.level() {
+            0 => Ok(Local::constructor(argument.pos() + 1)),
+            level => Err(level),
         }
     }
 }
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Rem,
-    And,
-    Or,
-    Eq,
-    Neq,
-    Lt,
-    Gt,
-    Lte,
-    Gte,
-}
-
-impl fmt::Display for BinOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Add => "+",
-            Self::Sub => "-",
-            Self::Mul => "*",
-            Self::Div => "/",
-            Self::Rem => "%",
-            Self::And => "&&",
-            Self::Or => "||",
-            Self::Eq => "==",
-            Self::Neq => "!=",
-            Self::Lt => "<",
-            Self::Gt => ">",
-            Self::Lte => "<=",
-            Self::Gte => ">=",
-        };
-
-        s.fmt(f)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum UnOp {
-    Not,
-    Neg,
-}
-
-impl fmt::Display for UnOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Not => "!",
-            Self::Neg => "-",
-        };
-
-        s.fmt(f)
-    }
-}
-
-def_index!(Local);
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

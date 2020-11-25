@@ -5,9 +5,10 @@ authors = ["Christian Poveda <git@christianpoveda.xyz>"]
 edition = "2018"
 
 [dependencies]
-liquid-rust-parser = { path = "../liquid-rust-parser" }
 liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-mir = { path = "../liquid-rust-mir" }
+liquid-rust-parser = { path = "../liquid-rust-parser" }
+liquid-rust-ty = { path = "../liquid-rust-ty" }
 liquid-rust-tycheck = { path = "../liquid-rust-tycheck" }
 
 rustc-workspace-hack = "1.0.0"
-env_logger = "0.8"

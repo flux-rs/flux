@@ -1,9 +1,8 @@
 use crate::{Env, GlobEnv, LocalVariable, Predicate, Ty, Variable};
 
-use liquid_rust_common::{
-    ir::{BinOp, Operand, Rvalue},
-    ty::BaseTy,
-};
+use liquid_rust_common::op::BinOp;
+use liquid_rust_mir::{Operand, Rvalue};
+use liquid_rust_ty::BaseTy;
 
 pub(super) trait Synth {
     fn synth(&self, genv: &GlobEnv, env: &mut Env) -> Ty;
@@ -25,7 +24,7 @@ impl Synth for Operand {
                 ty.selfify(variable)
             }
             // Syn-Const
-            Operand::Literal(literal) => literal.as_singleton(),
+            Operand::Literal(literal) => Ty::singleton(*literal),
         }
     }
 }

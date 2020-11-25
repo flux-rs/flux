@@ -1,10 +1,8 @@
 use crate::{Env, GlobEnv, Synth, Ty, TyError, TyResult};
 
-use liquid_rust_common::{
-    index::Index,
-    ir::{BBlock, Literal, Local, Statement, Terminator},
-    ty::BaseTy,
-};
+use liquid_rust_common::index::Index;
+use liquid_rust_mir::{BBlock, Literal, Local, Statement, Terminator};
+use liquid_rust_ty::BaseTy;
 
 pub(super) trait Check {
     fn check(&self, genv: &GlobEnv, env: &mut Env, ty: &Ty) -> TyResult;
@@ -61,7 +59,7 @@ impl Check for Terminator {
             Terminator::Goto(bb_id) => genv.get_bblock(*bb_id).check(genv, env, ty),
             // Chk-Assert
             Terminator::Assert(cond, expected, bb_id) => {
-                cond.check(genv, env, &Literal::from(*expected).as_singleton())?;
+                cond.check(genv, env, &Ty::singleton(Literal::from(*expected)))?;
                 genv.get_bblock(*bb_id).check(genv, env, ty)
             }
         }

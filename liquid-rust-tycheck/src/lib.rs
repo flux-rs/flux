@@ -9,10 +9,10 @@ use synth::Synth;
 use liquid_rust_common::{
     def_index,
     index::{Index, IndexMap},
-    ir::{BBlock, BBlockId, Func, FuncId, Local, Operand, Program},
-    ty::{self, BaseTy},
 };
 use liquid_rust_fixpoint::{Emit, Emitter};
+use liquid_rust_mir::{BBlock, BBlockId, Func, FuncId, Local, Operand, Program};
+use liquid_rust_ty::{self as ty, BaseTy};
 
 use std::{cell::RefCell, fmt};
 
@@ -97,7 +97,7 @@ impl<'prog> GlobEnv<'prog> {
 
                     let arg_ty = ann_ty
                         .clone()
-                        .map(|arg| *variables.get(arg.as_local().unwrap()));
+                        .map(|arg| *variables.get(Local::try_from_argument(arg).unwrap()));
                     let arg_var = types.insert(arg_ty.clone());
                     assert_eq!(local, variables.insert(arg_var));
 
@@ -128,7 +128,7 @@ impl<'prog> GlobEnv<'prog> {
 
                 let return_ty = return_ann_ty
                     .clone()
-                    .map(|arg| *variables.get(arg.as_local().unwrap()));
+                    .map(|arg| *variables.get(Local::try_from_argument(arg).unwrap()));
 
                 let mut env = Env::new(variables, types);
 
