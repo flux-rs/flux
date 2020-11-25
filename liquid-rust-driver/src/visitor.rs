@@ -44,7 +44,7 @@ impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_> {
 
 fn extract_annotations(attrs: &[Attribute]) -> Option<ParseResult<Ty, Span>> {
     for attr in attrs {
-        if let AttrKind::Normal(AttrItem { path, args, .. }) = &attr.kind {
+        if let AttrKind::Normal(AttrItem { path, args, .. }, ..) = &attr.kind {
             let mut path = path.segments.iter().map(|segment| segment.ident.as_str());
 
             match path.next() {
