@@ -3,8 +3,10 @@ pub use liquid_rust_common::{
     ty::{BaseTy, IntSize},
 };
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
-pub struct Variable<'source>(pub(crate) &'source str);
+use std::ops::Range;
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+pub struct Variable<'source>(pub(crate) &'source str, pub(crate) Range<usize>);
 
 #[derive(Debug)]
 pub enum Predicate<'source> {

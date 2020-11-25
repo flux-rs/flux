@@ -77,11 +77,11 @@ impl fmt::Display for LowerError {
             LowerErrorKind::UnsupportedTerminator => "terminator",
             LowerErrorKind::UnsupportedRvalue => "rvalue",
             LowerErrorKind::HasProjections => {
-                return write!(f, "projections are not supported: found {}", self.msg())
+                return write!(f, "projections are not supported: found {}.", self.msg())
             }
         };
 
-        write!(f, "unsupported {}: {}", term, self.msg())
+        write!(f, "unsupported {}: found {}.", term, self.msg())
     }
 }
 

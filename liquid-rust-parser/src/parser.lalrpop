@@ -1,5 +1,7 @@
 use crate::{ast, lexer::{LexerError, Token}};
 
+use std::ops::Range;
+
 grammar<'source>(source: &'source str);
 
 pub Ty: ast::Ty<'source> = {
@@ -81,7 +83,7 @@ BasePred: ast::Predicate<'source> = {
 }
 
 Variable: ast::Variable<'source> = {
-    "var" => ast::Variable(<>),
+    <var:"var"> => ast::Variable(var.0, var.1),
 }
 
 Literal: ast::Literal = {
@@ -151,7 +153,7 @@ extern {
         "uint64" => Token::Uint64(<u64>),
         "uint128" => Token::Uint128(<u128>),
         "uintsize" => Token::UintSize(<usize>),
-        "var" => Token::Var(<&'source str>),
+        "var" => Token::Var(<&'source str>, <Range<usize>>),
         "fn" => Token::Fn,
         "+" => Token::Add,
         "-" => Token::Sub,

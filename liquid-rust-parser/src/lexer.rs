@@ -1,5 +1,5 @@
 use logos::{Logos, SpannedIter};
-use std::ops::Range;
+use std::{fmt, ops::Range};
 
 /// Helper result type for lexing-related operations.
 pub type LexerResult<'source> = Result<(usize, Token<'source>, usize), LexerError>;
@@ -7,8 +7,8 @@ pub type LexerResult<'source> = Result<(usize, Token<'source>, usize), LexerErro
 /// Error for invalid tokens.
 #[derive(Debug)]
 pub struct LexerError {
-    token: String,
-    span: Range<usize>,
+    pub token: String,
+    pub span: Range<usize>,
 }
 
 pub struct Lexer<'source> {
@@ -31,7 +31,7 @@ impl<'source> Iterator for Lexer<'source> {
     fn next(&mut self) -> Option<Self::Item> {
         let (raw_token, span) = self.iter.next()?;
         Some(
-            Token::from_raw(raw_token)
+            Token::from_raw(raw_token, span.clone())
                 .map(|token| (span.start, token, span.end))
                 .ok_or(LexerError {
                     token: String::from(&self.source[span.clone()]),
@@ -99,7 +99,7 @@ pub enum Token<'source> {
     /// A signed pointer-sized integer token.
     IntSize(isize),
     /// A token for variables, it follows the rust reference for identifiers.
-    Var(&'source str),
+    Var(&'source str, Range<usize>),
     /// The `fn` token.
     Fn,
     /// The `+` token.
@@ -145,7 +145,7 @@ pub enum Token<'source> {
 }
 
 impl<'source> Token<'source> {
-    fn from_raw(raw_token: RawToken<'source>) -> Option<Self> {
+    fn from_raw(raw_token: RawToken<'source>, span: Range<usize>) -> Option<Self> {
         match raw_token {
             RawToken::Bool => Some(Token::Bool),
             RawToken::U8 => Some(Token::U8),
@@ -174,7 +174,7 @@ impl<'source> Token<'source> {
             RawToken::Int64(uint) => Some(Token::Int64(uint)),
             RawToken::Int128(uint) => Some(Token::Int128(uint)),
             RawToken::IntSize(uint) => Some(Token::IntSize(uint)),
-            RawToken::Var(slice) => Some(Token::Var(slice)),
+            RawToken::Var(slice) => Some(Token::Var(slice, span)),
             RawToken::Fn => Some(Token::Fn),
             RawToken::Add => Some(Token::Add),
             RawToken::Sub => Some(Token::Sub),
@@ -197,6 +197,64 @@ impl<'source> Token<'source> {
             RawToken::Comma => Some(Token::Comma),
             RawToken::Arrow => Some(Token::Arrow),
             RawToken::Error => None,
+        }
+    }
+}
+
+impl<'source> fmt::Display for Token<'source> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Token::*;
+
+        match self {
+            Bool => "bool".fmt(f),
+            U8 => "u8".fmt(f),
+            U16 => "u16".fmt(f),
+            U32 => "u32".fmt(f),
+            U64 => "u64".fmt(f),
+            U128 => "u128".fmt(f),
+            Usize => "usize".fmt(f),
+            I8 => "i8".fmt(f),
+            I16 => "i64".fmt(f),
+            I32 => "i32".fmt(f),
+            I64 => "i64".fmt(f),
+            I128 => "i128".fmt(f),
+            Isize => "isize".fmt(f),
+            True => "true".fmt(f),
+            False => "false".fmt(f),
+            Uint8(uint) => write!(f, "{}u8", uint),
+            Uint16(uint) => write!(f, "{}u16", uint),
+            Uint32(uint) => write!(f, "{}u32", uint),
+            Uint64(uint) => write!(f, "{}u64", uint),
+            Uint128(uint) => write!(f, "{}u128", uint),
+            UintSize(uint) => write!(f, "{}usize", uint),
+            Int8(int) => write!(f, "{}i8", int),
+            Int16(int) => write!(f, "{}i16", int),
+            Int32(int) => write!(f, "{}i32", int),
+            Int64(int) => write!(f, "{}i64", int),
+            Int128(int) => write!(f, "{}i128", int),
+            IntSize(int) => write!(f, "{}isize", int),
+            Var(slice, ..) => slice.fmt(f),
+            Fn => "fn".fmt(f),
+            Add => "+".fmt(f),
+            Sub => "-".fmt(f),
+            Mul => "*".fmt(f),
+            And => "&&".fmt(f),
+            Or => "||".fmt(f),
+            Not => "!".fmt(f),
+            Eq => "==".fmt(f),
+            Neq => "!=".fmt(f),
+            Gt => ">".fmt(f),
+            Lt => "<".fmt(f),
+            Gte => ">=".fmt(f),
+            Lte => "<=".fmt(f),
+            OpenParen => "(".fmt(f),
+            CloseParen => ")".fmt(f),
+            OpenBracket => "{{".fmt(f),
+            CloseBracket => "}}".fmt(f),
+            Pipe => "|".fmt(f),
+            Colon => ";".fmt(f),
+            Comma => ",".fmt(f),
+            Arrow => "->".fmt(f),
         }
     }
 }

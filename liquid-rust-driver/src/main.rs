@@ -59,7 +59,23 @@ impl Callbacks for CompilerCalls {
                 };
 
                 if let Some(ty) = ty {
-                    func_builder.add_ty(ty);
+                    match ty {
+                        Ok(ty) => func_builder.add_ty(ty),
+                        Err(err) => {
+                            let mut builder = compiler.session().diagnostic().struct_span_fatal(
+                                *err.span(),
+                                &format!("error while parsing type annotation: {}", err),
+                            );
+
+                            if let Some(help) = err.help() {
+                                builder.help(help);
+                            }
+
+                            builder.emit();
+                            compilation = Compilation::Stop;
+                            continue;
+                        }
+                    }
                 }
 
                 let func = match func_builder.build() {

@@ -1,5 +1,5 @@
 use liquid_rust_common::ty::Ty;
-use liquid_rust_parser::parse_ty;
+use liquid_rust_parser::{parse_ty, ParseResult};
 
 use rustc_ast::ast::{AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_ast_pretty::pprust::tts_to_string;
@@ -7,11 +7,12 @@ use rustc_hir::{
     def_id::DefId, itemlikevisit::ItemLikeVisitor, ImplItem, Item, ItemKind, TraitItem,
 };
 use rustc_middle::ty::TyCtxt;
+use rustc_span::{BytePos, Span};
 use std::collections::HashMap;
 
 pub struct DefIdCollector<'tcx> {
     tcx: TyCtxt<'tcx>,
-    annotations: HashMap<DefId, Option<Ty>>,
+    annotations: HashMap<DefId, Option<ParseResult<Ty, Span>>>,
 }
 
 impl<'tcx> DefIdCollector<'tcx> {
@@ -22,7 +23,7 @@ impl<'tcx> DefIdCollector<'tcx> {
         }
     }
 
-    pub fn annotations(self) -> HashMap<DefId, Option<Ty>> {
+    pub fn annotations(self) -> HashMap<DefId, Option<ParseResult<Ty, Span>>> {
         self.annotations
     }
 }
@@ -41,7 +42,7 @@ impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_> {
     fn visit_impl_item(&mut self, _impl_item: &'hir ImplItem<'hir>) {}
 }
 
-fn extract_annotations(attrs: &[Attribute]) -> Option<Ty> {
+fn extract_annotations(attrs: &[Attribute]) -> Option<ParseResult<Ty, Span>> {
     for attr in attrs {
         if let AttrKind::Normal(AttrItem { path, args, .. }) = &attr.kind {
             let mut path = path.segments.iter().map(|segment| segment.ident.as_str());
@@ -50,12 +51,16 @@ fn extract_annotations(attrs: &[Attribute]) -> Option<Ty> {
                 Some(fst) if fst == "liquid" => match path.next() {
                     Some(snd) => {
                         if snd == "ty" {
-                            if let MacArgs::Delimited(_, _, token_stream) = args {
+                            if let MacArgs::Delimited(delim_span, _, token_stream) = args {
                                 let ty_string = tts_to_string(token_stream);
-
-                                let ty = parse_ty(&ty_string.trim_matches('"'))
-                                    .expect("Parsing type annotation failed");
-
+                                let ty = parse_ty(&ty_string.trim_matches('"')).map_err(|err| {
+                                    err.map_span(|span| {
+                                        let open = delim_span.open;
+                                        let lo = open.lo() + BytePos(2 + span.start as u32);
+                                        let hi = open.lo() + BytePos(2 + span.end as u32);
+                                        return Span::new(lo, hi, open.ctxt());
+                                    })
+                                });
                                 return Some(ty);
                             } else {
                                 panic!("Type annotations must have the syntax `#[liquid::ty(\"<type>\")]`");
