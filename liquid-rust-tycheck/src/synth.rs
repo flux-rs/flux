@@ -64,7 +64,13 @@ impl Synth for Rvalue {
                         ),
                     )
                 }
-                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::And | BinOp::Or => {
+                BinOp::Add
+                | BinOp::Sub
+                | BinOp::Mul
+                | BinOp::Div
+                | BinOp::Rem
+                | BinOp::And
+                | BinOp::Or => {
                     let base_ty = op1
                         .synth(genv, env)
                         .get_base()

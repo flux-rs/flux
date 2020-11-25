@@ -108,6 +108,10 @@ pub enum Token<'source> {
     Sub,
     /// The `*` token.
     Mul,
+    /// The `/` token.
+    Div,
+    /// The `%` token.
+    Rem,
     /// The `&&` token.
     And,
     /// The `||` token.
@@ -179,6 +183,8 @@ impl<'source> Token<'source> {
             RawToken::Add => Some(Token::Add),
             RawToken::Sub => Some(Token::Sub),
             RawToken::Mul => Some(Token::Mul),
+            RawToken::Div => Some(Token::Div),
+            RawToken::Rem => Some(Token::Rem),
             RawToken::And => Some(Token::And),
             RawToken::Or => Some(Token::Or),
             RawToken::Not => Some(Token::Not),
@@ -238,6 +244,8 @@ impl<'source> fmt::Display for Token<'source> {
             Add => "+".fmt(f),
             Sub => "-".fmt(f),
             Mul => "*".fmt(f),
+            Div => "/".fmt(f),
+            Rem => "%".fmt(f),
             And => "&&".fmt(f),
             Or => "||".fmt(f),
             Not => "!".fmt(f),
@@ -325,6 +333,10 @@ enum RawToken<'source> {
     Sub,
     #[token("*")]
     Mul,
+    #[token("/")]
+    Div,
+    #[token("%")]
+    Rem,
     #[token("&&")]
     And,
     #[token("||")]

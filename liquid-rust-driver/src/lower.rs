@@ -233,6 +233,7 @@ impl<'tcx> Lower<'tcx> for mir::Rvalue<'tcx> {
                     mir::BinOp::Add => BinOp::Add,
                     mir::BinOp::Sub => BinOp::Sub,
                     mir::BinOp::Mul => BinOp::Mul,
+                    mir::BinOp::Div => BinOp::Div,
                     mir::BinOp::Eq => BinOp::Eq,
                     mir::BinOp::Ne => BinOp::Neq,
                     mir::BinOp::Lt => BinOp::Lt,
@@ -354,6 +355,12 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
         let terminator = match &self.kind {
             mir::TerminatorKind::Return => Terminator::Return,
             mir::TerminatorKind::Goto { target } => Terminator::Goto(target.lower(lcx)?),
+            mir::TerminatorKind::Assert {
+                cond,
+                expected,
+                target,
+                ..
+            } => Terminator::Assert(cond.lower(lcx)?, *expected, target.lower(lcx)?),
             // mir::TerminatorKind::SwitchInt {
             //     discr,
             //     targets,
@@ -407,7 +414,9 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
             // }
             kind => {
                 let msg = match kind {
-                    mir::TerminatorKind::Goto { .. } | mir::TerminatorKind::Return => {
+                    mir::TerminatorKind::Goto { .. }
+                    | mir::TerminatorKind::Return
+                    | mir::TerminatorKind::Assert { .. } => {
                         unreachable!()
                     }
                     mir::TerminatorKind::SwitchInt { .. } => "switch",
@@ -418,7 +427,6 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
                     | mir::TerminatorKind::DropAndReplace { .. }
                     | mir::TerminatorKind::GeneratorDrop => "drop",
                     mir::TerminatorKind::Call { .. } => "function call",
-                    mir::TerminatorKind::Assert { .. } => "assertion",
                     mir::TerminatorKind::Yield { .. } => "yield",
                     mir::TerminatorKind::FalseEdge { .. } => "false edge",
                     mir::TerminatorKind::FalseUnwind { .. } => "false unwind",

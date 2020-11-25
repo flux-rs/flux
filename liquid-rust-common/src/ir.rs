@@ -62,6 +62,8 @@ pub enum BinOp {
     Add,
     Sub,
     Mul,
+    Div,
+    Rem,
     And,
     Or,
     Eq,
@@ -78,6 +80,8 @@ impl fmt::Display for BinOp {
             Self::Add => "+",
             Self::Sub => "-",
             Self::Mul => "*",
+            Self::Div => "/",
+            Self::Rem => "%",
             Self::And => "&&",
             Self::Or => "||",
             Self::Eq => "==",
@@ -164,13 +168,16 @@ impl fmt::Display for Statement {
 pub enum Terminator {
     Return,
     Goto(BBlockId),
+    Assert(Operand, bool, BBlockId),
 }
 
 impl fmt::Display for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Return => "return".fmt(f),
-            Self::Goto(bb_id) => write!(f, "goto {};", bb_id),
+            Self::Goto(bb_id) => write!(f, "goto {}", bb_id),
+            Self::Assert(op, true, bb_id) => write!(f, "assert({}) -> {}", op, bb_id),
+            Self::Assert(op, false, bb_id) => write!(f, "assert({}) -> {}", op, bb_id),
         }
     }
 }

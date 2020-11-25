@@ -64,6 +64,8 @@ BinOp4: ast::BinOp = {
 
 BinOp5: ast::BinOp = {
     "*" => ast::BinOp::Mul,
+    "/" => ast::BinOp::Div,
+    "%" => ast::BinOp::Rem,
 }
 
 UnOp: ast::UnOp = {
@@ -158,6 +160,8 @@ extern {
         "+" => Token::Add,
         "-" => Token::Sub,
         "*" => Token::Mul,
+        "/" => Token::Div,
+        "%" => Token::Rem,
         "&&" => Token::And,
         "||" => Token::Or,
         "!" => Token::Not,

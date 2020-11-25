@@ -2,7 +2,7 @@ use crate::{Env, GlobEnv, Synth, Ty, TyError, TyResult};
 
 use liquid_rust_common::{
     index::Index,
-    ir::{BBlock, Local, Statement, Terminator},
+    ir::{BBlock, Literal, Local, Statement, Terminator},
     ty::BaseTy,
 };
 
@@ -59,6 +59,11 @@ impl Check for Terminator {
             }
             // Chk-Goto
             Terminator::Goto(bb_id) => genv.get_bblock(*bb_id).check(genv, env, ty),
+            // Chk-Assert
+            Terminator::Assert(cond, expected, bb_id) => {
+                cond.check(genv, env, &Literal::from(*expected).as_singleton())?;
+                genv.get_bblock(*bb_id).check(genv, env, ty)
+            }
         }
     }
 }
