@@ -2,7 +2,7 @@
 macro_rules! def_index {
     ($index:ident) => {
         #[repr(transparent)]
-        #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
         pub struct $index(usize);
 
         unsafe impl $crate::index::Index for $index {

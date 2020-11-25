@@ -2,7 +2,8 @@
 
 members = [
     "liquid-rust-common",
+    "liquid-rust-driver",
+    "liquid-rust-fixpoint",
     "liquid-rust-parser",
     "liquid-rust-tycheck",
-    "liquid-rust-driver",
 ]
