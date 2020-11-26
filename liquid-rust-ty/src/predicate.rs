@@ -1,7 +1,7 @@
 use crate::variable::Variable;
 
 use liquid_rust_common::{
-    literal::{Literal},
+    literal::Literal,
     op::{BinOp, UnOp},
 };
 
@@ -72,4 +72,3 @@ impl<A: fmt::Display> fmt::Display for Predicate<A> {
         }
     }
 }
-

@@ -1,6 +1,6 @@
 use crate::ty::Ty;
 
-use liquid_rust_common::literal::{IntSize};
+use liquid_rust_common::literal::IntSize;
 
 use std::fmt;
 
@@ -28,5 +28,3 @@ impl fmt::Display for BaseTy {
         }
     }
 }
-
-

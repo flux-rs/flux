@@ -1,9 +1,6 @@
-use crate::base_ty::BaseTy;
-use crate::predicate::Predicate;
-use crate::argument::Argument;
-use crate::variable::Variable;
+use crate::{argument::Argument, base_ty::BaseTy, predicate::Predicate, variable::Variable};
 
-use liquid_rust_common::literal::{Literal};
+use liquid_rust_common::literal::Literal;
 
 use std::fmt;
 
@@ -71,10 +68,7 @@ impl<A> Ty<A> {
             Literal::Int(_, size) => BaseTy::Int(size),
         };
 
-        Ty::Refined(
-            base_ty,
-            Predicate::Var(Variable::Bounded).eq(literal)
-        )
+        Ty::Refined(base_ty, Predicate::Var(Variable::Bounded).eq(literal))
     }
 }
 
@@ -99,4 +93,3 @@ impl<A: fmt::Display> fmt::Display for Ty<A> {
         }
     }
 }
-
