@@ -31,11 +31,13 @@ impl<A: Emit + Copy + Ord> Emitter<A> {
         self.env.push(Bind(variable, base_ty, predicate));
     }
 
-    pub fn add_constraint(&mut self, base_ty: BaseTy, lhs: Predicate<A>, rhs: Predicate<A>) {
-        let mut env = Vec::new();
-        free_vars(&lhs, &mut env);
-        free_vars(&rhs, &mut env);
-
+    pub fn add_constraint(
+        &mut self,
+        env: Vec<A>,
+        base_ty: BaseTy,
+        lhs: Predicate<A>,
+        rhs: Predicate<A>,
+    ) {
         self.constraints.push(Constraint {
             env,
             base_ty,
@@ -191,25 +193,6 @@ impl<A: Emit> Emit for Variable<A> {
         match self {
             Variable::Bounded => write!(writer, "b"),
             Variable::Free(a) => a.emit(writer),
-        }
-    }
-}
-
-fn free_vars<A: Copy + Ord>(predicate: &Predicate<A>, vars: &mut Vec<A>) {
-    match predicate {
-        Predicate::Lit(_) => (),
-        Predicate::Var(variable) => match variable {
-            Variable::Bounded => (),
-            Variable::Free(var) => {
-                if let Err(index) = vars.binary_search(var) {
-                    vars.insert(index, *var);
-                }
-            }
-        },
-        Predicate::UnApp(_, op) => free_vars(op.as_ref(), vars),
-        Predicate::BinApp(_, op1, op2) => {
-            free_vars(op1.as_ref(), vars);
-            free_vars(op2.as_ref(), vars);
         }
     }
 }
