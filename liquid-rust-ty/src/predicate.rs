@@ -1,8 +1,8 @@
-use crate::variable::Variable;
-
-use liquid_rust_common::{
+use crate::{
     literal::Literal,
     op::{BinOp, UnOp},
+    variable::Variable,
+    BaseTy,
 };
 
 use std::{fmt, ops::BitAnd};
@@ -27,9 +27,8 @@ impl<A> Predicate<A> {
         }
     }
 
-    pub fn eq(self, rhs: impl Into<Self>) -> Self {
-        let rhs = rhs.into();
-        Self::BinApp(BinOp::Eq, Box::new(self), Box::new(rhs))
+    pub(crate) fn eq(self, base_ty: BaseTy, rhs: impl Into<Self>) -> Self {
+        Self::BinApp(BinOp::Eq(base_ty), Box::new(self), Box::new(rhs.into()))
     }
 }
 
@@ -37,8 +36,8 @@ impl<A, Rhs: Into<Predicate<A>>> BitAnd<Rhs> for Predicate<A> {
     type Output = Self;
     fn bitand(self, rhs: Rhs) -> Self {
         match (self, rhs.into()) {
-            (Self::Lit(Literal::Bool(true)), rhs) => rhs,
-            (lhs, Self::Lit(Literal::Bool(true))) => lhs,
+            (Self::Lit(lit), rhs) if lit.is_true() => rhs,
+            (lhs, Self::Lit(lit)) if lit.is_true() => lhs,
             (lhs, rhs) => Self::BinApp(BinOp::And, Box::new(lhs), Box::new(rhs)),
         }
     }

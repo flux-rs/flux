@@ -1,5 +1,4 @@
-use liquid_rust_common::op::{BinOp, UnOp};
-use liquid_rust_ty::{BaseTy, Predicate, Variable};
+use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp, Variable};
 
 use std::{
     collections::BTreeMap,
@@ -145,8 +144,9 @@ impl<A: Emit> Emit for &A {
 impl Emit for UnOp {
     fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         match self {
-            UnOp::Not => write!(writer, "not"),
-            UnOp::Neg => write!(writer, "-"),
+            UnOp::Not { .. } => write!(writer, "not"),
+            UnOp::IntNot { .. } => write!(writer, "not"),
+            UnOp::Neg { .. } => write!(writer, "-"),
         }
     }
 }
@@ -154,19 +154,20 @@ impl Emit for UnOp {
 impl Emit for BinOp {
     fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         let s = match self {
-            BinOp::Add => "+",
-            BinOp::Sub => "-",
-            BinOp::Mul => "*",
-            BinOp::Div => "/",
-            BinOp::Rem => "%",
-            BinOp::And => "&&",
-            BinOp::Or => "||",
-            BinOp::Eq => "=",
-            BinOp::Neq => "!=",
-            BinOp::Lt => "<",
-            BinOp::Gt => ">",
-            BinOp::Lte => "<=",
-            BinOp::Gte => ">=",
+            BinOp::Add { .. } => "+",
+            BinOp::Sub { .. } => "-",
+            BinOp::Mul { .. } => "*",
+            BinOp::Div { .. } => "/",
+            BinOp::Rem { .. } => "%",
+            BinOp::And { .. } => "&&",
+            BinOp::Or { .. } => "||",
+            BinOp::Eq(BaseTy::Bool) => "<=>",
+            BinOp::Eq { .. } => "=",
+            BinOp::Neq { .. } => "!=",
+            BinOp::Lt { .. } => "<",
+            BinOp::Gt { .. } => ">",
+            BinOp::Lte { .. } => "<=",
+            BinOp::Gte { .. } => ">=",
         };
 
         write!(writer, "{}", s)
@@ -178,7 +179,7 @@ impl Emit for BaseTy {
         let s = match self {
             BaseTy::Unit => "unit",
             BaseTy::Bool => "bool",
-            BaseTy::Int(_) | BaseTy::Uint(_) => "int",
+            BaseTy::Int { .. } => "int",
         };
 
         write!(writer, "{}", s)

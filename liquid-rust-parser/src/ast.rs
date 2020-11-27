@@ -1,8 +1,4 @@
-pub use liquid_rust_common::{
-    literal::{IntSize, Literal},
-    op::{BinOp, UnOp},
-};
-pub use liquid_rust_ty::BaseTy;
+pub use liquid_rust_ty::{BaseTy, IntSize, Literal, Sign};
 
 use std::ops::Range;
 
@@ -22,4 +18,27 @@ pub enum Ty<'source> {
     Base(BaseTy),
     Refined(Variable<'source>, BaseTy, Predicate<'source>),
     Func(Vec<(Variable<'source>, Self)>, Box<Self>),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    And,
+    Or,
+    Eq,
+    Neq,
+    Lt,
+    Gt,
+    Lte,
+    Gte,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum UnOp {
+    Not,
+    Neg,
 }

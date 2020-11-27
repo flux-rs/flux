@@ -1,8 +1,7 @@
 use crate::{Env, GlobEnv, LocalVariable, Predicate, Ty, Variable};
 
-use liquid_rust_common::op::BinOp;
 use liquid_rust_mir::{Operand, Rvalue};
-use liquid_rust_ty::BaseTy;
+use liquid_rust_ty::{BaseTy, BinOp, UnOp};
 
 pub(super) trait Synth {
     fn synth(&self, genv: &GlobEnv, env: &mut Env) -> Ty;
@@ -34,60 +33,61 @@ impl Synth for Rvalue {
         match self {
             Rvalue::Use(operand) => operand.synth(genv, env),
             Rvalue::UnApp(un_op, op) => {
-                let base_ty = op
-                    .synth(genv, env)
-                    .get_base()
-                    .expect("Operand has function type.");
+                let (op_ty, ret_ty) = match un_op {
+                    UnOp::IntNot(sign, size) | UnOp::Neg(sign, size) => {
+                        (BaseTy::Int(*sign, *size), BaseTy::Int(*sign, *size))
+                    }
+                    UnOp::Not => (BaseTy::Bool, BaseTy::Bool),
+                };
+                let op_ty1 = op.synth(genv, env);
+
+                assert_eq!(op_ty1.get_base(), Some(op_ty));
 
                 let op = env.resolve_operand(op);
 
                 Ty::Refined(
-                    base_ty,
+                    ret_ty,
                     Predicate::BinApp(
-                        BinOp::Eq,
+                        BinOp::Eq(ret_ty),
                         Box::new(Predicate::Var(Variable::Bounded)),
                         Box::new(Predicate::UnApp(*un_op, Box::new(op))),
                     ),
                 )
             }
-            Rvalue::BinApp(bin_op, op1, op2) => match bin_op {
-                BinOp::Eq | BinOp::Neq | BinOp::Lt | BinOp::Gt | BinOp::Lte | BinOp::Gte => {
-                    let op1 = env.resolve_operand(op1);
-                    let op2 = env.resolve_operand(op2);
-                    Ty::Refined(
-                        BaseTy::Bool,
-                        Predicate::BinApp(
-                            BinOp::Eq,
-                            Box::new(Predicate::Var(Variable::Bounded)),
-                            Box::new(Predicate::BinApp(*bin_op, Box::new(op1), Box::new(op2))),
-                        ),
-                    )
-                }
-                BinOp::Add
-                | BinOp::Sub
-                | BinOp::Mul
-                | BinOp::Div
-                | BinOp::Rem
-                | BinOp::And
-                | BinOp::Or => {
-                    let base_ty = op1
-                        .synth(genv, env)
-                        .get_base()
-                        .expect("Operand has function type.");
+            Rvalue::BinApp(bin_op, op1, op2) => {
+                let (op_ty, ret_ty) = match bin_op {
+                    BinOp::Add(sign, size)
+                    | BinOp::Sub(sign, size)
+                    | BinOp::Mul(sign, size)
+                    | BinOp::Div(sign, size)
+                    | BinOp::Rem(sign, size) => {
+                        (BaseTy::Int(*sign, *size), BaseTy::Int(*sign, *size))
+                    }
+                    BinOp::And | BinOp::Or => (BaseTy::Bool, BaseTy::Bool),
+                    BinOp::Eq(ty) | BinOp::Neq(ty) => (*ty, BaseTy::Bool),
+                    BinOp::Lt(sign, size)
+                    | BinOp::Gt(sign, size)
+                    | BinOp::Lte(sign, size)
+                    | BinOp::Gte(sign, size) => (BaseTy::Int(*sign, *size), BaseTy::Bool),
+                };
+                let op_ty1 = op1.synth(genv, env);
+                let op_ty2 = op2.synth(genv, env);
 
-                    let op1 = env.resolve_operand(op1);
-                    let op2 = env.resolve_operand(op2);
+                assert!(op_ty1.shape_eq(&op_ty2));
+                assert_eq!(op_ty1.get_base(), Some(op_ty));
 
-                    Ty::Refined(
-                        base_ty,
-                        Predicate::BinApp(
-                            BinOp::Eq,
-                            Box::new(Predicate::Var(Variable::Bounded)),
-                            Box::new(Predicate::BinApp(*bin_op, Box::new(op1), Box::new(op2))),
-                        ),
-                    )
-                }
-            },
+                let op1 = env.resolve_operand(op1);
+                let op2 = env.resolve_operand(op2);
+
+                Ty::Refined(
+                    ret_ty,
+                    Predicate::BinApp(
+                        BinOp::Eq(ret_ty),
+                        Box::new(Predicate::Var(Variable::Bounded)),
+                        Box::new(Predicate::BinApp(*bin_op, Box::new(op1), Box::new(op2))),
+                    ),
+                )
+            }
         }
     }
 }

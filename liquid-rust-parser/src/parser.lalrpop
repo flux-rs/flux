@@ -45,7 +45,7 @@ BinOp1: ast::BinOp = {
 }
 
 BinOp2: ast::BinOp = {
-    "&&" => ast::BinOp::Or,
+    "&&" => ast::BinOp::And,
 }
 
 BinOp3: ast::BinOp = {
@@ -89,38 +89,38 @@ Variable: ast::Variable<'source> = {
 }
 
 Literal: ast::Literal = {
-    "(" ")" => ast::Literal::Unit,
-    "true" => ast::Literal::Bool(true),
-    "false" => ast::Literal::Bool(false),
-    "int8" => ast::Literal::Int(<> as i128, ast::IntSize::Size8),
-    "int16" => ast::Literal::Int(<> as i128, ast::IntSize::Size16),
-    "int32" => ast::Literal::Int(<> as i128, ast::IntSize::Size32),
-    "int64" => ast::Literal::Int(<> as i128, ast::IntSize::Size64),
-    "int128" => ast::Literal::Int(<> as i128, ast::IntSize::Size128),
-    "intsize" => ast::Literal::Int(<> as i128, ast::IntSize::SizePtr),
-    "uint8" => ast::Literal::Uint(<> as u128, ast::IntSize::Size8),
-    "uint16" => ast::Literal::Uint(<> as u128, ast::IntSize::Size16),
-    "uint32" => ast::Literal::Uint(<> as u128, ast::IntSize::Size32),
-    "uint64" => ast::Literal::Uint(<> as u128, ast::IntSize::Size64),
-    "uint128" => ast::Literal::Uint(<> as u128, ast::IntSize::Size128),
-    "uintsize" => ast::Literal::Uint(<> as u128, ast::IntSize::SizePtr),
+    "(" ")" => ().into(),
+    "true" => true.into(),
+    "false" => false.into(),
+    "int8" => <>.into(),
+    "int16" => <>.into(),
+    "int32" => <>.into(),
+    "int64" => <>.into(),
+    "int128" =><>.into(),
+    "intsize" => <>.into(),
+    "uint8" => <>.into(),
+    "uint16" => <>.into(),
+    "uint32" => <>.into(),
+    "uint64" => <>.into(),
+    "uint128" => <>.into(),
+    "uintsize" => <>.into(),
 }
 
 BaseTy: ast::BaseTy = {
     "(" ")" => ast::BaseTy::Unit,
     "bool" => ast::BaseTy::Bool,
-    "u8" => ast::BaseTy::Uint(ast::IntSize::Size8),
-    "u16" => ast::BaseTy::Uint(ast::IntSize::Size16),
-    "u32" => ast::BaseTy::Uint(ast::IntSize::Size32),
-    "u64" => ast::BaseTy::Uint(ast::IntSize::Size64),
-    "u128" => ast::BaseTy::Uint(ast::IntSize::Size128),
-    "usize" => ast::BaseTy::Uint(ast::IntSize::SizePtr),
-    "i8" => ast::BaseTy::Int(ast::IntSize::Size8),
-    "i16" => ast::BaseTy::Int(ast::IntSize::Size16),
-    "i32" => ast::BaseTy::Int(ast::IntSize::Size32),
-    "i64" => ast::BaseTy::Int(ast::IntSize::Size64),
-    "i128" => ast::BaseTy::Int(ast::IntSize::Size128),
-    "isize" => ast::BaseTy::Int(ast::IntSize::SizePtr),
+    "u8" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size8),
+    "u16" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size16),
+    "u32" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size32),
+    "u64" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size64),
+    "u128" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size128),
+    "usize" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::SizePtr),
+    "i8" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size8),
+    "i16" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size16),
+    "i32" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size32),
+    "i64" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size64),
+    "i128" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size128),
+    "isize" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::SizePtr),
 };
 
 extern {

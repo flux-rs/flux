@@ -2,11 +2,8 @@ use liquid_rust_common::{
     def_index,
     index::{Index, IndexMap, IndexMapBuilder},
 };
-pub use liquid_rust_common::{
-    literal::{IntSize, Literal},
-    op::{BinOp, UnOp},
-};
 use liquid_rust_ty::{Argument, BaseTy, Ty};
+pub use liquid_rust_ty::{BinOp, IntSize, Literal, UnOp};
 
 use std::fmt;
 

@@ -1,6 +1,7 @@
-use crate::ty::Ty;
-
-use liquid_rust_common::literal::IntSize;
+use crate::{
+    literal::{IntSize, Sign},
+    ty::Ty,
+};
 
 use std::fmt;
 
@@ -8,8 +9,7 @@ use std::fmt;
 pub enum BaseTy {
     Unit,
     Bool,
-    Uint(IntSize),
-    Int(IntSize),
+    Int(Sign, IntSize),
 }
 
 impl BaseTy {
@@ -23,8 +23,7 @@ impl fmt::Display for BaseTy {
         match self {
             Self::Unit => "()".fmt(f),
             Self::Bool => "bool".fmt(f),
-            Self::Uint(size) => write!(f, "u{}", size),
-            Self::Int(size) => write!(f, "i{}", size),
+            Self::Int(sign, size) => write!(f, "{}{}", sign, size),
         }
     }
 }

@@ -40,10 +40,10 @@ impl Callbacks for CompilerCalls {
             let mut builder = Program::builder(annotations.len());
 
             for (func_id, (def_id, ty)) in builder.func_ids().zip(annotations) {
-                let mut lcx = LowerCtx::new(tcx);
                 let body = tcx.optimized_mir(def_id);
+                let lcx = LowerCtx::new(tcx, body);
 
-                let mut func_builder = match lcx.lower_body(body) {
+                let mut func_builder = match lcx.lower_body() {
                     Ok(builder) => builder,
                     Err(err) => {
                         compiler

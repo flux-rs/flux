@@ -1,6 +1,6 @@
-use crate::{argument::Argument, base_ty::BaseTy, predicate::Predicate, variable::Variable};
-
-use liquid_rust_common::literal::Literal;
+use crate::{
+    argument::Argument, base_ty::BaseTy, literal::Literal, predicate::Predicate, variable::Variable,
+};
 
 use std::fmt;
 
@@ -54,21 +54,19 @@ impl<A> Ty<A> {
         match self {
             Self::Refined(base_ty, predicate) => Self::Refined(
                 base_ty,
-                predicate & (Predicate::from(Variable::Bounded).eq(Variable::from(var))),
+                predicate & Predicate::from(Variable::Bounded).eq(base_ty, Variable::from(var)),
             ),
             ty => ty,
         }
     }
 
     pub fn singleton(literal: Literal) -> Self {
-        let base_ty = match literal {
-            Literal::Unit => BaseTy::Unit,
-            Literal::Bool(_) => BaseTy::Bool,
-            Literal::Uint(_, size) => BaseTy::Uint(size),
-            Literal::Int(_, size) => BaseTy::Int(size),
-        };
+        let base_ty = literal.base_ty();
 
-        Ty::Refined(base_ty, Predicate::Var(Variable::Bounded).eq(literal))
+        Ty::Refined(
+            base_ty,
+            Predicate::from(Variable::Bounded).eq(base_ty, literal),
+        )
     }
 }
 
