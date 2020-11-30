@@ -1,4 +1,10 @@
-use crate::{Env, GlobEnv, Synth, Ty, TyError, TyResult};
+use crate::{
+    env::Env,
+    glob_env::GlobEnv,
+    result::{TyError, TyResult},
+    synth::Synth,
+    ty::Ty,
+};
 
 use liquid_rust_common::index::Index;
 use liquid_rust_mir::{BBlock, Literal, Local, Statement, Terminator};
@@ -39,7 +45,7 @@ impl Check for Statement {
                     return Err(TyError::ShapeMismatch(rhs_ty, lhs_ty.clone()));
                 }
 
-                env.annotate_local(genv, *lhs, rhs_ty);
+                env.annotate_local(*lhs, rhs_ty);
 
                 Ok(())
             }
@@ -70,6 +76,6 @@ impl Check for Terminator {
 impl<T: Synth> Check for T {
     fn check(&self, genv: &GlobEnv, env: &mut Env, ty: &Ty) -> TyResult {
         let synth_ty = self.synth(genv, env);
-        env.is_subtype(genv, &synth_ty, ty)
+        env.is_subtype(&synth_ty, ty)
     }
 }

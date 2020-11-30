@@ -1,4 +1,8 @@
-use crate::{Env, GlobEnv, LocalVariable, Predicate, Ty, Variable};
+use crate::{
+    env::Env,
+    glob_env::GlobEnv,
+    ty::{LocalVariable, Predicate, Ty, Variable},
+};
 
 use liquid_rust_mir::{Operand, Rvalue};
 use liquid_rust_ty::{BaseTy, BinOp, UnOp};

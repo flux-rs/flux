@@ -1,4 +1,4 @@
-use crate::Ty;
+use crate::ty::Ty;
 
 use liquid_rust_ty::BaseTy;
 
