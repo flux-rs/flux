@@ -7,8 +7,8 @@ use crate::{
 };
 
 use liquid_rust_common::index::Index;
-use liquid_rust_mir::{BBlock, Literal, Local, Statement, Terminator};
-use liquid_rust_ty::BaseTy;
+use liquid_rust_mir::{BBlock, Local, Statement, Terminator};
+use liquid_rust_ty::{BaseTy, Literal};
 
 pub(super) trait Check {
     fn check(&self, genv: &GlobEnv, env: &mut Env, ty: &Ty) -> TyResult;
