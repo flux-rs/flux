@@ -1,4 +1,4 @@
-use crate::{bblock::BBlockId, operand::Operand};
+use crate::{bblock::BBlockId, func::FuncId, local::Local, operand::Operand};
 
 use std::fmt;
 
@@ -6,6 +6,7 @@ pub enum Terminator {
     Return,
     Goto(BBlockId),
     Assert(Operand, bool, BBlockId),
+    Call(Local, FuncId, Box<[Operand]>, BBlockId),
 }
 
 impl fmt::Display for Terminator {
@@ -15,6 +16,17 @@ impl fmt::Display for Terminator {
             Self::Goto(bb_id) => write!(f, "goto {}", bb_id),
             Self::Assert(op, true, bb_id) => write!(f, "assert({}) -> {}", op, bb_id),
             Self::Assert(op, false, bb_id) => write!(f, "assert(!{}) -> {}", op, bb_id),
+            Self::Call(lhs, func, args, bb_id) => {
+                write!(f, "{} = {}(", lhs, func)?;
+                let mut args = args.into_iter();
+                if let Some(arg) = args.next() {
+                    write!(f, "{}", arg)?;
+                    for arg in args {
+                        write!(f, ", {}", arg)?;
+                    }
+                }
+                write!(f, ") -> {}", bb_id)
+            }
         }
     }
 }

@@ -7,27 +7,27 @@ use crate::{
 
 use liquid_rust_common::index::{Index, IndexMap, IndexMapBuilder};
 
-pub struct Program {
-    functions: IndexMap<FuncId, Func>,
+pub struct Program<V> {
+    functions: IndexMap<FuncId, Func<V>>,
 }
 
-impl Program {
-    pub fn builder(functions_len: usize) -> ProgramBuilder {
+impl<V> Program<V> {
+    pub fn builder(functions_len: usize) -> ProgramBuilder<V> {
         ProgramBuilder {
             functions: FuncId::index_map_builder(functions_len),
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (FuncId, &Func)> {
+    pub fn iter(&self) -> impl Iterator<Item = (FuncId, &Func<V>)> {
         self.functions.iter()
     }
 
-    pub fn get_func(&self, func_id: FuncId) -> &Func {
+    pub fn get_func(&self, func_id: FuncId) -> &Func<V> {
         self.functions.get(func_id)
     }
 }
 
-impl fmt::Display for Program {
+impl<V: fmt::Display> fmt::Display for Program<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (func_id, func) in self.iter() {
             write!(f, "\n{}", func_id)?;
@@ -75,12 +75,12 @@ impl fmt::Display for Program {
     }
 }
 
-pub struct ProgramBuilder {
-    functions: IndexMapBuilder<FuncId, Func>,
+pub struct ProgramBuilder<V> {
+    functions: IndexMapBuilder<FuncId, Func<V>>,
 }
 
-impl ProgramBuilder {
-    pub fn add_func(&mut self, func_id: FuncId, func: Func) -> bool {
+impl<V> ProgramBuilder<V> {
+    pub fn add_func(&mut self, func_id: FuncId, func: Func<V>) -> bool {
         self.functions.insert(func_id, func)
     }
 
@@ -88,7 +88,7 @@ impl ProgramBuilder {
         self.functions.keys()
     }
 
-    pub fn build(self) -> Result<Program, FuncId> {
+    pub fn build(self) -> Result<Program<V>, FuncId> {
         Ok(Program {
             functions: self.functions.build()?,
         })

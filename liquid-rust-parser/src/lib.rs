@@ -5,7 +5,7 @@ mod resolution;
 use lexer::{Lexer, LexerError, Token};
 use resolution::solve_ty;
 
-use liquid_rust_ty::{Argument, Ty};
+use liquid_rust_ty::Ty;
 
 use lalrpop_util::lalrpop_mod;
 use std::{fmt, ops::Range};
@@ -117,7 +117,7 @@ impl<'source> From<LalrpopError<'source>> for ParseError {
     }
 }
 
-pub fn parse_ty<'source>(source: &'source str) -> ParseResult<Ty<Argument>> {
+pub fn parse_ty<'source, V: Copy>(source: &'source str) -> ParseResult<Ty<V>> {
     let lexer = Lexer::new(source);
     let ast_ty = parser::TyParser::new().parse(source, lexer)?;
     solve_ty(&ast_ty)

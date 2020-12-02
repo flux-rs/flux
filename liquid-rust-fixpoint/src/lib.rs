@@ -193,6 +193,7 @@ impl<A: Emit> Emit for Variable<A> {
         match self {
             Variable::Bounded => write!(writer, "b"),
             Variable::Free(a) => a.emit(writer),
+            Variable::Arg(_) => unreachable!(),
         }
     }
 }

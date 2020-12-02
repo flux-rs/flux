@@ -10,12 +10,12 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{BytePos, Span};
 use std::collections::HashMap;
 
-pub struct DefIdCollector<'tcx> {
+pub struct DefIdCollector<'tcx, V> {
     tcx: TyCtxt<'tcx>,
-    annotations: HashMap<DefId, Option<ParseResult<Ty, Span>>>,
+    annotations: HashMap<DefId, Option<ParseResult<(Ty<V>, Span), Span>>>,
 }
 
-impl<'tcx> DefIdCollector<'tcx> {
+impl<'tcx, V> DefIdCollector<'tcx, V> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
@@ -23,12 +23,12 @@ impl<'tcx> DefIdCollector<'tcx> {
         }
     }
 
-    pub fn annotations(self) -> HashMap<DefId, Option<ParseResult<Ty, Span>>> {
+    pub fn annotations(self) -> HashMap<DefId, Option<ParseResult<(Ty<V>, Span), Span>>> {
         self.annotations
     }
 }
 
-impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_> {
+impl<'hir, V: Copy> ItemLikeVisitor<'hir> for DefIdCollector<'_, V> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
             let def_id = self.tcx.hir().local_def_id(item.hir_id).to_def_id();
@@ -42,7 +42,7 @@ impl<'hir> ItemLikeVisitor<'hir> for DefIdCollector<'_> {
     fn visit_impl_item(&mut self, _impl_item: &'hir ImplItem<'hir>) {}
 }
 
-fn extract_annotations(attrs: &[Attribute]) -> Option<ParseResult<Ty, Span>> {
+fn extract_annotations<V: Copy>(attrs: &[Attribute]) -> Option<ParseResult<(Ty<V>, Span), Span>> {
     for attr in attrs {
         if let AttrKind::Normal(AttrItem { path, args, .. }, ..) = &attr.kind {
             let mut path = path.segments.iter().map(|segment| segment.ident.as_str());
@@ -61,7 +61,7 @@ fn extract_annotations(attrs: &[Attribute]) -> Option<ParseResult<Ty, Span>> {
                                         return Span::new(lo, hi, open.ctxt());
                                     })
                                 });
-                                return Some(ty);
+                                return Some(ty.map(|ty| (ty, delim_span.entire())));
                             } else {
                                 panic!("Type annotations must have the syntax `#[liquid::ty(\"<type>\")]`");
                             }

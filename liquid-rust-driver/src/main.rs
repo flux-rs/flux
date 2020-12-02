@@ -16,11 +16,14 @@ mod visitor;
 use lower::LowerCtx;
 use visitor::DefIdCollector;
 
-use liquid_rust_mir::Program;
-
+use liquid_rust_mir::{FuncId, Program};
+use liquid_rust_ty::Ty;
 use rustc_driver::{Callbacks, Compilation};
+use rustc_hir::def_id::DefId;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::bug;
+
+use std::collections::HashMap;
 
 struct CompilerCalls;
 
@@ -39,9 +42,15 @@ impl Callbacks for CompilerCalls {
 
             let mut builder = Program::builder(annotations.len());
 
+            let func_ids: HashMap<DefId, FuncId> = annotations
+                .iter()
+                .map(|(def_id, _)| *def_id)
+                .zip(builder.func_ids())
+                .collect();
+
             for (func_id, (def_id, ty)) in builder.func_ids().zip(annotations) {
                 let body = tcx.optimized_mir(def_id);
-                let lcx = LowerCtx::new(tcx, body);
+                let lcx = LowerCtx::new(tcx, body, &func_ids);
 
                 let mut func_builder = match lcx.lower_body() {
                     Ok(builder) => builder,
@@ -60,7 +69,19 @@ impl Callbacks for CompilerCalls {
 
                 if let Some(ty) = ty {
                     match ty {
-                        Ok(ty) => func_builder.add_ty(ty),
+                        Ok((ty, span)) => match ty {
+                            Ty::Func(ty) => func_builder.add_ty(ty),
+                            Ty::Refined(_, _) => {
+                                let mut builder = compiler
+                                    .session()
+                                    .diagnostic()
+                                    .struct_span_fatal(span, "expected function type");
+
+                                builder.emit();
+                                compilation = Compilation::Stop;
+                                continue;
+                            }
+                        },
                         Err(err) => {
                             let mut builder = compiler.session().diagnostic().struct_span_fatal(
                                 *err.span(),

@@ -7,7 +7,7 @@ use liquid_rust_common::{
     def_index,
     index::{Index, IndexMap, IndexMapBuilder},
 };
-use liquid_rust_ty::{Argument, BaseTy, Ty};
+use liquid_rust_ty::{BaseTy, FuncTy};
 
 use std::fmt;
 
@@ -19,16 +19,16 @@ impl fmt::Display for FuncId {
     }
 }
 
-pub struct Func {
+pub struct Func<V> {
     arity: usize,
     local_decls: IndexMap<Local, BaseTy>,
     bblocks: IndexMap<BBlockId, BBlock>,
-    ty: Ty,
+    ty: FuncTy<V>,
     user_ty: bool,
 }
 
-impl Func {
-    pub fn builder(arity: usize, bblocks_len: usize) -> FuncBuilder {
+impl<V> Func<V> {
+    pub fn builder(arity: usize, bblocks_len: usize) -> FuncBuilder<V> {
         FuncBuilder {
             arity,
             local_decls: Local::index_map(),
@@ -61,7 +61,7 @@ impl Func {
         self.bblocks.iter()
     }
 
-    pub fn ty(&self) -> &Ty {
+    pub fn ty(&self) -> &FuncTy<V> {
         &self.ty
     }
 
@@ -70,14 +70,14 @@ impl Func {
     }
 }
 
-pub struct FuncBuilder {
+pub struct FuncBuilder<V> {
     arity: usize,
     local_decls: IndexMap<Local, BaseTy>,
     bblocks: IndexMapBuilder<BBlockId, BBlock>,
-    ty: Option<Ty>,
+    ty: Option<FuncTy<V>>,
 }
 
-impl FuncBuilder {
+impl<V> FuncBuilder<V> {
     pub fn bblock_ids(&self) -> impl Iterator<Item = BBlockId> {
         self.bblocks.keys()
     }
@@ -90,11 +90,11 @@ impl FuncBuilder {
         self.bblocks.insert(bblock_id, bblock)
     }
 
-    pub fn add_ty(&mut self, ty: Ty) {
-        self.ty = Some(ty);
+    pub fn add_ty(&mut self, func_ty: FuncTy<V>) {
+        self.ty = Some(func_ty);
     }
 
-    pub fn build(self) -> Result<Func, BBlockId> {
+    pub fn build(self) -> Result<Func<V>, BBlockId> {
         let bblocks = self.bblocks.build()?;
         let (ty, user_ty) = if let Some(ty) = self.ty {
             (ty, true)
@@ -104,13 +104,12 @@ impl FuncBuilder {
                 .iter()
                 .skip(1)
                 .take(self.arity)
-                .enumerate()
-                .map(|(pos, (_, base_ty))| (Argument::new(pos, 0), base_ty.refined()))
+                .map(|(_, base_ty)| base_ty.refined())
                 .collect::<Vec<_>>();
 
             let return_ty = self.local_decls.get(Local::first()).refined();
 
-            (Ty::Func(arguments, Box::new(return_ty)), false)
+            (FuncTy::new(arguments, return_ty), false)
         };
         Ok(Func {
             arity: self.arity,

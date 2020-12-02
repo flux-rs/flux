@@ -53,12 +53,13 @@ impl Env {
         let variable = self.types.insert(ty.clone());
         *self.variables.get_mut(local) = variable;
 
-        match ty.map(|var| GlobVariable(self.func_id, var)) {
+        match ty {
             ty::Ty::Refined(base_ty, predicate) => {
+                let mapper = GlobVariable::mapper(self.func_id);
                 self.emitter
-                    .add_bind(GlobVariable(self.func_id, variable), base_ty, predicate)
+                    .add_bind(mapper(variable), base_ty, predicate.map(mapper))
             }
-            ty::Ty::Func(..) => (),
+            ty::Ty::Func(..) => todo!(),
         };
     }
 
@@ -74,7 +75,7 @@ impl Env {
 
                 Ok(())
             }
-            (Ty::Func(_, _), Ty::Func(_, _)) => {
+            (Ty::Func(_), Ty::Func(_)) => {
                 todo!()
             }
             _ => Err(TyError::ShapeMismatch(ty1.clone(), ty2.clone())),
@@ -88,13 +89,13 @@ impl Env {
         predicate1: Predicate,
         predicate2: Predicate,
     ) {
+        let mapper = GlobVariable::mapper(self.func_id);
+
         self.emitter.add_constraint(
-            env.into_iter()
-                .map(|var| GlobVariable(self.func_id, var))
-                .collect(),
+            env.into_iter().map(mapper).collect(),
             base_ty,
-            predicate1.map(|var| GlobVariable(self.func_id, var)),
-            predicate2.map(|var| GlobVariable(self.func_id, var)),
+            predicate1.map(mapper),
+            predicate2.map(mapper),
         );
     }
 }

@@ -11,5 +11,5 @@ pub use base_ty::BaseTy;
 pub use literal::{IntSize, Literal, Sign};
 pub use op::{BinOp, UnOp};
 pub use predicate::Predicate;
-pub use ty::Ty;
+pub use ty::{FuncTy, Ty};
 pub use variable::Variable;

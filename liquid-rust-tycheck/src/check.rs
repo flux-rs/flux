@@ -3,7 +3,7 @@ use crate::{
     glob_env::GlobEnv,
     result::{TyError, TyResult},
     synth::Synth,
-    ty::Ty,
+    ty::{Predicate, Ty},
 };
 
 use liquid_rust_common::index::Index;
@@ -66,6 +66,36 @@ impl Check for Terminator {
             // Chk-Assert
             Terminator::Assert(cond, expected, bb_id) => {
                 cond.check(genv, env, &Ty::singleton(Literal::from(*expected)))?;
+                genv.get_bblock(*bb_id).check(genv, env, ty)
+            }
+            // Chk-Call
+            Terminator::Call(lhs, func, args, bb_id) => {
+                let pred_args: Vec<Predicate> = args
+                    .into_iter()
+                    .map(|arg| env.resolve_operand(arg))
+                    .collect();
+
+                let func_ty = genv
+                    .get_func(*func)
+                    .ty()
+                    .clone()
+                    .project_args(|pos| pred_args[pos].clone());
+
+                for (arg_ty, op) in func_ty.arguments().iter().zip(args.into_iter()) {
+                    op.check(genv, env, arg_ty)?;
+                }
+
+                let rhs_ty = func_ty.return_ty();
+
+                let variable = env.resolve_local(*lhs);
+                let lhs_ty = env.get_ty(variable);
+
+                if !rhs_ty.shape_eq(lhs_ty) {
+                    return Err(TyError::ShapeMismatch(rhs_ty.clone(), lhs_ty.clone()));
+                }
+
+                env.annotate_local(*lhs, rhs_ty.clone());
+
                 genv.get_bblock(*bb_id).check(genv, env, ty)
             }
         }

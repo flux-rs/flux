@@ -6,23 +6,22 @@ use crate::{
     ParseError, ParseErrorKind, ParseResult,
 };
 
-use liquid_rust_ty::{self as ty, Argument, BaseTy, BinOp, UnOp};
+use liquid_rust_ty::{Argument, BaseTy, BinOp, FuncTy, Predicate, Ty, UnOp, Variable};
 
-type Variable = ty::Variable<Argument>;
-type Predicate = ty::Predicate<Argument>;
-type Ty = ty::Ty<Argument>;
-
-pub fn solve_ty<'source>(ast_ty: &AstTy<'source>) -> ParseResult<Ty> {
-    ResolutionCtx::default().solve_ty(ast_ty)
+pub fn solve_ty<'source, V: Copy>(ast_ty: &AstTy<'source>) -> ParseResult<Ty<V>> {
+    ResolutionCtx::new().solve_ty(ast_ty)
 }
 
-#[derive(Default)]
-struct ResolutionCtx<'source> {
-    scopes: Vec<Scope<'source>>,
+struct ResolutionCtx<'source, V> {
+    scopes: Vec<Scope<'source, V>>,
 }
 
-impl<'source> ResolutionCtx<'source> {
-    fn solve_ty(&mut self, ast_ty: &AstTy<'source>) -> ParseResult<Ty> {
+impl<'source, V: Copy> ResolutionCtx<'source, V> {
+    fn new() -> Self {
+        Self { scopes: Vec::new() }
+    }
+
+    fn solve_ty(&mut self, ast_ty: &AstTy<'source>) -> ParseResult<Ty<V>> {
         match ast_ty {
             AstTy::Base(base_ty) => Ok(base_ty.refined()),
             AstTy::Refined(bounded_variable, base_ty, predicate) => {
@@ -39,8 +38,6 @@ impl<'source> ResolutionCtx<'source> {
                 Ok(Ty::Refined(*base_ty, predicate))
             }
             AstTy::Func(arguments, return_ty) => {
-                let level = self.scopes.len();
-
                 self.push_scope();
 
                 let arguments = arguments
@@ -49,14 +46,13 @@ impl<'source> ResolutionCtx<'source> {
                     .map(|(pos, (ast_argument, ast_ty))| {
                         let ty = self.solve_ty(ast_ty)?;
 
-                        let argument = Argument::new(pos, level);
                         self.push_variable(
                             ast_argument,
-                            Variable::Free(argument),
+                            Variable::Arg(Argument::new(pos)),
                             ty.get_base().expect("HOFs aren't here yet."),
                         );
 
-                        Ok((argument, ty))
+                        Ok(ty)
                     })
                     .collect::<ParseResult<Vec<_>>>()?;
 
@@ -68,7 +64,7 @@ impl<'source> ResolutionCtx<'source> {
 
                 self.pop_scope();
 
-                Ok(Ty::Func(arguments, Box::new(return_ty)))
+                Ok(Ty::Func(FuncTy::new(arguments, return_ty)))
             }
         }
     }
@@ -76,7 +72,7 @@ impl<'source> ResolutionCtx<'source> {
     fn solve_predicate(
         &self,
         ast_predicate: &AstPredicate<'source>,
-    ) -> ParseResult<(Predicate, BaseTy)> {
+    ) -> ParseResult<(Predicate<V>, BaseTy)> {
         let predicate = match ast_predicate {
             AstPredicate::Var(variable) => {
                 let (variable, base_ty) = self.solve_variable(variable)?;
@@ -311,20 +307,20 @@ impl<'source> ResolutionCtx<'source> {
         Ok(predicate)
     }
 
-    fn scope(&self) -> &Scope<'source> {
+    fn scope(&self) -> &Scope<'source, V> {
         self.scopes
             .last()
             .expect("There should be at least one scope.")
     }
 
-    fn scope_mut(&mut self) -> &mut Scope<'source> {
+    fn scope_mut(&mut self) -> &mut Scope<'source, V> {
         self.scopes
             .last_mut()
             .expect("There should be at least one scope.")
     }
 
     fn push_scope(&mut self) {
-        self.scopes.push(Scope::default());
+        self.scopes.push(Scope::new());
     }
 
     fn pop_scope(&mut self) {
@@ -334,7 +330,7 @@ impl<'source> ResolutionCtx<'source> {
     fn solve_variable(
         &self,
         ast_variable: &AstVariable<'source>,
-    ) -> ParseResult<(Variable, BaseTy)> {
+    ) -> ParseResult<(Variable<V>, BaseTy)> {
         self.scope().solve_variable(&ast_variable).ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::UnboundedVariable(ast_variable.0.to_string()),
@@ -347,7 +343,7 @@ impl<'source> ResolutionCtx<'source> {
     fn push_variable(
         &mut self,
         ast_variable: &AstVariable<'source>,
-        variable: Variable,
+        variable: Variable<V>,
         base_ty: BaseTy,
     ) {
         self.scope_mut()
@@ -359,16 +355,19 @@ impl<'source> ResolutionCtx<'source> {
     }
 }
 
-#[derive(Default)]
-struct Scope<'source> {
-    stack: Vec<(&'source str, Variable, BaseTy)>,
+struct Scope<'source, V> {
+    stack: Vec<(&'source str, Variable<V>, BaseTy)>,
 }
 
-impl<'source> Scope<'source> {
+impl<'source, V: Copy> Scope<'source, V> {
+    fn new() -> Self {
+        Self { stack: Vec::new() }
+    }
+
     fn push_variable(
         &mut self,
         ast_variable: &AstVariable<'source>,
-        variable: Variable,
+        variable: Variable<V>,
         base_ty: BaseTy,
     ) {
         self.stack.push((ast_variable.0, variable, base_ty));
@@ -380,7 +379,7 @@ impl<'source> Scope<'source> {
             .expect("Stack for the current scope is empty.");
     }
 
-    fn solve_variable(&self, ast_variable: &AstVariable<'source>) -> Option<(Variable, BaseTy)> {
+    fn solve_variable(&self, ast_variable: &AstVariable<'source>) -> Option<(Variable<V>, BaseTy)> {
         for (slice, variable, base_ty) in self.stack.iter().rev() {
             if slice == &ast_variable.0 {
                 return Some((*variable, *base_ty));

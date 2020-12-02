@@ -1,23 +1,22 @@
 use crate::{
     check::Check,
     env::Env,
-    ty::{GlobVariable, LocalVariable, Ty},
+    ty::{GlobVariable, LocalVariable, Predicate, Ty, Variable},
 };
 
 use liquid_rust_common::index::Index;
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{BBlock, BBlockId, Func, FuncId, Local, Program};
-use liquid_rust_ty as ty;
 
 pub struct GlobEnv<'prog> {
     #[allow(dead_code)]
-    program: &'prog Program,
+    program: &'prog Program<LocalVariable>,
     func_id: FuncId,
-    func: &'prog Func,
+    func: &'prog Func<LocalVariable>,
 }
 
 impl<'prog> GlobEnv<'prog> {
-    pub fn new(program: &'prog Program, func_id: FuncId) -> Self {
+    pub fn new(program: &'prog Program<LocalVariable>, func_id: FuncId) -> Self {
         Self {
             program,
             func_id,
@@ -29,84 +28,79 @@ impl<'prog> GlobEnv<'prog> {
         self.func.get_bblock(bb_id)
     }
 
+    pub fn get_func(&self, func_id: FuncId) -> &Func<LocalVariable> {
+        self.program.get_func(func_id)
+    }
+
     pub fn check(self, mut emitter: Emitter<GlobVariable>) -> Emitter<GlobVariable> {
-        match self.func.ty() {
-            ty::Ty::Func(args_ann_ty, return_ann_ty) => {
-                assert_eq!(args_ann_ty.len(), self.func.arity(), "Arity mismatch.");
+        let arity = self.func.ty().arguments().len();
+        assert_eq!(arity, self.func.arity());
 
-                let mut variables = Local::index_map();
-                let mut types = LocalVariable::index_map();
+        let ann_ty = self.func.ty().clone().project_args(|pos| {
+            Predicate::Var(Variable::Free(LocalVariable::constructor(pos + 1)))
+        });
 
-                let return_ty: Ty = self.func.return_ty().refined();
+        let args_ann_ty = ann_ty.arguments();
+        let return_ann_ty = ann_ty.return_ty();
 
-                assert!(
-                    return_ann_ty.shape_eq(&return_ty),
-                    "Return type shape mismatch."
-                );
-                let return_var = types.insert(return_ty.clone());
-                assert_eq!(Local::first(), variables.insert(return_var));
+        let mut variables = Local::index_map();
+        let mut types = LocalVariable::index_map();
 
-                match return_ty.map(|var| GlobVariable(self.func_id, var)) {
-                    ty::Ty::Refined(base_ty, predicate) => {
-                        emitter.add_bind(GlobVariable(self.func_id, return_var), base_ty, predicate)
-                    }
-                    ty::Ty::Func(..) => (),
-                };
+        let return_ty = self.func.return_ty().refined();
+        let return_var = types.insert(return_ty.clone());
+        let return_local = variables.insert(return_var);
+        assert_eq!(Local::first(), return_local);
 
-                for ((_, ann_ty), (local, base_ty)) in args_ann_ty.iter().zip(self.func.arguments())
-                {
-                    assert!(
-                        base_ty.refined::<LocalVariable>().shape_eq(ann_ty),
-                        "Argument type shape mismatch."
-                    );
+        assert!(
+            return_ann_ty.shape_eq(&return_ty),
+            "Return type shape mismatch."
+        );
 
-                    let arg_ty = ann_ty
-                        .clone()
-                        .map(|arg| *variables.get(Local::try_from_argument(arg).unwrap()));
-                    let arg_var = types.insert(arg_ty.clone());
-                    assert_eq!(local, variables.insert(arg_var));
+        let mapper = GlobVariable::mapper(self.func_id);
 
-                    match arg_ty.map(|var| GlobVariable(self.func_id, var)) {
-                        ty::Ty::Refined(base_ty, predicate) => emitter.add_bind(
-                            GlobVariable(self.func_id, arg_var),
-                            base_ty,
-                            predicate,
-                        ),
-                        ty::Ty::Func(..) => (),
-                    };
-                }
-
-                for (local, base_ty) in self.func.temporaries() {
-                    let ty = base_ty.refined();
-                    let variable = types.insert(ty.clone());
-                    assert_eq!(local, variables.insert(variable));
-
-                    match ty.map(|var| GlobVariable(self.func_id, var)) {
-                        ty::Ty::Refined(base_ty, predicate) => emitter.add_bind(
-                            GlobVariable(self.func_id, variable),
-                            base_ty,
-                            predicate,
-                        ),
-                        ty::Ty::Func(..) => (),
-                    };
-                }
-
-                let return_ty = return_ann_ty
-                    .clone()
-                    .map(|arg| *variables.get(Local::try_from_argument(arg).unwrap()));
-
-                let mut env = Env::new(self.func_id, variables, types, emitter);
-
-                self.func
-                    .get_bblock(BBlockId::first())
-                    .check(&self, &mut env, &return_ty)
-                    .unwrap();
-
-                env.emitter()
+        match return_ty {
+            Ty::Refined(base_ty, pred) => {
+                emitter.add_bind(mapper(return_var), base_ty, pred.map(mapper))
             }
-            _ => {
-                panic!("Expected function type.")
+            Ty::Func(..) => todo!(),
+        }
+
+        for (ann_ty, (local, base_ty)) in args_ann_ty.iter().zip(self.func.arguments()) {
+            let ty = base_ty.refined();
+            assert!(ty.shape_eq(ann_ty), "Argument type shape mismatch.");
+
+            let variable = types.insert(ann_ty.clone());
+            assert_eq!(local, variables.insert(variable));
+
+            match ann_ty {
+                Ty::Refined(base_ty, pred) => {
+                    emitter.add_bind(mapper(variable), *base_ty, pred.clone().map(mapper))
+                }
+                Ty::Func(..) => todo!(),
             }
         }
+
+        for (local, base_ty) in self.func.temporaries() {
+            let ty = base_ty.refined();
+
+            let variable = types.insert(ty.clone());
+            assert_eq!(local, variables.insert(variable));
+
+            match ty {
+                Ty::Refined(base_ty, pred) => {
+                    emitter.add_bind(mapper(variable), base_ty, pred.map(mapper))
+                }
+                Ty::Func(..) => todo!(),
+            }
+        }
+
+        let mut env = Env::new(self.func_id, variables, types, emitter);
+
+        self.func
+            .get_bblock(BBlockId::first())
+            .check(&self, &mut env, &return_ann_ty)
+            .unwrap();
+
+        env.emitter()
     }
 }

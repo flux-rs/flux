@@ -1,43 +1,85 @@
-use crate::{
-    argument::Argument, base_ty::BaseTy, literal::Literal, predicate::Predicate, variable::Variable,
-};
+use crate::{base_ty::BaseTy, literal::Literal, predicate::Predicate, variable::Variable};
 
 use std::fmt;
 
 #[derive(Clone, Debug)]
-pub enum Ty<A = Argument> {
-    Refined(BaseTy, Predicate<A>),
-    Func(Vec<(A, Ty)>, Box<Ty>),
+pub struct FuncTy<V> {
+    arguments: Vec<Ty<V>>,
+    return_ty: Box<Ty<V>>,
 }
 
-impl<A> Ty<A> {
-    pub fn map<B>(self, f: impl Fn(A) -> B + Clone) -> Ty<B> {
-        match self {
-            Self::Refined(base_ty, predicate) => Ty::Refined(base_ty, predicate.map(f)),
-            Self::Func(arguments, return_ty) => Ty::Func(
-                arguments
-                    .into_iter()
-                    .map(|(argument, ty)| {
-                        let argument = f(argument);
-                        (argument, ty)
-                    })
-                    .collect(),
-                return_ty,
-            ),
+impl<V> FuncTy<V> {
+    pub fn new(arguments: Vec<Ty<V>>, return_ty: Ty<V>) -> Self {
+        Self {
+            arguments,
+            return_ty: Box::new(return_ty),
         }
     }
 
-    pub fn shape_eq<B>(&self, rhs: &Ty<B>) -> bool {
-        match (self, rhs) {
-            (Self::Refined(b1, _), Ty::Refined(b2, _)) => (b1 == b2),
-            (Self::Func(args1, ret1), Ty::Func(args2, ret2)) => {
-                args1.len() == args2.len()
-                    && args1
-                        .iter()
-                        .zip(args2)
-                        .all(|((_, ty1), (_, ty2))| ty1.shape_eq(ty2))
-                    && ret1.shape_eq(ret2)
+    pub fn arguments(&self) -> &[Ty<V>] {
+        &self.arguments
+    }
+
+    pub fn return_ty(&self) -> &Ty<V> {
+        &self.return_ty
+    }
+
+    pub fn shape_eq(&self, rhs: &Self) -> bool {
+        self.arguments.len() == rhs.arguments.len()
+            && self
+                .arguments
+                .iter()
+                .zip(&rhs.arguments)
+                .all(|(ty1, ty2)| ty1.shape_eq(ty2))
+            && self.return_ty.shape_eq(&rhs.return_ty)
+    }
+
+    pub fn project_args(mut self, f: impl Fn(usize) -> Predicate<V> + Copy) -> Self {
+        self.project(f, 0);
+        self
+    }
+
+    fn project(&mut self, f: impl Fn(usize) -> Predicate<V> + Copy, index: usize) {
+        for argument in &mut self.arguments {
+            argument.project(f, index);
+        }
+        self.return_ty.project(f, index);
+    }
+}
+
+impl<V: fmt::Display> fmt::Display for FuncTy<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut arguments = self.arguments.iter();
+
+        write!(f, "fn(")?;
+        if let Some(ty) = arguments.next() {
+            write!(f, "{}", ty)?;
+            for ty in arguments {
+                write!(f, ", {}", ty)?;
             }
+        }
+        write!(f, ") -> {}", self.return_ty)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Ty<V> {
+    Refined(BaseTy, Predicate<V>),
+    Func(FuncTy<V>),
+}
+
+impl<V> Ty<V> {
+    fn project(&mut self, f: impl Fn(usize) -> Predicate<V> + Copy, index: usize) {
+        match self {
+            Self::Refined(_, predicate) => predicate.project(f, index),
+            Self::Func(func_ty) => func_ty.project(f, index + 1),
+        }
+    }
+
+    pub fn shape_eq(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Refined(b1, _), Self::Refined(b2, _)) => (b1 == b2),
+            (Self::Func(func1), Self::Func(func2)) => func1.shape_eq(func2),
             _ => false,
         }
     }
@@ -50,7 +92,7 @@ impl<A> Ty<A> {
         }
     }
 
-    pub fn selfify(self, var: A) -> Self {
+    pub fn selfify(self, var: V) -> Self {
         match self {
             Self::Refined(base_ty, predicate) => Self::Refined(
                 base_ty,
@@ -70,24 +112,13 @@ impl<A> Ty<A> {
     }
 }
 
-impl<A: fmt::Display> fmt::Display for Ty<A> {
+impl<V: fmt::Display> fmt::Display for Ty<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Refined(base_ty, predicate) => {
                 write!(f, "{{ b: {} | {} }}", base_ty, predicate)
             }
-            Self::Func(arguments, return_ty) => {
-                let mut arguments = arguments.iter();
-
-                write!(f, "fn(")?;
-                if let Some((argument, ty)) = arguments.next() {
-                    write!(f, "{}: {}", argument, ty)?;
-                    for (argument, ty) in arguments {
-                        write!(f, ", {}: {}", argument, ty)?;
-                    }
-                }
-                write!(f, ") -> {}", return_ty)
-            }
+            Self::Func(func_ty) => func_ty.fmt(f),
         }
     }
 }
