@@ -31,8 +31,12 @@ impl<V> Predicate<V> {
         }
     }
 
-    pub(crate) fn eq(self, base_ty: BaseTy, rhs: impl Into<Self>) -> Self {
+    pub fn eq(self, base_ty: BaseTy, rhs: impl Into<Self>) -> Self {
         Self::BinApp(BinOp::Eq(base_ty), Box::new(self), Box::new(rhs.into()))
+    }
+
+    pub fn neq(self, base_ty: BaseTy, rhs: impl Into<Self>) -> Self {
+        Self::BinApp(BinOp::Neq(base_ty), Box::new(self), Box::new(rhs.into()))
     }
 
     pub(crate) fn project(&mut self, f: impl Fn(usize) -> Predicate<V> + Copy, index: usize) {

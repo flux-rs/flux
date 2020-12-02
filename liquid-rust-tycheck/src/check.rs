@@ -3,11 +3,11 @@ use crate::{
     glob_env::GlobEnv,
     result::{TyError, TyResult},
     synth::Synth,
-    ty::{Predicate, Ty},
+    ty::{Predicate, Ty, Variable},
 };
 
 use liquid_rust_common::index::Index;
-use liquid_rust_mir::{BBlock, Local, Statement, Terminator};
+use liquid_rust_mir::{BBlock, Local, Operand, Statement, Terminator};
 use liquid_rust_ty::{BaseTy, Literal};
 
 pub(super) trait Check {
@@ -97,6 +97,36 @@ impl Check for Terminator {
                 env.annotate_local(*lhs, rhs_ty.clone());
 
                 genv.get_bblock(*bb_id).check(genv, env, ty)
+            }
+            Terminator::Switch(op, branches, default) => {
+                let base_ty = match op.synth(genv, env) {
+                    Ty::Refined(base_ty, _) => base_ty,
+                    _ => todo!(),
+                };
+
+                match op {
+                    Operand::Local(local) => {
+                        let var = env.resolve_local(*local);
+                        let mut pred =
+                            Predicate::Var(Variable::Bounded).eq(base_ty, Variable::Free(var));
+
+                        for &(bits, target) in branches.as_ref() {
+                            let lit = Literal::new(bits, base_ty);
+                            let op_ty = Ty::singleton(lit).selfify(var);
+
+                            env.fork(move |env| {
+                                env.annotate_local(*local, op_ty);
+                                genv.get_bblock(target).check(genv, env, ty)
+                            })?;
+
+                            pred = pred & Predicate::Var(Variable::Bounded).neq(base_ty, lit);
+                        }
+
+                        env.annotate_local(*local, Ty::Refined(base_ty, pred));
+                        genv.get_bblock(*default).check(genv, env, ty)
+                    }
+                    Operand::Literal(_) => todo!(),
+                }
             }
         }
     }

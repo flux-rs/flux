@@ -7,6 +7,7 @@ pub enum Terminator {
     Goto(BBlockId),
     Assert(Operand, bool, BBlockId),
     Call(Local, FuncId, Box<[Operand]>, BBlockId),
+    Switch(Operand, Box<[(u128, BBlockId)]>, BBlockId),
 }
 
 impl fmt::Display for Terminator {
@@ -26,6 +27,13 @@ impl fmt::Display for Terminator {
                     }
                 }
                 write!(f, ") -> {}", bb_id)
+            }
+            Self::Switch(op, branches, default) => {
+                write!(f, "switch {} {{", op)?;
+                for (bits, bb_id) in branches.as_ref() {
+                    write!(f, "{} -> {}, ", bits, bb_id)?;
+                }
+                write!(f, "_ -> {}}}", default)
             }
         }
     }

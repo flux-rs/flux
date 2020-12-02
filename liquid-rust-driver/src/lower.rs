@@ -440,57 +440,18 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Terminator<'tcx> {
                 }
                 _ => todo!(),
             },
-            // mir::TerminatorKind::SwitchInt {
-            //     discr,
-            //     targets,
-            //     switch_ty,
-            //     ..
-            // } => {
-            //     let discr = discr.lower(lcx)?;
-            //
-            //     let otherwise = targets.otherwise().lower(lcx)?;
-            //
-            //     let targets = targets
-            //         .iter()
-            //         .map(|(bits, target)| {
-            //             let lit = match switch_ty.kind() {
-            //                 TyKind::Bool => Literal::Bool(bits != 0),
-            //                 TyKind::Uint(size) => Literal::Uint(bits, size.lower(lcx)?),
-            //                 TyKind::Int(size) => Literal::Int(bits as i128, size.lower(lcx)?),
-            //                 TyKind::FnDef(def_id, _) => {
-            //                     if let Some(func_id) = lcx.func_ids.get(def_id).copied() {
-            //                         Literal::Fn(func_id)
-            //                     } else {
-            //                         return Err(LowerError::UndefinedDefId(*def_id));
-            //                     }
-            //                 }
-            //
-            //                 _ => return Err(LowerError::UnsupportedTy(*switch_ty)),
-            //             };
-            //             Ok(Branch(lit, target.lower(lcx)?))
-            //         })
-            //         .collect::<Result<Vec<Branch>, _>>()?;
-            //
-            //     Terminator::Switch(discr, targets, otherwise)
-            // }
-            // mir::TerminatorKind::Call {
-            //     func,
-            //     args,
-            //     destination,
-            //     ..
-            // } => {
-            //     let func = func.lower(lcx)?;
-            //     let args = args
-            //         .iter()
-            //         .map(|arg| arg.lower(lcx))
-            //         .collect::<Result<Vec<Operand>, _>>()?;
-            //
-            //     let (place, target) = destination.unwrap();
-            //     let place = place.lower(lcx)?;
-            //     let target = target.lower(lcx)?;
-            //
-            //     Terminator::Call(place, func, args, target)
-            // }
+            mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
+                let discr = lcx.lower::<V, _>(discr)?;
+
+                let otherwise = lcx.lower::<V, _>(&targets.otherwise())?;
+
+                let targets = targets
+                    .iter()
+                    .map(|(bits, target)| Ok((bits, lcx.lower::<V, _>(&target)?)))
+                    .collect::<Result<Box<[(u128, BBlockId)]>, _>>()?;
+
+                Terminator::Switch(discr, targets, otherwise)
+            }
             kind => {
                 let msg = match kind {
                     mir::TerminatorKind::Goto { .. }

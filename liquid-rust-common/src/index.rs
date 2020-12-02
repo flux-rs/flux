@@ -38,6 +38,7 @@ pub unsafe trait Index: Sized {
     }
 }
 
+#[derive(Clone)]
 pub struct Generator<T> {
     count: usize,
     marker: std::marker::PhantomData<T>,
@@ -58,6 +59,7 @@ impl<T: Index> Generator<T> {
     }
 }
 
+#[derive(Clone)]
 pub struct IndexMap<K, V> {
     inner: Vec<V>,
     generator: Generator<K>,

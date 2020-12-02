@@ -53,6 +53,8 @@ impl Env {
         let variable = self.types.insert(ty.clone());
         *self.variables.get_mut(local) = variable;
 
+        println!("annotated local {} as {}: {}", local, variable, ty);
+
         match ty {
             ty::Ty::Refined(base_ty, predicate) => {
                 let mapper = GlobVariable::mapper(self.func_id);
@@ -97,5 +99,12 @@ impl Env {
             predicate1.map(mapper),
             predicate2.map(mapper),
         );
+    }
+
+    pub fn fork<T>(&mut self, f: impl FnOnce(&mut Self) -> TyResult<T>) -> TyResult<T> {
+        let variables = self.variables.clone();
+        let result = f(self)?;
+        self.variables = variables;
+        Ok(result)
     }
 }
