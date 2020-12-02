@@ -17,6 +17,9 @@ struct Ptr(*const u32);
 #[liquid::measure("fn addr(Ptr) -> usize")]
 // The size of the allocation to which the pointer belongs.
 #[liquid::measure("fn alloc_size(Ptr) -> usize")]
+// The ID of the allocation to which the pointer belongs (Each allocation has an unique ID and only
+// pointers belonging to that allocation should be able to read from it).
+#[liquid::measure("fn alloc_id(Ptr) -> usize")]
 // All the type annotations for these methods are assumed to be correct by liquid rust (and by
 // Christian).
 impl Ptr {
@@ -32,16 +35,26 @@ impl Ptr {
 
         Ptr(ptr as *const u32)
     }
-    // Offset a pointer by `offset` bytes.
-    #[liquid::assume_ty("fn(p: Ptr) -> {q: Ptr | addr(q) == addr(p) + offset}")]
-    fn offset(self, offset: usize) -> Ptr {
+    // Increase a pointer by `offset` bytes. The resulting pointer belongs to the same allocation.
+    #[liquid::assume_ty("fn(p: Ptr, o: offset) -> {q: Ptr | addr(q) == addr(p) + o && alloc_size(p) == alloc_size(q) && alloc_id(p) == alloc_id(q)}")]
+    fn add(self, offset: usize) -> Ptr {
         Ptr((self.0 as usize + offset) as *const u32)
+    }
+    // Decrease a pointer by `offset` bytes. The resulting pointer belongs to the same allocation.
+    #[liquid::assume_ty("fn(p: Ptr, o: offset) -> {q: Ptr | addr(q) == addr(p) - o && alloc_size(p) == alloc_size(q) && alloc_id(p) == alloc_id(q)}")]
+    fn sub(self, offset: usize) -> Ptr {
+        Ptr((self.0 as usize - offset) as *const u32)
     }
     // Dereference the pointer. This is safe to do if the pointer is not dangling (pointing outside
     // its allocation) and aligned (its address must be a multiple of 4).
     #[liquid::assume_ty("fn(p: {p: Ptr | addr(p) < alloc_size(p) && addr(p) % 4 == 0}) -> u32")]
     unsafe fn deref(self) -> u32 {
         *self.0
+    }
+    // Get the address of the pointer as an integer.
+    #[liquid::assume_ty("fn(p: Ptr) -> usize")]
+    fn addr(self) -> usize {
+        self.0 as usize
     }
 }
 
@@ -68,11 +81,11 @@ impl Array {
     // pointer, just returning it.
     //
     // Liquid rust should verify that this function can only be called if `index` doesn't exceed
-    // the length of the array. And if this is the case, that the returned pointer is non-dangling
-    // and aligned.
-    #[liquid::ty("fn(self: &Array, index: {i: usize | i < self.len}) -> {p: Ptr | addr(p) < alloc_size(p) && addr(p) % 4 == 0}")]
+    // the length of the array. And if this is the case, that the returned pointer is non-dangling,
+    // aligned and that it belongs to the allocation backing the array.
+    #[liquid::ty("fn(self: &Array, index: {i: usize | i < self.len}) -> {p: Ptr | addr(p) < alloc_size(p) && addr(p) % 4 == 0 && alloc_id(p) == alloc_id(self.ptr)}")]
     fn get_unchecked(&self, index: usize) -> Ptr {
-        self.ptr.offset(4 * index)
+        self.ptr.add(4 * index)
     }
 
     // Get an element of the array.
@@ -83,15 +96,38 @@ impl Array {
     pub fn get(&self, index: usize) -> u32 {
         let ptr = self.get_unchecked(index);
         // Liquid rust should verify that this call can be done safely because the pointer is
-        // non-dangling and aligned.
+        // non-dangling, aligned and it belongs to the allocation used to back the array.
         unsafe { ptr.deref() }
     }
 }
 
 #[liquid::ty("fn(}) -> ()")]
-fn main() {
+fn legal_access() {
     let array = Array::new(10);
     array.get(9);
-    // Uncommenting the next line should trigger a compilation error
-    // array.get(10);
+}
+
+#[liquid::ty("fn(}) -> ()")]
+fn out_of_bounds_access() {
+    let array = Array::new(10);
+    // Classic out of bounds access. The array only has 9 elements. Liquid rust should error here
+    // because the pointer used inside `get` has an address larger or equal to the allocation size.
+    array.get(10);
+}
+
+#[liquid::ty("fn(}) -> ()")]
+fn dangling_pointer_read() {
+    // Create two arrays.
+    let array1 = Array::new(10);
+    let array2 = Array::new(10);
+    // Create one valid pointer to each array.
+    let ptr1 = array1.get_unchecked(0);
+    let ptr2 = array2.get_unchecked(0);
+    // Under the assumption that pointers are just numbers, this pointer should be equal to `ptr2`
+    // because it is just `ptr1 - ptr1 + ptr2`. However it's still a pointer to `array1` and not
+    // `array2`.
+    let ptr3 = ptr1.sub(ptr1.addr()).add(pt2.addr());
+    // Liquid rust should return an error here because `ptr3` has an address that cannot be proved
+    // to be valid for `array1`.
+    unsafe { ptr3.deref() };
 }
