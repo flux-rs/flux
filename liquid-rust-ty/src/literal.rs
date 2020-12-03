@@ -1,24 +1,33 @@
-use crate::base_ty::BaseTy;
+use crate::{base_ty::BaseTy, int_sign::IntSign, int_size::IntSize};
 
 use std::fmt;
-
+/// A typed literal.
+///
+/// Used to represent constants inside predicates.
 #[derive(Debug, Clone, Copy)]
 pub struct Literal {
+    /// The bit layout of the literal based on Rust's data layout, e.g. `true` is represented as
+    /// `1`, `false` is represented as `0`.
     bits: u128,
+    /// The type of the literal.
     ty: BaseTy,
 }
 
 impl Literal {
+    /// Create a new literal from a bit layout and a base type. Creating a literal with an invalid
+    /// layout for its type is unsound.
     pub const fn new(bits: u128, ty: BaseTy) -> Self {
         Self { bits, ty }
     }
 
+    /// Return the type of the literal.
     pub const fn base_ty(&self) -> BaseTy {
         self.ty
     }
 
+    /// Check if the literal is identical to `true`.
     pub const fn is_true(&self) -> bool {
-        matches!(self.ty, BaseTy::Bool) && self.bits != 0
+        matches!(self.ty, BaseTy::Bool) && self.bits == 1
     }
 }
 
@@ -38,7 +47,7 @@ macro_rules! impl_from_num {
     ($ty:ident, $sign:ident, $size:ident) => {
         impl From<$ty> for Literal {
             fn from(integer: $ty) -> Self {
-                Self::new(integer as u128, BaseTy::Int(Sign::$sign, IntSize::$size))
+                Self::new(integer as u128, BaseTy::Int(IntSign::$sign, IntSize::$size))
             }
         }
     };
@@ -63,51 +72,9 @@ impl fmt::Display for Literal {
             BaseTy::Unit => "()".fmt(f),
             BaseTy::Bool => (self.bits != 0).fmt(f),
             BaseTy::Int(sign, _) => match sign {
-                Sign::Signed => (self.bits as i128).fmt(f),
-                Sign::Unsigned => self.bits.fmt(f),
+                IntSign::Signed => (self.bits as i128).fmt(f),
+                IntSign::Unsigned => self.bits.fmt(f),
             },
         }
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Sign {
-    Signed,
-    Unsigned,
-}
-
-impl fmt::Display for Sign {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let slice = match self {
-            Self::Signed => "i",
-            Self::Unsigned => "u",
-        };
-
-        slice.fmt(f)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum IntSize {
-    Size8,
-    Size16,
-    Size32,
-    Size64,
-    Size128,
-    SizePtr,
-}
-
-impl fmt::Display for IntSize {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let slice = match self {
-            Self::Size8 => "8",
-            Self::Size16 => "16",
-            Self::Size32 => "32",
-            Self::Size64 => "64",
-            Self::Size128 => "128",
-            Self::SizePtr => "size",
-        };
-
-        slice.fmt(f)
     }
 }

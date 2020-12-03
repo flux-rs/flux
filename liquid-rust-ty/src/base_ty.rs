@@ -1,19 +1,23 @@
-use crate::{
-    literal::{IntSize, Sign},
-    ty::Ty,
-};
+use crate::{int_sign::IntSign, int_size::IntSize, ty::Ty};
 
 use std::fmt;
 
+/// A base type.
+///
+/// Each one of these types corresponds to one Rust scalar type.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BaseTy {
+    /// The `()` type.
     Unit,
+    /// The `bool` type.
     Bool,
-    Int(Sign, IntSize),
+    /// The integer types, i.e. `u8`, `i8`, etc.
+    Int(IntSign, IntSize),
 }
 
 impl BaseTy {
-    pub fn refined<A>(self) -> Ty<A> {
+    /// Consume the base type `B` and return the refined type `{b : B | true}`.
+    pub fn refined<V>(self) -> Ty<V> {
         Ty::Refined(self, true.into())
     }
 }

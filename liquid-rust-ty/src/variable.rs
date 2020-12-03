@@ -1,26 +1,31 @@
-use crate::argument::Argument;
+use crate::{argument::Argument, local::LocalVariable};
 
 use std::fmt;
 
+/// A variable of a predicate.
 #[derive(Clone, Copy, Debug)]
-pub enum Variable<V> {
-    Bounded,
+pub enum Variable<V = LocalVariable> {
+    /// A variable bound by a refined base type, e.g the `b` in `{ b: usize | b > 0 }`.
+    Bound,
+    /// A variable bound by a dependent function type, e.g the `x` in `fn(x: usize) -> usize`.
     Arg(Argument),
-    Free(V),
+    /// A variable bound to a local in the current environment. This is used by the `tycheck`
+    /// module to refer to the locals inside a function.
+    Local(V),
 }
 
 impl<V> From<V> for Variable<V> {
-    fn from(free: V) -> Self {
-        Self::Free(free)
+    fn from(local: V) -> Self {
+        Self::Local(local)
     }
 }
 
 impl<V: fmt::Display> fmt::Display for Variable<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Bounded => "b".fmt(f),
+            Self::Bound => "b".fmt(f),
             Self::Arg(arg) => arg.fmt(f),
-            Self::Free(free) => free.fmt(f),
+            Self::Local(local) => local.fmt(f),
         }
     }
 }

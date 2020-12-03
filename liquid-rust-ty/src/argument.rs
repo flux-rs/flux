@@ -1,5 +1,8 @@
 use std::fmt;
 
+/// The argument of a dependent function type.
+///
+/// This type is a de Bruijn index representation of a function's argument.
 #[derive(Clone, Copy, Debug)]
 pub struct Argument {
     pos: usize,
@@ -7,14 +10,18 @@ pub struct Argument {
 }
 
 impl Argument {
+    /// Create a new argument with a specific position and de Bruijn index zero.
     pub fn new(pos: usize) -> Self {
         Self { pos, index: 0 }
     }
 
+    /// Return the zero-based position of the argument inside its function, e.g the position of `y`
+    /// in `fn(x: usize, y: usize) -> usize` is `1`.
     pub fn pos(&self) -> usize {
         self.pos
     }
 
+    /// Consume the argument and return its de Bruijn index.
     pub(crate) fn index(self) -> usize {
         self.index
     }

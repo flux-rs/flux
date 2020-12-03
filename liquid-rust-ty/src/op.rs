@@ -1,25 +1,38 @@
-use crate::{
-    literal::{IntSize, Sign},
-    BaseTy,
-};
+use crate::{base_ty::BaseTy, int_sign::IntSign, int_size::IntSize};
 
 use std::fmt;
 
+/// A primitive binary operator.
+///
+/// These operators are typed, meaning that they specify the type of their operands.
 #[derive(Debug, Copy, Clone)]
 pub enum BinOp {
-    Add(Sign, IntSize),
-    Sub(Sign, IntSize),
-    Mul(Sign, IntSize),
-    Div(Sign, IntSize),
-    Rem(Sign, IntSize),
+    /// The integer addition operator.
+    Add(IntSign, IntSize),
+    /// The integer substraction operator.
+    Sub(IntSign, IntSize),
+    /// The integer multiplication operator.
+    Mul(IntSign, IntSize),
+    /// The integer division operator.
+    Div(IntSign, IntSize),
+    /// The integer remainder operator.
+    Rem(IntSign, IntSize),
+    /// The logical and operator.
     And,
+    /// The logical or operator.
     Or,
+    /// The equality operator.Blanket Implementations
     Eq(BaseTy),
+    /// The "not equal to" operator.
     Neq(BaseTy),
-    Lt(Sign, IntSize),
-    Gt(Sign, IntSize),
-    Lte(Sign, IntSize),
-    Gte(Sign, IntSize),
+    /// The "less than" integer operator.
+    Lt(IntSign, IntSize),
+    /// The "greater than" integer operator.
+    Gt(IntSign, IntSize),
+    /// The "less than or equal" integer operator.
+    Lte(IntSign, IntSize),
+    /// The "greater than or equal" integer operator.
+    Gte(IntSign, IntSize),
 }
 
 impl fmt::Display for BinOp {
@@ -44,17 +57,21 @@ impl fmt::Display for BinOp {
     }
 }
 
+/// A primitive unary operator.
+///
+/// These operators are typed, meaning that they specify the type of their operands.
 #[derive(Debug, Copy, Clone)]
 pub enum UnOp {
+    /// The logical negation operator.
     Not,
-    IntNot(Sign, IntSize),
-    Neg(Sign, IntSize),
+    /// The integer negation operator.
+    Neg(IntSign, IntSize),
 }
 
 impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Self::IntNot { .. } | Self::Not { .. } => "!",
+            Self::Not { .. } => "!",
             Self::Neg { .. } => "-",
         };
 
