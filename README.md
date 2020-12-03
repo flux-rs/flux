@@ -1,36 +1,66 @@
-# Build instructions
+# Liquid Rust
 
-After installing rustup, run the following commands:
+## Requirements
+
+- [rustup](https://rustup.rs/) (version 1.23.0 or later).
+- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint) (develop branch).
+- [z3](https://github.com/Z3Prover/z3) (version 4.8.9 or later).
+
+Be sure that the `liquid-fixpoint` executable is in your `$PATH`.
+
+## Build instructions
+
+The only way to use Liquid Rust right now is compiling it from source.
+
+First you need to clone this repository
 ```bash
-rustup override set nightly-2020-11-24
-rustup component add rust-src rustc-dev llvm-tools-preview
+git clone https://github.com/christianpoveda/liquid-rust
+cd liquid-rust
+```
+Then you can build the project using `cargo`:
+
+```bash
+cargo build
 ```
 
-Then, build the project using `cargo build`.
+`rustup` will download the correct toolchain and compile the project.
 
-# Usage
+## Usage
 
-## To compile a single file
+### Compiling files
 
-You can use `cargo run <file>` to compile any Rust source code file.
+You can use the `run.sh` script to compile any Rust source code file as you
+would with `rustc`.
 
-## To compile a whole cargo project
+As an example, if you want to compile a file `foo.rs` as a library, you can
+run:
 
-1. Compile a release build of `liquid-rust` running `cargo build --release`.
+```bash
+./run.sh foo.rs --crate-type=lib
+```
 
-2. Locate the `rustc_driver` dynamic library. It should be located at `~/.rustup/toolchains/nightly-2020-11-24-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/`.
+### A tiny example
 
-3. Create an executable shell script with the following contents:
-    ```bash
-    #!/bin/sh
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<PATH_FOUND_IN_2> <PATH_TO_THIS_PROJECT>/target/release/liquid-rust-driver "$@"
-    ```
-    Be sure the script has execution permission.
+The following example uses Liquid Rust to verify that the `inc` function always
+returns an integer greater than the one received as parameter.
 
-4. Inside the project where you want to use this compiler, create a `.cargo/config.toml` file with the following contents:
-    ```toml
-    [build]
-    rustc = "<PATH_TO_THE_SCRIPT_FROM_3>"
-    ```
+```rust
+#![feature(register_tool)]
+#![register_tool(liquid)]
 
-5. Use `cargo build` normally with the target project.
+#[liquid::ty("fn(x: usize) -> {y: usize | y > x}")]
+pub fn inc(x: usize) -> usize {
+    x + 1
+}
+```
+
+## Limitations
+
+This is a prototype! Most of the Rust features are not supported by Liquid
+Rust. In particular you cannot use Liquid Rust if your programs contains:
+
+- Types that are not integers, booleans or `()`.
+- Loops.
+
+Liquid Rust only supports release mode and the `run.sh` script will
+automatically pass the `-O` flag to the compiler.
