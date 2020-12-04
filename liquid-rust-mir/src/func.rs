@@ -19,16 +19,16 @@ impl fmt::Display for FuncId {
     }
 }
 
-pub struct Func<V> {
+pub struct Func<S> {
     arity: usize,
     local_decls: IndexMap<Local, BaseTy>,
-    bblocks: IndexMap<BBlockId, BBlock>,
-    ty: FuncTy<V>,
+    bblocks: IndexMap<BBlockId, BBlock<S>>,
+    ty: FuncTy,
     user_ty: bool,
 }
 
-impl<V> Func<V> {
-    pub fn builder(arity: usize, bblocks_len: usize) -> FuncBuilder<V> {
+impl<S> Func<S> {
+    pub fn builder(arity: usize, bblocks_len: usize) -> FuncBuilder<S> {
         FuncBuilder {
             arity,
             local_decls: Local::index_map(),
@@ -53,15 +53,15 @@ impl<V> Func<V> {
         self.local_decls.iter().skip(self.arity + 1)
     }
 
-    pub fn get_bblock(&self, bblock_id: BBlockId) -> &BBlock {
+    pub fn get_bblock(&self, bblock_id: BBlockId) -> &BBlock<S> {
         self.bblocks.get(bblock_id)
     }
 
-    pub fn bblocks(&self) -> impl Iterator<Item = (BBlockId, &BBlock)> {
+    pub fn bblocks(&self) -> impl Iterator<Item = (BBlockId, &BBlock<S>)> {
         self.bblocks.iter()
     }
 
-    pub fn ty(&self) -> &FuncTy<V> {
+    pub fn ty(&self) -> &FuncTy {
         &self.ty
     }
 
@@ -70,14 +70,14 @@ impl<V> Func<V> {
     }
 }
 
-pub struct FuncBuilder<V> {
+pub struct FuncBuilder<S> {
     arity: usize,
     local_decls: IndexMap<Local, BaseTy>,
-    bblocks: IndexMapBuilder<BBlockId, BBlock>,
-    ty: Option<FuncTy<V>>,
+    bblocks: IndexMapBuilder<BBlockId, BBlock<S>>,
+    ty: Option<FuncTy>,
 }
 
-impl<V> FuncBuilder<V> {
+impl<S> FuncBuilder<S> {
     pub fn bblock_ids(&self) -> impl Iterator<Item = BBlockId> {
         self.bblocks.keys()
     }
@@ -86,15 +86,15 @@ impl<V> FuncBuilder<V> {
         self.local_decls.insert(ty)
     }
 
-    pub fn set_bblock(&mut self, bblock_id: BBlockId, bblock: BBlock) -> bool {
+    pub fn set_bblock(&mut self, bblock_id: BBlockId, bblock: BBlock<S>) -> bool {
         self.bblocks.insert(bblock_id, bblock)
     }
 
-    pub fn add_ty(&mut self, func_ty: FuncTy<V>) {
+    pub fn add_ty(&mut self, func_ty: FuncTy) {
         self.ty = Some(func_ty);
     }
 
-    pub fn build(self) -> Result<Func<V>, BBlockId> {
+    pub fn build(self) -> Result<Func<S>, BBlockId> {
         let bblocks = self.bblocks.build()?;
         let (ty, user_ty) = if let Some(ty) = self.ty {
             (ty, true)

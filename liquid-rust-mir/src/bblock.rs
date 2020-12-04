@@ -12,23 +12,23 @@ impl fmt::Display for BBlockId {
     }
 }
 
-pub struct BBlock {
-    statements: Box<[Statement]>,
-    terminator: Terminator,
+pub struct BBlock<S> {
+    statements: Box<[Statement<S>]>,
+    terminator: Terminator<S>,
 }
 
-impl BBlock {
-    pub fn statements(&self) -> &[Statement] {
+impl<S> BBlock<S> {
+    pub fn statements(&self) -> &[Statement<S>] {
         self.statements.as_ref()
     }
 
-    pub fn terminator(&self) -> &Terminator {
+    pub fn terminator(&self) -> &Terminator<S> {
         &self.terminator
     }
 }
 
-impl BBlock {
-    pub fn builder() -> BBlockBuilder {
+impl<S> BBlock<S> {
+    pub fn builder() -> BBlockBuilder<S> {
         BBlockBuilder {
             statements: Vec::new(),
             terminator: None,
@@ -36,21 +36,21 @@ impl BBlock {
     }
 }
 
-pub struct BBlockBuilder {
-    statements: Vec<Statement>,
-    terminator: Option<Terminator>,
+pub struct BBlockBuilder<S> {
+    statements: Vec<Statement<S>>,
+    terminator: Option<Terminator<S>>,
 }
 
-impl BBlockBuilder {
-    pub fn add_terminator(&mut self, terminator: Terminator) {
+impl<S> BBlockBuilder<S> {
+    pub fn add_terminator(&mut self, terminator: Terminator<S>) {
         self.terminator = Some(terminator);
     }
 
-    pub fn add_statement(&mut self, statement: Statement) {
+    pub fn add_statement(&mut self, statement: Statement<S>) {
         self.statements.push(statement);
     }
 
-    pub fn build(self) -> Option<BBlock> {
+    pub fn build(self) -> Option<BBlock<S>> {
         Some(BBlock {
             statements: self.statements.into_boxed_slice(),
             terminator: self.terminator?,

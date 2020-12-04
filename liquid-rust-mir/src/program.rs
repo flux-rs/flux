@@ -2,32 +2,32 @@ use std::fmt;
 
 use crate::{
     func::{Func, FuncId},
-    statement::Statement,
+    statement::StatementKind,
 };
 
 use liquid_rust_common::index::{Index, IndexMap, IndexMapBuilder};
 
-pub struct Program<V> {
-    functions: IndexMap<FuncId, Func<V>>,
+pub struct Program<S> {
+    functions: IndexMap<FuncId, Func<S>>,
 }
 
-impl<V> Program<V> {
-    pub fn builder(functions_len: usize) -> ProgramBuilder<V> {
+impl<S> Program<S> {
+    pub fn builder(functions_len: usize) -> ProgramBuilder<S> {
         ProgramBuilder {
             functions: FuncId::index_map_builder(functions_len),
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (FuncId, &Func<V>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (FuncId, &Func<S>)> {
         self.functions.iter()
     }
 
-    pub fn get_func(&self, func_id: FuncId) -> &Func<V> {
+    pub fn get_func(&self, func_id: FuncId) -> &Func<S> {
         self.functions.get(func_id)
     }
 }
 
-impl<V: fmt::Display> fmt::Display for Program<V> {
+impl<S> fmt::Display for Program<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (func_id, func) in self.iter() {
             write!(f, "\n{}", func_id)?;
@@ -58,7 +58,7 @@ impl<V: fmt::Display> fmt::Display for Program<V> {
                 writeln!(f, "\n\t{}: {{", bb_id)?;
 
                 for statement in bb.statements() {
-                    if !matches!(statement, Statement::Noop) {
+                    if !matches!(statement.kind, StatementKind::Noop) {
                         writeln!(f, "\t\t{};", statement)?;
                     }
                 }
@@ -75,12 +75,12 @@ impl<V: fmt::Display> fmt::Display for Program<V> {
     }
 }
 
-pub struct ProgramBuilder<V> {
-    functions: IndexMapBuilder<FuncId, Func<V>>,
+pub struct ProgramBuilder<S> {
+    functions: IndexMapBuilder<FuncId, Func<S>>,
 }
 
-impl<V> ProgramBuilder<V> {
-    pub fn add_func(&mut self, func_id: FuncId, func: Func<V>) -> bool {
+impl<S> ProgramBuilder<S> {
+    pub fn add_func(&mut self, func_id: FuncId, func: Func<S>) -> bool {
         self.functions.insert(func_id, func)
     }
 
@@ -88,7 +88,7 @@ impl<V> ProgramBuilder<V> {
         self.functions.keys()
     }
 
-    pub fn build(self) -> Result<Program<V>, FuncId> {
+    pub fn build(self) -> Result<Program<S>, FuncId> {
         Ok(Program {
             functions: self.functions.build()?,
         })

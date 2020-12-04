@@ -9,7 +9,7 @@ use std::fmt;
 ///
 /// The arguments `a_1`, ..., `a_n` are represented using de Bruijn indices inside the predicates.
 #[derive(Clone, Debug)]
-pub struct FuncTy<V> {
+pub struct FuncTy<V = LocalVariable> {
     /// The types of the function's arguments.
     arguments: Vec<Ty<V>>,
     /// The return type of the function.

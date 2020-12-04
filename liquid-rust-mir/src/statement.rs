@@ -2,16 +2,21 @@ use crate::{local::Local, rvalue::Rvalue};
 
 use std::fmt;
 
-pub enum Statement {
+pub struct Statement<S> {
+    pub kind: StatementKind,
+    pub span: S,
+}
+
+pub enum StatementKind {
     Noop,
     Assign(Local, Rvalue),
 }
 
-impl fmt::Display for Statement {
+impl<S> fmt::Display for Statement<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Noop => "noop".fmt(f),
-            Self::Assign(lhs, rhs) => write!(f, "{} = {}", lhs, rhs),
+        match &self.kind {
+            StatementKind::Noop => "noop".fmt(f),
+            StatementKind::Assign(lhs, rhs) => write!(f, "{} = {}", lhs, rhs),
         }
     }
 }

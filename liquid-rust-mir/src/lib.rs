@@ -13,5 +13,5 @@ pub use local::Local;
 pub use operand::Operand;
 pub use program::Program;
 pub use rvalue::Rvalue;
-pub use statement::Statement;
-pub use terminator::Terminator;
+pub use statement::{Statement, StatementKind};
+pub use terminator::{Terminator, TerminatorKind};
