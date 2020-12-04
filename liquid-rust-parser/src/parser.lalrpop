@@ -1,21 +1,32 @@
-use crate::{ast, lexer::{LexerError, Token}};
+use crate::{ast::{self, Span}, lexer::{LexerError, Token}};
 
-use std::ops::Range;
+use liquid_rust_ty as ty;
 
 grammar<'source>(source: &'source str);
 
 pub Ty: ast::Ty<'source> = {
-    <BaseTy> => ast::Ty::Base(<>),
-    "{" <Variable> ":" <BaseTy> "|" <Predicate> "}" => ast::Ty::Refined(<>),
-    "fn" "(" <args:Args> ")" <ty:("->" Ty)?> => {
-        match ty {
-            Some((_, ty)) => ast::Ty::Func(args, Box::new(ty)),
-            None => ast::Ty::Func(args, Box::new(ast::Ty::Base(ast::BaseTy::Unit))),
-        }
-    }
+    <spanned:Spanned<TyKind>> => {
+        ast::Ty { kind: spanned.0, span: spanned.1 }
+    },
 }
 
-Args: Vec<(ast::Variable<'source>, ast::Ty<'source>)> = {
+TyKind: ast::TyKind<'source> = {
+    <BaseTy> => ast::TyKind::Base(<>),
+    "{" <Ident> ":" <BaseTy> "|" <Predicate> "}" => ast::TyKind::Refined(<>),
+    "fn" "(" <args:Args> ")" "->" <ret_ty:Ty> => {
+        ast::TyKind::Func(args, Box::new(ret_ty))
+    },
+    "fn" "(" <args:Args> <spanned:Spanned<")">>  => {
+        let end = spanned.1.end;
+        let ret_ty = ast::Ty {
+            kind: ast::TyKind::Base(ty::BaseTy::Unit),
+            span: end..end,
+        };
+        ast::TyKind::Func(args, Box::new(ret_ty))
+    },
+}
+
+Args: Vec<(ast::Ident<'source>, ast::Ty<'source>)> = {
     <mut args:(<Arg> ",")*> <arg:Arg?> => match arg {
         None => args,
         Some(arg) => {
@@ -25,70 +36,102 @@ Args: Vec<(ast::Variable<'source>, ast::Ty<'source>)> = {
     }
 };
 
-Arg: (ast::Variable<'source>, ast::Ty<'source>) = {
-    <Variable> ":" <Ty> => (<>),
+Arg: (ast::Ident<'source>, ast::Ty<'source>) = {
+    <Ident> ":" <Ty> => (<>),
 }
 
-Tier<Op, NextTier>: ast::Predicate<'source> = {
-    <p1:Tier<Op, NextTier>> <bin_op:Op> <p2:NextTier> => ast::Predicate::BinApp(bin_op, Box::new(p1), Box::new(p2)),
+Predicate = Tier<BinOpKind1, BinaryOp2>;
+BinaryOp2 = Tier<BinOpKind2, BinaryOp3>;
+BinaryOp3 = Tier<BinOpKind3, BinaryOp4>;
+BinaryOp4 = Tier<BinOpKind4, BinaryOp5>;
+BinaryOp5 = Tier<BinOpKind5, UnaryOp>;
+
+Tier<OpKind, NextTier>: ast::Predicate<'source> = {
+    <op1:Tier<OpKind, NextTier>> <bin_op:Spanned<OpKind>> <op2:NextTier> => {
+        let bin_op = ast::BinOp { kind: bin_op.0, span: bin_op.1 };
+        let span = op1.span.start..op2.span.end;
+
+        ast::Predicate {
+            kind: ast::PredicateKind::BinaryOp(
+                bin_op,
+                Box::new(op1),
+                Box::new(op2)
+            ),
+            span,
+        }
+    },
     NextTier
 }
 
-Predicate = Tier<BinOp1, BinApp2>;
-BinApp2 = Tier<BinOp2, BinApp3>;
-BinApp3 = Tier<BinOp3, BinApp4>;
-BinApp4 = Tier<BinOp4, BinApp5>;
-BinApp5 = Tier<BinOp5, UnApp>;
-
-BinOp1: ast::BinOp = {
-    "||" => ast::BinOp::Or,
+BinOpKind1: ast::BinOpKind = {
+    "||" => ast::BinOpKind::Or,
 }
 
-BinOp2: ast::BinOp = {
-    "&&" => ast::BinOp::And,
+BinOpKind2: ast::BinOpKind = {
+    "&&" => ast::BinOpKind::And,
 }
 
-BinOp3: ast::BinOp = {
-    "==" => ast::BinOp::Eq,
-    "!=" => ast::BinOp::Neq,
-    ">" => ast::BinOp::Gt,
-    "<" => ast::BinOp::Lt,
-    ">=" => ast::BinOp::Gte,
-    "<=" => ast::BinOp::Lte,
+BinOpKind3: ast::BinOpKind = {
+    "==" => ast::BinOpKind::Eq,
+    "!=" => ast::BinOpKind::Neq,
+    ">" => ast::BinOpKind::Gt,
+    "<" => ast::BinOpKind::Lt,
+    ">=" => ast::BinOpKind::Gte,
+    "<=" => ast::BinOpKind::Lte,
 }
 
-BinOp4: ast::BinOp = {
-    "+" => ast::BinOp::Add,
-    "-" => ast::BinOp::Sub,
+BinOpKind4: ast::BinOpKind = {
+    "+" => ast::BinOpKind::Add,
+    "-" => ast::BinOpKind::Sub,
 }
 
-BinOp5: ast::BinOp = {
-    "*" => ast::BinOp::Mul,
-    "/" => ast::BinOp::Div,
-    "%" => ast::BinOp::Rem,
+BinOpKind5: ast::BinOpKind = {
+    "*" => ast::BinOpKind::Mul,
+    "/" => ast::BinOpKind::Div,
+    "%" => ast::BinOpKind::Rem,
+}
+
+UnaryOp: ast::Predicate<'source> = {
+    <un_op:UnOp> <op:BasePredicate> => {
+        let span = un_op.span.start..op.span.end;
+        ast::Predicate {
+            kind: ast::PredicateKind::UnaryOp(un_op, Box::new(op)),
+            span,
+        }
+    },
+    <BasePredicate>,
 }
 
 UnOp: ast::UnOp = {
-    "!" => ast::UnOp::Not,
-    "-" => ast::UnOp::Neg,
+    <spanned:Spanned<UnOpKind>> => {
+        ast::UnOp { kind: spanned.0, span: spanned.1 }
+    },
 }
 
-UnApp: ast::Predicate<'source> = {
-    <un_op:UnOp> <p:BasePred> => ast::Predicate::UnApp(un_op, Box::new(p)),
-    <BasePred>,
+UnOpKind: ast::UnOpKind = {
+    "!" => ast::UnOpKind::Not,
+    "-" => ast::UnOpKind::Neg,
 }
 
-BasePred: ast::Predicate<'source> = {
-    <Variable> => ast::Predicate::Var(<>),
-    <Literal> => ast::Predicate::Lit(<>),
-    "(" <Predicate> ")"
+BasePredicate: ast::Predicate<'source> = {
+    <spanned:Spanned<PredicateKind>> => {
+        ast::Predicate { kind: spanned.0, span: spanned.1 }
+    },
 }
 
-Variable: ast::Variable<'source> = {
-    <var:"var"> => ast::Variable(var.0, var.1),
+PredicateKind: ast::PredicateKind<'source> = {
+    <Literal> => ast::PredicateKind::Lit(<>),
+    <Ident> => ast::PredicateKind::Var(<>),
+    "(" <PredicateKind> ")"
 }
 
-Literal: ast::Literal = {
+Ident: ast::Ident<'source> = {
+    <spanned:Spanned<"ident">> => {
+        ast::Ident { symbol: spanned.0, span: spanned.1 }
+    },
+}
+
+Literal: ty::Literal = {
     "(" ")" => ().into(),
     "true" => true.into(),
     "false" => false.into(),
@@ -106,22 +149,26 @@ Literal: ast::Literal = {
     "uintsize" => <>.into(),
 }
 
-BaseTy: ast::BaseTy = {
-    "(" ")" => ast::BaseTy::Unit,
-    "bool" => ast::BaseTy::Bool,
-    "u8" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size8),
-    "u16" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size16),
-    "u32" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size32),
-    "u64" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size64),
-    "u128" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::Size128),
-    "usize" => ast::BaseTy::Int(ast::Sign::Unsigned, ast::IntSize::SizePtr),
-    "i8" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size8),
-    "i16" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size16),
-    "i32" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size32),
-    "i64" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size64),
-    "i128" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::Size128),
-    "isize" => ast::BaseTy::Int(ast::Sign::Signed, ast::IntSize::SizePtr),
+BaseTy: ty::BaseTy = {
+    "(" ")" => ty::BaseTy::Unit,
+    "bool" => ty::BaseTy::Bool,
+    "u8" => ty::BaseTy::Int(ty::IntSign::Unsigned, ty::IntSize::Size8),
+    "u16" => ty::BaseTy::Int(ty::IntSign::Unsigned, ty::IntSize::Size16),
+    "u32" => ty::BaseTy::Int(ty::IntSign::Unsigned, ty::IntSize::Size32),
+    "u64" => ty::BaseTy::Int(ty::IntSign::Unsigned, ty::IntSize::Size64),
+    "u128" => ty::BaseTy::Int(ty::IntSign::Unsigned, ty::IntSize::Size128),
+    "usize" => ty::BaseTy::Int(ty::IntSign::Unsigned, ty::IntSize::SizePtr),
+    "i8" => ty::BaseTy::Int(ty::IntSign::Signed, ty::IntSize::Size8),
+    "i16" => ty::BaseTy::Int(ty::IntSign::Signed, ty::IntSize::Size16),
+    "i32" => ty::BaseTy::Int(ty::IntSign::Signed, ty::IntSize::Size32),
+    "i64" => ty::BaseTy::Int(ty::IntSign::Signed, ty::IntSize::Size64),
+    "i128" => ty::BaseTy::Int(ty::IntSign::Signed, ty::IntSize::Size128),
+    "isize" => ty::BaseTy::Int(ty::IntSign::Signed, ty::IntSize::SizePtr),
 };
+
+Spanned<T>: (T, Span) = {
+    <start:@L> <term:T> <end:@R> => (term, start..end),
+}
 
 extern {
     type Location = usize;
@@ -155,7 +202,7 @@ extern {
         "uint64" => Token::Uint64(<u64>),
         "uint128" => Token::Uint128(<u128>),
         "uintsize" => Token::UintSize(<usize>),
-        "var" => Token::Var(<&'source str>, <Range<usize>>),
+        "ident" => Token::Ident(<&'source str>),
         "fn" => Token::Fn,
         "+" => Token::Add,
         "-" => Token::Sub,
