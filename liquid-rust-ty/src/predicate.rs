@@ -1,5 +1,6 @@
 use crate::{
     literal::Literal,
+    local::LocalVariable,
     op::{BinOp, UnOp},
     variable::Variable,
     BaseTy,
@@ -9,7 +10,7 @@ use std::{fmt, ops::BitAnd};
 
 /// A quantifier-free predicate.
 #[derive(Clone, Debug)]
-pub enum Predicate<V> {
+pub enum Predicate<V = LocalVariable> {
     /// A literal.
     Lit(Literal),
     /// A variable.

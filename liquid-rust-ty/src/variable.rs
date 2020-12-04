@@ -14,9 +14,15 @@ pub enum Variable<V = LocalVariable> {
     Local(V),
 }
 
-impl<V> From<V> for Variable<V> {
-    fn from(local: V) -> Self {
+impl From<LocalVariable> for Variable<LocalVariable> {
+    fn from(local: LocalVariable) -> Self {
         Self::Local(local)
+    }
+}
+
+impl<V> From<Argument> for Variable<V> {
+    fn from(argument: Argument) -> Self {
+        Self::Arg(argument)
     }
 }
 

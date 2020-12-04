@@ -1,4 +1,7 @@
-use crate::{base_ty::BaseTy, literal::Literal, predicate::Predicate, variable::Variable};
+use crate::{
+    base_ty::BaseTy, literal::Literal, local::LocalVariable, predicate::Predicate,
+    variable::Variable,
+};
 
 use std::fmt;
 
@@ -73,7 +76,7 @@ impl<V: fmt::Display> fmt::Display for FuncTy<V> {
 
 /// A refined type.
 #[derive(Clone, Debug)]
-pub enum Ty<V> {
+pub enum Ty<V = LocalVariable> {
     /// A refined base type: `{ b: B | p }`.
     Refined(BaseTy, Predicate<V>),
     /// A dependent function type.
@@ -111,11 +114,11 @@ impl<V> Ty<V> {
 
     /// Selfify the current type, i.e. if the current type is a refined base type `{b: B | p}`
     /// return `{b: B | p && (b = var)}`.
-    pub fn selfify(self, var: V) -> Self {
+    pub fn selfify(self, var: impl Into<Variable<V>>) -> Self {
         match self {
             Self::Refined(base_ty, predicate) => Self::Refined(
                 base_ty,
-                predicate & Predicate::from(Variable::Bound).eq(base_ty, Variable::from(var)),
+                predicate & Predicate::from(Variable::Bound).eq(base_ty, var.into()),
             ),
             ty => ty,
         }

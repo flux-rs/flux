@@ -25,6 +25,12 @@ impl Argument {
     pub(crate) fn index(self) -> usize {
         self.index
     }
+
+    /// Increase the index of the argument by `offset`
+    pub fn inc(mut self, offset: usize) -> Self {
+        self.index += offset;
+        self
+    }
 }
 
 impl fmt::Display for Argument {
