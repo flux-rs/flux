@@ -1,26 +1,28 @@
 use crate::{
-    result::{TyError, TyResult},
-    ty::{GlobVariable, LocalVariable, Predicate, Ty, Variable},
+    glob_env::GlobEnv,
+    glob_variable::GlobVariable,
+    result::{TyError, TyErrorKind, TyResult},
+    synth::Synth,
 };
 
 use liquid_rust_common::index::IndexMap;
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{FuncId, Local, Operand};
-use liquid_rust_ty::{self as ty, BaseTy};
+use liquid_rust_ty::{BaseTy, LocalVariable, Predicate, Ty, Variable};
 
-pub struct Env {
+pub struct Env<S> {
     func_id: FuncId,
     variables: IndexMap<Local, LocalVariable>,
     types: IndexMap<LocalVariable, Ty>,
-    emitter: Emitter<GlobVariable>,
+    emitter: Emitter<GlobVariable, S>,
 }
 
-impl Env {
+impl<S> Env<S> {
     pub fn new(
         func_id: FuncId,
         variables: IndexMap<Local, LocalVariable>,
         types: IndexMap<LocalVariable, Ty>,
-        emitter: Emitter<GlobVariable>,
+        emitter: Emitter<GlobVariable, S>,
     ) -> Self {
         Self {
             func_id,
@@ -30,7 +32,7 @@ impl Env {
         }
     }
 
-    pub fn emitter(self) -> Emitter<GlobVariable> {
+    pub fn emitter(self) -> Emitter<GlobVariable, S> {
         self.emitter
     }
 
@@ -44,7 +46,7 @@ impl Env {
 
     pub fn resolve_operand(&self, operand: &Operand) -> Predicate {
         match operand {
-            Operand::Local(local) => Predicate::Var(Variable::Free(self.resolve_local(*local))),
+            Operand::Local(local) => Predicate::Var(Variable::Local(self.resolve_local(*local))),
             Operand::Literal(literal) => Predicate::Lit(*literal),
         }
     }
@@ -56,32 +58,45 @@ impl Env {
         println!("annotated local {} as {}: {}", local, variable, ty);
 
         match ty {
-            ty::Ty::Refined(base_ty, predicate) => {
+            Ty::Refined(base_ty, predicate) => {
                 let mapper = GlobVariable::mapper(self.func_id);
                 self.emitter
                     .add_bind(mapper(variable), base_ty, predicate.map(mapper))
             }
-            ty::Ty::Func(..) => todo!(),
+            Ty::Func(..) => todo!(),
         };
     }
 
-    pub fn is_subtype(&mut self, ty1: &Ty, ty2: &Ty) -> TyResult {
+    pub fn is_subtype(&mut self, ty1: &Ty, ty2: &Ty, span: S) -> TyResult<S> {
         match (ty1, ty2) {
             // Sub-Base
             (Ty::Refined(base_ty1, predicate1), Ty::Refined(base_ty2, predicate2)) => {
-                if base_ty1 != base_ty2 {
-                    return Err(TyError::BaseMismatch(*base_ty1, *base_ty2));
-                }
-                let env = self.types.iter().map(|(var, _)| var).collect();
-                self.emit_constraint(env, *base_ty1, predicate1.clone(), predicate2.clone());
+                if base_ty1 == base_ty2 {
+                    let env = self.types.iter().map(|(var, _)| var).collect();
+                    self.emit_constraint(
+                        env,
+                        *base_ty1,
+                        predicate1.clone(),
+                        predicate2.clone(),
+                        span,
+                    );
 
-                Ok(())
+                    return Ok(());
+                }
             }
             (Ty::Func(_), Ty::Func(_)) => {
                 todo!()
             }
-            _ => Err(TyError::ShapeMismatch(ty1.clone(), ty2.clone())),
-        }
+            _ => (),
+        };
+
+        Err(TyError {
+            kind: TyErrorKind::ShapeMismatch {
+                expected: ty1.clone(),
+                found: ty2.clone(),
+            },
+            span,
+        })
     }
 
     fn emit_constraint(
@@ -90,6 +105,7 @@ impl Env {
         base_ty: BaseTy,
         predicate1: Predicate,
         predicate2: Predicate,
+        span: S,
     ) {
         let mapper = GlobVariable::mapper(self.func_id);
 
@@ -98,6 +114,7 @@ impl Env {
             base_ty,
             predicate1.map(mapper),
             predicate2.map(mapper),
+            span,
         );
     }
 
@@ -106,5 +123,17 @@ impl Env {
         let result = f(self)?;
         self.variables = variables;
         Ok(result)
+    }
+
+    /// Workaround for https://github.com/rust-lang/rust/issues/50238
+    pub fn check_syn<T: Synth<S>>(
+        &mut self,
+        genv: &GlobEnv<S>,
+        term: &T,
+        ty: &Ty,
+        span: S,
+    ) -> TyResult<S> {
+        let synth_ty = term.synth(genv, self);
+        self.is_subtype(&synth_ty, ty, span)
     }
 }

@@ -1,14 +1,14 @@
 mod check;
 mod env;
 mod glob_env;
+mod glob_variable;
 mod result;
 mod synth;
-mod ty;
 
 use glob_env::GlobEnv;
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::Program;
-use ty::LocalVariable;
+use liquid_rust_ty::LocalVariable;
 
 pub fn check_program(program: &Program<LocalVariable>) {
     let mut emitter = Emitter::new();

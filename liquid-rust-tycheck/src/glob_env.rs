@@ -1,22 +1,18 @@
-use crate::{
-    check::Check,
-    env::Env,
-    ty::{GlobVariable, LocalVariable, Predicate, Ty, Variable},
-};
+use crate::{check::Check, env::Env, glob_variable::GlobVariable};
 
 use liquid_rust_common::index::Index;
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{BBlock, BBlockId, Func, FuncId, Local, Program};
+use liquid_rust_ty::{LocalVariable, Predicate, Ty};
 
-pub struct GlobEnv<'prog> {
-    #[allow(dead_code)]
-    program: &'prog Program<LocalVariable>,
+pub struct GlobEnv<'prog, S> {
+    program: &'prog Program<S>,
     func_id: FuncId,
-    func: &'prog Func<LocalVariable>,
+    func: &'prog Func<S>,
 }
 
-impl<'prog> GlobEnv<'prog> {
-    pub fn new(program: &'prog Program<LocalVariable>, func_id: FuncId) -> Self {
+impl<'prog, S: Clone> GlobEnv<'prog, S> {
+    pub fn new(program: &'prog Program<S>, func_id: FuncId) -> Self {
         Self {
             program,
             func_id,
@@ -24,21 +20,23 @@ impl<'prog> GlobEnv<'prog> {
         }
     }
 
-    pub fn get_bblock(&self, bb_id: BBlockId) -> &BBlock {
+    pub fn get_bblock(&self, bb_id: BBlockId) -> &BBlock<S> {
         self.func.get_bblock(bb_id)
     }
 
-    pub fn get_func(&self, func_id: FuncId) -> &Func<LocalVariable> {
+    pub fn get_func(&self, func_id: FuncId) -> &Func<S> {
         self.program.get_func(func_id)
     }
 
-    pub fn check(self, mut emitter: Emitter<GlobVariable>) -> Emitter<GlobVariable> {
+    pub fn check(self, mut emitter: Emitter<GlobVariable, S>) -> Emitter<GlobVariable, S> {
         let arity = self.func.ty().arguments().len();
         assert_eq!(arity, self.func.arity());
 
-        let ann_ty = self.func.ty().clone().project_args(|pos| {
-            Predicate::Var(Variable::Free(LocalVariable::constructor(pos + 1)))
-        });
+        let ann_ty = self
+            .func
+            .ty()
+            .clone()
+            .project_args(|pos| Predicate::Var(LocalVariable::constructor(pos + 1).into()));
 
         let args_ann_ty = ann_ty.arguments();
         let return_ann_ty = ann_ty.return_ty();
@@ -98,8 +96,7 @@ impl<'prog> GlobEnv<'prog> {
 
         self.func
             .get_bblock(BBlockId::first())
-            .check(&self, &mut env, &return_ann_ty)
-            .unwrap();
+            .check(&self, &mut env, &return_ann_ty);
 
         env.emitter()
     }

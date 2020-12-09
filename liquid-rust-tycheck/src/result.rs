@@ -1,11 +1,14 @@
-use crate::ty::Ty;
+use liquid_rust_ty::Ty;
 
-use liquid_rust_ty::BaseTy;
-
-pub type TyResult<T = ()> = Result<T, TyError>;
+pub type TyResult<S, T = ()> = Result<T, TyError<S>>;
 
 #[derive(Debug)]
-pub enum TyError {
-    BaseMismatch(BaseTy, BaseTy),
-    ShapeMismatch(Ty, Ty),
+pub struct TyError<S> {
+    pub kind: TyErrorKind,
+    pub span: S,
+}
+
+#[derive(Debug)]
+pub enum TyErrorKind {
+    ShapeMismatch { expected: Ty, found: Ty },
 }
