@@ -6,11 +6,11 @@ mod result;
 mod synth;
 
 use glob_env::GlobEnv;
+
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::Program;
-use liquid_rust_ty::LocalVariable;
 
-pub fn check_program(program: &Program<LocalVariable>) {
+pub fn check_program<S: Clone + std::fmt::Debug>(program: &Program<S>) {
     let mut emitter = Emitter::new();
 
     for (func_id, func) in program.iter() {

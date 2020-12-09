@@ -94,9 +94,11 @@ impl<'prog, S: Clone> GlobEnv<'prog, S> {
 
         let mut env = Env::new(self.func_id, variables, types, emitter);
 
-        self.func
+        assert!(self
+            .func
             .get_bblock(BBlockId::first())
-            .check(&self, &mut env, &return_ann_ty);
+            .check(&self, &mut env, &return_ann_ty)
+            .is_ok());
 
         env.emitter()
     }

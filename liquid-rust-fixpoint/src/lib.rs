@@ -15,7 +15,7 @@ struct Bind<A> {
 /// An environment constraint that must hold for the program to be well-typed.
 ///
 /// All constraints have the form `b : base_ty . lhs  => rhs`.
-struct Constraint<A> {
+struct Constraint<A, S> {
     /// The environment for this constraint.
     ///
     /// Each variable here must have a valid binding inside the `Emitter.env` field.
@@ -26,17 +26,19 @@ struct Constraint<A> {
     lhs: Predicate<A>,
     /// The right-hand side of the implication.
     rhs: Predicate<A>,
+    /// The span where an error should be reported if this constraint is false.
+    span: S,
 }
 
 /// A struct used to emit constraints.
-pub struct Emitter<A> {
+pub struct Emitter<A, S> {
     /// All the environment bindings.
     env: Vec<Bind<A>>,
     /// All the constraints for the current program.
-    constraints: Vec<Constraint<A>>,
+    constraints: Vec<Constraint<A, S>>,
 }
 
-impl<A: Emit + Copy + Ord> Emitter<A> {
+impl<A: Emit + Copy + Ord, S> Emitter<A, S> {
     /// Create a new empty emitter
     pub fn new() -> Self {
         Self {
@@ -61,15 +63,19 @@ impl<A: Emit + Copy + Ord> Emitter<A> {
         base_ty: BaseTy,
         lhs: Predicate<A>,
         rhs: Predicate<A>,
+        span: S,
     ) {
         self.constraints.push(Constraint {
             env,
             base_ty,
             lhs,
             rhs,
+            span,
         });
     }
+}
 
+impl<A: Emit + Copy + Ord, S: std::fmt::Debug> Emitter<A, S> {
     /// Emit all the constraints into a file.
     pub fn emit(self) -> io::Result<()> {
         let mut file = std::fs::File::create("./output.fq")?;
@@ -95,6 +101,11 @@ impl<A: Emit + Copy + Ord> Emitter<A> {
         }
 
         for (id, constraint) in self.constraints.into_iter().enumerate() {
+            println!(
+                "Emitting constraint {} with span {:?}.",
+                id, constraint.span
+            );
+
             writeln!(file, "\nconstraint:")?;
 
             // The `env` field  has the format `env [<index> ; ...]` where `index` ranges over the
