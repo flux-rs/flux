@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "liquid-rust",
     "liquid-rust-common",
     "liquid-rust-driver",
     "liquid-rust-fixpoint",

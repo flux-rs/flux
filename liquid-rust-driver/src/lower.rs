@@ -1,7 +1,8 @@
 use liquid_rust_mir::{
-    BBlock, BBlockId, Func, FuncBuilder, FuncId, Local, Operand, Rvalue, Statement, Terminator,
+    BBlock, BBlockId, Func, FuncBuilder, FuncId, Local, Operand, Rvalue, Statement, StatementKind,
+    Terminator, TerminatorKind,
 };
-use liquid_rust_ty::{BaseTy, BinOp, IntSize, Literal, Sign, UnOp};
+use liquid_rust_ty::{BaseTy, BinOp, IntSign, IntSize, Literal, UnOp};
 
 use rustc_ast::ast::{IntTy, UintTy};
 use rustc_hir::def_id::DefId;
@@ -37,11 +38,11 @@ impl<'tcx, 'low> LowerCtx<'tcx, 'low> {
         }
     }
 
-    pub fn lower_body<V>(mut self) -> Result<FuncBuilder<V>, LowerError> {
+    pub fn lower_body(mut self) -> Result<FuncBuilder<Span>, LowerError> {
         self.body.lower(&mut self)
     }
 
-    fn lower<V, T: Lower<'tcx, V>>(&mut self, term: &T) -> Result<T::Output, LowerError> {
+    fn lower<T: Lower<'tcx>>(&mut self, term: &T) -> Result<T::Output, LowerError> {
         term.lower(self)
     }
 }
@@ -109,13 +110,13 @@ enum LowerErrorKind {
     UnsupportedRvalue,
 }
 
-trait Lower<'tcx, V> {
+trait Lower<'tcx> {
     type Output;
 
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError>;
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Local {
+impl<'tcx> Lower<'tcx> for mir::Local {
     type Output = Local;
 
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
@@ -126,7 +127,7 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Local {
         }
     }
 }
-impl<'tcx, V> Lower<'tcx, V> for IntTy {
+impl<'tcx> Lower<'tcx> for IntTy {
     type Output = IntSize;
 
     fn lower(&self, _lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
@@ -141,7 +142,7 @@ impl<'tcx, V> Lower<'tcx, V> for IntTy {
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for UintTy {
+impl<'tcx> Lower<'tcx> for UintTy {
     type Output = IntSize;
 
     fn lower(&self, _lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
@@ -156,14 +157,14 @@ impl<'tcx, V> Lower<'tcx, V> for UintTy {
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for MirTy<'tcx> {
+impl<'tcx> Lower<'tcx> for MirTy<'tcx> {
     type Output = BaseTy;
 
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let base_ty = match self.kind() {
             TyKind::Bool => BaseTy::Bool,
-            TyKind::Uint(uint_ty) => BaseTy::Int(Sign::Unsigned, lcx.lower::<V, _>(uint_ty)?),
-            TyKind::Int(int_ty) => BaseTy::Int(Sign::Signed, lcx.lower::<V, _>(int_ty)?),
+            TyKind::Uint(uint_ty) => BaseTy::Int(IntSign::Unsigned, lcx.lower(uint_ty)?),
+            TyKind::Int(int_ty) => BaseTy::Int(IntSign::Signed, lcx.lower(int_ty)?),
             _ => {
                 return Err(LowerError::new(
                     LowerErrorKind::UnsupportedTy,
@@ -176,24 +177,20 @@ impl<'tcx, V> Lower<'tcx, V> for MirTy<'tcx> {
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Statement<'tcx> {
-    type Output = Statement;
+impl<'tcx> Lower<'tcx> for mir::Statement<'tcx> {
+    type Output = Statement<Span>;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let span = self.source_info.span;
-        let statement = match &self.kind {
+        let kind = match &self.kind {
             mir::StatementKind::Assign(assign) => {
                 let (place, rvalue) = assign.as_ref();
-                let local = lcx
-                    .lower::<V, _>(place)
-                    .map_err(|err| err.with_span(span))?;
-                let rvalue = lcx
-                    .lower::<V, _>(rvalue)
-                    .map_err(|err| err.with_span(span))?;
-                Statement::Assign(local, rvalue)
+                let local = lcx.lower(place).map_err(|err| err.with_span(span))?;
+                let rvalue = lcx.lower(rvalue).map_err(|err| err.with_span(span))?;
+                StatementKind::Assign(local, rvalue)
             }
             mir::StatementKind::StorageLive(..)
             | mir::StatementKind::StorageDead(..)
-            | mir::StatementKind::Nop => Statement::Noop,
+            | mir::StatementKind::Nop => StatementKind::Noop,
             statement => {
                 let msg = match statement {
                     mir::StatementKind::Assign(..)
@@ -214,11 +211,11 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Statement<'tcx> {
             }
         };
 
-        Ok(statement)
+        Ok(Statement { kind, span })
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Place<'tcx> {
+impl<'tcx> Lower<'tcx> for mir::Place<'tcx> {
     type Output = Local;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let mir::Place { local, projection } = self;
@@ -235,18 +232,18 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Place<'tcx> {
 
             Err(LowerError::new(LowerErrorKind::HasProjections, msg))
         } else {
-            lcx.lower::<V, _>(local)
+            lcx.lower(local)
         }
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Rvalue<'tcx> {
+impl<'tcx> Lower<'tcx> for mir::Rvalue<'tcx> {
     type Output = Rvalue;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let rvalue = match self {
-            mir::Rvalue::Use(operand) => Rvalue::Use(lcx.lower::<V, _>(operand)?),
+            mir::Rvalue::Use(operand) => Rvalue::Use(lcx.lower(operand)?),
             mir::Rvalue::BinaryOp(bin_op, op1, op2) => {
-                let op_ty = lcx.lower::<V, _>(&op1.ty(lcx.body, lcx.tcx))?;
+                let op_ty = lcx.lower(&op1.ty(lcx.body, lcx.tcx))?;
 
                 let bin_op = match (bin_op, op_ty) {
                     (mir::BinOp::Add, BaseTy::Int(sign, size)) => BinOp::Add(sign, size),
@@ -272,16 +269,15 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Rvalue<'tcx> {
                     }
                 };
 
-                let op1 = lcx.lower::<V, _>(op1)?;
-                let op2 = lcx.lower::<V, _>(op2)?;
+                let op1 = lcx.lower(op1)?;
+                let op2 = lcx.lower(op2)?;
                 Rvalue::BinApp(bin_op, op1, op2)
             }
             mir::Rvalue::UnaryOp(un_op, op) => {
-                let op_ty = lcx.lower::<V, _>(&op.ty(lcx.body, lcx.tcx))?;
+                let op_ty = lcx.lower(&op.ty(lcx.body, lcx.tcx))?;
 
                 let un_op = match (un_op, op_ty) {
                     (mir::UnOp::Neg, BaseTy::Int(sign, size)) => UnOp::Neg(sign, size),
-                    (mir::UnOp::Not, BaseTy::Int(sign, size)) => UnOp::IntNot(sign, size),
                     (mir::UnOp::Not, BaseTy::Bool) => UnOp::Not,
                     (mir::UnOp::Neg, base_ty) => {
                         return Err(LowerError::new(
@@ -297,7 +293,7 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Rvalue<'tcx> {
                     }
                 };
 
-                let op = lcx.lower::<V, _>(op)?;
+                let op = lcx.lower(op)?;
                 Rvalue::UnApp(un_op, op)
             }
             rvalue => {
@@ -325,12 +321,12 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Rvalue<'tcx> {
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Operand<'tcx> {
+impl<'tcx> Lower<'tcx> for mir::Operand<'tcx> {
     type Output = Operand;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let operand = match self {
             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
-                let place = lcx.lower::<V, _>(place)?;
+                let place = lcx.lower(place)?;
                 Operand::Local(place)
             }
             mir::Operand::Constant(constant) => {
@@ -348,16 +344,13 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Operand<'tcx> {
                                     literal.eval_bits(lcx.tcx, ParamEnv::empty(), literal.ty);
                                 Literal::new(
                                     bits,
-                                    BaseTy::Int(Sign::Unsigned, lcx.lower::<V, _>(uint_ty)?),
+                                    BaseTy::Int(IntSign::Unsigned, lcx.lower(uint_ty)?),
                                 )
                             }
                             TyKind::Int(int_ty) => {
                                 let bits =
                                     literal.eval_bits(lcx.tcx, ParamEnv::empty(), literal.ty);
-                                Literal::new(
-                                    bits,
-                                    BaseTy::Int(Sign::Signed, lcx.lower::<V, _>(int_ty)?),
-                                )
+                                Literal::new(bits, BaseTy::Int(IntSign::Signed, lcx.lower(int_ty)?))
                             }
                             _ => {
                                 return Err(LowerError::new(
@@ -385,7 +378,7 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Operand<'tcx> {
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::BasicBlock {
+impl<'tcx> Lower<'tcx> for mir::BasicBlock {
     type Output = BBlockId;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         if let Some(block_id) = lcx.blocks.get(*self) {
@@ -396,22 +389,19 @@ impl<'tcx, V> Lower<'tcx, V> for mir::BasicBlock {
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Terminator<'tcx> {
-    type Output = Terminator;
+impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
+    type Output = Terminator<Span>;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
-        let terminator = match &self.kind {
-            mir::TerminatorKind::Return => Terminator::Return,
-            mir::TerminatorKind::Goto { target } => Terminator::Goto(lcx.lower::<V, _>(target)?),
+        let span = self.source_info.span;
+        let kind = match &self.kind {
+            mir::TerminatorKind::Return => TerminatorKind::Return,
+            mir::TerminatorKind::Goto { target } => TerminatorKind::Goto(lcx.lower(target)?),
             mir::TerminatorKind::Assert {
                 cond,
                 expected,
                 target,
                 ..
-            } => Terminator::Assert(
-                lcx.lower::<V, _>(cond)?,
-                *expected,
-                lcx.lower::<V, _>(target)?,
-            ),
+            } => TerminatorKind::Assert(lcx.lower(cond)?, *expected, lcx.lower(target)?),
             mir::TerminatorKind::Call {
                 func,
                 args,
@@ -420,9 +410,7 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Terminator<'tcx> {
             } => match func {
                 mir::Operand::Constant(constant) => {
                     let (lhs, bb_id) = match destination {
-                        Some((place, target)) => {
-                            (lcx.lower::<V, _>(place)?, lcx.lower::<V, _>(target)?)
-                        }
+                        Some((place, target)) => (lcx.lower(place)?, lcx.lower(target)?),
                         None => todo!(),
                     };
 
@@ -433,24 +421,33 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Terminator<'tcx> {
 
                     let args = args
                         .iter()
-                        .map(|arg| lcx.lower::<V, _>(arg))
+                        .map(|arg| lcx.lower(arg))
                         .collect::<Result<Box<[_]>, _>>()?;
 
-                    Terminator::Call(lhs, func_id, args, bb_id)
+                    TerminatorKind::Call(lhs, func_id, args, bb_id)
                 }
                 _ => todo!(),
             },
-            mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
-                let discr = lcx.lower::<V, _>(discr)?;
+            mir::TerminatorKind::SwitchInt {
+                discr: mir::Operand::Copy(discr),
+                targets,
+                ..
+            }
+            | mir::TerminatorKind::SwitchInt {
+                discr: mir::Operand::Move(discr),
+                targets,
+                ..
+            } => {
+                let discr = lcx.lower(discr)?;
 
-                let otherwise = lcx.lower::<V, _>(&targets.otherwise())?;
+                let otherwise = lcx.lower(&targets.otherwise())?;
 
                 let targets = targets
                     .iter()
-                    .map(|(bits, target)| Ok((bits, lcx.lower::<V, _>(&target)?)))
+                    .map(|(bits, target)| Ok((bits, lcx.lower(&target)?)))
                     .collect::<Result<Box<[(u128, BBlockId)]>, _>>()?;
 
-                Terminator::Switch(discr, targets, otherwise)
+                TerminatorKind::Switch(discr, targets, otherwise)
             }
             kind => {
                 let msg = match kind {
@@ -478,26 +475,26 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Terminator<'tcx> {
             }
         };
 
-        Ok(terminator)
+        Ok(Terminator { kind, span })
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::BasicBlockData<'tcx> {
-    type Output = BBlock;
+impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
+    type Output = BBlock<Span>;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let mut builder = BBlock::builder();
         for statement in &self.statements {
-            builder.add_statement(lcx.lower::<V, _>(statement)?);
+            builder.add_statement(lcx.lower(statement)?);
         }
 
-        builder.add_terminator(lcx.lower::<V, _>(self.terminator.as_ref().unwrap())?);
+        builder.add_terminator(lcx.lower(self.terminator.as_ref().unwrap())?);
 
         Ok(builder.build().unwrap())
     }
 }
 
-impl<'tcx, V> Lower<'tcx, V> for mir::Body<'tcx> {
-    type Output = FuncBuilder<V>;
+impl<'tcx> Lower<'tcx> for mir::Body<'tcx> {
+    type Output = FuncBuilder<Span>;
 
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let arity = self.arg_count;
@@ -506,7 +503,7 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Body<'tcx> {
 
         for decl in &self.local_decls {
             let ty = lcx
-                .lower::<V, _>(&decl.ty)
+                .lower(&decl.ty)
                 .map_err(|err| err.with_span(decl.source_info.span))?;
             let local = builder.add_local_decl(ty);
             lcx.locals.push(local);
@@ -519,7 +516,7 @@ impl<'tcx, V> Lower<'tcx, V> for mir::Body<'tcx> {
         for (basic_block, basic_block_data) in self.basic_blocks().iter_enumerated() {
             let bb_id = lcx.blocks[basic_block];
             let bb = lcx
-                .lower::<V, _>(basic_block_data)
+                .lower(basic_block_data)
                 .map_err(|err| err.with_span(self.span))?;
             builder.set_bblock(bb_id, bb);
         }

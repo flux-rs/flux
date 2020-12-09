@@ -2,7 +2,7 @@
 
 rm -f output.fq
 
-cargo run "$@" -O
+cargo run "$@"
 
 if [[ $? -eq 0 ]]; then
     fixpoint output.fq
