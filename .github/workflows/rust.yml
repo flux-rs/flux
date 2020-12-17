@@ -13,12 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          components: rustc-dev
-
       - run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
       - name: Cache cargo registry
