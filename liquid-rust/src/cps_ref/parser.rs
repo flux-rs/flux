@@ -1,5 +1,5 @@
-// auto-generated: "lalrpop 0.19.1"
-// sha256: b021d61349d5f338e7728388ac2d5b2f8b5373a983d45222f6cc2913f523
+// auto-generated: "lalrpop 0.19.3"
+// sha3: 8cb09def1b69335bb8f9e8f85b2ce4c0b2ac33e5d9f1f9e179718055cefb1fd
 use std::str::FromStr;
 use crate::cps_ref::ast::*;
 use rustc_span::Symbol;
