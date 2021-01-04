@@ -6,7 +6,14 @@ use crate::{
     BaseTy,
 };
 
+use liquid_rust_common::new_index;
+
 use std::{fmt, ops::BitAnd};
+
+new_index! {
+    #[derive(Clone, Copy, Debug)]
+    HoleId
+}
 
 /// A quantifier-free predicate.
 #[derive(Clone, Debug)]
@@ -19,6 +26,8 @@ pub enum Predicate<V = LocalVariable> {
     UnaryOp(UnOp, Box<Self>),
     /// A binary operation between predicates.
     BinaryOp(BinOp, Box<Self>, Box<Self>),
+    /// A predicate to be inferred.
+    Hole(HoleId),
 }
 
 impl<V> Predicate<V> {
@@ -38,6 +47,7 @@ impl<V> Predicate<V> {
             Self::BinaryOp(bin_op, op1, op2) => {
                 Predicate::BinaryOp(bin_op, Box::new(op1.map(f)), Box::new(op2.map(f)))
             }
+            Self::Hole(hole_id) => Predicate::Hole(hole_id),
         }
     }
 
@@ -59,7 +69,7 @@ impl<V> Predicate<V> {
     /// Project the arguments inside the predicate that have a specific index into local variables.
     pub(crate) fn project(&mut self, f: impl Fn(usize) -> Predicate<V> + Copy, index: usize) {
         match self {
-            Self::Lit(_) => (),
+            Self::Lit(_) | Self::Hole(_) => (),
             Self::Var(variable) => match variable {
                 Variable::Local(_) | Variable::Bound => (),
                 Variable::Arg(arg) => {
@@ -116,6 +126,7 @@ impl<V: fmt::Display> fmt::Display for Predicate<V> {
             Self::Var(variable) => variable.fmt(f),
             Self::UnaryOp(un_op, op) => write!(f, "{}{}", un_op, op),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "({} {} {})", op1, bin_op, op2),
+            Self::Hole(id) => write!(f, "?P{}", id.0),
         }
     }
 }

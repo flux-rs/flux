@@ -1,8 +1,17 @@
-use liquid_rust_common::def_index;
+use liquid_rust_common::new_index;
 
 use std::fmt;
 
-def_index!(Local);
+new_index! {
+    #[derive(Clone, Copy, Debug)]
+    Local
+}
+
+impl Local {
+    pub const fn ret() -> Self {
+        Self(0)
+    }
+}
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

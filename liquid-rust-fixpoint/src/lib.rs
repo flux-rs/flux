@@ -1,4 +1,5 @@
 use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp, Variable};
+use liquid_rust_common::index::Index;
 
 use std::{
     collections::BTreeMap,
@@ -179,6 +180,8 @@ impl<A: Emit> Emit for Predicate<A> {
                 op2.emit(writer)?;
                 write!(writer, ")")
             }
+            // Inference variables are emitted using its index.
+            Predicate::Hole(id) => write!(writer, "p{}", id.index()),
         }
     }
 }

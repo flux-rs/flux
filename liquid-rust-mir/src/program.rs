@@ -5,7 +5,7 @@ use crate::{
     statement::StatementKind,
 };
 
-use liquid_rust_common::index::{Index, IndexMap, IndexMapBuilder};
+use liquid_rust_common::index::IndexMap;
 
 pub struct Program<S> {
     functions: IndexMap<FuncId, Func<S>>,
@@ -14,7 +14,7 @@ pub struct Program<S> {
 impl<S> Program<S> {
     pub fn builder(functions_len: usize) -> ProgramBuilder<S> {
         ProgramBuilder {
-            functions: FuncId::index_map_builder(functions_len),
+            functions: IndexMap::from_raw((0..functions_len).map(|_| None).collect()),
         }
     }
 
@@ -23,7 +23,7 @@ impl<S> Program<S> {
     }
 
     pub fn get_func(&self, func_id: FuncId) -> &Func<S> {
-        self.functions.get(func_id)
+        self.functions.get(func_id).unwrap()
     }
 }
 
@@ -76,12 +76,16 @@ impl<S> fmt::Display for Program<S> {
 }
 
 pub struct ProgramBuilder<S> {
-    functions: IndexMapBuilder<FuncId, Func<S>>,
+    functions: IndexMap<FuncId, Option<Func<S>>>,
 }
 
 impl<S> ProgramBuilder<S> {
     pub fn add_func(&mut self, func_id: FuncId, func: Func<S>) -> bool {
-        self.functions.insert(func_id, func)
+        self.functions
+            .get_mut(func_id)
+            .unwrap()
+            .replace(func)
+            .is_some()
     }
 
     pub fn func_ids(&self) -> impl Iterator<Item = FuncId> {
@@ -89,8 +93,14 @@ impl<S> ProgramBuilder<S> {
     }
 
     pub fn build(self) -> Result<Program<S>, FuncId> {
+        let mut functions = Vec::with_capacity(self.functions.len());
+
+        for (func_id, func) in self.functions {
+            functions.push(func.ok_or(func_id)?);
+        }
+
         Ok(Program {
-            functions: self.functions.build()?,
+            functions: IndexMap::from_raw(functions),
         })
     }
 }
