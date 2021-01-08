@@ -127,6 +127,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "codespan"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "991d34632921756cbe9e3e1736b2e1f12f16166a9c9cd91979d96d4c0a086b63"
+dependencies = [
+ "codespan-reporting",
+]
+
+[[package]]
+name = "codespan-reporting"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6ce42b8998a383572e0a802d859b1f00c79b7b7474e62fff88ee5c2845d9c13"
+dependencies = [
+ "termcolor",
+ "unicode-width",
+]
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -219,6 +238,15 @@ name = "hashbrown"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+
+[[package]]
+name = "hashconsing"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0183fbaef5000e13ebfa0c133bb1362d5b31270aae4dd21ba40d4d8f9a95f53e"
+dependencies = [
+ "lazy_static",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -319,8 +347,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "liquid-rust-common"
+version = "0.1.0"
+
+[[package]]
 name = "liquid-rust-core"
 version = "0.1.0"
+dependencies = [
+ "hashconsing",
+ "indexmap",
+ "liquid-rust-common",
+ "quickscope",
+]
+
+[[package]]
+name = "liquid-rust-core-cli"
+version = "0.1.0"
+dependencies = [
+ "codespan",
+ "codespan-reporting",
+ "lalrpop",
+ "lalrpop-util",
+ "liquid-rust-core",
+ "liquid-rust-typeck",
+]
+
+[[package]]
+name = "liquid-rust-typeck"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "liquid-rust-common",
+ "liquid-rust-core",
+]
 
 [[package]]
 name = "log"
@@ -397,6 +456,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
 dependencies = [
  "unicode-xid",
+]
+
+[[package]]
+name = "quickscope"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4db5be6f35c0c39e57a2d2cd94b682538ce8150d18111363d3c55c90c45f62f1"
+dependencies = [
+ "indexmap",
+ "smallvec",
 ]
 
 [[package]]
@@ -514,6 +583,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa8f3741c7372e75519bd9346068370c9cdaabcc1f9599cbcf2a2719352286b7"
 
 [[package]]
+name = "smallvec"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a55ca5f3b68e41c979bf8c46a6f1da892ca4db8f94023ce0bd32407573b1ac0"
+
+[[package]]
 name = "string_cache"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -545,6 +620,15 @@ dependencies = [
  "byteorder",
  "dirs",
  "winapi",
+]
+
+[[package]]
+name = "termcolor"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dfed899f0eb03f32ee8c6a0aabdb8a7949659e3466561fc0adf54e26d88c5f4"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
@@ -586,6 +670,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "unicode-width"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9337591893a19b88d8d87f2cec1e73fad5cdfd10e5a6f349f498ad6ea2ffb1e3"
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -618,6 +708,15 @@ name = "winapi-i686-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
+
+[[package]]
+name = "winapi-util"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70ec6ce85bb158151cae5e5c87f95a8e97d2c0c4b001223f33a334e3ce5de178"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "winapi-x86_64-pc-windows-gnu"

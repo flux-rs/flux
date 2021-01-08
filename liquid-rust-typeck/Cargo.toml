@@ -1,0 +1,10 @@
+[package]
+name = "liquid-rust-typeck"
+version = "0.1.0"
+authors = ["Nico Lehmann <nico.lehmannm@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+indexmap = "1.6"
+liquid-rust-core = { path = "../liquid-rust-core" }
+liquid-rust-common = { path = "../liquid-rust-common" }

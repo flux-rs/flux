@@ -454,7 +454,13 @@ pub enum PredS<'lr> {
 
 impl<'lr> TyS<'lr> {
     pub fn is_int(&self) -> bool {
-        matches!(self, TyS::Refine { ty: BasicType::Int, .. })
+        matches!(
+            self,
+            TyS::Refine {
+                ty: BasicType::Int,
+                ..
+            }
+        )
     }
 
     pub fn is_copy(&self) -> bool {

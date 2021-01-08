@@ -1,0 +1,255 @@
+use std::str::FromStr;
+use liquid_rust_core::ast::*;
+use liquid_rust_core::names::*;
+use codespan::Span;
+
+grammar();
+
+match {
+  r"\s*" => {}, // The default whitespace skipping is disabled if an `ignore pattern` is specified
+  r"//[^\n\r]*[\n\r]*" => { },                          // Skip `// comments`
+  r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { }, // Skip `/* comments */`
+  _,
+}
+
+pub FnDef: FnDef<Span, &'input str> =
+ "fn" <name: FnId>
+ "(" <in_heap: Heap> ";" <formal: Params> ")"
+ "ret" <ret: ContId> "(" <out_heap: Heap> ";" <output: OwnRef> ")"
+ "=" <body: FnBody> => {
+   let mut inputs = vec![];
+   let mut params = vec![];
+   for (local, ty) in formal {
+     params.push(local);
+     inputs.push(ty);
+   }
+   let ty = FnTy { in_heap, inputs, out_heap, output };
+   FnDef { params, body: *body, ty, ret }
+ };
+
+FnBody: Box<FnBody<Span, &'input str>> = {
+  "letcont" <defs: And<ContDef>> "in" <rest: FnBody> => Box::new(FnBody::LetCont(defs, rest)),
+
+  "if" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
+    => Box::new(FnBody::Ite{ <> }),
+
+  "call" <func: Place> "(" <args: Comma<Local>> ")" "ret" <ret: ContId>
+    => Box::new(FnBody::Call{ <> }),
+
+  "jump" <target: ContId> "(" <args: Local*> ")" => Box::new(FnBody::Jump{ <> }),
+
+  <Statement> ";" <FnBody> => Box::new(FnBody::Seq(<>)),
+
+  "abort" => Box::new(FnBody::Abort)
+}
+
+ContDef: ContDef<Span, &'input str> = {
+   <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ";" <formal: Params> ")" "=" <body: FnBody>  => {
+    let mut inputs = vec![];
+    let mut params = vec![];
+    for (local, ty) in formal {
+      params.push(local);
+      inputs.push(ty);
+    }
+    let ty = ContTy { heap, locals, inputs };
+    ContDef { name, params, ty, body }
+  }
+}
+
+Params = Comma<Binding<Local, OwnRef>>;
+
+Statement: Statement<Span, &'input str> = {
+  <lo:@L> <kind: StatementKind> <hi:@R> =>
+    Statement { kind, source_info: Span::new(lo as u32, hi as u32) }
+}
+
+StatementKind: StatementKind<&'input str> = {
+  "let" <Local> "=" "alloc" "(" <TypeLayout> ")" => StatementKind::Let(<>),
+  <Place> ":=" <Rvalue>                          => StatementKind::Assign(<>),
+  "drop" "(" <Local> ")"                         => StatementKind::Drop(<>),
+}
+
+Rvalue: Rvalue<&'input str> = {
+  Operand                                   => Rvalue::Use(<>),
+  <lhs: Operand> <op: BinOp> <rhs: Operand> => Rvalue::BinaryOp(op, lhs, rhs),
+  "&" <p: Place>                            => Rvalue::Ref(BorrowKind::Shared, p),
+  "&" "mut" <p: Place>                      => Rvalue::Ref(BorrowKind::Mut, p),
+}
+
+BinOp: BinOp = {
+  "+"  => BinOp::Add,
+  "-"  => BinOp::Sub,
+  "<"  => BinOp::Lt,
+  "<=" => BinOp::Le,
+  "==" => BinOp::Eq,
+  ">=" => BinOp::Ge,
+  ">"  => BinOp::Gt,
+}
+
+Operand: Operand<&'input str> = {
+  <Constant> => Operand::Constant(<>),
+  <Place>    => Operand::Use(<>),
+}
+
+Constant: Constant = {
+  "true"    => Constant::Bool(true),
+  "false"   => Constant::Bool(false),
+  r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap()),
+  "(" ")"   => Constant::Unit
+}
+
+TypeLayout: TypeLayout = {
+  r"[0-9]+"                   => TypeLayout::Block(usize::from_str(<>).unwrap()),
+  "(" <Comma<TypeLayout>> ")" => TypeLayout::Tuple(<>)
+}
+
+// -------------------------------------------------------------------------------------------------
+// | Types
+// -------------------------------------------------------------------------------------------------
+
+OwnRef: Location<&'input str> = "own" "(" <Location> ")" => <>;
+
+LocalsMap: LocalsMap<&'input str> = Comma<Binding<Local, OwnRef>> => LocalsMap::from(<>);
+
+Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from(<>);
+
+Ty: Ty<&'input str> = {
+  "own" "(" <Location> ")"                     => Ty::OwnRef(<>),
+  "{" <bty: BaseType> "|" <refine: Refine> "}" => Ty::Refine { <> },
+  "&" "(" <Region> "," <Location> ")"          => Ty::Ref(BorrowKind::Shared, <>),
+  "&" "shrd" "(" <Region> "," <Location> ")"   => Ty::Ref(BorrowKind::Shared, <>),
+  "&" "mut" "(" <Region> "," <Location> ")"    => Ty::Ref(BorrowKind::Mut, <>),
+  "(" <Comma<Binding<Field, Ty>>> ")"          => Ty::Tuple(<>)
+}
+
+BaseType: BaseType = {
+  "int"  => BaseType::Int,
+  "bool" => BaseType::Bool,
+  "(" ")"   => BaseType::Unit
+}
+
+Refine: Refine<&'input str> = {
+  "_"        => Refine::Infer,
+  ExprLevel1 => Refine::Pred(<>)
+}
+
+Region: Region<&'input str> = {
+  "{" <Comma<Place>> "}" => Region::from(<>),
+  "{" "_" "}"            => Region::Infer,
+}
+
+Place: Place<&'input str> = {
+  PlaceLevel1 => Place { base: <>.0, projs: <>.1 }
+}
+
+PlaceLevel1: (Local<&'input str>, Vec<Proj>) = {
+  "*" <PlaceLevel1>  => {
+    let (local, mut projs) = <>;
+    projs.push(Proj::Deref);
+    (local, projs)
+  },
+  PlaceLevel2
+}
+
+PlaceLevel2: (Local<&'input str>, Vec<Proj>) = {
+  <p: PlaceLevel3> <path: Path> => {
+      let (local, mut projs) = p;
+      projs.extend(path);
+      (local, projs)
+  },
+}
+
+PlaceLevel3: (Local<&'input str>, Vec<Proj>) = {
+  <Local>  => (<>, vec![]),
+  "(" <PlaceLevel1> ")"
+}
+
+Path: Vec<Proj> = ("." <r"[0-9]+">)* => {
+  // TODO: overflow
+  <>.iter().map(|s| Proj::Field(usize::from_str(s).unwrap())).collect()
+};
+
+// -------------------------------------------------------------------------------------------------
+// | Predicates
+// -------------------------------------------------------------------------------------------------
+
+ExprLevel1 = LeftAssoc<BinOpGroup1, ExprLevel2>;
+
+ExprLevel2 = LeftAssoc<BinOpGroup2, ExprLevel3>;
+
+ExprLevel3: Pred<&'input str> = {
+  ConstantP => Pred::Constant(<>),
+  PlaceP    => Pred::Place(<>)
+}
+
+ConstantP: pred::Constant = {
+  "true"    => pred::Constant::Bool(true),
+  "false"   => pred::Constant::Bool(false),
+  // TODO: overflow
+  r"[0-9]+" => pred::Constant::Int(u128::from_str(<>).unwrap()),
+}
+
+PlaceP: pred::Place<&'input str> = {
+  <base: Var> <projs: ProjP*> => pred::Place { <> }
+}
+
+ProjP: pred::Proj = {
+  "." <r"[0-9]+"> => pred::Proj(usize::from_str(<>).unwrap())
+}
+
+Var: pred::Var<&'input str> = {
+  Location => pred::Var::Location(<>),
+  Field    => pred::Var::Field(<>),
+  "V"      => pred::Var::Nu
+}
+
+BinOpGroup1: pred::BinOp = {
+  "+" => pred::BinOp::Add,
+  "-" => pred::BinOp::Sub
+}
+
+BinOpGroup2: pred::BinOp = {
+  "<"  => pred::BinOp::Lt,
+  "<=" => pred::BinOp::Le,
+  "==" => pred::BinOp::Eq,
+  ">=" => pred::BinOp::Ge,
+  ">"  => pred::BinOp::Gt,
+};
+
+LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {
+  <lhs: LeftAssoc<OpGroup,NextExprLevel>>
+  <op: OpGroup>
+  <rhs: NextExprLevel>
+    => Pred::BinaryOp(op, Box::new(lhs), Box::new(rhs)),
+  NextExprLevel,
+};
+
+// -------------------------------------------------------------------------------------------------
+// | Names
+// -------------------------------------------------------------------------------------------------
+
+Local: Local<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => Local(<>);
+Field: Field<&'input str> = r"@[a-zA-Z][a-zA-Z0-9_]*" => Field(&<>[1..]);
+Location: Location<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => Location(<>);
+ContId: ContId<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => ContId(<>);
+FnId: FnId<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => FnId(<>);
+
+// -------------------------------------------------------------------------------------------------
+// | Misc
+// -------------------------------------------------------------------------------------------------
+
+Binding<Name, T> = <Name> ":" <T>;
+
+And<T> = Sep<"and", T>;
+Comma<T> = Sep<",", T>;
+
+Sep<S, T>: Vec<T> = {
+  <v:(<T> S)*> <e:T?> => match e {
+    None => v,
+    Some(e) => {
+      let mut v = v;
+      v.push(e);
+      v
+    }
+  }
+}

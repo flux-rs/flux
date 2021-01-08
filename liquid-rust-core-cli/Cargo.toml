@@ -1,0 +1,16 @@
+[package]
+name = "liquid-rust-core-cli"
+version = "0.1.0"
+authors = ["Nico Lehmann <nico.lehmannm@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+lalrpop-util = "0.19"
+liquid-rust-core = { path = "../liquid-rust-core" }
+liquid-rust-typeck = { path = "../liquid-rust-typeck" }
+codespan-reporting = "0.11"
+codespan = "0.11"
+
+[build-dependencies.lalrpop]
+version = "0.19"
+features = ["lexer"]

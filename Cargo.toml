@@ -1,5 +1,8 @@
 [workspace]
 members = [
   "liquid-rust",
+  "liquid-rust-common",
   "liquid-rust-core",
+  "liquid-rust-core-cli",
+  "liquid-rust-typeck",
 ]

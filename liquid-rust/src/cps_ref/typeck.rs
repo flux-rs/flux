@@ -7,7 +7,6 @@ use super::{
     subst::{DeferredSubst, Subst},
     utils::{Dict, OrderedHashMap, Scoped},
 };
-
 use thiserror::Error;
 
 type LocalsMap = HashMap<Local, OwnRef>;
