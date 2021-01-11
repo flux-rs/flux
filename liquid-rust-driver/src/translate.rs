@@ -17,9 +17,7 @@ use rustc_mir::dataflow::{
     move_paths::{LookupResult, MoveData},
     Analysis, MoveDataParamEnv,
 };
-use rustc_span::Symbol;
 use rustc_target::abi;
-use std::collections::HashMap;
 
 // TODO: This is ugly as hell, but the MoveDataParamEnv struct fields
 // are private, and we want to reuse the MIR dataflow analysis
@@ -48,8 +46,8 @@ fn create_mpde<'tcx>(
 // CPS form.
 
 /// Translates an mir::Place to a CPS IR Place.
-fn translate_place(from: &mir::Place) -> Place<Symbol> {
-    let base = Local(Symbol::intern(format!("_{}", from.local.as_u32()).as_str()));
+fn translate_place(from: &mir::Place) -> Place {
+    let base = Local(from.local.as_usize());
     let mut projs = vec![];
 
     for proj in from.projection {
@@ -63,7 +61,7 @@ fn translate_place(from: &mir::Place) -> Place<Symbol> {
     Place { base, projs }
 }
 
-fn translate_op(from: &mir::Operand) -> Operand<Symbol> {
+fn translate_op(from: &mir::Operand) -> Operand {
     match from {
         mir::Operand::Copy(p) => Operand::Use(translate_place(p)),
         mir::Operand::Move(p) => Operand::Use(translate_place(p)),
@@ -73,7 +71,7 @@ fn translate_op(from: &mir::Operand) -> Operand<Symbol> {
 
 // Adapted from
 // https://github.com/rust-lang/rust/blob/master/compiler/rustc_middle/src/ty/print/pretty.rs
-fn translate_const(from: &mir::Constant) -> Operand<Symbol> {
+fn translate_const(from: &mir::Constant) -> Operand {
     match from.literal.val {
         ty::ConstKind::Value(value) => {
             match value {
@@ -107,7 +105,7 @@ fn translate_const(from: &mir::Constant) -> Operand<Symbol> {
     }
 }
 
-fn translate_rvalue<'tcx>(from: &mir::Rvalue<'tcx>) -> Rvalue<Symbol> {
+fn translate_rvalue<'tcx>(from: &mir::Rvalue<'tcx>) -> Rvalue {
     match from {
         mir::Rvalue::Use(op) => Rvalue::Use(translate_op(op)),
         mir::Rvalue::BinaryOp(op, a, b) => {
@@ -194,16 +192,16 @@ fn get_layout<'tcx>(t: ty::Ty<'tcx>) -> TypeLayout {
 // Transformer state struct should include a mapping from locals to refinements too
 
 pub struct Transformer<'a, 'tcx> {
-    // TODO: What should the lifetime on this be?
     tcx: ty::TyCtxt<'tcx>,
     body: &'a mir::Body<'tcx>,
     move_data: MoveData<'tcx>,
     maybe_uninitialized_cursor: ResultsCursor<'a, 'tcx, MaybeUninitializedPlaces<'a, 'tcx>>,
-    symbols: HashMap<Symbol, usize>,
+    next_local: usize,
+    next_location: usize,
 }
 
 impl<'a, 'tcx> Transformer<'a, 'tcx> {
-    pub fn translate(tcx: ty::TyCtxt<'tcx>, body: &mir::Body<'tcx>) -> FnDef<(), Symbol> {
+    pub fn translate(tcx: ty::TyCtxt<'tcx>, body: &mir::Body<'tcx>) -> FnDef<()> {
         let param_env = tcx.param_env(body.source.def_id());
         let mdpe_move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
         let move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
@@ -218,54 +216,31 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
             body,
             maybe_uninitialized_cursor,
             move_data,
-            symbols: HashMap::new(),
+            next_local: body.local_decls.len(),
+            next_location: 0,
         };
         transformer.translate_body()
     }
 
     /// Generates a fresh variable with a certain prefix.
-    fn fresh(&mut self, prefix: Symbol) -> Symbol {
-        // We look up our symbol in our map.
-        // If it doesn't already exist, return it suffixed by 0.
-        // Otherwise, return it with the correct prefix.
-        // In both cases, we only return if the symbol with the suffix
-        // also doesn't exist.
-
-        let sym = if let Some(s) = self.symbols.get_mut(&prefix) {
-            let sym = Symbol::intern(format!("{}{}", &prefix, *s).as_str());
-            *s += 1;
-            sym
-        } else {
-            let sym = Symbol::intern(format!("{}0", &prefix).as_str());
-            self.init_sym(sym);
-            sym
-        };
-
-        if self.symbols.get(&sym).is_none() {
-            sym
-        } else {
-            self.fresh(sym)
-        }
+    fn fresh_local(&mut self) -> Local {
+        self.next_local += 1;
+        Local(self.next_local - 1)
     }
 
-    /// Records a symbol as being used
-    fn init_sym(&mut self, sym: Symbol) {
-        self.symbols.insert(sym, 1);
+    fn fresh_location(&mut self) -> Location {
+        self.next_location += 1;
+        Location(self.next_location - 1)
     }
 
     /// Based on the structure of the type, return either a RefineHole
     /// or a tuple of holy types.
-    fn get_holy_type(&mut self, t: ty::Ty<'tcx>) -> Ty<Symbol> {
+    fn get_holy_type(&mut self, t: ty::Ty<'tcx>) -> Ty {
         match t.kind() {
             ty::TyKind::Tuple(substs) if !substs.is_empty() => Ty::Tuple(
                 t.tuple_fields()
                     .enumerate()
-                    .map(|(i, f)| {
-                        (
-                            Field(Symbol::intern(&format!("{}", i))),
-                            self.get_holy_type(f),
-                        )
-                    })
+                    .map(|(i, f)| (Field(i), self.get_holy_type(f)))
                     .collect(),
             ),
             ty::TyKind::Tuple(_) => Ty::unit(),
@@ -281,17 +256,14 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         l: mir::Local,
         ps: &mut Vec<mir::PlaceElem<'tcx>>,
         t: ty::Ty<'tcx>,
-    ) -> Ty<Symbol> {
+    ) -> Ty {
         match t.kind() {
             ty::TyKind::Tuple(subst) if !subst.is_empty() => Ty::Tuple(
                 t.tuple_fields()
                     .enumerate()
                     .map(|(i, f)| {
                         ps.push(mir::ProjectionElem::Field(mir::Field::from_usize(i), f));
-                        let res = (
-                            Field(Symbol::intern(&format!("{}", i))),
-                            self.get_maybe_holy_type(l, ps, f),
-                        );
+                        let res = (Field(i), self.get_maybe_holy_type(l, ps, f));
                         let _ = ps.pop();
 
                         res
@@ -322,11 +294,11 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
     // TODO: In later compiler versions, the MirSource is contained as a field
     // source within the Body
     /// Translates an MIR function body to a CPS IR FnDef.
-    pub fn translate_body(&mut self) -> FnDef<(), Symbol> {
+    pub fn translate_body(&mut self) -> FnDef<()> {
         // We then generate a jump instruction to jump to the continuation
         // corresponding to the first/root basic block, bb0.
         let mut nb = FnBody::Jump {
-            target: ContId(Symbol::intern("bb0")),
+            target: ContId(0),
             args: Vec::new(),
         };
 
@@ -352,7 +324,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                 continue;
             }
 
-            let sym = Local(Symbol::intern(format!("_{}", ix.as_u32()).as_str()));
+            let sym = Local(ix.as_usize());
             let s = Statement {
                 kind: StatementKind::Let(sym, get_layout(decl.ty)),
                 source_info: (),
@@ -373,8 +345,8 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         for lix in self.body.args_iter() {
             let decl = &self.body.local_decls[lix];
 
-            let arg = Local(Symbol::intern(format!("_{}", lix.index()).as_str()));
-            let loc = Location(Symbol::intern(format!("loc_{}", lix.index()).as_str()));
+            let arg = Local(lix.index());
+            let loc = self.fresh_location();
             let ty = self.get_holy_type(decl.ty);
 
             params.push(arg);
@@ -385,7 +357,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         // Our return type is local _0; we want to get a holy type here as
         // our return type
         let mut out_heap = vec![];
-        let output = Location(Symbol::intern(format!("loc_0").as_str()));
+        let output = self.fresh_location();
         let out_ty = self.get_holy_type(self.body.local_decls[mir::Local::from_u32(0)].ty);
         out_heap.push((output, out_ty));
 
@@ -407,7 +379,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         }
     }
 
-    fn translate_basic_block(&mut self, bb: mir::BasicBlock) -> ContDef<(), Symbol> {
+    fn translate_basic_block(&mut self, bb: mir::BasicBlock) -> ContDef<()> {
         let bbd = &self.body.basic_blocks()[bb];
 
         // We generate a statement for the terminator first, then we go through the statements
@@ -436,8 +408,8 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         let mut heap = vec![];
 
         for (lix, decl) in self.body.local_decls.iter_enumerated() {
-            let arg = Local(Symbol::intern(format!("_{}", lix.index()).as_str()));
-            let loc = Location(Symbol::intern(format!("loc_{}", lix.index()).as_str()));
+            let arg = Local(lix.index());
+            let loc = Location(lix.index());
 
             // Check if this local has been initialized yet.
             let mut ps = vec![];
@@ -454,14 +426,14 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         };
 
         ContDef {
-            name: ContId(Symbol::intern(format!("bb{}", bb.as_u32()).as_str())),
+            name: ContId(bb.as_usize()),
             ty: cont_ty,
             params: vec![],
             body: box bbod,
         }
     }
 
-    fn translate_statement(&mut self, stmt: &mir::Statement<'tcx>) -> Statement<(), Symbol> {
+    fn translate_statement(&mut self, stmt: &mir::Statement<'tcx>) -> Statement<()> {
         match &stmt.kind {
             mir::StatementKind::Assign(pr) => {
                 let place = translate_place(&pr.0);
@@ -482,15 +454,15 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         }
     }
 
-    fn translate_terminator(&mut self, terminator: &mir::Terminator<'tcx>) -> FnBody<(), Symbol> {
+    fn translate_terminator(&mut self, terminator: &mir::Terminator<'tcx>) -> FnBody<()> {
         match &terminator.kind {
             TerminatorKind::Goto { target } => FnBody::Jump {
-                target: ContId(Symbol::intern(format!("bb{}", target.as_u32()).as_str())),
+                target: ContId(target.index()),
                 args: Vec::new(),
             },
             // TODO: Actually do the asserting
             TerminatorKind::Assert { target, .. } => FnBody::Jump {
-                target: ContId(Symbol::intern(format!("bb{}", target.as_u32()).as_str())),
+                target: ContId(target.index()),
                 args: Vec::new(),
             },
             TerminatorKind::SwitchInt {
@@ -504,9 +476,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                 // We first start with the else branch, since that's at the leaf of our
                 // if-else-if-else chain, and build backwards from there.
                 let mut ite = FnBody::Jump {
-                    target: ContId(Symbol::intern(
-                        format!("bb{}", targets.otherwise().as_u32()).as_str(),
-                    )),
+                    target: ContId(targets.otherwise().index()),
                     args: vec![],
                 };
 
@@ -520,13 +490,13 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                     let op = translate_op(discr);
 
                     let then = FnBody::Jump {
-                        target: ContId(Symbol::intern(format!("bb{}", target.as_u32()).as_str())),
+                        target: ContId(target.index()),
                         args: vec![],
                     };
 
                     // We can only have places for guards, so we have
                     // to create a place first.
-                    let temp = Local(self.fresh(Symbol::intern(format!("_g").as_str())));
+                    let temp = self.fresh_local();
                     // Bools are guaranteed to be one byte, so assuming a one byte
                     // TypeLayout should be ok!
                     let bind = Statement {
@@ -587,6 +557,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                 target: self.retk(),
                 args: vec![self.retv()],
             },
+            // FIXME: we should somehow assign the return value to the continuation
             TerminatorKind::Call {
                 func,
                 args,
@@ -602,20 +573,14 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                 // it diverges and never returns (i.e. returns ! and infinitely loops or smth)
                 // TODO: Perhaps handle the diverging case somehow?
                 let ret = match destination {
-                    Some((_, bb)) => Symbol::intern(format!("_{}", bb.as_u32()).as_str()),
+                    Some((_, bb)) => ContId(bb.index()),
                     None => todo!(),
                 };
 
                 // For our args, our args will be a list of new temp locals that we create.
                 // We'll actually create these locals after we have our FnBody::Call, so that
                 // we can reference it.
-                let start_ix = *self
-                    .symbols
-                    .get(&Symbol::intern(format!("_farg").as_str()))
-                    .unwrap_or(&0);
-                let new_args = (start_ix..start_ix + args.len())
-                    .map(|i| Local(Symbol::intern(format!("_farg{}", i).as_str())))
-                    .collect::<Vec<_>>();
+                let args_temp: Vec<Local> = (0..args.len()).map(|_| self.fresh_local()).collect();
 
                 let mut fb = match func {
                     mir::Operand::Constant(bc) => {
@@ -623,19 +588,21 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                         let kind = c.literal.ty.kind();
 
                         match kind {
-                            ty::TyKind::FnDef(def_id, _) => {
+                            ty::TyKind::FnDef(_def_id, _) => {
                                 // We get the stringified name of this def,
                                 // then use it as the name of the function
                                 // we're calling.
 
-                                let fname = self.tcx.def_path_str(*def_id);
-                                let func = Place::from(Local(Symbol::intern(&fname)));
+                                // FIXME: we need to decide how are we goig
+                                // to reference functions in lrcore
+                                // let fname = self.tcx.def_path_str(*def_id);
+                                let func = Place::from(Local(0));
 
                                 // Finally, return our FnBody::Call!
                                 FnBody::Call {
                                     func,
-                                    args: new_args,
-                                    ret: ContId(ret),
+                                    args: args_temp.clone(),
+                                    ret,
                                 }
                             }
                             _ => unreachable!(),
@@ -645,20 +612,19 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                 };
 
                 // We now have to actually create and assign locals for our operands.
-                for arg in args {
+                for (&temp, arg) in args_temp.iter().zip(args) {
                     // We let-define a new variable for our function arg, then
                     // assign it to the value of the arg.
 
-                    let sym = Local(self.fresh(Symbol::intern(format!("_farg").as_str())));
                     let tys = arg.ty(self.body, self.tcx);
                     let bind = Statement {
-                        kind: StatementKind::Let(sym, get_layout(&tys)),
+                        kind: StatementKind::Let(temp, get_layout(&tys)),
                         source_info: (),
                     };
 
-                    let pl = Place::from(sym);
+                    let temp = Place::from(temp);
                     let assign = Statement {
-                        kind: StatementKind::Assign(pl, Rvalue::Use(translate_op(arg))),
+                        kind: StatementKind::Assign(temp, Rvalue::Use(translate_op(arg))),
                         source_info: (),
                     };
                     fb = FnBody::Seq(bind, Box::new(FnBody::Seq(assign, Box::new(fb))));
@@ -671,12 +637,12 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         }
     }
 
-    pub fn retk(&self) -> ContId<Symbol> {
-        ContId(Symbol::intern("retk"))
+    pub fn retk(&self) -> ContId {
+        ContId(self.body.basic_blocks().len())
     }
 
-    pub fn retv(&self) -> Local<Symbol> {
-        Local(Symbol::intern("_0"))
+    pub fn retv(&self) -> Local {
+        Local(0)
     }
 }
 

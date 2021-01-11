@@ -408,10 +408,12 @@ impl PrettyPrinter {
         cont_id: &ContId<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
+        write!(f, "bb")?;
         cont_id.0.print(f)
     }
 
     fn print_local<S: Pretty>(&mut self, x: &Local<S>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "_")?;
         x.0.print(f)
     }
 
@@ -420,6 +422,7 @@ impl PrettyPrinter {
         l: &Location<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
+        write!(f, "l")?;
         l.0.print(f)
     }
 
@@ -428,6 +431,7 @@ impl PrettyPrinter {
         fld: &Field<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
+        write!(f, "@")?;
         fld.0.print(f)
     }
 }
