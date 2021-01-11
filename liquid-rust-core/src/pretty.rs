@@ -7,6 +7,12 @@ macro_rules! indent {
     };
 }
 
+impl<I, S: Pretty> fmt::Display for ast::FnDef<I, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        PrettyPrinter.print_fn_def(self, f, 0)
+    }
+}
+
 impl<I, S: Pretty> fmt::Display for ast::FnBody<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_fn_body(self, f, 0)
@@ -40,6 +46,31 @@ impl<S: Pretty> fmt::Display for ast::Ty<S> {
 pub struct PrettyPrinter;
 
 impl PrettyPrinter {
+    fn print_fn_def<I, S: Pretty>(
+        &mut self,
+        func: &ast::FnDef<I, S>,
+        f: &mut fmt::Formatter<'_>,
+        indent: usize,
+    ) -> fmt::Result {
+        write!(f, "fn ...")?;
+        indent!(f, indent + 2)?;
+        write!(f, "( ")?;
+        self.print_heap(&func.ty.in_heap, f)?;
+        indent!(f, indent + 2)?;
+        write!(f, "; ")?;
+        self.print_locals(func.params.iter().zip(&func.ty.inputs), f)?;
+        indent!(f, indent + 2)?;
+        write!(f, ") ret ")?;
+        self.print_cont_id(&func.ret, f)?;
+        write!(f, "(")?;
+        self.print_heap(&func.ty.out_heap, f)?;
+        write!(f, "; own(")?;
+        self.print_location(&func.ty.output, f)?;
+        write!(f, ") = ")?;
+        self.print_fn_body(&func.body, f, indent + 2)?;
+        Ok(())
+    }
+
     fn print_fn_body<I, S: Pretty>(
         &mut self,
         fn_body: &ast::FnBody<I, S>,
@@ -70,7 +101,21 @@ impl PrettyPrinter {
                 write!(f, "else")?;
                 self.print_fn_body(else_, f, indent + 2)?;
             }
-            ast::FnBody::Call { .. } => todo!(),
+            ast::FnBody::Call {
+                func: _func,
+                args,
+                ret,
+            } => {
+                write!(f, "call ...(")?;
+                for (i, x) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    self.print_local(x, f)?;
+                }
+                write!(f, ") ret ")?;
+                self.print_cont_id(ret, f)?;
+            }
             ast::FnBody::Jump { target, args } => {
                 write!(f, "jump ")?;
                 self.print_cont_id(target, f)?;
@@ -102,6 +147,7 @@ impl PrettyPrinter {
     ) -> fmt::Result {
         match &stmnt.kind {
             ast::StatementKind::Let(x, layout) => {
+                write!(f, "let ")?;
                 self.print_local(x, f)?;
                 write!(f, " = alloc(")?;
                 self.print_type_layout(layout, f)?;
@@ -116,6 +162,9 @@ impl PrettyPrinter {
                 write!(f, "drop(")?;
                 self.print_local(x, f)?;
                 write!(f, ")")?;
+            }
+            ast::StatementKind::Nop => {
+                write!(f, "Nop")?;
             }
         };
         Ok(())

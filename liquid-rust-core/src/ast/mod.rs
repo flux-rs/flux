@@ -61,6 +61,7 @@ pub enum StatementKind<S = usize> {
     Let(Local<S>, TypeLayout),
     Assign(Place<S>, Rvalue<S>),
     Drop(Local<S>),
+    Nop,
 }
 
 #[derive(Debug)]

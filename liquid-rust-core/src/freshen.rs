@@ -142,6 +142,7 @@ where
                 Assign(self.freshen_place(place), self.freshen_rvalue(value))
             }
             Drop(local) => Drop(self.freshen_local(local)),
+            Nop => Nop,
         };
         Statement {
             source_info: statement.source_info,

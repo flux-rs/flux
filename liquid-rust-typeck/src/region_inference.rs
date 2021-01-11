@@ -106,6 +106,7 @@ impl<I> Visitor<I> for RegionInferer<'_> {
             StatementKind::Drop(local) => {
                 self.env.drop(local);
             }
+            StatementKind::Nop => {}
         }
     }
 }

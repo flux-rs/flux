@@ -13,7 +13,6 @@ extern crate rustc_target;
 use liquid_rust_typeck::{check_fn_def, Safeness};
 use rustc_driver::{catch_with_exit_code, Callbacks, Compilation, RunCompiler};
 use rustc_interface::{interface::Compiler, Queries};
-use rustc_middle::mir::MirSource;
 use translate::Transformer;
 
 pub fn run_compiler(args: Vec<String>) -> i32 {
@@ -34,8 +33,7 @@ impl Callbacks for LiquidRustDriver {
             for &body_id in &tcx.hir().krate().body_ids {
                 let def_id = tcx.hir().body_owner_def_id(body_id);
                 let body = tcx.optimized_mir(def_id);
-                let mut t = Transformer::new(tcx);
-                let func = t.translate_body(MirSource::item(def_id.to_def_id()), body);
+                let func = Transformer::translate(tcx, body);
 
                 if check_fn_def(func) == Safeness::Unsafe {
                     compilation = Compilation::Stop;

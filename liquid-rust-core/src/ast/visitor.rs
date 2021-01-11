@@ -90,6 +90,7 @@ pub fn walk_stmnt<I, S, V: Visitor<I, S>>(visitor: &mut V, stmnt: &Statement<I, 
         StatementKind::Drop(local) => {
             visitor.visit_local(local);
         }
+        StatementKind::Nop => {}
     }
 }
 
