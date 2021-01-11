@@ -1,53 +1,7 @@
 #![feature(rustc_private)]
 #![feature(box_syntax)]
 
-extern crate rustc_driver;
-extern crate rustc_hir;
-extern crate rustc_interface;
-extern crate rustc_lint;
-
-use rustc_driver::{Callbacks, Compilation};
-use rustc_interface::{interface::Compiler, Config, Queries};
-use rustc_lint::{LateContext, LateLintPass, LintPass};
 use std::{ops::Deref, path::PathBuf, process::Command};
-
-struct LiquidRustLintPass;
-
-impl LiquidRustLintPass {
-    fn new() -> LiquidRustLintPass {
-        LiquidRustLintPass
-    }
-}
-
-impl LintPass for LiquidRustLintPass {
-    fn name(&self) -> &'static str {
-        return stringify!(LiquidRust);
-    }
-}
-
-impl<'tcx> LateLintPass<'tcx> for LiquidRustLintPass {
-    fn check_crate(&mut self, cx: &LateContext<'tcx>, krate: &'tcx rustc_hir::Crate<'tcx>) {
-        let _ = liquid_rust::run(cx, krate);
-    }
-}
-
-struct LiquidRustDriver;
-
-impl Callbacks for LiquidRustDriver {
-    fn config(&mut self, config: &mut Config) {
-        config.register_lints = Some(box move |_sess, lint_store| {
-            lint_store.register_late_pass(move || box LiquidRustLintPass::new());
-        });
-    }
-
-    fn after_analysis<'tcx>(
-        &mut self,
-        _compiler: &Compiler,
-        _queries: &'tcx Queries<'tcx>,
-    ) -> Compilation {
-        Compilation::Stop
-    }
-}
 
 // cli utils (copied from clippy):
 
@@ -144,20 +98,6 @@ fn allow_unused_doc_comments() -> Vec<String> {
 }
 
 fn main() {
-    // let _ = rustc_driver::catch_fatal_errors(|| {
-    //     // Grab the command line arguments.
-    //     let args: Vec<_> = std::env::args_os().flat_map(|s| s.into_string()).collect();
-    //     let args2 = args
-    //         .iter()
-    //         .map(|s| (*s).to_string())
-    //         .chain(sys_root(&args).into_iter())
-    //         .chain(allow_unused_doc_comments().into_iter())
-    //         .collect::<Vec<_>>();
-
-    //     rustc_driver::RunCompiler::new(&args2, &mut LiquidRustDriver).run()
-    // })
-    // .map_err(|e| println!("{:?}", e));
-
     let args: Vec<_> = std::env::args_os().flat_map(|s| s.into_string()).collect();
     let args = args
         .iter()
