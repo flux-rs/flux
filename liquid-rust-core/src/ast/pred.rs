@@ -13,6 +13,7 @@ pub enum Pred<S = usize> {
 pub enum Constant {
     Bool(bool),
     Int(u128),
+    Unit,
 }
 
 impl fmt::Display for Constant {
@@ -20,6 +21,7 @@ impl fmt::Display for Constant {
         match self {
             Constant::Bool(b) => write!(f, "{}", b),
             Constant::Int(n) => write!(f, "{}", n),
+            Constant::Unit => write!(f, "()"),
         }
     }
 }
@@ -27,14 +29,37 @@ impl fmt::Display for Constant {
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct Place<S = usize> {
     pub base: Var<S>,
-    pub projs: Vec<Proj>,
+    pub projs: Vec<usize>,
+}
+
+impl<S: Copy> Place<S> {
+    pub fn extend_path(&self, n: usize) -> Self {
+        let mut projs = self.projs.clone();
+        projs.push(n);
+        Place {
+            base: self.base,
+            projs,
+        }
+    }
+}
+
+impl<T, S> From<T> for Place<S>
+where
+    T: Into<Var<S>>,
+{
+    fn from(base: T) -> Self {
+        Place {
+            base: base.into(),
+            projs: Vec::new(),
+        }
+    }
 }
 
 impl fmt::Display for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.base)?;
         for proj in &self.projs {
-            write!(f, ".{}", proj.0)?;
+            write!(f, ".{}", proj)?;
         }
         Ok(())
     }
@@ -47,6 +72,18 @@ pub enum Var<S = usize> {
     Field(Field<S>),
 }
 
+impl<S> From<Location<S>> for Var<S> {
+    fn from(v: Location<S>) -> Self {
+        Var::Location(v)
+    }
+}
+
+impl<S> From<Field<S>> for Var<S> {
+    fn from(v: Field<S>) -> Self {
+        Var::Field(v)
+    }
+}
+
 impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -56,9 +93,6 @@ impl fmt::Display for Var {
         }
     }
 }
-
-#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
-pub struct Proj(pub usize);
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum BinOp {

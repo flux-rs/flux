@@ -208,7 +208,6 @@ where
     fn freshen_ty(&mut self, ty: Ty<S>) -> Ty {
         use Ty::*;
         match ty {
-            Fn(fn_ty) => Fn(self.freshen_fn_ty(fn_ty)),
             OwnRef(location) => OwnRef(self.freshen_location(location)),
             Ref(kind, region, location) => Ref(
                 kind,
@@ -216,11 +215,16 @@ where
                 self.freshen_location(location),
             ),
             Tuple(tup) => {
-                let mut vec = Vec::new();
-                for (field, ty) in tup {
-                    vec.push((self.freshen_field(field), self.freshen_ty(ty)));
+                self.names.push_layer();
+                for (fld, _) in &tup {
+                    self.names.define(Name::Field(*fld), self.fresh());
                 }
-                Tuple(vec)
+                let tup = tup
+                    .into_iter()
+                    .map(|(fld, ty)| (self.freshen_field(fld), self.freshen_ty(ty)))
+                    .collect();
+                self.names.pop_layer();
+                Tuple(tup)
             }
             Uninit(s) => Uninit(s),
             Refine { bty, refine } => Refine {
@@ -273,13 +277,11 @@ where
             .collect()
     }
 
-    fn freshen_locals(&mut self, locals: LocalsMap<S>) -> LocalsMap {
-        LocalsMap::from(
-            locals
-                .into_iter()
-                .map(|(x, l)| (self.freshen_local(x), self.freshen_location(l)))
-                .collect::<Vec<_>>(),
-        )
+    fn freshen_locals(&mut self, locals: Vec<(Local<S>, Location<S>)>) -> Vec<(Local, Location)> {
+        locals
+            .into_iter()
+            .map(|(x, l)| (self.freshen_local(x), self.freshen_location(l)))
+            .collect()
     }
 
     fn freshen_heap(&mut self, heap: Heap<S>) -> Heap {

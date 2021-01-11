@@ -2,13 +2,10 @@ use std::cell::{Cell, RefCell};
 
 use hashconsing::{HConsign, HashConsign};
 
-use super::{
-    pred::{self, Var},
-    *,
-};
 use crate::{
     ast::TypeLayout,
     names::{Local, Location},
+    ty::{self, pred, *},
 };
 
 pub struct TyCtxt {
@@ -35,8 +32,8 @@ impl TyCtxt {
         self.interner.borrow_mut().intern_ty(ty)
     }
 
-    pub fn mk_pred(&self, pred: PredS) -> Pred {
-        self.interner.borrow_mut().intern_pred(pred)
+    pub fn mk_pred(&self, kind: PredKind) -> Pred {
+        self.interner.borrow_mut().intern_pred(kind)
     }
 
     pub fn fresh(&self) -> usize {
@@ -82,15 +79,8 @@ impl TyCtxt {
         self.mk_ty(TyKind::Uninit(n))
     }
 
-    pub fn mk_refine(&self, bty: BaseType, refine: Refine) -> Ty {
-        self.mk_ty(TyKind::Refine { bty, refine })
-    }
-
-    pub fn mk_unrefined(&self, ty: BaseType) -> Ty {
-        self.mk_ty(TyKind::Refine {
-            bty: ty,
-            refine: Refine::Pred(self.preds.tt()),
-        })
+    pub fn mk_refine<R: Into<Refine>>(&self, bty: BaseTy, refine: R) -> Ty {
+        self.mk_ty(TyKind::Refine(bty, refine.into()))
     }
 
     pub fn mk_ref(&self, bk: BorrowKind, region: Region, location: Location) -> Ty {
@@ -109,22 +99,66 @@ impl TyCtxt {
         }
     }
 
+    pub fn selfify(&self, ty: &Ty, place: pred::Place) -> Ty {
+        match ty.kind() {
+            TyKind::Refine(bty, _) => {
+                let pred = self.mk_bin_op(BinOp::Eq, self.preds.nu(), self.mk_pred_place(place));
+                self.mk_refine(*bty, pred)
+            }
+            TyKind::Tuple(tup) => {
+                let tup = tup.map(|i, fld, ty| (*fld, self.selfify(ty, place.extend_path(i))));
+                self.mk_tuple(tup)
+            }
+            _ => ty.clone(),
+        }
+    }
+
+    pub fn replace_refines_with_kvars(&self, ty: &Ty, vars_in_scope: &Vec<Var>) -> Ty {
+        match ty.kind() {
+            TyKind::Fn(fn_ty) => {
+                let fn_ty = FnTy {
+                    in_heap: fn_ty
+                        .in_heap
+                        .map_ty(|ty| self.replace_refines_with_kvars(ty, vars_in_scope)),
+                    inputs: fn_ty.inputs.clone(),
+                    out_heap: fn_ty
+                        .out_heap
+                        .map_ty(|ty| self.replace_refines_with_kvars(ty, vars_in_scope)),
+                    output: fn_ty.output,
+                };
+                self.mk_fn_ty(fn_ty)
+            }
+            TyKind::Tuple(tup) => {
+                let tup = tup
+                    .map(|_, fld, ty| (*fld, self.replace_refines_with_kvars(ty, vars_in_scope)));
+                self.mk_tuple(tup)
+            }
+            TyKind::Refine(bty, _) => {
+                let mut vec = vec![Var::Nu];
+                vec.extend(vars_in_scope);
+                let kvar = ty::Kvar(self.fresh_kvar(), vec);
+                self.mk_refine(*bty, kvar)
+            }
+            TyKind::Uninit(..) | TyKind::Ref(..) | TyKind::OwnRef(..) => ty.clone(),
+        }
+    }
+
     // Predicates
 
     pub fn mk_constant(&self, constant: pred::Constant) -> Pred {
-        self.mk_pred(PredS::Constant(constant))
+        self.mk_pred(PredKind::Constant(constant))
     }
 
     pub fn mk_pred_place(&self, place: pred::Place) -> Pred {
-        self.mk_pred(PredS::Place(place))
+        self.mk_pred(PredKind::Place(place))
     }
 
-    pub fn mk_bin_op(&self, op: pred::BinOp, lhs: Pred, rhs: Pred) -> Pred {
-        self.mk_pred(PredS::BinaryOp(op, lhs, rhs))
+    pub fn mk_bin_op(&self, op: ty::BinOp, lhs: Pred, rhs: Pred) -> Pred {
+        self.mk_pred(PredKind::BinaryOp(op, lhs, rhs))
     }
 
-    pub fn mk_un_op(&self, op: pred::UnOp, operand: Pred) -> Pred {
-        self.mk_pred(PredS::UnaryOp(op, operand))
+    pub fn mk_un_op(&self, op: ty::UnOp, operand: Pred) -> Pred {
+        self.mk_pred(PredKind::UnaryOp(op, operand))
     }
 }
 
@@ -137,14 +171,11 @@ pub struct CommonTypes {
 impl CommonTypes {
     fn new(interner: &mut CtxtInterner, preds: &CommonPreds) -> Self {
         let mut intern = |typ| interner.intern_ty(typ);
-        let mk_refine = |ty| TyKind::Refine {
-            bty: ty,
-            refine: Refine::Pred(preds.tt()),
-        };
+        let mk_refine = |bty| TyKind::Refine(bty, Refine::Pred(preds.tt()));
         CommonTypes {
-            unit: intern(mk_refine(BaseType::Unit)),
-            int: intern(mk_refine(BaseType::Int)),
-            bool: intern(mk_refine(BaseType::Bool)),
+            unit: intern(mk_refine(BaseTy::Unit)),
+            int: intern(mk_refine(BaseTy::Int)),
+            bool: intern(mk_refine(BaseTy::Bool)),
         }
     }
 
@@ -172,17 +203,18 @@ impl CommonPreds {
     fn new(interner: &mut CtxtInterner) -> Self {
         let mut intern = |pred| interner.intern_pred(pred);
         CommonPreds {
-            nu: intern(PredS::Place(pred::Place {
-                base: Var::Nu,
-                projs: vec![],
-            })),
-            tt: intern(PredS::Constant(pred::Constant::Bool(true))),
-            ff: intern(PredS::Constant(pred::Constant::Bool(false))),
+            nu: intern(PredKind::Place(pred::Place::from(Var::Nu))),
+            tt: intern(PredKind::Constant(pred::Constant::Bool(true))),
+            ff: intern(PredKind::Constant(pred::Constant::Bool(false))),
         }
     }
 
     pub fn tt(&self) -> Pred {
         self.tt.clone()
+    }
+
+    pub fn nu(&self) -> Pred {
+        self.nu.clone()
     }
 }
 
@@ -203,7 +235,7 @@ impl CtxtInterner {
         self.types.mk(TyS { kind })
     }
 
-    fn intern_pred(&mut self, pred: PredS) -> Pred {
-        self.preds.mk(pred)
+    fn intern_pred(&mut self, kind: PredKind) -> Pred {
+        self.preds.mk(PredS { kind })
     }
 }

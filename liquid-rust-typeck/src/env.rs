@@ -1,30 +1,123 @@
-use ast::{Place, Proj};
+use crate::subtyping::subtyping;
+use ast::Proj;
 use liquid_rust_core::{
     ast,
     names::{Local, Location},
-    ty::{self, Heap, LocalsMap, Ty, TyCtxt},
+    ty::{self, pred::Place, Heap, LocalsMap, Ty, TyCtxt},
 };
-use std::{collections::HashMap, fmt};
-use ty::TyKind;
+use std::fmt;
+use ty::{BorrowKind, TyKind};
+
+use crate::constraint::Constraint;
 
 pub struct Env<'a> {
-    locals: Vec<HashMap<Local, Location>>,
-    heap: Heap,
     tcx: &'a TyCtxt,
+    locals: Vec<LocalsMap>,
+    heap: Heap,
 }
 
 impl<'a> Env<'a> {
     pub fn new(tcx: &'a TyCtxt) -> Self {
         Env {
-            locals: vec![HashMap::new()],
-            heap: Heap::new(),
             tcx,
+            locals: vec![LocalsMap::empty()],
+            heap: Heap::new(),
         }
     }
 }
 
 impl Env<'_> {
-    pub fn insert_heap(&mut self, heap: &Heap) {
+    pub fn alloc(&mut self, x: Local, ty: Ty) {
+        let l = self.fresh_location();
+        self.insert_local(x, l);
+        self.heap.insert(l, ty);
+    }
+
+    pub fn update(&mut self, place: &ast::Place, ty: Ty) {
+        let l = self.lookup_local(&place.base);
+        let root = self.tcx.selfify(self.lookup_location(l), Place::from(*l));
+
+        let fresh_l = self.fresh_location();
+        let ty = self.update_ty(&root, &place.projs, ty);
+        self.insert_local(place.base, fresh_l);
+        self.heap.insert(fresh_l, ty);
+    }
+
+    pub fn borrow(&mut self, place: &ast::Place) -> Location {
+        let ty = self.lookup(place).clone();
+        let l = self.fresh_location();
+        self.heap.insert(l, ty);
+        l
+    }
+
+    pub fn drop(&mut self, x: &Local) -> Constraint {
+        let l = self.lookup_local(x);
+        let ty = self.lookup_location(l).clone();
+        let constraint = self.drop_ty(&ty);
+
+        let fresh_l = self.fresh_location();
+        self.insert_local(*x, fresh_l);
+        self.heap.insert(fresh_l, self.tcx.mk_uninit(ty.size()));
+        constraint
+    }
+
+    pub fn lookup(&self, place: &ast::Place) -> &Ty {
+        let mut ty = self.lookup_location(self.lookup_local(&place.base));
+        for p in &place.projs {
+            match (ty.kind(), p) {
+                (TyKind::Tuple(tuple), &Proj::Field(n)) => {
+                    ty = tuple.ty_at(n);
+                }
+                (TyKind::Ref(.., l), Proj::Deref) => {
+                    ty = self.lookup_location(l);
+                }
+                _ => bug!("{:?} {:?} {:?}", ty, place, p),
+            }
+        }
+        ty
+    }
+
+    pub fn resolve_place(&self, place: &ast::Place) -> Place {
+        let mut base = *self.lookup_local(&place.base);
+        let mut ty = self.lookup_location(&base);
+
+        let mut projs = Vec::new();
+        for proj in &place.projs {
+            match (ty.kind(), proj) {
+                (TyKind::Tuple(tup), &Proj::Field(n)) => {
+                    ty = tup.ty_at(n);
+                    projs.push(n);
+                }
+                (TyKind::Ref(.., l), Proj::Deref) => {
+                    projs.clear();
+                    base = *l;
+                    ty = self.lookup_location(l);
+                }
+                _ => bug!(),
+            }
+        }
+
+        Place {
+            base: ty::Var::from(base),
+            projs,
+        }
+    }
+
+    pub fn resolve_operand(&self, op: &ast::Operand) -> ty::Pred {
+        match op {
+            ast::Operand::Use(place) => self.tcx.mk_pred_place(self.resolve_place(place)),
+            ast::Operand::Constant(c) => {
+                let c = match *c {
+                    ast::Constant::Bool(b) => ty::pred::Constant::Bool(b),
+                    ast::Constant::Int(n) => ty::pred::Constant::Int(n),
+                    ast::Constant::Unit => ty::pred::Constant::Unit,
+                };
+                self.tcx.mk_constant(c)
+            }
+        }
+    }
+
+    pub fn extend_heap(&mut self, heap: &Heap) {
         for (l, ty) in heap {
             self.heap.insert(*l, ty.clone());
         }
@@ -38,105 +131,71 @@ impl Env<'_> {
         &self.heap
     }
 
+    pub fn locals(&self) -> &LocalsMap {
+        self.locals.last().unwrap()
+    }
+
+    pub fn vars_in_scope(&self) -> Vec<ty::Var> {
+        self.heap.keys().map(|&l| ty::Var::Location(l)).collect()
+    }
+
     pub fn snapshot(&mut self) -> Snapshot {
         let heap_len = self.heap.len();
-        let locals_len = self.locals.len();
+        let locals_depth = self.locals.len();
 
         self.locals.push(self.locals.last().unwrap().clone());
         Snapshot {
             heap_len,
-            locals_len,
+            locals_depth,
         }
     }
 
     pub fn snapshot_without_locals(&mut self) -> Snapshot {
         let heap_len = self.heap.len();
-        let locals_len = self.locals.len();
+        let locals_depth = self.locals.len();
 
-        self.locals.push(HashMap::new());
+        self.locals.push(LocalsMap::empty());
         Snapshot {
             heap_len,
-            locals_len,
+            locals_depth,
         }
     }
 
-    pub fn rollback_to(&mut self, snapshot: Snapshot) -> Heap {
-        self.locals.truncate(snapshot.locals_len);
-        self.heap.split_off(snapshot.heap_len)
+    pub fn rollback_to(&mut self, snapshot: Snapshot) {
+        self.heap.truncate(snapshot.heap_len);
+        self.locals.truncate(snapshot.locals_depth);
     }
 
-    pub fn alloc(&mut self, x: Local, ty: Ty) {
-        let l = self.fresh_location();
-        self.insert_local(x, l);
-        self.heap.insert(l, ty);
+    pub fn capture_bindings<T>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> (T, Vec<(Location, Ty)>) {
+        let n = self.heap.len();
+        let r = f(self);
+        let bindings = self
+            .heap
+            .iter()
+            .skip(n)
+            .map(|(l, ty)| (*l, ty.clone()))
+            .collect();
+        (r, bindings)
     }
 
-    pub fn update(&mut self, place: &Place, ty: Ty) {
-        let root = self.lookup(&Place::from(place.base)).clone();
-        let ty = self.update_ty(&root, &place.projs, ty);
-        let l = self.fresh_location();
-        self.insert_local(place.base, l);
-        self.heap.insert(l, ty);
-    }
-
-    pub fn borrow(&mut self, place: &Place) -> Location {
-        let ty = self.lookup(place).clone();
-        let l = self.fresh_location();
-        self.heap.insert(l, ty);
-        l
-    }
-
-    // TODO self-ification
-    fn update_ty(&mut self, root: &Ty, projs: &[Proj], ty: Ty) -> Ty {
-        match (root.kind(), projs) {
-            (_, []) => ty,
-            (ty::TyKind::Tuple(tup), [ast::Proj::Field(n), ..]) => {
-                let new_ty = self.update_ty(tup.ty_at(*n), &projs[1..], ty);
-                let tup = tup.map_ty_at(*n, |_| new_ty);
-                self.tcx.mk_tuple(tup)
-            }
-            (ty::TyKind::Ref(bk, r, l), [ast::Proj::Deref, ..]) => {
-                let fresh_l = self.fresh_location();
-                let new_ty = self.update_ty(&self.get_ty(l).clone(), &projs[1..], ty);
-                self.heap.insert(fresh_l, new_ty);
-                self.tcx.mk_ref(*bk, r.clone(), fresh_l)
-            }
-            (ty::TyKind::OwnRef(_l), [ast::Proj::Deref, ..]) => todo!(),
-            _ => bug!(),
-        }
-    }
-
-    pub fn drop(&mut self, x: &Local) {
-        let place = Place::from(*x);
-        let size = self.lookup(&place).size();
-        self.update(&place, self.tcx.mk_uninit(size))
-    }
-
-    pub fn lookup(&self, place: &Place) -> &Ty {
-        let mut ty = self.get_ty(self.get_location(&place.base));
-        for p in &place.projs {
-            match (ty.kind(), p) {
-                (TyKind::Tuple(tuple), &Proj::Field(n)) => {
-                    ty = tuple.ty_at(n);
-                }
-                (TyKind::Ref(.., l), Proj::Deref) => {
-                    ty = self.get_ty(l);
-                }
-                _ => bug!("{:?} {:?} {:?}", ty, place, p),
-            }
-        }
-        ty
-    }
+    // Private
 
     fn insert_local(&mut self, x: Local, l: Location) {
         self.locals.last_mut().unwrap().insert(x, l);
     }
 
-    fn get_location(&self, x: &Local) -> &Location {
-        self.locals.last().unwrap().get(x).unwrap()
+    fn lookup_local(&self, x: &Local) -> &Location {
+        self.locals
+            .last()
+            .unwrap()
+            .get(x)
+            .expect(&format!("Env: local not found {:?}", x))
     }
 
-    fn get_ty(&self, l: &Location) -> &Ty {
+    fn lookup_location(&self, l: &Location) -> &Ty {
         self.heap
             .get(l)
             .expect(&format!("Env: location not found {:?}", l))
@@ -145,11 +204,74 @@ impl Env<'_> {
     fn fresh_location(&self) -> Location {
         self.tcx.fresh_location()
     }
+
+    fn update_ty(&mut self, root: &Ty, projs: &[Proj], ty: Ty) -> Ty {
+        match (root.kind(), projs) {
+            (_, []) => ty,
+            (ty::TyKind::Tuple(tup), [Proj::Field(n), ..]) => {
+                let ty = self.update_ty(tup.ty_at(*n), &projs[1..], ty);
+                self.tcx.mk_tuple(tup.map_ty_at(*n, |_| ty))
+            }
+            (ty::TyKind::Ref(bk, r, l), [Proj::Deref, ..]) => {
+                let root = self.tcx.selfify(self.lookup_location(l), Place::from(*l));
+
+                let fresh_l = self.fresh_location();
+                let ty = self.update_ty(&root, &projs[1..], ty);
+                self.heap.insert(fresh_l, ty);
+                self.tcx.mk_ref(*bk, r.clone(), fresh_l)
+            }
+            (ty::TyKind::OwnRef(l), [Proj::Deref, ..]) => {
+                let root = self.tcx.selfify(self.lookup_location(l), Place::from(*l));
+
+                let fresh_l = self.fresh_location();
+                let ty = self.update_ty(&root, &projs[1..], ty);
+                self.heap.insert(fresh_l, ty);
+                self.tcx.mk_own_ref(fresh_l)
+            }
+            _ => bug!(),
+        }
+    }
+
+    fn drop_ty(&mut self, ty: &Ty) -> Constraint {
+        let vars_in_scope = self.vars_in_scope();
+        let mut constraints = vec![];
+        ty.walk(&mut |ty| match ty.kind() {
+            TyKind::Ref(BorrowKind::Mut, r, l) => {
+                let ty = self.lookup_location(l).clone();
+                let places = match r {
+                    ty::Region::Concrete(places) => places.as_slice(),
+                    ty::Region::Infer(_) => &[],
+                };
+                match places {
+                    [] => {}
+                    [place] => {
+                        self.update(place, ty);
+                    }
+                    _ => {
+                        let ty_join = self.tcx.replace_refines_with_kvars(&ty, &vars_in_scope);
+
+                        let heap = self.heap();
+                        constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                        for place in places {
+                            let ty = self.lookup(place);
+                            constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                        }
+
+                        for place in places {
+                            self.update(place, ty_join.clone());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        });
+        Constraint::Conj(constraints)
+    }
 }
 
 pub struct Snapshot {
     heap_len: usize,
-    locals_len: usize,
+    locals_depth: usize,
 }
 
 impl fmt::Debug for Env<'_> {

@@ -1,11 +1,11 @@
 [package]
-name = "liquid-rust-typeck"
+name = "liquid-rust-liquid"
 version = "0.1.0"
 authors = ["Nico Lehmann <nico.lehmannm@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-indexmap = "1.6"
 liquid-rust-core = { path = "../liquid-rust-core" }
-liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-liquid = { path = "../liquid-rust-liquid" }
+serde = { version = "1.0", features = ["derive"] }
+quickscope = "0.1"
+serde_json = "1.0"

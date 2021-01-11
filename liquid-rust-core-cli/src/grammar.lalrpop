@@ -44,7 +44,7 @@ FnBody: Box<FnBody<Span, &'input str>> = {
 }
 
 ContDef: ContDef<Span, &'input str> = {
-   <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ";" <formal: Params> ")" "=" <body: FnBody>  => {
+   <name: ContId> "(" <heap: Heap> ";" <locals: Comma<Binding<Local, OwnRef>>> ";" <formal: Params> ")" "=" <body: FnBody>  => {
     let mut inputs = vec![];
     let mut params = vec![];
     for (local, ty) in formal {
@@ -109,23 +109,21 @@ TypeLayout: TypeLayout = {
 
 OwnRef: Location<&'input str> = "own" "(" <Location> ")" => <>;
 
-LocalsMap: LocalsMap<&'input str> = Comma<Binding<Local, OwnRef>> => LocalsMap::from(<>);
-
 Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from(<>);
 
 Ty: Ty<&'input str> = {
   "own" "(" <Location> ")"                     => Ty::OwnRef(<>),
-  "{" <bty: BaseType> "|" <refine: Refine> "}" => Ty::Refine { <> },
+  "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine { <> },
   "&" "(" <Region> "," <Location> ")"          => Ty::Ref(BorrowKind::Shared, <>),
   "&" "shrd" "(" <Region> "," <Location> ")"   => Ty::Ref(BorrowKind::Shared, <>),
   "&" "mut" "(" <Region> "," <Location> ")"    => Ty::Ref(BorrowKind::Mut, <>),
   "(" <Comma<Binding<Field, Ty>>> ")"          => Ty::Tuple(<>)
 }
 
-BaseType: BaseType = {
-  "int"  => BaseType::Int,
-  "bool" => BaseType::Bool,
-  "(" ")"   => BaseType::Unit
+BaseTy: BaseTy = {
+  "int"  => BaseTy::Int,
+  "bool" => BaseTy::Bool,
+  "(" ")"   => BaseTy::Unit
 }
 
 Refine: Refine<&'input str> = {
@@ -193,8 +191,8 @@ PlaceP: pred::Place<&'input str> = {
   <base: Var> <projs: ProjP*> => pred::Place { <> }
 }
 
-ProjP: pred::Proj = {
-  "." <r"[0-9]+"> => pred::Proj(usize::from_str(<>).unwrap())
+ProjP: usize = {
+  "." <r"[0-9]+"> => usize::from_str(<>).unwrap()
 }
 
 Var: pred::Var<&'input str> = {
@@ -204,17 +202,17 @@ Var: pred::Var<&'input str> = {
 }
 
 BinOpGroup1: pred::BinOp = {
-  "+" => pred::BinOp::Add,
-  "-" => pred::BinOp::Sub
-}
-
-BinOpGroup2: pred::BinOp = {
   "<"  => pred::BinOp::Lt,
   "<=" => pred::BinOp::Le,
   "==" => pred::BinOp::Eq,
   ">=" => pred::BinOp::Ge,
   ">"  => pred::BinOp::Gt,
 };
+
+BinOpGroup2: pred::BinOp = {
+  "+" => pred::BinOp::Add,
+  "-" => pred::BinOp::Sub
+}
 
 LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {
   <lhs: LeftAssoc<OpGroup,NextExprLevel>>

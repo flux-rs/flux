@@ -1,6 +1,9 @@
 use std::fmt;
 
-use super::{ast::*, subst::ApplySubst, subst::DeferredSubst, subst::Subst};
+use super::{
+    ast::*,
+    subst::{ApplySubst, DeferredSubst, Subst},
+};
 
 #[derive(Debug)]
 pub enum Constraint {

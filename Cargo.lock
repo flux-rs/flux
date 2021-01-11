@@ -373,12 +373,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "liquid-rust-liquid"
+version = "0.1.0"
+dependencies = [
+ "liquid-rust-core",
+ "quickscope",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "liquid-rust-typeck"
 version = "0.1.0"
 dependencies = [
  "indexmap",
  "liquid-rust-common",
  "liquid-rust-core",
+ "liquid-rust-liquid",
 ]
 
 [[package]]

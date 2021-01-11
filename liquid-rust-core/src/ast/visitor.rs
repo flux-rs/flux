@@ -5,8 +5,8 @@ pub trait Visitor<I, S = usize>: Sized {
         walk_fn_body(self, fn_body);
     }
 
-    fn visit_statement(&mut self, stmnt: &Statement<I, S>) {
-        walk_statement(self, stmnt);
+    fn visit_stmnt(&mut self, stmnt: &Statement<I, S>) {
+        walk_stmnt(self, stmnt);
     }
 
     fn visit_cont_def(&mut self, def: &ContDef<I, S>) {
@@ -65,7 +65,7 @@ pub fn walk_fn_body<I, S, V: Visitor<I, S>>(visitor: &mut V, fn_body: &FnBody<I,
             walk_list!(visitor, visit_local, args);
         }
         FnBody::Seq(st, rest) => {
-            visitor.visit_statement(st);
+            visitor.visit_stmnt(st);
             visitor.visit_fn_body(rest);
         }
         FnBody::Abort => {}
@@ -78,7 +78,7 @@ pub fn walk_cont_def<I, S, V: Visitor<I, S>>(visitor: &mut V, def: &ContDef<I, S
     walk_list!(visitor, visit_local, &def.params);
 }
 
-pub fn walk_statement<I, S, V: Visitor<I, S>>(visitor: &mut V, stmnt: &Statement<I, S>) {
+pub fn walk_stmnt<I, S, V: Visitor<I, S>>(visitor: &mut V, stmnt: &Statement<I, S>) {
     match &stmnt.kind {
         StatementKind::Let(local, _) => {
             visitor.visit_local(local);

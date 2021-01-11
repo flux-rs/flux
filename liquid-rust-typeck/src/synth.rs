@@ -2,6 +2,7 @@ use liquid_rust_core::{
     ast,
     ty::{self, Ty, TyCtxt},
 };
+use ty::BaseTy;
 
 use crate::env::Env;
 
@@ -12,7 +13,17 @@ pub trait Synth {
 impl Synth for ast::Rvalue {
     fn synth(&self, tcx: &TyCtxt, env: &mut Env) -> Ty {
         match self {
-            ast::Rvalue::Use(op) => op.synth(tcx, env),
+            ast::Rvalue::Use(op @ ast::Operand::Constant(c)) => {
+                let pred = env.resolve_operand(op);
+                tcx.mk_refine(
+                    c.base_ty(),
+                    tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
+                )
+            }
+            ast::Rvalue::Use(ast::Operand::Use(place)) => {
+                let ty = env.lookup(place);
+                tcx.selfify(ty, env.resolve_place(place))
+            }
             ast::Rvalue::Ref(bk, place) => {
                 let l = env.borrow(place);
                 tcx.mk_ref(*bk, ty::Region::from(place.clone()), l)
@@ -26,9 +37,8 @@ impl Synth for ast::Rvalue {
             }
             ast::Rvalue::UnaryOp(un_op, op) => match un_op {
                 ast::UnOp::Not => {
-                    let ty = op.synth(tcx, env);
-                    assert!(ty.is_bool());
-                    tcx.types.bool()
+                    let pred = env.resolve_operand(op);
+                    tcx.mk_refine(BaseTy::Bool, pred)
                 }
             },
         }
@@ -42,42 +52,39 @@ fn synth_bin_op(
     op1: &ast::Operand,
     op2: &ast::Operand,
 ) -> Ty {
-    let ty1 = op1.synth(tcx, env);
-    let ty2 = op2.synth(tcx, env);
-    let bty = match bin_op {
-        ast::BinOp::Add | ast::BinOp::Sub => {
-            assert!(ty1.is_int());
-            assert!(ty2.is_int());
-            ty::BaseType::Int
-        }
-        ast::BinOp::Eq => {
-            assert!(ty1.shape_eq(&ty2));
-            ty::BaseType::Bool
-        }
-        ast::BinOp::Lt | ast::BinOp::Le | ast::BinOp::Ge | ast::BinOp::Gt => {
-            assert!(ty1.is_int());
-            assert!(ty2.is_int());
-            ty::BaseType::Bool
-        }
+    use ast::BinOp as ast;
+    use ty::BinOp::*;
+    let op1 = env.resolve_operand(op1);
+    let op2 = env.resolve_operand(op2);
+    let (bty, pred) = match bin_op {
+        ast::Add => (
+            BaseTy::Int,
+            tcx.mk_bin_op(Eq, tcx.preds.nu(), tcx.mk_bin_op(Add, op1, op2)),
+        ),
+        ast::Sub => (
+            BaseTy::Int,
+            tcx.mk_bin_op(Eq, tcx.preds.nu(), tcx.mk_bin_op(Sub, op1, op2)),
+        ),
+        ast::Eq => (
+            BaseTy::Bool,
+            tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Eq, op1, op2)),
+        ),
+        ast::Lt => (
+            BaseTy::Bool,
+            tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Lt, op1, op2)),
+        ),
+        ast::Le => (
+            BaseTy::Bool,
+            tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Le, op1, op2)),
+        ),
+        ast::Ge => (
+            BaseTy::Bool,
+            tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Ge, op1, op2)),
+        ),
+        ast::Gt => (
+            BaseTy::Bool,
+            tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Gt, op1, op2)),
+        ),
     };
-    tcx.mk_unrefined(bty)
-}
-
-impl Synth for ast::Operand {
-    fn synth(&self, cx: &TyCtxt, env: &mut Env) -> Ty {
-        match self {
-            ast::Operand::Use(place) => env.lookup(place).clone(),
-            ast::Operand::Constant(c) => c.synth(cx, env),
-        }
-    }
-}
-
-impl Synth for ast::Constant {
-    fn synth(&self, tcx: &TyCtxt, _env: &mut Env) -> Ty {
-        match self {
-            ast::Constant::Bool(_) => tcx.types.bool(),
-            ast::Constant::Int(_) => tcx.types.int(),
-            ast::Constant::Unit => tcx.types.unit(),
-        }
-    }
+    tcx.mk_refine(bty, pred)
 }

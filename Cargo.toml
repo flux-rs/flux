@@ -4,5 +4,6 @@ members = [
   "liquid-rust-common",
   "liquid-rust-core",
   "liquid-rust-core-cli",
+  "liquid-rust-liquid",
   "liquid-rust-typeck",
 ]

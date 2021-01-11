@@ -46,7 +46,7 @@ pub struct ContDef<I, S = usize> {
 #[derive(Debug)]
 pub struct ContTy<S = usize> {
     pub heap: Heap<S>,
-    pub locals: LocalsMap<S>,
+    pub locals: Vec<(Local<S>, Location<S>)>,
     pub inputs: Vec<Location<S>>,
 }
 
@@ -81,6 +81,16 @@ pub enum Constant {
     Unit,
 }
 
+impl Constant {
+    pub fn base_ty(&self) -> BaseTy {
+        match self {
+            Constant::Bool(_) => BaseTy::Bool,
+            Constant::Int(_) => BaseTy::Int,
+            Constant::Unit => BaseTy::Unit,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Rvalue<S = usize> {
     Use(Operand<S>),
@@ -106,18 +116,18 @@ pub enum UnOp {
     Not,
 }
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum BaseType {
+pub enum BaseTy {
     Unit,
     Bool,
     Int,
 }
 
-impl fmt::Display for BaseType {
+impl fmt::Display for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BaseType::Unit => write!(f, "()"),
-            BaseType::Bool => write!(f, "bool"),
-            BaseType::Int => write!(f, "int"),
+            BaseTy::Unit => write!(f, "()"),
+            BaseTy::Bool => write!(f, "bool"),
+            BaseTy::Int => write!(f, "int"),
         }
     }
 }
@@ -130,12 +140,11 @@ pub enum BorrowKind {
 
 #[derive(Debug)]
 pub enum Ty<S = usize> {
-    Fn(FnTy<S>),
     OwnRef(Location<S>),
     Ref(BorrowKind, Region<S>, Location<S>),
     Tuple(Vec<(Field<S>, Ty<S>)>),
     Uninit(usize),
-    Refine { bty: BaseType, refine: Refine<S> },
+    Refine { bty: BaseTy, refine: Refine<S> },
 }
 
 #[derive(Debug)]
@@ -178,49 +187,6 @@ impl<'a, S> IntoIterator for &'a Heap<S> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LocalsMap<S = usize>(Vec<(Local<S>, Location<S>)>);
-
-impl<S> LocalsMap<S> {
-    pub fn empty() -> Self {
-        LocalsMap(Vec::new())
-    }
-
-    pub fn locals(&self) -> impl Iterator<Item = &Local<S>> {
-        self.iter().map(|(x, _)| x)
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<(Local<S>, Location<S>)> {
-        self.0.iter()
-    }
-}
-
-impl<S> From<Vec<(Local<S>, Location<S>)>> for LocalsMap<S> {
-    fn from(vec: Vec<(Local<S>, Location<S>)>) -> Self {
-        LocalsMap(vec)
-    }
-}
-
-impl<'a, S> IntoIterator for &'a LocalsMap<S> {
-    type Item = &'a (Local<S>, Location<S>);
-
-    type IntoIter = std::slice::Iter<'a, (Local<S>, Location<S>)>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-impl<S> IntoIterator for LocalsMap<S> {
-    type Item = (Local<S>, Location<S>);
-
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
