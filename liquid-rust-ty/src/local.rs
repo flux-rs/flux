@@ -2,8 +2,8 @@ use liquid_rust_common::new_index;
 
 use std::fmt;
 
-new_index!{
-    #[derive(Clone, Copy, Debug)]
+new_index! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     LocalVariable
 }
 

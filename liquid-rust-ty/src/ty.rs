@@ -112,6 +112,15 @@ impl<V> Ty<V> {
         }
     }
 
+    /// Check if the current type is a refinement over a specific base.
+    pub fn has_base(&self, target: BaseTy) -> bool {
+        if let Self::Refined(base_ty, _) = self {
+            target == *base_ty
+        } else {
+            false
+        }
+    }
+
     /// Selfify the current type, i.e. if the current type is a refined base type `{b: B | p}`
     /// return `{b: B | p && (b = var)}`.
     pub fn selfify(self, var: impl Into<Variable<V>>) -> Self {

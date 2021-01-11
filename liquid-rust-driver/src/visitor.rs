@@ -86,7 +86,6 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
                             continue;
                         }
                     };
-                    println!("solve");
 
                     let ty = match solve_ty(&ast) {
                         Ok(ty) => ty,

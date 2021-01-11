@@ -5,8 +5,8 @@ mod result;
 
 use ast::Ty;
 use lexer::Lexer;
-pub use result::{ParseError, ParseErrorKind, ParseResult};
 pub use lexer::Token;
+pub use result::{ParseError, ParseErrorKind, ParseResult};
 
 use lalrpop_util::lalrpop_mod;
 

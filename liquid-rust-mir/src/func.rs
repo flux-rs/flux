@@ -3,10 +3,7 @@ use crate::{
     local::Local,
 };
 
-use liquid_rust_common::{
-    index::{IndexMap},
-    new_index,
-};
+use liquid_rust_common::{index::IndexMap, new_index};
 use liquid_rust_ty::{BaseTy, FuncTy};
 
 use std::fmt;

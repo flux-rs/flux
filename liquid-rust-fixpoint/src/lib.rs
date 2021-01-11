@@ -1,5 +1,5 @@
-use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp, Variable};
 use liquid_rust_common::index::Index;
+use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp, Variable};
 
 use std::{
     collections::BTreeMap,

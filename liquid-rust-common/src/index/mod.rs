@@ -31,4 +31,3 @@ pub trait Index: Sized {
     fn new(index: usize) -> Self;
     fn index(self) -> usize;
 }
-

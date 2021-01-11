@@ -9,6 +9,12 @@ new_index! {
     BBlockId
 }
 
+impl BBlockId {
+    pub const fn start() -> Self {
+        Self(0)
+    }
+}
+
 impl fmt::Display for BBlockId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "bb{}", self.0)
