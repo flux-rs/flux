@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use liquid_rust_core::{
     names::Field,
@@ -101,8 +101,24 @@ pub enum Expr {
     UnaryOp(UnOp, Box<Expr>),
 }
 
-#[derive(Debug)]
 pub struct Kvar(KVid, Vec<Place>);
+
+impl fmt::Display for Kvar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let vars = (self.1)
+            .iter()
+            .map(|v| format!("{}", v))
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "$k{}[{}]", (self.0).0, vars)
+    }
+}
+
+impl fmt::Debug for Kvar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
 
 fn collect_field_map(place: &mut Place, ty: &TyS, map: &mut HashMap<Field, Place>) {
     match ty.kind() {
@@ -220,8 +236,10 @@ impl Constraint {
                 liquid::Constraint::Conj(constraints.into_iter().map(|c| c.lower_(sorts)).collect())
             }
             Constraint::Forall(var, sort, pred, body) => {
-                sorts.insert(var, sort);
                 let pred = pred.lower(sorts);
+                // The sort need to be added to the scope after lowering the predicate, because
+                // field variables in the predicate have already been expanded during embedding
+                sorts.insert(var, sort);
                 let body = body.lower_(sorts);
                 let mut iter = sorts.remove(&var).unwrap().flatten().into_iter().rev();
                 if let Some((sort, projs)) = iter.next() {

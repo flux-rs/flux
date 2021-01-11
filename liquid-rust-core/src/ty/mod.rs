@@ -182,7 +182,7 @@ macro_rules! tup {
         $(
             _vec.push(($f, $ty));
         )*
-        $crate::ty::Tuple::from(vec![])
+        $crate::ty::Tuple::from(_vec)
     }};
 }
 
@@ -283,7 +283,7 @@ impl From<Pred> for Refine {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct Kvar(pub KVid, pub Vec<Var>);
 
 impl fmt::Display for Kvar {
@@ -294,6 +294,12 @@ impl fmt::Display for Kvar {
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "$k{}[{}]", (self.0).0, vars)
+    }
+}
+
+impl fmt::Debug for Kvar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 

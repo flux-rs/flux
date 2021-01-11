@@ -5,4 +5,5 @@ pub mod ast;
 pub mod freshen;
 pub mod lower;
 pub mod names;
+pub mod pretty;
 pub mod ty;

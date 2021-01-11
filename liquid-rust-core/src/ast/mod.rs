@@ -144,7 +144,16 @@ pub enum Ty<S = usize> {
     Ref(BorrowKind, Region<S>, Location<S>),
     Tuple(Vec<(Field<S>, Ty<S>)>),
     Uninit(usize),
-    Refine { bty: BaseTy, refine: Refine<S> },
+    Refine(BaseTy, Refine<S>),
+}
+
+impl<S> Ty<S> {
+    pub fn unit() -> Ty<S> {
+        Ty::Refine(
+            BaseTy::Unit,
+            Refine::Pred(pred::Pred::Constant(pred::Constant::Bool(true))),
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -163,6 +172,12 @@ pub enum Refine<S = usize> {
 
 #[derive(Debug)]
 pub struct Heap<S = usize>(Vec<(Location<S>, Ty<S>)>);
+
+impl<S> Heap<S> {
+    pub fn iter(&self) -> impl Iterator<Item = &(Location<S>, Ty<S>)> {
+        self.0.iter()
+    }
+}
 
 impl<S> From<Vec<(Location<S>, Ty<S>)>> for Heap<S> {
     fn from(vec: Vec<(Location<S>, Ty<S>)>) -> Self {

@@ -13,8 +13,7 @@ use codespan_reporting::{
     },
 };
 use lalrpop_util::lalrpop_mod;
-use liquid_rust_core::{freshen::NameFreshener, lower::TypeLowerer, ty::TyCtxt};
-use liquid_rust_typeck::{refineck::RefineChecker, region_inference::infer_regions};
+use liquid_rust_typeck::check_fn_def;
 lalrpop_mod!(pub grammar);
 type ParseError<'input> = lalrpop_util::ParseError<usize, grammar::Token<'input>, &'input str>;
 
@@ -33,15 +32,9 @@ fn main() -> Result<(), codespan_reporting::files::Error> {
             return Ok(());
         }
     };
-    let tcx = TyCtxt::new();
-    let func = NameFreshener::new(&tcx).freshen(func);
-    let (conts, fn_ty) = TypeLowerer::new(&tcx).lower_fn_def(&func);
-    let (conts, fn_ty) = infer_regions(&tcx, &func, conts, fn_ty);
-    let constraint = RefineChecker::new(&tcx, &conts)
-        .check_fn_def(&func, &fn_ty)
-        .lower();
+    println!("{}", func.body);
 
-    println!("{:#?}", constraint.solve());
+    println!("{:#?}", check_fn_def(func));
 
     Ok(())
 }

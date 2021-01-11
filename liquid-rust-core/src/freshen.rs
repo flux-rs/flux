@@ -15,7 +15,7 @@ pub struct NameFreshener<'a, S> {
 
 impl<'a, S> NameFreshener<'a, S>
 where
-    S: Eq + Copy + std::hash::Hash + std::fmt::Debug,
+    S: Eq + Copy + std::hash::Hash,
 {
     pub fn new(tcx: &'a TyCtxt) -> Self {
         NameFreshener {
@@ -227,10 +227,7 @@ where
                 Tuple(tup)
             }
             Uninit(s) => Uninit(s),
-            Refine { bty, refine } => Refine {
-                bty,
-                refine: self.freshen_refine(refine),
-            },
+            Refine(bty, refine) => Refine(bty, self.freshen_refine(refine)),
         }
     }
 

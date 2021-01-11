@@ -339,6 +339,7 @@ dependencies = [
  "if_chain",
  "lalrpop",
  "lalrpop-util",
+ "liquid-rust-driver",
  "regex",
  "rsmt2",
  "serde",
@@ -368,6 +369,14 @@ dependencies = [
  "codespan-reporting",
  "lalrpop",
  "lalrpop-util",
+ "liquid-rust-core",
+ "liquid-rust-typeck",
+]
+
+[[package]]
+name = "liquid-rust-driver"
+version = "0.1.0"
+dependencies = [
  "liquid-rust-core",
  "liquid-rust-typeck",
 ]

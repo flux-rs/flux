@@ -112,12 +112,12 @@ OwnRef: Location<&'input str> = "own" "(" <Location> ")" => <>;
 Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from(<>);
 
 Ty: Ty<&'input str> = {
-  "own" "(" <Location> ")"                     => Ty::OwnRef(<>),
-  "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine { <> },
-  "&" "(" <Region> "," <Location> ")"          => Ty::Ref(BorrowKind::Shared, <>),
-  "&" "shrd" "(" <Region> "," <Location> ")"   => Ty::Ref(BorrowKind::Shared, <>),
-  "&" "mut" "(" <Region> "," <Location> ")"    => Ty::Ref(BorrowKind::Mut, <>),
-  "(" <Comma<Binding<Field, Ty>>> ")"          => Ty::Tuple(<>)
+  "own" "(" <Location> ")"                   => Ty::OwnRef(<>),
+  "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine(<>),
+  "&" "(" <Region> "," <Location> ")"        => Ty::Ref(BorrowKind::Shared, <>),
+  "&" "shrd" "(" <Region> "," <Location> ")" => Ty::Ref(BorrowKind::Shared, <>),
+  "&" "mut" "(" <Region> "," <Location> ")"  => Ty::Ref(BorrowKind::Mut, <>),
+  "(" <Comma<Binding<Field, Ty>>> ")"        => Ty::Tuple(<>)
 }
 
 BaseTy: BaseTy = {

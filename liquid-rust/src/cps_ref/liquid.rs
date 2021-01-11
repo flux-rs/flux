@@ -1,8 +1,7 @@
 use super::{
     ast,
     constraint::{self, Constraint, PredC},
-    utils::Dict,
-    utils::Scoped,
+    utils::{Dict, Scoped},
 };
 use serde;
 use std::{
@@ -12,9 +11,7 @@ use std::{
 };
 #[derive(serde::Deserialize, Eq, PartialEq)]
 enum Safeness {
-    #[serde(rename(deserialize = "safe"))]
     Safe,
-    #[serde(rename(deserialize = "unsafe"))]
     Unsafe,
 }
 
@@ -34,7 +31,7 @@ impl std::fmt::Display for Sort {
 
 #[derive(serde::Deserialize)]
 struct LiquidResult {
-    result: Safeness,
+    tag: Safeness,
 }
 
 pub struct LiquidSolver<'a> {
@@ -78,7 +75,7 @@ impl<'a> LiquidSolver<'a> {
         let out = self.kid.wait_with_output()?;
         let res: LiquidResult = serde_json::from_slice(&out.stdout)?;
 
-        Ok(res.result == Safeness::Safe)
+        Ok(res.tag == Safeness::Safe)
     }
 
     fn write_qualifs(&mut self) -> io::Result<()> {

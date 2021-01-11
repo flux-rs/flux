@@ -57,17 +57,16 @@ impl<'a> TypeLowerer<'a> {
             }
             ast::Ty::Tuple(tup) => {
                 let mut vec = Vec::new();
+                let len = self.vars_in_scope.len();
                 for (f, ty) in tup {
-                    self.vars_in_scope.push(Var::Field(*f));
                     vec.push((*f, self.lower_ty(ty)));
-                    self.vars_in_scope.pop();
+                    self.vars_in_scope.push(Var::Field(*f));
                 }
+                self.vars_in_scope.truncate(len);
                 self.tcx.mk_tuple(ty::Tuple::from(vec))
             }
             ast::Ty::Uninit(n) => self.tcx.mk_uninit(*n),
-            ast::Ty::Refine { bty: ty, refine } => {
-                self.tcx.mk_refine(*ty, self.lower_refine(refine))
-            }
+            ast::Ty::Refine(bty, refine) => self.tcx.mk_refine(*bty, self.lower_refine(refine)),
         }
     }
 

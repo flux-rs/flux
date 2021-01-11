@@ -16,6 +16,15 @@ pub enum Safeness {
     Unsafe,
 }
 
+impl fmt::Display for Safeness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Safeness::Safe => write!(f, "Safe"),
+            Safeness::Unsafe => write!(f, "Unsafe"),
+        }
+    }
+}
+
 pub fn solve(constraint: &Constraint) -> io::Result<LiquidResult> {
     let mut kid = Command::new("fixpoint")
         .arg("-q")
