@@ -2,6 +2,7 @@ use std::str::FromStr;
 use liquid_rust_core::ast::*;
 use liquid_rust_core::names::*;
 use codespan::Span;
+use std::iter::FromIterator;
 
 grammar();
 
@@ -109,7 +110,7 @@ TypeLayout: TypeLayout = {
 
 OwnRef: Location<&'input str> = "own" "(" <Location> ")" => <>;
 
-Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from(<>);
+Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from_iter(<>);
 
 Ty: Ty<&'input str> = {
   "own" "(" <Location> ")"                   => Ty::OwnRef(<>),

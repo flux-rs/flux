@@ -283,11 +283,9 @@ where
     }
 
     fn freshen_heap(&mut self, heap: Heap<S>) -> Heap {
-        Heap::from(
-            heap.into_iter()
-                .map(|(l, ty)| (self.freshen_location(l), self.freshen_ty(ty)))
-                .collect::<Vec<_>>(),
-        )
+        heap.into_iter()
+            .map(|(l, ty)| (self.freshen_location(l), self.freshen_ty(ty)))
+            .collect()
     }
 
     fn freshen_cont_id(&mut self, cont_id: ContId<S>) -> ContId {

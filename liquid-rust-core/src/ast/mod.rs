@@ -174,36 +174,8 @@ pub enum Refine<S = usize> {
 #[derive(Debug)]
 pub struct Heap<S = usize>(Vec<(Location<S>, Ty<S>)>);
 
-impl<S> Heap<S> {
-    pub fn iter(&self) -> impl Iterator<Item = &(Location<S>, Ty<S>)> {
-        self.0.iter()
-    }
-}
-
-impl<S> From<Vec<(Location<S>, Ty<S>)>> for Heap<S> {
-    fn from(vec: Vec<(Location<S>, Ty<S>)>) -> Self {
-        Heap(vec)
-    }
-}
-
-impl<S> IntoIterator for Heap<S> {
-    type Item = (Location<S>, Ty<S>);
-
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<'a, S> IntoIterator for &'a Heap<S> {
-    type Item = &'a (Location<S>, Ty<S>);
-
-    type IntoIter = std::slice::Iter<'a, (Location<S>, Ty<S>)>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
+wrap_iterable! {
+    for<S> Heap<S>: Vec<(Location<S>, Ty<S>)>
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]

@@ -1,5 +1,7 @@
 //! Handles the translation from Rust MIR to the CPS IR.
 
+use std::iter::FromIterator;
+
 use dataflow::ResultsCursor;
 use liquid_rust_core::{ast::*, names::*};
 use rustc_middle::{
@@ -253,7 +255,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
     /// block of the corresponding size, or a tuple of maybe holy types
     fn get_maybe_holy_type(
         &mut self,
-        l: mir::Local,
+        x: mir::Local,
         ps: &mut Vec<mir::PlaceElem<'tcx>>,
         t: ty::Ty<'tcx>,
     ) -> Ty {
@@ -263,7 +265,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
                     .enumerate()
                     .map(|(i, f)| {
                         ps.push(mir::ProjectionElem::Field(mir::Field::from_usize(i), f));
-                        let res = (Field(i), self.get_maybe_holy_type(l, ps, f));
+                        let res = (Field(i), self.get_maybe_holy_type(x, ps, f));
                         let _ = ps.pop();
 
                         res
@@ -272,7 +274,7 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
             ),
             _ => {
                 let mpi = match self.move_data.rev_lookup.find(PlaceRef {
-                    local: l,
+                    local: x,
                     projection: ps,
                 }) {
                     LookupResult::Exact(ix) => ix,
@@ -358,13 +360,13 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         // our return type
         let mut out_heap = vec![];
         let output = self.fresh_location();
-        let out_ty = self.get_holy_type(self.body.local_decls[mir::Local::from_u32(0)].ty);
+        let out_ty = self.get_holy_type(self.body.return_ty());
         out_heap.push((output, out_ty));
 
         let fn_ty = FnTy {
-            in_heap: Heap::from(in_heap),
+            in_heap: Heap::from_iter(in_heap),
             inputs,
-            out_heap: Heap::from(out_heap),
+            out_heap: Heap::from_iter(out_heap),
             output,
         };
 
@@ -407,20 +409,20 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         let mut locals = vec![];
         let mut heap = vec![];
 
-        for (lix, decl) in self.body.local_decls.iter_enumerated() {
-            let arg = Local(lix.index());
-            let loc = Location(lix.index());
+        for (mir_x, decl) in self.body.local_decls.iter_enumerated() {
+            let x = Local(mir_x.index());
+            let l = self.fresh_location();
 
             // Check if this local has been initialized yet.
             let mut ps = vec![];
-            let ty = self.get_maybe_holy_type(lix, &mut ps, decl.ty);
+            let ty = self.get_maybe_holy_type(mir_x, &mut ps, decl.ty);
 
-            locals.push((arg, loc));
-            heap.push((loc, ty));
+            locals.push((x, l));
+            heap.push((l, ty));
         }
 
         let cont_ty = ContTy {
-            heap: Heap::from(heap),
+            heap: Heap::from_iter(heap),
             locals,
             inputs: vec![],
         };

@@ -169,10 +169,6 @@ impl Tuple {
     pub fn fields(&self) -> impl DoubleEndedIterator<Item = &Field> + ExactSizeIterator {
         self.0.iter().map(|x| &x.0)
     }
-
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &(Field, Ty)> + ExactSizeIterator {
-        self.0.iter()
-    }
 }
 
 #[macro_export]
@@ -182,33 +178,12 @@ macro_rules! tup {
         $(
             _vec.push(($f, $ty));
         )*
-        $crate::ty::Tuple::from(_vec)
+        _vec.into_iter().collect::<$crate::ty::Tuple>()
     }};
 }
 
-impl<I> From<I> for Tuple
-where
-    I: IntoIterator<Item = (Field, Ty)>,
-{
-    fn from(iter: I) -> Self {
-        Tuple(iter.into_iter().collect())
-    }
-}
-
-impl<'a> IntoIterator for &'a Tuple {
-    type Item = &'a (Field, Ty);
-
-    type IntoIter = std::slice::Iter<'a, (Field, Ty)>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-impl std::iter::FromIterator<(Field, Ty)> for Tuple {
-    fn from_iter<T: IntoIterator<Item = (Field, Ty)>>(iter: T) -> Self {
-        Tuple(iter.into_iter().collect())
-    }
+wrap_iterable! {
+    Tuple: Vec<(Field, Ty)>
 }
 
 #[derive(Debug)]
@@ -306,6 +281,17 @@ impl fmt::Debug for Kvar {
 #[derive(Clone, Debug)]
 pub struct Heap(IndexMap<Location, Ty>);
 
+wrap_iterable! {
+    Heap: IndexMap<Location, Ty>
+}
+
+wrap_dict_like! {
+    Heap: IndexMap<Location, Ty> {
+        type Index = Location;
+        type Output = Ty;
+    }
+}
+
 impl Heap {
     pub fn new() -> Self {
         Heap(IndexMap::new())
@@ -317,22 +303,6 @@ impl Heap {
 
     pub fn truncate(&mut self, len: usize) {
         self.0.truncate(len);
-    }
-
-    pub fn get(&self, l: &Location) -> Option<&Ty> {
-        self.0.get(l)
-    }
-
-    pub fn insert(&mut self, l: Location, ty: Ty) -> Option<Ty> {
-        self.0.insert(l, ty)
-    }
-
-    pub fn iter(&self) -> indexmap::map::Iter<Location, Ty> {
-        self.0.iter()
-    }
-
-    pub fn keys(&self) -> impl Iterator<Item = &Location> {
-        self.0.keys()
     }
 
     pub fn bindings(&self) -> Vec<(Location, Ty)> {
@@ -358,14 +328,6 @@ impl std::fmt::Display for Heap {
     }
 }
 
-impl std::ops::Index<&Location> for Heap {
-    type Output = Ty;
-
-    fn index(&self, l: &Location) -> &Self::Output {
-        self.get(l).expect("Heap: location not found")
-    }
-}
-
 impl PartialEq for Heap {
     fn eq(&self, other: &Self) -> bool {
         if self.0.len() != other.0.len() {
@@ -387,35 +349,6 @@ impl std::hash::Hash for Heap {
     }
 }
 
-impl IntoIterator for Heap {
-    type Item = (Location, Ty);
-
-    type IntoIter = indexmap::map::IntoIter<Location, Ty>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a Heap {
-    type Item = (&'a Location, &'a Ty);
-
-    type IntoIter = indexmap::map::Iter<'a, Location, Ty>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-impl std::iter::FromIterator<(Location, Ty)> for Heap {
-    fn from_iter<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = (Location, Ty)>,
-    {
-        Heap(iter.into_iter().collect())
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct LocalsMap(IndexMap<Local, Location>);
 
@@ -427,54 +360,16 @@ impl LocalsMap {
     pub fn locals(&self) -> impl Iterator<Item = &Local> {
         self.iter().map(|(x, _)| x)
     }
-
-    pub fn iter(&self) -> indexmap::map::Iter<Local, Location> {
-        self.0.iter()
-    }
-
-    pub fn get(&self, x: &Local) -> Option<&Location> {
-        self.0.get(x)
-    }
-
-    pub fn insert(&mut self, x: Local, l: Location) -> Option<Location> {
-        self.0.insert(x, l)
-    }
 }
 
-impl<'a> std::ops::Index<&'a Local> for LocalsMap {
-    type Output = Location;
-
-    fn index(&self, x: &'a Local) -> &Self::Output {
-        self.get(x).expect("LocalsMap: local not found")
-    }
+wrap_iterable! {
+    LocalsMap: IndexMap<Local, Location>
 }
 
-impl std::iter::FromIterator<(Local, Location)> for LocalsMap {
-    fn from_iter<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = (Local, Location)>,
-    {
-        LocalsMap(iter.into_iter().collect())
-    }
-}
-
-impl<'a> IntoIterator for &'a LocalsMap {
-    type Item = (&'a Local, &'a Location);
-
-    type IntoIter = indexmap::map::Iter<'a, Local, Location>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-impl IntoIterator for LocalsMap {
-    type Item = (Local, Location);
-
-    type IntoIter = indexmap::map::IntoIter<Local, Location>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+wrap_dict_like! {
+    LocalsMap: IndexMap<Local, Location> {
+        type Index = Local;
+        type Output = Location;
     }
 }
 

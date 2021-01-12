@@ -89,11 +89,12 @@ impl TyCtxt {
 
     pub fn mk_ty_for_layout(&self, layout: &TypeLayout) -> Ty {
         match layout {
-            TypeLayout::Tuple(tuple) => {
-                let tuple = tuple
+            TypeLayout::Tuple(tup) => {
+                let tup = tup
                     .iter()
-                    .map(|layout| (self.fresh_field(), self.mk_ty_for_layout(layout)));
-                self.mk_ty(TyKind::Tuple(tuple.into()))
+                    .map(|layout| (self.fresh_field(), self.mk_ty_for_layout(layout)))
+                    .collect();
+                self.mk_ty(TyKind::Tuple(tup))
             }
             TypeLayout::Block(size) => self.mk_ty(TyKind::Uninit(*size)),
         }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::FromIterator};
 
 use ast::ContDef;
 
@@ -63,7 +63,7 @@ impl<'a> TypeLowerer<'a> {
                     self.vars_in_scope.push(Var::Field(*f));
                 }
                 self.vars_in_scope.truncate(len);
-                self.tcx.mk_tuple(ty::Tuple::from(vec))
+                self.tcx.mk_tuple(ty::Tuple::from_iter(vec))
             }
             ast::Ty::Uninit(n) => self.tcx.mk_uninit(*n),
             ast::Ty::Refine(bty, refine) => self.tcx.mk_refine(*bty, self.lower_refine(refine)),
