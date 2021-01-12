@@ -6,13 +6,13 @@ use crate::{
 };
 use ast::{FnBody, StatementKind};
 use liquid_rust_core::{
-    ast::{self, ContDef, FnDef, Place, Statement},
+    ast::{self, ContDef, FnDef, Place, Rvalue, Statement},
     names::ContId,
-    ty::{self, ContTy, TyCtxt},
+    ty::{self, BaseTy, ContTy, Ty, TyCtxt},
 };
 use ty::pred;
 
-use crate::{env::Env, synth::Synth};
+use crate::env::Env;
 
 pub struct RefineChecker<'a> {
     conts: &'a HashMap<ContId, ContTy>,
@@ -24,7 +24,7 @@ impl<'a> RefineChecker<'a> {
         Self { tcx, conts }
     }
 
-    pub fn check_fn_def<I>(mut self, func: &FnDef<I>, fn_ty: &ty::FnTy) -> Constraint {
+    pub fn check_fn_def<I>(self, func: &FnDef<I>, fn_ty: &ty::FnTy) -> Constraint {
         let mut env = Env::new(self.tcx);
         env.insert_locals(fn_ty.locals(&func.params));
         env.extend_heap(&fn_ty.in_heap);
@@ -35,7 +35,7 @@ impl<'a> RefineChecker<'a> {
         )
     }
 
-    pub fn check_body<I>(&mut self, env: &mut Env, body: &FnBody<I>) -> Constraint {
+    pub fn check_body<I>(&self, env: &mut Env, body: &FnBody<I>) -> Constraint {
         match body {
             FnBody::LetCont(defs, rest) => {
                 let mut vec = Vec::new();
@@ -94,7 +94,7 @@ impl<'a> RefineChecker<'a> {
         }
     }
 
-    fn check_cont_def<I>(&mut self, env: &mut Env, def: &ContDef<I>) -> Constraint {
+    fn check_cont_def<I>(&self, env: &mut Env, def: &ContDef<I>) -> Constraint {
         let snapshot = env.snapshot_without_locals();
 
         let cont_ty = &self.conts[&def.name];
@@ -107,19 +107,98 @@ impl<'a> RefineChecker<'a> {
         Constraint::from_bindings(bindings, c)
     }
 
-    fn check_stmnt<I>(&mut self, env: &mut Env, stmnt: &Statement<I>) -> Constraint {
+    fn check_stmnt<I>(&self, env: &mut Env, stmnt: &Statement<I>) -> Constraint {
         match &stmnt.kind {
             StatementKind::Let(x, layout) => {
                 env.alloc(*x, self.tcx.mk_ty_for_layout(layout));
                 Constraint::True
             }
             StatementKind::Assign(place, rvalue) => {
-                let ty = rvalue.synth(self.tcx, env);
+                let ty = self.synth_rvalue(rvalue, env);
                 env.update(place, ty);
                 Constraint::True
             }
             StatementKind::Drop(place) => env.drop(place),
             StatementKind::Nop => Constraint::True,
         }
+    }
+
+    fn synth_rvalue(&self, rvalue: &Rvalue, env: &mut Env) -> Ty {
+        let tcx = self.tcx;
+        match rvalue {
+            ast::Rvalue::Use(op @ ast::Operand::Constant(c)) => {
+                let pred = env.resolve_operand(op);
+                self.tcx.mk_refine(
+                    c.base_ty(),
+                    self.tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
+                )
+            }
+            ast::Rvalue::Use(ast::Operand::Use(place)) => {
+                let ty = env.lookup(place);
+                self.tcx.selfify(ty, env.resolve_place(place))
+            }
+            ast::Rvalue::Ref(bk, place) => {
+                let l = env.borrow(place);
+                self.tcx.mk_ref(*bk, ty::Region::from(place.clone()), l)
+            }
+            ast::Rvalue::BinaryOp(bin_op, op1, op2) => self.synth_bin_op(bin_op, op1, op2, env),
+            ast::Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
+                let ty = self.synth_bin_op(bin_op, op1, op2, env);
+                let f1 = tcx.fresh_field();
+                let f2 = tcx.fresh_field();
+                tcx.mk_tuple(tup!(f1 => ty, f2 => tcx.types.bool()))
+            }
+            ast::Rvalue::UnaryOp(un_op, op) => match un_op {
+                ast::UnOp::Not => {
+                    let pred = env.resolve_operand(op);
+                    tcx.mk_refine(BaseTy::Bool, pred)
+                }
+            },
+        }
+    }
+
+    fn synth_bin_op(
+        &self,
+        bin_op: &ast::BinOp,
+        op1: &ast::Operand,
+        op2: &ast::Operand,
+        env: &Env,
+    ) -> Ty {
+        let tcx = self.tcx;
+        use ast::BinOp as ast;
+        use ty::BinOp::*;
+        let op1 = env.resolve_operand(op1);
+        let op2 = env.resolve_operand(op2);
+        let (bty, pred) = match bin_op {
+            ast::Add => (
+                BaseTy::Int,
+                tcx.mk_bin_op(Eq, tcx.preds.nu(), tcx.mk_bin_op(Add, op1, op2)),
+            ),
+            ast::Sub => (
+                BaseTy::Int,
+                tcx.mk_bin_op(Eq, tcx.preds.nu(), tcx.mk_bin_op(Sub, op1, op2)),
+            ),
+            ast::Eq => (
+                BaseTy::Bool,
+                tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Eq, op1, op2)),
+            ),
+            ast::Lt => (
+                BaseTy::Bool,
+                tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Lt, op1, op2)),
+            ),
+            ast::Le => (
+                BaseTy::Bool,
+                tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Le, op1, op2)),
+            ),
+            ast::Ge => (
+                BaseTy::Bool,
+                tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Ge, op1, op2)),
+            ),
+            ast::Gt => (
+                BaseTy::Bool,
+                tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_bin_op(Gt, op1, op2)),
+            ),
+        };
+        tcx.mk_refine(bty, pred)
     }
 }

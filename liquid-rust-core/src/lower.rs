@@ -29,7 +29,7 @@ impl<I> Visitor<I> for TypeLowerer<'_> {
 }
 
 impl<'a> TypeLowerer<'a> {
-    pub fn new(tcx: &'a TyCtxt) -> Self {
+    fn new(tcx: &'a TyCtxt) -> Self {
         Self {
             tcx,
             vars_in_scope: Vec::new(),
@@ -37,16 +37,21 @@ impl<'a> TypeLowerer<'a> {
         }
     }
 
-    pub fn lower_fn_def<I>(mut self, func: &FnDef<I>) -> (HashMap<ContId, ty::ContTy>, ty::FnTy) {
-        self.visit_fn_body(&func.body);
-        let fn_ty = self.lower_fn_ty(&func.ty);
+    pub fn lower_fn_def<I>(
+        tcx: &TyCtxt,
+        func: &FnDef<I>,
+    ) -> (HashMap<ContId, ty::ContTy>, ty::FnTy) {
+        let mut lowerer = TypeLowerer::new(tcx);
+        let fn_ty = lowerer.lower_fn_ty(&func.ty);
         let ret_cont_ty = ty::ContTy::new(
-            self.lower_heap(&func.ty.out_heap),
+            lowerer.lower_heap(&func.ty.out_heap),
             LocalsMap::empty(),
             vec![func.ty.output],
         );
-        self.conts.insert(func.ret, ret_cont_ty);
-        (self.conts, fn_ty)
+        lowerer.vars_in_scope.extend(fn_ty.in_heap.vars_in_scope());
+        lowerer.visit_fn_body(&func.body);
+        lowerer.conts.insert(func.ret, ret_cont_ty);
+        (lowerer.conts, fn_ty)
     }
 
     fn lower_ty(&mut self, ty: &ast::Ty) -> ty::Ty {

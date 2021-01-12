@@ -305,6 +305,10 @@ impl Heap {
         self.0.truncate(len);
     }
 
+    pub fn vars_in_scope(&self) -> impl Iterator<Item = Var> + '_ {
+        self.iter().map(|(l, _)| Var::Location(*l))
+    }
+
     pub fn bindings(&self) -> Vec<(Location, Ty)> {
         self.0.iter().map(|(l, ty)| (*l, ty.clone())).collect()
     }

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{env::Env, synth::Synth};
+use crate::env::Env;
 use ast::{FnDef, Place, StatementKind};
 use liquid_rust_core::{
     ast::{
@@ -8,8 +8,8 @@ use liquid_rust_core::{
         visitor::{self as vis, Visitor},
         FnBody, Statement,
     },
-    names::ContId,
-    ty::{self, ContTy, Heap, Ty, TyCtxt, TyS},
+    names::{ContId, Field},
+    ty::{self, BaseTy, ContTy, Heap, Ty, TyCtxt, TyS},
 };
 use ty::FnTy;
 
@@ -100,15 +100,57 @@ impl<I> Visitor<I> for RegionInferer<'_> {
                 self.env.alloc(*local, ty);
             }
             StatementKind::Assign(place, rvalue) => {
-                let ty = rvalue.synth(self.tcx, &mut self.env);
+                let ty = synth(rvalue, self.tcx, &mut self.env);
                 self.env.update(place, ty);
             }
-            StatementKind::Drop(local) => {
-                self.env.drop(local);
+            StatementKind::Drop(place) => {
+                self.env.drop(place);
             }
             StatementKind::Nop => {}
         }
     }
+}
+
+// Synth
+
+fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
+    match rvalue {
+        ast::Rvalue::Use(op @ ast::Operand::Constant(c)) => {
+            let pred = env.resolve_operand(op);
+            tcx.mk_refine(
+                c.base_ty(),
+                tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
+            )
+        }
+        ast::Rvalue::Use(ast::Operand::Use(place)) => {
+            let ty = env.lookup(place);
+            tcx.selfify(ty, env.resolve_place(place))
+        }
+        ast::Rvalue::Ref(bk, place) => {
+            let l = env.borrow(place);
+            tcx.mk_ref(*bk, ty::Region::from(place.clone()), l)
+        }
+        ast::Rvalue::BinaryOp(bin_op, ..) => ty_for_bin_op(bin_op, tcx),
+        ast::Rvalue::CheckedBinaryOp(bin_op, ..) => {
+            let ty = ty_for_bin_op(bin_op, tcx);
+            tcx.mk_tuple(tup!(Field(0) => ty, Field(1) => tcx.types.bool()))
+        }
+        ast::Rvalue::UnaryOp(un_op, op) => match un_op {
+            ast::UnOp::Not => {
+                let pred = env.resolve_operand(op);
+                tcx.mk_refine(BaseTy::Bool, pred)
+            }
+        },
+    }
+}
+
+fn ty_for_bin_op(bin_op: &ast::BinOp, tcx: &TyCtxt) -> Ty {
+    use ast::BinOp as ast;
+    let bty = match bin_op {
+        ast::Add | ast::Sub => BaseTy::Int,
+        ast::Eq | ast::Lt | ast::Le | ast::Ge | ast::Gt => BaseTy::Bool,
+    };
+    tcx.mk_refine(bty, tcx.preds.tt())
 }
 
 fn subtyping(
@@ -137,6 +179,8 @@ fn subtyping(
         _ => bug!("{} {}", ty1, ty2),
     }
 }
+
+// Constraints
 
 struct Constraints(Vec<(ty::Region, ty::Region)>);
 
