@@ -4,6 +4,7 @@ use std::iter::FromIterator;
 
 use dataflow::ResultsCursor;
 use liquid_rust_core::{ast::*, names::*};
+use rustc_ast::Mutability;
 use rustc_middle::{
     mir::{
         self,
@@ -110,17 +111,29 @@ fn translate_const(from: &mir::Constant) -> Operand {
 fn translate_rvalue<'tcx>(from: &mir::Rvalue<'tcx>) -> Rvalue {
     match from {
         mir::Rvalue::Use(op) => Rvalue::Use(translate_op(op)),
-        mir::Rvalue::BinaryOp(op, a, b) => {
-            Rvalue::BinaryOp(map_bin_op(op).into(), translate_op(a), translate_op(b))
-        }
-        mir::Rvalue::CheckedBinaryOp(op, a, b) => {
-            Rvalue::CheckedBinaryOp(map_bin_op(op).into(), translate_op(a), translate_op(b))
+        mir::Rvalue::BinaryOp(bin_op, op1, op2) => Rvalue::BinaryOp(
+            translate_bin_op(bin_op),
+            translate_op(op1),
+            translate_op(op2),
+        ),
+        mir::Rvalue::CheckedBinaryOp(bin_op, op1, op2) => Rvalue::CheckedBinaryOp(
+            translate_bin_op(bin_op),
+            translate_op(op1),
+            translate_op(op2),
+        ),
+        mir::Rvalue::Ref(_, bk, place) => {
+            let bk = match bk {
+                mir::BorrowKind::Mut { .. } => BorrowKind::Mut,
+                mir::BorrowKind::Shared => BorrowKind::Shared,
+                _ => todo!(),
+            };
+            Rvalue::Ref(bk, translate_place(place))
         }
         _ => todo!(),
     }
 }
 
-fn map_bin_op(bin_op: &mir::BinOp) -> BinOp {
+fn translate_bin_op(bin_op: &mir::BinOp) -> BinOp {
     match bin_op {
         mir::BinOp::Add => BinOp::Add,
         mir::BinOp::Sub => BinOp::Sub,
@@ -139,26 +152,6 @@ fn get_base_ty<'tcx>(t: ty::Ty<'tcx>) -> BaseTy {
         ty::TyKind::Int(_) | ty::TyKind::Uint(_) => BaseTy::Int,
         _ => todo!(),
     }
-}
-
-// TODO: For some reason, TyS::size returns 1 for all scalar types
-// Idk why, but once this is fixed, we'll actually get the size
-// of types correctly
-
-/// Gets the size of a type for use of creating an uninitalized type of that
-/// sizer later. The type must be a scalar type - no tuples!
-fn get_size<'tcx>(_t: ty::Ty<'tcx>) -> usize {
-    1
-    // match &t.kind {
-    //     ty::TyKind::Bool => size_of::<bool>().try_into().unwrap(),
-    //     ty::TyKind::Int(it) => it.bit_width()
-    //         .map(|x| x >> 3)
-    //         .unwrap_or_else(|| size_of::<isize>().try_into().unwrap()) as u32,
-    //     ty::TyKind::Uint(it) => it.bit_width()
-    //         .map(|x| x >> 3 as u32)
-    //         .unwrap_or_else(|| size_of::<isize>().try_into().unwrap()) as u32,
-    //     _ => todo!(),
-    // }
 }
 
 /// Creates a TypeLayout based on a Rust TyKind.
@@ -193,16 +186,15 @@ fn get_layout<'tcx>(t: ty::Ty<'tcx>) -> TypeLayout {
 
 // Transformer state struct should include a mapping from locals to refinements too
 
-pub struct Transformer<'a, 'tcx> {
+pub struct Transformer<'low, 'tcx> {
     tcx: ty::TyCtxt<'tcx>,
-    body: &'a mir::Body<'tcx>,
+    body: &'low mir::Body<'tcx>,
     move_data: MoveData<'tcx>,
-    maybe_uninitialized_cursor: ResultsCursor<'a, 'tcx, MaybeUninitializedPlaces<'a, 'tcx>>,
-    next_local: usize,
-    next_location: usize,
+    maybe_uninitialized_cursor: ResultsCursor<'low, 'tcx, MaybeUninitializedPlaces<'low, 'tcx>>,
+    names: NameProducer,
 }
 
-impl<'a, 'tcx> Transformer<'a, 'tcx> {
+impl<'low, 'tcx> Transformer<'low, 'tcx> {
     pub fn translate(tcx: ty::TyCtxt<'tcx>, body: &mir::Body<'tcx>) -> FnDef<()> {
         let param_env = tcx.param_env(body.source.def_id());
         let mdpe_move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
@@ -218,21 +210,18 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
             body,
             maybe_uninitialized_cursor,
             move_data,
-            next_local: body.local_decls.len(),
-            next_location: 0,
+            names: NameProducer::new(body),
         };
         transformer.translate_body()
     }
 
     /// Generates a fresh variable with a certain prefix.
     fn fresh_local(&mut self) -> Local {
-        self.next_local += 1;
-        Local(self.next_local - 1)
+        self.names.fresh_local()
     }
 
     fn fresh_location(&mut self) -> Location {
-        self.next_location += 1;
-        Location(self.next_location - 1)
+        self.names.fresh_location()
     }
 
     /// Based on the structure of the type, return either a RefineHole
@@ -250,51 +239,6 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         }
     }
 
-    /// For a given local, based on the structure of its type and which
-    /// of its parts are initialized, return either a RefineHole or an uninitalized
-    /// block of the corresponding size, or a tuple of maybe holy types
-    fn get_maybe_holy_type(
-        &mut self,
-        x: mir::Local,
-        ps: &mut Vec<mir::PlaceElem<'tcx>>,
-        t: ty::Ty<'tcx>,
-    ) -> Ty {
-        match t.kind() {
-            ty::TyKind::Tuple(subst) if !subst.is_empty() => Ty::Tuple(
-                t.tuple_fields()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        ps.push(mir::ProjectionElem::Field(mir::Field::from_usize(i), f));
-                        let res = (Field(i), self.get_maybe_holy_type(x, ps, f));
-                        let _ = ps.pop();
-
-                        res
-                    })
-                    .collect(),
-            ),
-            _ => {
-                let mpi = match self.move_data.rev_lookup.find(PlaceRef {
-                    local: x,
-                    projection: ps,
-                }) {
-                    LookupResult::Exact(ix) => ix,
-                    LookupResult::Parent(Some(ix)) => ix,
-                    LookupResult::Parent(None) => return Ty::Uninit(get_size(t)),
-                };
-
-                if self.maybe_uninitialized_cursor.get().contains(mpi) {
-                    Ty::Uninit(get_size(t))
-                } else if matches!(t.kind(), ty::TyKind::Tuple(..)) {
-                    Ty::unit()
-                } else {
-                    Ty::Refine(get_base_ty(t), Refine::Infer)
-                }
-            }
-        }
-    }
-
-    // TODO: In later compiler versions, the MirSource is contained as a field
-    // source within the Body
     /// Translates an MIR function body to a CPS IR FnDef.
     pub fn translate_body(&mut self) -> FnDef<()> {
         // We then generate a jump instruction to jump to the continuation
@@ -409,15 +353,14 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         let mut locals = vec![];
         let mut heap = vec![];
 
-        for (mir_x, decl) in self.body.local_decls.iter_enumerated() {
-            let x = Local(mir_x.index());
+        for (mir_local, decl) in self.body.local_decls.iter_enumerated() {
+            let mut lower_cx = self.type_lower_ctxt(mir_local, &mut heap);
+            let ty = lower_cx.lower_ty(decl.ty, &mut vec![]);
+
+            let local = Local(mir_local.index());
             let l = self.fresh_location();
 
-            // Check if this local has been initialized yet.
-            let mut ps = vec![];
-            let ty = self.get_maybe_holy_type(mir_x, &mut ps, decl.ty);
-
-            locals.push((x, l));
+            locals.push((local, l));
             heap.push((l, ty));
         }
 
@@ -639,11 +582,25 @@ impl<'a, 'tcx> Transformer<'a, 'tcx> {
         }
     }
 
-    pub fn retk(&self) -> ContId {
+    fn type_lower_ctxt<'a>(
+        &'a mut self,
+        local: mir::Local,
+        heap: &'a mut Vec<(Location, Ty)>,
+    ) -> TyLowerCtxt<'a, 'low, 'tcx> {
+        TyLowerCtxt {
+            local,
+            names: &mut self.names,
+            heap,
+            move_data: &self.move_data,
+            maybe_uninitialized_cursor: &self.maybe_uninitialized_cursor,
+        }
+    }
+
+    fn retk(&self) -> ContId {
         ContId(self.body.basic_blocks().len())
     }
 
-    pub fn retv(&self) -> Local {
+    fn retv(&self) -> Local {
         Local(0)
     }
 }
@@ -653,5 +610,109 @@ fn tuple_layout_or_block(tup: Vec<TypeLayout>) -> TypeLayout {
         TypeLayout::Block(1)
     } else {
         TypeLayout::Tuple(tup)
+    }
+}
+
+struct TyLowerCtxt<'a, 'low, 'tcx> {
+    local: mir::Local,
+    names: &'a mut NameProducer,
+    heap: &'a mut Vec<(Location, Ty)>,
+    move_data: &'a MoveData<'tcx>,
+    maybe_uninitialized_cursor: &'a ResultsCursor<'low, 'tcx, MaybeUninitializedPlaces<'low, 'tcx>>,
+}
+
+impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
+    fn lower_ty(&mut self, ty: ty::Ty<'tcx>, projection: &mut Vec<mir::PlaceElem<'tcx>>) -> Ty {
+        if self.maybe_unitialized(projection) {
+            return self.uninitialize(ty);
+        }
+
+        match ty.kind() {
+            ty::TyKind::Tuple(subst) if !subst.is_empty() => {
+                let tup = ty
+                    .tuple_fields()
+                    .enumerate()
+                    .map(|(i, ty)| {
+                        projection.push(mir::PlaceElem::Field(mir::Field::from_usize(i), ty));
+                        let r = (Field(i), self.lower_ty(ty, projection));
+                        projection.pop();
+                        r
+                    })
+                    .collect();
+                Ty::Tuple(tup)
+            }
+            ty::TyKind::Tuple(_) => Ty::unit(),
+            ty::TyKind::Bool => Ty::Refine(BaseTy::Bool, Refine::Infer),
+            ty::TyKind::Int(_) | ty::TyKind::Uint(_) => Ty::Refine(BaseTy::Int, Refine::Infer),
+            ty::TyKind::Ref(_, ty, mutability) => {
+                projection.push(mir::PlaceElem::Deref);
+                let ty = self.lower_ty(ty, projection);
+                projection.pop();
+                let l = self.names.fresh_location();
+                self.heap.push((l, ty));
+                match mutability {
+                    Mutability::Mut => Ty::Ref(BorrowKind::Mut, Region::Infer, l),
+                    Mutability::Not => Ty::Ref(BorrowKind::Shared, Region::Infer, l),
+                }
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn uninitialize(&mut self, ty: ty::Ty<'tcx>) -> Ty {
+        match ty.kind() {
+            ty::TyKind::Tuple(subst) if !subst.is_empty() => {
+                let tup = ty
+                    .tuple_fields()
+                    .enumerate()
+                    .map(|(i, ty)| (Field(i), self.uninitialize(ty)))
+                    .collect();
+                Ty::Tuple(tup)
+            }
+            ty::TyKind::Tuple(_)
+            | ty::TyKind::Bool
+            | ty::TyKind::Int(_)
+            | ty::TyKind::Uint(_)
+            | ty::TyKind::Ref(..) => Ty::Uninit(1),
+            _ => todo!(),
+        }
+    }
+
+    fn maybe_unitialized(&self, projection: &[mir::PlaceElem<'tcx>]) -> bool {
+        let place = PlaceRef {
+            local: self.local,
+            projection,
+        };
+        match self.move_data.rev_lookup.find(place) {
+            LookupResult::Exact(move_path_index) => self
+                .maybe_uninitialized_cursor
+                .get()
+                .contains(move_path_index),
+            LookupResult::Parent(_) => true,
+        }
+    }
+}
+
+struct NameProducer {
+    next_location: usize,
+    next_local: usize,
+}
+
+impl NameProducer {
+    fn new(body: &mir::Body) -> Self {
+        Self {
+            next_location: 0,
+            next_local: body.local_decls.len(),
+        }
+    }
+
+    fn fresh_local(&mut self) -> Local {
+        self.next_local += 1;
+        Local(self.next_local - 1)
+    }
+
+    fn fresh_location(&mut self) -> Location {
+        self.next_location += 1;
+        Location(self.next_location - 1)
     }
 }

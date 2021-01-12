@@ -6,7 +6,6 @@ use std::fmt;
 pub use self::pred::Pred;
 use crate::names::{ContId, Field, Local, Location};
 
-#[derive(Debug)]
 pub struct FnDef<I, S = usize> {
     pub ty: FnTy<S>,
     pub params: Vec<Local<S>>,
@@ -14,7 +13,6 @@ pub struct FnDef<I, S = usize> {
     pub ret: ContId<S>,
 }
 
-#[derive(Debug)]
 pub enum FnBody<I, S = usize> {
     LetCont(Vec<ContDef<I, S>>, Box<FnBody<I, S>>),
     Ite {
@@ -35,7 +33,6 @@ pub enum FnBody<I, S = usize> {
     Abort,
 }
 
-#[derive(Debug)]
 pub struct ContDef<I, S = usize> {
     pub name: ContId<S>,
     pub params: Vec<Local<S>>,
@@ -43,20 +40,17 @@ pub struct ContDef<I, S = usize> {
     pub ty: ContTy<S>,
 }
 
-#[derive(Debug)]
 pub struct ContTy<S = usize> {
     pub heap: Heap<S>,
     pub locals: Vec<(Local<S>, Location<S>)>,
     pub inputs: Vec<Location<S>>,
 }
 
-#[derive(Debug)]
 pub struct Statement<I, S = usize> {
     pub source_info: I,
     pub kind: StatementKind<S>,
 }
 
-#[derive(Debug)]
 pub enum StatementKind<S = usize> {
     Let(Local<S>, TypeLayout),
     Assign(Place<S>, Rvalue<S>),
@@ -64,7 +58,6 @@ pub enum StatementKind<S = usize> {
     Nop,
 }
 
-#[derive(Debug)]
 pub enum TypeLayout {
     Tuple(Vec<TypeLayout>),
     Block(usize),
@@ -139,7 +132,6 @@ pub enum BorrowKind {
     Mut,
 }
 
-#[derive(Debug)]
 pub enum Ty<S = usize> {
     OwnRef(Location<S>),
     Ref(BorrowKind, Region<S>, Location<S>),
@@ -157,7 +149,6 @@ impl<S> Ty<S> {
     }
 }
 
-#[derive(Debug)]
 pub struct FnTy<S = usize> {
     pub in_heap: Heap<S>,
     pub inputs: Vec<Location<S>>,
@@ -165,13 +156,11 @@ pub struct FnTy<S = usize> {
     pub output: Location<S>,
 }
 
-#[derive(Debug)]
 pub enum Refine<S = usize> {
     Infer,
     Pred(Pred<S>),
 }
 
-#[derive(Debug)]
 pub struct Heap<S = usize>(Vec<(Location<S>, Ty<S>)>);
 
 wrap_iterable! {

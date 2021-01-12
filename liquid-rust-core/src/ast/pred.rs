@@ -2,7 +2,6 @@ use std::fmt;
 
 use crate::names::{Field, Location};
 
-#[derive(Debug)]
 pub enum Pred<S = usize> {
     Constant(Constant),
     Place(Place<S>),
@@ -26,7 +25,7 @@ impl fmt::Display for Constant {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+#[derive(Eq, PartialEq, Clone, Hash)]
 pub struct Place<S = usize> {
     pub base: Var<S>,
     pub projs: Vec<usize>,
@@ -52,16 +51,6 @@ where
             base: base.into(),
             projs: Vec::new(),
         }
-    }
-}
-
-impl fmt::Display for Place {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.base)?;
-        for proj in &self.projs {
-            write!(f, ".{}", proj)?;
-        }
-        Ok(())
     }
 }
 

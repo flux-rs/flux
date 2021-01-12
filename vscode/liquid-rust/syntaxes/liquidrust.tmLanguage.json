@@ -18,6 +18,9 @@
 			"include": "#letcont"
 		},
 		{
+			"include": "#and"
+		},
+		{
 			"include": "#types"
 		},
 		{
@@ -61,6 +64,20 @@
 							"include": "#identifiers"
 						}
 					]
+				},
+				{
+					"begin": "(uninit)\\(",
+					"end": "\\)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.type.own.liquidrust"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#constants"
+						}
+					]
 				}
 			]
 		},
@@ -80,7 +97,7 @@
 			"patterns": [
 				{
 					"name": "variable.other.liquidrust",
-					"match": "\\b[a-z][a-zA-Z0-9_]*\\b"
+					"match": "\\b[_a-z][a-zA-Z0-9_]*\\b"
 				},
 				{
 					"name": "variable.other.field.liquidrust",
@@ -161,6 +178,18 @@
 		"letcont": {
 			"name": "meta.definition.cont.liquidrust",
 			"match": "(letcont)\\s+(\\w+)",
+			"captures": {
+				"1": {
+					"name": "keyword.other.liquidrust"
+				},
+				"2": {
+					"name": "entity.name.function.continuation.liquidrust"
+				}
+			}
+		},
+		"and": {
+			"name": "meta.definition.cont.liquidrust",
+			"match": "(and)\\s+(\\w+)",
 			"captures": {
 				"1": {
 					"name": "keyword.other.liquidrust"

@@ -7,46 +7,101 @@ macro_rules! indent {
     };
 }
 
-impl<I, S: Pretty> fmt::Display for ast::FnDef<I, S> {
+macro_rules! join {
+    ($f:expr, $sep:literal, $pat:pat in $it:expr => $block:expr) => {{
+        for (i, $pat) in IntoIterator::into_iter($it).enumerate() {
+            if i > 0 {
+                write!($f, $sep)?;
+            }
+            $block;
+        }
+    }};
+}
+
+impl<I, S: fmt::Display> fmt::Display for ast::FnDef<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_fn_def(self, f, 0)
     }
 }
 
-impl<I, S: Pretty> fmt::Display for ast::FnBody<I, S> {
+impl<I, S: fmt::Display> fmt::Display for ast::FnBody<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_fn_body(self, f, 0)
     }
 }
 
-impl<I, S: Pretty> fmt::Display for ast::Statement<I, S> {
+impl<I, S: fmt::Display> fmt::Display for ast::Statement<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_statement(self, f)
     }
 }
 
-impl<S: Pretty> fmt::Display for ast::Operand<S> {
+impl<S: fmt::Display> fmt::Display for ast::Operand<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_operand(self, f)
     }
 }
 
-impl<S: Pretty> fmt::Display for ast::Rvalue<S> {
+impl<S: fmt::Display> fmt::Display for ast::Ty<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        PrettyPrinter.print_ty(self, f)
+    }
+}
+
+impl<S: fmt::Display> fmt::Debug for ast::Ty<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<S: fmt::Display> fmt::Display for ast::Pred<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        PrettyPrinter.print_pred(self, f)
+    }
+}
+
+impl<S: fmt::Display> fmt::Debug for ast::Pred<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<S: fmt::Display> fmt::Display for ast::pred::Place<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        PrettyPrinter.print_pred_place(self, f)
+    }
+}
+
+impl<S: fmt::Display> fmt::Debug for ast::pred::Place<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<S: fmt::Display> fmt::Display for ast::Rvalue<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_rvalue(self, f)
     }
 }
 
-impl<S: Pretty> fmt::Display for ast::Ty<S> {
+impl<S: fmt::Display> fmt::Display for ast::Heap<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        PrettyPrinter.print_ty(self, f)
+        write!(f, "(")?;
+        PrettyPrinter.print_heap(self, f)?;
+        write!(f, "(")
+    }
+}
+
+impl<S: fmt::Display> fmt::Debug for ast::Heap<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
 pub struct PrettyPrinter;
 
 impl PrettyPrinter {
-    fn print_fn_def<I, S: Pretty>(
+    fn print_fn_def<I, S: fmt::Display>(
         &mut self,
         func: &ast::FnDef<I, S>,
         f: &mut fmt::Formatter<'_>,
@@ -66,33 +121,34 @@ impl PrettyPrinter {
         self.print_heap(&func.ty.out_heap, f)?;
         write!(f, "; own(")?;
         self.print_location(&func.ty.output, f)?;
-        write!(f, ") = ")?;
+        write!(f, ")) = ")?;
         self.print_fn_body(&func.body, f, indent + 2)?;
         Ok(())
     }
 
-    fn print_fn_body<I, S: Pretty>(
+    fn print_fn_body<I, S: fmt::Display>(
         &mut self,
         fn_body: &ast::FnBody<I, S>,
         f: &mut fmt::Formatter<'_>,
         indent: usize,
     ) -> fmt::Result {
-        indent!(f, indent)?;
         match fn_body {
             ast::FnBody::LetCont(defs, rest) => {
-                write!(f, "let ")?;
+                indent!(f, indent)?;
+                write!(f, "letcont ")?;
                 for (i, def) in defs.iter().enumerate() {
                     if i > 0 {
                         indent!(f, indent)?;
                         write!(f, "and ")?;
                     }
-                    self.print_cont_def(def, f, indent + 2)?;
+                    self.print_cont_def(def, f, indent + 2)?
                 }
                 indent!(f, indent)?;
                 write!(f, "in")?;
                 self.print_fn_body(rest, f, indent)?;
             }
             ast::FnBody::Ite { discr, then, else_ } => {
+                indent!(f, indent)?;
                 write!(f, "if ")?;
                 self.print_place(discr, f)?;
                 write!(f, " then")?;
@@ -106,41 +162,37 @@ impl PrettyPrinter {
                 args,
                 ret,
             } => {
+                indent!(f, indent)?;
                 write!(f, "call ...(")?;
-                for (i, x) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    self.print_local(x, f)?;
-                }
+                join!(f, ", ", x in args => self.print_local(x, f)? );
                 write!(f, ") ret ")?;
                 self.print_cont_id(ret, f)?;
             }
             ast::FnBody::Jump { target, args } => {
+                indent!(f, indent)?;
                 write!(f, "jump ")?;
                 self.print_cont_id(target, f)?;
                 write!(f, "(")?;
-                for (i, x) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    self.print_local(x, f)?;
-                }
+                join!(f, ", ", x in args => self.print_local(x, f)?);
                 write!(f, ")")?;
             }
             ast::FnBody::Seq(stmnt, rest) => {
-                self.print_statement(stmnt, f)?;
-                write!(f, ";")?;
+                if !matches!(stmnt.kind, ast::StatementKind::Nop) {
+                    indent!(f, indent)?;
+                    self.print_statement(stmnt, f)?;
+                    write!(f, ";")?;
+                }
                 self.print_fn_body(rest, f, indent)?;
             }
             ast::FnBody::Abort => {
+                indent!(f, indent)?;
                 write!(f, "abort")?;
             }
         }
         Ok(())
     }
 
-    fn print_statement<I, S: Pretty>(
+    fn print_statement<I, S: fmt::Display>(
         &mut self,
         stmnt: &ast::Statement<I, S>,
         f: &mut fmt::Formatter<'_>,
@@ -155,7 +207,7 @@ impl PrettyPrinter {
             }
             ast::StatementKind::Assign(place, rvalue) => {
                 self.print_place(place, f)?;
-                write!(f, " = ")?;
+                write!(f, " := ")?;
                 self.print_rvalue(rvalue, f)?;
             }
             ast::StatementKind::Drop(x) => {
@@ -170,7 +222,7 @@ impl PrettyPrinter {
         Ok(())
     }
 
-    fn print_rvalue<S: Pretty>(
+    fn print_rvalue<S: fmt::Display>(
         &mut self,
         rvalue: &ast::Rvalue<S>,
         f: &mut fmt::Formatter<'_>,
@@ -206,7 +258,7 @@ impl PrettyPrinter {
             ast::Rvalue::UnaryOp(un_op, op) => {
                 match un_op {
                     ast::UnOp::Not => {
-                        write!(f, "¬")?;
+                        write!(f, "!")?;
                     }
                 }
                 self.print_operand(op, f)?;
@@ -227,7 +279,7 @@ impl PrettyPrinter {
         }
     }
 
-    fn print_operand<S: Pretty>(
+    fn print_operand<S: fmt::Display>(
         &mut self,
         op: &ast::Operand<S>,
         f: &mut fmt::Formatter<'_>,
@@ -246,7 +298,7 @@ impl PrettyPrinter {
         }
     }
 
-    fn print_cont_def<I, S: Pretty>(
+    fn print_cont_def<I, S: fmt::Display>(
         &mut self,
         def: &ast::ContDef<I, S>,
         f: &mut fmt::Formatter<'_>,
@@ -268,39 +320,41 @@ impl PrettyPrinter {
         Ok(())
     }
 
-    fn print_locals<'a, S: Pretty + 'a, I: IntoIterator<Item = (&'a Local<S>, &'a Location<S>)>>(
+    fn print_locals<
+        'a,
+        S: fmt::Display + 'a,
+        I: IntoIterator<Item = (&'a Local<S>, &'a Location<S>)>,
+    >(
         &mut self,
         params: I,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        for (i, (x, l)) in params.into_iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
+        join!(f, ", ", (x, l) in params => {
             self.print_local(x, f)?;
             write!(f, ": own(")?;
             self.print_location(l, f)?;
             write!(f, ")")?;
-        }
+        });
         Ok(())
     }
-    fn print_heap<S: Pretty>(
+    fn print_heap<S: fmt::Display>(
         &mut self,
         heap: &ast::Heap<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        for (i, (l, ty)) in heap.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
+        join!(f, ", ", (l, ty) in heap => {
             self.print_location(l, f)?;
             write!(f, ": ")?;
             self.print_ty(ty, f)?;
-        }
+        });
         Ok(())
     }
 
-    fn print_ty<S: Pretty>(&mut self, ty: &ast::Ty<S>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn print_ty<S: fmt::Display>(
+        &mut self,
+        ty: &ast::Ty<S>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match ty {
             ast::Ty::OwnRef(l) => {
                 write!(f, "own(")?;
@@ -318,18 +372,15 @@ impl PrettyPrinter {
             }
             ast::Ty::Tuple(tup) => {
                 write!(f, "(")?;
-                for (i, (fld, ty)) in tup.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
+                join!(f, ", ", (fld, ty) in tup => {
                     self.print_field(fld, f)?;
                     write!(f, ": ")?;
                     self.print_ty(ty, f)?;
-                }
+                });
                 write!(f, ")")?;
             }
             ast::Ty::Uninit(size) => {
-                write!(f, "Uninit({})", size)?;
+                write!(f, "uninit({})", size)?;
             }
             ast::Ty::Refine(bty, refine) => {
                 write!(f, "{{ ")?;
@@ -337,9 +388,91 @@ impl PrettyPrinter {
                 write!(f, " | ")?;
                 match refine {
                     ast::Refine::Infer => write!(f, "_")?,
-                    ast::Refine::Pred(_) => write!(f, "...")?,
+                    ast::Refine::Pred(pred) => self.print_pred(pred, f)?,
                 }
                 write!(f, " }}")?;
+            }
+        }
+        Ok(())
+    }
+
+    fn print_pred<S: fmt::Display>(
+        &mut self,
+        pred: &ast::Pred<S>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match pred {
+            ast::Pred::Constant(ast::pred::Constant::Bool(b)) => {
+                write!(f, "{}", b)?;
+            }
+            ast::Pred::Constant(ast::pred::Constant::Int(n)) => {
+                write!(f, "{}", n)?;
+            }
+            ast::Pred::Constant(ast::pred::Constant::Unit) => {
+                write!(f, "()")?;
+            }
+            ast::Pred::Place(place) => {
+                self.print_pred_place(place, f)?;
+            }
+            ast::Pred::BinaryOp(bin_op, op1, op2) => {
+                write!(f, "(")?;
+                self.print_pred(op1, f)?;
+                write!(f, " ")?;
+                self.print_pred_bin_op(bin_op, f)?;
+                write!(f, " ")?;
+                self.print_pred(op2, f)?;
+                write!(f, ")")?;
+            }
+            ast::Pred::UnaryOp(_un_op, _op) => {
+                write!(f, "...")?;
+            }
+        }
+        Ok(())
+    }
+
+    fn print_pred_bin_op(
+        &mut self,
+        bin_op: &ast::pred::BinOp,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match bin_op {
+            ast::pred::BinOp::Add => write!(f, "+"),
+            ast::pred::BinOp::Sub => write!(f, "-"),
+            ast::pred::BinOp::Lt => write!(f, "<"),
+            ast::pred::BinOp::Le => write!(f, "<="),
+            ast::pred::BinOp::Eq => write!(f, "="),
+            ast::pred::BinOp::Ge => write!(f, ">="),
+            ast::pred::BinOp::Gt => write!(f, ">"),
+            ast::pred::BinOp::Iff => write!(f, "<=>"),
+        }
+    }
+
+    fn print_pred_place<S: fmt::Display>(
+        &mut self,
+        place: &ast::pred::Place<S>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        self.print_var(&place.base, f)?;
+        for proj in &place.projs {
+            write!(f, ".{}", proj)?;
+        }
+        Ok(())
+    }
+
+    fn print_var<S: fmt::Display>(
+        &mut self,
+        var: &ast::pred::Var<S>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match var {
+            crate::ty::Var::Nu => {
+                write!(f, "V")?;
+            }
+            crate::ty::Var::Location(l) => {
+                write!(f, "l{}", l.0)?;
+            }
+            crate::ty::Var::Field(fld) => {
+                write!(f, "@{}", fld.0)?;
             }
         }
         Ok(())
@@ -353,12 +486,7 @@ impl PrettyPrinter {
         match layout {
             ast::TypeLayout::Tuple(tup) => {
                 write!(f, "(")?;
-                for (i, layout) in tup.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    self.print_type_layout(layout, f)?;
-                }
+                join!(f, ", ", layout in tup => self.print_type_layout(layout, f)?);
                 write!(f, ")")?;
             }
             ast::TypeLayout::Block(size) => {
@@ -376,13 +504,12 @@ impl PrettyPrinter {
         }
     }
 
-    fn print_place<S: Pretty>(
+    fn print_place<S: fmt::Display>(
         &mut self,
         place: &ast::Place<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        self.print_local(&place.base, f)?;
-        let mut s = String::new();
+        let mut s = format!("_{}", place.base.0);
         let mut need_parens = false;
         for proj in &place.projs {
             match proj {
@@ -403,44 +530,35 @@ impl PrettyPrinter {
         write!(f, "{}", s)
     }
 
-    fn print_cont_id<S: Pretty>(
+    fn print_cont_id<S: fmt::Display>(
         &mut self,
         cont_id: &ContId<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "bb")?;
-        cont_id.0.print(f)
+        write!(f, "bb{}", cont_id.0)
     }
 
-    fn print_local<S: Pretty>(&mut self, x: &Local<S>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "_")?;
-        x.0.print(f)
+    fn print_local<S: fmt::Display>(
+        &mut self,
+        x: &Local<S>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(f, "_{}", x.0)
     }
 
-    fn print_location<S: Pretty>(
+    fn print_location<S: fmt::Display>(
         &mut self,
         l: &Location<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "l")?;
-        l.0.print(f)
+        write!(f, "l{}", l.0)
     }
 
-    fn print_field<S: Pretty>(
+    fn print_field<S: fmt::Display>(
         &mut self,
         fld: &Field<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "@")?;
-        fld.0.print(f)
-    }
-}
-
-pub trait Pretty {
-    fn print(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-}
-impl<T: fmt::Display> Pretty for T {
-    fn print(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "@{}", fld.0)
     }
 }

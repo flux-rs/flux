@@ -51,12 +51,12 @@ pub fn infer_subst(heap1: &Heap, locals1: &LocalsMap, heap2: &Heap, locals2: &Lo
 fn infer_subst_ty(subst: &mut Subst, heap1: &Heap, ty1: &Ty, heap2: &Heap, ty2: &Ty) {
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Ref(.., l1), TyKind::Ref(.., l2)) | (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
-            subst.add_location_subst(*l1, *l2);
+            subst.add_location_subst(*l2, *l1);
             infer_subst_ty(subst, heap1, &heap1[l1], heap2, &heap2[l2]);
         }
         (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
             for ((fld1, ty1), (fld2, ty2)) in tup1.iter().zip(tup2) {
-                subst.add_field_subst(*fld1, *fld2);
+                subst.add_field_subst(*fld2, *fld1);
                 infer_subst_ty(subst, heap1, ty1, heap2, ty2);
             }
         }

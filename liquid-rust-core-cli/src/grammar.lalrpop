@@ -71,10 +71,15 @@ StatementKind: StatementKind<&'input str> = {
 }
 
 Rvalue: Rvalue<&'input str> = {
-  Operand                                   => Rvalue::Use(<>),
-  <lhs: Operand> <op: BinOp> <rhs: Operand> => Rvalue::BinaryOp(op, lhs, rhs),
-  "&" <p: Place>                            => Rvalue::Ref(BorrowKind::Shared, p),
-  "&" "mut" <p: Place>                      => Rvalue::Ref(BorrowKind::Mut, p),
+  Operand                                       => Rvalue::Use(<>),
+  <op1: Operand> <bin_op: BinOp> <op2: Operand> => Rvalue::BinaryOp(bin_op, op1, op2),
+  <un_op: UnOp> <op: Operand>                   => Rvalue::UnaryOp(un_op, op),
+  "&" <p: Place>                                => Rvalue::Ref(BorrowKind::Shared, p),
+  "&" "mut" <p: Place>                          => Rvalue::Ref(BorrowKind::Mut, p),
+}
+
+UnOp: UnOp = {
+  "!" => UnOp::Not
 }
 
 BinOp: BinOp = {
@@ -114,6 +119,7 @@ Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from_iter(<>);
 
 Ty: Ty<&'input str> = {
   "own" "(" <Location> ")"                   => Ty::OwnRef(<>),
+  "uninit" "(" <r"[0-9]+"> ")"               => Ty::Uninit(usize::from_str(<>).unwrap()),
   "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine(<>),
   "&" "(" <Region> "," <Location> ")"        => Ty::Ref(BorrowKind::Shared, <>),
   "&" "shrd" "(" <Region> "," <Location> ")" => Ty::Ref(BorrowKind::Shared, <>),
@@ -227,11 +233,11 @@ LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {
 // | Names
 // -------------------------------------------------------------------------------------------------
 
-Local: Local<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => Local(<>);
+Local: Local<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Local(<>);
 Field: Field<&'input str> = r"@[a-zA-Z][a-zA-Z0-9_]*" => Field(&<>[1..]);
-Location: Location<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => Location(<>);
-ContId: ContId<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => ContId(<>);
-FnId: FnId<&'input str> = r"[a-zA-Z][a-zA-Z0-9_]*" => FnId(<>);
+Location: Location<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Location(<>);
+ContId: ContId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => ContId(<>);
+FnId: FnId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => FnId(<>);
 
 // -------------------------------------------------------------------------------------------------
 // | Misc
