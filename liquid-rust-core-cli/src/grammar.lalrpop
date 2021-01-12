@@ -67,7 +67,7 @@ Statement: Statement<Span, &'input str> = {
 StatementKind: StatementKind<&'input str> = {
   "let" <Local> "=" "alloc" "(" <TypeLayout> ")" => StatementKind::Let(<>),
   <Place> ":=" <Rvalue>                          => StatementKind::Assign(<>),
-  "drop" "(" <Local> ")"                         => StatementKind::Drop(<>),
+  "drop" "(" <Place> ")"                         => StatementKind::Drop(<>),
 }
 
 Rvalue: Rvalue<&'input str> = {

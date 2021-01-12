@@ -87,8 +87,8 @@ pub fn walk_stmnt<I, S, V: Visitor<I, S>>(visitor: &mut V, stmnt: &Statement<I, 
             visitor.visit_place(place);
             visitor.visit_rvalue(rvalue);
         }
-        StatementKind::Drop(local) => {
-            visitor.visit_local(local);
+        StatementKind::Drop(place) => {
+            visitor.visit_place(place);
         }
         StatementKind::Nop => {}
     }

@@ -118,7 +118,7 @@ impl<'a> RefineChecker<'a> {
                 env.update(place, ty);
                 Constraint::True
             }
-            StatementKind::Drop(x) => env.drop(x),
+            StatementKind::Drop(place) => env.drop(place),
             StatementKind::Nop => Constraint::True,
         }
     }

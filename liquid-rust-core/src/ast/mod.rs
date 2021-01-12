@@ -54,7 +54,7 @@ pub struct Statement<I, S = usize> {
 pub enum StatementKind<S = usize> {
     Let(Local<S>, TypeLayout),
     Assign(Place<S>, Rvalue<S>),
-    Drop(Local<S>),
+    Drop(Place<S>),
     Nop,
 }
 

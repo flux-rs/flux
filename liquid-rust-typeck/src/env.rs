@@ -50,14 +50,10 @@ impl Env<'_> {
         l
     }
 
-    pub fn drop(&mut self, x: &Local) -> Constraint {
-        let l = self.lookup_local(x);
-        let ty = self.lookup_location(l).clone();
-        let constraint = self.drop_ty(&ty);
-
-        let fresh_l = self.fresh_location();
-        self.insert_local(*x, fresh_l);
-        self.heap.insert(fresh_l, self.tcx.mk_uninit(ty.size()));
+    pub fn drop(&mut self, place: &ast::Place) -> Constraint {
+        let root = self.lookup(place).clone();
+        let constraint = self.drop_ty(&root);
+        self.update(place, self.tcx.uninitialize(&root));
         constraint
     }
 

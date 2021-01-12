@@ -1,0 +1,8 @@
+fn drop_place(;) ret k(r0: { () | true}; own(r0)) =
+  let _0 = alloc(1);
+  let x = alloc(1);
+  let p = alloc((1, (1, 1)));
+  p.1.0 := &mut x;
+  drop(p.1);
+  _0 := ();
+  jump k(_0)

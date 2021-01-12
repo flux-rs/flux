@@ -141,7 +141,7 @@ where
             StatementKind::Assign(place, value) => {
                 Assign(self.freshen_place(place), self.freshen_rvalue(value))
             }
-            Drop(local) => Drop(self.freshen_local(local)),
+            Drop(place) => Drop(self.freshen_place(place)),
             Nop => Nop,
         };
         Statement {

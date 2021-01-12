@@ -100,6 +100,20 @@ impl TyCtxt {
         }
     }
 
+    pub fn uninitialize(&self, ty: &Ty) -> Ty {
+        match ty.kind() {
+            TyKind::Tuple(tup) => {
+                let tup = tup.map(|_, fld, ty| (*fld, self.uninitialize(ty)));
+                self.mk_tuple(tup)
+            }
+            TyKind::Fn(..)
+            | TyKind::OwnRef(..)
+            | TyKind::Ref(..)
+            | TyKind::Uninit(_)
+            | TyKind::Refine(..) => self.mk_uninit(ty.size()),
+        }
+    }
+
     pub fn selfify(&self, ty: &Ty, place: pred::Place) -> Ty {
         match ty.kind() {
             TyKind::Refine(bty, _) => {

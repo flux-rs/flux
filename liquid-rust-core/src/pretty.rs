@@ -210,9 +210,9 @@ impl PrettyPrinter {
                 write!(f, " := ")?;
                 self.print_rvalue(rvalue, f)?;
             }
-            ast::StatementKind::Drop(x) => {
+            ast::StatementKind::Drop(place) => {
                 write!(f, "drop(")?;
-                self.print_local(x, f)?;
+                self.print_place(place, f)?;
                 write!(f, ")")?;
             }
             ast::StatementKind::Nop => {
