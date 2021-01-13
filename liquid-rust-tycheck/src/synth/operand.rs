@@ -1,7 +1,7 @@
 use crate::{env::Env, result::TyResult, synth::Synth};
 
 use liquid_rust_mir::Operand;
-use liquid_rust_ty::Ty;
+use liquid_rust_ty::{Ty, Variable};
 
 impl<'a, S: Clone> Synth<'a, S> for Operand {
     type Ty = Ty;
@@ -11,9 +11,8 @@ impl<'a, S: Clone> Synth<'a, S> for Operand {
         match self {
             Operand::Literal(lit) => Ok(Ty::singleton(*lit)),
             Operand::Local(local) => {
-                let var = env.resolve_local(*local);
-                let ty = env.get_ty(var).clone();
-                Ok(ty.selfify(var))
+                let ty = env.get_ty(*local).clone();
+                Ok(ty.selfify(Variable::Local((*local).into())))
             }
         }
     }

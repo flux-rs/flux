@@ -20,8 +20,7 @@ impl<'a, S: Clone> Synth<'a, S> for Statement<S> {
                     .map_err(|err| err.with_span(self.span.clone()))?;
 
                 // Get the type of the left-hand side of the assignment from the environment.
-                let lhs_var = env.resolve_local(*lhs);
-                let lhs_ty = env.get_ty(lhs_var);
+                let lhs_ty = env.get_ty(*lhs);
 
                 // Both sides must have types with the same shape for this assignment to be valid.
                 if !rhs_ty.shape_eq(lhs_ty) {

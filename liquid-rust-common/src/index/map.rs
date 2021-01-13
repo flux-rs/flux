@@ -160,7 +160,7 @@ pub struct IndexIterMut<'map, K: Index, V> {
 }
 
 impl<'map, K: Index, V> Iterator for IndexIterMut<'map, K, V> {
-    type Item = (K, &'map V);
+    type Item = (K, &'map mut V);
 
     fn next(&mut self) -> Option<Self::Item> {
         let value = self.iter.next()?;
@@ -194,7 +194,7 @@ impl<'map, K: Index, V> IntoIterator for &'map IndexMap<K, V> {
 }
 
 impl<'map, K: Index, V> IntoIterator for &'map mut IndexMap<K, V> {
-    type Item = (K, &'map V);
+    type Item = (K, &'map mut V);
     type IntoIter = IndexIterMut<'map, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {

@@ -1,12 +1,22 @@
 use crate::local::Local;
 
-use liquid_rust_ty::Literal;
+use liquid_rust_ty::{Literal, Predicate, Variable};
 
 use std::fmt;
 
+#[derive(Clone)]
 pub enum Operand {
     Local(Local),
     Literal(Literal),
+}
+
+impl From<Operand> for Predicate {
+    fn from(operand: Operand) -> Self {
+        match operand {
+            Operand::Local(local) => Predicate::Var(Variable::Local(local.into())),
+            Operand::Literal(literal) => Predicate::Lit(literal),
+        }
+    }
 }
 
 impl fmt::Display for Operand {

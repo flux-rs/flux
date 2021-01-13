@@ -39,7 +39,7 @@ impl<'env> Synth<'env, ()> for Rvalue {
 
                 // Resolve the operand into a predicate. This is possible because operands are
                 // literals or locals.
-                let op = Box::new(env.resolve_operand(op));
+                let op = Box::new(Predicate::from(op.clone()));
 
                 // Return the `{ b : B | b == (un_op op) }` type.
                 Ok(Ty::Refined(
@@ -101,8 +101,8 @@ impl<'env> Synth<'env, ()> for Rvalue {
 
                 // Resolve the operands into predicates. This is possible because operands are
                 // literals or locals.
-                let op1 = Box::new(env.resolve_operand(op1));
-                let op2 = Box::new(env.resolve_operand(op2));
+                let op1 = Box::new(Predicate::from(op1.clone()));
+                let op2 = Box::new(Predicate::from(op2.clone()));
 
                 // Return the `{ b : B | b == (op1 bin_op op2) }` type.
                 Ok(Ty::Refined(

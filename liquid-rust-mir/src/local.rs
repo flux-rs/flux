@@ -1,4 +1,5 @@
-use liquid_rust_common::new_index;
+use liquid_rust_common::{index::Index, new_index};
+use liquid_rust_ty::LocalVariable;
 
 use std::fmt;
 
@@ -10,6 +11,12 @@ new_index! {
 impl Local {
     pub const fn ret() -> Self {
         Self(0)
+    }
+}
+
+impl From<Local> for LocalVariable {
+    fn from(local: Local) -> Self {
+        LocalVariable::new(local.index())
     }
 }
 

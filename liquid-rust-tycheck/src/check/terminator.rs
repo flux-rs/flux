@@ -34,10 +34,8 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
             TerminatorKind::Call(lhs, func, args, target) => {
                 let (genv, _, _) = env;
                 // Retrieve all the arguments of the call as predicates.
-                let pred_args: Vec<Predicate> = args
-                    .into_iter()
-                    .map(|arg| ty.input.resolve_operand(arg))
-                    .collect();
+                let pred_args: Vec<Predicate> =
+                    args.into_iter().map(|arg| arg.clone().into()).collect();
 
                 // Get the type of the called function and project its indexed arguments to the
                 // arguments of the call. It is OK to do all the projections at once because each
@@ -60,8 +58,7 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
                 let rhs_ty = func_ty.return_ty();
 
                 // Get the type of the left-hand side local of the call.
-                let variable = ty.input.resolve_local(*lhs);
-                let lhs_ty = ty.input.get_ty(variable);
+                let lhs_ty = ty.input.get_ty(*lhs);
 
                 // The return type and the type of the left-hand side must have the same shape.
                 if !rhs_ty.shape_eq(lhs_ty) {
@@ -95,7 +92,7 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
                     _ => unreachable!(),
                 };
 
-                let var = ty.input.resolve_local(*local);
+                let var = Variable::Local((*local).into());
 
                 // A switch terminator is well-typed if all its branches are well-typed.
                 for &(bits, target) in branches.as_ref() {

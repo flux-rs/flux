@@ -1,5 +1,3 @@
-use crate::bblock_env::BBlockEnv;
-
 use liquid_rust_common::index::{IndexGen, IndexMap};
 use liquid_rust_mir::{FuncId, Program};
 use liquid_rust_ty::{FuncTy, HoleId, Predicate};
