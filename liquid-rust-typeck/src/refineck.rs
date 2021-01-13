@@ -2,13 +2,14 @@ use std::collections::HashMap;
 
 use crate::{
     constraint::Constraint,
+    env::{OwnershipError, RefKind},
     subtyping::{infer_subst, subtyping},
 };
 use ast::{FnBody, StatementKind};
 use liquid_rust_core::{
-    ast::{self, ContDef, FnDef, Place, Rvalue, Statement},
+    ast::{self, ContDef, FnDef, Rvalue, Statement},
     names::ContId,
-    ty::{self, BaseTy, ContTy, Ty, TyCtxt},
+    ty::{self, BaseTy, ContTy, Pred, Ty, TyCtxt},
 };
 use ty::pred;
 
@@ -17,25 +18,40 @@ use crate::env::Env;
 pub struct RefineChecker<'a> {
     conts: &'a HashMap<ContId, ContTy>,
     tcx: &'a TyCtxt,
+    errors: Vec<OwnershipError>,
 }
 
 impl<'a> RefineChecker<'a> {
     pub fn new(tcx: &'a TyCtxt, conts: &'a HashMap<ContId, ContTy>) -> Self {
-        Self { tcx, conts }
+        Self {
+            tcx,
+            conts,
+            errors: vec![],
+        }
     }
 
-    pub fn check_fn_def<I>(self, func: &FnDef<I>, fn_ty: &ty::FnTy) -> Constraint {
+    pub fn check_fn_def<I>(
+        mut self,
+        func: &FnDef<I>,
+        fn_ty: &ty::FnTy,
+    ) -> Result<Constraint, Vec<OwnershipError>> {
         let mut env = Env::new(self.tcx);
         env.insert_locals(fn_ty.locals(&func.params));
         env.extend_heap(&fn_ty.in_heap);
 
-        Constraint::from_bindings(
-            fn_ty.in_heap.bindings(),
-            self.check_body(&mut env, &func.body),
-        )
+        let constraint = self.check_body(&mut env, &func.body);
+
+        if self.errors.len() == 0 {
+            Ok(Constraint::from_bindings(
+                fn_ty.in_heap.bindings(),
+                constraint,
+            ))
+        } else {
+            Err(self.errors)
+        }
     }
 
-    pub fn check_body<I>(&self, env: &mut Env, body: &FnBody<I>) -> Constraint {
+    pub fn check_body<I>(&mut self, env: &mut Env, body: &FnBody<I>) -> Constraint {
         match body {
             FnBody::LetCont(defs, rest) => {
                 let mut vec = Vec::new();
@@ -76,7 +92,7 @@ impl<'a> RefineChecker<'a> {
                         .map(|(x, l)| {
                             let ty1 = &self
                                 .tcx
-                                .selfify(&env.lookup(&Place::from(x)), pred::Place::from(l));
+                                .selfify(&env.lookup(&ast::Place::from(x)), pred::Place::from(l));
                             let ty2 = &heap2[&l];
                             subtyping(self.tcx, heap1, ty1, heap2, ty2)
                         })
@@ -94,7 +110,7 @@ impl<'a> RefineChecker<'a> {
         }
     }
 
-    fn check_cont_def<I>(&self, env: &mut Env, def: &ContDef<I>) -> Constraint {
+    fn check_cont_def<I>(&mut self, env: &mut Env, def: &ContDef<I>) -> Constraint {
         let snapshot = env.snapshot_without_locals();
 
         let cont_ty = &self.conts[&def.name];
@@ -107,68 +123,75 @@ impl<'a> RefineChecker<'a> {
         Constraint::from_bindings(bindings, c)
     }
 
-    fn check_stmnt<I>(&self, env: &mut Env, stmnt: &Statement<I>) -> Constraint {
+    fn check_stmnt<I>(&mut self, env: &mut Env, stmnt: &Statement<I>) -> Constraint {
         match &stmnt.kind {
             StatementKind::Let(x, layout) => {
                 env.alloc(*x, self.tcx.mk_ty_for_layout(layout));
                 Constraint::True
             }
             StatementKind::Assign(place, rvalue) => {
-                let ty = self.synth_rvalue(rvalue, env);
+                let ty = self.check_rvalue(rvalue, env);
+                self.check_ownership_safety(RefKind::Mut, place, env);
                 env.update(place, ty);
                 Constraint::True
             }
-            StatementKind::Drop(place) => env.drop(place),
+            StatementKind::Drop(place) => {
+                self.check_ownership_safety(RefKind::Owned, place, env);
+                env.drop(place)
+            }
             StatementKind::Nop => Constraint::True,
         }
     }
 
-    fn synth_rvalue(&self, rvalue: &Rvalue, env: &mut Env) -> Ty {
+    fn check_rvalue(&mut self, rvalue: &Rvalue, env: &mut Env) -> Ty {
         let tcx = self.tcx;
         match rvalue {
-            ast::Rvalue::Use(op @ ast::Operand::Constant(c)) => {
-                let pred = env.resolve_operand(op);
-                self.tcx.mk_refine(
-                    c.base_ty(),
-                    self.tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
-                )
-            }
-            ast::Rvalue::Use(ast::Operand::Use(place)) => {
-                let ty = env.lookup(place);
-                self.tcx.selfify(ty, env.resolve_place(place))
+            ast::Rvalue::Use(op) => {
+                let pred = self.check_operand(op, env);
+                match op {
+                    ast::Operand::Use(place) => {
+                        let ty = env.lookup(place);
+                        self.tcx.selfify(ty, env.resolve_place(place))
+                    }
+                    ast::Operand::Constant(c) => self.tcx.mk_refine(
+                        c.base_ty(),
+                        self.tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
+                    ),
+                }
             }
             ast::Rvalue::Ref(bk, place) => {
+                self.check_ownership_safety(RefKind::from(*bk), place, env);
                 let l = env.borrow(place);
                 self.tcx.mk_ref(*bk, ty::Region::from(place.clone()), l)
             }
-            ast::Rvalue::BinaryOp(bin_op, op1, op2) => self.synth_bin_op(bin_op, op1, op2, env),
+            ast::Rvalue::BinaryOp(bin_op, op1, op2) => self.check_bin_op(bin_op, op1, op2, env),
             ast::Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
-                let ty = self.synth_bin_op(bin_op, op1, op2, env);
+                let ty = self.check_bin_op(bin_op, op1, op2, env);
                 let f1 = tcx.fresh_field();
                 let f2 = tcx.fresh_field();
                 tcx.mk_tuple(tup!(f1 => ty, f2 => tcx.types.bool()))
             }
             ast::Rvalue::UnaryOp(un_op, op) => match un_op {
                 ast::UnOp::Not => {
-                    let pred = env.resolve_operand(op);
+                    let pred = self.check_operand(op, env);
                     tcx.mk_refine(BaseTy::Bool, pred)
                 }
             },
         }
     }
 
-    fn synth_bin_op(
-        &self,
+    fn check_bin_op(
+        &mut self,
         bin_op: &ast::BinOp,
         op1: &ast::Operand,
         op2: &ast::Operand,
-        env: &Env,
+        env: &mut Env,
     ) -> Ty {
         let tcx = self.tcx;
         use ast::BinOp as ast;
         use ty::BinOp::*;
-        let op1 = env.resolve_operand(op1);
-        let op2 = env.resolve_operand(op2);
+        let op1 = self.check_operand(op1, env);
+        let op2 = self.check_operand(op2, env);
         let (bty, pred) = match bin_op {
             ast::Add => (
                 BaseTy::Int,
@@ -200,5 +223,38 @@ impl<'a> RefineChecker<'a> {
             ),
         };
         tcx.mk_refine(bty, pred)
+    }
+
+    fn check_operand(&mut self, operand: &ast::Operand, env: &mut Env) -> Pred {
+        match operand {
+            ast::Operand::Use(place) => {
+                let ty = env.lookup(place);
+                if !ty.is_copy() {
+                    self.check_ownership_safety(RefKind::Owned, place, env);
+                    env.drop(place);
+                }
+                self.tcx.mk_pred_place(env.resolve_place(place))
+            }
+            ast::Operand::Constant(c) => {
+                let c = match *c {
+                    ast::Constant::Bool(b) => pred::Constant::Bool(b),
+                    ast::Constant::Int(n) => pred::Constant::Int(n),
+                    ast::Constant::Unit => pred::Constant::Unit,
+                };
+                self.tcx.mk_constant(c)
+            }
+        }
+    }
+
+    // Ownership
+
+    fn check_ownership_safety(&mut self, kind: RefKind, place: &ast::Place, env: &Env) {
+        if let Err(err) = env.check_ownership_safety(kind, place, &mut vec![]) {
+            self.report_ownership_error(err);
+        }
+    }
+
+    fn report_ownership_error(&mut self, err: OwnershipError) {
+        self.errors.push(err);
     }
 }

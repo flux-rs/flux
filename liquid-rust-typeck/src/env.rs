@@ -3,7 +3,7 @@ use ast::Proj;
 use liquid_rust_core::{
     ast,
     names::{Local, Location},
-    ty::{self, pred::Place, Heap, LocalsMap, Ty, TyCtxt},
+    ty::{self, pred::Place, Heap, LocalsMap, Ty, TyCtxt, Walk},
 };
 use std::fmt;
 use ty::{BorrowKind, TyKind};
@@ -59,18 +59,81 @@ impl Env<'_> {
 
     pub fn lookup(&self, place: &ast::Place) -> &Ty {
         let mut ty = self.lookup_location(self.lookup_local(&place.base));
-        for p in &place.projs {
-            match (ty.kind(), p) {
+        for proj in &place.projs {
+            match (ty.kind(), proj) {
                 (TyKind::Tuple(tuple), &Proj::Field(n)) => {
                     ty = tuple.ty_at(n);
                 }
                 (TyKind::Ref(.., l), Proj::Deref) => {
                     ty = self.lookup_location(l);
                 }
-                _ => bug!("{:?} {:?} {:?}", ty, place, p),
+                _ => bug!("{:?} {:?} {:?}", ty, place, proj),
             }
         }
         ty
+    }
+
+    pub fn check_ownership_safety(
+        &self,
+        kind: RefKind,
+        place: &ast::Place,
+        reborrow_list: &mut Vec<ast::Place>,
+    ) -> Result<(), OwnershipError> {
+        let mut result = Ok(());
+        for (&x, l) in self.locals() {
+            let ty = self.lookup_location(l);
+            ty.walk(|ty, projs| {
+                match ty.kind() {
+                    TyKind::Ref(bk, region, ..) => {
+                        let in_reborrow_list = reborrow_list
+                            .iter()
+                            .any(|p| p.base == place.base && p.projs == projs);
+                        if in_reborrow_list {
+                            return Walk::Continue;
+                        }
+                        for p in region.places() {
+                            if place.overlaps(p) && (kind >= RefKind::Mut || bk.is_mut()) {
+                                let conflict = ast::Place::new(x, Vec::from(projs));
+                                result = Err(OwnershipError::ConflictingBorrow(conflict));
+                                return Walk::Stop;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                Walk::Continue
+            });
+        }
+        for (i, proj) in place.projs.iter().enumerate() {
+            match proj {
+                ast::Proj::Field(_) => {}
+                ast::Proj::Deref => {
+                    let prefix = ast::Place::new(place.base, Vec::from(&place.projs[0..i]));
+                    let ty = self.lookup(&prefix);
+                    reborrow_list.push(prefix);
+                    match ty.kind() {
+                        TyKind::Ref(bk, region, _) => {
+                            if kind > *bk {
+                                return Err(OwnershipError::BehindRef(*bk));
+                            }
+                            for p in region.places() {
+                                let projs = p
+                                    .projs
+                                    .iter()
+                                    .chain(&place.projs[i + 1..])
+                                    .copied()
+                                    .collect();
+                                let place = &ast::Place::new(place.base, projs);
+                                self.check_ownership_safety(kind, place, reborrow_list)?;
+                            }
+                        }
+                        TyKind::OwnRef(_) => todo!(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        result
     }
 
     pub fn resolve_place(&self, place: &ast::Place) -> Place {
@@ -96,20 +159,6 @@ impl Env<'_> {
         Place {
             base: ty::Var::from(base),
             projs,
-        }
-    }
-
-    pub fn resolve_operand(&self, op: &ast::Operand) -> ty::Pred {
-        match op {
-            ast::Operand::Use(place) => self.tcx.mk_pred_place(self.resolve_place(place)),
-            ast::Operand::Constant(c) => {
-                let c = match *c {
-                    ast::Constant::Bool(b) => ty::pred::Constant::Bool(b),
-                    ast::Constant::Int(n) => ty::pred::Constant::Int(n),
-                    ast::Constant::Unit => ty::pred::Constant::Unit,
-                };
-                self.tcx.mk_constant(c)
-            }
         }
     }
 
@@ -231,14 +280,10 @@ impl Env<'_> {
     fn drop_ty(&mut self, ty: &Ty) -> Constraint {
         let vars_in_scope = self.vars_in_scope();
         let mut constraints = vec![];
-        ty.walk(&mut |ty| match ty.kind() {
+        ty.walk(|ty, _| match ty.kind() {
             TyKind::Ref(BorrowKind::Mut, r, l) => {
                 let ty = self.lookup_location(l).clone();
-                let places = match r {
-                    ty::Region::Concrete(places) => places.as_slice(),
-                    ty::Region::Infer(_) => &[],
-                };
-                match places {
+                match r.places() {
                     [] => {}
                     [place] => {
                         self.update(place, ty);
@@ -248,21 +293,67 @@ impl Env<'_> {
 
                         let heap = self.heap();
                         constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
-                        for place in places {
+                        for place in r.places() {
                             let ty = self.lookup(place);
                             constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
                         }
 
-                        for place in places {
+                        for place in r.places() {
                             self.update(place, ty_join.clone());
                         }
                     }
                 }
+                Walk::Continue
             }
-            _ => {}
+            _ => Walk::Continue,
         });
         Constraint::Conj(constraints)
     }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum RefKind {
+    Shared,
+    Mut,
+    Owned,
+}
+
+impl From<BorrowKind> for RefKind {
+    fn from(bk: BorrowKind) -> Self {
+        match bk {
+            BorrowKind::Shared => RefKind::Shared,
+            BorrowKind::Mut => RefKind::Mut,
+        }
+    }
+}
+
+impl std::cmp::PartialEq<BorrowKind> for RefKind {
+    fn eq(&self, other: &BorrowKind) -> bool {
+        match (self, other) {
+            (RefKind::Shared, BorrowKind::Shared) | (RefKind::Mut, BorrowKind::Mut) => true,
+            _ => false,
+        }
+    }
+}
+
+impl std::cmp::PartialOrd<BorrowKind> for RefKind {
+    fn partial_cmp(&self, other: &BorrowKind) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering::*;
+        match (self, other) {
+            (RefKind::Shared, BorrowKind::Shared) => Some(Equal),
+            (RefKind::Shared, BorrowKind::Mut) => Some(Less),
+            (RefKind::Mut, BorrowKind::Shared) => Some(Greater),
+            (RefKind::Mut, BorrowKind::Mut) => Some(Equal),
+            (RefKind::Owned, BorrowKind::Shared) => Some(Greater),
+            (RefKind::Owned, BorrowKind::Mut) => Some(Greater),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum OwnershipError {
+    ConflictingBorrow(ast::Place),
+    BehindRef(BorrowKind),
 }
 
 pub struct Snapshot {

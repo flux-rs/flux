@@ -2,7 +2,10 @@ pub mod context;
 pub mod subst;
 use std::fmt;
 
-use crate::{ast::Place, names::Local};
+use crate::{
+    ast::{self, Place},
+    names::Local,
+};
 pub use crate::{
     ast::{
         pred::{BinOp, UnOp, Var},
@@ -24,6 +27,15 @@ pub struct TyS {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+
+    pub fn is_copy(&self) -> bool {
+        match self.kind() {
+            TyKind::Refine { .. } => true,
+            TyKind::Tuple(tup) => tup.types().all(|ty| ty.is_copy()),
+            TyKind::Ref(BorrowKind::Shared, ..) => true,
+            _ => false,
+        }
     }
 
     pub fn is_int(&self) -> bool {
@@ -57,21 +69,39 @@ impl TyS {
         }
     }
 
-    pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
-        f(self);
+    pub fn walk(&self, mut f: impl FnMut(&TyS, &[ast::Proj]) -> Walk) {
+        self.walk_internal(&mut f, &mut vec![]);
+    }
+
+    fn walk_internal(
+        &self,
+        f: &mut impl FnMut(&TyS, &[ast::Proj]) -> Walk,
+        projs: &mut Vec<ast::Proj>,
+    ) -> Walk {
+        match f(self, projs) {
+            Walk::Stop => {}
+            _ => {}
+        };
         match self.kind() {
             TyKind::Tuple(tup) => {
-                for ty in tup.types() {
-                    ty.walk(f);
+                for (i, ty) in tup.types().enumerate() {
+                    projs.push(ast::Proj::Field(i));
+                    match ty.walk_internal(f, projs) {
+                        Walk::Stop => return Walk::Stop,
+                        _ => {}
+                    }
+                    projs.pop();
                 }
             }
-            TyKind::OwnRef(_)
-            | TyKind::Ref(_, _, _)
-            | TyKind::Fn(_)
-            | TyKind::Uninit(_)
-            | TyKind::Refine(_, _) => {}
+            _ => {}
         }
+        Walk::Continue
     }
+}
+
+pub enum Walk {
+    Stop,
+    Continue,
 }
 
 impl fmt::Display for TyS {
@@ -216,6 +246,15 @@ impl ContTy {
 pub enum Region {
     Concrete(Vec<Place>),
     Infer(RegionVid),
+}
+
+impl Region {
+    pub fn places(&self) -> &[Place] {
+        match self {
+            Region::Concrete(places) => places,
+            Region::Infer(_) => bug!("places called on a non concrete region"),
+        }
+    }
 }
 
 impl fmt::Display for Region {

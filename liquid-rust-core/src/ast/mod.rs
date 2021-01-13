@@ -132,6 +132,12 @@ pub enum BorrowKind {
     Mut,
 }
 
+impl BorrowKind {
+    pub fn is_mut(&self) -> bool {
+        matches!(self, BorrowKind::Mut)
+    }
+}
+
 pub enum Ty<S = usize> {
     OwnRef(Location<S>),
     Ref(BorrowKind, Region<S>, Location<S>),
@@ -189,6 +195,26 @@ pub enum Proj {
 pub struct Place<S = usize> {
     pub base: Local<S>,
     pub projs: Vec<Proj>,
+}
+
+impl<S> Place<S> {
+    pub fn new(base: Local<S>, projs: Vec<Proj>) -> Self {
+        Self { base, projs }
+    }
+}
+
+impl<S: Eq> Place<S> {
+    pub fn overlaps(&self, place: &Place<S>) -> bool {
+        if self.base != place.base {
+            return false;
+        }
+        for (proj1, proj2) in self.projs.iter().zip(&place.projs) {
+            if proj1 != proj2 {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 impl fmt::Display for Place {

@@ -11,7 +11,7 @@ extern crate rustc_mir;
 extern crate rustc_span;
 extern crate rustc_target;
 
-use liquid_rust_typeck::{check_fn_def, Safeness};
+use liquid_rust_typeck::check_fn_def;
 use rustc_driver::{catch_with_exit_code, Callbacks, Compilation, RunCompiler};
 use rustc_interface::{interface::Compiler, Queries};
 use translate::Transformer;
@@ -28,7 +28,7 @@ impl Callbacks for LiquidRustDriver {
         _compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        let mut compilation = Compilation::Continue;
+        // let mut compilation = Compilation::Continue;
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             for &body_id in &tcx.hir().krate().body_ids {
@@ -37,11 +37,16 @@ impl Callbacks for LiquidRustDriver {
                 let func = Transformer::translate(tcx, body);
                 println!("{}", func);
 
-                if check_fn_def(func) == Safeness::Unsafe {
-                    compilation = Compilation::Stop;
+                match check_fn_def(func) {
+                    Ok(safeness) => {
+                        println!("{}", safeness);
+                    }
+                    Err(errs) => {
+                        println!("{:?}", errs);
+                    }
                 }
             }
         });
-        compilation
+        Compilation::Stop
     }
 }

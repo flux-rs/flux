@@ -115,13 +115,7 @@ impl<I> Visitor<I> for RegionInferer<'_> {
 
 fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
     match rvalue {
-        ast::Rvalue::Use(op @ ast::Operand::Constant(c)) => {
-            let pred = env.resolve_operand(op);
-            tcx.mk_refine(
-                c.base_ty(),
-                tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
-            )
-        }
+        ast::Rvalue::Use(ast::Operand::Constant(c)) => tcx.mk_refine(c.base_ty(), tcx.preds.tt()),
         ast::Rvalue::Use(ast::Operand::Use(place)) => {
             let ty = env.lookup(place);
             tcx.selfify(ty, env.resolve_place(place))
@@ -135,11 +129,8 @@ fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
             let ty = ty_for_bin_op(bin_op, tcx);
             tcx.mk_tuple(tup!(Field(0) => ty, Field(1) => tcx.types.bool()))
         }
-        ast::Rvalue::UnaryOp(un_op, op) => match un_op {
-            ast::UnOp::Not => {
-                let pred = env.resolve_operand(op);
-                tcx.mk_refine(BaseTy::Bool, pred)
-            }
+        ast::Rvalue::UnaryOp(un_op, ..) => match un_op {
+            ast::UnOp::Not => tcx.mk_refine(BaseTy::Bool, tcx.preds.tt()),
         },
     }
 }

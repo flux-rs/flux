@@ -623,7 +623,7 @@ struct TyLowerCtxt<'a, 'low, 'tcx> {
 
 impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
     fn lower_ty(&mut self, ty: ty::Ty<'tcx>, projection: &mut Vec<mir::PlaceElem<'tcx>>) -> Ty {
-        if self.maybe_unitialized(projection) {
+        if self.is_maybe_unitialized(projection) {
             return self.uninitialize(ty);
         }
 
@@ -678,7 +678,7 @@ impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
         }
     }
 
-    fn maybe_unitialized(&self, projection: &[mir::PlaceElem<'tcx>]) -> bool {
+    fn is_maybe_unitialized(&self, projection: &[mir::PlaceElem<'tcx>]) -> bool {
         let place = PlaceRef {
             local: self.local,
             projection,
