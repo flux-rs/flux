@@ -36,7 +36,7 @@ impl<'a, S: Clone> Synth<'a, S> for Statement<S> {
 
                 // The left-hand side has the type of the right hand side in the new environment.
                 let mut output = env.clone();
-                output.substitute(lhs_var, rhs_ty);
+                output.rebind_local(*lhs, rhs_ty);
 
                 Ok(output)
             }

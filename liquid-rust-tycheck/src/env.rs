@@ -8,7 +8,6 @@ use std::fmt;
 pub(crate) struct Env {
     variables: IndexMap<Local, LocalVariable>,
     types: IndexMap<LocalVariable, Ty>,
-    substitutions: Vec<Substitution>,
 }
 
 impl Env {
@@ -21,25 +20,11 @@ impl Env {
             variables.insert(variable);
         }
 
-        Self {
-            variables,
-            types,
-            substitutions: vec![],
-        }
+        Self { variables, types }
     }
 
     pub(crate) fn get_ty(&self, variable: LocalVariable) -> &Ty {
-        self.substitutions
-            .iter()
-            .rev()
-            .find_map(|subst| {
-                if subst.target == variable {
-                    Some(&subst.ty)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| self.types.get(variable).unwrap())
+        self.types.get(variable).unwrap()
     }
 
     pub(crate) fn resolve_local(&self, local: Local) -> LocalVariable {
@@ -52,49 +37,43 @@ impl Env {
             Operand::Literal(literal) => Predicate::Lit(*literal),
         }
     }
-    pub(crate) fn substitute(&mut self, target: LocalVariable, ty: Ty) {
-        self.substitutions.push(Substitution::new(target, ty));
+
+    pub(crate) fn rebind_local(&mut self, local: Local, ty: Ty) {
+        let variable = self.types.insert(ty);
+        *self.variables.get_mut(local).unwrap() = variable;
     }
 }
 
 impl fmt::Display for Env {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut types = self.types.iter();
+        let mut bound_vars = vec![];
+        let mut vars = self.variables.iter();
 
         write!(f, "{{")?;
 
-        if let Some((var, ty)) = types.next() {
-            write!(f, "{}: {}", var, ty)?;
+        if let Some((local, var)) = vars.next() {
+            bound_vars.push(*var);
+            let ty = self.types.get(*var).unwrap();
+            write!(f, "{} -> {}: {}", var, local, ty)?;
 
-            for (var, ty) in types {
-                write!(f, ", {}: {}", var, ty)?;
+            for (local, var) in vars {
+                bound_vars.push(*var);
+                let ty = self.types.get(*var).unwrap();
+                write!(f, "{} -> {}: {}", var, local, ty)?;
             }
+        }
+
+        let types = self
+            .types
+            .iter()
+            .filter(|(var, _)| !bound_vars.contains(var));
+
+        for (var, ty) in types {
+            write!(f, ", {}: {}", var, ty)?;
         }
 
         write!(f, "}}")?;
 
-        for subst in &self.substitutions {
-            write!(f, "{}", subst)?;
-        }
-
         Ok(())
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct Substitution {
-    target: LocalVariable,
-    ty: Ty,
-}
-
-impl Substitution {
-    pub(crate) fn new(target: LocalVariable, ty: Ty) -> Self {
-        Self { target, ty }
-    }
-}
-
-impl fmt::Display for Substitution {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{} -> {}]", self.target, self.ty)
     }
 }

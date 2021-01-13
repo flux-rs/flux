@@ -78,7 +78,7 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
                 // local variable for the left-hand side local instead of overwriting the type for
                 // the old local variable.
                 let mut ty = ty.clone();
-                ty.input.substitute(variable, rhs_ty.clone());
+                ty.input.rebind_local(*lhs, rhs_ty.clone());
 
                 // Then, the type of the call is the type of the target block.
                 target.check(&ty, env)
@@ -105,7 +105,7 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
                     // Annotate the local with the singleton type for the literal of the
                     // branch.
                     let mut ty = ty.clone();
-                    ty.input.substitute(var, op_ty);
+                    ty.input.rebind_local(*local, op_ty);
 
                     target.check(&ty, env)?;
 
@@ -116,7 +116,7 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
                 // Annotate the local with a type refined to ensure that the local was not equal to
                 // any of the literals in the branches.
                 let mut ty = ty.clone();
-                ty.input.substitute(var, Ty::Refined(base_ty, pred));
+                ty.input.rebind_local(*local, Ty::Refined(base_ty, pred));
 
                 default.check(&ty, env)
             }

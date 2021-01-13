@@ -16,6 +16,16 @@ pub struct FuncTy<V = LocalVariable> {
     return_ty: Box<Ty<V>>,
 }
 
+impl FuncTy {
+    fn replace_variable(&mut self, target: LocalVariable, subst: LocalVariable) {
+        for argument in &mut self.arguments {
+            argument.replace_variable(target, subst);
+        }
+
+        self.return_ty.replace_variable(target, subst);
+    }
+}
+
 impl<V> FuncTy<V> {
     /// Create a new dependent function type.
     pub fn new(arguments: Vec<Ty<V>>, return_ty: Ty<V>) -> Self {
@@ -81,6 +91,16 @@ pub enum Ty<V = LocalVariable> {
     Refined(BaseTy, Predicate<V>),
     /// A dependent function type.
     Func(FuncTy<V>),
+}
+
+impl Ty {
+    /// Replace a local variable with another local variable.
+    pub fn replace_variable(&mut self, target: LocalVariable, subst: LocalVariable) {
+        match self {
+            Self::Refined(_, predicate) => predicate.replace_variable(target, subst),
+            Self::Func(func_ty) => func_ty.replace_variable(target, subst),
+        }
+    }
 }
 
 impl<V> Ty<V> {

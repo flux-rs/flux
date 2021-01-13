@@ -30,6 +30,27 @@ pub enum Predicate<V = LocalVariable> {
     Hole(HoleId),
 }
 
+impl Predicate {
+    pub(crate) fn replace_variable(&mut self, target: LocalVariable, subst: LocalVariable) {
+        match self {
+            Self::Lit(_) | Self::Hole(_) => (),
+            Self::Var(var) => match var {
+                Variable::Bound | Variable::Arg(_) => (),
+                Variable::Local(local_var) => {
+                    if target == *local_var {
+                        *local_var = subst;
+                    }
+                }
+            },
+            Self::UnaryOp(_, op) => op.replace_variable(target, subst),
+            Self::BinaryOp(_, op1, op2) => {
+                op1.replace_variable(target, subst);
+                op2.replace_variable(target, subst);
+            }
+        }
+    }
+}
+
 impl<V> Predicate<V> {
     /// Map the local variables inside the predicate to produce a new predicate.
     ///
