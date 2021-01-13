@@ -79,7 +79,6 @@ impl Env<'_> {
         place: &ast::Place,
         reborrow_list: &mut Vec<ast::Place>,
     ) -> Result<(), OwnershipError> {
-        let mut result = Ok(());
         for (&x, l) in self.locals() {
             let ty = self.lookup_location(l);
             ty.walk(|ty, projs| {
@@ -87,22 +86,21 @@ impl Env<'_> {
                     TyKind::Ref(bk, region, ..) => {
                         let in_reborrow_list = reborrow_list
                             .iter()
-                            .any(|p| p.base == place.base && p.projs == projs);
+                            .any(|p| p.base == x && p.projs == projs);
                         if in_reborrow_list {
                             return Walk::Continue;
                         }
                         for p in region.places() {
                             if place.overlaps(p) && (kind >= RefKind::Mut || bk.is_mut()) {
                                 let conflict = ast::Place::new(x, Vec::from(projs));
-                                result = Err(OwnershipError::ConflictingBorrow(conflict));
-                                return Walk::Stop;
+                                return Walk::Stop(OwnershipError::ConflictingBorrow(conflict));
                             }
                         }
                     }
                     _ => {}
                 }
                 Walk::Continue
-            });
+            })?;
         }
         for (i, proj) in place.projs.iter().enumerate() {
             match proj {
@@ -123,17 +121,18 @@ impl Env<'_> {
                                     .chain(&place.projs[i + 1..])
                                     .copied()
                                     .collect();
-                                let place = &ast::Place::new(place.base, projs);
+                                let place = &ast::Place::new(p.base, projs);
                                 self.check_ownership_safety(kind, place, reborrow_list)?;
                             }
                         }
                         TyKind::OwnRef(_) => todo!(),
                         _ => {}
                     }
+                    reborrow_list.pop();
                 }
             }
         }
-        result
+        Ok(())
     }
 
     pub fn resolve_place(&self, place: &ast::Place) -> Place {
@@ -280,38 +279,40 @@ impl Env<'_> {
     fn drop_ty(&mut self, ty: &Ty) -> Constraint {
         let vars_in_scope = self.vars_in_scope();
         let mut constraints = vec![];
-        ty.walk(|ty, _| match ty.kind() {
-            TyKind::Ref(BorrowKind::Mut, r, l) => {
-                let ty = self.lookup_location(l).clone();
-                match r.places() {
-                    [] => {}
-                    [place] => {
-                        self.update(place, ty);
-                    }
-                    _ => {
-                        let ty_join = self.tcx.replace_refines_with_kvars(&ty, &vars_in_scope);
-
-                        let heap = self.heap();
-                        constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
-                        for place in r.places() {
-                            let ty = self.lookup(place);
-                            constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+        ty.walk(|ty, _| {
+            match ty.kind() {
+                TyKind::Ref(BorrowKind::Mut, r, l) => {
+                    let ty = self.lookup_location(l).clone();
+                    match r.places() {
+                        [] => {}
+                        [place] => {
+                            self.update(place, ty);
                         }
+                        _ => {
+                            let ty_join = self.tcx.replace_refines_with_kvars(&ty, &vars_in_scope);
 
-                        for place in r.places() {
-                            self.update(place, ty_join.clone());
+                            let heap = self.heap();
+                            constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                            for place in r.places() {
+                                let ty = self.lookup(place);
+                                constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                            }
+
+                            for place in r.places() {
+                                self.update(place, ty_join.clone());
+                            }
                         }
                     }
                 }
-                Walk::Continue
-            }
-            _ => Walk::Continue,
+                _ => {}
+            };
+            Walk::Continue::<()>
         });
         Constraint::Conj(constraints)
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum RefKind {
     Shared,
     Mut,

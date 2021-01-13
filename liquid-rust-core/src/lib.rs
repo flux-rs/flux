@@ -1,5 +1,6 @@
 #![feature(box_syntax)]
 #![feature(box_patterns)]
+#![feature(try_trait)]
 
 pub mod ast;
 pub mod freshen;

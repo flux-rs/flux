@@ -69,27 +69,21 @@ impl TyS {
         }
     }
 
-    pub fn walk(&self, mut f: impl FnMut(&TyS, &[ast::Proj]) -> Walk) {
-        self.walk_internal(&mut f, &mut vec![]);
+    pub fn walk<T>(&self, mut f: impl FnMut(&TyS, &[ast::Proj]) -> Walk<T>) -> Walk<T> {
+        self.walk_internal(&mut f, &mut vec![])
     }
 
-    fn walk_internal(
+    fn walk_internal<T>(
         &self,
-        f: &mut impl FnMut(&TyS, &[ast::Proj]) -> Walk,
+        f: &mut impl FnMut(&TyS, &[ast::Proj]) -> Walk<T>,
         projs: &mut Vec<ast::Proj>,
-    ) -> Walk {
-        match f(self, projs) {
-            Walk::Stop => {}
-            _ => {}
-        };
+    ) -> Walk<T> {
+        f(self, projs)?;
         match self.kind() {
             TyKind::Tuple(tup) => {
                 for (i, ty) in tup.types().enumerate() {
                     projs.push(ast::Proj::Field(i));
-                    match ty.walk_internal(f, projs) {
-                        Walk::Stop => return Walk::Stop,
-                        _ => {}
-                    }
+                    ty.walk_internal(f, projs)?;
                     projs.pop();
                 }
             }
@@ -99,9 +93,29 @@ impl TyS {
     }
 }
 
-pub enum Walk {
-    Stop,
+pub enum Walk<T = ()> {
+    Stop(T),
     Continue,
+}
+
+impl<T> std::ops::Try for Walk<T> {
+    type Ok = ();
+    type Error = T;
+
+    fn into_result(self) -> Result<Self::Ok, Self::Error> {
+        match self {
+            Walk::Stop(v) => Err(v),
+            Walk::Continue => Ok(()),
+        }
+    }
+
+    fn from_error(v: Self::Error) -> Self {
+        Walk::Stop(v)
+    }
+
+    fn from_ok((): Self::Ok) -> Self {
+        Walk::Continue
+    }
 }
 
 impl fmt::Display for TyS {
