@@ -17,12 +17,12 @@ pub struct FuncTy<V = LocalVariable> {
 }
 
 impl FuncTy {
-    fn replace_variable(&mut self, target: LocalVariable, subst: LocalVariable) {
+    fn map_variable(&mut self, f: impl Fn(LocalVariable) -> LocalVariable + Clone) {
         for argument in &mut self.arguments {
-            argument.replace_variable(target, subst);
+            argument.map_variable(f.clone());
         }
 
-        self.return_ty.replace_variable(target, subst);
+        self.return_ty.map_variable(f);
     }
 }
 
@@ -95,10 +95,11 @@ pub enum Ty<V = LocalVariable> {
 
 impl Ty {
     /// Replace a local variable with another local variable.
-    pub fn replace_variable(&mut self, target: LocalVariable, subst: LocalVariable) {
+
+    pub fn map_variable(&mut self, f: impl Fn(LocalVariable) -> LocalVariable + Clone) {
         match self {
-            Self::Refined(_, predicate) => predicate.replace_variable(target, subst),
-            Self::Func(func_ty) => func_ty.replace_variable(target, subst),
+            Self::Refined(_, predicate) => predicate.map_variable(f),
+            Self::Func(func_ty) => func_ty.map_variable(f),
         }
     }
 }

@@ -31,21 +31,19 @@ pub enum Predicate<V = LocalVariable> {
 }
 
 impl Predicate {
-    pub(crate) fn replace_variable(&mut self, target: LocalVariable, subst: LocalVariable) {
+    pub(crate) fn map_variable(&mut self, f: impl Fn(LocalVariable) -> LocalVariable + Clone) {
         match self {
             Self::Lit(_) | Self::Hole(_) => (),
             Self::Var(var) => match var {
                 Variable::Bound | Variable::Arg(_) => (),
                 Variable::Local(local_var) => {
-                    if target == *local_var {
-                        *local_var = subst;
-                    }
+                    *local_var = f(*local_var);
                 }
             },
-            Self::UnaryOp(_, op) => op.replace_variable(target, subst),
+            Self::UnaryOp(_, op) => op.map_variable(f),
             Self::BinaryOp(_, op1, op2) => {
-                op1.replace_variable(target, subst);
-                op2.replace_variable(target, subst);
+                op1.map_variable(f.clone());
+                op2.map_variable(f);
             }
         }
     }

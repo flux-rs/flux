@@ -1,4 +1,4 @@
-use liquid_rust_common::index::IndexMap;
+use liquid_rust_common::index::Index;
 use liquid_rust_mir::Local;
 use liquid_rust_ty::{LocalVariable, Ty};
 
@@ -6,41 +6,76 @@ use std::fmt;
 
 #[derive(Clone)]
 pub(crate) struct Env {
-    types: IndexMap<LocalVariable, Ty>,
-    variables: Vec<LocalVariable>,
+    types: Vec<(LocalVariable, Ty)>,
+    len_locals: usize,
 }
 
 impl Env {
-    pub(crate) fn new(local_decls: impl Iterator<Item = Ty>) -> Self {
-        let mut variables = Vec::new();
-        let mut types = IndexMap::new();
-
-        for ty in local_decls {
-            let variable = types.insert(ty);
-            variables.push(variable);
+    pub(crate) fn empty(len_locals: usize) -> Self {
+        Self {
+            types: Vec::new(),
+            len_locals,
         }
-
-        Self { variables, types }
     }
 
-    pub(crate) fn get_ty(&self, variable: impl Into<LocalVariable>) -> &Ty {
-        self.types.get(variable.into()).unwrap()
+    pub(crate) fn new(local_decls: impl Iterator<Item = Ty>) -> Self {
+        let mut types = Vec::new();
+
+        for ty in local_decls {
+            let variable = LocalVariable::new(types.len());
+            types.push((variable, ty));
+        }
+
+        Self {
+            len_locals: types.len(),
+            types,
+        }
+    }
+
+    pub(crate) fn len_locals(&self) -> usize {
+        self.len_locals
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.types.len()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &(LocalVariable, Ty)> {
+        self.types.iter()
+    }
+
+    pub(crate) fn get_ty(&self, target: impl Into<LocalVariable>) -> &Ty {
+        let target = target.into();
+        self.types
+            .iter()
+            .find_map(
+                |(variable, ty)| {
+                    if *variable == target {
+                        Some(ty)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .unwrap_or_else(|| panic!("couldn't find {} in {}.", target, self))
+    }
+
+    pub(crate) fn bind(&mut self, var: LocalVariable, ty: Ty) {
+        self.types.push((var, ty));
     }
 
     pub(crate) fn rebind_local(&mut self, local: Local, ty: Ty) {
         let local = LocalVariable::from(local);
+        let ghost = LocalVariable::new(self.types.len());
 
-        for variable in &mut self.variables {
+        for (variable, old_ty) in &mut self.types {
             if *variable == local {
-                let old_ty = std::mem::replace(self.types.get_mut(local).unwrap(), ty);
+                let old_ty = std::mem::replace(old_ty, ty);
 
-                let ghost = self.types.insert(old_ty);
-                *variable = ghost;
-
-                self.variables.push(local);
+                self.types.push((ghost, old_ty));
 
                 for (_, ty) in &mut self.types {
-                    ty.replace_variable(local, ghost);
+                    ty.map_variable(|var| if var == local { ghost } else { var });
                 }
                 break;
             }
@@ -50,16 +85,14 @@ impl Env {
 
 impl fmt::Display for Env {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut vars = self.variables.iter();
+        let mut vars = self.types.iter();
 
         write!(f, "{{")?;
 
-        if let Some(var) = vars.next() {
-            let ty = self.types.get(*var).unwrap();
+        if let Some((var, ty)) = vars.next() {
             write!(f, "{}: {}", var, ty)?;
 
-            for var in vars {
-                let ty = self.types.get(*var).unwrap();
+            for (var, ty) in vars {
                 write!(f, ", {}: {}", var, ty)?;
             }
         }
