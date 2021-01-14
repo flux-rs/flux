@@ -68,15 +68,16 @@ impl Env {
         let local = LocalVariable::from(local);
         let ghost = LocalVariable::new(self.types.len());
 
-        for (variable, old_ty) in &mut self.types {
+        for (variable, _) in &mut self.types {
             if *variable == local {
-                let old_ty = std::mem::replace(old_ty, ty);
-
-                self.types.push((ghost, old_ty));
+                *variable = ghost;
 
                 for (_, ty) in &mut self.types {
                     ty.map_variable(|var| if var == local { ghost } else { var });
                 }
+
+                self.types.push((local, ty));
+
                 break;
             }
         }

@@ -95,7 +95,6 @@ pub enum Ty<V = LocalVariable> {
 
 impl Ty {
     /// Replace a local variable with another local variable.
-
     pub fn map_variable(&mut self, f: impl Fn(LocalVariable) -> LocalVariable + Clone) {
         match self {
             Self::Refined(_, predicate) => predicate.map_variable(f),
