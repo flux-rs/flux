@@ -96,7 +96,7 @@ pub fn walk_stmnt<I, S, V: Visitor<I, S>>(visitor: &mut V, stmnt: &Statement<I, 
 
 pub fn walk_rvalue<I, S, V: Visitor<I, S>>(visitor: &mut V, rvalue: &Rvalue<S>) {
     match rvalue {
-        Rvalue::Use(operand) => {
+        Rvalue::Use(operand) | Rvalue::UnaryOp(_, operand) => {
             visitor.visit_operand(operand);
         }
         Rvalue::Ref(_, place) => {
@@ -105,9 +105,6 @@ pub fn walk_rvalue<I, S, V: Visitor<I, S>>(visitor: &mut V, rvalue: &Rvalue<S>) 
         Rvalue::CheckedBinaryOp(_, lhs, rhs) | Rvalue::BinaryOp(_, lhs, rhs) => {
             visitor.visit_operand(lhs);
             visitor.visit_operand(rhs);
-        }
-        Rvalue::UnaryOp(_, operand) => {
-            visitor.visit_operand(operand);
         }
     }
 }

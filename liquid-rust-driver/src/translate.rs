@@ -48,7 +48,7 @@ fn create_mpde<'tcx>(
 // Once we do this, we can convert the SSA form into
 // CPS form.
 
-/// Translates an mir::Place to a CPS IR Place.
+/// Translates an `mir::Place` to a CPS IR Place.
 fn translate_place(from: &mir::Place) -> Place {
     let base = Local(from.local.as_usize());
     let mut projs = vec![];
@@ -66,8 +66,7 @@ fn translate_place(from: &mir::Place) -> Place {
 
 fn translate_op(from: &mir::Operand) -> Operand {
     match from {
-        mir::Operand::Copy(p) => Operand::Use(translate_place(p)),
-        mir::Operand::Move(p) => Operand::Use(translate_place(p)),
+        mir::Operand::Copy(p) | mir::Operand::Move(p) => Operand::Use(translate_place(p)),
         mir::Operand::Constant(bc) => translate_const(bc),
     }
 }
@@ -149,7 +148,7 @@ fn get_base_ty(t: ty::Ty) -> BaseTy {
     }
 }
 
-/// Creates a TypeLayout based on a Rust TyKind.
+/// Creates a `TypeLayout` based on a Rust `TyKind`.
 fn get_layout(t: ty::Ty) -> TypeLayout {
     // Get the Rust type for ints, bools, tuples (of ints, bools, tuples)
     // Do case analysis, generate TypeLayout based on that.
@@ -219,8 +218,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         self.names.fresh_location()
     }
 
-    /// Based on the structure of the type, return either a RefineHole
-    /// or a tuple of holy types.
+    /// Returns a `Ty` where all the refinements should be inferred
     fn get_holy_type(&mut self, t: ty::Ty<'tcx>) -> Ty {
         match t.kind() {
             ty::TyKind::Tuple(substs) if !substs.is_empty() => Ty::Tuple(
@@ -234,7 +232,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         }
     }
 
-    /// Translates an MIR function body to a CPS IR FnDef.
+    /// Translates an MIR function body to a CPS IR `FnDef`.
     pub fn translate_body(&mut self) -> FnDef<()> {
         // We then generate a jump instruction to jump to the continuation
         // corresponding to the first/root basic block, bb0.
@@ -260,7 +258,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         // of the function body; we do this at the end so that we have a "rest of`
         // the function body"
         for (ix, decl) in self.body.local_decls.iter_enumerated().rev() {
-            if (1..self.body.arg_count + 1).contains(&ix.index()) {
+            if (1..=self.body.arg_count).contains(&ix.index()) {
                 // Skip over argument locals, they're printed in the signature.
                 continue;
             }
@@ -394,6 +392,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         }
     }
 
+    #[allow(clippy::clippy::too_many_lines)]
     fn translate_terminator(&mut self, terminator: &mir::Terminator<'tcx>) -> FnBody<()> {
         match &terminator.kind {
             TerminatorKind::Goto { target } => FnBody::Jump {
@@ -457,10 +456,10 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                                     op,
                                     Operand::Constant(Constant::Int(val)),
                                 )
-                            } else if val != 0 {
-                                Rvalue::Use(op)
-                            } else {
+                            } else if val == 0 {
                                 Rvalue::UnaryOp(UnOp::Not, op)
+                            } else {
+                                Rvalue::Use(op)
                             },
                         );
                         Statement {

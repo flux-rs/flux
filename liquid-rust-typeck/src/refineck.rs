@@ -187,9 +187,9 @@ impl<'a> RefineChecker<'a> {
         op2: &ast::Operand,
         env: &mut Env,
     ) -> Ty {
-        let tcx = self.tcx;
         use ast::BinOp as ast;
         use ty::BinOp::*;
+        let tcx = self.tcx;
         let op1 = self.check_operand(op1, env);
         let op2 = self.check_operand(op2, env);
         let (bty, pred) = match bin_op {

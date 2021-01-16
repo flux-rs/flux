@@ -31,9 +31,8 @@ impl TyS {
 
     pub fn is_copy(&self) -> bool {
         match self.kind() {
-            TyKind::Refine { .. } => true,
             TyKind::Tuple(tup) => tup.types().all(|ty| ty.is_copy()),
-            TyKind::Ref(BorrowKind::Shared, ..) => true,
+            TyKind::Refine { .. } | TyKind::Ref(BorrowKind::Shared, ..) => true,
             _ => false,
         }
     }
@@ -48,12 +47,9 @@ impl TyS {
 
     pub fn size(&self) -> usize {
         match self.kind() {
-            TyKind::Fn(..) => 1,
-            TyKind::OwnRef(..) => 1,
-            TyKind::Ref(..) => 1,
             TyKind::Tuple(tup) => tup.types().map(|ty| ty.size()).sum(),
             TyKind::Uninit(n) => *n,
-            TyKind::Refine(..) => 1,
+            TyKind::Fn(..) | TyKind::OwnRef(..) | TyKind::Ref(..) | TyKind::Refine(..) => 1,
         }
     }
 

@@ -133,7 +133,7 @@ pub enum BorrowKind {
 }
 
 impl BorrowKind {
-    pub fn is_mut(&self) -> bool {
+    pub fn is_mut(self) -> bool {
         matches!(self, BorrowKind::Mut)
     }
 }

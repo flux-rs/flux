@@ -1,3 +1,4 @@
+#![allow(clippy::clippy::unused_self)]
 use crate::{ast, names::*};
 use std::fmt;
 

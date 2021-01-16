@@ -86,10 +86,10 @@ fn sys_root(orig_args: &[String]) -> Vec<String> {
             "sysroot not found; please specify a SYSROOT env var, pass a --sysroot arg, or use rustup or multirust",
         );
 
-    if !have_sys_root_arg {
-        vec!["--sysroot".into(), sys_root]
-    } else {
+    if have_sys_root_arg {
         vec![]
+    } else {
+        vec!["--sysroot".into(), sys_root]
     }
 }
 

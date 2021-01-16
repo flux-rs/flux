@@ -335,12 +335,11 @@ impl std::cmp::PartialOrd<BorrowKind> for RefKind {
     fn partial_cmp(&self, other: &BorrowKind) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering::*;
         match (self, other) {
-            (RefKind::Shared, BorrowKind::Shared) => Some(Equal),
+            (RefKind::Shared, BorrowKind::Shared) | (RefKind::Mut, BorrowKind::Mut) => Some(Equal),
+            (RefKind::Mut, BorrowKind::Shared)
+            | (RefKind::Owned, BorrowKind::Shared)
+            | (RefKind::Owned, BorrowKind::Mut) => Some(Greater),
             (RefKind::Shared, BorrowKind::Mut) => Some(Less),
-            (RefKind::Mut, BorrowKind::Shared) => Some(Greater),
-            (RefKind::Mut, BorrowKind::Mut) => Some(Equal),
-            (RefKind::Owned, BorrowKind::Shared) => Some(Greater),
-            (RefKind::Owned, BorrowKind::Mut) => Some(Greater),
         }
     }
 }

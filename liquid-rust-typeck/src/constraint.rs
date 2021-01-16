@@ -42,8 +42,12 @@ impl Constraint {
         Constraint::Forall(
             Var::Nu,
             Sort::from(bty),
-            embed_refine(refine1, Place::from(Var::Nu), &HashMap::new()),
-            box Constraint::Pred(embed_refine(refine2, Place::from(Var::Nu), &HashMap::new())),
+            embed_refine(refine1, &Place::from(Var::Nu), &HashMap::new()),
+            box Constraint::Pred(embed_refine(
+                refine2,
+                &Place::from(Var::Nu),
+                &HashMap::new(),
+            )),
         )
     }
 
@@ -78,9 +82,8 @@ impl<'a> From<&'a Ty> for Sort {
 impl<'a> From<&'a BaseTy> for Sort {
     fn from(bty: &'a BaseTy) -> Self {
         match bty {
-            BaseTy::Unit => Sort::Int,
+            BaseTy::Int | BaseTy::Unit => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Int => Sort::Int,
         }
     }
 }
@@ -135,28 +138,28 @@ fn embed_ty(var: Var, ty: &TyS) -> Pred {
     let mut fld_map = HashMap::new();
     let mut place = Place::from(var);
     collect_field_map(&mut place, ty, &mut fld_map);
-    embed_ty_rec(ty, place, &fld_map)
+    embed_ty_rec(ty, &place, &fld_map)
 }
 
-fn embed_ty_rec(ty: &TyS, nu: Place, fld_map: &HashMap<Field, Place>) -> Pred {
+fn embed_ty_rec(ty: &TyS, nu: &Place, fld_map: &HashMap<Field, Place>) -> Pred {
     match ty.kind() {
         TyKind::Tuple(tup) => {
             let preds = tup
                 .types()
                 .enumerate()
-                .map(|(i, ty)| embed_ty_rec(ty, nu.extend_path(i), fld_map))
+                .map(|(i, ty)| embed_ty_rec(ty, &nu.extend_path(i), fld_map))
                 .collect();
             Pred::Conj(preds)
         }
-        TyKind::Refine(_, refine) => embed_refine(refine, nu, fld_map),
+        TyKind::Refine(_, refine) => embed_refine(refine, &nu, fld_map),
         TyKind::OwnRef(_) | TyKind::Ref(..) | TyKind::Fn(..) | TyKind::Uninit(..) => Pred::True,
     }
 }
 
-fn embed_refine(refine: &ty::Refine, nu: Place, fld_map: &HashMap<Field, Place>) -> Pred {
+fn embed_refine(refine: &ty::Refine, nu: &Place, fld_map: &HashMap<Field, Place>) -> Pred {
     match refine {
-        ty::Refine::Pred(pred) => Pred::Expr(embed_pred(pred, &nu, fld_map)),
-        ty::Refine::Infer(kvar) => Pred::Kvar(embed_kvar(kvar, &nu, fld_map)),
+        ty::Refine::Pred(pred) => Pred::Expr(embed_pred(pred, nu, fld_map)),
+        ty::Refine::Infer(kvar) => Pred::Kvar(embed_kvar(kvar, nu, fld_map)),
     }
 }
 
