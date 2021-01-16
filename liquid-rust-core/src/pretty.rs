@@ -361,12 +361,17 @@ impl PrettyPrinter {
                 self.print_location(l, f)?;
                 write!(f, ")")?;
             }
-            ast::Ty::Ref(bk, _r, l) => {
+            ast::Ty::Ref(bk, r, l) => {
                 let bk = match bk {
                     ast::BorrowKind::Shared => "",
                     ast::BorrowKind::Mut => "mut",
                 };
-                write!(f, "&{}(..., ", bk)?;
+                write!(f, "&{}(", bk)?;
+                match r {
+                    ast::Region::Concrete(_) => write!(f, "...")?,
+                    ast::Region::Infer => write!(f, "{{ _ }}")?,
+                }
+                write!(f, ", ")?;
                 self.print_location(l, f)?;
                 write!(f, ")")?;
             }

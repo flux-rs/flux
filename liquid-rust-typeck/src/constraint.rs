@@ -66,7 +66,7 @@ pub enum Sort {
 impl<'a> From<&'a Ty> for Sort {
     fn from(ty: &'a Ty) -> Self {
         match ty.kind() {
-            TyKind::Tuple(tup) => Sort::Tuple(tup.types().map(|ty| Sort::from(ty)).collect()),
+            TyKind::Tuple(tup) => Sort::Tuple(tup.types().map(Sort::from).collect()),
             TyKind::Refine(bty, _) => Sort::from(bty),
             TyKind::Fn(_) | TyKind::OwnRef(_) | TyKind::Ref(_, _, _) | TyKind::Uninit(_) => {
                 Sort::Int
@@ -121,16 +121,13 @@ impl fmt::Debug for Kvar {
 }
 
 fn collect_field_map(place: &mut Place, ty: &TyS, map: &mut HashMap<Field, Place>) {
-    match ty.kind() {
-        TyKind::Tuple(tup) => {
-            for (i, (fld, ty)) in tup.iter().enumerate() {
-                place.projs.push(i);
-                map.insert(*fld, place.clone());
-                collect_field_map(place, ty, map);
-                place.projs.pop();
-            }
+    if let TyKind::Tuple(tup) = ty.kind() {
+        for (i, (fld, ty)) in tup.iter().enumerate() {
+            place.projs.push(i);
+            map.insert(*fld, place.clone());
+            collect_field_map(place, ty, map);
+            place.projs.pop();
         }
-        _ => {}
     }
 }
 
@@ -180,7 +177,10 @@ fn embed_place(place: &Place, nu: Place, fld_map: &HashMap<Field, Place>) -> Pla
     let mut new_place = match place.base {
         Var::Nu => nu,
         Var::Location(l) => Place::from(l),
-        Var::Field(fld) => fld_map.get(&fld).cloned().unwrap_or(Place::from(fld)),
+        Var::Field(fld) => fld_map
+            .get(&fld)
+            .cloned()
+            .unwrap_or_else(|| Place::from(fld)),
     };
     new_place.projs.extend(&place.projs);
     new_place
@@ -190,7 +190,12 @@ fn embed_kvar(kvar: &ty::Kvar, nu: &Place, fld_map: &HashMap<Field, Place>) -> K
     let mut places = vec![];
     for var in &kvar.1 {
         match var {
-            Var::Field(fld) => places.push(fld_map.get(fld).cloned().unwrap_or(Place::from(*fld))),
+            Var::Field(fld) => places.push(
+                fld_map
+                    .get(fld)
+                    .cloned()
+                    .unwrap_or_else(|| Place::from(*fld)),
+            ),
             Var::Location(l) => places.push(Place::from(*l)),
             Var::Nu => places.push(nu.clone()),
         }

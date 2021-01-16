@@ -213,7 +213,7 @@ impl<S: Eq> Place<S> {
                 return false;
             }
         }
-        return true;
+        true
     }
 }
 

@@ -79,15 +79,12 @@ impl TyS {
         projs: &mut Vec<ast::Proj>,
     ) -> Walk<T> {
         f(self, projs)?;
-        match self.kind() {
-            TyKind::Tuple(tup) => {
-                for (i, ty) in tup.types().enumerate() {
-                    projs.push(ast::Proj::Field(i));
-                    ty.walk_internal(f, projs)?;
-                    projs.pop();
-                }
+        if let TyKind::Tuple(tup) = self.kind() {
+            for (i, ty) in tup.types().enumerate() {
+                projs.push(ast::Proj::Field(i));
+                ty.walk_internal(f, projs)?;
+                projs.pop();
             }
-            _ => {}
         }
         Walk::Continue
     }
@@ -186,6 +183,10 @@ impl Tuple {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn map_ty_at(&self, n: usize, f: impl FnOnce(&Ty) -> Ty) -> Tuple {
@@ -331,7 +332,7 @@ impl fmt::Debug for Kvar {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Heap(IndexMap<Location, Ty>);
 
 wrap_iterable! {
@@ -352,6 +353,10 @@ impl Heap {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn truncate(&mut self, len: usize) {

@@ -76,39 +76,34 @@ fn translate_op(from: &mir::Operand) -> Operand {
 // https://github.com/rust-lang/rust/blob/master/compiler/rustc_middle/src/ty/print/pretty.rs
 fn translate_const(from: &mir::Constant) -> Operand {
     match from.literal.val {
-        ty::ConstKind::Value(value) => {
-            match value {
-                ConstValue::Scalar(s) => {
-                    match (s, from.literal.ty.kind()) {
-                        // Unit
-                        (Scalar::Int(s), _) if s.size() == abi::Size::ZERO => {
-                            Operand::Constant(Constant::Unit)
-                        }
-                        // Bool
-                        (Scalar::Int(s), ty::Bool) if s == ty::ScalarInt::FALSE => {
-                            Operand::Constant(Constant::Bool(false))
-                        }
-                        (Scalar::Int(s), ty::Bool) if s == ty::ScalarInt::TRUE => {
-                            Operand::Constant(Constant::Bool(true))
-                        }
-                        // TODO: Floats, when support is added
-                        // Int
-                        (Scalar::Int(s), ty::Uint(_ui)) => {
-                            Operand::Constant(Constant::Int(s.to_bits(s.size()).unwrap()))
-                        }
-                        // TODO: Signed ints, when support is added
-                        // TODO: Chars, when support is added
-                        _ => todo!("{:?}", from),
-                    }
+        ty::ConstKind::Value(ConstValue::Scalar(s)) => {
+            match (s, from.literal.ty.kind()) {
+                // Unit
+                (Scalar::Int(s), _) if s.size() == abi::Size::ZERO => {
+                    Operand::Constant(Constant::Unit)
                 }
-                _ => todo!(),
+                // Bool
+                (Scalar::Int(s), ty::Bool) if s == ty::ScalarInt::FALSE => {
+                    Operand::Constant(Constant::Bool(false))
+                }
+                (Scalar::Int(s), ty::Bool) if s == ty::ScalarInt::TRUE => {
+                    Operand::Constant(Constant::Bool(true))
+                }
+                // TODO: Floats, when support is added
+                // Int
+                (Scalar::Int(s), ty::Uint(_ui)) => {
+                    Operand::Constant(Constant::Int(s.to_bits(s.size()).unwrap()))
+                }
+                // TODO: Signed ints, when support is added
+                // TODO: Chars, when support is added
+                _ => todo!("{:?}", from),
             }
         }
         _ => todo!(),
     }
 }
 
-fn translate_rvalue<'tcx>(from: &mir::Rvalue<'tcx>) -> Rvalue {
+fn translate_rvalue(from: &mir::Rvalue) -> Rvalue {
     match from {
         mir::Rvalue::Use(op) => Rvalue::Use(translate_op(op)),
         mir::Rvalue::BinaryOp(bin_op, op1, op2) => Rvalue::BinaryOp(
@@ -146,7 +141,7 @@ fn translate_bin_op(bin_op: &mir::BinOp) -> BinOp {
     }
 }
 
-fn get_base_ty<'tcx>(t: ty::Ty<'tcx>) -> BaseTy {
+fn get_base_ty(t: ty::Ty) -> BaseTy {
     match t.kind() {
         ty::TyKind::Bool => BaseTy::Bool,
         ty::TyKind::Int(_) | ty::TyKind::Uint(_) => BaseTy::Int,
@@ -155,7 +150,7 @@ fn get_base_ty<'tcx>(t: ty::Ty<'tcx>) -> BaseTy {
 }
 
 /// Creates a TypeLayout based on a Rust TyKind.
-fn get_layout<'tcx>(t: ty::Ty<'tcx>) -> TypeLayout {
+fn get_layout(t: ty::Ty) -> TypeLayout {
     // Get the Rust type for ints, bools, tuples (of ints, bools, tuples)
     // Do case analysis, generate TypeLayout based on that.
     // Give up if not supported type
@@ -453,25 +448,19 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
 
                     // If the discr type is a bool, we compare to a bool constant.
                     // otherwise, compare with an int constant.
-                    let is_bool = match switch_ty.kind() {
-                        ty::TyKind::Bool => true,
-                        _ => false,
-                    };
                     let asgn = {
                         let kind = StatementKind::Assign(
                             temp.clone(),
-                            if !is_bool {
+                            if !switch_ty.is_bool() {
                                 Rvalue::BinaryOp(
                                     BinOp::Eq,
                                     op,
                                     Operand::Constant(Constant::Int(val)),
                                 )
+                            } else if val != 0 {
+                                Rvalue::Use(op)
                             } else {
-                                if val != 0 {
-                                    Rvalue::Use(op)
-                                } else {
-                                    Rvalue::UnaryOp(UnOp::Not, op)
-                                }
+                                Rvalue::UnaryOp(UnOp::Not, op)
                             },
                         );
                         Statement {
@@ -606,7 +595,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
 }
 
 fn tuple_layout_or_block(tup: Vec<TypeLayout>) -> TypeLayout {
-    if tup.len() == 0 {
+    if tup.is_empty() {
         TypeLayout::Block(1)
     } else {
         TypeLayout::Tuple(tup)

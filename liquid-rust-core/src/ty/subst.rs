@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::*;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Subst(HashMap<SubstKey, usize>);
 
 #[derive(Debug, PartialEq, Eq, Hash)]

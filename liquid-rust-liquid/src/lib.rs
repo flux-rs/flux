@@ -120,7 +120,12 @@ impl KvarInferer {
         let sorts = kvar
             .1
             .iter()
-            .map(|var| *self.sorts.get(var).expect(&format!("{} {:?}", var, kvar)))
+            .map(|var| {
+                *self
+                    .sorts
+                    .get(var)
+                    .unwrap_or_else(|| panic!("{} {:?}", var, kvar))
+            })
             .collect();
         self.kvars.insert(kvar.0, sorts);
     }

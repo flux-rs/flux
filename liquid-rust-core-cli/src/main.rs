@@ -14,7 +14,10 @@ use codespan_reporting::{
 };
 use lalrpop_util::lalrpop_mod;
 use liquid_rust_typeck::check_fn_def;
-lalrpop_mod!(pub grammar);
+lalrpop_mod!(
+    #[allow(clippy::all, clippy::pedantic)]
+    pub grammar
+);
 type ParseError<'input> = lalrpop_util::ParseError<usize, grammar::Token<'input>, &'input str>;
 
 fn main() -> Result<(), codespan_reporting::files::Error> {
@@ -44,7 +47,7 @@ fn diagnostics(
 ) -> Result<(), codespan_reporting::files::Error> {
     use lalrpop_util::ParseError::*;
     let diagnostic: Diagnostic<()> = match err {
-        User { error } => Diagnostic::error().with_message(format!("{}", error)),
+        User { error } => Diagnostic::error().with_message(error.to_string()),
 
         InvalidToken { location } => Diagnostic::error()
             .with_message("Invalid token")

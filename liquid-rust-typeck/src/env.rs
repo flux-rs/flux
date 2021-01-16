@@ -82,22 +82,19 @@ impl Env<'_> {
         for (&x, l) in self.locals() {
             let ty = self.lookup_location(l);
             ty.walk(|ty, projs| {
-                match ty.kind() {
-                    TyKind::Ref(bk, region, ..) => {
-                        let in_reborrow_list = reborrow_list
-                            .iter()
-                            .any(|p| p.base == x && p.projs == projs);
-                        if in_reborrow_list {
-                            return Walk::Continue;
-                        }
-                        for p in region.places() {
-                            if place.overlaps(p) && (kind >= RefKind::Mut || bk.is_mut()) {
-                                let conflict = ast::Place::new(x, Vec::from(projs));
-                                return Walk::Stop(OwnershipError::ConflictingBorrow(conflict));
-                            }
+                if let TyKind::Ref(bk, region, ..) = ty.kind() {
+                    let in_reborrow_list = reborrow_list
+                        .iter()
+                        .any(|p| p.base == x && p.projs == projs);
+                    if in_reborrow_list {
+                        return Walk::Continue;
+                    }
+                    for p in region.places() {
+                        if place.overlaps(p) && (kind >= RefKind::Mut || bk.is_mut()) {
+                            let conflict = ast::Place::new(x, Vec::from(projs));
+                            return Walk::Stop(OwnershipError::ConflictingBorrow(conflict));
                         }
                     }
-                    _ => {}
                 }
                 Walk::Continue
             })?;
@@ -236,13 +233,13 @@ impl Env<'_> {
             .last()
             .unwrap()
             .get(x)
-            .expect(&format!("Env: local not found {:?}", x))
+            .unwrap_or_else(|| panic!("Env: local not found {:?}", x))
     }
 
     fn lookup_location(&self, l: &Location) -> &Ty {
         self.heap
             .get(l)
-            .expect(&format!("Env: location not found {:?}", l))
+            .unwrap_or_else(|| panic!("Env: location not found {:?}", l))
     }
 
     fn fresh_location(&self) -> Location {
@@ -280,32 +277,29 @@ impl Env<'_> {
         let vars_in_scope = self.vars_in_scope();
         let mut constraints = vec![];
         ty.walk(|ty, _| {
-            match ty.kind() {
-                TyKind::Ref(BorrowKind::Mut, r, l) => {
-                    let ty = self.lookup_location(l).clone();
-                    match r.places() {
-                        [] => {}
-                        [place] => {
-                            self.update(place, ty);
-                        }
-                        _ => {
-                            let ty_join = self.tcx.replace_refines_with_kvars(&ty, &vars_in_scope);
+            if let TyKind::Ref(BorrowKind::Mut, r, l) = ty.kind() {
+                let ty = self.lookup_location(l).clone();
+                match r.places() {
+                    [] => {}
+                    [place] => {
+                        self.update(place, ty);
+                    }
+                    _ => {
+                        let ty_join = self.tcx.replace_refines_with_kvars(&ty, &vars_in_scope);
 
-                            let heap = self.heap();
+                        let heap = self.heap();
+                        constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                        for place in r.places() {
+                            let ty = self.lookup(place);
                             constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
-                            for place in r.places() {
-                                let ty = self.lookup(place);
-                                constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
-                            }
+                        }
 
-                            for place in r.places() {
-                                self.update(place, ty_join.clone());
-                            }
+                        for place in r.places() {
+                            self.update(place, ty_join.clone());
                         }
                     }
                 }
-                _ => {}
-            };
+            }
             Walk::Continue::<()>
         });
         Constraint::Conj(constraints)
@@ -330,10 +324,10 @@ impl From<BorrowKind> for RefKind {
 
 impl std::cmp::PartialEq<BorrowKind> for RefKind {
     fn eq(&self, other: &BorrowKind) -> bool {
-        match (self, other) {
-            (RefKind::Shared, BorrowKind::Shared) | (RefKind::Mut, BorrowKind::Mut) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (RefKind::Shared, BorrowKind::Shared) | (RefKind::Mut, BorrowKind::Mut)
+        )
     }
 }
 
@@ -364,7 +358,7 @@ pub struct Snapshot {
 
 impl fmt::Debug for Env<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\n", self.heap)?;
+        writeln!(f, "{}", self.heap)?;
         let s = self
             .locals
             .last()

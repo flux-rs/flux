@@ -15,6 +15,12 @@ pub struct TyCtxt {
     next_fresh: Cell<usize>,
 }
 
+impl Default for TyCtxt {
+    fn default() -> Self {
+        TyCtxt::new()
+    }
+}
+
 impl TyCtxt {
     pub fn new() -> Self {
         let mut interner = CtxtInterner::new();
@@ -128,7 +134,7 @@ impl TyCtxt {
         }
     }
 
-    pub fn replace_refines_with_kvars(&self, ty: &Ty, vars_in_scope: &Vec<Var>) -> Ty {
+    pub fn replace_refines_with_kvars(&self, ty: &Ty, vars_in_scope: &[Var]) -> Ty {
         match ty.kind() {
             TyKind::Fn(fn_ty) => {
                 let fn_ty = FnTy {

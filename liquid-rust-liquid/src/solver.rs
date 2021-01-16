@@ -56,13 +56,13 @@ pub fn solve(constraint: &Constraint) -> io::Result<LiquidResult> {
 fn emit_kvars<W: Write>(w: &mut W, c: &Constraint) -> io::Result<()> {
     for (kvid, sorts) in KvarInferer::new().infer(c) {
         write!(w, "(var $k{} (", kvid)?;
-        for i in 0..sorts.len() {
+        for (i, sort) in sorts.iter().enumerate() {
             if i > 0 {
                 write!(w, " ")?;
             }
-            write!(w, "({})", sorts[i])?;
+            write!(w, "({})", sort)?;
         }
-        write!(w, "))\n")?;
+        writeln!(w, "))")?;
     }
     Ok(())
 }

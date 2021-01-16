@@ -88,7 +88,7 @@ impl<'a> TypeLowerer<'a> {
             in_heap: self.lower_heap(&fn_ty.in_heap),
             inputs: fn_ty.inputs.clone(),
             out_heap: self.lower_heap(&fn_ty.out_heap),
-            output: fn_ty.output.clone(),
+            output: fn_ty.output,
         }
     }
 

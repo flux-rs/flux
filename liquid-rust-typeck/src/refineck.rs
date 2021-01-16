@@ -41,7 +41,7 @@ impl<'a> RefineChecker<'a> {
 
         let constraint = self.check_body(&mut env, &func.body);
 
-        if self.errors.len() == 0 {
+        if self.errors.is_empty() {
             Ok(Constraint::from_bindings(
                 fn_ty.in_heap.bindings(),
                 constraint,
