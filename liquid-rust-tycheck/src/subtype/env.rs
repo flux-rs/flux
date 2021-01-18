@@ -1,7 +1,7 @@
 use crate::{env::Env, result::TyResult, subtype::Subtype};
 
-use liquid_rust_common::index::Index;
-use liquid_rust_ty::LocalVariable;
+use liquid_rust_common::index::{Index, IndexGen};
+use liquid_rust_ty::{LocalVariable, Predicate, Ty, Variable};
 
 impl<'env, S> Subtype<'env, S> for Env {
     type Env = ();
@@ -10,38 +10,151 @@ impl<'env, S> Subtype<'env, S> for Env {
         let len_locals = self.len_locals();
         assert_eq!(len_locals, other.len_locals());
 
-        let offset = self.len() - len_locals;
+        let mut env = Env::empty();
 
-        let mut env = Env::empty(len_locals);
+        let gen = IndexGen::<LocalVariable>::new();
 
-        let mut env1 = self.iter();
-        let mut env2 = other.iter();
+        for _ in 0..len_locals {
+            gen.generate();
+        }
 
-        while let Some((var1, ty1)) = env1.next() {
+        let mut stack1 = vec![];
+        let mut stack2 = vec![];
+
+        if self.len_binds() == 0 {
+            for (local, ty) in self.types() {
+                stack1.push((local.into(), ty.clone()));
+            }
+
+            for (local, ty) in other.types() {
+                stack2.push((local.into(), ty.clone()));
+            }
+
+            for (target, ty2) in other.binds().cloned() {
+                if let Ty::Refined(base_ty, _) = &ty2 {
+                    let target = target.into();
+                    let new_local = gen.generate();
+
+                    for (local, ty) in stack1.iter_mut() {
+                        if *local == target {
+                            *local = new_local;
+                        }
+
+                        ty.map_variable(|local| {
+                            if local == target.into() {
+                                new_local
+                            } else {
+                                local
+                            }
+                        });
+                    }
+
+                    let ty1 = Ty::Refined(
+                        *base_ty,
+                        Predicate::Var(Variable::Bound)
+                            .eq(*base_ty, Predicate::Var(Variable::Local(new_local))),
+                    );
+
+                    stack1.push((target, ty1));
+
+                    let new_local = gen.generate();
+
+                    for (local, ty) in stack2.iter_mut() {
+                        if *local == target {
+                            *local = new_local;
+                        }
+
+                        ty.map_variable(|local| {
+                            if local == target.into() {
+                                new_local
+                            } else {
+                                local
+                            }
+                        });
+                    }
+
+                    stack2.push((target, ty2.clone()));
+                } else {
+                    panic!()
+                }
+            }
+        } else if other.len_binds() == 0 {
+            for (local, ty) in self.types() {
+                stack1.push((local.into(), ty.clone()));
+            }
+
+            for (local, ty) in other.types() {
+                stack2.push((local.into(), ty.clone()));
+            }
+
+            for (target, ty1) in self.binds().cloned() {
+                if let Ty::Refined(base_ty, _) = &ty1 {
+                    let target = target.into();
+                    let new_local = gen.generate();
+
+                    for (local, ty) in stack2.iter_mut() {
+                        if *local == target {
+                            *local = new_local;
+                        }
+
+                        ty.map_variable(|local| {
+                            if local == target.into() {
+                                new_local
+                            } else {
+                                local
+                            }
+                        });
+                    }
+
+                    let ty2 = Ty::Refined(
+                        *base_ty,
+                        Predicate::Var(Variable::Bound)
+                            .eq(*base_ty, Predicate::Var(Variable::Local(new_local))),
+                    );
+
+                    stack2.push((target, ty2));
+
+                    let new_local = gen.generate();
+
+                    for (local, ty) in stack1.iter_mut() {
+                        if *local == target {
+                            *local = new_local;
+                        }
+
+                        ty.map_variable(|local| {
+                            if local == target.into() {
+                                new_local
+                            } else {
+                                local
+                            }
+                        });
+                    }
+
+                    stack1.push((target, ty1.clone()));
+                } else {
+                    panic!()
+                }
+            }
+        } else {
+            panic!()
+        }
+
+        while let Some((var1, ty1)) = stack1.pop() {
             if var1.index() < len_locals {
-                while let Some((var2, ty2)) = env2.next() {
+                while let Some((var2, ty2)) = stack2.pop() {
                     if var2.index() < len_locals {
                         assert_eq!(var1, var2);
-                        ty1.subtype(ty2, &env)?;
+                        ty1.subtype(&ty2, &env)?;
 
-                        env.bind(*var1, ty1.clone());
+                        env.rebind_local(var1, ty1.clone());
 
                         break;
                     } else {
-                        let new_var2 = LocalVariable::new(var2.index() + offset);
-                        let mut ty2 = ty2.clone();
-                        ty2.map_variable(|var| {
-                            if var.index() < len_locals {
-                                var
-                            } else {
-                                LocalVariable::new(var.index() + offset)
-                            }
-                        });
-                        env.bind(new_var2, ty2);
+                        env.rebind_local(var2, ty2);
                     }
                 }
             } else {
-                env.bind(*var1, ty1.clone());
+                env.rebind_local(var1, ty1.clone());
             }
         }
 

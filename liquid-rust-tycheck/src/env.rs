@@ -1,86 +1,77 @@
-use liquid_rust_common::index::Index;
-use liquid_rust_mir::Local;
+use liquid_rust_common::index::{IndexMap};
 use liquid_rust_ty::{LocalVariable, Ty};
 
 use std::fmt;
 
 #[derive(Clone)]
 pub(crate) struct Env {
-    types: Vec<(LocalVariable, Ty)>,
-    len_locals: usize,
+    types: IndexMap<LocalVariable, Ty>,
+    binds: Vec<(LocalVariable, Ty)>,
 }
 
 impl Env {
-    pub(crate) fn empty(len_locals: usize) -> Self {
+    pub(crate) fn empty() -> Self {
         Self {
-            types: Vec::new(),
-            len_locals,
+            types: IndexMap::new(),
+            binds: Vec::new(),
         }
     }
 
     pub(crate) fn new(local_decls: impl Iterator<Item = Ty>) -> Self {
-        let mut types = Vec::new();
+        let mut types = IndexMap::new();
 
         for ty in local_decls {
-            let variable = LocalVariable::new(types.len());
-            types.push((variable, ty));
+            types.insert(ty);
         }
 
         Self {
-            len_locals: types.len(),
             types,
+            binds: Vec::new(),
         }
     }
 
     pub(crate) fn len_locals(&self) -> usize {
-        self.len_locals
-    }
-
-    pub(crate) fn len(&self) -> usize {
         self.types.len()
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &(LocalVariable, Ty)> {
+    pub(crate) fn len_binds(&self) -> usize {
+        self.binds.len()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.types.len() + self.binds.len()
+    }
+
+    pub(crate) fn types(&self) -> impl Iterator<Item = (LocalVariable, &Ty)> {
         self.types.iter()
+    }
+
+    pub(crate) fn binds(&self) -> impl Iterator<Item = &(LocalVariable, Ty)> {
+        self.binds.iter()
     }
 
     pub(crate) fn get_ty(&self, target: impl Into<LocalVariable>) -> &Ty {
         let target = target.into();
-        self.types
+        if let Some((_, ty)) = self
+            .binds
             .iter()
-            .find_map(
-                |(variable, ty)| {
-                    if *variable == target {
-                        Some(ty)
-                    } else {
-                        None
-                    }
-                },
-            )
-            .unwrap_or_else(|| panic!("couldn't find {} in {}.", target, self))
-    }
-
-    pub(crate) fn bind(&mut self, var: LocalVariable, ty: Ty) {
-        self.types.push((var, ty));
-    }
-
-    pub(crate) fn rebind_local(&mut self, local: Local, ty: Ty) {
-        let local = LocalVariable::from(local);
-        let ghost = LocalVariable::new(self.types.len());
-
-        for (variable, _) in &mut self.types {
-            if *variable == local {
-                *variable = ghost;
-
-                for (_, ty) in &mut self.types {
-                    ty.map_variable(|var| if var == local { ghost } else { var });
-                }
-
-                self.types.push((local, ty));
-
-                break;
-            }
+            .rev()
+            .find(|(variable, _)| *variable == target)
+        {
+            ty
+        } else {
+            self.types
+                .get(target)
+                .unwrap_or_else(|| panic!("couldn't find {} in {}.", target, self))
         }
+    }
+
+    pub(crate) fn bind(&mut self, local: impl Into<LocalVariable>, ty: Ty) {
+        assert_eq!(local.into(), self.types.insert(ty))
+    }
+
+    pub(crate) fn rebind_local(&mut self, local: impl Into<LocalVariable>, ty: Ty) {
+        self.binds.push((local.into(), ty));
     }
 }
 
