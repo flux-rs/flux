@@ -9,7 +9,7 @@ use liquid_rust_ty::{BaseTy, FuncTy};
 use std::fmt;
 
 new_index! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
     FuncId
 }
 
