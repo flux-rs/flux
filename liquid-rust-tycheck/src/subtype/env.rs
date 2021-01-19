@@ -7,6 +7,8 @@ impl<'env, S> Subtype<'env, S> for Env {
     type Env = ();
 
     fn subtype(&self, other: &Self, (): Self::Env) -> TyResult<S> {
+        println!("\nSub-Env: {} <: {}", self, other);
+
         let len_locals = self.len_locals();
         assert_eq!(len_locals, other.len_locals());
 
@@ -23,11 +25,11 @@ impl<'env, S> Subtype<'env, S> for Env {
 
         if self.len_binds() == 0 {
             for (local, ty) in self.types() {
-                stack1.push((local.into(), ty.clone()));
+                stack1.push(((*local).into(), ty.clone()));
             }
 
             for (local, ty) in other.types() {
-                stack2.push((local.into(), ty.clone()));
+                stack2.push(((*local).into(), ty.clone()));
             }
 
             for (target, ty2) in other.binds().cloned() {
@@ -80,11 +82,11 @@ impl<'env, S> Subtype<'env, S> for Env {
             }
         } else if other.len_binds() == 0 {
             for (local, ty) in self.types() {
-                stack1.push((local.into(), ty.clone()));
+                stack1.push(((*local).into(), ty.clone()));
             }
 
             for (local, ty) in other.types() {
-                stack2.push((local.into(), ty.clone()));
+                stack2.push(((*local).into(), ty.clone()));
             }
 
             for (target, ty1) in self.binds().cloned() {
@@ -139,22 +141,25 @@ impl<'env, S> Subtype<'env, S> for Env {
             panic!()
         }
 
-        while let Some((var1, ty1)) = stack1.pop() {
+        let mut stack1 = stack1.into_iter();
+        let mut stack2 = stack2.into_iter();
+
+        while let Some((var1, ty1)) = stack1.next() {
             if var1.index() < len_locals {
-                while let Some((var2, ty2)) = stack2.pop() {
+                while let Some((var2, ty2)) = stack2.next() {
                     if var2.index() < len_locals {
                         assert_eq!(var1, var2);
                         ty1.subtype(&ty2, &env)?;
 
-                        env.rebind_local(var1, ty1.clone());
+                        env.bind(var1, ty1.clone());
 
                         break;
                     } else {
-                        env.rebind_local(var2, ty2);
+                        env.bind(var2, ty2);
                     }
                 }
             } else {
-                env.rebind_local(var1, ty1.clone());
+                env.bind(var1, ty1.clone());
             }
         }
 

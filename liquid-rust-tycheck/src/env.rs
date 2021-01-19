@@ -1,18 +1,18 @@
-use liquid_rust_common::index::{IndexMap};
+use liquid_rust_common::index::IndexMap;
 use liquid_rust_ty::{LocalVariable, Ty};
 
 use std::fmt;
 
 #[derive(Clone)]
 pub(crate) struct Env {
-    types: IndexMap<LocalVariable, Ty>,
+    types: Vec<(LocalVariable, Ty)>,
     binds: Vec<(LocalVariable, Ty)>,
 }
 
 impl Env {
     pub(crate) fn empty() -> Self {
         Self {
-            types: IndexMap::new(),
+            types: Vec::new(),
             binds: Vec::new(),
         }
     }
@@ -25,7 +25,7 @@ impl Env {
         }
 
         Self {
-            types,
+            types: types.into_iter().collect(),
             binds: Vec::new(),
         }
     }
@@ -42,7 +42,7 @@ impl Env {
         self.types.len() + self.binds.len()
     }
 
-    pub(crate) fn types(&self) -> impl Iterator<Item = (LocalVariable, &Ty)> {
+    pub(crate) fn types(&self) -> impl Iterator<Item = &(LocalVariable, Ty)> {
         self.types.iter()
     }
 
@@ -61,13 +61,15 @@ impl Env {
             ty
         } else {
             self.types
-                .get(target)
+                .iter()
+                .rev()
+                .find_map(|(variable, ty)| if *variable == target { Some(ty) } else { None })
                 .unwrap_or_else(|| panic!("couldn't find {} in {}.", target, self))
         }
     }
 
     pub(crate) fn bind(&mut self, local: impl Into<LocalVariable>, ty: Ty) {
-        assert_eq!(local.into(), self.types.insert(ty))
+        self.types.push((local.into(), ty));
     }
 
     pub(crate) fn rebind_local(&mut self, local: impl Into<LocalVariable>, ty: Ty) {
@@ -90,6 +92,10 @@ impl fmt::Display for Env {
         }
 
         write!(f, "}}")?;
+
+        for (var, ty) in &self.binds {
+            write!(f, "[{} -> {}]", var, ty)?;
+        }
 
         Ok(())
     }
