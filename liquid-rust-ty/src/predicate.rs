@@ -21,6 +21,18 @@ pub struct Hole {
     pub substs: Vec<(LocalVariable, LocalVariable)>,
 }
 
+impl fmt::Display for Hole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "?P{}", self.id.0)?;
+
+        for (target, replacement) in &self.substs {
+            write!(f, "[{} -> {}]", target, replacement)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// A quantifier-free predicate.
 #[derive(Clone, Debug)]
 pub enum Predicate<V = LocalVariable> {
@@ -53,8 +65,8 @@ impl Predicate {
                 op1.replace_variable(target, replacement);
                 op2.replace_variable(target, replacement);
             }
-            Self::Hole(_hole) => {
-
+            Self::Hole(hole) => {
+                hole.substs.push((target, replacement));
             }
         }
     }
@@ -156,7 +168,7 @@ impl<V: fmt::Display> fmt::Display for Predicate<V> {
             Self::Var(variable) => variable.fmt(f),
             Self::UnaryOp(un_op, op) => write!(f, "{}{}", un_op, op),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "({} {} {})", op1, bin_op, op2),
-            Self::Hole(hole) => write!(f, "?P{}", hole.id.0),
+            Self::Hole(hole) => hole.fmt(f),
         }
     }
 }
