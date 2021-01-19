@@ -1,6 +1,6 @@
 use liquid_rust_common::index::{IndexGen, IndexMap};
 use liquid_rust_mir::{FuncId, Program};
-use liquid_rust_ty::{FuncTy, HoleId, Predicate};
+use liquid_rust_ty::{FuncTy, Hole, HoleId, Predicate};
 
 pub(crate) struct GlobEnv {
     hole_gen: IndexGen<HoleId>,
@@ -22,7 +22,10 @@ impl GlobEnv {
     }
 
     pub(crate) fn new_pred(&self) -> Predicate {
-        Predicate::Hole(self.hole_gen.generate())
+        Predicate::Hole(Hole {
+            id: self.hole_gen.generate(),
+            substs: Vec::new(),
+        })
     }
 
     pub(crate) fn get_ty(&self, func_id: FuncId) -> &FuncTy {

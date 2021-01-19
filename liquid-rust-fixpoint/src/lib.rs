@@ -181,7 +181,7 @@ impl<A: Emit> Emit for Predicate<A> {
                 write!(writer, ")")
             }
             // Inference variables are emitted using its index.
-            Predicate::Hole(id) => write!(writer, "p{}", id.index()),
+            Predicate::Hole(hole) => write!(writer, "p{}", hole.id.index()),
         }
     }
 }

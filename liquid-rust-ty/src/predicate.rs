@@ -15,6 +15,12 @@ new_index! {
     HoleId
 }
 
+#[derive(Clone, Debug)]
+pub struct Hole {
+    pub id: HoleId,
+    pub substs: Vec<(LocalVariable, LocalVariable)>,
+}
+
 /// A quantifier-free predicate.
 #[derive(Clone, Debug)]
 pub enum Predicate<V = LocalVariable> {
@@ -27,23 +33,28 @@ pub enum Predicate<V = LocalVariable> {
     /// A binary operation between predicates.
     BinaryOp(BinOp, Box<Self>, Box<Self>),
     /// A predicate to be inferred.
-    Hole(HoleId),
+    Hole(Hole),
 }
 
 impl Predicate {
-    pub(crate) fn map_variable(&mut self, f: impl Fn(LocalVariable) -> LocalVariable + Clone) {
+    pub(crate) fn replace_variable(&mut self, target: LocalVariable, replacement: LocalVariable) {
         match self {
-            Self::Lit(_) | Self::Hole(_) => (),
+            Self::Lit(_) => (),
             Self::Var(var) => match var {
                 Variable::Bound | Variable::Arg(_) => (),
                 Variable::Local(local_var) => {
-                    *local_var = f(*local_var);
+                    if *local_var == target {
+                        *local_var = replacement;
+                    }
                 }
             },
-            Self::UnaryOp(_, op) => op.map_variable(f),
+            Self::UnaryOp(_, op) => op.replace_variable(target, replacement),
             Self::BinaryOp(_, op1, op2) => {
-                op1.map_variable(f.clone());
-                op2.map_variable(f);
+                op1.replace_variable(target, replacement);
+                op2.replace_variable(target, replacement);
+            }
+            Self::Hole(_hole) => {
+
             }
         }
     }
@@ -145,7 +156,7 @@ impl<V: fmt::Display> fmt::Display for Predicate<V> {
             Self::Var(variable) => variable.fmt(f),
             Self::UnaryOp(un_op, op) => write!(f, "{}{}", un_op, op),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "({} {} {})", op1, bin_op, op2),
-            Self::Hole(id) => write!(f, "?P{}", id.0),
+            Self::Hole(hole) => write!(f, "?P{}", hole.id.0),
         }
     }
 }

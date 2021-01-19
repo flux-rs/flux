@@ -20,6 +20,6 @@ pub use int_size::IntSize;
 pub use literal::Literal;
 pub use local::LocalVariable;
 pub use op::{BinOp, UnOp};
-pub use predicate::{HoleId, Predicate};
+pub use predicate::{Hole, HoleId, Predicate};
 pub use ty::{FuncTy, Ty};
 pub use variable::Variable;

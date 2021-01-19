@@ -42,13 +42,7 @@ impl<'env, S> Subtype<'env, S> for Env {
                             *local = new_local;
                         }
 
-                        ty.map_variable(|local| {
-                            if local == target.into() {
-                                new_local
-                            } else {
-                                local
-                            }
-                        });
+                        ty.replace_variable(target.into(), new_local);
                     }
 
                     let ty1 = Ty::Refined(
@@ -66,13 +60,7 @@ impl<'env, S> Subtype<'env, S> for Env {
                             *local = new_local;
                         }
 
-                        ty.map_variable(|local| {
-                            if local == target.into() {
-                                new_local
-                            } else {
-                                local
-                            }
-                        });
+                        ty.replace_variable(target.into(), new_local);
                     }
 
                     stack2.push((target, ty2.clone()));
@@ -99,14 +87,7 @@ impl<'env, S> Subtype<'env, S> for Env {
                             *local = new_local;
                         }
 
-                        ty.map_variable(|local| {
-                            if local == target.into() {
-                                new_local
-                            } else {
-                                local
-                            }
-                        });
-                    }
+                        ty.replace_variable(target.into(), new_local);                     }
 
                     let ty2 = Ty::Refined(
                         *base_ty,
@@ -123,13 +104,7 @@ impl<'env, S> Subtype<'env, S> for Env {
                             *local = new_local;
                         }
 
-                        ty.map_variable(|local| {
-                            if local == target.into() {
-                                new_local
-                            } else {
-                                local
-                            }
-                        });
+                        ty.replace_variable(target.into(), new_local);
                     }
 
                     stack1.push((target, ty1.clone()));
