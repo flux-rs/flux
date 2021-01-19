@@ -76,9 +76,7 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
                             let span = map_span(err.span);
                             let msg = match err.kind {
                                 UnexpectedEOF => "Type annotation ended unexpectedly.".to_owned(),
-                                UnexpectedToken(token) => {
-                                    format!("Unexpected token `{}`.", token)
-                                }
+                                UnexpectedToken(token) => format!("Unexpected token `{}`.", token),
                             };
 
                             self.buffer_error(span, &msg);

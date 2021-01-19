@@ -167,9 +167,7 @@ impl<V> Ty<V> {
 impl<V: fmt::Display> fmt::Display for Ty<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Refined(base_ty, predicate) => {
-                write!(f, "{{ b: {} | {} }}", base_ty, predicate)
-            }
+            Self::Refined(base_ty, predicate) => write!(f, "{{ b: {} | {} }}", base_ty, predicate),
             Self::Func(func_ty) => func_ty.fmt(f),
         }
     }

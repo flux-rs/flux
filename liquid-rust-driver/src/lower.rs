@@ -453,9 +453,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
                 let msg = match kind {
                     mir::TerminatorKind::Goto { .. }
                     | mir::TerminatorKind::Return
-                    | mir::TerminatorKind::Assert { .. } => {
-                        unreachable!()
-                    }
+                    | mir::TerminatorKind::Assert { .. } => unreachable!(),
                     mir::TerminatorKind::SwitchInt { .. } => "switch",
                     mir::TerminatorKind::Resume => "resume",
                     mir::TerminatorKind::Abort => "abort",

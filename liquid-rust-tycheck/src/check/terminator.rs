@@ -14,6 +14,7 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
     type Env = (&'env GlobEnv, &'env BBlockEnv, &'env Ty);
 
     fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult<S> {
+        print!("\nChk-Terminator: ");
         match &self.kind {
             TerminatorKind::Return => {
                 let (_, _, return_ty) = env;

@@ -107,7 +107,6 @@ impl<S: std::fmt::Debug> Emitter<S> {
 
         // First we emit all the environment bindings.
         for (index, bind) in self.env.iter().enumerate() {
-
             // Store the index for the variable.
             vars.insert(bind.variable, index);
 

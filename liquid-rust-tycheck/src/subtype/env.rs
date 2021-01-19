@@ -87,7 +87,8 @@ impl<'env, S> Subtype<'env, S> for Env {
                             *local = new_local;
                         }
 
-                        ty.replace_variable(target.into(), new_local);                     }
+                        ty.replace_variable(target.into(), new_local);
+                    }
 
                     let ty2 = Ty::Refined(
                         *base_ty,
