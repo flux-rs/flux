@@ -9,37 +9,27 @@ use std::fmt;
 ///
 /// The arguments `a_1`, ..., `a_n` are represented using de Bruijn indices inside the predicates.
 #[derive(Clone, Debug)]
-pub struct FuncTy<V = LocalVariable> {
+pub struct FuncTy {
     /// The types of the function's arguments.
-    arguments: Vec<Ty<V>>,
+    arguments: Vec<Ty>,
     /// The return type of the function.
-    return_ty: Box<Ty<V>>,
+    return_ty: Box<Ty>,
 }
 
 impl FuncTy {
-    fn replace_variable(&mut self, target: LocalVariable, replacement: LocalVariable) {
-        for argument in &mut self.arguments {
-            argument.replace_variable(target, replacement);
-        }
-
-        self.return_ty.replace_variable(target, replacement);
-    }
-}
-
-impl<V> FuncTy<V> {
     /// Create a new dependent function type.
-    pub fn new(arguments: Vec<Ty<V>>, return_ty: Ty<V>) -> Self {
+    pub fn new(arguments: Vec<Ty>, return_ty: Ty) -> Self {
         Self {
             arguments,
             return_ty: Box::new(return_ty),
         }
     }
     /// Return the types of the function's arguments.
-    pub fn arguments(&self) -> &[Ty<V>] {
+    pub fn arguments(&self) -> &[Ty] {
         &self.arguments
     }
     /// Return the return type of the function.
-    pub fn return_ty(&self) -> &Ty<V> {
+    pub fn return_ty(&self) -> &Ty {
         &self.return_ty
     }
     /// Check if two function types have the same shape, i.e. if they have the same arity and their
@@ -55,21 +45,29 @@ impl<V> FuncTy<V> {
     }
     /// Project the function's arguments into local variables and let untouched the arguments of
     /// any inner function type.
-    pub fn project_args(mut self, f: impl Fn(usize) -> Predicate<V> + Copy) -> Self {
+    pub fn project_args(mut self, f: impl Fn(usize) -> Predicate + Copy) -> Self {
         self.project(f, 0);
         self
     }
 
     /// Project the arguments inside the type that have a specific index into local variables.
-    fn project(&mut self, f: impl Fn(usize) -> Predicate<V> + Copy, index: usize) {
+    fn project(&mut self, f: impl Fn(usize) -> Predicate + Copy, index: usize) {
         for argument in &mut self.arguments {
             argument.project(f, index);
         }
         self.return_ty.project(f, index);
     }
+
+    fn replace_variable(&mut self, target: LocalVariable, replacement: LocalVariable) {
+        for argument in &mut self.arguments {
+            argument.replace_variable(target, replacement);
+        }
+
+        self.return_ty.replace_variable(target, replacement);
+    }
 }
 
-impl<V: fmt::Display> fmt::Display for FuncTy<V> {
+impl fmt::Display for FuncTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut arguments = self.arguments.iter();
 
@@ -86,11 +84,11 @@ impl<V: fmt::Display> fmt::Display for FuncTy<V> {
 
 /// A refined type.
 #[derive(Clone, Debug)]
-pub enum Ty<V = LocalVariable> {
+pub enum Ty {
     /// A refined base type: `{ b: B | p }`.
-    Refined(BaseTy, Predicate<V>),
+    Refined(BaseTy, Predicate),
     /// A dependent function type.
-    Func(FuncTy<V>),
+    Func(FuncTy),
 }
 
 impl Ty {
@@ -103,9 +101,9 @@ impl Ty {
     }
 }
 
-impl<V> Ty<V> {
+impl Ty {
     /// Project the arguments inside the type that have a specific index into local variables.
-    fn project(&mut self, f: impl Fn(usize) -> Predicate<V> + Copy, index: usize) {
+    fn project(&mut self, f: impl Fn(usize) -> Predicate + Copy, index: usize) {
         match self {
             Self::Refined(_, predicate) => predicate.project(f, index),
             // Increase the index by one when entering a nested function type.
@@ -143,7 +141,7 @@ impl<V> Ty<V> {
 
     /// Selfify the current type, i.e. if the current type is a refined base type `{b: B | p}`
     /// return `{b: B | p && (b = var)}`.
-    pub fn selfify(self, var: impl Into<Variable<V>>) -> Self {
+    pub fn selfify(self, var: impl Into<Variable>) -> Self {
         match self {
             Self::Refined(base_ty, predicate) => Self::Refined(
                 base_ty,
@@ -164,7 +162,7 @@ impl<V> Ty<V> {
     }
 }
 
-impl<V: fmt::Display> fmt::Display for Ty<V> {
+impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Refined(base_ty, predicate) => write!(f, "{{ b: {} | {} }}", base_ty, predicate),

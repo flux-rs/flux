@@ -1,5 +1,7 @@
+#![feature(rustc_private)]
+
 use liquid_rust_common::index::Index;
-use liquid_rust_mir::{BBlockId, FuncId};
+use liquid_rust_mir::{BBlockId, FuncId, Span};
 use liquid_rust_ty::{BaseTy, BinOp, LocalVariable, Predicate, UnOp, Variable};
 
 use std::{
@@ -11,13 +13,13 @@ use std::{
 struct Bind {
     variable: LocalVariable,
     base_ty: BaseTy,
-    predicate: Predicate<LocalVariable>,
+    predicate: Predicate,
 }
 
 /// An environment constraint that must hold for the program to be well-typed.
 ///
 /// All constraints have the form `b : base_ty . lhs  => rhs`.
-struct Constraint<S> {
+struct Constraint {
     /// The environment for this constraint.
     ///
     /// Each variable here must have a valid binding inside the `Emitter.env` field.
@@ -25,24 +27,24 @@ struct Constraint<S> {
     /// The base type of the variable bound by the constraint.
     base_ty: BaseTy,
     /// The left-hand side of the implication.
-    lhs: Predicate<LocalVariable>,
+    lhs: Predicate,
     /// The right-hand side of the implication.
-    rhs: Predicate<LocalVariable>,
+    rhs: Predicate,
     /// The span where an error should be reported if this constraint is false.
-    span: S,
+    span: Span,
 }
 
 /// A struct used to emit constraints.
-pub struct Emitter<S> {
+pub struct Emitter {
     /// All the environment bindings.
     env: Vec<Bind>,
     /// All the constraints for the current program.
-    constraints: Vec<Constraint<S>>,
+    constraints: Vec<Constraint>,
     bb_id: Option<BBlockId>,
     func_id: FuncId,
 }
 
-impl<S> Emitter<S> {
+impl Emitter {
     /// Create a new empty emitter
     pub fn new(func_id: FuncId) -> Self {
         Self {
@@ -66,12 +68,7 @@ impl<S> Emitter<S> {
     }
 
     /// Add a binding in the current environment.
-    pub fn add_bind(
-        &mut self,
-        variable: LocalVariable,
-        base_ty: BaseTy,
-        predicate: Predicate<LocalVariable>,
-    ) {
+    pub fn add_bind(&mut self, variable: LocalVariable, base_ty: BaseTy, predicate: Predicate) {
         self.env.push(Bind {
             variable,
             base_ty,
@@ -84,9 +81,9 @@ impl<S> Emitter<S> {
         &mut self,
         env: Vec<LocalVariable>,
         base_ty: BaseTy,
-        lhs: Predicate<LocalVariable>,
-        rhs: Predicate<LocalVariable>,
-        span: S,
+        lhs: Predicate,
+        rhs: Predicate,
+        span: Span,
     ) {
         self.constraints.push(Constraint {
             env,
@@ -98,7 +95,7 @@ impl<S> Emitter<S> {
     }
 }
 
-impl<S: std::fmt::Debug> Emitter<S> {
+impl Emitter {
     /// Emit all the constraints into a file.
     pub fn emit(self) -> io::Result<()> {
         let mut file = std::fs::File::create("./output.fq")?;
@@ -174,11 +171,11 @@ impl<S: std::fmt::Debug> Emitter<S> {
 /// The trait that every type that can be emitted by `Emitter` must implement.
 trait Emit {
     /// Emit a value into a buffer.
-    fn emit<S, W: Write>(&self, writer: &mut W, emitter: &Emitter<S>) -> io::Result<()>;
+    fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()>;
 }
 
 impl Emit for LocalVariable {
-    fn emit<S, W: Write>(&self, writer: &mut W, emitter: &Emitter<S>) -> io::Result<()> {
+    fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()> {
         match emitter.bb_id {
             Some(bb_id) => write!(writer, "{}_{}_{}", self, bb_id, emitter.func_id),
             None => write!(writer, "{}_init_{}", self, emitter.func_id),
@@ -186,8 +183,8 @@ impl Emit for LocalVariable {
     }
 }
 
-impl Emit for Variable<LocalVariable> {
-    fn emit<S, W: Write>(&self, writer: &mut W, emitter: &Emitter<S>) -> io::Result<()> {
+impl Emit for Variable {
+    fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()> {
         match self {
             Variable::Bound => write!(writer, "b"),
             Variable::Local(a) => a.emit(writer, emitter),
@@ -197,8 +194,8 @@ impl Emit for Variable<LocalVariable> {
     }
 }
 
-impl Emit for Predicate<LocalVariable> {
-    fn emit<S, W: Write>(&self, writer: &mut W, emitter: &Emitter<S>) -> io::Result<()> {
+impl Emit for Predicate {
+    fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()> {
         match self {
             // Literals are emitted in the same way as they are displayed.
             Predicate::Lit(literal) => write!(writer, "{}", literal),
@@ -229,13 +226,13 @@ impl Emit for Predicate<LocalVariable> {
 }
 
 impl<A: Emit> Emit for &A {
-    fn emit<S, W: Write>(&self, writer: &mut W, emitter: &Emitter<S>) -> io::Result<()> {
+    fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()> {
         (*self).emit(writer, emitter)
     }
 }
 
 impl Emit for UnOp {
-    fn emit<S, W: Write>(&self, writer: &mut W, _emitter: &Emitter<S>) -> io::Result<()> {
+    fn emit<W: Write>(&self, writer: &mut W, _emitter: &Emitter) -> io::Result<()> {
         match self {
             // Use `not` instead of `!`.
             UnOp::Not { .. } => write!(writer, "not"),
@@ -245,7 +242,7 @@ impl Emit for UnOp {
 }
 
 impl Emit for BinOp {
-    fn emit<S, W: Write>(&self, writer: &mut W, _emitter: &Emitter<S>) -> io::Result<()> {
+    fn emit<W: Write>(&self, writer: &mut W, _emitter: &Emitter) -> io::Result<()> {
         match self {
             // Use `<=>` instead of `==` for booleans.
             BinOp::Eq(BaseTy::Bool) => write!(writer, "<=>"),
@@ -255,7 +252,7 @@ impl Emit for BinOp {
 }
 
 impl Emit for BaseTy {
-    fn emit<S, W: Write>(&self, writer: &mut W, _emitter: &Emitter<S>) -> io::Result<()> {
+    fn emit<W: Write>(&self, writer: &mut W, _emitter: &Emitter) -> io::Result<()> {
         let s = match self {
             BaseTy::Unit => "unit",
             BaseTy::Bool => "bool",
