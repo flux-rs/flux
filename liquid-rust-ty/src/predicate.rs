@@ -46,6 +46,8 @@ pub enum Predicate {
     BinaryOp(BinOp, Box<Self>, Box<Self>),
     /// A predicate to be inferred.
     Hole(Hole),
+    /// A disjunction between predicates.
+    And(Vec<Self>),
 }
 
 impl Predicate {
@@ -81,6 +83,7 @@ impl Predicate {
                 op1.project(f, index);
                 op2.project(f, index);
             }
+            Self::And(preds) => preds.iter_mut().for_each(|pred| pred.project(f, index)),
         }
     }
 
@@ -103,6 +106,9 @@ impl Predicate {
             Self::Hole(hole) => {
                 hole.substs.push((target, replacement));
             }
+            Self::And(preds) => preds
+                .iter_mut()
+                .for_each(|pred| pred.replace_variable(target, replacement)),
         }
     }
 }
@@ -116,7 +122,19 @@ impl<Rhs: Into<Predicate>> BitAnd<Rhs> for Predicate {
         match (self, rhs.into()) {
             (Self::Lit(lit), rhs) if lit.is_true() => rhs,
             (lhs, Self::Lit(lit)) if lit.is_true() => lhs,
-            (lhs, rhs) => Self::BinaryOp(BinOp::And, Box::new(lhs), Box::new(rhs)),
+            (Self::And(mut preds1), Self::And(mut preds2)) => {
+                preds1.append(&mut preds2);
+                Self::And(preds1)
+            }
+            (Self::And(mut preds), rhs) => {
+                preds.push(rhs);
+                Self::And(preds)
+            }
+            (lhs, Self::And(mut preds)) => {
+                preds.insert(0, lhs);
+                Self::And(preds)
+            }
+            (lhs, rhs) => Self::And(vec![lhs, rhs]),
         }
     }
 }
@@ -147,6 +165,17 @@ impl fmt::Display for Predicate {
             Self::UnaryOp(un_op, op) => write!(f, "{}{}", un_op, op),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "({} {} {})", op1, bin_op, op2),
             Self::Hole(hole) => hole.fmt(f),
+            Self::And(preds) => {
+                let mut preds = preds.iter();
+                write!(f, "[")?;
+                if let Some(pred) = preds.next() {
+                    write!(f, "{}", pred)?;
+                    for pred in preds {
+                        write!(f, "; {}", pred)?;
+                    }
+                }
+                write!(f, "]")
+            }
         }
     }
 }

@@ -1,8 +1,9 @@
 use crate::{env::Env, glob_env::GlobEnv};
 
 use liquid_rust_common::index::IndexMap;
+use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{BBlockId, Func};
-use liquid_rust_ty::Ty;
+use liquid_rust_ty::{Predicate, Ty};
 
 use std::fmt;
 
@@ -23,21 +24,22 @@ pub(crate) struct BBlockEnv {
 }
 
 impl BBlockEnv {
-    pub(crate) fn new(func: &Func, genv: &GlobEnv) -> Self {
+    pub(crate) fn new(func: &Func, genv: &GlobEnv, emitter: &mut Emitter) -> Self {
         let mut types = IndexMap::new();
 
         for (bb_id, _) in func.bblocks() {
-            let input = func
-                .local_decls()
-                .map(|(_, base_ty)| Ty::Refined(*base_ty, genv.new_pred()));
-            let output = func
-                .local_decls()
-                .map(|(_, base_ty)| Ty::Refined(*base_ty, genv.new_pred()));
+            let input = Env::new(func.local_decls().map(|(_, base_ty)| {
+                let hole = genv.new_pred();
+                emitter.add_hole(*base_ty, hole.id);
+                Ty::Refined(*base_ty, Predicate::Hole(hole))
+            }));
+            let output = Env::new(func.local_decls().map(|(_, base_ty)| {
+                let hole = genv.new_pred();
+                emitter.add_hole(*base_ty, hole.id);
+                Ty::Refined(*base_ty, Predicate::Hole(hole))
+            }));
 
-            let bb_ty = BBlockTy {
-                input: Env::new(input),
-                output: Env::new(output),
-            };
+            let bb_ty = BBlockTy { input, output };
 
             println!("{}: {}", bb_id, bb_ty);
 

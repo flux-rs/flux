@@ -29,12 +29,12 @@ pub fn check_program(program: &Program) {
 
         let input_env = Env::new(
             func.local_decls()
-                .map(|(_, base_ty)| Ty::Refined(*base_ty, genv.new_pred())),
+                .map(|(_, base_ty)| Ty::Refined(*base_ty, Predicate::Hole(genv.new_pred()))),
         );
 
         println!("Input env: {}", input_env);
 
-        let bbenv = BBlockEnv::new(func, &genv);
+        let bbenv = BBlockEnv::new(func, &genv, &mut emitter);
 
         let start_env = &bbenv.get_ty(BBlockId::start()).input;
 

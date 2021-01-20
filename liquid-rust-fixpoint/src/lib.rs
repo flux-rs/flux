@@ -2,7 +2,7 @@
 
 use liquid_rust_common::index::Index;
 use liquid_rust_mir::{BBlockId, FuncId, Span};
-use liquid_rust_ty::{BaseTy, BinOp, LocalVariable, Predicate, UnOp, Variable};
+use liquid_rust_ty::{BaseTy, BinOp, HoleId, LocalVariable, Predicate, UnOp, Variable};
 
 use std::{
     collections::BTreeMap,
@@ -42,6 +42,7 @@ pub struct Emitter {
     env: Vec<Bind>,
     /// All the constraints for the current program.
     constraints: Vec<Constraint>,
+    holes: Vec<(BaseTy, HoleId)>,
     bb_id: Option<BBlockId>,
     func_id: Option<FuncId>,
 }
@@ -52,6 +53,7 @@ impl Emitter {
         Self {
             env: Vec::new(),
             constraints: Vec::new(),
+            holes: Vec::new(),
             bb_id: None,
             func_id: None,
         }
@@ -67,6 +69,10 @@ impl Emitter {
 
     pub fn set_func(&mut self, func_id: FuncId) {
         self.func_id = Some(func_id);
+    }
+
+    pub fn add_hole(&mut self, base_ty: BaseTy, hole_id: HoleId) {
+        self.holes.push((base_ty, hole_id));
     }
 
     /// Add a binding in the current environment.
@@ -122,6 +128,16 @@ impl Emitter {
             write!(file, " | ")?;
             bind.predicate.emit(&mut file, &self)?;
             writeln!(file, "}}")?;
+        }
+
+        for (base_ty, hole_id) in &self.holes {
+            writeln!(file, "wf:")?;
+            writeln!(file, "\tenv []")?;
+            write!(file, "\treft {{b: ")?;
+            base_ty.emit(&mut file, &self)?;
+            write!(file, " | ")?;
+            hole_id.emit(&mut file, &self)?;
+            writeln!(file, "}}\n")?
         }
 
         for (id, constraint) in self.constraints.iter().enumerate() {
@@ -199,6 +215,12 @@ impl Emit for Variable {
     }
 }
 
+impl Emit for HoleId {
+    fn emit<W: Write>(&self, writer: &mut W, _emitter: &Emitter) -> io::Result<()> {
+        write!(writer, "$p{}", self.index())
+    }
+}
+
 impl Emit for Predicate {
     fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()> {
         match self {
@@ -225,7 +247,19 @@ impl Emit for Predicate {
                 write!(writer, ")")
             }
             // Inference variables are emitted using its index.
-            Predicate::Hole(hole) => write!(writer, "$p{}", hole.id.index()),
+            Predicate::Hole(hole) => hole.id.emit(writer, emitter),
+            Predicate::And(preds) => {
+                let mut preds = preds.iter();
+                write!(writer, "[")?;
+                if let Some(pred) = preds.next() {
+                    pred.emit(writer, emitter)?;
+                    for pred in preds {
+                        write!(writer, "; ")?;
+                        pred.emit(writer, emitter)?;
+                    }
+                }
+                write!(writer, "]")
+            }
         }
     }
 }
