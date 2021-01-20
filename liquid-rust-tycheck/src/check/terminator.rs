@@ -6,6 +6,7 @@ use crate::{
     synth::Synth,
 };
 
+use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{Local, Operand, Terminator, TerminatorKind};
 use liquid_rust_ty::{Literal, Predicate, Ty, Variable};
 
@@ -13,7 +14,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
     type Ty = &'ty BBlockTy;
     type Env = (&'env GlobEnv, &'env BBlockEnv, &'env Ty);
 
-    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult {
+    fn check(&self, ty: Self::Ty, emitter: &mut Emitter, env: Self::Env) -> TyResult {
         print!("\nChk-Terminator: ");
         match &self.kind {
             TerminatorKind::Return => {
@@ -21,16 +22,16 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 let return_local = Operand::Local(Local::ret());
 
                 return_local
-                    .check(return_ty, &ty.input)
+                    .check(return_ty, emitter, &ty.input)
                     .map_err(|err| err.with_span(self.span.clone()))
             }
-            TerminatorKind::Goto(target) => target.check(ty, env),
+            TerminatorKind::Goto(target) => target.check(ty, emitter, env),
             TerminatorKind::Assert(cond, expected, target) => {
                 // An assertion is well-typed if `cond` has type `{b : bool | expected}`.
-                cond.check(&Ty::singleton(Literal::from(*expected)), &ty.input)
+                cond.check(&Ty::singleton(Literal::from(*expected)), emitter, &ty.input)
                     .map_err(|err| err.with_span(self.span.clone()))?;
                 // Then, the type of the assertion is the type of the target block.
-                target.check(ty, env)
+                target.check(ty, emitter, env)
             }
             TerminatorKind::Call(lhs, func, args, target) => {
                 let (genv, _, _) = env;
@@ -50,8 +51,8 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 // Check that each call argument has the type of the argument of the called
                 // function.
                 for (arg_ty, op) in func_ty.arguments().iter().zip(args.into_iter()) {
-                    op.check(arg_ty, &ty.input)
-                        .map_err(|err| err.with_span(self.span.clone()))?;
+                    op.check(arg_ty, emitter, &ty.input)
+                        .map_err(|err| err.with_span(self.span))?;
                 }
 
                 // Retrieve the return type of the function. This is free of indexed arguments
@@ -68,7 +69,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                             expected: lhs_ty.clone(),
                             found: rhs_ty.clone(),
                         },
-                        span: self.span.clone(),
+                        span: self.span,
                     });
                 }
 
@@ -79,7 +80,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 ty.input.rebind_local(*lhs, rhs_ty.clone());
 
                 // Then, the type of the call is the type of the target block.
-                target.check(&ty, env)
+                target.check(&ty, emitter, env)
             }
             TerminatorKind::Switch(local, branches, default) => {
                 // Synthetize the type of the local. Keep the predicate to be able to constraint it
@@ -105,7 +106,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                     let mut ty = ty.clone();
                     ty.input.rebind_local(*local, op_ty);
 
-                    target.check(&ty, env)?;
+                    target.check(&ty, emitter, env)?;
 
                     // The local cannot be equal to the branch literal outside the branch.
                     pred = pred & Predicate::Var(Variable::Bound).neq(base_ty, lit);
@@ -116,7 +117,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 let mut ty = ty.clone();
                 ty.input.rebind_local(*local, Ty::Refined(base_ty, pred));
 
-                default.check(&ty, env)
+                default.check(&ty, emitter, env)
             }
         }
     }

@@ -1,12 +1,13 @@
 use crate::{env::Env, result::TyResult, subtype::Subtype};
 
 use liquid_rust_common::index::{Index, IndexGen};
+use liquid_rust_fixpoint::Emitter;
 use liquid_rust_ty::{LocalVariable, Predicate, Ty, Variable};
 
 impl<'env> Subtype<'env> for Env {
     type Env = ();
 
-    fn subtype(&self, other: &Self, (): Self::Env) -> TyResult {
+    fn subtype(&self, other: &Self, emitter: &mut Emitter, (): Self::Env) -> TyResult {
         println!("\nSub-Env: {} <: {}", self, other);
 
         let len_locals = self.len_locals();
@@ -125,7 +126,7 @@ impl<'env> Subtype<'env> for Env {
                 while let Some((var2, ty2)) = stack2.next() {
                     if var2.index() < len_locals {
                         assert_eq!(var1, var2);
-                        ty1.subtype(&ty2, &env)?;
+                        ty1.subtype(&ty2, emitter, &env)?;
 
                         env.bind(var1, ty1.clone());
 

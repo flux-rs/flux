@@ -32,6 +32,8 @@ struct Constraint {
     rhs: Predicate,
     /// The span where an error should be reported if this constraint is false.
     span: Span,
+    bb_id: Option<BBlockId>,
+    func_id: FuncId,
 }
 
 /// A struct used to emit constraints.
@@ -41,17 +43,17 @@ pub struct Emitter {
     /// All the constraints for the current program.
     constraints: Vec<Constraint>,
     bb_id: Option<BBlockId>,
-    func_id: FuncId,
+    func_id: Option<FuncId>,
 }
 
 impl Emitter {
     /// Create a new empty emitter
-    pub fn new(func_id: FuncId) -> Self {
+    pub fn new() -> Self {
         Self {
             env: Vec::new(),
             constraints: Vec::new(),
             bb_id: None,
-            func_id,
+            func_id: None,
         }
     }
 
@@ -64,7 +66,7 @@ impl Emitter {
     }
 
     pub fn set_func(&mut self, func_id: FuncId) {
-        self.func_id = func_id;
+        self.func_id = Some(func_id);
     }
 
     /// Add a binding in the current environment.
@@ -91,6 +93,8 @@ impl Emitter {
             lhs,
             rhs,
             span,
+            bb_id: self.bb_id,
+            func_id: self.func_id.unwrap(),
         });
     }
 }
@@ -176,9 +180,10 @@ trait Emit {
 
 impl Emit for LocalVariable {
     fn emit<W: Write>(&self, writer: &mut W, emitter: &Emitter) -> io::Result<()> {
+        let func_id = emitter.func_id.unwrap();
         match emitter.bb_id {
-            Some(bb_id) => write!(writer, "{}_{}_{}", self, bb_id, emitter.func_id),
-            None => write!(writer, "{}_init_{}", self, emitter.func_id),
+            Some(bb_id) => write!(writer, "{}_{}_{}", self, bb_id, func_id),
+            None => write!(writer, "{}_init_{}", self, func_id),
         }
     }
 }
@@ -220,7 +225,7 @@ impl Emit for Predicate {
                 write!(writer, ")")
             }
             // Inference variables are emitted using its index.
-            Predicate::Hole(hole) => write!(writer, "p{}", hole.id.index()),
+            Predicate::Hole(hole) => write!(writer, "$p{}", hole.id.index()),
         }
     }
 }
