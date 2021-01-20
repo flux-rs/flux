@@ -9,11 +9,11 @@ use crate::{
 use liquid_rust_mir::{Local, Operand, Terminator, TerminatorKind};
 use liquid_rust_ty::{Literal, Predicate, Ty, Variable};
 
-impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for Terminator<S> {
+impl<'ty, 'env> Check<'ty, 'env> for Terminator {
     type Ty = &'ty BBlockTy;
     type Env = (&'env GlobEnv, &'env BBlockEnv, &'env Ty);
 
-    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult<S> {
+    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult {
         print!("\nChk-Terminator: ");
         match &self.kind {
             TerminatorKind::Return => {

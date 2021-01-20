@@ -8,7 +8,7 @@ pub(crate) struct GlobEnv {
 }
 
 impl GlobEnv {
-    pub(crate) fn new<S>(prog: &Program<S>) -> Self {
+    pub(crate) fn new(prog: &Program) -> Self {
         let mut types = IndexMap::new();
 
         for (_, func) in prog.iter() {

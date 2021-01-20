@@ -1,10 +1,10 @@
-use crate::{local::Local, rvalue::Rvalue};
+use crate::{local::Local, rvalue::Rvalue, Span};
 
 use std::fmt;
 
-pub struct Statement<S> {
+pub struct Statement {
     pub kind: StatementKind,
-    pub span: S,
+    pub span: Span,
 }
 
 pub enum StatementKind {
@@ -12,7 +12,7 @@ pub enum StatementKind {
     Assign(Local, Rvalue),
 }
 
-impl<S> fmt::Display for Statement<S> {
+impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             StatementKind::Noop => "noop".fmt(f),

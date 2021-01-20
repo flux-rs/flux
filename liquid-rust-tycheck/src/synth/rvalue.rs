@@ -4,14 +4,14 @@ use crate::{
     synth::Synth,
 };
 
-use liquid_rust_mir::Rvalue;
+use liquid_rust_mir::{Rvalue, DUMMY_SP};
 use liquid_rust_ty::{BaseTy, BinOp, Predicate, Ty, UnOp, Variable};
 
-impl<'env> Synth<'env, ()> for Rvalue {
+impl<'env> Synth<'env> for Rvalue {
     type Ty = Ty;
-    type Envs = &'env Env;
+    type Env = &'env Env;
 
-    fn synth(&self, env: Self::Envs) -> TyResult<(), Self::Ty> {
+    fn synth(&self, env: Self::Env) -> TyResult<Self::Ty> {
         match self {
             Rvalue::Use(operand) => operand.synth(env),
             Rvalue::UnApp(un_op, op) => {
@@ -33,7 +33,7 @@ impl<'env> Synth<'env, ()> for Rvalue {
                             expected: param_ty,
                             found: op_ty1.clone(),
                         },
-                        span: (),
+                        span: DUMMY_SP,
                     });
                 }
 
@@ -84,7 +84,7 @@ impl<'env> Synth<'env, ()> for Rvalue {
                             expected: op_ty1.clone(),
                             found: op_ty2.clone(),
                         },
-                        span: (),
+                        span: DUMMY_SP,
                     });
                 }
                 // The type of the operands must have the type that the operator receives as base
@@ -95,7 +95,7 @@ impl<'env> Synth<'env, ()> for Rvalue {
                             expected: op_ty,
                             found: op_ty1.clone(),
                         },
-                        span: (),
+                        span: DUMMY_SP,
                     });
                 }
 

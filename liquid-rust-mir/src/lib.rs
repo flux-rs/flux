@@ -1,3 +1,7 @@
+#![feature(rustc_private)]
+
+extern crate rustc_span;
+
 mod bblock;
 mod func;
 mod local;
@@ -15,3 +19,5 @@ pub use program::Program;
 pub use rvalue::Rvalue;
 pub use statement::{Statement, StatementKind};
 pub use terminator::{Terminator, TerminatorKind};
+
+pub use rustc_span::{Span, DUMMY_SP};

@@ -5,9 +5,9 @@ mod terminator;
 
 use crate::result::TyResult;
 
-pub(crate) trait Check<'ty, 'env, S> {
+pub(crate) trait Check<'ty, 'env> {
     type Ty: 'ty;
     type Env: 'env;
 
-    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult<S>;
+    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult;
 }

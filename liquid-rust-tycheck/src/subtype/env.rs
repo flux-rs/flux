@@ -3,10 +3,10 @@ use crate::{env::Env, result::TyResult, subtype::Subtype};
 use liquid_rust_common::index::{Index, IndexGen};
 use liquid_rust_ty::{LocalVariable, Predicate, Ty, Variable};
 
-impl<'env, S> Subtype<'env, S> for Env {
+impl<'env> Subtype<'env> for Env {
     type Env = ();
 
-    fn subtype(&self, other: &Self, (): Self::Env) -> TyResult<S> {
+    fn subtype(&self, other: &Self, (): Self::Env) -> TyResult {
         println!("\nSub-Env: {} <: {}", self, other);
 
         let len_locals = self.len_locals();

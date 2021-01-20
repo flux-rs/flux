@@ -10,11 +10,11 @@ use crate::{
 use liquid_rust_mir::{BBlock, BBlockId};
 use liquid_rust_ty::Ty;
 
-impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for BBlock<S> {
+impl<'ty, 'env> Check<'ty, 'env> for BBlock {
     type Ty = &'ty BBlockTy;
     type Env = (&'env GlobEnv, &'env BBlockEnv, &'env Ty);
 
-    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult<S> {
+    fn check(&self, ty: Self::Ty, env: Self::Env) -> TyResult {
         let mut ty = ty.clone();
 
         for statement in self.statements() {
@@ -25,11 +25,11 @@ impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for BBlock<S> {
     }
 }
 
-impl<'ty, 'env, S: Clone> Check<'ty, 'env, S> for BBlockId {
+impl<'ty, 'env> Check<'ty, 'env> for BBlockId {
     type Ty = &'ty BBlockTy;
     type Env = (&'env GlobEnv, &'env BBlockEnv, &'env Ty);
 
-    fn check(&self, ty: Self::Ty, (_, bb_env, _): Self::Env) -> TyResult<S> {
+    fn check(&self, ty: Self::Ty, (_, bb_env, _): Self::Env) -> TyResult {
         let bb_ty = bb_env.get_ty(*self);
 
         bb_ty.subtype(ty, ())

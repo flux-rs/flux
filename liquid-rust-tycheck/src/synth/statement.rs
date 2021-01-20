@@ -6,11 +6,11 @@ use crate::{
 
 use liquid_rust_mir::{Statement, StatementKind};
 
-impl<'a, S: Clone> Synth<'a, S> for Statement<S> {
+impl<'env> Synth<'env> for Statement {
     type Ty = Env;
-    type Envs = &'a Env;
+    type Env = &'env Env;
 
-    fn synth(&self, env: Self::Envs) -> TyResult<S, Self::Ty> {
+    fn synth(&self, env: Self::Env) -> TyResult<Self::Ty> {
         match &self.kind {
             StatementKind::Noop => Ok(env.clone()),
             StatementKind::Assign(lhs, rhs) => {

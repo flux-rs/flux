@@ -19,16 +19,16 @@ impl fmt::Display for FuncId {
     }
 }
 
-pub struct Func<S> {
+pub struct Func {
     arity: usize,
     local_decls: IndexMap<Local, BaseTy>,
-    bblocks: IndexMap<BBlockId, BBlock<S>>,
+    bblocks: IndexMap<BBlockId, BBlock>,
     ty: FuncTy,
     user_ty: bool,
 }
 
-impl<S> Func<S> {
-    pub fn builder(arity: usize, bblocks_len: usize) -> FuncBuilder<S> {
+impl Func {
+    pub fn builder(arity: usize, bblocks_len: usize) -> FuncBuilder {
         FuncBuilder {
             arity,
             local_decls: IndexMap::new(),
@@ -57,11 +57,11 @@ impl<S> Func<S> {
         self.local_decls().skip(self.arity + 1)
     }
 
-    pub fn get_bblock(&self, bblock_id: BBlockId) -> &BBlock<S> {
+    pub fn get_bblock(&self, bblock_id: BBlockId) -> &BBlock {
         self.bblocks.get(bblock_id).unwrap()
     }
 
-    pub fn bblocks(&self) -> impl Iterator<Item = (BBlockId, &BBlock<S>)> {
+    pub fn bblocks(&self) -> impl Iterator<Item = (BBlockId, &BBlock)> {
         self.bblocks.iter()
     }
 
@@ -74,14 +74,14 @@ impl<S> Func<S> {
     }
 }
 
-pub struct FuncBuilder<S> {
+pub struct FuncBuilder {
     arity: usize,
     local_decls: IndexMap<Local, BaseTy>,
-    bblocks: IndexMap<BBlockId, Option<BBlock<S>>>,
+    bblocks: IndexMap<BBlockId, Option<BBlock>>,
     ty: Option<FuncTy>,
 }
 
-impl<S> FuncBuilder<S> {
+impl FuncBuilder {
     pub fn bblock_ids(&self) -> impl Iterator<Item = BBlockId> {
         self.bblocks.keys()
     }
@@ -90,7 +90,7 @@ impl<S> FuncBuilder<S> {
         self.local_decls.insert(ty)
     }
 
-    pub fn set_bblock(&mut self, bblock_id: BBlockId, bblock: BBlock<S>) -> bool {
+    pub fn set_bblock(&mut self, bblock_id: BBlockId, bblock: BBlock) -> bool {
         self.bblocks
             .get_mut(bblock_id)
             .unwrap()
@@ -102,7 +102,7 @@ impl<S> FuncBuilder<S> {
         self.ty = Some(func_ty);
     }
 
-    pub fn build(self) -> Result<Func<S>, BBlockId> {
+    pub fn build(self) -> Result<Func, BBlockId> {
         let mut bblocks = Vec::with_capacity(self.bblocks.len());
 
         for (bb_id, bb) in self.bblocks {

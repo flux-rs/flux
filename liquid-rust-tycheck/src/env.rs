@@ -38,10 +38,6 @@ impl Env {
         self.binds.len()
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.types.len() + self.binds.len()
-    }
-
     pub(crate) fn types(&self) -> impl Iterator<Item = &(LocalVariable, Ty)> {
         self.types.iter()
     }

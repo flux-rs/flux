@@ -1,3 +1,5 @@
+#![feature(rustc_private)]
+
 mod bblock_env;
 mod check;
 mod env;
@@ -16,9 +18,7 @@ use liquid_rust_common::index::Index;
 use liquid_rust_mir::{BBlockId, Program};
 use liquid_rust_ty::{LocalVariable, Predicate, Ty};
 
-use std::fmt::Debug;
-
-pub fn check_program<S: Clone + Debug>(program: &Program<S>) {
+pub fn check_program(program: &Program) {
     let genv = GlobEnv::new(program);
 
     for (_, func) in program.iter() {
@@ -33,7 +33,7 @@ pub fn check_program<S: Clone + Debug>(program: &Program<S>) {
 
         let start_env = &bbenv.get_ty(BBlockId::start()).input;
 
-        Subtype::<'_, S>::subtype(&input_env, start_env, ());
+        input_env.subtype(start_env, ()).unwrap();
 
         let func_ty = func
             .ty()

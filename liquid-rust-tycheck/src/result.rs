@@ -1,15 +1,16 @@
+use liquid_rust_mir::Span;
 use liquid_rust_ty::{BaseTy, Ty};
 
-pub type TyResult<S, T = ()> = Result<T, TyError<S>>;
+pub type TyResult<T = ()> = Result<T, TyError>;
 
 #[derive(Debug)]
-pub struct TyError<S> {
+pub struct TyError {
     pub kind: TyErrorKind,
-    pub span: S,
+    pub span: Span,
 }
 
-impl TyError<()> {
-    pub(crate) fn with_span<S>(self, span: S) -> TyError<S> {
+impl TyError {
+    pub(crate) fn with_span(self, span: Span) -> TyError {
         TyError {
             kind: self.kind,
             span,

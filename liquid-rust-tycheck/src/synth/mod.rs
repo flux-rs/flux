@@ -4,9 +4,9 @@ mod statement;
 
 use crate::result::TyResult;
 
-pub(crate) trait Synth<'env, S> {
+pub(crate) trait Synth<'env> {
     type Ty;
-    type Envs: 'env;
+    type Env: 'env;
 
-    fn synth(&self, envs: Self::Envs) -> TyResult<S, Self::Ty>;
+    fn synth(&self, envs: Self::Env) -> TyResult<Self::Ty>;
 }

@@ -23,7 +23,7 @@ pub(crate) struct BBlockEnv {
 }
 
 impl BBlockEnv {
-    pub(crate) fn new<S>(func: &Func<S>, genv: &GlobEnv) -> Self {
+    pub(crate) fn new(func: &Func, genv: &GlobEnv) -> Self {
         let mut types = IndexMap::new();
 
         for (bb_id, _) in func.bblocks() {

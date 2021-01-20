@@ -38,7 +38,7 @@ impl<'tcx, 'low> LowerCtx<'tcx, 'low> {
         }
     }
 
-    pub fn lower_body(mut self) -> Result<FuncBuilder<Span>, LowerError> {
+    pub fn lower_body(mut self) -> Result<FuncBuilder, LowerError> {
         self.body.lower(&mut self)
     }
 
@@ -178,7 +178,7 @@ impl<'tcx> Lower<'tcx> for MirTy<'tcx> {
 }
 
 impl<'tcx> Lower<'tcx> for mir::Statement<'tcx> {
-    type Output = Statement<Span>;
+    type Output = Statement;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let span = self.source_info.span;
         let kind = match &self.kind {
@@ -390,7 +390,7 @@ impl<'tcx> Lower<'tcx> for mir::BasicBlock {
 }
 
 impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
-    type Output = Terminator<Span>;
+    type Output = Terminator;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let span = self.source_info.span;
         let kind = match &self.kind {
@@ -478,7 +478,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
 }
 
 impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
-    type Output = BBlock<Span>;
+    type Output = BBlock;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let mut builder = BBlock::builder();
         for statement in &self.statements {
@@ -492,7 +492,7 @@ impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
 }
 
 impl<'tcx> Lower<'tcx> for mir::Body<'tcx> {
-    type Output = FuncBuilder<Span>;
+    type Output = FuncBuilder;
 
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
         let arity = self.arg_count;

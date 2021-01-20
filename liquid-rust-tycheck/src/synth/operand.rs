@@ -3,11 +3,11 @@ use crate::{env::Env, result::TyResult, synth::Synth};
 use liquid_rust_mir::Operand;
 use liquid_rust_ty::{Ty, Variable};
 
-impl<'a, S: Clone> Synth<'a, S> for Operand {
+impl<'env> Synth<'env> for Operand {
     type Ty = Ty;
-    type Envs = &'a Env;
+    type Env = &'env Env;
 
-    fn synth(&self, env: Self::Envs) -> TyResult<S, Self::Ty> {
+    fn synth(&self, env: Self::Env) -> TyResult<Self::Ty> {
         match self {
             Operand::Literal(lit) => Ok(Ty::singleton(*lit)),
             Operand::Local(local) => {
