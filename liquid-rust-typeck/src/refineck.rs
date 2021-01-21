@@ -164,9 +164,9 @@ impl<'a> RefineChecker<'a> {
                 let l = env.borrow(place);
                 self.tcx.mk_ref(*bk, ty::Region::from(place.clone()), l)
             }
-            ast::Rvalue::BinaryOp(bin_op, op1, op2) => self.check_bin_op(bin_op, op1, op2, env),
+            ast::Rvalue::BinaryOp(bin_op, op1, op2) => self.check_bin_op(*bin_op, op1, op2, env),
             ast::Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
-                let ty = self.check_bin_op(bin_op, op1, op2, env);
+                let ty = self.check_bin_op(*bin_op, op1, op2, env);
                 let f1 = tcx.fresh_field();
                 let f2 = tcx.fresh_field();
                 tcx.mk_tuple(tup!(f1 => ty, f2 => tcx.types.bool()))
@@ -182,7 +182,7 @@ impl<'a> RefineChecker<'a> {
 
     fn check_bin_op(
         &mut self,
-        bin_op: &ast::BinOp,
+        bin_op: ast::BinOp,
         op1: &ast::Operand,
         op2: &ast::Operand,
         env: &mut Env,

@@ -28,12 +28,12 @@ impl Subst {
         self.0.insert(SubstKey::Location(l1), l2.0);
     }
 
-    fn get_field(&self, fld: &Field) -> Option<Field> {
-        self.0.get(&SubstKey::Field(*fld)).map(|&n| Field(n))
+    fn get_field(&self, fld: Field) -> Option<Field> {
+        self.0.get(&SubstKey::Field(fld)).map(|&n| Field(n))
     }
 
-    fn get_location(&self, l: &Location) -> Option<Location> {
-        self.0.get(&SubstKey::Location(*l)).map(|&n| Location(n))
+    fn get_location(&self, l: Location) -> Option<Location> {
+        self.0.get(&SubstKey::Location(l)).map(|&n| Location(n))
     }
 }
 
@@ -108,13 +108,13 @@ impl ApplySubst for Kvar {
 
 impl ApplySubst for Location {
     fn apply_subst(&self, _tcx: &TyCtxt, subst: &Subst) -> Self {
-        subst.get_location(self).unwrap_or(*self)
+        subst.get_location(*self).unwrap_or(*self)
     }
 }
 
 impl ApplySubst for Field {
     fn apply_subst(&self, _tcx: &TyCtxt, subst: &Subst) -> Self {
-        subst.get_field(self).unwrap_or(*self)
+        subst.get_field(*self).unwrap_or(*self)
     }
 }
 
@@ -122,8 +122,8 @@ impl ApplySubst for Var {
     fn apply_subst(&self, _tcx: &TyCtxt, subst: &Subst) -> Self {
         let var = match self {
             Var::Nu => Some(Var::Nu),
-            Var::Location(l) => subst.get_location(l).map(Var::Location),
-            Var::Field(fld) => subst.get_field(fld).map(Var::Field),
+            Var::Location(l) => subst.get_location(*l).map(Var::Location),
+            Var::Field(fld) => subst.get_field(*fld).map(Var::Field),
         };
         var.unwrap_or(*self)
     }

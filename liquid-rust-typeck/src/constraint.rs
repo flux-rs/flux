@@ -34,11 +34,7 @@ impl Constraint {
         })
     }
 
-    pub fn from_subtype(
-        bty: &ty::BaseTy,
-        refine1: &ty::Refine,
-        refine2: &ty::Refine,
-    ) -> Constraint {
+    pub fn from_subtype(bty: ty::BaseTy, refine1: &ty::Refine, refine2: &ty::Refine) -> Constraint {
         Constraint::Forall(
             Var::Nu,
             Sort::from(bty),
@@ -71,7 +67,7 @@ impl<'a> From<&'a Ty> for Sort {
     fn from(ty: &'a Ty) -> Self {
         match ty.kind() {
             TyKind::Tuple(tup) => Sort::Tuple(tup.types().map(Sort::from).collect()),
-            TyKind::Refine(bty, _) => Sort::from(bty),
+            TyKind::Refine(bty, _) => Sort::from(*bty),
             TyKind::Fn(_) | TyKind::OwnRef(_) | TyKind::Ref(_, _, _) | TyKind::Uninit(_) => {
                 Sort::Int
             }
@@ -79,8 +75,8 @@ impl<'a> From<&'a Ty> for Sort {
     }
 }
 
-impl<'a> From<&'a BaseTy> for Sort {
-    fn from(bty: &'a BaseTy) -> Self {
+impl From<BaseTy> for Sort {
+    fn from(bty: BaseTy) -> Self {
         match bty {
             BaseTy::Int | BaseTy::Unit => Sort::Int,
             BaseTy::Bool => Sort::Bool,

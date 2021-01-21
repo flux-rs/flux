@@ -53,18 +53,6 @@ impl TyS {
         }
     }
 
-    pub fn shape_eq(&self, ty: &Ty) -> bool {
-        match (self.kind(), ty.kind()) {
-            (TyKind::Fn(ty1), TyKind::Fn(ty2)) => ty1.shape_eq(&ty2),
-            (TyKind::OwnRef(..), TyKind::OwnRef(..)) => true,
-            (TyKind::Ref(bk1, ..), TyKind::Ref(bk2, ..)) => bk1 == bk2,
-            (TyKind::Tuple(tuple1), TyKind::Tuple(tuple2)) => tuple1.shape_eq(tuple2),
-            (TyKind::Uninit(n1), TyKind::Uninit(n2)) => n1 == n2,
-            (TyKind::Refine(bty1, ..), TyKind::Refine(bty2, ..)) => bty1 == bty2,
-            _ => false,
-        }
-    }
-
     pub fn walk<T>(&self, mut f: impl FnMut(&TyS, &[ast::Proj]) -> Walk<T>) -> Walk<T> {
         self.walk_internal(&mut f, &mut vec![])
     }
@@ -152,10 +140,6 @@ pub struct FnTy {
 }
 
 impl FnTy {
-    pub fn shape_eq(&self, _ty: &FnTy) -> bool {
-        todo!()
-    }
-
     pub fn locals(&self, args: &[Local]) -> LocalsMap {
         assert!(self.inputs.len() == args.len());
         args.iter()
@@ -169,14 +153,6 @@ impl FnTy {
 pub struct Tuple(Vec<(Field, Ty)>);
 
 impl Tuple {
-    pub fn shape_eq(&self, other: &Self) -> bool {
-        if self.0.len() != other.0.len() {
-            return false;
-        }
-
-        self.iter().zip(other).all(|(x1, x2)| x1.1.shape_eq(&x2.1))
-    }
-
     pub fn len(&self) -> usize {
         self.0.len()
     }

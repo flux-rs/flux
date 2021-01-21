@@ -243,7 +243,7 @@ impl PrettyPrinter {
             ast::Rvalue::BinaryOp(bin_op, op1, op2) => {
                 self.print_operand(op1, f)?;
                 write!(f, " ")?;
-                self.print_bin_op(bin_op, f)?;
+                self.print_bin_op(*bin_op, f)?;
                 write!(f, " ")?;
                 self.print_operand(op2, f)?;
             }
@@ -251,7 +251,7 @@ impl PrettyPrinter {
                 write!(f, "Checked(")?;
                 self.print_operand(op1, f)?;
                 write!(f, " ")?;
-                self.print_bin_op(bin_op, f)?;
+                self.print_bin_op(*bin_op, f)?;
                 write!(f, " ")?;
                 self.print_operand(op2, f)?;
                 write!(f, ")")?;
@@ -268,7 +268,7 @@ impl PrettyPrinter {
         Ok(())
     }
 
-    fn print_bin_op(&mut self, bin_op: &ast::BinOp, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn print_bin_op(&mut self, bin_op: ast::BinOp, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match bin_op {
             ast::BinOp::Add => write!(f, "+"),
             ast::BinOp::Sub => write!(f, "-"),
@@ -390,7 +390,7 @@ impl PrettyPrinter {
             }
             ast::Ty::Refine(bty, refine) => {
                 write!(f, "{{ ")?;
-                self.print_base_ty(bty, f)?;
+                self.print_base_ty(*bty, f)?;
                 write!(f, " | ")?;
                 match refine {
                     ast::Refine::Infer => write!(f, "_")?,
@@ -424,7 +424,7 @@ impl PrettyPrinter {
                 write!(f, "(")?;
                 self.print_pred(op1, f)?;
                 write!(f, " ")?;
-                self.print_pred_bin_op(bin_op, f)?;
+                self.print_pred_bin_op(*bin_op, f)?;
                 write!(f, " ")?;
                 self.print_pred(op2, f)?;
                 write!(f, ")")?;
@@ -438,7 +438,7 @@ impl PrettyPrinter {
 
     fn print_pred_bin_op(
         &mut self,
-        bin_op: &ast::pred::BinOp,
+        bin_op: ast::pred::BinOp,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match bin_op {
@@ -502,7 +502,7 @@ impl PrettyPrinter {
         Ok(())
     }
 
-    fn print_base_ty(&mut self, bty: &ast::BaseTy, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn print_base_ty(&mut self, bty: ast::BaseTy, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match bty {
             ast::BaseTy::Unit => write!(f, "()"),
             ast::BaseTy::Bool => write!(f, "bool"),

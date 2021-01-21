@@ -29,7 +29,7 @@ pub fn subtyping(tcx: &TyCtxt, heap1: &Heap, ty1: &TyS, heap2: &Heap, ty2: &TyS)
             subtyping(tcx, heap1, ty1, heap2, ty2)
         }
         (TyKind::Refine(bty1, refine1), TyKind::Refine(bty2, refine2)) if bty1 == bty2 => {
-            Constraint::from_subtype(bty1, refine1, refine2)
+            Constraint::from_subtype(*bty1, refine1, refine2)
         }
         (_, TyKind::Uninit(n)) if ty1.size() == *n => Constraint::True,
         _ => bug!("{} {}", ty1, ty2),

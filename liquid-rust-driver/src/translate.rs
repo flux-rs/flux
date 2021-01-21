@@ -44,9 +44,26 @@ fn create_mpde<'tcx>(
 
 // TODO: Mayhaps a Visitor pattern would be appropriate here
 
-// First, we have to convert the MIR code to an SSA form.
-// Once we do this, we can convert the SSA form into
-// CPS form.
+fn translate_statement(stmt: &mir::Statement) -> Statement<()> {
+    match &stmt.kind {
+        mir::StatementKind::Assign(pr) => {
+            let place = translate_place(&pr.0);
+            let rval = translate_rvalue(&pr.1);
+
+            Statement {
+                kind: StatementKind::Assign(place, rval),
+                source_info: (),
+            }
+        }
+        mir::StatementKind::StorageDead(..)
+        | mir::StatementKind::StorageLive(..)
+        | mir::StatementKind::Nop => Statement {
+            kind: StatementKind::Nop,
+            source_info: (),
+        },
+        _ => todo!(),
+    }
+}
 
 /// Translates an `mir::Place` to a CPS IR Place.
 fn translate_place(from: &mir::Place) -> Place {
@@ -106,12 +123,12 @@ fn translate_rvalue(from: &mir::Rvalue) -> Rvalue {
     match from {
         mir::Rvalue::Use(op) => Rvalue::Use(translate_op(op)),
         mir::Rvalue::BinaryOp(bin_op, op1, op2) => Rvalue::BinaryOp(
-            translate_bin_op(bin_op),
+            translate_bin_op(*bin_op),
             translate_op(op1),
             translate_op(op2),
         ),
         mir::Rvalue::CheckedBinaryOp(bin_op, op1, op2) => Rvalue::CheckedBinaryOp(
-            translate_bin_op(bin_op),
+            translate_bin_op(*bin_op),
             translate_op(op1),
             translate_op(op2),
         ),
@@ -127,7 +144,7 @@ fn translate_rvalue(from: &mir::Rvalue) -> Rvalue {
     }
 }
 
-fn translate_bin_op(bin_op: &mir::BinOp) -> BinOp {
+fn translate_bin_op(bin_op: mir::BinOp) -> BinOp {
     match bin_op {
         mir::BinOp::Add => BinOp::Add,
         mir::BinOp::Sub => BinOp::Sub,
@@ -326,7 +343,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         let mut bbod = self.translate_terminator(&bbd.terminator());
 
         for stmt in bbd.statements.iter().rev() {
-            bbod = FnBody::Seq(self.translate_statement(stmt), box bbod);
+            bbod = FnBody::Seq(translate_statement(stmt), box bbod);
         }
 
         // We update our body here
@@ -368,27 +385,6 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             ty: cont_ty,
             params: vec![],
             body: box bbod,
-        }
-    }
-
-    fn translate_statement(&mut self, stmt: &mir::Statement<'tcx>) -> Statement<()> {
-        match &stmt.kind {
-            mir::StatementKind::Assign(pr) => {
-                let place = translate_place(&pr.0);
-                let rval = translate_rvalue(&pr.1);
-
-                Statement {
-                    kind: StatementKind::Assign(place, rval),
-                    source_info: (),
-                }
-            }
-            mir::StatementKind::StorageDead(..)
-            | mir::StatementKind::StorageLive(..)
-            | mir::StatementKind::Nop => Statement {
-                kind: StatementKind::Nop,
-                source_info: (),
-            },
-            _ => todo!(),
         }
     }
 
@@ -488,7 +484,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             // the return value
             TerminatorKind::Return => FnBody::Jump {
                 target: self.retk(),
-                args: vec![self.retv()],
+                args: vec![Transformer::retv()],
             },
             // FIXME: we should somehow assign the return value to the continuation
             TerminatorKind::Call {
@@ -588,7 +584,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         ContId(self.body.basic_blocks().len())
     }
 
-    fn retv(&self) -> Local {
+    fn retv() -> Local {
         Local(0)
     }
 }

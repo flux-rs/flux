@@ -202,6 +202,7 @@ impl Env<'_> {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub fn rollback_to(&mut self, snapshot: Snapshot) {
         self.heap.truncate(snapshot.heap_len);
         self.locals.truncate(snapshot.locals_depth);

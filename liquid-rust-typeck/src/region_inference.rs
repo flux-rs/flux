@@ -124,9 +124,9 @@ fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
             let l = env.borrow(place);
             tcx.mk_ref(*bk, ty::Region::from(place.clone()), l)
         }
-        ast::Rvalue::BinaryOp(bin_op, ..) => ty_for_bin_op(bin_op, tcx),
+        ast::Rvalue::BinaryOp(bin_op, ..) => ty_for_bin_op(*bin_op, tcx),
         ast::Rvalue::CheckedBinaryOp(bin_op, ..) => {
-            let ty = ty_for_bin_op(bin_op, tcx);
+            let ty = ty_for_bin_op(*bin_op, tcx);
             tcx.mk_tuple(tup!(Field(0) => ty, Field(1) => tcx.types.bool()))
         }
         ast::Rvalue::UnaryOp(un_op, ..) => match un_op {
@@ -135,7 +135,7 @@ fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
     }
 }
 
-fn ty_for_bin_op(bin_op: &ast::BinOp, tcx: &TyCtxt) -> Ty {
+fn ty_for_bin_op(bin_op: ast::BinOp, tcx: &TyCtxt) -> Ty {
     use ast::BinOp as ast;
     let bty = match bin_op {
         ast::Add | ast::Sub => BaseTy::Int,
