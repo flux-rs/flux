@@ -6,6 +6,7 @@ extern crate rustc_ast;
 extern crate rustc_driver;
 extern crate rustc_index;
 extern crate rustc_interface;
+#[macro_use]
 extern crate rustc_middle;
 extern crate rustc_mir;
 extern crate rustc_span;
@@ -35,7 +36,7 @@ impl Callbacks for LiquidRustDriver {
                 let def_id = tcx.hir().body_owner_def_id(body_id);
                 let body = tcx.optimized_mir(def_id);
                 let func = Transformer::translate(tcx, body);
-                // println!("{}", func);
+                println!("{}", func);
 
                 match check_fn_def(func) {
                     Ok(safeness) => {

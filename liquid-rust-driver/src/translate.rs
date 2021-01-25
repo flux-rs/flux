@@ -364,9 +364,9 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         let mut heap = vec![];
 
         for (mir_local, decl) in self.body.local_decls.iter_enumerated() {
-            let mut lower_cx = self.type_lower_ctxt(mir_local, &mut heap);
-            let ty = lower_cx.lower_ty(decl.ty, &mut vec![]);
-
+            let ty = self
+                .type_lower_ctxt(mir_local, &mut heap)
+                .lower(decl.ty, &mut vec![]);
             let local = Local(mir_local.index());
             let l = self.fresh_location();
 
@@ -606,9 +606,9 @@ struct TyLowerCtxt<'a, 'low, 'tcx> {
 }
 
 impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
-    fn lower_ty(&mut self, ty: ty::Ty<'tcx>, projection: &mut Vec<mir::PlaceElem<'tcx>>) -> Ty {
+    fn lower(&mut self, ty: ty::Ty<'tcx>, projection: &mut Vec<mir::PlaceElem<'tcx>>) -> Ty {
         if self.is_maybe_unitialized(projection) {
-            return self.uninitialize(ty);
+            return self.lower_uninitialized(ty);
         }
 
         match ty.kind() {
@@ -618,7 +618,7 @@ impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
                     .enumerate()
                     .map(|(i, ty)| {
                         projection.push(mir::PlaceElem::Field(mir::Field::from_usize(i), ty));
-                        let r = (Field(i), self.lower_ty(ty, projection));
+                        let r = (Field(i), self.lower(ty, projection));
                         projection.pop();
                         r
                     })
@@ -629,9 +629,9 @@ impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
             ty::TyKind::Bool => Ty::Refine(BaseTy::Bool, Refine::Infer),
             ty::TyKind::Int(_) | ty::TyKind::Uint(_) => Ty::Refine(BaseTy::Int, Refine::Infer),
             ty::TyKind::Ref(_, ty, mutability) => {
-                projection.push(mir::PlaceElem::Deref);
-                let ty = self.lower_ty(ty, projection);
-                projection.pop();
+                // Rust won't allow having an initialized reference to uninitialized memory, so we
+                // assume everything is initialized from now on.
+                let ty = self.lower_initialized(ty);
                 let l = self.names.fresh_location();
                 self.heap.push((l, ty));
                 match mutability {
@@ -643,13 +643,37 @@ impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
         }
     }
 
-    fn uninitialize(&mut self, ty: ty::Ty<'tcx>) -> Ty {
+    fn lower_initialized(&mut self, ty: ty::Ty<'tcx>) -> Ty {
+        match ty.kind() {
+            ty::TyKind::Tuple(subst) if !subst.is_empty() => Ty::Tuple(
+                ty.tuple_fields()
+                    .enumerate()
+                    .map(|(i, ty)| (Field(i), self.lower_initialized(ty)))
+                    .collect(),
+            ),
+            ty::TyKind::Tuple(_) => Ty::unit(),
+            ty::TyKind::Bool => Ty::Refine(BaseTy::Bool, Refine::Infer),
+            ty::TyKind::Int(_) | ty::TyKind::Uint(_) => Ty::Refine(BaseTy::Int, Refine::Infer),
+            ty::TyKind::Ref(_, ty, mutability) => {
+                let ty = self.lower_initialized(ty);
+                let l = self.names.fresh_location();
+                self.heap.push((l, ty));
+                match mutability {
+                    Mutability::Mut => Ty::Ref(BorrowKind::Mut, Region::Infer, l),
+                    Mutability::Not => Ty::Ref(BorrowKind::Shared, Region::Infer, l),
+                }
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn lower_uninitialized(&mut self, ty: ty::Ty<'tcx>) -> Ty {
         match ty.kind() {
             ty::TyKind::Tuple(subst) if !subst.is_empty() => {
                 let tup = ty
                     .tuple_fields()
                     .enumerate()
-                    .map(|(i, ty)| (Field(i), self.uninitialize(ty)))
+                    .map(|(i, ty)| (Field(i), self.lower_uninitialized(ty)))
                     .collect();
                 Ty::Tuple(tup)
             }
@@ -672,7 +696,7 @@ impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
                 .maybe_uninitialized_cursor
                 .get()
                 .contains(move_path_index),
-            LookupResult::Parent(_) => true,
+            LookupResult::Parent(_) => bug!(),
         }
     }
 }
