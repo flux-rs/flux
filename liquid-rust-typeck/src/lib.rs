@@ -4,7 +4,6 @@ pub mod constraint;
 pub mod env;
 pub mod refineck;
 pub mod region_inference;
-mod subtyping;
 
 use crate::{refineck::RefineChecker, region_inference::infer_regions};
 use env::OwnershipError;

@@ -89,8 +89,8 @@ impl TyCtxt {
         self.mk_ty(TyKind::Refine(bty, refine.into()))
     }
 
-    pub fn mk_ref(&self, bk: BorrowKind, region: Region, location: Location) -> Ty {
-        self.mk_ty(TyKind::Ref(bk, region, location))
+    pub fn mk_ref<R: Into<Region>>(&self, bk: BorrowKind, region: R, location: Location) -> Ty {
+        self.mk_ty(TyKind::Ref(bk, region.into(), location))
     }
 
     pub fn mk_ty_for_layout(&self, layout: &TypeLayout) -> Ty {
@@ -134,24 +134,24 @@ impl TyCtxt {
         }
     }
 
-    pub fn replace_refines_with_kvars(&self, ty: &Ty, vars_in_scope: &[Var]) -> Ty {
+    pub fn replace_with_fresh_vars(&self, ty: &Ty, vars_in_scope: &[Var]) -> Ty {
         match ty.kind() {
             TyKind::Fn(fn_ty) => {
                 let fn_ty = FnTy {
                     in_heap: fn_ty
                         .in_heap
-                        .map_ty(|ty| self.replace_refines_with_kvars(ty, vars_in_scope)),
+                        .map_ty(|ty| self.replace_with_fresh_vars(ty, vars_in_scope)),
                     inputs: fn_ty.inputs.clone(),
                     out_heap: fn_ty
                         .out_heap
-                        .map_ty(|ty| self.replace_refines_with_kvars(ty, vars_in_scope)),
+                        .map_ty(|ty| self.replace_with_fresh_vars(ty, vars_in_scope)),
                     output: fn_ty.output,
                 };
                 self.mk_fn_ty(fn_ty)
             }
             TyKind::Tuple(tup) => {
-                let tup = tup
-                    .map(|_, fld, ty| (*fld, self.replace_refines_with_kvars(ty, vars_in_scope)));
+                let tup =
+                    tup.map(|_, fld, ty| (*fld, self.replace_with_fresh_vars(ty, vars_in_scope)));
                 self.mk_tuple(tup)
             }
             TyKind::Refine(bty, _) => {
@@ -160,7 +160,8 @@ impl TyCtxt {
                 let kvar = ty::Kvar(self.fresh_kvar(), vec);
                 self.mk_refine(*bty, kvar)
             }
-            TyKind::Uninit(..) | TyKind::Ref(..) | TyKind::OwnRef(..) => ty.clone(),
+            TyKind::Ref(bk, _, l) => self.mk_ref(*bk, self.fresh_region_vid(), *l),
+            TyKind::Uninit(..) | TyKind::OwnRef(..) => ty.clone(),
         }
     }
 

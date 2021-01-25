@@ -1,4 +1,4 @@
-use crate::subtyping::subtyping;
+use crate::region_inference as region;
 use ast::Proj;
 use liquid_rust_core::{
     ast,
@@ -286,15 +286,19 @@ impl Env<'_> {
                         self.update(place, ty);
                     }
                     _ => {
-                        let ty_join = self.tcx.replace_refines_with_kvars(&ty, &vars_in_scope);
+                        // Get join
+                        let ty_join = self.tcx.replace_with_fresh_vars(&ty, &vars_in_scope);
+                        let mut region_constraints = region::Constraints::new();
 
-                        let heap = self.heap();
-                        constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                        constraints.push(subtyping(&ty, &ty_join, &mut region_constraints));
                         for place in r.places() {
                             let ty = self.lookup(place);
-                            constraints.push(subtyping(self.tcx, heap, &ty, heap, &ty_join));
+                            constraints.push(subtyping(&ty, &ty_join, &mut region_constraints));
                         }
+                        let sol = region_constraints.solve();
+                        let ty_join = sol.fix_regions_ty(self.tcx, &ty_join);
 
+                        // Update places
                         for place in r.places() {
                             self.update(place, ty_join.clone());
                         }
@@ -304,6 +308,32 @@ impl Env<'_> {
             Walk::Continue::<()>
         });
         Constraint::Conj(constraints)
+    }
+}
+
+fn subtyping(ty1: &Ty, ty2: &Ty, region_constraints: &mut region::Constraints) -> Constraint {
+    match (ty1.kind(), ty2.kind()) {
+        (TyKind::Fn(_), TyKind::Fn(_)) => todo!(),
+        (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
+            .iter()
+            .zip(tup2.types())
+            .rev()
+            .fold(Constraint::True, |c, ((f, ty1), ty2)| {
+                Constraint::Conj(vec![
+                    subtyping(ty1, ty2, region_constraints),
+                    Constraint::from_binding(*f, ty1.clone(), c),
+                ])
+            }),
+        (TyKind::Refine(bty1, refine1), TyKind::Refine(bty2, refine2)) if bty1 == bty2 => {
+            Constraint::from_subtype(*bty1, refine1, refine2)
+        }
+        (TyKind::Ref(bk1, r1, _), TyKind::Ref(bk2, r2, _)) if bk1 == bk2 => {
+            region_constraints.add(r1.clone(), r2.clone());
+            Constraint::True
+        }
+        (TyKind::Uninit(n1), TyKind::Uninit(n2)) if n1 == n2 => Constraint::True,
+        (TyKind::OwnRef(_), TyKind::OwnRef(_)) => Constraint::True,
+        _ => bug!(),
     }
 }
 

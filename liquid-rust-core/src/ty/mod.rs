@@ -235,6 +235,18 @@ pub enum Region {
     Infer(RegionVid),
 }
 
+impl From<Vec<Place>> for Region {
+    fn from(v: Vec<Place>) -> Self {
+        Region::Concrete(v)
+    }
+}
+
+impl From<RegionVid> for Region {
+    fn from(v: RegionVid) -> Self {
+        Region::Infer(v)
+    }
+}
+
 impl Region {
     pub fn places(&self) -> &[Place] {
         match self {

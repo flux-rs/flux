@@ -19,8 +19,8 @@ pub fn infer_regions<I>(
     conts: HashMap<ContId, ContTy>,
     fn_ty: FnTy,
 ) -> (HashMap<ContId, ContTy>, FnTy) {
-    let regions = RegionInferer::new(tcx, &conts).infer(func, &fn_ty);
-    fix_regions(tcx, fn_ty, conts, regions)
+    let solution = RegionInferer::new(tcx, &conts).infer(func, &fn_ty);
+    solution.fix_regions(tcx, fn_ty, conts)
 }
 
 // Infer Regions
@@ -42,11 +42,7 @@ impl<'a> RegionInferer<'a> {
         }
     }
 
-    pub fn infer<I>(
-        mut self,
-        func: &ast::FnDef<I>,
-        fn_ty: &FnTy,
-    ) -> HashMap<ty::RegionVid, Vec<Place>> {
+    pub fn infer<I>(mut self, func: &ast::FnDef<I>, fn_ty: &FnTy) -> ConstraintsSolution {
         self.env.insert_locals(fn_ty.locals(&func.params));
         self.env.extend_heap(&fn_ty.in_heap);
         self.visit_fn_body(&func.body);
@@ -173,18 +169,19 @@ fn subtyping(
 
 // Constraints
 
-struct Constraints(Vec<(ty::Region, ty::Region)>);
+#[derive(Default)]
+pub struct Constraints(Vec<(ty::Region, ty::Region)>);
 
 impl Constraints {
-    fn new() -> Self {
-        Constraints(Vec::new())
+    pub fn new() -> Self {
+        Self(Vec::new())
     }
 
-    fn add(&mut self, r1: ty::Region, r2: ty::Region) {
+    pub fn add(&mut self, r1: ty::Region, r2: ty::Region) {
         self.0.push((r1, r2))
     }
 
-    fn solve(self) -> HashMap<ty::RegionVid, Vec<Place>> {
+    pub fn solve(self) -> ConstraintsSolution {
         let mut map: HashMap<_, HashSet<_>> = HashMap::new();
         for (r1, r2) in self.0 {
             match (r1, r2) {
@@ -201,69 +198,63 @@ impl Constraints {
     }
 }
 
-// Fix Regions
+pub struct ConstraintsSolution(HashMap<ty::RegionVid, Vec<Place>>);
 
-fn fix_regions(
-    tcx: &TyCtxt,
-    fn_ty: FnTy,
-    conts: HashMap<ContId, ContTy>,
-    mut regions: HashMap<ty::RegionVid, Vec<Place>>,
-) -> (HashMap<ContId, ContTy>, FnTy) {
-    let conts = conts
-        .into_iter()
-        .map(|(id, cont_ty)| (id, fix_regions_cont_ty(tcx, cont_ty, &mut regions)))
-        .collect();
-    let fn_ty = fix_regions_fn_ty(tcx, fn_ty, &mut regions);
-    (conts, fn_ty)
+wrap_iterable! {
+    ConstraintsSolution: HashMap<ty::RegionVid, Vec<Place>>
 }
 
-fn fix_regions_cont_ty(
-    tcx: &TyCtxt,
-    cont_ty: ContTy,
-    regions: &mut HashMap<ty::RegionVid, Vec<Place>>,
-) -> ContTy {
-    ContTy {
-        heap: fix_regions_heap(tcx, cont_ty.heap, regions),
-        locals: cont_ty.locals,
-        inputs: cont_ty.inputs,
+impl ConstraintsSolution {
+    fn fix_regions(
+        &self,
+        tcx: &TyCtxt,
+        fn_ty: FnTy,
+        conts: HashMap<ContId, ContTy>,
+    ) -> (HashMap<ContId, ContTy>, FnTy) {
+        let conts = conts
+            .into_iter()
+            .map(|(id, cont_ty)| (id, self.fix_regions_cont_ty(tcx, cont_ty)))
+            .collect();
+        let fn_ty = self.fix_regions_fn_ty(tcx, fn_ty);
+        (conts, fn_ty)
     }
-}
 
-fn fix_regions_fn_ty(
-    tcx: &TyCtxt,
-    fn_ty: FnTy,
-    regions: &mut HashMap<ty::RegionVid, Vec<Place>>,
-) -> FnTy {
-    FnTy {
-        in_heap: fix_regions_heap(tcx, fn_ty.in_heap, regions),
-        inputs: fn_ty.inputs,
-        out_heap: fix_regions_heap(tcx, fn_ty.out_heap, regions),
-        output: fn_ty.output,
-    }
-}
-
-fn fix_regions_heap(
-    tcx: &TyCtxt,
-    heap: Heap,
-    regions: &mut HashMap<ty::RegionVid, Vec<Place>>,
-) -> Heap {
-    heap.into_iter()
-        .map(|(l, ty)| (l, fix_regions_ty(tcx, &ty, regions)))
-        .collect()
-}
-
-fn fix_regions_ty(tcx: &TyCtxt, ty: &Ty, regions: &mut HashMap<ty::RegionVid, Vec<Place>>) -> Ty {
-    match ty.kind() {
-        ty::TyKind::Tuple(tup) => {
-            let tup = tup.map(|_, fld, ty| (*fld, fix_regions_ty(tcx, ty, regions)));
-            tcx.mk_tuple(tup)
+    fn fix_regions_cont_ty(&self, tcx: &TyCtxt, cont_ty: ContTy) -> ContTy {
+        ContTy {
+            heap: self.fix_regions_heap(tcx, cont_ty.heap),
+            locals: cont_ty.locals,
+            inputs: cont_ty.inputs,
         }
-        ty::TyKind::Ref(bk, r, l) => match r {
-            ty::Region::Concrete(_) => ty.clone(),
-            ty::Region::Infer(kvid) => {
-                tcx.mk_ref(*bk, ty::Region::Concrete(regions.remove(kvid).unwrap()), *l)
+    }
+
+    fn fix_regions_fn_ty(&self, tcx: &TyCtxt, fn_ty: FnTy) -> FnTy {
+        FnTy {
+            in_heap: self.fix_regions_heap(tcx, fn_ty.in_heap),
+            inputs: fn_ty.inputs,
+            out_heap: self.fix_regions_heap(tcx, fn_ty.out_heap),
+            output: fn_ty.output,
+        }
+    }
+
+    fn fix_regions_heap(&self, tcx: &TyCtxt, heap: Heap) -> Heap {
+        heap.into_iter()
+            .map(|(l, ty)| (l, self.fix_regions_ty(tcx, &ty)))
+            .collect()
+    }
+
+    pub fn fix_regions_ty(&self, tcx: &TyCtxt, ty: &Ty) -> Ty {
+        match ty.kind() {
+            ty::TyKind::Tuple(tup) => {
+                let tup = tup.map(|_, fld, ty| (*fld, self.fix_regions_ty(tcx, ty)));
+                tcx.mk_tuple(tup)
             }
-        },
-        _ => ty.clone(),
+            ty::TyKind::Ref(bk, r, l) => match r {
+                ty::Region::Concrete(_) => ty.clone(),
+                ty::Region::Infer(kvid) => {
+                    tcx.mk_ref(*bk, ty::Region::Concrete(self.0[kvid].clone()), *l)
+                }
+            },
+            _ => ty.clone(),
+        }
     }
 }
