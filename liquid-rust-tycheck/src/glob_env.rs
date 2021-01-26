@@ -1,6 +1,8 @@
 use liquid_rust_common::index::{IndexGen, IndexMap};
-use liquid_rust_mir::{FuncId, Program};
-use liquid_rust_ty::{FuncTy, Hole, HoleId};
+use liquid_rust_mir::{
+    ty::{FuncTy, Hole, HoleId},
+    FuncId, Program,
+};
 
 pub(crate) struct GlobEnv {
     hole_gen: IndexGen<HoleId>,

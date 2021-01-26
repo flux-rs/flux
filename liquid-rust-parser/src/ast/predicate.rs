@@ -4,7 +4,7 @@ use crate::ast::{
     Span,
 };
 
-use liquid_rust_ty::Literal;
+use liquid_rust_mir::ty::Literal;
 
 /// The AST representation of a quantifier-free predicate.
 #[derive(Debug)]

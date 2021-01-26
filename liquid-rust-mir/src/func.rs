@@ -1,10 +1,10 @@
 use crate::{
     bblock::{BBlock, BBlockId},
     local::Local,
+    ty::{BaseTy, FuncTy},
 };
 
 use liquid_rust_common::{index::IndexMap, new_index};
-use liquid_rust_ty::{BaseTy, FuncTy};
 
 use std::fmt;
 

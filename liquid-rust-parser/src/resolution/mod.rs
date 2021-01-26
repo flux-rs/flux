@@ -8,7 +8,7 @@ pub use solve::{ResolutionError, ResolutionErrorKind, ResolutionResult};
 
 use crate::ast::{Ident, Ty as AstTy, TyKind as AstTyKind};
 
-use liquid_rust_ty::{Argument, BaseTy, FuncTy, Ty, Variable};
+use liquid_rust_mir::ty::{Argument, BaseTy, FuncTy, Ty, Variable};
 
 /// Solve an AST representation of a type into a well-formed type.
 pub fn solve_ty<'source>(ast_ty: &AstTy<'source>) -> ResolutionResult<'source, Ty> {

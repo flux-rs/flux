@@ -1,9 +1,9 @@
+use liquid_rust_mir::ty::Ty;
 use liquid_rust_parser::{
     parse_ty,
     resolution::{solve_ty, ResolutionErrorKind},
     ParseErrorKind,
 };
-use liquid_rust_ty::Ty;
 
 use rustc_ast::ast::{AttrItem, AttrKind, Attribute};
 use rustc_ast_pretty::pprust::tts_to_string;

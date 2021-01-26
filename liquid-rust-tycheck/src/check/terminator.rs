@@ -7,8 +7,10 @@ use crate::{
 };
 
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::{Local, Operand, Terminator, TerminatorKind};
-use liquid_rust_ty::{Literal, Predicate, Ty, Variable};
+use liquid_rust_mir::{
+    ty::{Literal, Predicate, Ty, Variable},
+    Local, Operand, Terminator, TerminatorKind,
+};
 
 impl<'ty, 'env> Check<'ty, 'env> for Terminator {
     type Ty = &'ty BBlockTy;

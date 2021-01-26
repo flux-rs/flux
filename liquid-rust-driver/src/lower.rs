@@ -1,8 +1,8 @@
 use liquid_rust_mir::{
+    ty::{BaseTy, BinOp, IntSign, IntSize, Literal, UnOp},
     BBlock, BBlockId, Func, FuncBuilder, FuncId, Local, Operand, Rvalue, Statement, StatementKind,
     Terminator, TerminatorKind,
 };
-use liquid_rust_ty::{BaseTy, BinOp, IntSign, IntSize, Literal, UnOp};
 
 use rustc_ast::ast::{IntTy, UintTy};
 use rustc_hir::def_id::DefId;

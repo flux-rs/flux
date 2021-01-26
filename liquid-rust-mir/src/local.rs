@@ -1,5 +1,6 @@
+use crate::ty::LocalVariable;
+
 use liquid_rust_common::{index::Index, new_index};
-use liquid_rust_ty::LocalVariable;
 
 use std::fmt;
 

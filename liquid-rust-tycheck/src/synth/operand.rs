@@ -1,7 +1,9 @@
 use crate::{env::Env, result::TyResult, synth::Synth};
 
-use liquid_rust_mir::Operand;
-use liquid_rust_ty::{Ty, Variable};
+use liquid_rust_mir::{
+    ty::{Ty, Variable},
+    Operand,
+};
 
 impl<'env> Synth<'env> for Operand {
     type Ty = Ty;

@@ -1,8 +1,10 @@
 #![feature(rustc_private)]
 
 use liquid_rust_common::index::Index;
-use liquid_rust_mir::{BBlockId, FuncId, Span};
-use liquid_rust_ty::{BaseTy, BinOp, HoleId, LocalVariable, Predicate, UnOp, Variable};
+use liquid_rust_mir::{
+    ty::{BaseTy, BinOp, HoleId, LocalVariable, Predicate, UnOp, Variable},
+    BBlockId, FuncId, Span,
+};
 
 use std::{
     collections::BTreeMap,

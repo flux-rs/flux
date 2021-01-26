@@ -1,4 +1,4 @@
-use crate::{
+use crate::ty::{
     literal::Literal,
     local::LocalVariable,
     op::{BinOp, UnOp},

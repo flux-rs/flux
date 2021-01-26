@@ -6,6 +6,5 @@ edition = "2018"
 
 [dependencies]
 liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-ty = { path = "../liquid-rust-ty" }
 
 rustc-workspace-hack = "1.0.0"

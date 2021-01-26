@@ -10,6 +10,7 @@ mod program;
 mod rvalue;
 mod statement;
 mod terminator;
+pub mod ty;
 
 pub use bblock::{BBlock, BBlockBuilder, BBlockId};
 pub use func::{Func, FuncBuilder, FuncId};

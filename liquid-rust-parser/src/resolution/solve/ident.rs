@@ -1,4 +1,4 @@
-use liquid_rust_ty::{BaseTy, Variable};
+use liquid_rust_mir::ty::{BaseTy, Variable};
 
 use crate::{
     ast::Ident,

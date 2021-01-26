@@ -2,7 +2,7 @@ use crate::{env::Env, result::TyResult, subtype::Subtype};
 
 use liquid_rust_common::index::{Index, IndexGen};
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_ty::{LocalVariable, Predicate, Ty, Variable};
+use liquid_rust_mir::ty::{LocalVariable, Predicate, Ty, Variable};
 
 impl<'env> Subtype<'env> for Env {
     type Env = ();

@@ -1,5 +1,7 @@
-use liquid_rust_mir::Span;
-use liquid_rust_ty::{BaseTy, Ty};
+use liquid_rust_mir::{
+    ty::{BaseTy, Ty},
+    Span,
+};
 
 pub type TyResult<T = ()> = Result<T, TyError>;
 

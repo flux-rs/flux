@@ -16,8 +16,10 @@ use subtype::Subtype;
 
 use liquid_rust_common::index::Index;
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::{BBlockId, Program};
-use liquid_rust_ty::{LocalVariable, Predicate, Ty};
+use liquid_rust_mir::{
+    ty::{LocalVariable, Predicate, Ty},
+    BBlockId, Program,
+};
 
 pub fn check_program(program: &Program) {
     let genv = GlobEnv::new(program);

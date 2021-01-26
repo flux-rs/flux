@@ -1,8 +1,7 @@
 use crate::{check::Check, env::Env, result::TyResult, subtype::Subtype, synth::Synth};
 
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::Rvalue;
-use liquid_rust_ty::Ty;
+use liquid_rust_mir::{ty::Ty, Rvalue};
 
 impl<'ty, 'env> Check<'ty, 'env> for Rvalue {
     type Ty = &'ty Ty;

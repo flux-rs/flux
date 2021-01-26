@@ -1,6 +1,7 @@
-use crate::local::Local;
-
-use liquid_rust_ty::{Literal, Predicate, Variable};
+use crate::{
+    local::Local,
+    ty::{Literal, Predicate, Variable},
+};
 
 use std::fmt;
 

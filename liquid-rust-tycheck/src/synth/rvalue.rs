@@ -4,8 +4,10 @@ use crate::{
     synth::Synth,
 };
 
-use liquid_rust_mir::{Rvalue, DUMMY_SP};
-use liquid_rust_ty::{BaseTy, BinOp, Predicate, Ty, UnOp, Variable};
+use liquid_rust_mir::{
+    ty::{BaseTy, BinOp, Predicate, Ty, UnOp, Variable},
+    Rvalue, DUMMY_SP,
+};
 
 impl<'env> Synth<'env> for Rvalue {
     type Ty = Ty;

@@ -8,8 +8,7 @@ use crate::{
 };
 
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::{BBlock, BBlockId};
-use liquid_rust_ty::Ty;
+use liquid_rust_mir::{ty::Ty, BBlock, BBlockId};
 
 impl<'ty, 'env> Check<'ty, 'env> for BBlock {
     type Ty = &'ty BBlockTy;

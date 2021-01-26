@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp};
+use liquid_rust_mir::ty::{BaseTy, BinOp, Predicate, UnOp};
 
 impl<'source> Solve<'source> for AstPredicate<'source> {
     type Output = Predicate;

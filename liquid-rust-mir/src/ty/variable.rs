@@ -1,4 +1,4 @@
-use crate::{argument::Argument, local::LocalVariable};
+use crate::ty::{argument::Argument, local::LocalVariable};
 
 use std::fmt;
 

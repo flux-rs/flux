@@ -5,8 +5,7 @@ use crate::{
 };
 
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::DUMMY_SP;
-use liquid_rust_ty::Ty;
+use liquid_rust_mir::{ty::Ty, DUMMY_SP};
 
 impl<'env> Subtype<'env> for Ty {
     type Env = &'env Env;

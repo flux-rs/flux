@@ -2,8 +2,10 @@ use crate::{env::Env, glob_env::GlobEnv};
 
 use liquid_rust_common::index::IndexMap;
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::{BBlockId, Func};
-use liquid_rust_ty::{Predicate, Ty};
+use liquid_rust_mir::{
+    ty::{Predicate, Ty},
+    BBlockId, Func,
+};
 
 use std::fmt;
 

@@ -1,6 +1,6 @@
 use crate::{ast::{self, Span}, lexer::{LexerError, Token}};
 
-use liquid_rust_ty as ty;
+use liquid_rust_mir::ty;
 
 grammar<'source>(source: &'source str);
 

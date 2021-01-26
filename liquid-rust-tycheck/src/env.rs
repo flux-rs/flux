@@ -1,5 +1,5 @@
 use liquid_rust_common::index::IndexMap;
-use liquid_rust_ty::{LocalVariable, Ty};
+use liquid_rust_mir::ty::{LocalVariable, Ty};
 
 use std::fmt;
 

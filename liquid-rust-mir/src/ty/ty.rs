@@ -1,4 +1,4 @@
-use crate::{
+use crate::ty::{
     base_ty::BaseTy, literal::Literal, local::LocalVariable, predicate::Predicate,
     variable::Variable,
 };
