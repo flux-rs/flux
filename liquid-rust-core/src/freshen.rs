@@ -168,7 +168,8 @@ where
     fn freshen_operand(&mut self, operand: Operand<S>) -> Operand {
         use Operand::*;
         match operand {
-            Use(place) => Use(self.freshen_place(place)),
+            Copy(place) => Copy(self.freshen_place(place)),
+            Move(place) => Move(self.freshen_place(place)),
             Constant(c) => Constant(c),
         }
     }

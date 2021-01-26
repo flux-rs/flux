@@ -111,7 +111,7 @@ pub fn walk_rvalue<I, S, V: Visitor<I, S>>(visitor: &mut V, rvalue: &Rvalue<S>) 
 
 pub fn walk_operand<I, S, V: Visitor<I, S>>(visitor: &mut V, operand: &Operand<S>) {
     match operand {
-        Operand::Use(place) => visitor.visit_place(place),
+        Operand::Copy(place) | Operand::Move(place) => visitor.visit_place(place),
         Operand::Constant(c) => visitor.visit_constant(c),
     }
 }

@@ -64,7 +64,8 @@ pub enum TypeLayout {
 }
 #[derive(Debug)]
 pub enum Operand<S = usize> {
-    Use(Place<S>),
+    Copy(Place<S>),
+    Move(Place<S>),
     Constant(Constant),
 }
 

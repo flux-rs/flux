@@ -83,7 +83,8 @@ fn translate_place(from: &mir::Place) -> Place {
 
 fn translate_op(from: &mir::Operand) -> Operand {
     match from {
-        mir::Operand::Copy(p) | mir::Operand::Move(p) => Operand::Use(translate_place(p)),
+        mir::Operand::Copy(p) => Operand::Copy(translate_place(p)),
+        mir::Operand::Move(p) => Operand::Move(translate_place(p)),
         mir::Operand::Constant(bc) => translate_const(bc),
     }
 }

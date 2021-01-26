@@ -286,7 +286,11 @@ impl PrettyPrinter {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match op {
-            ast::Operand::Use(place) => self.print_place(place, f),
+            ast::Operand::Copy(place) => self.print_place(place, f),
+            ast::Operand::Move(place) => {
+                write!(f, "move ")?;
+                self.print_place(place, f)
+            }
             ast::Operand::Constant(c) => self.print_constant(c, f),
         }
     }

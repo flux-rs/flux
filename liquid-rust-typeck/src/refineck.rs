@@ -150,7 +150,7 @@ impl<'a> RefineChecker<'a> {
             ast::Rvalue::Use(op) => {
                 let pred = self.check_operand(op, env);
                 match op {
-                    ast::Operand::Use(place) => {
+                    ast::Operand::Copy(place) | ast::Operand::Move(place) => {
                         let ty = env.lookup(place);
                         self.tcx.selfify(ty, env.resolve_place(place))
                     }
@@ -228,12 +228,14 @@ impl<'a> RefineChecker<'a> {
 
     fn check_operand(&mut self, operand: &ast::Operand, env: &mut Env) -> Pred {
         match operand {
-            ast::Operand::Use(place) => {
+            ast::Operand::Copy(place) => {
                 let ty = env.lookup(place);
-                if !ty.is_copy() {
-                    self.check_ownership_safety(RefKind::Owned, place, env);
-                    env.drop(place);
-                }
+                assert!(ty.is_copy());
+                self.tcx.mk_pred_place(env.resolve_place(place))
+            }
+            ast::Operand::Move(place) => {
+                self.check_ownership_safety(RefKind::Owned, place, env);
+                env.drop(place);
                 self.tcx.mk_pred_place(env.resolve_place(place))
             }
             ast::Operand::Constant(c) => {

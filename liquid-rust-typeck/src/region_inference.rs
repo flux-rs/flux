@@ -112,7 +112,7 @@ impl<I> Visitor<I> for RegionInferer<'_> {
 fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
     match rvalue {
         ast::Rvalue::Use(ast::Operand::Constant(c)) => tcx.mk_refine(c.base_ty(), tcx.preds.tt()),
-        ast::Rvalue::Use(ast::Operand::Use(place)) => {
+        ast::Rvalue::Use(ast::Operand::Move(place) | ast::Operand::Copy(place)) => {
             let ty = env.lookup(place);
             tcx.selfify(ty, env.resolve_place(place))
         }

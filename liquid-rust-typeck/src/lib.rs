@@ -1,5 +1,7 @@
 #![feature(bindings_after_at)]
 #![feature(box_syntax)]
+#![feature(or_patterns)]
+
 pub mod constraint;
 pub mod env;
 pub mod refineck;
