@@ -93,8 +93,9 @@ BinOp: BinOp = {
 }
 
 Operand: Operand<&'input str> = {
-  <Constant> => Operand::Constant(<>),
-  <Place>    => Operand::Use(<>),
+  <Constant>     => Operand::Constant(<>),
+  <Place>        => Operand::Copy(<>),
+  "move" <Place> => Operand::Move(<>),
 }
 
 Constant: Constant = {
