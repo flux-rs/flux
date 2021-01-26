@@ -58,6 +58,7 @@ pub enum StatementKind<S = usize> {
     Nop,
 }
 
+#[derive(Debug)]
 pub enum TypeLayout {
     Tuple(Vec<TypeLayout>),
     Block(usize),

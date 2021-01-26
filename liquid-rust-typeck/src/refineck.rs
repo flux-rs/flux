@@ -148,17 +148,8 @@ impl<'a> RefineChecker<'a> {
         let tcx = self.tcx;
         match rvalue {
             ast::Rvalue::Use(op) => {
-                let pred = self.check_operand(op, env);
-                match op {
-                    ast::Operand::Copy(place) | ast::Operand::Move(place) => {
-                        let ty = env.lookup(place);
-                        self.tcx.selfify(ty, env.resolve_place(place))
-                    }
-                    ast::Operand::Constant(c) => self.tcx.mk_refine(
-                        c.base_ty(),
-                        self.tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), pred),
-                    ),
-                }
+                let (_, ty) = self.check_operand(op, env);
+                ty
             }
             ast::Rvalue::Ref(bk, place) => {
                 self.check_ownership_safety(RefKind::from(*bk), place, env);
@@ -174,7 +165,7 @@ impl<'a> RefineChecker<'a> {
             }
             ast::Rvalue::UnaryOp(un_op, op) => match un_op {
                 ast::UnOp::Not => {
-                    let pred = self.check_operand(op, env);
+                    let (pred, _) = self.check_operand(op, env);
                     tcx.mk_refine(BaseTy::Bool, pred)
                 }
             },
@@ -191,8 +182,8 @@ impl<'a> RefineChecker<'a> {
         use ast::BinOp as ast;
         use ty::BinOp::*;
         let tcx = self.tcx;
-        let op1 = self.check_operand(op1, env);
-        let op2 = self.check_operand(op2, env);
+        let (op1, _) = self.check_operand(op1, env);
+        let (op2, _) = self.check_operand(op2, env);
         let (bty, pred) = match bin_op {
             ast::Add => (
                 BaseTy::Int,
@@ -226,25 +217,29 @@ impl<'a> RefineChecker<'a> {
         tcx.mk_refine(bty, pred)
     }
 
-    fn check_operand(&mut self, operand: &ast::Operand, env: &mut Env) -> Pred {
+    fn check_operand(&mut self, operand: &ast::Operand, env: &mut Env) -> (Pred, Ty) {
+        let tcx = self.tcx;
         match operand {
             ast::Operand::Copy(place) => {
-                let ty = env.lookup(place);
+                let ty = tcx.selfify(env.lookup(place), env.resolve_place(place));
                 assert!(ty.is_copy());
-                self.tcx.mk_pred_place(env.resolve_place(place))
+                (tcx.mk_pred_place(env.resolve_place(place)), ty)
             }
             ast::Operand::Move(place) => {
+                let ty = tcx.selfify(env.lookup(place), env.resolve_place(place));
                 self.check_ownership_safety(RefKind::Owned, place, env);
                 env.drop(place);
-                self.tcx.mk_pred_place(env.resolve_place(place))
+                (tcx.mk_pred_place(env.resolve_place(place)), ty)
             }
             ast::Operand::Constant(c) => {
-                let c = match *c {
-                    ast::Constant::Bool(b) => pred::Constant::Bool(b),
-                    ast::Constant::Int(n) => pred::Constant::Int(n),
-                    ast::Constant::Unit => pred::Constant::Unit,
+                let (bty, c) = match *c {
+                    ast::Constant::Bool(b) => (BaseTy::Bool, pred::Constant::Bool(b)),
+                    ast::Constant::Int(n) => (BaseTy::Int, pred::Constant::Int(n)),
+                    ast::Constant::Unit => (BaseTy::Unit, pred::Constant::Unit),
                 };
-                self.tcx.mk_constant(c)
+                let refine =
+                    tcx.mk_bin_op(ty::BinOp::Eq, self.tcx.preds.nu(), self.tcx.mk_constant(c));
+                (tcx.mk_constant(c), tcx.mk_refine(bty, refine))
             }
         }
     }

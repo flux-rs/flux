@@ -71,11 +71,12 @@ StatementKind: StatementKind<&'input str> = {
 }
 
 Rvalue: Rvalue<&'input str> = {
-  Operand                                       => Rvalue::Use(<>),
-  <op1: Operand> <bin_op: BinOp> <op2: Operand> => Rvalue::BinaryOp(bin_op, op1, op2),
-  <un_op: UnOp> <op: Operand>                   => Rvalue::UnaryOp(un_op, op),
-  "&" <p: Place>                                => Rvalue::Ref(BorrowKind::Shared, p),
-  "&" "mut" <p: Place>                          => Rvalue::Ref(BorrowKind::Mut, p),
+  Operand                                                         => Rvalue::Use(<>),
+  <op1: Operand> <bin_op: BinOp> <op2: Operand>                   => Rvalue::BinaryOp(bin_op, op1, op2),
+  "Checked" "(" <op1: Operand> <bin_op: BinOp> <op2: Operand> ")" => Rvalue::CheckedBinaryOp(bin_op, op1, op2),
+  <un_op: UnOp> <op: Operand>                                     => Rvalue::UnaryOp(un_op, op),
+  "&" <p: Place>                                                  => Rvalue::Ref(BorrowKind::Shared, p),
+  "&" "mut" <p: Place>                                            => Rvalue::Ref(BorrowKind::Mut, p),
 }
 
 UnOp: UnOp = {
@@ -235,7 +236,7 @@ LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {
 // -------------------------------------------------------------------------------------------------
 
 Local: Local<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Local(<>);
-Field: Field<&'input str> = r"@[a-zA-Z][a-zA-Z0-9_]*" => Field(&<>[1..]);
+Field: Field<&'input str> = r"@[a-zA-Z0-9_]+" => Field(&<>[1..]);
 Location: Location<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Location(<>);
 ContId: ContId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => ContId(<>);
 FnId: FnId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => FnId(<>);
