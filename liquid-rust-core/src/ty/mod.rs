@@ -251,7 +251,7 @@ impl Region {
     pub fn places(&self) -> &[Place] {
         match self {
             Region::Concrete(places) => places,
-            Region::Infer(_) => bug!("places called on a non concrete region"),
+            Region::Infer(_) => &[],
         }
     }
 }
@@ -267,7 +267,7 @@ impl fmt::Display for Region {
                     .join(", ");
                 write!(f, "{{ {} }}", places)
             }
-            Region::Infer(rvid) => write!(f, "$r{}", rvid.0),
+            Region::Infer(rvid) => write!(f, "$r{}", rvid.as_usize()),
         }
     }
 }
@@ -429,9 +429,10 @@ impl Extend<(Local, Location)> for LocalsMap {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub struct KVid(pub usize);
 
-/// A **Region** **v**ariable **ID**
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
-pub struct RegionVid(pub usize);
+newtype_index! {
+    /// A **Region** **v**ariable **ID**
+    struct RegionVid
+}
 
 // Predicates
 

@@ -60,7 +60,7 @@ impl TyCtxt {
     }
 
     pub fn fresh_region_vid(&self) -> RegionVid {
-        RegionVid(self.fresh())
+        RegionVid::from_usize(self.fresh())
     }
 
     pub fn fresh_field(&self) -> Field {

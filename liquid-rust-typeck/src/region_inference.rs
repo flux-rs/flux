@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::env::Env;
 use ast::{FnDef, Place, StatementKind};
+use liquid_rust_common::data_structures::WorkQueue;
 use liquid_rust_core::{
     ast::{
         self,
@@ -42,7 +43,7 @@ impl<'a> RegionInferer<'a> {
         }
     }
 
-    pub fn infer<I>(mut self, func: &ast::FnDef<I>, fn_ty: &FnTy) -> ConstraintsSolution {
+    pub fn infer<I>(mut self, func: &ast::FnDef<I>, fn_ty: &FnTy) -> Solution {
         self.env.insert_locals(fn_ty.locals(&func.params));
         self.env.extend_heap(&fn_ty.in_heap);
         self.visit_fn_body(&func.body);
@@ -181,30 +182,49 @@ impl Constraints {
         self.0.push((r1, r2))
     }
 
-    pub fn solve(self) -> ConstraintsSolution {
+    pub fn solve(self) -> Solution {
+        let mut edges: HashMap<_, Vec<_>> = HashMap::new();
         let mut map: HashMap<_, HashSet<_>> = HashMap::new();
+        let mut dirty_queue = WorkQueue::with_capacity(edges.len());
         for (r1, r2) in self.0 {
             match (r1, r2) {
-                (ty::Region::Concrete(places), ty::Region::Infer(id)) => {
-                    map.entry(id).or_default().extend(places)
+                (ty::Region::Infer(rvid1), ty::Region::Infer(rvid2)) => {
+                    dirty_queue.insert(rvid1);
+                    dirty_queue.insert(rvid2);
+                    edges.entry(rvid1).or_default().push(rvid2);
                 }
-                (ty::Region::Infer(..), _) => bug!(),
+                (ty::Region::Concrete(places), ty::Region::Infer(rvid)) => {
+                    dirty_queue.insert(rvid);
+                    map.entry(rvid).or_default().extend(places)
+                }
+                // TODO: we should check that the rest of the constraints are satisfied at
+                // the end of the fixpoint iteration.
                 _ => {}
             }
         }
+
+        while let Some(rvid1) = dirty_queue.pop() {
+            for rvid2 in edges.entry(rvid1).or_default() {
+                let new_places = map.entry(rvid1).or_default().clone();
+                let places = map.entry(*rvid2).or_default();
+                if new_places.into_iter().any(|place| places.insert(place)) {
+                    dirty_queue.insert(*rvid2);
+                }
+            }
+        }
         map.into_iter()
-            .map(|(id, places)| (id, places.into_iter().collect()))
+            .map(|(rvid, places)| (rvid, places.into_iter().collect()))
             .collect()
     }
 }
 
-pub struct ConstraintsSolution(HashMap<ty::RegionVid, Vec<Place>>);
+pub struct Solution(HashMap<ty::RegionVid, Vec<Place>>);
 
 wrap_iterable! {
-    ConstraintsSolution: HashMap<ty::RegionVid, Vec<Place>>
+    Solution: HashMap<ty::RegionVid, Vec<Place>>
 }
 
-impl ConstraintsSolution {
+impl Solution {
     fn fix_regions(
         &self,
         tcx: &TyCtxt,

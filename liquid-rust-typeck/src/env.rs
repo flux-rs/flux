@@ -368,8 +368,7 @@ impl std::cmp::PartialOrd<BorrowKind> for RefKind {
         match (self, other) {
             (RefKind::Shared, BorrowKind::Shared) | (RefKind::Mut, BorrowKind::Mut) => Some(Equal),
             (RefKind::Mut, BorrowKind::Shared)
-            | (RefKind::Owned, BorrowKind::Shared)
-            | (RefKind::Owned, BorrowKind::Mut) => Some(Greater),
+            | (RefKind::Owned, BorrowKind::Shared | BorrowKind::Mut) => Some(Greater),
             (RefKind::Shared, BorrowKind::Mut) => Some(Less),
         }
     }
