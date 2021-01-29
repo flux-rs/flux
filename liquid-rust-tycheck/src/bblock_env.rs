@@ -32,12 +32,12 @@ impl BBlockEnv {
         for (bb_id, _) in func.bblocks() {
             let input = Env::new(func.local_decls().map(|(_, base_ty)| {
                 let hole = genv.new_pred();
-                emitter.add_hole(*base_ty, hole.id);
+                emitter.add_wf(*base_ty, hole.id);
                 Ty::Refined(*base_ty, Predicate::Hole(hole))
             }));
             let output = Env::new(func.local_decls().map(|(_, base_ty)| {
                 let hole = genv.new_pred();
-                emitter.add_hole(*base_ty, hole.id);
+                emitter.add_wf(*base_ty, hole.id);
                 Ty::Refined(*base_ty, Predicate::Hole(hole))
             }));
 

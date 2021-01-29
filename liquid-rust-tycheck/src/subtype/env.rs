@@ -13,8 +13,6 @@ impl<'env> Subtype<'env> for Env {
         let len_locals = self.len_locals();
         assert_eq!(len_locals, other.len_locals());
 
-        let mut env = Env::empty();
-
         let gen = IndexGen::<LocalVariable>::new();
 
         for _ in 0..len_locals {
@@ -126,19 +124,36 @@ impl<'env> Subtype<'env> for Env {
                 while let Some((var2, ty2)) = stack2.next() {
                     if var2.index() < len_locals {
                         assert_eq!(var1, var2);
-                        ty1.subtype(&ty2, emitter, &env)?;
+                        ty1.subtype(&ty2, emitter, ())?;
 
-                        env.bind(var1, ty1.clone());
+                        match &ty1 {
+                            Ty::Refined(base_ty, pred) => {
+                                emitter.add_bind(var1, *base_ty, pred);
+                            }
+                            _ => panic!(),
+                        }
 
                         break;
                     } else {
-                        env.bind(var2, ty2);
+                        match &ty2 {
+                            Ty::Refined(base_ty, pred) => {
+                                emitter.add_bind(var2, *base_ty, pred);
+                            }
+                            _ => panic!(),
+                        }
                     }
                 }
             } else {
-                env.bind(var1, ty1.clone());
+                match &ty1 {
+                    Ty::Refined(base_ty, pred) => {
+                        emitter.add_bind(var1, *base_ty, pred);
+                    }
+                    _ => panic!(),
+                }
             }
         }
+
+        emitter.clear();
 
         Ok(())
     }

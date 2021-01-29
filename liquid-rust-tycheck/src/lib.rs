@@ -26,9 +26,6 @@ pub fn check_program(program: &Program) {
     let mut emitter = Emitter::new();
 
     for (func_id, func) in program.iter() {
-        emitter.unset_bb();
-        emitter.set_func(func_id);
-
         let input_env = Env::new(
             func.local_decls()
                 .map(|(_, base_ty)| Ty::Refined(*base_ty, Predicate::Hole(genv.new_pred()))),
@@ -50,13 +47,11 @@ pub fn check_program(program: &Program) {
         let env = (&genv, &bbenv, func_ty.return_ty());
 
         for (bb_id, bb) in func.bblocks() {
-            emitter.set_bb(bb_id);
-
             let bb_ty = bbenv.get_ty(bb_id);
 
             bb.check(bb_ty, &mut emitter, env).unwrap();
         }
     }
 
-    emitter.emit().unwrap();
+    emitter.emit();
 }

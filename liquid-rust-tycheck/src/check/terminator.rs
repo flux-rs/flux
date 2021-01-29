@@ -29,7 +29,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
             }
             TerminatorKind::Goto(target) => target.check(ty, emitter, env),
             TerminatorKind::Assert(cond, expected, target) => {
-                // An assertion is well-typed if `cond` has type `{b : bool | expected}`.
+                // An assertion is well-typed if `cond` has type `{b : bool | b == expected}`.
                 cond.check(&Ty::singleton(Literal::from(*expected)), emitter, &ty.input)
                     .map_err(|err| err.with_span(self.span.clone()))?;
                 // Then, the type of the assertion is the type of the target block.
