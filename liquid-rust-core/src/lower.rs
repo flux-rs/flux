@@ -5,7 +5,7 @@ use ast::ContDef;
 use crate::{
     ast::{self, visitor::Visitor, FnDef},
     names::ContId,
-    ty::{self, LocalsMap, TyCtxt, Var},
+    ty::{self, KVid, LocalsMap, RegionVid, TyCtxt, Var},
 };
 
 pub struct TypeLowerer<'a> {
@@ -109,7 +109,7 @@ impl<'a> TypeLowerer<'a> {
     fn lower_region(&mut self, region: &ast::Region) -> ty::Region {
         match region {
             ast::Region::Concrete(places) => ty::Region::Concrete(places.clone()),
-            ast::Region::Infer => ty::Region::Infer(self.tcx.fresh_region_vid()),
+            ast::Region::Infer => ty::Region::Infer(self.tcx.fresh::<RegionVid>()),
         }
     }
 
@@ -119,7 +119,7 @@ impl<'a> TypeLowerer<'a> {
             ast::Refine::Infer => {
                 let mut vars_in_scope = vec![Var::Nu];
                 vars_in_scope.extend(&self.vars_in_scope);
-                ty::Refine::Infer(ty::Kvar(self.tcx.fresh_kvar(), vars_in_scope))
+                ty::Refine::Infer(ty::Kvar(self.tcx.fresh::<KVid>(), vars_in_scope))
             }
         }
     }

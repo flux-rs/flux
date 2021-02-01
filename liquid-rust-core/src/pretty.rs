@@ -479,10 +479,10 @@ impl PrettyPrinter {
                 write!(f, "V")?;
             }
             crate::ty::Var::Location(l) => {
-                write!(f, "l{}", l.0)?;
+                write!(f, "l{}", l.inner())?;
             }
             crate::ty::Var::Field(fld) => {
-                write!(f, "@{}", fld.0)?;
+                write!(f, "@{}", fld.inner())?;
             }
         }
         Ok(())
@@ -519,7 +519,7 @@ impl PrettyPrinter {
         place: &ast::Place<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let mut s = format!("_{}", place.base.0);
+        let mut s = format!("_{}", place.base.inner());
         let mut need_parens = false;
         for proj in &place.projs {
             match proj {
@@ -545,7 +545,7 @@ impl PrettyPrinter {
         cont_id: &ContId<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "bb{}", cont_id.0)
+        write!(f, "bb{}", cont_id.inner())
     }
 
     fn print_local<S: fmt::Display>(
@@ -553,7 +553,7 @@ impl PrettyPrinter {
         x: &Local<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "_{}", x.0)
+        write!(f, "_{}", x.inner())
     }
 
     fn print_location<S: fmt::Display>(
@@ -561,7 +561,7 @@ impl PrettyPrinter {
         l: &Location<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "l{}", l.0)
+        write!(f, "l{}", l.inner())
     }
 
     fn print_field<S: fmt::Display>(
@@ -569,6 +569,6 @@ impl PrettyPrinter {
         fld: &Field<S>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "@{}", fld.0)
+        write!(f, "@{}", fld.inner())
     }
 }

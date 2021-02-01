@@ -244,7 +244,7 @@ impl Env<'_> {
     }
 
     fn fresh_location(&self) -> Location {
-        self.tcx.fresh_location()
+        self.tcx.fresh::<Location>()
     }
 
     fn update_ty(&mut self, root: &Ty, projs: &[Proj], ty: Ty) -> Ty {
@@ -393,7 +393,7 @@ impl fmt::Debug for Env<'_> {
             .last()
             .unwrap()
             .iter()
-            .map(|(x, l)| format!("$x{} => $l{}", x.0, l.0))
+            .map(|(x, l)| format!("_{} => l{}", x.as_usize(), l.as_usize()))
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "[{}]", s)

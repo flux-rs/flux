@@ -124,7 +124,7 @@ fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
         ast::Rvalue::BinaryOp(bin_op, ..) => ty_for_bin_op(*bin_op, tcx),
         ast::Rvalue::CheckedBinaryOp(bin_op, ..) => {
             let ty = ty_for_bin_op(*bin_op, tcx);
-            tcx.mk_tuple(tup!(Field(0) => ty, Field(1) => tcx.types.bool()))
+            tcx.mk_tuple(tup!(Field::new(0) => ty, Field::new(1) => tcx.types.bool()))
         }
         ast::Rvalue::UnaryOp(un_op, ..) => match un_op {
             ast::UnOp::Not => tcx.mk_refine(BaseTy::Bool, tcx.preds.tt()),

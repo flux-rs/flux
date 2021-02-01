@@ -1,10 +1,11 @@
-use std::cell::{Cell, RefCell};
+use std::{cell::RefCell, collections::HashMap};
 
 use hashconsing::{HConsign, HashConsign};
+use liquid_rust_common::index::Idx;
 
 use crate::{
     ast::TypeLayout,
-    names::{Local, Location},
+    names::Location,
     ty::{self, pred, *},
 };
 
@@ -12,7 +13,7 @@ pub struct TyCtxt {
     interner: RefCell<CtxtInterner>,
     pub preds: CommonPreds,
     pub types: CommonTypes,
-    next_fresh: Cell<usize>,
+    next_fresh: RefCell<HashMap<&'static str, usize>>,
 }
 
 impl Default for TyCtxt {
@@ -30,7 +31,7 @@ impl TyCtxt {
             interner: RefCell::new(interner),
             preds,
             types,
-            next_fresh: Cell::new(0),
+            next_fresh: RefCell::new(HashMap::new()),
         }
     }
 
@@ -42,29 +43,11 @@ impl TyCtxt {
         self.interner.borrow_mut().intern_pred(kind)
     }
 
-    pub fn fresh(&self) -> usize {
-        self.next_fresh.set(self.next_fresh.get() + 1);
-        self.next_fresh.get() - 1
-    }
-
-    pub fn fresh_kvar(&self) -> KVid {
-        KVid(self.fresh())
-    }
-
-    pub fn fresh_local(&self) -> Local {
-        Local(self.fresh())
-    }
-
-    pub fn fresh_location(&self) -> Location {
-        Location(self.fresh())
-    }
-
-    pub fn fresh_region_vid(&self) -> RegionVid {
-        RegionVid::from_usize(self.fresh())
-    }
-
-    pub fn fresh_field(&self) -> Field {
-        Field(self.fresh())
+    pub fn fresh<T: Idx>(&self) -> T {
+        let mut map = self.next_fresh.borrow_mut();
+        let next_fresh = map.entry(T::name()).or_default();
+        *next_fresh += 1;
+        T::new(*next_fresh - 1)
     }
 
     // Types
@@ -98,7 +81,7 @@ impl TyCtxt {
             TypeLayout::Tuple(tup) => {
                 let tup = tup
                     .iter()
-                    .map(|layout| (self.fresh_field(), self.mk_ty_for_layout(layout)))
+                    .map(|layout| (self.fresh::<Field>(), self.mk_ty_for_layout(layout)))
                     .collect();
                 self.mk_ty(TyKind::Tuple(tup))
             }
@@ -157,10 +140,10 @@ impl TyCtxt {
             TyKind::Refine(bty, _) => {
                 let mut vec = vec![Var::Nu];
                 vec.extend(vars_in_scope);
-                let kvar = ty::Kvar(self.fresh_kvar(), vec);
+                let kvar = ty::Kvar(self.fresh::<KVid>(), vec);
                 self.mk_refine(*bty, kvar)
             }
-            TyKind::Ref(bk, _, l) => self.mk_ref(*bk, self.fresh_region_vid(), *l),
+            TyKind::Ref(bk, _, l) => self.mk_ref(*bk, self.fresh::<RegionVid>(), *l),
             TyKind::Uninit(..) | TyKind::OwnRef(..) => ty.clone(),
         }
     }

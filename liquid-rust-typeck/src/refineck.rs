@@ -7,7 +7,7 @@ use crate::{
 use ast::{FnBody, StatementKind};
 use liquid_rust_core::{
     ast::{self, ContDef, FnDef, Rvalue, Statement},
-    names::ContId,
+    names::{ContId, Field},
     ty::{
         self, pred, subst::Subst, BaseTy, ContTy, Heap, LocalsMap, Pred, Ty, TyCtxt, TyKind, TyS,
     },
@@ -159,8 +159,8 @@ impl<'a> RefineChecker<'a> {
             ast::Rvalue::BinaryOp(bin_op, op1, op2) => self.check_bin_op(*bin_op, op1, op2, env),
             ast::Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
                 let ty = self.check_bin_op(*bin_op, op1, op2, env);
-                let f1 = tcx.fresh_field();
-                let f2 = tcx.fresh_field();
+                let f1 = tcx.fresh::<Field>();
+                let f2 = tcx.fresh::<Field>();
                 tcx.mk_tuple(tup!(f1 => ty, f2 => tcx.types.bool()))
             }
             ast::Rvalue::UnaryOp(un_op, op) => match un_op {

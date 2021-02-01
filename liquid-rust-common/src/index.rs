@@ -1,6 +1,8 @@
-pub trait Idx: Copy + 'static + Ord + std::fmt::Debug + std::hash::Hash {
+pub unsafe trait Idx: Copy + 'static + Ord + std::fmt::Debug + std::hash::Hash {
     fn new(idx: usize) -> Self;
     fn index(self) -> usize;
+
+    fn name() -> &'static str;
 }
 
 #[macro_export]
@@ -13,13 +15,13 @@ macro_rules! newtype_index {
         }
 
         impl $index {
-            fn from_usize(idx: usize) -> Self {
+            pub fn from_usize(idx: usize) -> Self {
                 Self {
                     private: idx
                 }
             }
 
-            fn as_usize(&self) -> usize {
+            pub fn as_usize(&self) -> usize {
                 self.private
             }
         }
@@ -31,13 +33,17 @@ macro_rules! newtype_index {
             }
         }
 
-        impl $crate::index::Idx for $index {
+        unsafe impl $crate::index::Idx for $index {
             fn new(idx: usize) -> Self {
                 Self::from_usize(idx)
             }
 
             fn index(self) -> usize {
                 self.as_usize()
+            }
+
+            fn name() -> &'static str {
+                stringify!($index)
             }
         }
     };

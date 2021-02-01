@@ -77,8 +77,8 @@ impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Var::Nu => write!(f, "v"),
-            Var::Location(l) => write!(f, "l${}", l.0),
-            Var::Field(fld) => write!(f, "f${}", fld.0),
+            Var::Location(l) => write!(f, "l${}", l.inner()),
+            Var::Field(fld) => write!(f, "f${}", fld.inner()),
         }
     }
 }

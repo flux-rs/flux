@@ -21,19 +21,21 @@ impl Subst {
     }
 
     pub fn add_field_subst(&mut self, fld1: Field, fld2: Field) {
-        self.0.insert(SubstKey::Field(fld1), fld2.0);
+        self.0.insert(SubstKey::Field(fld1), fld2.as_usize());
     }
 
     pub fn add_location_subst(&mut self, l1: Location, l2: Location) {
-        self.0.insert(SubstKey::Location(l1), l2.0);
+        self.0.insert(SubstKey::Location(l1), l2.as_usize());
     }
 
     fn get_field(&self, fld: Field) -> Option<Field> {
-        self.0.get(&SubstKey::Field(fld)).map(|&n| Field(n))
+        self.0.get(&SubstKey::Field(fld)).map(|&n| Field::new(n))
     }
 
     fn get_location(&self, l: Location) -> Option<Location> {
-        self.0.get(&SubstKey::Location(l)).map(|&n| Location(n))
+        self.0
+            .get(&SubstKey::Location(l))
+            .map(|&n| Location::new(n))
     }
 }
 

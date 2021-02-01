@@ -1,14 +1,19 @@
-#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
-pub struct Location<S = usize>(pub S);
+newtype_name! {
+    struct Location
+}
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub struct Field<S = usize>(pub S);
+newtype_name! {
+    struct Local
+}
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub struct Local<S = usize>(pub S);
+newtype_name! {
+    struct Field
+}
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub struct ContId<S = usize>(pub S);
+newtype_name! {
+    struct ContId
+}
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub struct FnId<S = usize>(pub S);
+newtype_name! {
+    struct FnId
+}

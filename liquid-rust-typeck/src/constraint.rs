@@ -109,7 +109,7 @@ impl fmt::Display for Kvar {
             .map(|v| format!("{}", v))
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "$k{}[{}]", (self.0).0, vars)
+        write!(f, "$k{}[{}]", self.0.as_usize(), vars)
     }
 }
 
@@ -314,7 +314,7 @@ impl Kvar {
                 }
             }
         }
-        liquid::Kvar((self.0).0, vars)
+        liquid::Kvar(self.0.as_usize(), vars)
     }
 }
 
