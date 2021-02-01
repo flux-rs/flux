@@ -53,7 +53,7 @@ where
         let tcx = self.tcx;
         match body {
             LetCont(defs, box rest) => {
-                self.push_layer();
+                self.conts.push_layer();
                 for def in &defs {
                     self.conts.define(def.name, tcx.fresh::<ContId>());
                 }
@@ -86,12 +86,12 @@ where
                 args: self.freshen_args(args),
             },
             Seq(statement, box rest) => {
-                self.push_layer();
+                self.locals.push_layer();
                 let k = Seq(
                     self.freshen_statement(statement),
                     box self.freshen_body(rest),
                 );
-                self.pop_layer();
+                self.locals.pop_layer();
                 k
             }
             Abort => Abort,
@@ -100,10 +100,11 @@ where
 
     fn freshen_cont_def<I>(&mut self, cont: ContDef<I, S>) -> ContDef<I> {
         let tcx = self.tcx;
-        self.push_layer();
+        self.locals.push_layer();
         for local in &cont.params {
             self.locals.define(*local, tcx.fresh::<Local>());
         }
+        self.locations.push_layer();
         for (location, _) in &cont.ty.heap {
             self.locations.define(*location, tcx.fresh::<Location>());
         }
@@ -111,7 +112,8 @@ where
         let ty = self.freshen_cont_ty(cont.ty);
         let params = self.freshen_params(cont.params);
         let body = box self.freshen_body(*cont.body);
-        self.pop_layer();
+        self.locations.pop_layer();
+        self.locals.pop_layer();
         ContDef {
             name,
             ty,
@@ -197,14 +199,14 @@ where
         for l in ty.inputs {
             inputs.push(self.freshen_location(l))
         }
-        self.push_layer();
+        self.locations.push_layer();
         for (location, _) in &ty.out_heap {
             self.locations
                 .define(*location, self.tcx.fresh::<Location>());
         }
         let out_heap = self.freshen_heap(ty.out_heap);
         let output = self.freshen_location(ty.output);
-        self.pop_layer();
+        self.locations.pop_layer();
         FnTy {
             in_heap,
             inputs,
@@ -223,7 +225,7 @@ where
                 self.freshen_location(location),
             ),
             Tuple(tup) => {
-                self.push_layer();
+                self.fields.push_layer();
                 for (fld, _) in &tup {
                     self.fields.define(*fld, self.tcx.fresh::<Field>());
                 }
@@ -231,7 +233,7 @@ where
                     .into_iter()
                     .map(|(fld, ty)| (self.freshen_field(fld), self.freshen_ty(ty)))
                     .collect();
-                self.pop_layer();
+                self.fields.pop_layer();
                 Tuple(tup)
             }
             Uninit(s) => Uninit(s),
@@ -321,20 +323,6 @@ where
             .get(&f)
             .copied()
             .expect("NameFreshener: Field not found")
-    }
-
-    fn push_layer(&mut self) {
-        self.conts.push_layer();
-        self.locals.push_layer();
-        self.locations.push_layer();
-        self.fields.push_layer();
-    }
-
-    fn pop_layer(&mut self) {
-        self.conts.pop_layer();
-        self.locals.pop_layer();
-        self.locations.pop_layer();
-        self.fields.pop_layer();
     }
 }
 

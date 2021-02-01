@@ -235,11 +235,11 @@ LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {
 // | Names
 // -------------------------------------------------------------------------------------------------
 
-Local: Local<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Local(<>);
-Field: Field<&'input str> = r"@[a-zA-Z0-9_]+" => Field(&<>[1..]);
-Location: Location<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Location(<>);
-ContId: ContId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => ContId(<>);
-FnId: FnId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => FnId(<>);
+Local: Local<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Local::new(<>);
+Field: Field<&'input str> = r"@[a-zA-Z0-9_]+" => Field::new(&<>[1..]);
+Location: Location<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => Location::new(<>);
+ContId: ContId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => ContId::new(<>);
+FnId: FnId<&'input str> = r"[_a-zA-Z][a-zA-Z0-9_]*" => FnId::new(<>);
 
 // -------------------------------------------------------------------------------------------------
 // | Misc
