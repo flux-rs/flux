@@ -1,7 +1,7 @@
 use crate::Emitter;
 
 use liquid_rust_common::index::Index;
-use liquid_rust_mir::ty::{BaseTy, BinOp, HoleId, LocalVariable, Predicate, UnOp, Variable};
+use liquid_rust_mir::ty::{BaseTy, BinOp, Hole, HoleId, LocalVariable, Predicate, UnOp, Variable};
 
 use std::fmt;
 
@@ -47,7 +47,7 @@ impl Emit for BaseTy {
 impl Emit for Predicate {
     fn emit(&self, f: &mut fmt::Formatter<'_>, emitter: &Emitter) -> fmt::Result {
         match self {
-            Predicate::Hole(hole) => hole.id.emit(f, emitter),
+            Predicate::Hole(hole) => hole.emit(f, emitter),
             Predicate::Lit(literal) => write!(f, "{}", literal),
             Predicate::Var(variable) => variable.emit(f, emitter),
             Predicate::UnaryOp(un_op, op) => {
@@ -119,6 +119,21 @@ impl Emit for LocalVariable {
         } else {
             panic!("Variable {} is not in scope", self);
         }
+    }
+}
+impl Emit for Hole {
+    fn emit(&self, f: &mut fmt::Formatter<'_>, emitter: &Emitter) -> fmt::Result {
+        self.id.emit(f, emitter)?;
+
+        for (target, replacement) in &self.substs {
+            write!(f, "[{} := {}]", target, replacement)?
+        }
+
+        for (target, replacement) in &emitter.variables {
+            write!(f, "[{} := {}]", target, replacement)?
+        }
+
+        Ok(())
     }
 }
 
