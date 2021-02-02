@@ -1,4 +1,7 @@
-fn foo<'a>(l0: {int | V >= 0}, l1: &'a l0; n: own(l1)) ret k(r0: {int | V > 0}; own(r0)) =
+fn foo<'a>( l0: {int | V >= 0}, l1: &'a mut l0
+          ; n: own(l1)
+          ) ret k(r0: {int | V > 0}; own(r0)) =
   let x = alloc(1);
-  x := *n + 1;
+  *n := *n + 1;
+  x := *n;
   jump k(x)

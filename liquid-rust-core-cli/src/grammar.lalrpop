@@ -129,8 +129,8 @@ Ty: Ty<&'input str> = {
   "uninit" "(" <r"[0-9]+"> ")"               => Ty::Uninit(usize::from_str(<>).unwrap()),
   "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine(<>),
   "&" <Region> <Location>                    => Ty::Ref(BorrowKind::Shared, <>),
-  "&" "shrd" <Region> <Location>             => Ty::Ref(BorrowKind::Shared, <>),
-  "&" "mut" <Region> <Location>              => Ty::Ref(BorrowKind::Mut, <>),
+  "&" <Region> "shrd" <Location>             => Ty::Ref(BorrowKind::Shared, <>),
+  "&" <Region> "mut" <Location>              => Ty::Ref(BorrowKind::Mut, <>),
   "(" <Comma<Binding<Field, Ty>>> ")"        => Ty::Tuple(<>)
 }
 

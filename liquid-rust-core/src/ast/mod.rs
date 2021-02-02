@@ -227,7 +227,7 @@ impl<S: Eq> Place<S> {
 
 impl fmt::Display for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = format!("$x{}", self.base.inner());
+        let mut s = format!("_{}", self.base.inner());
         let mut need_parens = false;
         for proj in &self.projs {
             match proj {

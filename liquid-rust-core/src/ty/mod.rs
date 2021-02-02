@@ -104,8 +104,8 @@ impl fmt::Display for TyS {
         match self.kind() {
             TyKind::Fn(..) => todo!(),
             TyKind::OwnRef(l) => write!(f, "Own(l${})", l.inner()),
-            TyKind::Ref(BorrowKind::Shared, r, l) => write!(f, "&({}, $l{})", r, l.inner()),
-            TyKind::Ref(BorrowKind::Mut, r, l) => write!(f, "&mut ({}, $l{})", r, l.inner()),
+            TyKind::Ref(BorrowKind::Shared, r, l) => write!(f, "&{} l{}", r, l.inner()),
+            TyKind::Ref(BorrowKind::Mut, r, l) => write!(f, "&{} mut l{}", r, l.inner()),
             TyKind::Tuple(tup) => {
                 let tup = tup
                     .iter()
@@ -370,7 +370,7 @@ impl std::fmt::Display for Heap {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "$l{}: {}", l.inner(), ty)?;
+            write!(f, "l{}: {}", l.inner(), ty)?;
         }
         write!(f, "]")?;
         Ok(())

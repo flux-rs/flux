@@ -3,9 +3,9 @@ use ast::Proj;
 use liquid_rust_core::{
     ast,
     names::{Local, Location},
-    ty::{self, pred::Place, Heap, LocalsMap, Ty, TyCtxt, Walk},
+    ty::{self, pred::Place, Heap, LocalsMap, Region, Ty, TyCtxt, TyS, Walk},
 };
-use std::fmt;
+use std::{collections::HashSet, fmt};
 use ty::{BorrowKind, TyKind};
 
 use crate::constraint::Constraint;
@@ -247,7 +247,7 @@ impl Env<'_> {
         self.tcx.fresh::<Location>()
     }
 
-    fn update_ty(&mut self, root: &Ty, projs: &[Proj], ty: Ty) -> Ty {
+    fn update_ty(&mut self, root: &TyS, projs: &[Proj], ty: Ty) -> Ty {
         match (root.kind(), projs) {
             (_, []) => ty,
             (ty::TyKind::Tuple(tup), [Proj::Field(n), ..]) => {
@@ -270,13 +270,14 @@ impl Env<'_> {
                 self.heap.insert(fresh_l, ty);
                 self.tcx.mk_own_ref(fresh_l)
             }
-            _ => bug!(),
+            _ => bug!("{} {:?}", root, projs),
         }
     }
 
     fn drop_ty(&mut self, ty: &Ty) -> Constraint {
         let vars_in_scope = self.vars_in_scope();
         let mut constraints = vec![];
+
         ty.walk(|ty, _| {
             if let TyKind::Ref(BorrowKind::Mut, r, l) = ty.kind() {
                 let ty = self.lookup_location(l).clone();
@@ -285,21 +286,25 @@ impl Env<'_> {
                     [place] => {
                         self.update(place, ty);
                     }
-                    _ => {
+                    places => {
                         // Get join
                         let ty_join = self.tcx.replace_with_fresh_vars(&ty, &vars_in_scope);
                         let mut region_constraints = region::Constraints::new();
 
-                        constraints.push(subtyping(&ty, &ty_join, &mut region_constraints));
+                        constraints.push(shallow_subtyping(&ty, &ty_join, &mut region_constraints));
                         for place in r.places() {
                             let ty = self.lookup(place);
-                            constraints.push(subtyping(&ty, &ty_join, &mut region_constraints));
+                            constraints.push(shallow_subtyping(
+                                &ty,
+                                &ty_join,
+                                &mut region_constraints,
+                            ));
                         }
                         let sol = region_constraints.solve();
                         let ty_join = sol.fix_regions_ty(self.tcx, &ty_join);
 
                         // Update places
-                        for place in r.places() {
+                        for place in places {
                             self.update(place, ty_join.clone());
                         }
                     }
@@ -309,9 +314,61 @@ impl Env<'_> {
         });
         Constraint::Conj(constraints)
     }
+
+    pub fn outlives(region1: &Region, region2: &Region) -> bool {
+        match (region1, region2) {
+            (Region::Concrete(places1), Region::Concrete(places2)) => {
+                let places1: HashSet<_> = places1.iter().collect();
+                let places2: HashSet<_> = places2.iter().collect();
+                places1.is_subset(&places2)
+            }
+            // TODO: we should consider outlive annotations here.
+            (Region::Universal(_), _) | (_, Region::Universal(_)) => false,
+            (Region::Infer(_), _) | (_, Region::Infer(_)) => bug!(),
+        }
+    }
+
+    pub fn subtyping(&self, ty1: &Ty, heap2: &Heap, ty2: &Ty) -> Constraint {
+        let tcx = self.tcx;
+        let heap1 = &self.heap;
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Fn(..), TyKind::Fn(..)) => todo!(),
+            (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
+                .iter()
+                .zip(tup2.types())
+                .rev()
+                .fold(Constraint::True, |c, ((f, ty1), ty2)| {
+                    Constraint::Conj(vec![
+                        self.subtyping(ty1, heap2, ty2),
+                        Constraint::from_binding(*f, ty1.clone(), c),
+                    ])
+                }),
+            // TODO check regions
+            (TyKind::Ref(bk1, r1, l1), TyKind::Ref(bk2, r2, l2)) if bk1 >= bk2 => {
+                assert!(Env::outlives(r1, r2));
+                let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
+                let ty2 = &heap2[l2];
+                self.subtyping(ty1, heap2, ty2)
+            }
+            (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
+                let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
+                let ty2 = &heap2[l2];
+                self.subtyping(ty1, heap2, ty2)
+            }
+            (TyKind::Refine(bty1, refine1), TyKind::Refine(bty2, refine2)) if bty1 == bty2 => {
+                Constraint::from_subtype(*bty1, refine1, refine2)
+            }
+            (_, TyKind::Uninit(n)) if ty1.size() == *n => Constraint::True,
+            _ => bug!("{} <: {}", ty1, ty2),
+        }
+    }
 }
 
-fn subtyping(ty1: &Ty, ty2: &Ty, region_constraints: &mut region::Constraints) -> Constraint {
+fn shallow_subtyping(
+    ty1: &Ty,
+    ty2: &Ty,
+    region_constraints: &mut region::Constraints,
+) -> Constraint {
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Fn(_), TyKind::Fn(_)) => todo!(),
         (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
@@ -320,7 +377,7 @@ fn subtyping(ty1: &Ty, ty2: &Ty, region_constraints: &mut region::Constraints) -
             .rev()
             .fold(Constraint::True, |c, ((f, ty1), ty2)| {
                 Constraint::Conj(vec![
-                    subtyping(ty1, ty2, region_constraints),
+                    shallow_subtyping(ty1, ty2, region_constraints),
                     Constraint::from_binding(*f, ty1.clone(), c),
                 ])
             }),
@@ -333,7 +390,7 @@ fn subtyping(ty1: &Ty, ty2: &Ty, region_constraints: &mut region::Constraints) -
         }
         (TyKind::Uninit(n1), TyKind::Uninit(n2)) if n1 == n2 => Constraint::True,
         (TyKind::OwnRef(_), TyKind::OwnRef(_)) => Constraint::True,
-        _ => bug!(),
+        _ => bug!("{} <: {}", ty1, ty2),
     }
 }
 

@@ -95,7 +95,7 @@ impl<'a> RefineChecker<'a> {
                                 .tcx
                                 .selfify(&env.lookup(&ast::Place::from(x)), pred::Place::from(l));
                             let ty2 = &heap2[&l];
-                            subtyping(self.tcx, heap1, ty1, heap2, ty2)
+                            env.subtyping(ty1, heap2, ty2)
                         })
                         .collect(),
                 )

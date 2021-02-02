@@ -164,7 +164,7 @@ fn subtyping(
         }
         (ty::TyKind::Refine(bty1, ..), ty::TyKind::Refine(bty2, ..)) if bty1 == bty2 => {}
         (_, ty::TyKind::Uninit(n)) if ty1.size() == *n => {}
-        _ => bug!("{} {}", ty1, ty2),
+        _ => bug!("{} <: {}", ty1, ty2),
     }
 }
 

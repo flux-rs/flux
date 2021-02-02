@@ -3,7 +3,7 @@ fn mut_ref_updatejoin(b0: {bool | true}; b: own(b0))
   let x = alloc(1);
   let y = alloc(1);
   let p = alloc(1);
-  letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &mut { _ } l1
+  letcont b0( x1: {int | _ }, y1: {int | _ }, l1: {int | _ }, l2: &{ _ } mut l1
             ; x: own(x1), y: own(y1), p: own(l2)
             ;
             ) =
