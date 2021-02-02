@@ -249,6 +249,7 @@ impl Solution {
 
     fn fix_regions_fn_ty(&self, tcx: &TyCtxt, fn_ty: FnTy) -> FnTy {
         FnTy {
+            regions: fn_ty.regions.clone(),
             in_heap: self.fix_regions_heap(tcx, fn_ty.in_heap),
             inputs: fn_ty.inputs,
             out_heap: self.fix_regions_heap(tcx, fn_ty.out_heap),
@@ -269,10 +270,10 @@ impl Solution {
                 tcx.mk_tuple(tup)
             }
             ty::TyKind::Ref(bk, r, l) => match r {
-                ty::Region::Concrete(_) => ty.clone(),
                 ty::Region::Infer(kvid) => {
                     tcx.mk_ref(*bk, ty::Region::Concrete(self.0[kvid].clone()), *l)
                 }
+                ty::Region::Concrete(_) | ty::Region::Universal(_) => ty.clone(),
             },
             _ => ty.clone(),
         }

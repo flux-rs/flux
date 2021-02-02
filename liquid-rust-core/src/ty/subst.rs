@@ -63,6 +63,7 @@ impl ApplySubst for Ty {
 impl ApplySubst for FnTy {
     fn apply_subst(&self, tcx: &TyCtxt, subst: &Subst) -> Self {
         FnTy {
+            regions: self.regions.clone(),
             in_heap: self.in_heap.apply_subst(tcx, subst),
             inputs: self
                 .inputs

@@ -9,7 +9,7 @@ use crate::{
 pub use crate::{
     ast::{
         pred::{BinOp, UnOp, Var},
-        BaseTy, BorrowKind,
+        BaseTy, BorrowKind, UniversalRegion,
     },
     names::{ContId, Field, Location},
 };
@@ -133,6 +133,7 @@ pub enum TyKind {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FnTy {
+    pub regions: Vec<UniversalRegion>,
     pub in_heap: Heap,
     pub inputs: Vec<Location>,
     pub out_heap: Heap,
@@ -233,6 +234,7 @@ impl ContTy {
 pub enum Region {
     Concrete(Vec<Place>),
     Infer(RegionVid),
+    Universal(UniversalRegion),
 }
 
 impl From<Vec<Place>> for Region {
@@ -251,7 +253,7 @@ impl Region {
     pub fn places(&self) -> &[Place] {
         match self {
             Region::Concrete(places) => places,
-            Region::Infer(_) => &[],
+            Region::Infer(_) | Region::Universal(_) => &[],
         }
     }
 }
@@ -267,7 +269,8 @@ impl fmt::Display for Region {
                     .join(", ");
                 write!(f, "{{ {} }}", places)
             }
-            Region::Infer(rvid) => write!(f, "$r{}", rvid.as_usize()),
+            Region::Infer(rvid) => write!(f, "r{}", rvid.as_usize()),
+            Region::Universal(param) => write!(f, "'{}", param.as_usize()),
         }
     }
 }

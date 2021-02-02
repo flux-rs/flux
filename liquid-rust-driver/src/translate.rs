@@ -319,6 +319,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         out_heap.push((output, out_ty));
 
         let fn_ty = FnTy {
+            regions: vec![],
             in_heap: Heap::from_iter(in_heap),
             inputs,
             out_heap: Heap::from_iter(out_heap),

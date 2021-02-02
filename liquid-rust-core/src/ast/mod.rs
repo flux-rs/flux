@@ -158,6 +158,7 @@ impl<S> Ty<S> {
 }
 
 pub struct FnTy<S = usize> {
+    pub regions: Vec<UniversalRegion<S>>,
     pub in_heap: Heap<S>,
     pub inputs: Vec<Location<S>>,
     pub out_heap: Heap<S>,
@@ -179,6 +180,11 @@ wrap_iterable! {
 pub enum Region<S = usize> {
     Concrete(Vec<Place<S>>),
     Infer,
+    Universal(UniversalRegion<S>),
+}
+
+newtype_name! {
+    struct UniversalRegion
 }
 
 impl<S> From<Vec<Place<S>>> for Region<S> {

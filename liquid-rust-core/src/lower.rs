@@ -85,6 +85,7 @@ impl<'a> TypeLowerer<'a> {
 
     fn lower_fn_ty(&mut self, fn_ty: &ast::FnTy) -> ty::FnTy {
         ty::FnTy {
+            regions: fn_ty.regions.clone(),
             in_heap: self.lower_heap(&fn_ty.in_heap),
             inputs: fn_ty.inputs.clone(),
             out_heap: self.lower_heap(&fn_ty.out_heap),
@@ -110,6 +111,7 @@ impl<'a> TypeLowerer<'a> {
         match region {
             ast::Region::Concrete(places) => ty::Region::Concrete(places.clone()),
             ast::Region::Infer => ty::Region::Infer(self.tcx.fresh::<RegionVid>()),
+            ast::Region::Universal(param) => ty::Region::Universal(*param),
         }
     }
 

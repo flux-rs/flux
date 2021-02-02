@@ -20,7 +20,7 @@ extern crate liquid_rust_core;
 
 pub fn check_fn_def<I, S>(func: FnDef<I, S>) -> Result<Safeness, Vec<OwnershipError>>
 where
-    S: Eq + Copy + std::hash::Hash,
+    S: Eq + Copy + std::hash::Hash + std::fmt::Debug,
 {
     let tcx = TyCtxt::new();
     let func = NameFreshener::new(&tcx).freshen(func);

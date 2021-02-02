@@ -24,6 +24,9 @@
 			"include": "#types"
 		},
 		{
+			"include": "#universal_regions"
+		},
+		{
 			"include": "#constants"
 		},
 		{
@@ -78,6 +81,14 @@
 							"include": "#constants"
 						}
 					]
+				}
+			]
+		},
+		"universal_regions": {
+			"patterns": [
+				{
+					"name": "entity.name.type.universal_region.liquidrust",
+					"match": "'[a-zA-Z0-9_]+"
 				}
 			]
 		},
@@ -151,6 +162,9 @@
 				},
 				{
 					"include": "#types"
+				},
+				{
+					"include": "#universal_regions"
 				},
 				{
 					"include": "#keywords"

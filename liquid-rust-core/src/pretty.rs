@@ -373,8 +373,8 @@ impl PrettyPrinter {
                 };
                 write!(f, "&{}(", bk)?;
                 match r {
-                    ast::Region::Concrete(_) => write!(f, "...")?,
                     ast::Region::Infer => write!(f, "{{ _ }}")?,
+                    ast::Region::Concrete(_) | ast::Region::Universal(_) => write!(f, "...")?,
                 }
                 write!(f, ", ")?;
                 self.print_location(l, f)?;

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     ast::{
         pred::{Pred, Var},
@@ -13,12 +15,13 @@ pub struct NameFreshener<'a, S> {
     locals: ScopeMap<Local<S>, Local>,
     locations: ScopeMap<Location<S>, Location>,
     fields: ScopeMap<Field<S>, Field>,
+    regions: HashMap<UniversalRegion<S>, UniversalRegion>,
     tcx: &'a TyCtxt,
 }
 
 impl<'a, S> NameFreshener<'a, S>
 where
-    S: Eq + Copy + std::hash::Hash,
+    S: Eq + Copy + std::hash::Hash + std::fmt::Debug,
 {
     pub fn new(tcx: &'a TyCtxt) -> Self {
         NameFreshener {
@@ -26,6 +29,7 @@ where
             locals: ScopeMap::new(),
             locations: ScopeMap::new(),
             fields: ScopeMap::new(),
+            regions: HashMap::new(),
             tcx,
         }
     }
@@ -190,10 +194,18 @@ where
                     .collect(),
             ),
             Region::Infer => Region::Infer,
+            Region::Universal(region) => Region::Universal(self.regions[&region]),
         }
     }
 
     fn freshen_fn_ty(&mut self, ty: FnTy<S>) -> FnTy {
+        let mut regions = vec![];
+        for region in ty.regions {
+            let fresh = self.tcx.fresh::<UniversalRegion>();
+            self.regions.insert(region, fresh);
+            regions.push(fresh);
+        }
+
         let in_heap = self.freshen_heap(ty.in_heap);
         let mut inputs = Vec::new();
         for l in ty.inputs {
@@ -208,6 +220,7 @@ where
         let output = self.freshen_location(ty.output);
         self.locations.pop_layer();
         FnTy {
+            regions,
             in_heap,
             inputs,
             out_heap,

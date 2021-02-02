@@ -121,6 +121,7 @@ impl TyCtxt {
         match ty.kind() {
             TyKind::Fn(fn_ty) => {
                 let fn_ty = FnTy {
+                    regions: fn_ty.regions.clone(),
                     in_heap: fn_ty
                         .in_heap
                         .map_ty(|ty| self.replace_with_fresh_vars(ty, vars_in_scope)),
