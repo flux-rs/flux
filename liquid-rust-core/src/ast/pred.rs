@@ -1,18 +1,31 @@
 use std::fmt;
 
+use super::BaseTy;
 use crate::names::{Field, Location};
 
+#[derive(Clone)]
 pub enum Pred<S = usize> {
     Constant(Constant),
     Place(Place<S>),
     BinaryOp(BinOp, Box<Pred<S>>, Box<Pred<S>>),
     UnaryOp(UnOp, Box<Pred<S>>),
 }
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Constant {
     Bool(bool),
     Int(u128),
     Unit,
+}
+
+impl Constant {
+    pub fn base_ty(&self) -> BaseTy {
+        match self {
+            Constant::Bool(_) => BaseTy::Bool,
+            Constant::Int(_) => BaseTy::Int,
+            Constant::Unit => BaseTy::Unit,
+        }
+    }
 }
 
 impl fmt::Display for Constant {

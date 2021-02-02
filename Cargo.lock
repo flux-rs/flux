@@ -319,8 +319,11 @@ dependencies = [
 name = "liquid-rust-driver"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "liquid-rust-core",
+ "liquid-rust-parser",
  "liquid-rust-typeck",
+ "quickscope",
 ]
 
 [[package]]
@@ -331,6 +334,15 @@ dependencies = [
  "quickscope",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "liquid-rust-parser"
+version = "0.1.0"
+dependencies = [
+ "lalrpop",
+ "lalrpop-util",
+ "liquid-rust-core",
 ]
 
 [[package]]

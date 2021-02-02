@@ -140,6 +140,7 @@ impl BorrowKind {
     }
 }
 
+#[derive(Clone)]
 pub enum Ty<S = usize> {
     OwnRef(Location<S>),
     Ref(BorrowKind, Region<S>, Location<S>),
@@ -165,12 +166,13 @@ pub struct FnTy<S = usize> {
     pub output: Location<S>,
 }
 
+#[derive(Clone)]
 pub enum Refine<S = usize> {
     Infer,
     Pred(Pred<S>),
 }
 
-pub struct Heap<S = usize>(Vec<(Location<S>, Ty<S>)>);
+pub struct Heap<S = usize>(pub Vec<(Location<S>, Ty<S>)>);
 
 wrap_iterable! {
     for<S> Heap<S>: Vec<(Location<S>, Ty<S>)>

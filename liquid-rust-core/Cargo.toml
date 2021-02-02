@@ -6,6 +6,6 @@ edition = "2018"
 
 [dependencies]
 liquid-rust-common = { path = "../liquid-rust-common" }
-quickscope = "0.1"
 hashconsing = "1.2"
 indexmap = "1.6"
+quickscope = "0.1"

@@ -1,0 +1,13 @@
+[package]
+name = "liquid-rust-parser"
+version = "0.1.0"
+# Note: much code taken from https://github.com/christianpoveda/liquid-rust/tree/master/liquid-rust-parser
+authors = ["Nico Lehmann <nico.lehmannm@gmail.com>", "David Cao <david@cao.sh>"]
+edition = "2018"
+
+[build-dependencies]
+lalrpop = "0.19.0"
+
+[dependencies]
+liquid-rust-core = { path = "../liquid-rust-core" }
+lalrpop-util = "0.19.0"

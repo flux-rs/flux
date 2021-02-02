@@ -1,6 +1,6 @@
 //! Handles the translation from Rust MIR to the CPS IR.
 
-use std::iter::FromIterator;
+use std::{collections::HashMap, iter::FromIterator};
 
 use dataflow::ResultsCursor;
 use liquid_rust_core::{ast::*, names::*};
@@ -20,6 +20,7 @@ use rustc_mir::dataflow::{
     move_paths::{LookupResult, MoveData},
     Analysis, MoveDataParamEnv,
 };
+use rustc_hir::def_id::DefId;
 use rustc_target::abi;
 
 // TODO: This is ugly as hell, but the MoveDataParamEnv struct fields
@@ -200,6 +201,7 @@ fn get_layout(t: ty::Ty) -> TypeLayout {
 
 pub struct Transformer<'low, 'tcx> {
     tcx: ty::TyCtxt<'tcx>,
+    annots: &'low mut HashMap<DefId, FnTy>,
     body: &'low mir::Body<'tcx>,
     move_data: MoveData<'tcx>,
     maybe_uninitialized_cursor: ResultsCursor<'low, 'tcx, MaybeUninitializedPlaces<'low, 'tcx>>,
@@ -207,7 +209,7 @@ pub struct Transformer<'low, 'tcx> {
 }
 
 impl<'low, 'tcx> Transformer<'low, 'tcx> {
-    pub fn translate(tcx: ty::TyCtxt<'tcx>, body: &mir::Body<'tcx>) -> FnDef<()> {
+    pub fn translate(tcx: ty::TyCtxt<'tcx>, annots: &mut HashMap<DefId, FnTy>, body: &mir::Body<'tcx>) -> FnDef<()> {
         let param_env = tcx.param_env(body.source.def_id());
         let mdpe_move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
         let move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
@@ -219,6 +221,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             .into_results_cursor(body);
         let mut transformer = Transformer {
             tcx,
+            annots,
             body,
             maybe_uninitialized_cursor,
             move_data,
@@ -289,52 +292,70 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             nb = FnBody::Seq(s, Box::new(nb));
         }
 
-        // For our function definition, we need to record what arguments our
-        // function takes
-        // As with our continuation, our function args go in args; all of
-        // the args are owned references to vars in the heap. Each of these
-        // vars has a corresponding BasicType, refined with a RefineHole
+        // For our function type, if we have a provided function type annotation,
+        // we use that. Otherwise, we fall back to generating holy types etc.
+        if let Some(ty) = self.annots.remove(&self.body.source.def_id()) {
+            let mut params = vec![];
+            
+            for lix in self.body.args_iter() {
+                let arg = Local::new(lix.index());
 
-        let mut inputs = vec![];
-        let mut params = vec![];
-        let mut in_heap = vec![];
+                params.push(arg);
+            }
 
-        for lix in self.body.args_iter() {
-            let decl = &self.body.local_decls[lix];
+            // TODO: Different out_heap than input heap?
+            FnDef {
+                // name: Symbol::intern(self.tcx.def_path_str(source.def_id()).as_str()),
+                ty,
+                params,
+                ret: self.retk(),
+                body: nb,
+            }
+        } else {
+            let mut inputs = vec![];
+            let mut params = vec![];
+            let mut in_heap = vec![];
 
-            let arg = Local::new(lix.index());
-            let loc = self.fresh_location();
-            let ty = self.get_holy_type(decl.ty);
+            for lix in self.body.args_iter() {
+                let decl = &self.body.local_decls[lix];
 
-            params.push(arg);
-            inputs.push(loc);
-            in_heap.push((loc, ty));
+                let arg = Local::new(lix.index());
+                let loc = self.fresh_location();
+                let ty = self.get_holy_type(decl.ty);
+
+                params.push(arg);
+                inputs.push(loc);
+                in_heap.push((loc, ty));
+            }
+
+            // Our return type is local _0; we want to get a holy type here as
+            // our return type
+            let mut out_heap = vec![];
+            let output = self.fresh_location();
+            let out_ty = self.get_holy_type(self.body.return_ty());
+            out_heap.push((output, out_ty));
+
+            // TODO: regions
+            let regions = vec![];
+
+            let fn_ty = FnTy {
+                in_heap: Heap::from_iter(in_heap),
+                inputs,
+                out_heap: Heap::from_iter(out_heap),
+                output,
+                regions,
+            };
+
+            // TODO: Different out_heap than input heap?
+            FnDef {
+                // name: Symbol::intern(self.tcx.def_path_str(source.def_id()).as_str()),
+                ty: fn_ty,
+                params,
+                ret: self.retk(),
+                body: nb,
+            }
         }
 
-        // Our return type is local _0; we want to get a holy type here as
-        // our return type
-        let mut out_heap = vec![];
-        let output = self.fresh_location();
-        let out_ty = self.get_holy_type(self.body.return_ty());
-        out_heap.push((output, out_ty));
-
-        let fn_ty = FnTy {
-            regions: vec![],
-            in_heap: Heap::from_iter(in_heap),
-            inputs,
-            out_heap: Heap::from_iter(out_heap),
-            output,
-        };
-
-        // Return our translated body
-        // TODO: Different out_heap than input heap?
-        FnDef {
-            // name: Symbol::intern(self.tcx.def_path_str(source.def_id()).as_str()),
-            ty: fn_ty,
-            params,
-            ret: self.retk(),
-            body: nb,
-        }
     }
 
     fn translate_basic_block(&mut self, bb: mir::BasicBlock) -> ContDef<()> {

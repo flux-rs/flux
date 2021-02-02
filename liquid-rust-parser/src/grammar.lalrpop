@@ -1,0 +1,194 @@
+use crate::ast::*;
+use std::str::FromStr;
+use liquid_rust_core::{names::{Field, Location}, ty::{pred, Var}};
+
+grammar();
+
+pub FnTy: FnTy<'input> = {
+    <spanned: Spanned<FnTyInner>> => {
+        FnTy { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+FnTyInner: FnTyInner<'input> = {
+    "fn" "(" <args: Args> ")" "->" <output: Ty> => {
+        FnTyInner { args, output: Box::new(output) }
+    },
+    "fn" "(" <args: Args> <spanned:Spanned<")">>  => {
+        let end = spanned.1.end;
+        let output = Ty {
+            kind: TyKind::Base(BaseTy::Unit),
+            span: end..end,
+        };
+        FnTyInner { args, output: Box::new(output) }
+    },
+}
+
+pub Ty: Ty<'input> = {
+    <spanned:Spanned<TyKind>> => {
+        Ty { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+Sep<S, T>: Vec<T> = {
+  <v:(<T> S)+> <e:T?> => match e {
+    None => v,
+    Some(e) => {
+      let mut v = v;
+      v.push(e);
+      v
+    }
+  }
+}
+Binding<Name, T> = <Name> ":" <T>;
+Comma<T> = Sep<",", T>;
+
+TyKind: TyKind<'input> = {
+    <BaseTy> => TyKind::Base(<>),
+    "{" <Ident> ":" <BaseTy> "|" <Predicate> "}" => TyKind::Refined(<>),
+    "(" <Comma<Binding<Field, Ty>>> ")" => TyKind::Tuple(<>)
+}
+
+Args: Vec<(Ident<'input>, Ty<'input>)> = {
+    <mut args:(<Arg> ",")*> <arg:Arg?> => match arg {
+        None => args,
+        Some(arg) => {
+            args.push(arg);
+            args
+        }
+    }
+};
+
+Arg: (Ident<'input>, Ty<'input>) = {
+    <Ident> ":" <Ty> => (<>),
+}
+
+Predicate = Tier<BinOpKind1, BinaryOp2>;
+BinaryOp2 = Tier<BinOpKind2, BinaryOp3>;
+BinaryOp3 = Tier<BinOpKind3, BinaryOp4>;
+BinaryOp4 = Tier<BinOpKind4, BinaryOp5>;
+BinaryOp5 = Tier<BinOpKind5, UnaryOp>;
+
+Tier<OpKind, NextTier>: Predicate<'input> = {
+    <op1:Tier<OpKind, NextTier>> <bin_op:Spanned<OpKind>> <op2:NextTier> => {
+        let bin_op = BinOp { kind: bin_op.0, span: bin_op.1 };
+        let span = op1.span.start..op2.span.end;
+
+        Predicate {
+            kind: PredicateKind::BinaryOp(
+                bin_op,
+                Box::new(op1),
+                Box::new(op2)
+            ),
+            span,
+        }
+    },
+    NextTier
+}
+
+BinOpKind1: BinOpKind = {
+    "||" => BinOpKind::Or,
+}
+
+BinOpKind2: BinOpKind = {
+    "&&" => BinOpKind::And,
+}
+
+BinOpKind3: BinOpKind = {
+    "==" => BinOpKind::Eq,
+    "!=" => BinOpKind::Neq,
+    ">" => BinOpKind::Gt,
+    "<" => BinOpKind::Lt,
+    ">=" => BinOpKind::Ge,
+    "<=" => BinOpKind::Le,
+}
+
+BinOpKind4: BinOpKind = {
+    "+" => BinOpKind::Add,
+    "-" => BinOpKind::Sub,
+}
+
+BinOpKind5: BinOpKind = {
+    "*" => BinOpKind::Mul,
+    "/" => BinOpKind::Div,
+    "%" => BinOpKind::Rem,
+}
+
+UnaryOp: Predicate<'input> = {
+    <un_op:UnOp> <op:BasePredicate> => {
+        let span = un_op.span.start..op.span.end;
+        Predicate {
+            kind: PredicateKind::UnaryOp(un_op, Box::new(op)),
+            span,
+        }
+    },
+    <BasePredicate>,
+}
+
+UnOp: UnOp = {
+    <spanned:Spanned<UnOpKind>> => {
+        UnOp { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+UnOpKind: UnOpKind = {
+    "!" => UnOpKind::Not,
+    "-" => UnOpKind::Neg,
+}
+
+BasePredicate: Predicate<'input> = {
+    <spanned:Spanned<PredicateKind>> => {
+        Predicate { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+PredicateKind: PredicateKind<'input> = {
+    <Constant> => PredicateKind::Lit(<>),
+    <Place> => PredicateKind::Place(<>),
+    "(" <PredicateKind> ")"
+}
+
+Place: Place<'input> = {
+    <spanned:Spanned<PlaceP>> => {
+        Place { place: spanned.0, span: spanned.1 }
+    },
+}
+
+PlaceP: pred::Place<Ident<'input>> = {
+    <base: Var> <projs: ProjP*> => pred::Place { <> }
+}
+
+ProjP: usize = {
+    "." <r"[0-9]+"> => usize::from_str(<>).unwrap()
+}
+
+Var: Var<Ident<'input>> = {
+    Field => Var::Field(<>),
+    Ident => Var::Location(Location::new(<>)),
+    "V"   => Var::Nu
+}
+
+Field: Field<Ident<'input>> = "@" <Ident> => Field::new(<>);
+
+Ident: Ident<'input> = {
+    <spanned:Spanned<r"[a-z][a-zA-Z0-9_]*">> => {
+        Ident { symbol: spanned.0, span: spanned.1 }
+    },
+}
+
+Constant: Constant = {
+  "true"    => Constant::Bool(true),
+  "false"   => Constant::Bool(false),
+  r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap()),
+  "(" ")"   => Constant::Unit
+}
+
+BaseTy: BaseTy = {
+    "int"     => BaseTy::Int,
+    "bool"    => BaseTy::Bool,
+    "(" ")"   => BaseTy::Unit
+}
+
+Spanned<T>: (T, Span) = {
+    <start:@L> <term:T> <end:@R> => (term, start..end),
+}
