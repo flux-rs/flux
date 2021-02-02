@@ -367,18 +367,16 @@ impl PrettyPrinter {
                 write!(f, ")")?;
             }
             ast::Ty::Ref(bk, r, l) => {
-                let bk = match bk {
-                    ast::BorrowKind::Shared => "",
-                    ast::BorrowKind::Mut => "mut",
-                };
-                write!(f, "&{}(", bk)?;
+                write!(f, "&")?;
                 match r {
                     ast::Region::Infer => write!(f, "{{ _ }}")?,
                     ast::Region::Concrete(_) | ast::Region::Universal(_) => write!(f, "...")?,
                 }
-                write!(f, ", ")?;
+                match bk {
+                    ast::BorrowKind::Shared => write!(f, " ")?,
+                    ast::BorrowKind::Mut => write!(f, " mut ")?,
+                };
                 self.print_location(l, f)?;
-                write!(f, ")")?;
             }
             ast::Ty::Tuple(tup) => {
                 write!(f, "(")?;

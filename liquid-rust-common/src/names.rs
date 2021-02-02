@@ -33,7 +33,7 @@ macro_rules! newtype_name {
             }
 
             fn name() -> &'static str {
-                stringify!(name)
+                stringify!($name)
             }
         }
     };

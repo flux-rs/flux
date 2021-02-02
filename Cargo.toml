@@ -8,3 +8,6 @@ members = [
   "liquid-rust-liquid",
   "liquid-rust-typeck",
 ]
+
+[profile.dev]
+debug = false

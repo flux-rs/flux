@@ -345,7 +345,7 @@ impl Env<'_> {
                 }),
             // TODO check regions
             (TyKind::Ref(bk1, r1, l1), TyKind::Ref(bk2, r2, l2)) if bk1 >= bk2 => {
-                assert!(Env::outlives(r1, r2));
+                assert!(Env::outlives(r1, r2), "{} :> {}", r1, r2);
                 let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
                 let ty2 = &heap2[l2];
                 self.subtyping(ty1, heap2, ty2)
