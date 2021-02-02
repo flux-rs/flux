@@ -37,7 +37,10 @@ impl Emitter {
 
     pub fn emit(self) {
         let mut file = File::create("output.fq").unwrap();
+        file.write_all(b"fixpoint \"--save\"\n");
+        file.write_all(b"fixpoint \"--eliminate=none\"\n\n");
         file.write_all(&self.binds.into_inner());
+        file.write_all(b"\n");
         file.write_all(&self.wf.into_inner());
         file.write_all(&self.constraints.into_inner());
     }
@@ -113,7 +116,7 @@ impl Emitter {
 
         writeln!(buffer, "wf:");
 
-        write!(buffer, "  env []");
+        writeln!(buffer, "  env []");
 
         writeln!(
             buffer,
