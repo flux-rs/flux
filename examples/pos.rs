@@ -12,7 +12,7 @@ fn inc(n: u32) -> u32 {
 #[liquid::ty("fn(n: int) -> {v: int | v >= 0}")]
 fn abs(mut n: i32) -> i32 {
     if n < 0 {
-        n = 0 - n;
+        n = -n;
     }
     n
 }

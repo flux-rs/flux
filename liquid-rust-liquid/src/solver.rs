@@ -204,6 +204,10 @@ impl Expr {
                     op.emit(w)?;
                     write!(w, ")")?;
                 }
+                UnOp::Neg => {
+                    write!(w, "-")?;
+                    op.emit(w)?;
+                }
             },
         }
         Ok(())

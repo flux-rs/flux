@@ -176,10 +176,17 @@ impl<'a> RefineChecker<'a> {
         use ty::{BinOp::*, UnOp::*};
         let tcx = self.tcx;
         let (pred, _) = self.check_operand(op, env);
-        let pred = match un_op {
-            ast::UnOp::Not => tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_un_op(Not, pred)),
+        let (bty, pred) = match un_op {
+            ast::UnOp::Not => (
+                BaseTy::Bool,
+                tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_un_op(Not, pred)),
+            ),
+            ast::UnOp::Neg => (
+                BaseTy::Int,
+                tcx.mk_bin_op(Eq, tcx.preds.nu(), tcx.mk_un_op(Neg, pred)),
+            ),
         };
-        tcx.mk_refine(BaseTy::Bool, pred)
+        tcx.mk_refine(bty, pred)
     }
 
     fn check_bin_op(

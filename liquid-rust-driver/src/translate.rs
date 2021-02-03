@@ -140,6 +140,9 @@ fn translate_rvalue(from: &mir::Rvalue) -> Rvalue {
             };
             Rvalue::Ref(bk, translate_place(place))
         }
+        mir::Rvalue::UnaryOp(un_op, op) => {
+            Rvalue::UnaryOp(translate_un_op(*un_op), translate_op(op))
+        }
         _ => todo!(),
     }
 }
@@ -154,6 +157,13 @@ fn translate_bin_op(bin_op: mir::BinOp) -> BinOp {
         mir::BinOp::Ge => BinOp::Ge,
         mir::BinOp::Gt => BinOp::Gt,
         _ => todo!(),
+    }
+}
+
+fn translate_un_op(un_op: mir::UnOp) -> UnOp {
+    match un_op {
+        mir::UnOp::Not => UnOp::Not,
+        mir::UnOp::Neg => UnOp::Neg,
     }
 }
 

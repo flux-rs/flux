@@ -62,14 +62,13 @@ Arg: (Ident<'input>, Ty<'input>) = {
     <Ident> ":" <Ty> => (<>),
 }
 
-Predicate = Tier<BinOpKind1, BinaryOp2>;
-BinaryOp2 = Tier<BinOpKind2, BinaryOp3>;
-BinaryOp3 = Tier<BinOpKind3, BinaryOp4>;
-BinaryOp4 = Tier<BinOpKind4, BinaryOp5>;
-BinaryOp5 = Tier<BinOpKind5, UnaryOp>;
+Predicate = BinOpLevel<BinOpKind1, BinaryOp2>;
+BinaryOp2 = BinOpLevel<BinOpKind2, BinaryOp3>;
+BinaryOp3 = BinOpLevel<BinOpKind3, BinaryOp4>;
+BinaryOp4 = BinOpLevel<BinOpKind4, UnaryOp>;
 
-Tier<OpKind, NextTier>: Predicate<'input> = {
-    <op1:Tier<OpKind, NextTier>> <bin_op:Spanned<OpKind>> <op2:NextTier> => {
+BinOpLevel<OpKind, NextLevel>: Predicate<'input> = {
+    <op1:BinOpLevel<OpKind, NextLevel>> <bin_op:Spanned<OpKind>> <op2:NextLevel> => {
         let bin_op = BinOp { kind: bin_op.0, span: bin_op.1 };
         let span = op1.span.start..op2.span.end;
 
@@ -82,7 +81,7 @@ Tier<OpKind, NextTier>: Predicate<'input> = {
             span,
         }
     },
-    NextTier
+    NextLevel
 }
 
 BinOpKind1: BinOpKind = {
@@ -105,12 +104,6 @@ BinOpKind3: BinOpKind = {
 BinOpKind4: BinOpKind = {
     "+" => BinOpKind::Add,
     "-" => BinOpKind::Sub,
-}
-
-BinOpKind5: BinOpKind = {
-    "*" => BinOpKind::Mul,
-    "/" => BinOpKind::Div,
-    "%" => BinOpKind::Rem,
 }
 
 UnaryOp: Predicate<'input> = {

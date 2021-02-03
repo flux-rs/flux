@@ -65,20 +65,16 @@ pub struct BinOp {
 
 #[derive(Debug, Copy, Clone)]
 pub enum BinOpKind {
-    /// The `+` operator.
-    Add,
-    /// The `-` operator.
-    Sub,
-    /// The `*` operator.
-    Mul,
-    /// The `/` operator.
-    Div,
-    /// The `%` operator.
-    Rem,
     /// The `&&` operator.
     And,
     /// The `||` operator.
     Or,
+
+    /// The `+` operator.
+    Add,
+    /// The `-` operator.
+    Sub,
+
     /// The `==` operator.
     Eq,
     /// The `!=` operator.

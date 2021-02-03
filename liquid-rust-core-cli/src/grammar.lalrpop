@@ -141,8 +141,8 @@ BaseTy: BaseTy = {
 }
 
 Refine: Refine<&'input str> = {
-  "_"        => Refine::Infer,
-  ExprLevel1 => Refine::Pred(<>)
+  "_"  => Refine::Infer,
+  Pred => Refine::Pred(<>)
 }
 
 Region: Region<&'input str> = {
@@ -186,16 +186,45 @@ Path: Vec<Proj> = ("." <r"[0-9]+">)* => {
 // | Predicates
 // -------------------------------------------------------------------------------------------------
 
-ExprLevel1 = LeftAssoc<BinOpGroup1, ExprLevel2>;
+Pred      = LeftAssoc<BinOpGroup1, BinaryOp2>;
+BinaryOp2 = LeftAssoc<BinOpGroup2, BinaryOp3>;
+BinaryOp3 = LeftAssoc<BinOpGroup3, BinaryOp4>;
+BinaryOp4 = LeftAssoc<BinOpGroup4, UnaryOp>;
 
-ExprLevel2 = LeftAssoc<BinOpGroup2, ExprLevel3>;
+BinOpGroup1: pred::BinOp = {
+  "||" => pred::BinOp::Or,
+}
 
-ExprLevel3 = LeftAssoc<BinOpGroup3, ExprLevel4>;
+BinOpGroup2: pred::BinOp = {
+  "&&" => pred::BinOp::And,
+};
 
-ExprLevel4: Pred<&'input str> = {
+BinOpGroup3: pred::BinOp = {
+  "==" => pred::BinOp::Eq,
+  "!=" => pred::BinOp::Neq,
+  ">"  => pred::BinOp::Gt,
+  "<"  => pred::BinOp::Lt,
+  ">=" => pred::BinOp::Ge,
+  "<=" => pred::BinOp::Le,
+};
+
+BinOpGroup4: pred::BinOp = {
+  "+" => pred::BinOp::Add,
+  "-" => pred::BinOp::Sub
+}
+
+
+UnaryOp: Pred<&'input str> = <un_op: UnOpP> <op: BasePred> => pred::Pred::UnaryOp(un_op, Box::new(op));
+
+UnOpP: pred::UnOp = {
+  "!" => pred::UnOp::Not,
+  "-" => pred::UnOp::Neg
+}
+
+BasePred: Pred<&'input str> = {
   ConstantP            => Pred::Constant(<>),
   PlaceP               => Pred::Place(<>),
-  "(" <ExprLevel1> ")" => <>
+  "(" <Pred> ")" => <>
 }
 
 ConstantP: pred::Constant = {
@@ -217,24 +246,6 @@ Var: pred::Var<&'input str> = {
   Location => pred::Var::Location(<>),
   Field    => pred::Var::Field(<>),
   "V"      => pred::Var::Nu
-}
-
-BinOpGroup1: pred::BinOp = {
-  "&&" => pred::BinOp::And,
-  "||" => pred::BinOp::Or,
-};
-
-BinOpGroup2: pred::BinOp = {
-  "<"  => pred::BinOp::Lt,
-  "<=" => pred::BinOp::Le,
-  "==" => pred::BinOp::Eq,
-  ">=" => pred::BinOp::Ge,
-  ">"  => pred::BinOp::Gt,
-};
-
-BinOpGroup3: pred::BinOp = {
-  "+" => pred::BinOp::Add,
-  "-" => pred::BinOp::Sub
 }
 
 LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {

@@ -257,11 +257,11 @@ impl PrettyPrinter {
                 write!(f, ")")?;
             }
             ast::Rvalue::UnaryOp(un_op, op) => {
-                match un_op {
-                    ast::UnOp::Not => {
-                        write!(f, "!")?;
-                    }
-                }
+                let un_op = match un_op {
+                    ast::UnOp::Not => "!",
+                    ast::UnOp::Neg => "-",
+                };
+                write!(f, "{}", un_op)?;
                 self.print_operand(op, f)?;
             }
         };
@@ -444,16 +444,17 @@ impl PrettyPrinter {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match bin_op {
+            ast::pred::BinOp::Iff => write!(f, "<=>"),
+            ast::pred::BinOp::Or => write!(f, "||"),
+            ast::pred::BinOp::And => write!(f, "&&"),
             ast::pred::BinOp::Add => write!(f, "+"),
             ast::pred::BinOp::Sub => write!(f, "-"),
-            ast::pred::BinOp::Lt => write!(f, "<"),
-            ast::pred::BinOp::Le => write!(f, "<="),
             ast::pred::BinOp::Eq => write!(f, "="),
-            ast::pred::BinOp::Ge => write!(f, ">="),
+            ast::pred::BinOp::Neq => write!(f, "!="),
+            ast::pred::BinOp::Lt => write!(f, "<"),
             ast::pred::BinOp::Gt => write!(f, ">"),
-            ast::pred::BinOp::Iff => write!(f, "<=>"),
-            ast::pred::BinOp::And => write!(f, "&&"),
-            ast::pred::BinOp::Or => write!(f, "||"),
+            ast::pred::BinOp::Le => write!(f, "<="),
+            ast::pred::BinOp::Ge => write!(f, ">="),
         }
     }
 

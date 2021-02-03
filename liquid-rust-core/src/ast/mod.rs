@@ -110,6 +110,7 @@ pub enum BinOp {
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum UnOp {
     Not,
+    Neg,
 }
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BaseTy {

@@ -51,7 +51,7 @@ impl Lower<'_> for ast::UnOp {
     fn lower(self, _lcx: &mut LowerCtx<'_>) -> Self::Output {
         match self.kind {
             ast::UnOpKind::Not => UnOp::Not,
-            ast::UnOpKind::Neg => unimplemented!(),
+            ast::UnOpKind::Neg => UnOp::Neg,
         }
     }
 }
@@ -60,16 +60,19 @@ impl Lower<'_> for ast::BinOp {
     type Output = BinOp;
 
     fn lower(self, _lcx: &mut LowerCtx<'_>) -> Self::Output {
+        use BinOp::*;
         // TODO: Support iff (<=>)?
         match self.kind {
-            ast::BinOpKind::Add => BinOp::Add,
-            ast::BinOpKind::Sub => BinOp::Sub,
-            ast::BinOpKind::Lt => BinOp::Lt,
-            ast::BinOpKind::Le => BinOp::Le,
-            ast::BinOpKind::Eq => BinOp::Eq,
-            ast::BinOpKind::Ge => BinOp::Ge,
-            ast::BinOpKind::Gt => BinOp::Gt,
-            _ => unimplemented!(),
+            ast::BinOpKind::And => And,
+            ast::BinOpKind::Or => Or,
+            ast::BinOpKind::Add => Add,
+            ast::BinOpKind::Sub => Sub,
+            ast::BinOpKind::Eq => Eq,
+            ast::BinOpKind::Neq => Neq,
+            ast::BinOpKind::Lt => Lt,
+            ast::BinOpKind::Gt => Gt,
+            ast::BinOpKind::Le => Le,
+            ast::BinOpKind::Ge => Ge,
         }
     }
 }

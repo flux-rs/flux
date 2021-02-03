@@ -104,33 +104,37 @@ impl fmt::Display for Var {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum BinOp {
-    Add,
-    Sub,
-
-    Lt,
-    Le,
-    Eq,
-    Ge,
-    Gt,
-
     Iff,
     And,
     Or,
+
+    Add,
+    Sub,
+
+    Eq,
+    Neq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
 }
 
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BinOp::Add => write!(f, "+"),
-            BinOp::Sub => write!(f, "-"),
-            BinOp::Lt => write!(f, "<"),
-            BinOp::Le => write!(f, "<="),
-            BinOp::Eq => write!(f, "="),
-            BinOp::Ge => write!(f, ">="),
-            BinOp::Gt => write!(f, ">"),
             BinOp::Iff => write!(f, "<=>"),
             BinOp::And => write!(f, "&&"),
             BinOp::Or => write!(f, "||"),
+
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+
+            BinOp::Eq => write!(f, "="),
+            BinOp::Neq => write!(f, "!="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Ge => write!(f, ">="),
         }
     }
 }
@@ -138,12 +142,14 @@ impl fmt::Display for BinOp {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum UnOp {
     Not,
+    Neg,
 }
 
 impl std::fmt::Display for UnOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnOp::Not => write!(f, "!"),
+            UnOp::Neg => write!(f, "-"),
         }
     }
 }

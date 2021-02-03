@@ -128,6 +128,7 @@ fn synth(rvalue: &ast::Rvalue, tcx: &TyCtxt, env: &mut Env) -> Ty {
         }
         ast::Rvalue::UnaryOp(un_op, ..) => match un_op {
             ast::UnOp::Not => tcx.mk_refine(BaseTy::Bool, tcx.preds.tt()),
+            ast::UnOp::Neg => tcx.mk_refine(BaseTy::Int, tcx.preds.tt()),
         },
     }
 }
