@@ -715,13 +715,15 @@ impl<'a, 'low, 'tcx> TyLowerCtxt<'a, 'low, 'tcx> {
             local: self.local,
             projection,
         };
-        match self.move_data.rev_lookup.find(place) {
-            LookupResult::Exact(move_path_index) => self
-                .maybe_uninitialized_cursor
-                .get()
-                .contains(move_path_index),
-            LookupResult::Parent(_) => bug!(),
-        }
+        let move_path_index = match self.move_data.rev_lookup.find(place) {
+            LookupResult::Exact(move_path_index) | LookupResult::Parent(Some(move_path_index)) => {
+                move_path_index
+            }
+            LookupResult::Parent(None) => bug!(),
+        };
+        self.maybe_uninitialized_cursor
+            .get()
+            .contains(move_path_index)
     }
 }
 
