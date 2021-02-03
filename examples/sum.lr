@@ -6,8 +6,8 @@ fn sum(n0: {int | V >= 0}; n: own(n0)) ret k(r: {int | V >= n0}; own(r)) =
     let t0 = alloc(1);
     t0 := i <= n;
     if t0 then
-      i := i + 1;
       r := r + i;
+      i := i + 1;
       jump loop()
     else
       jump k(r)

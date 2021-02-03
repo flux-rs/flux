@@ -90,8 +90,8 @@ impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Var::Nu => write!(f, "v"),
-            Var::Location(l) => write!(f, "l${}", l.inner()),
-            Var::Field(fld) => write!(f, "f${}", fld.inner()),
+            Var::Location(l) => write!(f, "l{}", l.inner()),
+            Var::Field(fld) => write!(f, "f{}", fld.inner()),
         }
     }
 }
@@ -100,12 +100,16 @@ impl fmt::Display for Var {
 pub enum BinOp {
     Add,
     Sub,
+
     Lt,
     Le,
     Eq,
     Ge,
     Gt,
+
     Iff,
+    And,
+    Or,
 }
 
 impl fmt::Display for BinOp {
@@ -119,6 +123,8 @@ impl fmt::Display for BinOp {
             BinOp::Ge => write!(f, ">="),
             BinOp::Gt => write!(f, ">"),
             BinOp::Iff => write!(f, "<=>"),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Or => write!(f, "||"),
         }
     }
 }

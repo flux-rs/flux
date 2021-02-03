@@ -5,6 +5,7 @@ use std::{collections::HashMap, iter::FromIterator};
 use dataflow::ResultsCursor;
 use liquid_rust_core::{ast::*, names::*};
 use rustc_ast::Mutability;
+use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir::{
         self,
@@ -20,7 +21,6 @@ use rustc_mir::dataflow::{
     move_paths::{LookupResult, MoveData},
     Analysis, MoveDataParamEnv,
 };
-use rustc_hir::def_id::DefId;
 use rustc_target::abi;
 
 // TODO: This is ugly as hell, but the MoveDataParamEnv struct fields
@@ -209,7 +209,11 @@ pub struct Transformer<'low, 'tcx> {
 }
 
 impl<'low, 'tcx> Transformer<'low, 'tcx> {
-    pub fn translate(tcx: ty::TyCtxt<'tcx>, annots: &mut HashMap<DefId, FnTy>, body: &mir::Body<'tcx>) -> FnDef<()> {
+    pub fn translate(
+        tcx: ty::TyCtxt<'tcx>,
+        annots: &mut HashMap<DefId, FnTy>,
+        body: &mir::Body<'tcx>,
+    ) -> FnDef<()> {
         let param_env = tcx.param_env(body.source.def_id());
         let mdpe_move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
         let move_data = MoveData::gather_moves(body, tcx, param_env).unwrap_or_else(|x| x.0);
@@ -296,7 +300,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
         // we use that. Otherwise, we fall back to generating holy types etc.
         if let Some(ty) = self.annots.remove(&self.body.source.def_id()) {
             let mut params = vec![];
-            
+
             for lix in self.body.args_iter() {
                 let arg = Local::new(lix.index());
 
@@ -355,7 +359,6 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                 body: nb,
             }
         }
-
     }
 
     fn translate_basic_block(&mut self, bb: mir::BasicBlock) -> ContDef<()> {

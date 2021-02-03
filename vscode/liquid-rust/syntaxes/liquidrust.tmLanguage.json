@@ -132,7 +132,7 @@
 				},
 				{
 					"name": "entity.name.function.primitive.liquidrust",
-					"match": "\\b(drop|alloc|debug)\\b"
+					"match": "\\b(drop|alloc|debug|move)\\b"
 				}
 			]
 		},

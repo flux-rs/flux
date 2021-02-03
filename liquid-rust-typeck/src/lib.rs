@@ -20,9 +20,10 @@ extern crate liquid_rust_core;
 
 pub fn check_fn_def<I, S>(func: FnDef<I, S>) -> Result<Safeness, Vec<OwnershipError>>
 where
-    S: Eq + Copy + std::hash::Hash + std::fmt::Debug,
+    S: Eq + Copy + std::hash::Hash + std::fmt::Debug + std::fmt::Display,
 {
     let tcx = TyCtxt::new();
+    // println!("{}", func);
     let func = NameFreshener::new(&tcx).freshen(func);
     let (conts, fn_ty) = TypeLowerer::lower_fn_def(&tcx, &func);
     let (conts, fn_ty) = infer_regions(&tcx, &func, conts, fn_ty);

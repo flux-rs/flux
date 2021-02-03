@@ -1,9 +1,12 @@
 //! Lowering refinement annotations into the core IR.
 
 use liquid_rust_core::{
-    ast::{pred::{Place, Var}, Heap, FnTy, Pred, Refine, Ty},
-    ty::{Location, UnOp, BinOp},
+    ast::{
+        pred::{Place, Var},
+        FnTy, Heap, Pred, Refine, Ty,
+    },
     names::Field,
+    ty::{BinOp, Location, UnOp},
 };
 use liquid_rust_parser::ast;
 use quickscope::ScopeMap;
@@ -85,14 +88,20 @@ impl<'src> Lower<'src> for ast::Predicate<'src> {
             ast::PredicateKind::Place(p) => {
                 let base = match p.place.base {
                     Var::Nu => Var::Nu,
-                    l@Var::Location(_) => Var::Location(Location::new(lcx.try_get(l))),
-                    f@Var::Field(_) => Var::Field(Field::new(lcx.try_get(f))),
+                    l @ Var::Location(_) => Var::Location(Location::new(lcx.try_get(l))),
+                    f @ Var::Field(_) => Var::Field(Field::new(lcx.try_get(f))),
                 };
                 let projs = p.place.projs;
                 Pred::Place(Place { base, projs })
             }
-            ast::PredicateKind::UnaryOp(uo, bp) => Pred::UnaryOp(uo.lower(lcx), Box::new((*bp).lower(lcx))),
-            ast::PredicateKind::BinaryOp(bop, ba, bb) => Pred::BinaryOp(bop.lower(lcx), Box::new(ba.lower(lcx)), Box::new(bb.lower(lcx))),
+            ast::PredicateKind::UnaryOp(uo, bp) => {
+                Pred::UnaryOp(uo.lower(lcx), Box::new((*bp).lower(lcx)))
+            }
+            ast::PredicateKind::BinaryOp(bop, ba, bb) => Pred::BinaryOp(
+                bop.lower(lcx),
+                Box::new(ba.lower(lcx)),
+                Box::new(bb.lower(lcx)),
+            ),
         }
     }
 }
@@ -102,10 +111,10 @@ impl<'src> Lower<'src> for ast::Ty<'src> {
 
     fn lower(self, lcx: &mut LowerCtx<'src>) -> Self::Output {
         match self.kind {
-            ast::TyKind::Base(b) => (Ty::Refine(
-                b,
-                Refine::Pred(Pred::Constant(ast::Constant::Bool(true))),
-            ), None),
+            ast::TyKind::Base(b) => (
+                Ty::Refine(b, Refine::Pred(Pred::Constant(ast::Constant::Bool(true)))),
+                None,
+            ),
             ast::TyKind::Refined(i, b, p) => {
                 lcx.vars.push_layer();
                 // TODO: handle edge case:
@@ -150,9 +159,8 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
             let (lty, _) = ty.lower(lcx);
 
             // We then insert the arg into the inputs and the heap.
-            inputs.push(loc.clone());
-            in_heap.push((loc.clone(), lty.clone()));
-            out_heap.push((loc, lty));
+            inputs.push(loc);
+            in_heap.push((loc, lty.clone()));
         }
 
         // Afterwards, we lower the output.
@@ -162,7 +170,7 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
             Some(l) => l,
             None => lcx.fresh(),
         });
-        out_heap.push((output.clone(), oty));
+        out_heap.push((output, oty));
 
         // TODO: regions
         let regions = vec![];

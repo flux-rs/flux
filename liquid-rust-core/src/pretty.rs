@@ -452,6 +452,8 @@ impl PrettyPrinter {
             ast::pred::BinOp::Ge => write!(f, ">="),
             ast::pred::BinOp::Gt => write!(f, ">"),
             ast::pred::BinOp::Iff => write!(f, "<=>"),
+            ast::pred::BinOp::And => write!(f, "&&"),
+            ast::pred::BinOp::Or => write!(f, "||"),
         }
     }
 

@@ -102,6 +102,11 @@ impl<'a> RefineChecker<'a> {
             }
             FnBody::Seq(stmnt, rest) => {
                 let (c, bindings) = env.capture_bindings(|env| self.check_stmnt(env, stmnt));
+                // if !matches!(&stmnt.kind, StatementKind::Nop) {
+                //     println!("{}", stmnt);
+                //     println!("{}", env.heap());
+                //     println!("{}\n", env.locals());
+                // }
                 Constraint::Conj(vec![
                     Constraint::from_bindings(bindings, self.check_body(env, rest)),
                     c,
@@ -163,13 +168,18 @@ impl<'a> RefineChecker<'a> {
                 let f2 = tcx.fresh::<Field>();
                 tcx.mk_tuple(tup!(f1 => ty, f2 => tcx.types.bool()))
             }
-            ast::Rvalue::UnaryOp(un_op, op) => match un_op {
-                ast::UnOp::Not => {
-                    let (pred, _) = self.check_operand(op, env);
-                    tcx.mk_refine(BaseTy::Bool, pred)
-                }
-            },
+            ast::Rvalue::UnaryOp(un_op, op) => self.check_un_op(*un_op, op, env),
         }
+    }
+
+    fn check_un_op(&mut self, un_op: ast::UnOp, op: &ast::Operand, env: &mut Env) -> Ty {
+        use ty::{BinOp::*, UnOp::*};
+        let tcx = self.tcx;
+        let (pred, _) = self.check_operand(op, env);
+        let pred = match un_op {
+            ast::UnOp::Not => tcx.mk_bin_op(Iff, tcx.preds.nu(), tcx.mk_un_op(Not, pred)),
+        };
+        tcx.mk_refine(BaseTy::Bool, pred)
     }
 
     fn check_bin_op(
@@ -228,8 +238,9 @@ impl<'a> RefineChecker<'a> {
             ast::Operand::Move(place) => {
                 let ty = tcx.selfify(env.lookup(place), env.resolve_place(place));
                 self.check_ownership_safety(RefKind::Owned, place, env);
+                let pred = tcx.mk_pred_place(env.resolve_place(place));
                 env.drop(place);
-                (tcx.mk_pred_place(env.resolve_place(place)), ty)
+                (pred, ty)
             }
             ast::Operand::Constant(c) => {
                 let (bty, c) = match *c {

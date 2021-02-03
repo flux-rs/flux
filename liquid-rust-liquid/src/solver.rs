@@ -14,6 +14,7 @@ pub struct LiquidResult {
 pub enum Safeness {
     Safe,
     Unsafe,
+    Crash,
 }
 
 impl fmt::Display for Safeness {
@@ -21,6 +22,7 @@ impl fmt::Display for Safeness {
         match self {
             Safeness::Safe => write!(f, "Safe"),
             Safeness::Unsafe => write!(f, "Unsafe"),
+            Safeness::Crash => write!(f, "Crash"),
         }
     }
 }
@@ -72,9 +74,13 @@ fn emit_preamble<W: Write>(w: &mut W) -> io::Result<()> {
         w,
         "(qualif Eq ((x int) (y int)) (x = y))
 (qualif Ge ((x int) (y int)) (x >= y))
+(qualif Ge' ((x int) (y int)) (y >= x))
 (qualif Gt ((x int) (y int)) (x > y))
+(qualif Gt' ((x int) (y int)) (y > x))
 (qualif GeZero ((x int)) (x >= 0))
 (qualif GtZero ((x int)) (x > 0))
+(qualif GePlusOne ((x int) (y int)) (x + 1 >= y))
+(qualif GePlusOne' ((x int) (y int)) (y + 1 >= x))
 
 (data Unit 0 = [
     | Unit {{ }}
@@ -99,8 +105,11 @@ impl Constraint {
             }
             Constraint::Pred(pred) => {
                 indent!(w, indent)?;
-                write!(w, "(")?;
+                write!(w, "(tag ")?;
                 pred.emit(w)?;
+                write!(w, " \"")?;
+                pred.emit(w)?;
+                write!(w, "\"")?;
                 write!(w, ")")?;
             }
             Constraint::Conj(constraints) => match constraints.len() {

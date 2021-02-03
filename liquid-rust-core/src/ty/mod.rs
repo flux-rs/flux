@@ -103,18 +103,18 @@ impl fmt::Display for TyS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
             TyKind::Fn(..) => todo!(),
-            TyKind::OwnRef(l) => write!(f, "Own(l${})", l.inner()),
+            TyKind::OwnRef(l) => write!(f, "own(l{})", l.inner()),
             TyKind::Ref(BorrowKind::Shared, r, l) => write!(f, "&{} l{}", r, l.inner()),
             TyKind::Ref(BorrowKind::Mut, r, l) => write!(f, "&{} mut l{}", r, l.inner()),
             TyKind::Tuple(tup) => {
                 let tup = tup
                     .iter()
-                    .map(|(f, ty)| format!("$f{}: {}", f.inner(), ty))
+                    .map(|(f, ty)| format!("f{}: {}", f.inner(), ty))
                     .collect::<Vec<_>>()
                     .join(", ");
                 write!(f, "({})", tup)
             }
-            TyKind::Uninit(size) => write!(f, "Uninit({})", size),
+            TyKind::Uninit(size) => write!(f, "uninit({})", size),
             TyKind::Refine(bty, Refine::Infer(k)) => write!(f, "{{ {} | {} }}", bty, k),
             TyKind::Refine(bty, Refine::Pred(pred)) => write!(f, "{{ {} | {} }}", bty, pred),
         }
@@ -408,6 +408,20 @@ impl LocalsMap {
 
     pub fn locals(&self) -> impl Iterator<Item = &Local> {
         self.iter().map(|(x, _)| x)
+    }
+}
+
+impl fmt::Display for LocalsMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, (x, l)) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "_{} -> l{}", x.as_usize(), l.as_usize())?;
+        }
+        write!(f, "]")?;
+        Ok(())
     }
 }
 

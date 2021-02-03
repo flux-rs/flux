@@ -190,9 +190,12 @@ ExprLevel1 = LeftAssoc<BinOpGroup1, ExprLevel2>;
 
 ExprLevel2 = LeftAssoc<BinOpGroup2, ExprLevel3>;
 
-ExprLevel3: Pred<&'input str> = {
-  ConstantP => Pred::Constant(<>),
-  PlaceP    => Pred::Place(<>)
+ExprLevel3 = LeftAssoc<BinOpGroup3, ExprLevel4>;
+
+ExprLevel4: Pred<&'input str> = {
+  ConstantP            => Pred::Constant(<>),
+  PlaceP               => Pred::Place(<>),
+  "(" <ExprLevel1> ")" => <>
 }
 
 ConstantP: pred::Constant = {
@@ -217,6 +220,11 @@ Var: pred::Var<&'input str> = {
 }
 
 BinOpGroup1: pred::BinOp = {
+  "&&" => pred::BinOp::And,
+  "||" => pred::BinOp::Or,
+};
+
+BinOpGroup2: pred::BinOp = {
   "<"  => pred::BinOp::Lt,
   "<=" => pred::BinOp::Le,
   "==" => pred::BinOp::Eq,
@@ -224,7 +232,7 @@ BinOpGroup1: pred::BinOp = {
   ">"  => pred::BinOp::Gt,
 };
 
-BinOpGroup2: pred::BinOp = {
+BinOpGroup3: pred::BinOp = {
   "+" => pred::BinOp::Add,
   "-" => pred::BinOp::Sub
 }
