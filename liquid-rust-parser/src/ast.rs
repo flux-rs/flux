@@ -6,7 +6,10 @@ pub use liquid_rust_core::{
     },
 };
 
-use std::{fmt, hash::{Hash, Hasher}};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
 
 /// The span of each AST item, relative to the beginning of the outermost type in the AST.
 pub type Span = std::ops::Range<usize>;
@@ -141,7 +144,7 @@ pub enum TyKind<'source> {
     /// An unrefined base type.
     Base(BaseTy),
     /// A refined base type.
-    Refined(Ident<'source>, BaseTy, Predicate<'source>),
+    Refined(Option<Ident<'source>>, BaseTy, Predicate<'source>),
     /// A dependent product type.
     Tuple(Vec<(Field<Ident<'source>>, Ty<'source>)>),
 }

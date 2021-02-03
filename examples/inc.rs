@@ -10,14 +10,14 @@ fn inc(n: u32) -> u32 {
 }
 
 #[liquid::ty("fn(n: int) -> {v: int | v >= 0}")]
-fn abs(mut n: u32) -> u32 {
+fn abs(mut n: i32) -> i32 {
     if n < 0 {
         n = 0 - n;
     }
     n
 }
 
-#[liquid::ty("fn(n: {n: int | n >= 0}) -> {v: int | v >= n}")]
+#[liquid::ty("fn(n: {int | n >= 0}) -> {v: int | v >= n}")]
 fn sum(n: u32) -> u32 {
     let mut i = 0;
     let mut s = 0;

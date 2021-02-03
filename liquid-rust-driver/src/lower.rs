@@ -1,5 +1,7 @@
 //! Lowering refinement annotations into the core IR.
 
+use std::iter::FromIterator;
+
 use liquid_rust_core::{
     ast::{
         pred::{Place, Var},
@@ -12,8 +14,9 @@ use liquid_rust_parser::ast;
 use quickscope::ScopeMap;
 
 pub struct LowerCtx<'src> {
-    vars: ScopeMap<Var<ast::Ident<'src>>, usize>,
+    vars: ScopeMap<Var<ast::Ident<'src>>, Var>,
     locs: usize,
+    fields: usize,
 }
 
 impl<'src> LowerCtx<'src> {
@@ -21,26 +24,18 @@ impl<'src> LowerCtx<'src> {
         LowerCtx {
             vars: ScopeMap::new(),
             locs: 0,
+            fields: 0,
         }
     }
 
-    pub fn fresh(&mut self) -> usize {
+    fn fresh_location(&mut self) -> Location {
         self.locs += 1;
-        self.locs - 1
+        Location::new(self.locs - 1)
     }
 
-    pub fn define(&mut self, i: Var<ast::Ident<'src>>) -> usize {
-        self.locs += 1;
-        self.vars.define(i, self.locs - 1);
-        self.locs - 1
-    }
-
-    pub fn try_get(&mut self, i: Var<ast::Ident<'src>>) -> usize {
-        if let Some(v) = self.vars.get(&i) {
-            *v
-        } else {
-            self.define(i)
-        }
+    fn fresh_field(&mut self) -> Field {
+        self.fields += 1;
+        Field::new(self.fields - 1)
     }
 }
 
@@ -86,11 +81,7 @@ impl<'src> Lower<'src> for ast::Predicate<'src> {
         match self.kind {
             ast::PredicateKind::Lit(c) => Pred::Constant(c),
             ast::PredicateKind::Place(p) => {
-                let base = match p.place.base {
-                    Var::Nu => Var::Nu,
-                    l @ Var::Location(_) => Var::Location(Location::new(lcx.try_get(l))),
-                    f @ Var::Field(_) => Var::Field(Field::new(lcx.try_get(f))),
-                };
+                let base = *lcx.vars.get(&p.place.base).expect("Lower: Var not found");
                 let projs = p.place.projs;
                 Pred::Place(Place { base, projs })
             }
@@ -107,32 +98,32 @@ impl<'src> Lower<'src> for ast::Predicate<'src> {
 }
 
 impl<'src> Lower<'src> for ast::Ty<'src> {
-    type Output = (Ty, Option<usize>);
+    type Output = Ty;
 
     fn lower(self, lcx: &mut LowerCtx<'src>) -> Self::Output {
         match self.kind {
-            ast::TyKind::Base(b) => (
-                Ty::Refine(b, Refine::Pred(Pred::Constant(ast::Constant::Bool(true)))),
-                None,
-            ),
-            ast::TyKind::Refined(i, b, p) => {
+            ast::TyKind::Base(b) => Ty::Refine(b, Refine::Pred(Pred::tt())),
+            ast::TyKind::Refined(Some(i), b, p) => {
                 lcx.vars.push_layer();
-                // TODO: handle edge case:
-                // a: {a: int | true}, b: {a: int | true}
-                let li = lcx.try_get(Var::Location(Location::new(i)));
-                let lp = p.lower(lcx);
+                lcx.vars.define(Var::Location(Location::new(i)), Var::Nu);
+                let p = p.lower(lcx);
                 lcx.vars.pop_layer();
-                (Ty::Refine(b, Refine::Pred(lp)), Some(li))
+                Ty::Refine(b, Refine::Pred(p))
             }
+            ast::TyKind::Refined(None, b, p) => Ty::Refine(b, Refine::Pred(p.lower(lcx))),
             ast::TyKind::Tuple(fs) => {
                 lcx.vars.push_layer();
-                let mut res = Vec::new();
-                for (f, t) in fs {
-                    let nf = Field::new(lcx.define(Var::Field(f.clone())));
-                    res.push((nf, t.lower(lcx).0));
+                let mut tup = Vec::new();
+                for (f, ty) in fs {
+                    let fresh = lcx.fresh_field();
+                    lcx.vars.push_layer();
+                    lcx.vars.define(Var::Field(f.clone()), Var::Nu);
+                    tup.push((fresh, ty.lower(lcx)));
+                    lcx.vars.pop_layer();
+                    lcx.vars.define(Var::Field(f), Var::Field(fresh));
                 }
                 lcx.vars.pop_layer();
-                (Ty::Tuple(res), None)
+                Ty::Tuple(tup)
             }
         }
     }
@@ -143,7 +134,7 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
 
     fn lower(self, lcx: &mut LowerCtx<'src>) -> Self::Output {
         let args = self.kind.args;
-        let out = self.kind.output;
+        let out = *self.kind.output;
 
         let mut inputs = Vec::new();
         let mut in_heap = Vec::new();
@@ -151,34 +142,36 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
 
         // We then iterate through each of the args and lower each of them.
         for (ident, ty) in args {
+            // We lower the target type
+            lcx.vars.push_layer();
+            lcx.vars
+                .define(Var::Location(Location::new(ident.clone())), Var::Nu);
+            let ty = ty.lower(lcx);
+            lcx.vars.pop_layer();
+
             // Generate a fresh location which will be used in the input
             // heap
-            let loc = Location::new(lcx.try_get(Var::Location(Location::new(ident.clone()))));
-
-            // We lower the target type
-            let (lty, _) = ty.lower(lcx);
+            let loc = lcx.fresh_location();
+            lcx.vars
+                .define(Var::Location(Location::new(ident)), Var::Location(loc));
 
             // We then insert the arg into the inputs and the heap.
             inputs.push(loc);
-            in_heap.push((loc, lty.clone()));
+            in_heap.push((loc, ty.clone()));
         }
 
         // Afterwards, we lower the output.
 
-        let (oty, oloc) = (*out).lower(lcx);
-        let output = Location::new(match oloc {
-            Some(l) => l,
-            None => lcx.fresh(),
-        });
-        out_heap.push((output, oty));
+        let output = lcx.fresh_location();
+        out_heap.push((output, out.lower(lcx)));
 
         // TODO: regions
         let regions = vec![];
 
         FnTy {
-            in_heap: Heap(in_heap),
+            in_heap: Heap::from_iter(in_heap),
             inputs,
-            out_heap: Heap(out_heap),
+            out_heap: Heap::from_iter(out_heap),
             output,
             regions,
         }

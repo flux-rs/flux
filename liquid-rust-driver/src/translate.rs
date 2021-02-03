@@ -43,8 +43,6 @@ fn create_mpde<'tcx>(
     unsafe { std::mem::transmute::<MPDE<'tcx>, MoveDataParamEnv<'tcx>>(res) }
 }
 
-// TODO: Mayhaps a Visitor pattern would be appropriate here
-
 fn translate_statement(stmt: &mir::Statement) -> Statement<()> {
     match &stmt.kind {
         mir::StatementKind::Assign(pr) => {
@@ -109,7 +107,7 @@ fn translate_const(from: &mir::Constant) -> Operand {
                 }
                 // TODO: Floats, when support is added
                 // Int
-                (Scalar::Int(s), ty::Uint(_ui)) => {
+                (Scalar::Int(s), ty::Uint(_) | ty::Int(_)) => {
                     Operand::Constant(Constant::Int(s.to_bits(s.size()).unwrap()))
                 }
                 // TODO: Signed ints, when support is added

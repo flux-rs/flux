@@ -45,7 +45,7 @@ Comma<T> = Sep<",", T>;
 
 TyKind: TyKind<'input> = {
     <BaseTy> => TyKind::Base(<>),
-    "{" <Ident> ":" <BaseTy> "|" <Predicate> "}" => TyKind::Refined(<>),
+    "{" <(<Ident> ":")?> <BaseTy> "|" <Predicate> "}" => TyKind::Refined(<>),
     "(" <Comma<Binding<Field, Ty>>> ")" => TyKind::Tuple(<>)
 }
 
@@ -165,7 +165,6 @@ ProjP: usize = {
 Var: Var<Ident<'input>> = {
     Field => Var::Field(<>),
     Ident => Var::Location(Location::new(<>)),
-    "V"   => Var::Nu
 }
 
 Field: Field<Ident<'input>> = "@" <Ident> => Field::new(<>);

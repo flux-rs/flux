@@ -23,8 +23,9 @@ where
     S: Eq + Copy + std::hash::Hash + std::fmt::Debug + std::fmt::Display,
 {
     let tcx = TyCtxt::new();
-    // println!("{}", func);
+    // println!("{}\n", func);
     let func = NameFreshener::new(&tcx).freshen(func);
+    // println!("{}", func);
     let (conts, fn_ty) = TypeLowerer::lower_fn_def(&tcx, &func);
     let (conts, fn_ty) = infer_regions(&tcx, &func, conts, fn_ty);
     let constraint = RefineChecker::new(&tcx, &conts)

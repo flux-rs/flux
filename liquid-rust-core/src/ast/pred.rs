@@ -11,6 +11,12 @@ pub enum Pred<S = usize> {
     UnaryOp(UnOp, Box<Pred<S>>),
 }
 
+impl<S> Pred<S> {
+    pub fn tt() -> Self {
+        Self::Constant(Constant::Bool(true))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Constant {
     Bool(bool),

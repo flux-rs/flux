@@ -172,7 +172,7 @@ pub enum Refine<S = usize> {
     Pred(Pred<S>),
 }
 
-pub struct Heap<S = usize>(pub Vec<(Location<S>, Ty<S>)>);
+pub struct Heap<S = usize>(Vec<(Location<S>, Ty<S>)>);
 
 wrap_iterable! {
     for<S> Heap<S>: Vec<(Location<S>, Ty<S>)>

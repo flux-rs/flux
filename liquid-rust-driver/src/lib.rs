@@ -1,5 +1,6 @@
 #![feature(rustc_private)]
 #![feature(box_syntax)]
+#![feature(or_patterns)]
 
 mod lower;
 mod translate;
