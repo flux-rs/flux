@@ -19,6 +19,8 @@ pub enum ParseErrorKind<'source> {
     UnexpectedEOF,
     /// Parsing failed because there was an unexpected token.
     UnexpectedToken(Token<'source>),
+    /// Parsing failed because there was an invalid token.
+    InvalidToken,
 }
 
 impl<'source> ParseErrorKind<'source> {
@@ -34,7 +36,7 @@ impl<'source> ParseErrorKind<'source> {
 impl<'source> From<LalrpopError<'source>> for ParseError<'source> {
     fn from(err: LalrpopError<'source>) -> Self {
         match err {
-            LalrpopError::InvalidToken { .. } | LalrpopError::User { .. } => unreachable!(),
+            LalrpopError::User { .. } => unreachable!(),
             LalrpopError::UnrecognizedEOF { location, expected } => {
                 ParseErrorKind::UnexpectedEOF.into_error(expected, location..location)
             }
@@ -45,6 +47,9 @@ impl<'source> From<LalrpopError<'source>> for ParseError<'source> {
             LalrpopError::ExtraToken {
                 token: (start, token, end),
             } => ParseErrorKind::UnexpectedToken(token).into_error(vec![], start..end),
+            LalrpopError::InvalidToken { location } => {
+                ParseErrorKind::InvalidToken.into_error(vec![], location..location)
+            }
         }
     }
 }

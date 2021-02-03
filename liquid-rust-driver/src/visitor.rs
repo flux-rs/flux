@@ -1,4 +1,4 @@
-use crate::lower::{LowerCtx, Lower};
+use crate::lower::{Lower, LowerCtx};
 
 use liquid_rust_core::ast::*;
 use liquid_rust_parser::{parse_ty, ParseErrorKind};
@@ -7,10 +7,10 @@ use rustc_ast::ast::{AttrItem, AttrKind, Attribute};
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::{Diagnostic, Handler};
 use rustc_hir::{
-    def_id::DefId, ForeignItem, itemlikevisit::ItemLikeVisitor, ImplItem, Item, ItemKind, TraitItem,
+    def_id::DefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, Item, ItemKind, TraitItem,
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{BytePos, Span};
+use rustc_span::{BytePos, Pos, Span};
 use std::{collections::HashMap, ops::Range};
 
 pub struct DefCollector<'tcx, 'vis> {
@@ -59,8 +59,8 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
                     let input_span = tokens.span().unwrap();
 
                     let map_span = |span: Range<usize>| {
-                        let lo = input_span.lo() + BytePos(span.start as u32 + 1);
-                        let hi = input_span.lo() + BytePos(span.end as u32 + 1);
+                        let lo = input_span.lo() + BytePos::from_usize(span.start + 1);
+                        let hi = input_span.lo() + BytePos::from_usize(span.end + 1);
                         Span::new(lo, hi, input_span.ctxt())
                     };
 
@@ -77,6 +77,7 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
                                 UnexpectedToken(token) => {
                                     format!("Unexpected token `{}`.", token)
                                 }
+                                InvalidToken => "Invalid token".to_owned(),
                             };
 
                             self.buffer_error(span, &msg);

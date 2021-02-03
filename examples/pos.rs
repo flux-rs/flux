@@ -28,7 +28,7 @@ fn sum(n: u32) -> u32 {
     s
 }
 
-#[liquid::ty("fn(p: (@a: int, @b: {int | @b >= @a})) -> {v: int | v >= 0}")]
+#[liquid::ty("fn(p: (a: int, b: {int | b >= a})) -> {v: int | v >= 0}")]
 fn length(p: (i32, i32)) -> i32 {
     p.1 - p.0
 }

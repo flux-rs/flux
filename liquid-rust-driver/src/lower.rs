@@ -14,7 +14,7 @@ use liquid_rust_parser::ast;
 use quickscope::ScopeMap;
 
 pub struct LowerCtx<'src> {
-    vars: ScopeMap<Var<ast::Ident<'src>>, Var>,
+    vars: ScopeMap<&'src str, Var>,
     locs: usize,
     fields: usize,
 }
@@ -80,9 +80,8 @@ impl<'src> Lower<'src> for ast::Predicate<'src> {
     fn lower(self, lcx: &mut LowerCtx<'src>) -> Self::Output {
         match self.kind {
             ast::PredicateKind::Lit(c) => Pred::Constant(c),
-            ast::PredicateKind::Place(p) => {
-                let base = *lcx.vars.get(&p.place.base).expect("Lower: Var not found");
-                let projs = p.place.projs;
+            ast::PredicateKind::Place(base, projs) => {
+                let base = *lcx.vars.get(&base.symbol).expect("Lower: Var not found");
                 Pred::Place(Place { base, projs })
             }
             ast::PredicateKind::UnaryOp(uo, bp) => {
@@ -105,7 +104,7 @@ impl<'src> Lower<'src> for ast::Ty<'src> {
             ast::TyKind::Base(b) => Ty::Refine(b, Refine::Pred(Pred::tt())),
             ast::TyKind::Refined(Some(i), b, p) => {
                 lcx.vars.push_layer();
-                lcx.vars.define(Var::Location(Location::new(i)), Var::Nu);
+                lcx.vars.define(i.symbol, Var::Nu);
                 let p = p.lower(lcx);
                 lcx.vars.pop_layer();
                 Ty::Refine(b, Refine::Pred(p))
@@ -117,10 +116,10 @@ impl<'src> Lower<'src> for ast::Ty<'src> {
                 for (f, ty) in fs {
                     let fresh = lcx.fresh_field();
                     lcx.vars.push_layer();
-                    lcx.vars.define(Var::Field(f.clone()), Var::Nu);
+                    lcx.vars.define(f.symbol, Var::Nu);
                     tup.push((fresh, ty.lower(lcx)));
                     lcx.vars.pop_layer();
-                    lcx.vars.define(Var::Field(f), Var::Field(fresh));
+                    lcx.vars.define(f.symbol, Var::Field(fresh));
                 }
                 lcx.vars.pop_layer();
                 Ty::Tuple(tup)
@@ -144,16 +143,14 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
         for (ident, ty) in args {
             // We lower the target type
             lcx.vars.push_layer();
-            lcx.vars
-                .define(Var::Location(Location::new(ident.clone())), Var::Nu);
+            lcx.vars.define(ident.symbol, Var::Nu);
             let ty = ty.lower(lcx);
             lcx.vars.pop_layer();
 
             // Generate a fresh location which will be used in the input
             // heap
             let loc = lcx.fresh_location();
-            lcx.vars
-                .define(Var::Location(Location::new(ident)), Var::Location(loc));
+            lcx.vars.define(ident.symbol, Var::Location(loc));
 
             // We then insert the arg into the inputs and the heap.
             inputs.push(loc);

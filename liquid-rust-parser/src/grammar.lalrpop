@@ -1,6 +1,5 @@
 use crate::ast::*;
 use std::str::FromStr;
-use liquid_rust_core::{names::{Field, Location}, ty::{pred, Var}};
 
 grammar();
 
@@ -46,7 +45,7 @@ Comma<T> = Sep<",", T>;
 TyKind: TyKind<'input> = {
     <BaseTy> => TyKind::Base(<>),
     "{" <(<Ident> ":")?> <BaseTy> "|" <Predicate> "}" => TyKind::Refined(<>),
-    "(" <Comma<Binding<Field, Ty>>> ")" => TyKind::Tuple(<>)
+    "(" <Comma<Binding<Ident, Ty>>> ")" => TyKind::Tuple(<>)
 }
 
 Args: Vec<(Ident<'input>, Ty<'input>)> = {
@@ -143,31 +142,14 @@ BasePredicate: Predicate<'input> = {
 }
 
 PredicateKind: PredicateKind<'input> = {
-    <Constant> => PredicateKind::Lit(<>),
-    <Place> => PredicateKind::Place(<>),
+    <Constant>      => PredicateKind::Lit(<>),
+    <Ident> <Proj*> => PredicateKind::Place(<>),
     "(" <PredicateKind> ")"
 }
 
-Place: Place<'input> = {
-    <spanned:Spanned<PlaceP>> => {
-        Place { place: spanned.0, span: spanned.1 }
-    },
-}
-
-PlaceP: pred::Place<Ident<'input>> = {
-    <base: Var> <projs: ProjP*> => pred::Place { <> }
-}
-
-ProjP: usize = {
+Proj: usize = {
     "." <r"[0-9]+"> => usize::from_str(<>).unwrap()
 }
-
-Var: Var<Ident<'input>> = {
-    Field => Var::Field(<>),
-    Ident => Var::Location(Location::new(<>)),
-}
-
-Field: Field<Ident<'input>> = "@" <Ident> => Field::new(<>);
 
 Ident: Ident<'input> = {
     <spanned:Spanned<r"[a-z][a-zA-Z0-9_]*">> => {

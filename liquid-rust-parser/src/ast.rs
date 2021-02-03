@@ -41,13 +41,6 @@ impl<'source> fmt::Display for Ident<'source> {
     }
 }
 
-/// The AST representation of a place
-#[derive(Debug, Clone)]
-pub struct Place<'source> {
-    pub place: pred::Place<Ident<'source>>,
-    pub span: Span,
-}
-
 /// The AST representation of unary operators over predicates.
 #[derive(Debug, Clone)]
 pub struct UnOp {
@@ -112,7 +105,7 @@ pub enum PredicateKind<'source> {
     /// A literal.
     Lit(Constant),
     /// A place.
-    Place(Place<'source>),
+    Place(Ident<'source>, Vec<usize>),
     /// An unary operation between predicates.
     UnaryOp(UnOp, Box<Predicate<'source>>),
     /// A binary operation between predicates.
@@ -146,5 +139,5 @@ pub enum TyKind<'source> {
     /// A refined base type.
     Refined(Option<Ident<'source>>, BaseTy, Predicate<'source>),
     /// A dependent product type.
-    Tuple(Vec<(Field<Ident<'source>>, Ty<'source>)>),
+    Tuple(Vec<(Ident<'source>, Ty<'source>)>),
 }
