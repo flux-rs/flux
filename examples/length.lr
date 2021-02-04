@@ -1,5 +1,0 @@
-fn length(p0: (@x: {int | true}, @y: {int | V >= @x}); p: own(p0))
-    ret k(r: {int | V >= 0}; own(r)) =
-  let t = alloc(1);
-  t := p.1 - p.0;
-  jump k(t)

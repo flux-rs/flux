@@ -13,7 +13,15 @@ match {
   _,
 }
 
-pub FnDef: FnDef<Span, &'input str> =
+pub Program: Program<Span, &'input str> = <FnDef+> => {
+  let mut program = Program::new();
+  for (name, def) in <> {
+    program.add_fn(name, def);
+  }
+  program
+};
+
+FnDef: (FnId<&'input str>, FnDef<Span, &'input str>) =
  "fn"
  <name: FnId>
  <regions: UniversalRegions?>
@@ -34,7 +42,7 @@ pub FnDef: FnDef<Span, &'input str> =
      outputs,
      output
     };
-   FnDef { params, body: *body, ty, ret }
+   (name, FnDef { params, body: *body, ty, ret })
  };
 
 UniversalRegions: Vec<UniversalRegion<&'input str>> =

@@ -1,10 +1,37 @@
 pub mod pred;
 pub mod visitor;
 
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 pub use self::pred::Pred;
-use crate::names::{ContId, Field, Local, Location};
+use crate::names::{ContId, Field, FnId, Local, Location};
+
+#[derive(Default)]
+pub struct Program<I, S = usize> {
+    functions: HashMap<FnId<S>, FnDef<I, S>>,
+}
+
+impl<I, S: Eq + std::hash::Hash> Program<I, S> {
+    pub fn new() -> Self {
+        Self {
+            functions: HashMap::new(),
+        }
+    }
+
+    pub fn add_fn(&mut self, fn_id: FnId<S>, def: FnDef<I, S>) {
+        self.functions.insert(fn_id, def);
+    }
+}
+
+impl<I, S> IntoIterator for Program<I, S> {
+    type Item = (FnId<S>, FnDef<I, S>);
+
+    type IntoIter = std::collections::hash_map::IntoIter<FnId<S>, FnDef<I, S>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.functions.into_iter()
+    }
+}
 
 pub struct FnDef<I, S = usize> {
     pub ty: FnTy<S>,

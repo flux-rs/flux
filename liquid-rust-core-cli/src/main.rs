@@ -28,15 +28,17 @@ fn main() -> Result<(), codespan_reporting::files::Error> {
 
     let file = SimpleFile::new(&args[1], &contents);
 
-    let func = match grammar::FnDefParser::new().parse(&contents) {
-        Ok(func) => func,
+    let program = match grammar::ProgramParser::new().parse(&contents) {
+        Ok(program) => program,
         Err(err) => {
             diagnostics(&file, err)?;
             return Ok(());
         }
     };
 
-    println!("{:#?}", check_fn_def(func));
+    for (fn_id, def) in program {
+        println!("{:?} {:?}", fn_id, check_fn_def(def));
+    }
 
     Ok(())
 }
