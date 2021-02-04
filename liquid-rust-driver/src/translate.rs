@@ -347,15 +347,17 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             let out_ty = self.get_holy_type(self.body.return_ty());
             out_heap.push((output, out_ty));
 
-            // TODO: regions
+            // TODO: regions, outputs
             let regions = vec![];
+            let outputs = vec![];
 
             let fn_ty = FnTy {
+                regions,
                 in_heap: Heap::from_iter(in_heap),
                 inputs,
                 out_heap: Heap::from_iter(out_heap),
+                outputs,
                 output,
-                regions,
             };
 
             // TODO: Different out_heap than input heap?

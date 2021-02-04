@@ -301,7 +301,7 @@ impl Env<'_> {
                             ));
                         }
                         let sol = region_constraints.solve();
-                        let ty_join = sol.fix_regions_ty(self.tcx, &ty_join);
+                        let ty_join = sol.fix_regions_ty(self.tcx, ty_join);
 
                         // Update places
                         for place in places {
@@ -323,6 +323,7 @@ impl Env<'_> {
                 places1.is_subset(&places2)
             }
             // TODO: we should consider outlive annotations here.
+            (Region::Universal(r1), Region::Universal(r2)) => r1 == r2,
             (Region::Universal(_), _) | (_, Region::Universal(_)) => false,
             (Region::Infer(_), _) | (_, Region::Infer(_)) => bug!(),
         }

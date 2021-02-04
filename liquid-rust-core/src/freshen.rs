@@ -218,12 +218,14 @@ where
         }
         let out_heap = self.freshen_heap(ty.out_heap);
         let output = self.freshen_location(ty.output);
+        let outputs = self.freshen_locals(ty.outputs);
         self.locations.pop_layer();
         FnTy {
             regions,
             in_heap,
             inputs,
             out_heap,
+            outputs,
             output,
         }
     }

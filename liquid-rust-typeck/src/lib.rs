@@ -10,7 +10,7 @@ pub mod region_inference;
 use crate::{refineck::RefineChecker, region_inference::infer_regions};
 use env::OwnershipError;
 use liquid_rust_core::{ast::FnDef, freshen::NameFreshener, lower::TypeLowerer, ty::TyCtxt};
-pub use liquid_rust_liquid::solver::Safeness;
+pub use liquid_rust_fixpoint::solver::Safeness;
 
 #[macro_use]
 extern crate liquid_rust_common;

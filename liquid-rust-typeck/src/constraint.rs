@@ -9,7 +9,7 @@ use liquid_rust_core::{
     },
 };
 
-use liquid_rust_liquid as liquid;
+use liquid_rust_fixpoint as fixpoint;
 use ty::{PredKind, TyKind, Var};
 
 #[derive(Debug)]
@@ -78,7 +78,8 @@ impl<'a> From<&'a Ty> for Sort {
 impl From<BaseTy> for Sort {
     fn from(bty: BaseTy) -> Self {
         match bty {
-            BaseTy::Int | BaseTy::Unit => Sort::Int,
+            BaseTy::Int => Sort::Int,
+            BaseTy::Unit => Sort::Unit,
             BaseTy::Bool => Sort::Bool,
         }
     }
@@ -205,17 +206,17 @@ fn embed_kvar(kvar: &ty::Kvar, nu: &Place, fld_map: &HashMap<Field, Place>) -> K
 // Lowering
 
 impl Sort {
-    fn flatten(&self) -> Vec<(liquid::Sort, Vec<usize>)> {
+    fn flatten(&self) -> Vec<(fixpoint::Sort, Vec<usize>)> {
         let mut vec = vec![];
         self.flatten_rec(&mut vec![], &mut vec);
         vec
     }
 
-    fn flatten_rec(&self, path: &mut Vec<usize>, vec: &mut Vec<(liquid::Sort, Vec<usize>)>) {
+    fn flatten_rec(&self, path: &mut Vec<usize>, vec: &mut Vec<(fixpoint::Sort, Vec<usize>)>) {
         match self {
-            Sort::Int => vec.push((liquid::Sort::Int, path.clone())),
-            Sort::Bool => vec.push((liquid::Sort::Bool, path.clone())),
-            Sort::Unit => vec.push((liquid::Sort::Unit, path.clone())),
+            Sort::Int => vec.push((fixpoint::Sort::Int, path.clone())),
+            Sort::Bool => vec.push((fixpoint::Sort::Bool, path.clone())),
+            Sort::Unit => vec.push((fixpoint::Sort::Unit, path.clone())),
             Sort::Tuple(sorts) => {
                 for (i, sort) in sorts.iter().enumerate() {
                     path.push(i);
@@ -228,17 +229,17 @@ impl Sort {
 }
 
 impl Constraint {
-    pub fn lower(self) -> liquid::Constraint {
+    pub fn lower(self) -> fixpoint::Constraint {
         self.lower_(&mut HashMap::new())
     }
 
-    fn lower_(self, sorts: &mut HashMap<Var, Sort>) -> liquid::Constraint {
+    fn lower_(self, sorts: &mut HashMap<Var, Sort>) -> fixpoint::Constraint {
         match self {
-            Constraint::True => liquid::Constraint::True,
-            Constraint::Pred(pred) => liquid::Constraint::Pred(pred.lower(sorts)),
-            Constraint::Conj(constraints) => {
-                liquid::Constraint::Conj(constraints.into_iter().map(|c| c.lower_(sorts)).collect())
-            }
+            Constraint::True => fixpoint::Constraint::True,
+            Constraint::Pred(pred) => fixpoint::Constraint::Pred(pred.lower(sorts)),
+            Constraint::Conj(constraints) => fixpoint::Constraint::Conj(
+                constraints.into_iter().map(|c| c.lower_(sorts)).collect(),
+            ),
             Constraint::Forall(var, sort, pred, body) => {
                 let pred = pred.lower(sorts);
                 // The sort need to be added to the scope after lowering the predicate, because
@@ -247,59 +248,59 @@ impl Constraint {
                 let body = body.lower_(sorts);
                 let mut iter = sorts.remove(&var).unwrap().flatten().into_iter().rev();
                 if let Some((sort, projs)) = iter.next() {
-                    let body = liquid::Constraint::Forall(
+                    let body = fixpoint::Constraint::Forall(
                         place_to_string(var, projs),
                         sort,
                         pred,
                         box body,
                     );
                     iter.fold(body, |body, (sort, projs)| {
-                        liquid::Constraint::Forall(
+                        fixpoint::Constraint::Forall(
                             place_to_string(var, projs),
                             sort,
-                            liquid::Pred::True,
+                            fixpoint::Pred::True,
                             box body,
                         )
                     })
                 } else {
-                    liquid::Constraint::True
+                    fixpoint::Constraint::True
                 }
             }
             Constraint::Guard(guard, body) => {
-                liquid::Constraint::Guard(guard.lower(sorts), box body.lower_(sorts))
+                fixpoint::Constraint::Guard(guard.lower(sorts), box body.lower_(sorts))
             }
         }
     }
 }
 
 impl Pred {
-    pub fn lower(self, vars: &HashMap<Var, Sort>) -> liquid::Pred {
+    pub fn lower(self, vars: &HashMap<Var, Sort>) -> fixpoint::Pred {
         match self {
-            Pred::Kvar(kvar) => liquid::Pred::Kvar(kvar.lower(vars)),
+            Pred::Kvar(kvar) => fixpoint::Pred::Kvar(kvar.lower(vars)),
             Pred::Conj(preds) => {
-                liquid::Pred::Conj(preds.into_iter().map(|p| p.lower(vars)).collect())
+                fixpoint::Pred::Conj(preds.into_iter().map(|p| p.lower(vars)).collect())
             }
-            Pred::Expr(expr) => liquid::Pred::Expr(expr.lower(vars)),
-            Pred::True => liquid::Pred::True,
+            Pred::Expr(expr) => fixpoint::Pred::Expr(expr.lower(vars)),
+            Pred::True => fixpoint::Pred::True,
         }
     }
 }
 
 impl Expr {
-    pub fn lower(self, vars: &HashMap<Var, Sort>) -> liquid::Expr {
+    pub fn lower(self, vars: &HashMap<Var, Sort>) -> fixpoint::Expr {
         match self {
-            Expr::Place(place) => liquid::Expr::Var(place_to_string(place.base, place.projs)),
-            Expr::Constant(c) => liquid::Expr::Constant(c),
+            Expr::Place(place) => fixpoint::Expr::Var(place_to_string(place.base, place.projs)),
+            Expr::Constant(c) => fixpoint::Expr::Constant(c),
             Expr::BinaryOp(bin_op, op1, op2) => {
-                liquid::Expr::BinaryOp(bin_op, box op1.lower(vars), box op2.lower(vars))
+                fixpoint::Expr::BinaryOp(bin_op, box op1.lower(vars), box op2.lower(vars))
             }
-            Expr::UnaryOp(un_op, op) => liquid::Expr::UnaryOp(un_op, box op.lower(vars)),
+            Expr::UnaryOp(un_op, op) => fixpoint::Expr::UnaryOp(un_op, box op.lower(vars)),
         }
     }
 }
 
 impl Kvar {
-    pub fn lower(self, sorts: &HashMap<Var, Sort>) -> liquid::Kvar {
+    pub fn lower(self, sorts: &HashMap<Var, Sort>) -> fixpoint::Kvar {
         let mut vars = vec![];
         for place in self.1 {
             match sorts.get(&place.base) {
@@ -314,7 +315,7 @@ impl Kvar {
                 }
             }
         }
-        liquid::Kvar(self.0.as_usize(), vars)
+        fixpoint::Kvar(self.0.as_usize(), vars)
     }
 }
 

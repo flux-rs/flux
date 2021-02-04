@@ -1,16 +1,16 @@
-use crate::{names::FnId, ty::FnTy};
+use std::collections::HashMap;
 
-use indexmap::IndexMap;
+use crate::{names::FnId, ty::FnTy};
 
 #[derive(Default)]
 pub struct Program {
-    pub fns: IndexMap<FnId, FnTy>,
+    pub fns: HashMap<FnId, FnTy>,
 }
 
 impl Program {
     pub fn new() -> Self {
         Program {
-            fns: IndexMap::new(),
+            fns: HashMap::new(),
         }
     }
 

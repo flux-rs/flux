@@ -129,6 +129,7 @@ impl TyCtxt {
                     out_heap: fn_ty
                         .out_heap
                         .map_ty(|ty| self.replace_with_fresh_vars(ty, vars_in_scope)),
+                    outputs: fn_ty.outputs.clone(),
                     output: fn_ty.output,
                 };
                 self.mk_fn_ty(fn_ty)

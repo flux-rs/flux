@@ -165,14 +165,16 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
         let output = lcx.fresh_location();
         out_heap.push((output, out.lower(lcx)));
 
-        // TODO: regions
+        // TODO: regions, outputs
         let regions = vec![];
+        let outputs = vec![];
 
         FnTy {
             in_heap: Heap::from_iter(in_heap),
             inputs,
             out_heap: Heap::from_iter(out_heap),
             output,
+            outputs,
             regions,
         }
     }

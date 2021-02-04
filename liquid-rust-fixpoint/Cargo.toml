@@ -1,5 +1,5 @@
 [package]
-name = "liquid-rust-liquid"
+name = "liquid-rust-fixpoint"
 version = "0.1.0"
 authors = ["Nico Lehmann <nico.lehmannm@gmail.com>"]
 edition = "2018"

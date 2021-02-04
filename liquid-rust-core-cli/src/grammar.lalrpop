@@ -18,7 +18,7 @@ pub FnDef: FnDef<Span, &'input str> =
  <name: FnId>
  <regions: UniversalRegions?>
  "(" <in_heap: Heap> ";" <formal: Params> ")"
- "ret" <ret: ContId> "(" <out_heap: Heap> ";" <output: OwnRef> ")"
+ "ret" <ret: ContId> "(" <out_heap: Heap> ";" <outputs: LocalsMap> ";" <output: OwnRef> ")"
  "=" <body: FnBody> => {
    let mut inputs = vec![];
    let mut params = vec![];
@@ -26,7 +26,14 @@ pub FnDef: FnDef<Span, &'input str> =
      params.push(local);
      inputs.push(ty);
    }
-   let ty = FnTy { regions: regions.unwrap_or_default(), in_heap, inputs, out_heap, output };
+   let ty = FnTy {
+     regions: regions.unwrap_or_default(),
+     in_heap,
+     inputs,
+     out_heap,
+     outputs,
+     output
+    };
    FnDef { params, body: *body, ty, ret }
  };
 
@@ -50,7 +57,7 @@ FnBody: Box<FnBody<Span, &'input str>> = {
 }
 
 ContDef: ContDef<Span, &'input str> = {
-   <name: ContId> "(" <heap: Heap> ";" <locals: Comma<Binding<Local, OwnRef>>> ";" <formal: Params> ")" "=" <body: FnBody>  => {
+   <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ";" <formal: Params> ")" "=" <body: FnBody>  => {
     let mut inputs = vec![];
     let mut params = vec![];
     for (local, ty) in formal {
@@ -121,8 +128,8 @@ TypeLayout: TypeLayout = {
 // -------------------------------------------------------------------------------------------------
 
 OwnRef: Location<&'input str> = "own" "(" <Location> ")" => <>;
-
 Heap: Heap<&'input str> = Comma<Binding<Location, Ty>> => Heap::from_iter(<>);
+LocalsMap: Vec<(Local<&'input str>, Location<&'input str>)> = Comma<Binding<Local, OwnRef>> ;
 
 Ty: Ty<&'input str> = {
   "own" "(" <Location> ")"                   => Ty::OwnRef(<>),
@@ -214,7 +221,10 @@ BinOpGroup4: pred::BinOp = {
 }
 
 
-UnaryOp: Pred<&'input str> = <un_op: UnOpP> <op: BasePred> => pred::Pred::UnaryOp(un_op, Box::new(op));
+UnaryOp: Pred<&'input str> = {
+  <un_op: UnOpP> <op: BasePred> => pred::Pred::UnaryOp(un_op, Box::new(op)),
+  BasePred
+}
 
 UnOpP: pred::UnOp = {
   "!" => pred::UnOp::Not,

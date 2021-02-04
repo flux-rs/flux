@@ -1,4 +1,4 @@
-fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; own(r)) =
+fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; ;own(r)) =
   let b = alloc(1);
   letcont b0(n2: {int | _ }; n: own(n2);) =
     jump k(n)

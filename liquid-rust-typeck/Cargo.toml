@@ -8,4 +8,4 @@ edition = "2018"
 indexmap = "1.6"
 liquid-rust-core = { path = "../liquid-rust-core" }
 liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-liquid = { path = "../liquid-rust-liquid" }
+liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }

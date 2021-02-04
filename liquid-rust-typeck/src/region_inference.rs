@@ -254,29 +254,30 @@ impl Solution {
             in_heap: self.fix_regions_heap(tcx, fn_ty.in_heap),
             inputs: fn_ty.inputs,
             out_heap: self.fix_regions_heap(tcx, fn_ty.out_heap),
+            outputs: fn_ty.outputs,
             output: fn_ty.output,
         }
     }
 
     fn fix_regions_heap(&self, tcx: &TyCtxt, heap: Heap) -> Heap {
         heap.into_iter()
-            .map(|(l, ty)| (l, self.fix_regions_ty(tcx, &ty)))
+            .map(|(l, ty)| (l, self.fix_regions_ty(tcx, ty)))
             .collect()
     }
 
-    pub fn fix_regions_ty(&self, tcx: &TyCtxt, ty: &Ty) -> Ty {
+    pub fn fix_regions_ty(&self, tcx: &TyCtxt, ty: Ty) -> Ty {
         match ty.kind() {
             ty::TyKind::Tuple(tup) => {
-                let tup = tup.map(|_, fld, ty| (*fld, self.fix_regions_ty(tcx, ty)));
+                let tup = tup.map(|_, fld, ty| (*fld, self.fix_regions_ty(tcx, ty.clone())));
                 tcx.mk_tuple(tup)
             }
             ty::TyKind::Ref(bk, r, l) => match r {
                 ty::Region::Infer(kvid) => {
                     tcx.mk_ref(*bk, ty::Region::Concrete(self.0[kvid].clone()), *l)
                 }
-                ty::Region::Concrete(_) | ty::Region::Universal(_) => ty.clone(),
+                ty::Region::Concrete(_) | ty::Region::Universal(_) => ty,
             },
-            _ => ty.clone(),
+            _ => ty,
         }
     }
 }

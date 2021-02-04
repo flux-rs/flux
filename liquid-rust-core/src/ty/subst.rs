@@ -71,6 +71,7 @@ impl ApplySubst for FnTy {
                 .map(|l| l.apply_subst(tcx, subst))
                 .collect(),
             out_heap: self.out_heap.apply_subst(tcx, subst),
+            outputs: self.outputs.apply_subst(tcx, subst),
             output: self.output.apply_subst(tcx, subst),
         }
     }

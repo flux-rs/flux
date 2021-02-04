@@ -137,6 +137,7 @@ pub struct FnTy {
     pub in_heap: Heap,
     pub inputs: Vec<Location>,
     pub out_heap: Heap,
+    pub outputs: LocalsMap,
     pub output: Location,
 }
 
@@ -408,6 +409,27 @@ impl LocalsMap {
 
     pub fn locals(&self) -> impl Iterator<Item = &Local> {
         self.iter().map(|(x, _)| x)
+    }
+}
+
+impl PartialEq for LocalsMap {
+    fn eq(&self, other: &Self) -> bool {
+        if self.0.len() != other.0.len() {
+            return false;
+        }
+
+        self.0.iter().zip(other).all(|(x1, x2)| x1 == x2)
+    }
+}
+
+impl Eq for LocalsMap {}
+
+impl std::hash::Hash for LocalsMap {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for (x, l) in self {
+            x.hash(state);
+            l.hash(state);
+        }
     }
 }
 

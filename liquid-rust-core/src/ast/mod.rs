@@ -164,6 +164,7 @@ pub struct FnTy<S = usize> {
     pub in_heap: Heap<S>,
     pub inputs: Vec<Location<S>>,
     pub out_heap: Heap<S>,
+    pub outputs: Vec<(Local<S>, Location<S>)>,
     pub output: Location<S>,
 }
 
