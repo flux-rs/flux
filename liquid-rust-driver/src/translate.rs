@@ -6,6 +6,7 @@ use dataflow::ResultsCursor;
 use liquid_rust_core::{ast::*, names::*};
 use rustc_ast::Mutability;
 use rustc_hir::def_id::DefId;
+use rustc_index::vec::Idx;
 use rustc_middle::{
     mir::{
         self,
@@ -522,29 +523,12 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                 target: self.retk(),
                 args: vec![Transformer::retv()],
             },
-            // FIXME: we should somehow assign the return value to the continuation
             TerminatorKind::Call {
                 func,
                 args,
-                destination: _,
+                destination,
                 ..
             } => {
-                // TODO: For now, we assume that all functions are constants (i.e. they're defined
-                // separately outside of this function. This isn't always true, however.
-
-                // We first get the destination basic block out of the destination; we'll
-                // do the assignment to the place after we have our FnBody::Call
-                // If destination is None, that means that this function doesn't converge;
-                // it diverges and never returns (i.e. returns ! and infinitely loops or smth)
-                // TODO: Perhaps handle the diverging case somehow?
-                // let ret = match destination {
-                //     Some((_, bb)) => ContId::new(bb.index()),
-                //     None => todo!(),
-                // };
-
-                // For our args, our args will be a list of new temp locals that we create.
-                // We'll actually create these locals after we have our FnBody::Call, so that
-                // we can reference it.
                 let args_temp: Vec<Local> = (0..args.len()).map(|_| self.fresh_local()).collect();
 
                 let mut fb = match func {
@@ -553,16 +537,17 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                         let kind = c.literal.ty.kind();
 
                         match kind {
-                            ty::TyKind::FnDef(_def_id, _) => {
-                                // We get the stringified name of this def,
-                                // then use it as the name of the function
-                                // we're calling.
+                            ty::TyKind::FnDef(def_id, _) => {
+                                let def_id = def_id
+                                    .as_local()
+                                    .expect("Calls to non-local function are not supported yet.");
 
-                                // TODO: map mir def_id to core FnId
                                 FnBody::Call {
-                                    func: FnId::new(0),
+                                    func: FnId::new(def_id.index()),
                                     args: args_temp.clone(),
-                                    destination: None,
+                                    destination: destination.map(|(place, bb)| {
+                                        (translate_place(&place), ContId::new(bb.as_usize()))
+                                    }),
                                 }
                             }
                             _ => unreachable!(),

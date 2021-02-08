@@ -64,8 +64,8 @@ FnBody: Box<FnBody<Span, &'input str>> = {
 
 ContDef: ContDef<Span, &'input str> = {
    <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ")" "=" <body: FnBody>  => {
-    let mut inputs = vec![];
-    let mut params = vec![];
+    let inputs = vec![];
+    let params = vec![];
     let ty = ContTy { heap, locals, inputs };
     ContDef { name, params, ty, body }
   }

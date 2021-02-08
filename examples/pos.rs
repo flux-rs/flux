@@ -26,6 +26,15 @@ fn sum(n: u32) -> u32 {
     s
 }
 
+#[liquid::ty("fn(n: {int | n >= 0}) -> {v: int | v >= n}")]
+fn sum_rec(n: u32) -> u32 {
+    if n == 0 {
+        0
+    } else {
+        n + sum_rec(n - 1)
+    }
+}
+
 #[liquid::ty("fn(p: (a: int, b: {int | b >= a})) -> {v: int | v >= 0}")]
 fn length(p: (i32, i32)) -> i32 {
     p.1 - p.0
