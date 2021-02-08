@@ -264,7 +264,7 @@ impl Env<'_> {
         &self,
         fn_ty: &FnTy,
         args: &[Local],
-    ) -> (Heap, LocalsMap, Heap, LocalsMap, Local) {
+    ) -> (Heap, LocalsMap, Heap, LocalsMap, Location) {
         let tcx = self.tcx;
         let inputs = &fn_ty.inputs(args);
         let mut subst = Subst::infer(self.heap(), self.locals(), &fn_ty.in_heap, &inputs);
@@ -282,10 +282,10 @@ impl Env<'_> {
             })
             .collect();
 
-        let ret_local = tcx.fresh::<Local>();
-        let outputs = subst.apply(tcx, &fn_ty.outputs(args, ret_local));
+        let outputs = subst.apply(tcx, &fn_ty.outputs(args));
+        let output = subst.apply(tcx, &fn_ty.output);
 
-        (in_heap, inputs, out_heap, outputs, ret_local)
+        (in_heap, inputs, out_heap, outputs, output)
     }
 
     // Private

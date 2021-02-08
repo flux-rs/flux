@@ -526,7 +526,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             TerminatorKind::Call {
                 func,
                 args,
-                destination,
+                destination: _,
                 ..
             } => {
                 // TODO: For now, we assume that all functions are constants (i.e. they're defined
@@ -537,10 +537,10 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                 // If destination is None, that means that this function doesn't converge;
                 // it diverges and never returns (i.e. returns ! and infinitely loops or smth)
                 // TODO: Perhaps handle the diverging case somehow?
-                let ret = match destination {
-                    Some((_, bb)) => ContId::new(bb.index()),
-                    None => todo!(),
-                };
+                // let ret = match destination {
+                //     Some((_, bb)) => ContId::new(bb.index()),
+                //     None => todo!(),
+                // };
 
                 // For our args, our args will be a list of new temp locals that we create.
                 // We'll actually create these locals after we have our FnBody::Call, so that
@@ -562,7 +562,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                                 FnBody::Call {
                                     func: FnId::new(0),
                                     args: args_temp.clone(),
-                                    ret,
+                                    destination: None,
                                 }
                             }
                             _ => unreachable!(),

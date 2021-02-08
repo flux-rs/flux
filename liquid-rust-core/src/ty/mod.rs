@@ -1,6 +1,6 @@
 pub mod context;
 pub mod subst;
-use std::{collections::HashMap, fmt, iter};
+use std::{collections::HashMap, fmt};
 
 use crate::{
     ast::{self, Place},
@@ -150,7 +150,7 @@ impl FnTy {
             .collect()
     }
 
-    pub fn outputs(&self, args: &[Local], ret: Local) -> LocalsMap {
+    pub fn outputs(&self, args: &[Local]) -> LocalsMap {
         assert!(self.inputs.len() == args.len());
         let map: HashMap<Local, Local> = self
             .inputs
@@ -159,11 +159,7 @@ impl FnTy {
             .map(|((x, _), y)| (*x, *y))
             .collect();
 
-        self.outputs
-            .iter()
-            .map(|(x, l)| (map[x], *l))
-            .chain(iter::once((ret, self.output)))
-            .collect()
+        self.outputs.iter().map(|(x, l)| (map[x], *l)).collect()
     }
 }
 

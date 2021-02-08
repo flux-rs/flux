@@ -57,10 +57,17 @@ pub fn walk_fn_body<I, S, V: Visitor<I, S>>(visitor: &mut V, fn_body: &FnBody<I,
             visitor.visit_fn_body(then);
             visitor.visit_fn_body(else_);
         }
-        FnBody::Call { func, args, ret } => {
+        FnBody::Call {
+            func,
+            args,
+            destination,
+        } => {
             visitor.visit_fn_id(func);
             walk_list!(visitor, visit_local, args);
-            visitor.visit_cont_id(ret);
+            if let Some((place, ret)) = destination {
+                visitor.visit_cont_id(ret);
+                visitor.visit_place(place);
+            }
         }
         FnBody::Jump { target, args } => {
             visitor.visit_cont_id(target);

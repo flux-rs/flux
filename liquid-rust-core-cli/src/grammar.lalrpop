@@ -52,8 +52,8 @@ FnBody: Box<FnBody<Span, &'input str>> = {
   "if" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
     => Box::new(FnBody::Ite{ <> }),
 
-  "call" <func: FnId> "(" <args: Comma<Local>> ")" "ret" <ret: ContId>
-    => Box::new(FnBody::Call{ <> }),
+  "call" <place: Place> ":=" <func: FnId> "(" <args: Comma<Local>> ")" "ret" <ret: ContId>
+    => Box::new(FnBody::Call{ func, args, destination: Some((place, ret)) }),
 
   "jump" <target: ContId> "(" <args: Local*> ")" => Box::new(FnBody::Jump{ <> }),
 
@@ -63,13 +63,9 @@ FnBody: Box<FnBody<Span, &'input str>> = {
 }
 
 ContDef: ContDef<Span, &'input str> = {
-   <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ";" <formal: LocalsMap> ")" "=" <body: FnBody>  => {
+   <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ")" "=" <body: FnBody>  => {
     let mut inputs = vec![];
     let mut params = vec![];
-    for (local, ty) in formal {
-      params.push(local);
-      inputs.push(ty);
-    }
     let ty = ContTy { heap, locals, inputs };
     ContDef { name, params, ty, body }
   }

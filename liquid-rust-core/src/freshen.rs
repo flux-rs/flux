@@ -99,10 +99,15 @@ where
                 then: box self.freshen_body(then),
                 else_: box self.freshen_body(else_),
             },
-            Call { func, args, ret } => Call {
+            Call {
+                func,
+                args,
+                destination,
+            } => Call {
                 func: self.fns[&func],
                 args: self.freshen_args(args),
-                ret: self.freshen_cont_id(ret),
+                destination: destination
+                    .map(|(place, ret)| (self.freshen_place(place), self.freshen_cont_id(ret))),
             },
             Jump { target, args } => Jump {
                 target: self.freshen_cont_id(target),

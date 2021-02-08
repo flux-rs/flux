@@ -185,13 +185,21 @@ impl PrettyPrinter {
             ast::FnBody::Call {
                 func: _func,
                 args,
-                ret,
+                destination,
             } => {
                 indent!(f, indent)?;
-                write!(f, "call ...(")?;
-                join!(f, ", ", x in args => self.print_local(x, f)? );
-                write!(f, ") ret ")?;
-                self.print_cont_id(ret, f)?;
+                if let Some((place, ret)) = destination {
+                    write!(f, "call")?;
+                    self.print_place(place, f)?;
+                    write!(f, " := ...(")?;
+                    join!(f, ", ", x in args => self.print_local(x, f)? );
+                    write!(f, ") ret ")?;
+                    self.print_cont_id(ret, f)?;
+                } else {
+                    write!(f, "call ...(")?;
+                    join!(f, ", ", x in args => self.print_local(x, f)? );
+                    write!(f, ")")?;
+                }
             }
             ast::FnBody::Jump { target, args } => {
                 indent!(f, indent)?;

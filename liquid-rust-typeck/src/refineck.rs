@@ -75,10 +75,14 @@ impl<'a> RefineChecker<'a> {
                     Constraint::guard(&self.tcx.mk_un_op(ty::UnOp::Not, discr), c2),
                 ])
             }
-            FnBody::Call { func, args, ret } => {
+            FnBody::Call {
+                func,
+                args,
+                destination,
+            } => {
                 let fn_ty = self.glob_env.get_ty(*func).unwrap();
 
-                let (in_heap, inputs, out_heap, outputs, ret_local) =
+                let (in_heap, inputs, out_heap, outputs, output) =
                     env.instantiate_fn_call(fn_ty, args);
 
                 let c1 = Constraint::Conj(
@@ -93,16 +97,21 @@ impl<'a> RefineChecker<'a> {
                         })
                         .collect(),
                 );
-                let (c2, bindings) = env.capture_bindings(|env| {
-                    env.extend_heap(&out_heap);
-                    env.insert_locals(outputs);
+                if let Some((place, ret)) = destination {
+                    let (c2, bindings) = env.capture_bindings(|env| {
+                        env.extend_heap(&out_heap);
+                        env.insert_locals(outputs);
+                        env.update(place, out_heap[&output].clone());
 
-                    for arg in args {
-                        env.drop(&ast::Place::from(*arg));
-                    }
-                    self.check_jump(env, self.cont_ty(*ret), &[ret_local])
-                });
-                Constraint::Conj(vec![c1, Constraint::from_bindings(bindings, c2)])
+                        for arg in args {
+                            env.drop(&ast::Place::from(*arg));
+                        }
+                        self.check_jump(env, self.cont_ty(*ret), &[])
+                    });
+                    Constraint::Conj(vec![c1, Constraint::from_bindings(bindings, c2)])
+                } else {
+                    c1
+                }
             }
             FnBody::Jump { target, args } => {
                 let cont_ty = self.cont_ty(*target);

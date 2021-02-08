@@ -58,7 +58,7 @@ pub enum FnBody<I, S = usize> {
     Call {
         func: FnId<S>,
         args: Vec<Local<S>>,
-        ret: ContId<S>,
+        destination: Option<(Place<S>, ContId<S>)>,
     },
     Jump {
         target: ContId<S>,
