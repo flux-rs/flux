@@ -28,9 +28,9 @@ impl<'source> Solve<'source> for AstPredicate<'source> {
             }
             AstPredicateKind::Var(ident) => {
                 // variable predicates can be solved by solving their identifier.
-                let (variable, base_ty) = rcx.solve(ident)?;
+                let (predicate, base_ty) = rcx.solve(ident)?;
 
-                Ok((Predicate::Var(variable), base_ty))
+                Ok((predicate, base_ty))
             }
             AstPredicateKind::UnaryOp(un_op, op) => {
                 // solve the operand.

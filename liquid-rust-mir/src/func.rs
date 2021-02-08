@@ -41,8 +41,8 @@ impl Func {
         self.arity
     }
 
-    pub fn return_ty(&self) -> &BaseTy {
-        self.local_decls.get(Local::ret()).unwrap()
+    pub fn return_ty(&self) -> BaseTy {
+        *self.local_decls.get(Local::ret()).unwrap()
     }
 
     pub fn local_decls(&self) -> impl Iterator<Item = (Local, &BaseTy)> {

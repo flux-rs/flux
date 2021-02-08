@@ -1,23 +1,15 @@
-use crate::ty::LocalVariable;
-
-use liquid_rust_common::{index::Index, new_index};
+use liquid_rust_common::new_index;
 
 use std::fmt;
 
 new_index! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
     Local
 }
 
 impl Local {
     pub const fn ret() -> Self {
         Self(0)
-    }
-}
-
-impl From<Local> for LocalVariable {
-    fn from(local: Local) -> Self {
-        LocalVariable::new(local.index())
     }
 }
 

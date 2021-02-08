@@ -1,7 +1,7 @@
 use crate::Emitter;
 
 use liquid_rust_common::index::Index;
-use liquid_rust_mir::ty::{BaseTy, BinOp, Hole, HoleId, LocalVariable, Predicate, UnOp, Variable};
+use liquid_rust_mir::ty::{BaseTy, BinOp, Hole, HoleId, Predicate, UnOp, Variable};
 
 use std::fmt;
 
@@ -47,8 +47,11 @@ impl Emit for BaseTy {
 impl Emit for Predicate {
     fn emit(&self, f: &mut fmt::Formatter<'_>, emitter: &Emitter) -> fmt::Result {
         match self {
-            Predicate::Hole(hole) => hole.emit(f, emitter),
             Predicate::Lit(literal) => write!(f, "{}", literal),
+            Predicate::Hole(hole) => hole.emit(f, emitter),
+            Predicate::Bound => write!(f, "b"),
+            // All arguments should have been projected.
+            Predicate::Arg(_) => unreachable!(),
             Predicate::Var(variable) => variable.emit(f, emitter),
             Predicate::UnaryOp(un_op, op) => {
                 write!(f, "({} {})", emitter.writer(un_op), emitter.writer(op))
@@ -102,34 +105,19 @@ impl Emit for BinOp {
 }
 
 impl Emit for Variable {
-    fn emit(&self, f: &mut fmt::Formatter<'_>, emitter: &Emitter) -> fmt::Result {
+    fn emit(&self, f: &mut fmt::Formatter<'_>, _emitter: &Emitter) -> fmt::Result {
         match self {
-            Variable::Bound => write!(f, "b"),
-            // All arguments should have been projected.
-            Variable::Arg(_) => unreachable!(),
-            Variable::Local(var) => var.emit(f, emitter),
+            Variable::Local(local) => write!(f, "l{}", local),
+            Variable::Ghost(ghost) => write!(f, "{}", ghost),
         }
     }
 }
 
-impl Emit for LocalVariable {
-    fn emit(&self, f: &mut fmt::Formatter<'_>, emitter: &Emitter) -> fmt::Result {
-        if let Some(variable) = emitter.variables.get(self) {
-            write!(f, "{}", variable)
-        } else {
-            panic!("Variable {} is not in scope", self);
-        }
-    }
-}
 impl Emit for Hole {
     fn emit(&self, f: &mut fmt::Formatter<'_>, emitter: &Emitter) -> fmt::Result {
         self.id.emit(f, emitter)?;
 
         for (target, replacement) in &self.substs {
-            write!(f, "[{} := {}]", target, replacement)?
-        }
-
-        for (target, replacement) in &emitter.variables {
             write!(f, "[{} := {}]", target, replacement)?
         }
 

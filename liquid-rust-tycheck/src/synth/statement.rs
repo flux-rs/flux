@@ -1,43 +1,28 @@
-use crate::{
-    env::Env,
-    result::{TyError, TyErrorKind, TyResult},
-    synth::Synth,
-};
+use crate::{local_env::LocalEnv, synth::Synth};
 
 use liquid_rust_mir::{Statement, StatementKind};
 
 impl<'env> Synth<'env> for Statement {
-    type Ty = Env;
-    type Env = &'env Env;
+    type Ty = LocalEnv;
+    type Env = LocalEnv;
 
-    fn synth(&self, env: Self::Env) -> TyResult<Self::Ty> {
+    fn synth(&self, mut env: Self::Env) -> Self::Ty {
         match &self.kind {
-            StatementKind::Noop => Ok(env.clone()),
+            StatementKind::Noop => env,
             StatementKind::Assign(lhs, rhs) => {
+                let lhs = (*lhs).into();
                 // Synthetize a type for the right-hand side of the assignment.
-                let rhs_ty = rhs
-                    .synth(env)
-                    .map_err(|err| err.with_span(self.span.clone()))?;
-
+                let rhs_ty = rhs.synth(&env);
                 // Get the type of the left-hand side of the assignment from the environment.
-                let lhs_ty = env.get_ty(*lhs);
+                let lhs_ty = env.get_ty(lhs).unwrap();
 
                 // Both sides must have types with the same shape for this assignment to be valid.
-                if !rhs_ty.shape_eq(lhs_ty) {
-                    return Err(TyError {
-                        kind: TyErrorKind::ShapeMismatch {
-                            expected: lhs_ty.clone(),
-                            found: rhs_ty.clone(),
-                        },
-                        span: self.span.clone(),
-                    });
-                }
+                assert!(rhs_ty.shape_eq(lhs_ty));
 
                 // The left-hand side has the type of the right hand side in the new environment.
-                let mut output = env.clone();
-                output.rebind_local(*lhs, rhs_ty);
+                env.rebind(lhs, rhs_ty);
 
-                Ok(output)
+                env
             }
         }
     }

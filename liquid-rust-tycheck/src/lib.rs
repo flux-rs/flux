@@ -2,56 +2,86 @@
 
 mod bblock_env;
 mod check;
-mod env;
-mod glob_env;
-mod result;
+mod func_env;
+mod local_env;
 mod subtype;
 mod synth;
 
 use bblock_env::BBlockEnv;
 use check::Check;
-use env::Env;
-use glob_env::GlobEnv;
+use func_env::FuncEnv;
+use local_env::LocalEnv;
 use subtype::Subtype;
 
-use liquid_rust_common::index::Index;
+use liquid_rust_common::index::{Index, IndexGen};
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{
-    ty::{LocalVariable, Predicate, Ty},
-    BBlockId, Program,
+    ty::{HoleId, Predicate, Ty, Variable},
+    BBlockId, Local, Program,
 };
 
+use std::rc::Rc;
+
 pub fn check_program(program: &Program) {
-    let genv = GlobEnv::new(program);
+    let func_env = FuncEnv::new(program.iter().map(|(_, func)| func.ty().clone()));
+    let generator = Rc::new(IndexGen::new());
+
     let mut emitter = Emitter::new();
 
-    for (func_id, func) in program.iter() {
-        let input_env = Env::new(
-            func.local_decls()
-                .map(|(_, base_ty)| Ty::Refined(*base_ty, Predicate::Hole(genv.new_pred()))),
-        );
+    for (_func_id, func) in program.iter() {
+        if func.user_ty() {
+            let local_gen = IndexGen::<Local>::new();
 
-        println!("Input env: {}", input_env);
+            let ret_local = local_gen.generate();
 
-        let bbenv = BBlockEnv::new(func, &genv, &mut emitter);
+            let mut init_env = LocalEnv::empty(Rc::clone(&generator));
 
-        let start_env = &bbenv.get_ty(BBlockId::start()).input;
+            let func_ty = func
+                .ty()
+                .clone()
+                .project_args(|pos| Predicate::Var(Variable::Local(Local::new(pos + 1))));
 
-        input_env.subtype(start_env, &mut emitter, ()).unwrap();
+            let return_ty = func_ty.return_ty();
 
-        let func_ty = func
-            .ty()
-            .clone()
-            .project_args(|pos| Predicate::Var(LocalVariable::new(pos + 1).into()));
+            for arg_ty in func_ty.arguments() {
+                let arg = local_gen.generate();
+                init_env.bind(Variable::Local(arg), arg_ty.clone());
+            }
 
-        let env = (&genv, &bbenv, func_ty.return_ty());
+            init_env.bind(Variable::Local(ret_local), func.return_ty().refined());
 
-        for (bb_id, bb) in func.bblocks() {
-            let bb_ty = bbenv.get_ty(bb_id);
+            for (local, local_ty) in func.temporaries() {
+                init_env.bind(Variable::Local(local), local_ty.refined());
+            }
 
-            bb.check(bb_ty, &mut emitter, env).unwrap();
+            let mut bb_env = BBlockEnv::new();
+
+            let hole_gen = IndexGen::<HoleId>::new();
+
+            for _ in func.bblocks() {
+                let mut env = LocalEnv::empty(Rc::clone(&generator));
+
+                for (variable, init_ty) in init_env.iter() {
+                    if let Ty::Refined(base_ty, _) = init_ty {
+                        let ty = Ty::Refined(*base_ty, Predicate::Hole(hole_gen.generate().into()));
+                        env.bind(*variable, ty);
+                    } else {
+                        panic!()
+                    }
+                }
+
+                bb_env.insert(env);
+            }
+
+            let bb0_env = bb_env.get_ty(BBlockId::start()).unwrap().clone();
+
+            init_env.subtype(bb0_env, &mut emitter);
+
+            for (bb_id, bb) in func.bblocks() {
+                let ty = bb_env.get_ty(bb_id).unwrap().clone();
+                bb.check(ty, (&func_env, &bb_env, return_ty, &mut emitter));
+            }
         }
     }
-
-    emitter.emit();
+    emitter.emit().unwrap();
 }

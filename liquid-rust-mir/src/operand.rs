@@ -1,7 +1,4 @@
-use crate::{
-    local::Local,
-    ty::{Literal, Predicate, Variable},
-};
+use crate::{local::Local, ty::Literal};
 
 use std::fmt;
 
@@ -9,15 +6,6 @@ use std::fmt;
 pub enum Operand {
     Local(Local),
     Literal(Literal),
-}
-
-impl From<Operand> for Predicate {
-    fn from(operand: Operand) -> Self {
-        match operand {
-            Operand::Local(local) => Predicate::Var(Variable::Local(local.into())),
-            Operand::Literal(literal) => Predicate::Lit(literal),
-        }
-    }
 }
 
 impl fmt::Display for Operand {

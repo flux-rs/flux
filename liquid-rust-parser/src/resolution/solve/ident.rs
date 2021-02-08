@@ -1,4 +1,4 @@
-use liquid_rust_mir::ty::{BaseTy, Variable};
+use liquid_rust_mir::ty::{BaseTy, Predicate};
 
 use crate::{
     ast::Ident,
@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl<'source> Solve<'source> for Ident<'source> {
-    type Output = Variable;
+    type Output = Predicate;
 
     fn solve(
         &self,
@@ -18,14 +18,14 @@ impl<'source> Solve<'source> for Ident<'source> {
         // Traverse the stack of scopes from top to bottom.
         for (index, scope) in rcx.scopes() {
             // If the identifier is in the current scope, return it.
-            if let Some((mut variable, base_ty)) = scope.solve_ident(self) {
+            if let Some((mut predicate, base_ty)) = scope.solve_ident(self) {
                 // If the variable bound to the identifier is an argument. Increase its de Bruijn
                 // index using the index of the current scope.
-                if let Variable::Arg(arg) = &mut variable {
+                if let Predicate::Arg(arg) = &mut predicate {
                     *arg = arg.inc(index);
                 }
 
-                return Ok((variable, base_ty));
+                return Ok((predicate, base_ty));
             }
         }
         // The identifier is not bound. Return an error.

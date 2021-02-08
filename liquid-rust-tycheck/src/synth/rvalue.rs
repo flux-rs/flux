@@ -1,19 +1,15 @@
-use crate::{
-    env::Env,
-    result::{TyError, TyErrorKind, TyResult},
-    synth::Synth,
-};
+use crate::{local_env::LocalEnv, synth::Synth};
 
 use liquid_rust_mir::{
-    ty::{BaseTy, BinOp, Predicate, Ty, UnOp, Variable},
-    Rvalue, DUMMY_SP,
+    ty::{BaseTy, BinOp, Predicate, Ty, UnOp},
+    Rvalue,
 };
 
 impl<'env> Synth<'env> for Rvalue {
     type Ty = Ty;
-    type Env = &'env Env;
+    type Env = &'env LocalEnv;
 
-    fn synth(&self, env: Self::Env) -> TyResult<Self::Ty> {
+    fn synth(&self, env: Self::Env) -> Self::Ty {
         match self {
             Rvalue::Use(operand) => operand.synth(env),
             Rvalue::UnApp(un_op, op) => {
@@ -26,28 +22,20 @@ impl<'env> Synth<'env> for Rvalue {
                 };
 
                 // Synthetize the type of the operand
-                let op_ty1 = op.synth(env)?;
+                let op_ty1 = op.synth(env);
                 // The type of the operand must have the type that the operator receives as base
                 // type.
-                if !op_ty1.has_base(param_ty) {
-                    return Err(TyError {
-                        kind: TyErrorKind::BaseMismatch {
-                            expected: param_ty,
-                            found: op_ty1.clone(),
-                        },
-                        span: DUMMY_SP,
-                    });
-                }
-
+                assert!(op_ty1.has_base(param_ty));
+                //
                 // Resolve the operand into a predicate. This is possible because operands are
                 // literals or locals.
                 let op = Box::new(Predicate::from(op.clone()));
 
                 // Return the `{ b : B | b == (un_op op) }` type.
-                Ok(Ty::Refined(
+                Ty::Refined(
                     ret_ty,
-                    Predicate::Var(Variable::Bound).eq(ret_ty, Predicate::UnaryOp(*un_op, op)),
-                ))
+                    Predicate::Bound.eq(ret_ty, Predicate::UnaryOp(*un_op, op)),
+                )
             }
             Rvalue::BinApp(bin_op, op1, op2) => {
                 let (op_ty, ret_ty) = match bin_op {
@@ -74,32 +62,17 @@ impl<'env> Synth<'env> for Rvalue {
                     | BinOp::Gte(sign, size) => (BaseTy::Int(*sign, *size), BaseTy::Bool),
                 };
                 // Synthetize the types of the operands.
-                let op_ty1 = op1.synth(env)?;
-                let op_ty2 = op2.synth(env)?;
+                let op_ty1 = op1.synth(env);
+                let op_ty2 = op2.synth(env);
 
                 // The type of the operands should be the same.
                 //
                 // FIXME: this is not the case for the offset and shift operators.
-                if !op_ty1.shape_eq(&op_ty2) {
-                    return Err(TyError {
-                        kind: TyErrorKind::ShapeMismatch {
-                            expected: op_ty1.clone(),
-                            found: op_ty2.clone(),
-                        },
-                        span: DUMMY_SP,
-                    });
-                }
+                assert!(op_ty1.shape_eq(&op_ty2));
+
                 // The type of the operands must have the type that the operator receives as base
                 // type.
-                if !op_ty1.has_base(op_ty) {
-                    return Err(TyError {
-                        kind: TyErrorKind::BaseMismatch {
-                            expected: op_ty,
-                            found: op_ty1.clone(),
-                        },
-                        span: DUMMY_SP,
-                    });
-                }
+                assert!(op_ty1.has_base(op_ty));
 
                 // Resolve the operands into predicates. This is possible because operands are
                 // literals or locals.
@@ -107,11 +80,10 @@ impl<'env> Synth<'env> for Rvalue {
                 let op2 = Box::new(Predicate::from(op2.clone()));
 
                 // Return the `{ b : B | b == (op1 bin_op op2) }` type.
-                Ok(Ty::Refined(
+                Ty::Refined(
                     ret_ty,
-                    Predicate::Var(Variable::Bound)
-                        .eq(ret_ty, Predicate::BinaryOp(*bin_op, op1, op2)),
-                ))
+                    Predicate::Bound.eq(ret_ty, Predicate::BinaryOp(*bin_op, op1, op2)),
+                )
             }
         }
     }

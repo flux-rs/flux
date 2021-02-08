@@ -1,9 +1,12 @@
-use crate::ty::{
-    literal::Literal,
-    local::LocalVariable,
-    op::{BinOp, UnOp},
-    variable::Variable,
-    BaseTy,
+use crate::{
+    ty::{
+        argument::Argument,
+        literal::Literal,
+        op::{BinOp, UnOp},
+        variable::Variable,
+        BaseTy,
+    },
+    Operand,
 };
 
 use liquid_rust_common::new_index;
@@ -18,7 +21,22 @@ new_index! {
 #[derive(Clone, Debug)]
 pub struct Hole {
     pub id: HoleId,
-    pub substs: Vec<(LocalVariable, LocalVariable)>,
+    pub substs: Vec<(Variable, Variable)>,
+}
+
+impl From<HoleId> for Hole {
+    fn from(id: HoleId) -> Self {
+        Self { id, substs: vec![] }
+    }
+}
+
+impl From<Operand> for Predicate {
+    fn from(op: Operand) -> Self {
+        match op {
+            Operand::Literal(literal) => Predicate::Lit(literal),
+            Operand::Local(local) => Predicate::Var(local.into()),
+        }
+    }
 }
 
 impl fmt::Display for Hole {
@@ -38,6 +56,10 @@ impl fmt::Display for Hole {
 pub enum Predicate {
     /// A literal.
     Lit(Literal),
+    /// A variable bound by a refined base type, e.g the `b` in `{ b: usize | b > 0 }`.
+    Bound,
+    /// A variable bound by a dependent function type, e.g the `x` in `fn(x: usize) -> usize`.
+    Arg(Argument),
     /// A variable.
     Var(Variable),
     /// An unary operation between predicates.
@@ -69,15 +91,12 @@ impl Predicate {
     /// Project the arguments inside the predicate that have a specific index into local variables.
     pub(crate) fn project(&mut self, f: impl Fn(usize) -> Predicate + Copy, index: usize) {
         match self {
-            Self::Lit(_) | Self::Hole(_) => (),
-            Self::Var(variable) => match variable {
-                Variable::Local(_) | Variable::Bound => (),
-                Variable::Arg(arg) => {
-                    if arg.index() == index {
-                        *self = f(arg.pos());
-                    }
+            Self::Lit(_) | Self::Hole(_) | Self::Bound | Self::Var(_) => (),
+            Self::Arg(arg) => {
+                if arg.index() == index {
+                    *self = f(arg.pos());
                 }
-            },
+            }
             Self::UnaryOp(_, op) => op.project(f, index),
             Self::BinaryOp(_, op1, op2) => {
                 op1.project(f, index);
@@ -87,17 +106,14 @@ impl Predicate {
         }
     }
 
-    pub(crate) fn replace_variable(&mut self, target: LocalVariable, replacement: LocalVariable) {
+    pub(crate) fn replace_variable(&mut self, target: Variable, replacement: Variable) {
         match self {
-            Self::Lit(_) => (),
-            Self::Var(var) => match var {
-                Variable::Bound | Variable::Arg(_) => (),
-                Variable::Local(local_var) => {
-                    if *local_var == target {
-                        *local_var = replacement;
-                    }
+            Self::Lit(_) | Self::Bound | Self::Arg(_) => (),
+            Self::Var(var) => {
+                if *var == target {
+                    *var = replacement;
                 }
-            },
+            }
             Self::UnaryOp(_, op) => op.replace_variable(target, replacement),
             Self::BinaryOp(_, op1, op2) => {
                 op1.replace_variable(target, replacement);
@@ -161,6 +177,8 @@ impl fmt::Display for Predicate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Lit(literal) => literal.fmt(f),
+            Self::Bound => "b".fmt(f),
+            Self::Arg(arg) => arg.fmt(f),
             Self::Var(variable) => variable.fmt(f),
             Self::UnaryOp(un_op, op) => write!(f, "{}{}", un_op, op),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "({} {} {})", op1, bin_op, op2),

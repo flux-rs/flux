@@ -1,7 +1,4 @@
-use crate::ty::{
-    base_ty::BaseTy, literal::Literal, local::LocalVariable, predicate::Predicate,
-    variable::Variable,
-};
+use crate::ty::{base_ty::BaseTy, literal::Literal, predicate::Predicate, variable::Variable};
 
 use std::fmt;
 
@@ -58,7 +55,7 @@ impl FuncTy {
         self.return_ty.project(f, index);
     }
 
-    fn replace_variable(&mut self, target: LocalVariable, replacement: LocalVariable) {
+    fn replace_variable(&mut self, target: Variable, replacement: Variable) {
         for argument in &mut self.arguments {
             argument.replace_variable(target, replacement);
         }
@@ -93,7 +90,7 @@ pub enum Ty {
 
 impl Ty {
     /// Replace a local variable with another local variable.
-    pub fn replace_variable(&mut self, target: LocalVariable, replacement: LocalVariable) {
+    pub fn replace_variable(&mut self, target: Variable, replacement: Variable) {
         match self {
             Self::Refined(_, predicate) => predicate.replace_variable(target, replacement),
             Self::Func(func_ty) => func_ty.replace_variable(target, replacement),
@@ -145,7 +142,7 @@ impl Ty {
         match self {
             Self::Refined(base_ty, predicate) => Self::Refined(
                 base_ty,
-                predicate & Predicate::from(Variable::Bound).eq(base_ty, var.into()),
+                predicate & Predicate::Bound.eq(base_ty, var.into()),
             ),
             ty => ty,
         }
@@ -155,10 +152,7 @@ impl Ty {
     pub fn singleton(literal: Literal) -> Self {
         let base_ty = literal.base_ty();
 
-        Ty::Refined(
-            base_ty,
-            Predicate::from(Variable::Bound).eq(base_ty, literal),
-        )
+        Ty::Refined(base_ty, Predicate::Bound.eq(base_ty, literal))
     }
 }
 
