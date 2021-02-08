@@ -45,7 +45,12 @@ impl<'a> TypeLowerer<'a> {
         let fn_ty = lowerer.lower_fn_ty(&func.ty);
         let ret_cont_ty = ty::ContTy::new(
             lowerer.lower_heap(&func.ty.out_heap),
-            func.ty.outputs.iter().copied().collect(),
+            func.ty
+                .outputs
+                .iter()
+                .zip(&func.params)
+                .map(|((_, l), x)| (*x, *l))
+                .collect(),
             vec![func.ty.output],
         );
         lowerer.vars_in_scope.extend(fn_ty.in_heap.vars_in_scope());
@@ -87,7 +92,7 @@ impl<'a> TypeLowerer<'a> {
         ty::FnTy {
             regions: fn_ty.regions.clone(),
             in_heap: self.lower_heap(&fn_ty.in_heap),
-            inputs: fn_ty.inputs.clone(),
+            inputs: fn_ty.inputs.iter().copied().collect(),
             out_heap: self.lower_heap(&fn_ty.out_heap),
             outputs: fn_ty.outputs.iter().copied().collect(),
             output: fn_ty.output,

@@ -1,43 +1,43 @@
-use std::collections::HashMap;
-
 use crate::{
     constraint::Constraint,
     env::{OwnershipError, RefKind},
+    glob_env::GlobEnv,
 };
 use ast::{FnBody, StatementKind};
 use liquid_rust_core::{
     ast::{self, ContDef, FnDef, Rvalue, Statement},
-    names::{ContId, Field},
-    ty::{
-        self, pred, subst::Subst, BaseTy, ContTy, Heap, LocalsMap, Pred, Ty, TyCtxt, TyKind, TyS,
-    },
+    names::*,
+    ty::{self, pred, subst::Subst, BaseTy, ContTy, Heap, Pred, Ty, TyCtxt, TyKind, TyS},
 };
 use pred::Place;
 
 use crate::env::Env;
 
 pub struct RefineChecker<'a> {
-    conts: &'a HashMap<ContId, ContTy>,
     tcx: &'a TyCtxt,
+    fn_id: FnId,
+    glob_env: &'a GlobEnv,
     errors: Vec<OwnershipError>,
 }
 
 impl<'a> RefineChecker<'a> {
-    pub fn new(tcx: &'a TyCtxt, conts: &'a HashMap<ContId, ContTy>) -> Self {
+    pub fn new(tcx: &'a TyCtxt, glob_env: &'a GlobEnv, fn_id: FnId) -> Self {
         Self {
             tcx,
-            conts,
+            fn_id,
+            glob_env,
             errors: vec![],
         }
     }
 
-    pub fn check_fn_def<I>(
-        mut self,
-        func: &FnDef<I>,
-        fn_ty: &ty::FnTy,
-    ) -> Result<Constraint, Vec<OwnershipError>> {
+    fn cont_ty(&self, cont_id: ContId) -> &ContTy {
+        self.glob_env.get_cont_ty(self.fn_id, cont_id).unwrap()
+    }
+
+    pub fn check<I>(mut self, func: &FnDef<I>) -> Result<Constraint, Vec<OwnershipError>> {
+        let fn_ty = self.glob_env.get_ty(self.fn_id).unwrap();
         let mut env = Env::new(self.tcx);
-        env.insert_locals(fn_ty.locals(&func.params));
+        env.insert_locals(fn_ty.inputs(&func.params));
         env.extend_heap(&fn_ty.in_heap);
 
         let constraint = self.check_body(&mut env, &func.body);
@@ -52,6 +52,7 @@ impl<'a> RefineChecker<'a> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn check_body<I>(&mut self, env: &mut Env, body: &FnBody<I>) -> Constraint {
         match body {
             FnBody::LetCont(defs, rest) => {
@@ -74,31 +75,38 @@ impl<'a> RefineChecker<'a> {
                     Constraint::guard(&self.tcx.mk_un_op(ty::UnOp::Not, discr), c2),
                 ])
             }
-            FnBody::Call { .. } => todo!(),
-            FnBody::Jump { target, args } => {
-                let cont_ty = &self.conts[target];
+            FnBody::Call { func, args, ret } => {
+                let fn_ty = self.glob_env.get_ty(*func).unwrap();
 
-                let heap1 = env.heap();
-                let locals1 = env.locals();
-                let heap2 = &cont_ty.heap;
-                let locals2 = &cont_ty.locals(args);
+                let (in_heap, inputs, out_heap, outputs, ret_local) =
+                    env.instantiate_fn_call(fn_ty, args);
 
-                let subst = infer_subst(heap1, locals1, heap2, locals2);
-                let heap2 = &subst.apply(self.tcx, heap2);
-                let locals2 = subst.apply(self.tcx, locals2);
-
-                Constraint::Conj(
-                    locals2
+                let c1 = Constraint::Conj(
+                    inputs
                         .into_iter()
                         .map(|(x, l)| {
                             let ty1 = &self
                                 .tcx
                                 .selfify(&env.lookup(&ast::Place::from(x)), pred::Place::from(l));
-                            let ty2 = &heap2[&l];
-                            env.subtyping(ty1, heap2, ty2)
+                            let ty2 = &in_heap[&l];
+                            env.subtyping(ty1, &in_heap, ty2)
                         })
                         .collect(),
-                )
+                );
+                let (c2, bindings) = env.capture_bindings(|env| {
+                    env.extend_heap(&out_heap);
+                    env.insert_locals(outputs);
+
+                    for arg in args {
+                        env.drop(&ast::Place::from(*arg));
+                    }
+                    self.check_jump(env, self.cont_ty(*ret), &[ret_local])
+                });
+                Constraint::Conj(vec![c1, Constraint::from_bindings(bindings, c2)])
+            }
+            FnBody::Jump { target, args } => {
+                let cont_ty = self.cont_ty(*target);
+                self.check_jump(env, cont_ty, args)
             }
             FnBody::Seq(stmnt, rest) => {
                 let (c, bindings) = env.capture_bindings(|env| self.check_stmnt(env, stmnt));
@@ -116,10 +124,35 @@ impl<'a> RefineChecker<'a> {
         }
     }
 
+    fn check_jump(&self, env: &Env, cont_ty: &ContTy, args: &[Local]) -> Constraint {
+        let subst = Subst::infer(
+            env.heap(),
+            env.locals(),
+            &cont_ty.heap,
+            &cont_ty.locals(args),
+        );
+
+        let heap = &subst.apply(self.tcx, &cont_ty.heap);
+        let locals = subst.apply(self.tcx, &cont_ty.locals(args));
+
+        Constraint::Conj(
+            locals
+                .into_iter()
+                .map(|(x, l)| {
+                    let ty1 = &self
+                        .tcx
+                        .selfify(&env.lookup(&ast::Place::from(x)), pred::Place::from(l));
+                    let ty2 = &heap[&l];
+                    env.subtyping(ty1, heap, ty2)
+                })
+                .collect(),
+        )
+    }
+
     fn check_cont_def<I>(&mut self, env: &mut Env, def: &ContDef<I>) -> Constraint {
         let snapshot = env.snapshot_without_locals();
 
-        let cont_ty = &self.conts[&def.name];
+        let cont_ty = self.cont_ty(def.name);
         let bindings = cont_ty.heap.bindings();
         env.insert_locals(cont_ty.locals(&def.params));
         env.extend_heap(&cont_ty.heap);
@@ -304,33 +337,5 @@ pub fn subtyping(tcx: &TyCtxt, heap1: &Heap, ty1: &TyS, heap2: &Heap, ty2: &TyS)
         }
         (_, TyKind::Uninit(n)) if ty1.size() == *n => Constraint::True,
         _ => bug!("{} {}", ty1, ty2),
-    }
-}
-
-pub fn infer_subst(heap1: &Heap, locals1: &LocalsMap, heap2: &Heap, locals2: &LocalsMap) -> Subst {
-    let mut subst = Subst::new();
-    for (x, l2) in locals2 {
-        let l1 = &locals1[x];
-        let ty1 = &heap1[l1];
-        let ty2 = &heap2[l2];
-        subst.add_location_subst(*l2, *l1);
-        infer_subst_ty(&mut subst, heap1, ty1, heap2, ty2);
-    }
-    subst
-}
-
-fn infer_subst_ty(subst: &mut Subst, heap1: &Heap, ty1: &Ty, heap2: &Heap, ty2: &Ty) {
-    match (ty1.kind(), ty2.kind()) {
-        (TyKind::Ref(.., l1), TyKind::Ref(.., l2)) | (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
-            subst.add_location_subst(*l2, *l1);
-            infer_subst_ty(subst, heap1, &heap1[l1], heap2, &heap2[l2]);
-        }
-        (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
-            for ((fld1, ty1), (fld2, ty2)) in tup1.iter().zip(tup2) {
-                subst.add_field_subst(*fld2, *fld1);
-                infer_subst_ty(subst, heap1, ty1, heap2, ty2);
-            }
-        }
-        _ => {}
     }
 }

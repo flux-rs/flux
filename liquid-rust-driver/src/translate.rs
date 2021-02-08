@@ -336,7 +336,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                 let ty = self.get_holy_type(decl.ty);
 
                 params.push(arg);
-                inputs.push(loc);
+                inputs.push((arg, loc));
                 in_heap.push((loc, ty));
             }
 
@@ -558,14 +558,9 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
                                 // then use it as the name of the function
                                 // we're calling.
 
-                                // FIXME: we need to decide how are we goig
-                                // to reference functions in lrcore
-                                // let fname = self.tcx.def_path_str(*def_id);
-                                let func = Place::from(Local::new(0));
-
-                                // Finally, return our FnBody::Call!
+                                // TODO: map mir def_id to core FnId
                                 FnBody::Call {
-                                    func,
+                                    func: FnId::new(0),
                                     args: args_temp.clone(),
                                     ret,
                                 }

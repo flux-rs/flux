@@ -7,7 +7,7 @@ use liquid_rust_core::{
         pred::{Place, Var},
         FnTy, Heap, Pred, Refine, Ty,
     },
-    names::Field,
+    names::{Field, Local},
     ty::{BinOp, Location, UnOp},
 };
 use liquid_rust_parser::ast;
@@ -15,27 +15,34 @@ use quickscope::ScopeMap;
 
 pub struct LowerCtx<'src> {
     vars: ScopeMap<&'src str, Var>,
-    locs: usize,
+    locations: usize,
     fields: usize,
+    locals: usize,
 }
 
 impl<'src> LowerCtx<'src> {
     pub fn new() -> Self {
         LowerCtx {
             vars: ScopeMap::new(),
-            locs: 0,
+            locations: 0,
             fields: 0,
+            locals: 0,
         }
     }
 
     fn fresh_location(&mut self) -> Location {
-        self.locs += 1;
-        Location::new(self.locs - 1)
+        self.locations += 1;
+        Location::new(self.locations - 1)
     }
 
     fn fresh_field(&mut self) -> Field {
         self.fields += 1;
         Field::new(self.fields - 1)
+    }
+
+    fn fresh_local(&mut self) -> Local {
+        self.locals += 1;
+        Local::new(self.locals - 1)
     }
 }
 
@@ -156,7 +163,7 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
             lcx.vars.define(ident.symbol, Var::Location(loc));
 
             // We then insert the arg into the inputs and the heap.
-            inputs.push(loc);
+            inputs.push((lcx.fresh_local(), loc));
             in_heap.push((loc, ty.clone()));
         }
 

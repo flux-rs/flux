@@ -9,6 +9,5 @@ members = [
   "liquid-rust-parser",
   "liquid-rust-typeck",
 ]
-
-[profile.dev]
-debug = false
+# [profile.dev]
+# debug = false

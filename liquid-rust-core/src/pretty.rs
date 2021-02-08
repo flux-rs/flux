@@ -19,6 +19,12 @@ macro_rules! join {
     }};
 }
 
+impl<I, S: fmt::Display + Eq + std::hash::Hash> fmt::Display for ast::Program<I, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        PrettyPrinter.print_program(self, f, 0)
+    }
+}
+
 impl<I, S: fmt::Display> fmt::Display for ast::FnDef<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PrettyPrinter.print_fn_def(self, f, 0)
@@ -102,6 +108,18 @@ impl<S: fmt::Display> fmt::Debug for ast::Heap<S> {
 pub struct PrettyPrinter;
 
 impl PrettyPrinter {
+    fn print_program<I, S: fmt::Display + Eq + std::hash::Hash>(
+        &mut self,
+        program: &ast::Program<I, S>,
+        f: &mut fmt::Formatter<'_>,
+        indent: usize,
+    ) -> fmt::Result {
+        for (_, def) in program.iter() {
+            self.print_fn_def(def, f, indent)?;
+            writeln!(f)?;
+        }
+        Ok(())
+    }
     fn print_fn_def<I, S: fmt::Display>(
         &mut self,
         func: &ast::FnDef<I, S>,
@@ -114,7 +132,13 @@ impl PrettyPrinter {
         self.print_heap(&func.ty.in_heap, f)?;
         indent!(f, indent + 2)?;
         write!(f, "; ")?;
-        self.print_locals(func.params.iter().zip(&func.ty.inputs), f)?;
+        self.print_locals(
+            func.params
+                .iter()
+                .zip(&func.ty.inputs)
+                .map(|(x, (_, ty))| (x, ty)),
+            f,
+        )?;
         indent!(f, indent + 2)?;
         write!(f, ") ret ")?;
         self.print_cont_id(&func.ret, f)?;
@@ -370,7 +394,8 @@ impl PrettyPrinter {
                 write!(f, "&")?;
                 match r {
                     ast::Region::Infer => write!(f, "{{ _ }}")?,
-                    ast::Region::Concrete(_) | ast::Region::Universal(_) => write!(f, "...")?,
+                    ast::Region::Universal(urid) => write!(f, "'{}", urid.inner())?,
+                    ast::Region::Concrete(_) => write!(f, "...")?,
                 }
                 match bk {
                     ast::BorrowKind::Shared => write!(f, " ")?,
@@ -449,7 +474,7 @@ impl PrettyPrinter {
             ast::pred::BinOp::And => write!(f, "&&"),
             ast::pred::BinOp::Add => write!(f, "+"),
             ast::pred::BinOp::Sub => write!(f, "-"),
-            ast::pred::BinOp::Eq => write!(f, "="),
+            ast::pred::BinOp::Eq => write!(f, "=="),
             ast::pred::BinOp::Neq => write!(f, "!="),
             ast::pred::BinOp::Lt => write!(f, "<"),
             ast::pred::BinOp::Gt => write!(f, ">"),

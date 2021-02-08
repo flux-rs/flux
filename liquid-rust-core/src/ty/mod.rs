@@ -1,6 +1,6 @@
 pub mod context;
 pub mod subst;
-use std::fmt;
+use std::{collections::HashMap, fmt, iter};
 
 use crate::{
     ast::{self, Place},
@@ -135,18 +135,34 @@ pub enum TyKind {
 pub struct FnTy {
     pub regions: Vec<UniversalRegion>,
     pub in_heap: Heap,
-    pub inputs: Vec<Location>,
+    pub inputs: LocalsMap,
     pub out_heap: Heap,
     pub outputs: LocalsMap,
     pub output: Location,
 }
 
 impl FnTy {
-    pub fn locals(&self, args: &[Local]) -> LocalsMap {
+    pub fn inputs(&self, args: &[Local]) -> LocalsMap {
         assert!(self.inputs.len() == args.len());
         args.iter()
             .zip(&self.inputs)
-            .map(|(x, l)| (*x, *l))
+            .map(|(x, (_, l))| (*x, *l))
+            .collect()
+    }
+
+    pub fn outputs(&self, args: &[Local], ret: Local) -> LocalsMap {
+        assert!(self.inputs.len() == args.len());
+        let map: HashMap<Local, Local> = self
+            .inputs
+            .iter()
+            .zip(args)
+            .map(|((x, _), y)| (*x, *y))
+            .collect();
+
+        self.outputs
+            .iter()
+            .map(|(x, l)| (map[x], *l))
+            .chain(iter::once((ret, self.output)))
             .collect()
     }
 }
@@ -409,6 +425,14 @@ impl LocalsMap {
 
     pub fn locals(&self) -> impl Iterator<Item = &Local> {
         self.iter().map(|(x, _)| x)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 

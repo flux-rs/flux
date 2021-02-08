@@ -3,7 +3,7 @@ use ast::Proj;
 use liquid_rust_core::{
     ast,
     names::{Local, Location},
-    ty::{self, pred::Place, Heap, LocalsMap, Region, Ty, TyCtxt, TyS, Walk},
+    ty::{self, pred::Place, subst::Subst, FnTy, Heap, LocalsMap, Region, Ty, TyCtxt, TyS, Walk},
 };
 use std::{collections::HashSet, fmt};
 use ty::{BorrowKind, TyKind};
@@ -44,7 +44,9 @@ impl Env<'_> {
     }
 
     pub fn borrow(&mut self, place: &ast::Place) -> Location {
-        let ty = self.lookup(place).clone();
+        let ty = self
+            .tcx
+            .selfify(self.lookup(place), self.resolve_place(place));
         let l = self.fresh_location();
         self.heap.insert(l, ty);
         l
@@ -223,6 +225,69 @@ impl Env<'_> {
         (r, bindings)
     }
 
+    pub fn subtyping(&self, ty1: &Ty, heap2: &Heap, ty2: &Ty) -> Constraint {
+        let tcx = self.tcx;
+        let heap1 = &self.heap;
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Fn(..), TyKind::Fn(..)) => todo!(),
+            (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
+                .iter()
+                .zip(tup2.types())
+                .rev()
+                .fold(Constraint::True, |c, ((f, ty1), ty2)| {
+                    Constraint::Conj(vec![
+                        self.subtyping(ty1, heap2, ty2),
+                        Constraint::from_binding(*f, ty1.clone(), c),
+                    ])
+                }),
+            (TyKind::Ref(bk1, r1, l1), TyKind::Ref(bk2, r2, l2)) if bk1 >= bk2 => {
+                assert!(Env::outlives(r1, r2), "{} :> {}", r1, r2);
+                let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
+                let ty2 = &heap2[l2];
+                self.subtyping(ty1, heap2, ty2)
+            }
+            (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
+                let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
+                let ty2 = &heap2[l2];
+                self.subtyping(ty1, heap2, ty2)
+            }
+            (TyKind::Refine(bty1, refine1), TyKind::Refine(bty2, refine2)) if bty1 == bty2 => {
+                Constraint::from_subtype(*bty1, refine1, refine2)
+            }
+            (TyKind::Uninit(n1), TyKind::Uninit(n2)) if n1 == n2 => Constraint::True,
+            (TyKind::Refine(..), TyKind::Uninit(n)) if ty1.size() == *n => Constraint::True,
+            _ => bug!("{} <: {}", ty1, ty2),
+        }
+    }
+
+    pub fn instantiate_fn_call(
+        &self,
+        fn_ty: &FnTy,
+        args: &[Local],
+    ) -> (Heap, LocalsMap, Heap, LocalsMap, Local) {
+        let tcx = self.tcx;
+        let inputs = &fn_ty.inputs(args);
+        let mut subst = Subst::infer(self.heap(), self.locals(), &fn_ty.in_heap, &inputs);
+
+        let in_heap = subst.apply(tcx, &fn_ty.in_heap);
+        let inputs = subst.apply(tcx, inputs);
+
+        let out_heap = fn_ty
+            .out_heap
+            .iter()
+            .map(|(l, ty)| {
+                let fresh = tcx.fresh::<Location>();
+                subst.add_location_subst(*l, fresh);
+                (fresh, subst.apply(tcx, ty))
+            })
+            .collect();
+
+        let ret_local = tcx.fresh::<Local>();
+        let outputs = subst.apply(tcx, &fn_ty.outputs(args, ret_local));
+
+        (in_heap, inputs, out_heap, outputs, ret_local)
+    }
+
     // Private
 
     fn insert_local(&mut self, x: Local, l: Location) {
@@ -315,7 +380,7 @@ impl Env<'_> {
         Constraint::Conj(constraints)
     }
 
-    pub fn outlives(region1: &Region, region2: &Region) -> bool {
+    fn outlives(region1: &Region, region2: &Region) -> bool {
         match (region1, region2) {
             (Region::Concrete(places1), Region::Concrete(places2)) => {
                 let places1: HashSet<_> = places1.iter().collect();
@@ -326,41 +391,6 @@ impl Env<'_> {
             (Region::Universal(r1), Region::Universal(r2)) => r1 == r2,
             (Region::Universal(_), _) | (_, Region::Universal(_)) => false,
             (Region::Infer(_), _) | (_, Region::Infer(_)) => bug!(),
-        }
-    }
-
-    pub fn subtyping(&self, ty1: &Ty, heap2: &Heap, ty2: &Ty) -> Constraint {
-        let tcx = self.tcx;
-        let heap1 = &self.heap;
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Fn(..), TyKind::Fn(..)) => todo!(),
-            (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
-                .iter()
-                .zip(tup2.types())
-                .rev()
-                .fold(Constraint::True, |c, ((f, ty1), ty2)| {
-                    Constraint::Conj(vec![
-                        self.subtyping(ty1, heap2, ty2),
-                        Constraint::from_binding(*f, ty1.clone(), c),
-                    ])
-                }),
-            // TODO check regions
-            (TyKind::Ref(bk1, r1, l1), TyKind::Ref(bk2, r2, l2)) if bk1 >= bk2 => {
-                assert!(Env::outlives(r1, r2), "{} :> {}", r1, r2);
-                let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
-                let ty2 = &heap2[l2];
-                self.subtyping(ty1, heap2, ty2)
-            }
-            (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
-                let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
-                let ty2 = &heap2[l2];
-                self.subtyping(ty1, heap2, ty2)
-            }
-            (TyKind::Refine(bty1, refine1), TyKind::Refine(bty2, refine2)) if bty1 == bty2 => {
-                Constraint::from_subtype(*bty1, refine1, refine2)
-            }
-            (_, TyKind::Uninit(n)) if ty1.size() == *n => Constraint::True,
-            _ => bug!("{} <: {}", ty1, ty2),
         }
     }
 }

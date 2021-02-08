@@ -19,9 +19,11 @@ extern crate rustc_mir;
 extern crate rustc_span;
 extern crate rustc_target;
 
+use liquid_rust_core::{ast::Program, names::FnId};
+use rustc_index::vec::Idx;
 use visitor::DefCollector;
 
-use liquid_rust_typeck::check_fn_def;
+use liquid_rust_typeck::check_program;
 use rustc_driver::{catch_with_exit_code, Callbacks, Compilation, RunCompiler};
 use rustc_interface::{interface::Compiler, Queries};
 use translate::Transformer;
@@ -54,21 +56,14 @@ impl Callbacks for LiquidRustDriver {
                 }
             }
 
+            let mut program = Program::new();
             for &body_id in &tcx.hir().krate().body_ids {
                 let def_id = tcx.hir().body_owner_def_id(body_id);
                 let body = tcx.optimized_mir(def_id);
                 let func = Transformer::translate(tcx, &mut annotations, body);
-                // println!("{}", func);
-
-                match check_fn_def(func) {
-                    Ok(safeness) => {
-                        println!("{}", safeness);
-                    }
-                    Err(errs) => {
-                        println!("{:?}", errs);
-                    }
-                }
+                program.add_fn(FnId::new(def_id.index()), func);
             }
+            check_program(program);
         });
         Compilation::Stop
     }

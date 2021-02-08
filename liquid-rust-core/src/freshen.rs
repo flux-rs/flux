@@ -5,7 +5,7 @@ use crate::{
         pred::{Pred, Var},
         *,
     },
-    names::{ContId, Field, Local, Location},
+    names::{ContId, Field, FnId, Local, Location},
     ty::context::TyCtxt,
 };
 use quickscope::ScopeMap;
@@ -16,6 +16,7 @@ pub struct NameFreshener<'a, S> {
     locations: ScopeMap<Location<S>, Location>,
     fields: ScopeMap<Field<S>, Field>,
     regions: HashMap<UniversalRegion<S>, UniversalRegion>,
+    fns: HashMap<FnId<S>, FnId>,
     tcx: &'a TyCtxt,
 }
 
@@ -30,11 +31,26 @@ where
             locations: ScopeMap::new(),
             fields: ScopeMap::new(),
             regions: HashMap::new(),
+            fns: HashMap::new(),
             tcx,
         }
     }
 
-    pub fn freshen<I>(mut self, def: FnDef<I, S>) -> FnDef<I> {
+    pub fn freshen<I>(mut self, program: Program<I, S>) -> Program<I> {
+        let mut defs = vec![];
+        for (fn_id, def) in program {
+            let fresh = self.tcx.fresh::<FnId>();
+            self.fns.insert(fn_id, fresh);
+            defs.push((fresh, def))
+        }
+        let mut program = Program::new();
+        for (fn_id, def) in defs {
+            program.add_fn(fn_id, self.freshen_fn_def(def));
+        }
+        program
+    }
+
+    fn freshen_fn_def<I>(&mut self, def: FnDef<I, S>) -> FnDef<I> {
         let tcx = self.tcx;
         self.conts.define(def.ret, tcx.fresh::<ContId>());
         for local in &def.params {
@@ -42,6 +58,9 @@ where
         }
         for (location, _) in &def.ty.in_heap {
             self.locations.define(*location, tcx.fresh::<Location>());
+        }
+        for region in &def.ty.regions {
+            self.regions.insert(*region, tcx.fresh::<UniversalRegion>());
         }
 
         FnDef {
@@ -81,7 +100,7 @@ where
                 else_: box self.freshen_body(else_),
             },
             Call { func, args, ret } => Call {
-                func: self.freshen_place(func),
+                func: self.fns[&func],
                 args: self.freshen_args(args),
                 ret: self.freshen_cont_id(ret),
             },
@@ -201,16 +220,16 @@ where
     fn freshen_fn_ty(&mut self, ty: FnTy<S>) -> FnTy {
         let mut regions = vec![];
         for region in ty.regions {
-            let fresh = self.tcx.fresh::<UniversalRegion>();
-            self.regions.insert(region, fresh);
-            regions.push(fresh);
+            regions.push(self.regions[&region])
+        }
+
+        self.locals.push_layer();
+        for (local, _) in &ty.inputs {
+            self.locals.define(*local, self.tcx.fresh::<Local>())
         }
 
         let in_heap = self.freshen_heap(ty.in_heap);
-        let mut inputs = Vec::new();
-        for l in ty.inputs {
-            inputs.push(self.freshen_location(l))
-        }
+        let inputs = self.freshen_locals(ty.inputs);
         self.locations.push_layer();
         for (location, _) in &ty.out_heap {
             self.locations
@@ -220,6 +239,7 @@ where
         let output = self.freshen_location(ty.output);
         let outputs = self.freshen_locals(ty.outputs);
         self.locations.pop_layer();
+        self.locals.pop_layer();
         FnTy {
             regions,
             in_heap,

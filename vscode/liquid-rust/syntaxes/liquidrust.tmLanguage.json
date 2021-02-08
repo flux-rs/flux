@@ -9,6 +9,9 @@
 			"include": "#keywords"
 		},
 		{
+			"include": "#call"
+		},
+		{
 			"include": "#jump"
 		},
 		{
@@ -185,6 +188,27 @@
 					"name": "keyword.control.liquidrust"
 				},
 				"2": {
+					"name": "entity.name.function.continuation.liquidrust"
+				}
+			}
+		},
+		"call": {
+			"name": "meta.call.liquidrust",
+			"match": "(call)\\s+(\\w*)\\(\\s*(\\w*)\\s*\\)\\s*(ret)\\s+(\\w*)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.liquidrust"
+				},
+				"2": {
+					"name": "entity.name.function.liquidrust"
+				},
+				"3": {
+					"name": "variable.other.liquidrust"
+				},
+				"4": {
+					"name": "keyword.control.liquidrust"
+				},
+				"5": {
 					"name": "entity.name.function.continuation.liquidrust"
 				}
 			}

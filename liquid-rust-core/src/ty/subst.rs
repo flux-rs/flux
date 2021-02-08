@@ -3,17 +3,31 @@ use std::collections::HashMap;
 use super::*;
 
 #[derive(Debug, Default)]
-pub struct Subst(HashMap<SubstKey, usize>);
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-enum SubstKey {
-    Field(Field),
-    Location(Location),
+pub struct Subst {
+    locations: HashMap<Location, Location>,
+    fields: HashMap<Field, Field>,
+    regions: HashMap<Region, Region>,
 }
 
 impl Subst {
     pub fn new() -> Self {
-        Subst(HashMap::new())
+        Subst {
+            locations: HashMap::new(),
+            fields: HashMap::new(),
+            regions: HashMap::new(),
+        }
+    }
+
+    pub fn infer(heap1: &Heap, locals1: &LocalsMap, heap2: &Heap, locals2: &LocalsMap) -> Self {
+        let mut subst = Subst::new();
+        for (x, l2) in locals2 {
+            let l1 = &locals1[x];
+            let ty1 = &heap1[l1];
+            let ty2 = &heap2[l2];
+            subst.add_location_subst(*l2, *l1);
+            infer_subst_ty(&mut subst, heap1, ty1, heap2, ty2);
+        }
+        subst
     }
 
     pub fn apply<T: ApplySubst>(&self, tcx: &TyCtxt, e: &T) -> T {
@@ -21,21 +35,27 @@ impl Subst {
     }
 
     pub fn add_field_subst(&mut self, fld1: Field, fld2: Field) {
-        self.0.insert(SubstKey::Field(fld1), fld2.as_usize());
+        self.fields.insert(fld1, fld2);
     }
 
     pub fn add_location_subst(&mut self, l1: Location, l2: Location) {
-        self.0.insert(SubstKey::Location(l1), l2.as_usize());
+        self.locations.insert(l1, l2);
+    }
+
+    pub fn add_region_subst(&mut self, r1: Region, r2: Region) {
+        self.regions.insert(r1, r2);
     }
 
     fn get_field(&self, fld: Field) -> Option<Field> {
-        self.0.get(&SubstKey::Field(fld)).map(|&n| Field::new(n))
+        self.fields.get(&fld).copied()
     }
 
     fn get_location(&self, l: Location) -> Option<Location> {
-        self.0
-            .get(&SubstKey::Location(l))
-            .map(|&n| Location::new(n))
+        self.locations.get(&l).copied()
+    }
+
+    fn get_region(&self, r: &Region) -> Option<&Region> {
+        self.regions.get(r)
     }
 }
 
@@ -48,7 +68,9 @@ impl ApplySubst for Ty {
         match self.kind() {
             TyKind::Fn(fn_ty) => tcx.mk_fn_ty(fn_ty.apply_subst(tcx, subst)),
             TyKind::OwnRef(l) => tcx.mk_own_ref(l.apply_subst(tcx, subst)),
-            TyKind::Ref(bk, r, l) => tcx.mk_ref(*bk, r.clone(), l.apply_subst(tcx, subst)),
+            TyKind::Ref(bk, r, l) => {
+                tcx.mk_ref(*bk, r.apply_subst(tcx, subst), l.apply_subst(tcx, subst))
+            }
             TyKind::Tuple(tup) => {
                 let tup =
                     tup.map(|_, fld, ty| (fld.apply_subst(tcx, subst), ty.apply_subst(tcx, subst)));
@@ -65,11 +87,7 @@ impl ApplySubst for FnTy {
         FnTy {
             regions: self.regions.clone(),
             in_heap: self.in_heap.apply_subst(tcx, subst),
-            inputs: self
-                .inputs
-                .iter()
-                .map(|l| l.apply_subst(tcx, subst))
-                .collect(),
+            inputs: self.inputs.apply_subst(tcx, subst),
             out_heap: self.out_heap.apply_subst(tcx, subst),
             outputs: self.outputs.apply_subst(tcx, subst),
             output: self.output.apply_subst(tcx, subst),
@@ -154,5 +172,35 @@ impl ApplySubst for pred::Place {
             base: self.base.apply_subst(tcx, subst),
             projs: self.projs.clone(),
         }
+    }
+}
+
+impl ApplySubst for Region {
+    fn apply_subst(&self, _tcx: &TyCtxt, subst: &Subst) -> Self {
+        subst
+            .get_region(self)
+            .cloned()
+            .unwrap_or_else(|| self.clone())
+    }
+}
+
+fn infer_subst_ty(subst: &mut Subst, heap1: &Heap, ty1: &Ty, heap2: &Heap, ty2: &Ty) {
+    match (ty1.kind(), ty2.kind()) {
+        (TyKind::Ref(_, r1, l1), TyKind::Ref(_, r2, l2)) => {
+            subst.add_region_subst(r2.clone(), r1.clone());
+            subst.add_location_subst(*l2, *l1);
+            infer_subst_ty(subst, heap1, &heap1[l1], heap2, &heap2[l2]);
+        }
+        (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
+            subst.add_location_subst(*l2, *l1);
+            infer_subst_ty(subst, heap1, &heap1[l1], heap2, &heap2[l2]);
+        }
+        (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
+            for ((fld1, ty1), (fld2, ty2)) in tup1.iter().zip(tup2) {
+                subst.add_field_subst(*fld2, *fld1);
+                infer_subst_ty(subst, heap1, ty1, heap2, ty2);
+            }
+        }
+        _ => {}
     }
 }

@@ -4,12 +4,14 @@
 
 pub mod constraint;
 pub mod env;
+pub mod glob_env;
 pub mod refineck;
 pub mod region_inference;
 
 use crate::{refineck::RefineChecker, region_inference::infer_regions};
-use env::OwnershipError;
-use liquid_rust_core::{ast::FnDef, freshen::NameFreshener, lower::TypeLowerer, ty::TyCtxt};
+
+use glob_env::GlobEnv;
+use liquid_rust_core::{ast::Program, freshen::NameFreshener, lower::TypeLowerer, ty::TyCtxt};
 pub use liquid_rust_fixpoint::solver::Safeness;
 
 #[macro_use]
@@ -18,19 +20,34 @@ extern crate liquid_rust_common;
 #[macro_use]
 extern crate liquid_rust_core;
 
-pub fn check_fn_def<I, S>(func: FnDef<I, S>) -> Result<Safeness, Vec<OwnershipError>>
+pub fn check_program<I, S>(program: Program<I, S>)
 where
     S: Eq + Copy + std::hash::Hash + std::fmt::Debug + std::fmt::Display,
 {
     let tcx = TyCtxt::new();
-    // println!("{}\n", func);
-    let func = NameFreshener::new(&tcx).freshen(func);
-    // println!("{}", func);
-    let (conts, fn_ty) = TypeLowerer::lower_fn_def(&tcx, &func);
-    let (conts, fn_ty) = infer_regions(&tcx, &func, conts, fn_ty);
-    let constraint = RefineChecker::new(&tcx, &conts)
-        .check_fn_def(&func, &fn_ty)?
-        .lower();
+    // println!("{}\n", program);
+    let program = NameFreshener::new(&tcx).freshen(program);
 
-    Ok(constraint.solve().unwrap().tag)
+    let mut glob_env = GlobEnv::new();
+    for (fn_id, fn_def) in program.iter() {
+        let (conts, fn_ty) = TypeLowerer::lower_fn_def(&tcx, &fn_def);
+        // println!("{}\n", fn_def);
+        let (conts, fn_ty) = infer_regions(&tcx, &fn_def, conts, fn_ty);
+        glob_env.insert_fn(*fn_id, fn_ty, conts);
+        // println!("{}\n", fn_def);
+    }
+
+    for (fn_id, fn_def) in program.iter() {
+        let constraint = RefineChecker::new(&tcx, &glob_env, *fn_id).check(fn_def);
+        match constraint {
+            Ok(constraint) => {
+                let safeness = constraint.lower().solve().unwrap().tag;
+                println!("{:?}", safeness);
+            }
+            Err(err) => {
+                println!("{:?}", err)
+            }
+        }
+    }
+    // Ok(constraint.solve().unwrap().tag)
 }

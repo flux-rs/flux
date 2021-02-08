@@ -44,7 +44,7 @@ impl<'a> RegionInferer<'a> {
     }
 
     pub fn infer<I>(mut self, func: &ast::FnDef<I>, fn_ty: &FnTy) -> Solution {
-        self.env.insert_locals(fn_ty.locals(&func.params));
+        self.env.insert_locals(fn_ty.inputs(&func.params));
         self.env.extend_heap(&fn_ty.in_heap);
         self.visit_fn_body(&func.body);
         self.constraints.solve()

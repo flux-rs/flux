@@ -18,8 +18,16 @@ impl<I, S: Eq + std::hash::Hash> Program<I, S> {
         }
     }
 
+    pub fn functions(&self) -> impl Iterator<Item = &FnDef<I, S>> {
+        self.functions.iter().map(|(_, def)| def)
+    }
+
     pub fn add_fn(&mut self, fn_id: FnId<S>, def: FnDef<I, S>) {
         self.functions.insert(fn_id, def);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&FnId<S>, &FnDef<I, S>)> {
+        self.functions.iter()
     }
 }
 
@@ -48,7 +56,7 @@ pub enum FnBody<I, S = usize> {
         else_: Box<FnBody<I, S>>,
     },
     Call {
-        func: Place<S>,
+        func: FnId<S>,
         args: Vec<Local<S>>,
         ret: ContId<S>,
     },
@@ -189,7 +197,7 @@ impl<S> Ty<S> {
 pub struct FnTy<S = usize> {
     pub regions: Vec<UniversalRegion<S>>,
     pub in_heap: Heap<S>,
-    pub inputs: Vec<Location<S>>,
+    pub inputs: Vec<(Local<S>, Location<S>)>,
     pub out_heap: Heap<S>,
     pub outputs: Vec<(Local<S>, Location<S>)>,
     pub output: Location<S>,

@@ -28,6 +28,8 @@ pub trait Visitor<I, S = usize>: Sized {
     fn visit_place(&mut self, _place: &Place<S>) {}
 
     fn visit_cont_id(&mut self, _const_id: &ContId<S>) {}
+
+    fn visit_fn_id(&mut self, _fn_id: &FnId<S>) {}
 }
 
 #[macro_export]
@@ -56,7 +58,7 @@ pub fn walk_fn_body<I, S, V: Visitor<I, S>>(visitor: &mut V, fn_body: &FnBody<I,
             visitor.visit_fn_body(else_);
         }
         FnBody::Call { func, args, ret } => {
-            visitor.visit_place(func);
+            visitor.visit_fn_id(func);
             walk_list!(visitor, visit_local, args);
             visitor.visit_cont_id(ret);
         }

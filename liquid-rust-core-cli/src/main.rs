@@ -13,7 +13,7 @@ use codespan_reporting::{
     },
 };
 use lalrpop_util::lalrpop_mod;
-use liquid_rust_typeck::check_fn_def;
+use liquid_rust_typeck::check_program;
 lalrpop_mod!(
     #[allow(clippy::all, clippy::pedantic)]
     pub grammar
@@ -36,10 +36,7 @@ fn main() -> Result<(), codespan_reporting::files::Error> {
         }
     };
 
-    for (fn_id, def) in program {
-        println!("{:?} {:?}", fn_id, check_fn_def(def));
-    }
-
+    check_program(program);
     Ok(())
 }
 
