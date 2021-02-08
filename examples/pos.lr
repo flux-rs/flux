@@ -1,0 +1,65 @@
+fn abs(n0: {int | true}; n: own(n0)) ret k(r: {int | V >= 0}; ;own(r)) =
+  let b = alloc(1);
+  letcont b0(n2: {int | _ }; n: own(n2);) =
+    jump k(n)
+  in
+  b := n < 0;
+  if b then
+    n := 0 - n;
+    jump b0()
+  else
+    jump b0()
+
+fn length(p0: (@x: {int | true}, @y: {int | V >= @x}); p: own(p0))
+    ret k(r: {int | V >= 0}; ; own(r)) =
+  let t = alloc(1);
+  t := p.1 - p.0;
+  jump k(t)
+
+fn sum(n0: {int | V >= 0}; n: own(n0)) ret k(r: {int | V >= n0}; ;own(r)) =
+  let i = alloc(1);
+  let r = alloc(1);
+  letcont loop( n1: {int | _ }, i1: {int | _ }, r1: {int | _ }
+              ; i: own(i1), r: own(r1), n: own(n1);) =
+    let t0 = alloc(1);
+    t0 := i <= n;
+    if t0 then
+      r := r + i;
+      i := i + 1;
+      jump loop()
+    else
+      jump k(r)
+  in
+  i := 0;
+  r := 0;
+  jump loop()
+
+fn inc<'a>( l0: {int | true}, l1: &'a mut l0
+          ; n: own(l1)
+          ) ret k( l2: {int | V == l0 + 1}, l3: &'a mut l2, l4: {() | true}
+                 ; n: own(l3)
+                 ; own(l4)
+                 ) =
+  *n := *n + 1;
+  let r = alloc(1);
+  r := ();
+  jump k(r)
+
+fn inc2<'a>( l0: {int | true}, l1: &'a mut l0
+           ; n: own(l1)
+           ) ret k( l2: {int | V == l0 + 2}, l3: &'a mut l2, l4: {() | true}
+                  ; n: own(l3)
+                  ; own(l4)
+                  ) =
+  letcont bb1( l2: {int | _ }, l3: &'a mut l2, l5: {() | true}
+             ; n: own(l3)
+             ; s: own(l5)
+             ) =
+    let t = alloc(1);
+    t := &mut *n;
+    call inc(t) ret k
+  in
+
+  let t = alloc(1);
+  t := &mut *n;
+  call inc(t) ret bb1
