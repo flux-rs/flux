@@ -42,7 +42,7 @@ impl<I, S> IntoIterator for Program<I, S> {
 }
 
 pub struct FnDef<I, S = usize> {
-    pub ty: FnTy<S>,
+    pub ty: FnDecl<S>,
     pub params: Vec<Local<S>>,
     pub body: FnBody<I, S>,
     pub ret: ContId<S>,
@@ -194,7 +194,7 @@ impl<S> Ty<S> {
     }
 }
 
-pub struct FnTy<S = usize> {
+pub struct FnDecl<S = usize> {
     pub regions: Vec<UniversalRegion<S>>,
     pub in_heap: Heap<S>,
     pub inputs: Vec<(Local<S>, Location<S>)>,

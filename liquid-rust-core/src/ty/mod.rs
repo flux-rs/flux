@@ -49,7 +49,7 @@ impl TyS {
         match self.kind() {
             TyKind::Tuple(tup) => tup.types().map(|ty| ty.size()).sum(),
             TyKind::Uninit(n) => *n,
-            TyKind::Fn(..) | TyKind::OwnRef(..) | TyKind::Ref(..) | TyKind::Refine(..) => 1,
+            TyKind::OwnRef(..) | TyKind::Ref(..) | TyKind::Refine(..) => 1,
         }
     }
 
@@ -102,7 +102,6 @@ impl<T> std::ops::Try for Walk<T> {
 impl fmt::Display for TyS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
-            TyKind::Fn(..) => todo!(),
             TyKind::OwnRef(l) => write!(f, "own(l{})", l.inner()),
             TyKind::Ref(BorrowKind::Shared, r, l) => write!(f, "&{} l{}", r, l.inner()),
             TyKind::Ref(BorrowKind::Mut, r, l) => write!(f, "&{} mut l{}", r, l.inner()),
@@ -123,7 +122,6 @@ impl fmt::Display for TyS {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum TyKind {
-    Fn(FnTy),
     OwnRef(Location),
     Ref(BorrowKind, Region, Location),
     Tuple(Tuple),
@@ -132,7 +130,7 @@ pub enum TyKind {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct FnTy {
+pub struct FnDecl {
     pub regions: Vec<UniversalRegion>,
     pub in_heap: Heap,
     pub inputs: LocalsMap,
@@ -141,7 +139,7 @@ pub struct FnTy {
     pub output: Location,
 }
 
-impl FnTy {
+impl FnDecl {
     pub fn inputs(&self, args: &[Local]) -> LocalsMap {
         assert!(self.inputs.len() == args.len());
         args.iter()

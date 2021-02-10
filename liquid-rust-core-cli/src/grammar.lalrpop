@@ -7,120 +7,121 @@ use std::iter::FromIterator;
 grammar();
 
 match {
-  r"\s*" => {}, // The default whitespace skipping is disabled if an `ignore pattern` is specified
-  r"//[^\n\r]*[\n\r]*" => { },                          // Skip `// comments`
-  r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { }, // Skip `/* comments */`
-  _,
+    r"\s*" => {}, // The default whitespace skipping is disabled if an `ignore pattern` is specified
+    r"//[^\n\r]*[\n\r]*" => { },                          // Skip `// comments`
+    r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { }, // Skip `/* comments */`
+    _,
 }
 
 pub Program: Program<Span, &'input str> = <FnDef+> => {
-  let mut program = Program::new();
-  for (name, def) in <> {
-    program.add_fn(name, def);
-  }
-  program
+    let mut program = Program::new();
+    for (name, def) in <> {
+        program.add_fn(name, def);
+    }
+    program
 };
 
-FnDef: (FnId<&'input str>, FnDef<Span, &'input str>) =
- "fn"
- <name: FnId>
- <regions: UniversalRegions?>
- "(" <in_heap: Heap> ";" <inputs: LocalsMap> ")"
- "ret" <ret: ContId> "(" <out_heap: Heap> ";" <outputs: LocalsMap> ";" <output: OwnRef> ")"
- "=" <body: FnBody> => {
-   let mut params = vec![];
-   for (local, _) in &inputs {
-     params.push(*local);
-   }
-   let ty = FnTy {
-     regions: regions.unwrap_or_default(),
-     in_heap,
-     inputs,
-     out_heap,
-     outputs,
-     output
-    };
-   (name, FnDef { params, body: *body, ty, ret })
- };
+FnDef: (FnId<&'input str>, FnDef<Span, &'input str>) = {
+    "fn"
+    <name: FnId>
+    <regions: UniversalRegions?>
+    "(" <in_heap: Heap> ";" <inputs: LocalsMap> ")"
+    "ret" <ret: ContId> "(" <out_heap: Heap> ";" <outputs: LocalsMap> ";" <output: OwnRef> ")"
+    "=" <body: FnBody> => {
+        let mut params = vec![];
+        for (local, _) in &inputs {
+            params.push(*local);
+        }
+        let ty = FnDecl {
+            regions: regions.unwrap_or_default(),
+            in_heap,
+            inputs,
+            out_heap,
+            outputs,
+            output
+        };
+        (name, FnDef { params, body: *body, ty, ret })
+    }
+}
 
 UniversalRegions: Vec<UniversalRegion<&'input str>> =
-  "<" <Comma<UniversalRegion>> ">";
+    "<" <Comma<UniversalRegion>> ">";
 
 FnBody: Box<FnBody<Span, &'input str>> = {
-  "letcont" <defs: And<ContDef>> "in" <rest: FnBody> => Box::new(FnBody::LetCont(defs, rest)),
+    "letcont" <defs: And<ContDef>> "in" <rest: FnBody> => Box::new(FnBody::LetCont(defs, rest)),
 
-  "if" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
-    => Box::new(FnBody::Ite{ <> }),
+    "if" <discr: Place> "then" <then: FnBody> "else" <else_: FnBody>
+        => Box::new(FnBody::Ite{ <> }),
 
-  "call" <place: Place> ":=" <func: FnId> "(" <args: Comma<Local>> ")" "ret" <ret: ContId>
-    => Box::new(FnBody::Call{ func, args, destination: Some((place, ret)) }),
+    "call" <place: Place> ":=" <func: FnId> "(" <args: Comma<Local>> ")" "ret" <ret: ContId>
+        => Box::new(FnBody::Call{ func, args, destination: Some((place, ret)) }),
 
-  "jump" <target: ContId> "(" <args: Local*> ")" => Box::new(FnBody::Jump{ <> }),
+    "jump" <target: ContId> "(" <args: Local*> ")" => Box::new(FnBody::Jump{ <> }),
 
-  <Statement> ";" <FnBody> => Box::new(FnBody::Seq(<>)),
+    <Statement> ";" <FnBody> => Box::new(FnBody::Seq(<>)),
 
-  "abort" => Box::new(FnBody::Abort)
+    "abort" => Box::new(FnBody::Abort)
 }
 
 ContDef: ContDef<Span, &'input str> = {
-   <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ")" "=" <body: FnBody>  => {
-    let inputs = vec![];
-    let params = vec![];
-    let ty = ContTy { heap, locals, inputs };
-    ContDef { name, params, ty, body }
-  }
+    <name: ContId> "(" <heap: Heap> ";" <locals: LocalsMap> ")" "=" <body: FnBody>  => {
+        let inputs = vec![];
+        let params = vec![];
+        let ty = ContTy { heap, locals, inputs };
+        ContDef { name, params, ty, body }
+    }
 }
 
 Statement: Statement<Span, &'input str> = {
-  <lo:@L> <kind: StatementKind> <hi:@R> =>
-    Statement { kind, source_info: Span::new(lo as u32, hi as u32) }
+    <lo:@L> <kind: StatementKind> <hi:@R> =>
+        Statement { kind, source_info: Span::new(lo as u32, hi as u32) }
 }
 
 StatementKind: StatementKind<&'input str> = {
-  "let" <Local> "=" "alloc" "(" <TypeLayout> ")" => StatementKind::Let(<>),
-  <Place> ":=" <Rvalue>                          => StatementKind::Assign(<>),
-  "drop" "(" <Place> ")"                         => StatementKind::Drop(<>),
+    "let" <Local> "=" "alloc" "(" <TypeLayout> ")" => StatementKind::Let(<>),
+    <Place> ":=" <Rvalue>                          => StatementKind::Assign(<>),
+    "drop" "(" <Place> ")"                         => StatementKind::Drop(<>),
 }
 
 Rvalue: Rvalue<&'input str> = {
-  Operand                                                         => Rvalue::Use(<>),
-  <op1: Operand> <bin_op: BinOp> <op2: Operand>                   => Rvalue::BinaryOp(bin_op, op1, op2),
-  "Checked" "(" <op1: Operand> <bin_op: BinOp> <op2: Operand> ")" => Rvalue::CheckedBinaryOp(bin_op, op1, op2),
-  <un_op: UnOp> <op: Operand>                                     => Rvalue::UnaryOp(un_op, op),
-  "&" <p: Place>                                                  => Rvalue::Ref(BorrowKind::Shared, p),
-  "&" "mut" <p: Place>                                            => Rvalue::Ref(BorrowKind::Mut, p),
+    Operand                                                      => Rvalue::Use(<>),
+    <op1:Operand> <bin_op:BinOp> <op2:Operand>                   => Rvalue::BinaryOp(bin_op, op1, op2),
+    "Checked" "(" <op1:Operand> <bin_op:BinOp> <op2:Operand> ")" => Rvalue::CheckedBinaryOp(bin_op, op1, op2),
+    <un_op:UnOp> <op:Operand>                                    => Rvalue::UnaryOp(un_op, op),
+    "&" <p:Place>                                                => Rvalue::Ref(BorrowKind::Shared, p),
+    "&" "mut" <p:Place>                                          => Rvalue::Ref(BorrowKind::Mut, p),
 }
 
 UnOp: UnOp = {
-  "!" => UnOp::Not
+    "!" => UnOp::Not
 }
 
 BinOp: BinOp = {
-  "+"  => BinOp::Add,
-  "-"  => BinOp::Sub,
-  "<"  => BinOp::Lt,
-  "<=" => BinOp::Le,
-  "==" => BinOp::Eq,
-  ">=" => BinOp::Ge,
-  ">"  => BinOp::Gt,
+    "+"  => BinOp::Add,
+    "-"  => BinOp::Sub,
+    "<"  => BinOp::Lt,
+    "<=" => BinOp::Le,
+    "==" => BinOp::Eq,
+    ">=" => BinOp::Ge,
+    ">"  => BinOp::Gt,
 }
 
 Operand: Operand<&'input str> = {
-  <Constant>     => Operand::Constant(<>),
-  <Place>        => Operand::Copy(<>),
-  "move" <Place> => Operand::Move(<>),
+    <Constant>     => Operand::Constant(<>),
+    <Place>        => Operand::Copy(<>),
+    "move" <Place> => Operand::Move(<>),
 }
 
 Constant: Constant = {
-  "true"    => Constant::Bool(true),
-  "false"   => Constant::Bool(false),
-  r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap()),
-  "(" ")"   => Constant::Unit
+    "true"    => Constant::Bool(true),
+    "false"   => Constant::Bool(false),
+    r"[0-9]+" => Constant::Int(u128::from_str(<>).unwrap()),
+    "(" ")"   => Constant::Unit
 }
 
 TypeLayout: TypeLayout = {
-  r"[0-9]+"                   => TypeLayout::Block(usize::from_str(<>).unwrap()),
-  "(" <Comma<TypeLayout>> ")" => TypeLayout::Tuple(<>)
+    r"[0-9]+"                   => TypeLayout::Block(usize::from_str(<>).unwrap()),
+    "(" <Comma<TypeLayout>> ")" => TypeLayout::Tuple(<>)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -133,62 +134,62 @@ LocalsMap = Comma<Binding<Local, OwnRef>> ;
 
 
 Ty: Ty<&'input str> = {
-  <BaseTy>                                   => Ty::Refine(<>, Refine::Pred(Pred::tt())),
-  "own" "(" <Location> ")"                   => Ty::OwnRef(<>),
-  "uninit" "(" <r"[0-9]+"> ")"               => Ty::Uninit(usize::from_str(<>).unwrap()),
-  "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine(<>),
-  "&" <Region> <Location>                    => Ty::Ref(BorrowKind::Shared, <>),
-  "&" <Region> "shrd" <Location>             => Ty::Ref(BorrowKind::Shared, <>),
-  "&" <Region> "mut" <Location>              => Ty::Ref(BorrowKind::Mut, <>),
-  "(" <Sep1<",", Binding<Field, Ty>>> ")"    => Ty::Tuple(<>),
+    <BaseTy>                                   => Ty::Refine(<>, Refine::Pred(Pred::tt())),
+    "own" "(" <Location> ")"                   => Ty::OwnRef(<>),
+    "uninit" "(" <r"[0-9]+"> ")"               => Ty::Uninit(usize::from_str(<>).unwrap()),
+    "{" <bty: BaseTy> "|" <refine: Refine> "}" => Ty::Refine(<>),
+    "&" <Region> <Location>                    => Ty::Ref(BorrowKind::Shared, <>),
+    "&" <Region> "shrd" <Location>             => Ty::Ref(BorrowKind::Shared, <>),
+    "&" <Region> "mut" <Location>              => Ty::Ref(BorrowKind::Mut, <>),
+    "(" <Sep1<",", Binding<Field, Ty>>> ")"    => Ty::Tuple(<>),
 }
 
 BaseTy: BaseTy = {
-  "int"  => BaseTy::Int,
-  "bool" => BaseTy::Bool,
-  "(" ")"   => BaseTy::Unit
+    "int"   => BaseTy::Int,
+    "bool"  => BaseTy::Bool,
+    "(" ")" => BaseTy::Unit
 }
 
 Refine: Refine<&'input str> = {
-  "_"  => Refine::Infer,
-  Pred => Refine::Pred(<>)
+   "_"  => Refine::Infer,
+   Pred => Refine::Pred(<>)
 }
 
 Region: Region<&'input str> = {
-  "{" <Comma<Place>> "}" => Region::from(<>),
-  "{" "_" "}"            => Region::Infer,
-  UniversalRegion        => Region::Universal(<>)
+   "{" <Comma<Place>> "}" => Region::from(<>),
+   "{" "_" "}"            => Region::Infer,
+   UniversalRegion        => Region::Universal(<>)
 }
 
 Place: Place<&'input str> = {
-  PlaceLevel1 => Place { base: <>.0, projs: <>.1 }
+   PlaceLevel1 => Place { base: <>.0, projs: <>.1 }
 }
 
 PlaceLevel1: (Local<&'input str>, Vec<Proj>) = {
-  "*" <PlaceLevel1>  => {
-    let (local, mut projs) = <>;
-    projs.push(Proj::Deref);
-    (local, projs)
-  },
-  PlaceLevel2
+    "*" <PlaceLevel1>  => {
+        let (local, mut projs) = <>;
+        projs.push(Proj::Deref);
+        (local, projs)
+    },
+    PlaceLevel2
 }
 
 PlaceLevel2: (Local<&'input str>, Vec<Proj>) = {
-  <p: PlaceLevel3> <path: Path> => {
-      let (local, mut projs) = p;
-      projs.extend(path);
-      (local, projs)
-  },
+    <p: PlaceLevel3> <path: Path> => {
+        let (local, mut projs) = p;
+        projs.extend(path);
+        (local, projs)
+    },
 }
 
 PlaceLevel3: (Local<&'input str>, Vec<Proj>) = {
-  <Local>  => (<>, vec![]),
-  "(" <PlaceLevel1> ")"
+    <Local>  => (<>, vec![]),
+    "(" <PlaceLevel1> ")"
 }
 
 Path: Vec<Proj> = ("." <r"[0-9]+">)* => {
   // TODO: overflow
-  <>.iter().map(|s| Proj::Field(usize::from_str(s).unwrap())).collect()
+    <>.iter().map(|s| Proj::Field(usize::from_str(s).unwrap())).collect()
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -201,71 +202,69 @@ BinaryOp3 = LeftAssoc<BinOpGroup3, BinaryOp4>;
 BinaryOp4 = LeftAssoc<BinOpGroup4, UnaryOp>;
 
 BinOpGroup1: pred::BinOp = {
-  "||" => pred::BinOp::Or,
+    "||" => pred::BinOp::Or,
 }
 
 BinOpGroup2: pred::BinOp = {
-  "&&" => pred::BinOp::And,
+    "&&" => pred::BinOp::And,
 };
 
 BinOpGroup3: pred::BinOp = {
-  "==" => pred::BinOp::Eq,
-  "!=" => pred::BinOp::Neq,
-  ">"  => pred::BinOp::Gt,
-  "<"  => pred::BinOp::Lt,
-  ">=" => pred::BinOp::Ge,
-  "<=" => pred::BinOp::Le,
+    "==" => pred::BinOp::Eq,
+    "!=" => pred::BinOp::Neq,
+    ">"  => pred::BinOp::Gt,
+    "<"  => pred::BinOp::Lt,
+    ">=" => pred::BinOp::Ge,
+    "<=" => pred::BinOp::Le,
 };
 
 BinOpGroup4: pred::BinOp = {
-  "+" => pred::BinOp::Add,
-  "-" => pred::BinOp::Sub
+    "+" => pred::BinOp::Add,
+    "-" => pred::BinOp::Sub
 }
 
 
 UnaryOp: Pred<&'input str> = {
-  <un_op: UnOpP> <op: BasePred> => pred::Pred::UnaryOp(un_op, Box::new(op)),
-  BasePred
+    <un_op: UnOpP> <op: BasePred> => pred::Pred::UnaryOp(un_op, Box::new(op)),
+    BasePred
 }
 
 UnOpP: pred::UnOp = {
-  "!" => pred::UnOp::Not,
-  "-" => pred::UnOp::Neg
+    "!" => pred::UnOp::Not,
+    "-" => pred::UnOp::Neg
 }
 
 BasePred: Pred<&'input str> = {
-  ConstantP            => Pred::Constant(<>),
-  PlaceP               => Pred::Place(<>),
-  "(" <Pred> ")" => <>
+    ConstantP      => Pred::Constant(<>),
+    PlaceP         => Pred::Place(<>),
+    "(" <Pred> ")" => <>
 }
 
 ConstantP: pred::Constant = {
-  "true"    => pred::Constant::Bool(true),
-  "false"   => pred::Constant::Bool(false),
-  // TODO: overflow
-  r"[0-9]+" => pred::Constant::Int(u128::from_str(<>).unwrap()),
+    "true"    => pred::Constant::Bool(true),
+    "false"   => pred::Constant::Bool(false),
+    // TODO: overflow
+    r"[0-9]+" => pred::Constant::Int(u128::from_str(<>).unwrap()),
 }
 
 PlaceP: pred::Place<&'input str> = {
-  <base: Var> <projs: ProjP*> => pred::Place { <> }
+    <base: Var> <projs: ProjP*> => pred::Place { <> }
 }
 
 ProjP: usize = {
-  "." <r"[0-9]+"> => usize::from_str(<>).unwrap()
+    "." <r"[0-9]+"> => usize::from_str(<>).unwrap()
 }
 
 Var: pred::Var<&'input str> = {
-  Location => pred::Var::Location(<>),
-  Field    => pred::Var::Field(<>),
-  "V"      => pred::Var::Nu
+    Location => pred::Var::Location(<>),
+    Field    => pred::Var::Field(<>),
+    "V"      => pred::Var::Nu
 }
 
 LeftAssoc<OpGroup, NextExprLevel>: Pred<&'input str> = {
-  <lhs: LeftAssoc<OpGroup,NextExprLevel>>
-  <op: OpGroup>
-  <rhs: NextExprLevel>
-    => Pred::BinaryOp(op, Box::new(lhs), Box::new(rhs)),
-  NextExprLevel,
+    <lhs: LeftAssoc<OpGroup,NextExprLevel>> <op: OpGroup> <rhs: NextExprLevel>
+        => Pred::BinaryOp(op, Box::new(lhs), Box::new(rhs)),
+    NextExprLevel,
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -285,25 +284,25 @@ UniversalRegion: UniversalRegion<&'input str> = r"'[a-zA-Z0-9]" => UniversalRegi
 
 Binding<Name, T> = <Name> ":" <T>;
 
-And<T> = Sep<"and", T>;
-Comma<T> = Sep<",", T>;
-
 Sep<S, T>: Vec<T> = {
   <mut v:(<T> S)*> <e:T?> => match e {
-    None => v,
-    Some(e) => {
-      v.push(e);
-      v
-    }
+      None => v,
+      Some(e) => {
+          v.push(e);
+          v
+      }
   }
 }
 
 Sep1<S, T>: Vec<T> = {
   <mut v:(<T> S)+> <e:T?> => match e {
-    None => v,
-    Some(e) => {
-      v.push(e);
-      v
-    }
+      None => v,
+      Some(e) => {
+          v.push(e);
+          v
+      }
   }
 }
+
+And<T> = Sep<"and", T>;
+Comma<T> = Sep<",", T>;

@@ -222,7 +222,7 @@ where
         }
     }
 
-    fn freshen_fn_ty(&mut self, ty: FnTy<S>) -> FnTy {
+    fn freshen_fn_ty(&mut self, ty: FnDecl<S>) -> FnDecl {
         let mut regions = vec![];
         for region in ty.regions {
             regions.push(self.regions[&region])
@@ -245,7 +245,7 @@ where
         let outputs = self.freshen_locals(ty.outputs);
         self.locations.pop_layer();
         self.locals.pop_layer();
-        FnTy {
+        FnDecl {
             regions,
             in_heap,
             inputs,

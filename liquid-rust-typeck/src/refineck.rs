@@ -319,7 +319,6 @@ impl<'a> RefineChecker<'a> {
 
 pub fn subtyping(tcx: &TyCtxt, heap1: &Heap, ty1: &TyS, heap2: &Heap, ty2: &TyS) -> Constraint {
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Fn(..), TyKind::Fn(..)) => todo!(),
         (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
             .iter()
             .zip(tup2.types())

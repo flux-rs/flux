@@ -210,7 +210,7 @@ fn get_layout(t: ty::Ty) -> TypeLayout {
 
 pub struct Transformer<'low, 'tcx> {
     tcx: ty::TyCtxt<'tcx>,
-    annots: &'low mut HashMap<DefId, FnTy>,
+    annots: &'low mut HashMap<DefId, FnDecl>,
     body: &'low mir::Body<'tcx>,
     move_data: MoveData<'tcx>,
     maybe_uninitialized_cursor: ResultsCursor<'low, 'tcx, MaybeUninitializedPlaces<'low, 'tcx>>,
@@ -220,7 +220,7 @@ pub struct Transformer<'low, 'tcx> {
 impl<'low, 'tcx> Transformer<'low, 'tcx> {
     pub fn translate(
         tcx: ty::TyCtxt<'tcx>,
-        annots: &mut HashMap<DefId, FnTy>,
+        annots: &mut HashMap<DefId, FnDecl>,
         body: &mir::Body<'tcx>,
     ) -> FnDef<()> {
         let param_env = tcx.param_env(body.source.def_id());
@@ -352,7 +352,7 @@ impl<'low, 'tcx> Transformer<'low, 'tcx> {
             let regions = vec![];
             let outputs = vec![];
 
-            let fn_ty = FnTy {
+            let fn_ty = FnDecl {
                 regions,
                 in_heap: Heap::from_iter(in_heap),
                 inputs,

@@ -5,7 +5,7 @@ use std::iter::FromIterator;
 use liquid_rust_core::{
     ast::{
         pred::{Place, Var},
-        FnTy, Heap, Pred, Refine, Ty,
+        FnDecl, Heap, Pred, Refine, Ty,
     },
     names::{Field, Local},
     ty::{BinOp, Location, UnOp},
@@ -138,12 +138,12 @@ impl<'src> Lower<'src> for ast::Ty<'src> {
     }
 }
 
-impl<'src> Lower<'src> for ast::FnTy<'src> {
-    type Output = FnTy;
+impl<'src> Lower<'src> for ast::FnDecl<'src> {
+    type Output = FnDecl;
 
     fn lower(self, lcx: &mut LowerCtx<'src>) -> Self::Output {
-        let args = self.kind.args;
-        let out = *self.kind.output;
+        let args = self.args;
+        let out = *self.output;
 
         let mut inputs = Vec::new();
         let mut in_heap = Vec::new();
@@ -176,7 +176,7 @@ impl<'src> Lower<'src> for ast::FnTy<'src> {
         let regions = vec![];
         let outputs = vec![];
 
-        FnTy {
+        FnDecl {
             in_heap: Heap::from_iter(in_heap),
             inputs,
             out_heap: Heap::from_iter(out_heap),

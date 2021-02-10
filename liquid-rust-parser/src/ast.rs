@@ -110,15 +110,10 @@ pub enum PredicateKind<'source> {
 
 /// The AST representation of a function type
 #[derive(Debug, Clone)]
-pub struct FnTy<'source> {
-    pub kind: FnTyInner<'source>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone)]
-pub struct FnTyInner<'source> {
+pub struct FnDecl<'source> {
     pub args: Vec<(Ident<'source>, Ty<'source>)>,
     pub output: Box<Ty<'source>>,
+    pub span: Span,
 }
 
 /// The AST representation of a refinement type.

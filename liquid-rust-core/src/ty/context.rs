@@ -52,10 +52,6 @@ impl TyCtxt {
 
     // Types
 
-    pub fn mk_fn_ty(&self, fn_ty: FnTy) -> Ty {
-        self.mk_ty(TyKind::Fn(fn_ty))
-    }
-
     pub fn mk_own_ref(&self, location: Location) -> Ty {
         self.mk_ty(TyKind::OwnRef(location))
     }
@@ -95,11 +91,9 @@ impl TyCtxt {
                 let tup = tup.map(|_, fld, ty| (*fld, self.uninitialize(ty)));
                 self.mk_tuple(tup)
             }
-            TyKind::Fn(..)
-            | TyKind::OwnRef(..)
-            | TyKind::Ref(..)
-            | TyKind::Uninit(_)
-            | TyKind::Refine(..) => self.mk_uninit(ty.size()),
+            TyKind::OwnRef(..) | TyKind::Ref(..) | TyKind::Uninit(_) | TyKind::Refine(..) => {
+                self.mk_uninit(ty.size())
+            }
         }
     }
 
@@ -119,21 +113,6 @@ impl TyCtxt {
 
     pub fn replace_with_fresh_vars(&self, ty: &Ty, vars_in_scope: &[Var]) -> Ty {
         match ty.kind() {
-            TyKind::Fn(fn_ty) => {
-                let fn_ty = FnTy {
-                    regions: fn_ty.regions.clone(),
-                    in_heap: fn_ty
-                        .in_heap
-                        .map_ty(|ty| self.replace_with_fresh_vars(ty, vars_in_scope)),
-                    inputs: fn_ty.inputs.clone(),
-                    out_heap: fn_ty
-                        .out_heap
-                        .map_ty(|ty| self.replace_with_fresh_vars(ty, vars_in_scope)),
-                    outputs: fn_ty.outputs.clone(),
-                    output: fn_ty.output,
-                };
-                self.mk_fn_ty(fn_ty)
-            }
             TyKind::Tuple(tup) => {
                 let tup =
                     tup.map(|_, fld, ty| (*fld, self.replace_with_fresh_vars(ty, vars_in_scope)));

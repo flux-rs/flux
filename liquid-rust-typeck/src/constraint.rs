@@ -68,9 +68,7 @@ impl<'a> From<&'a Ty> for Sort {
         match ty.kind() {
             TyKind::Tuple(tup) => Sort::Tuple(tup.types().map(Sort::from).collect()),
             TyKind::Refine(bty, _) => Sort::from(*bty),
-            TyKind::Fn(_) | TyKind::OwnRef(_) | TyKind::Ref(_, _, _) | TyKind::Uninit(_) => {
-                Sort::Int
-            }
+            TyKind::OwnRef(_) | TyKind::Ref(_, _, _) | TyKind::Uninit(_) => Sort::Int,
         }
     }
 }
@@ -149,7 +147,7 @@ fn embed_ty_rec(ty: &TyS, nu: &Place, fld_map: &HashMap<Field, Place>) -> Pred {
             Pred::Conj(preds)
         }
         TyKind::Refine(_, refine) => embed_refine(refine, &nu, fld_map),
-        TyKind::OwnRef(_) | TyKind::Ref(..) | TyKind::Fn(..) | TyKind::Uninit(..) => Pred::True,
+        TyKind::OwnRef(_) | TyKind::Ref(..) | TyKind::Uninit(..) => Pred::True,
     }
 }
 

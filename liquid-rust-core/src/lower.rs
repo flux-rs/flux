@@ -40,7 +40,7 @@ impl<'a> TypeLowerer<'a> {
     pub fn lower_fn_def<I>(
         tcx: &TyCtxt,
         func: &FnDef<I>,
-    ) -> (HashMap<ContId, ty::ContTy>, ty::FnTy) {
+    ) -> (HashMap<ContId, ty::ContTy>, ty::FnDecl) {
         let mut lowerer = TypeLowerer::new(tcx);
         let fn_ty = lowerer.lower_fn_ty(&func.ty);
         let ret_cont_ty = ty::ContTy::new(
@@ -88,8 +88,8 @@ impl<'a> TypeLowerer<'a> {
         )
     }
 
-    fn lower_fn_ty(&mut self, fn_ty: &ast::FnTy) -> ty::FnTy {
-        ty::FnTy {
+    fn lower_fn_ty(&mut self, fn_ty: &ast::FnDecl) -> ty::FnDecl {
+        ty::FnDecl {
             regions: fn_ty.regions.clone(),
             in_heap: self.lower_heap(&fn_ty.in_heap),
             inputs: fn_ty.inputs.iter().copied().collect(),

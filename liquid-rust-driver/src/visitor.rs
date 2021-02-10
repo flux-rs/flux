@@ -15,7 +15,7 @@ use std::{collections::HashMap, ops::Range};
 
 pub struct DefCollector<'tcx, 'vis> {
     tcx: TyCtxt<'tcx>,
-    annotations: HashMap<DefId, FnTy>,
+    annotations: HashMap<DefId, FnDecl>,
     handler: &'vis Handler,
     buffer: &'vis mut Vec<Diagnostic>,
 }
@@ -34,7 +34,7 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
         }
     }
 
-    pub fn annotations(self) -> HashMap<DefId, FnTy> {
+    pub fn annotations(self) -> HashMap<DefId, FnDecl> {
         self.annotations
     }
 
@@ -44,7 +44,7 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
             .buffer(self.buffer);
     }
 
-    fn extract_annotations(&mut self, attrs: &[Attribute]) -> Option<FnTy> {
+    fn extract_annotations(&mut self, attrs: &[Attribute]) -> Option<FnDecl> {
         for attr in attrs {
             if let AttrKind::Normal(AttrItem { path, args, .. }, ..) = &attr.kind {
                 let path = path

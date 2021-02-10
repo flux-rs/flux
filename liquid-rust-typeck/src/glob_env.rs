@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use liquid_rust_core::{
     names::{ContId, FnId},
-    ty::{ContTy, FnTy},
+    ty::{ContTy, FnDecl},
 };
 
 #[derive(Default)]
 pub struct GlobEnv {
-    fn_tys: HashMap<FnId, FnTy>,
+    fn_tys: HashMap<FnId, FnDecl>,
     conts: HashMap<(FnId, ContId), ContTy>,
 }
 
@@ -19,7 +19,7 @@ impl GlobEnv {
         }
     }
 
-    pub fn insert_fn(&mut self, fn_id: FnId, ty: FnTy, conts: HashMap<ContId, ContTy>) {
+    pub fn insert_fn(&mut self, fn_id: FnId, ty: FnDecl, conts: HashMap<ContId, ContTy>) {
         self.fn_tys.insert(fn_id, ty);
         self.conts.extend(
             conts
@@ -28,7 +28,7 @@ impl GlobEnv {
         );
     }
 
-    pub fn get_ty(&self, fn_id: FnId) -> Option<&FnTy> {
+    pub fn get_ty(&self, fn_id: FnId) -> Option<&FnDecl> {
         self.fn_tys.get(&fn_id)
     }
 

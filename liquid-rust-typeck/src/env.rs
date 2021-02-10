@@ -3,7 +3,7 @@ use ast::Proj;
 use liquid_rust_core::{
     ast,
     names::{Local, Location},
-    ty::{self, pred::Place, subst::Subst, FnTy, Heap, LocalsMap, Region, Ty, TyCtxt, TyS, Walk},
+    ty::{self, pred::Place, subst::Subst, FnDecl, Heap, LocalsMap, Region, Ty, TyCtxt, TyS, Walk},
 };
 use std::{collections::HashSet, fmt};
 use ty::{BorrowKind, TyKind};
@@ -229,7 +229,6 @@ impl Env<'_> {
         let tcx = self.tcx;
         let heap1 = &self.heap;
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Fn(..), TyKind::Fn(..)) => todo!(),
             (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
                 .iter()
                 .zip(tup2.types())
@@ -262,7 +261,7 @@ impl Env<'_> {
 
     pub fn instantiate_fn_call(
         &self,
-        fn_ty: &FnTy,
+        fn_ty: &FnDecl,
         args: &[Local],
     ) -> (Heap, LocalsMap, Heap, LocalsMap, Location) {
         let tcx = self.tcx;
@@ -401,7 +400,6 @@ fn shallow_subtyping(
     region_constraints: &mut region::Constraints,
 ) -> Constraint {
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Fn(_), TyKind::Fn(_)) => todo!(),
         (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
             .iter()
             .zip(tup2.types())

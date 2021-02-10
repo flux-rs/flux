@@ -66,7 +66,6 @@ pub trait ApplySubst {
 impl ApplySubst for Ty {
     fn apply_subst(&self, tcx: &TyCtxt, subst: &Subst) -> Self {
         match self.kind() {
-            TyKind::Fn(fn_ty) => tcx.mk_fn_ty(fn_ty.apply_subst(tcx, subst)),
             TyKind::OwnRef(l) => tcx.mk_own_ref(l.apply_subst(tcx, subst)),
             TyKind::Ref(bk, r, l) => {
                 tcx.mk_ref(*bk, r.apply_subst(tcx, subst), l.apply_subst(tcx, subst))
@@ -82,9 +81,9 @@ impl ApplySubst for Ty {
     }
 }
 
-impl ApplySubst for FnTy {
+impl ApplySubst for FnDecl {
     fn apply_subst(&self, tcx: &TyCtxt, subst: &Subst) -> Self {
-        FnTy {
+        FnDecl {
             regions: self.regions.clone(),
             in_heap: self.in_heap.apply_subst(tcx, subst),
             inputs: self.inputs.apply_subst(tcx, subst),

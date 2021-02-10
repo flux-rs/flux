@@ -9,8 +9,8 @@ lalrpop_mod!(
 );
 
 /// Parse a type annotation to produce an AST representation of a type with it.
-pub fn parse_ty<'source>(source: &'source str) -> err::ParseResult<ast::FnTy<'source>> {
-    grammar::FnTyParser::new()
+pub fn parse_ty<'source>(source: &'source str) -> err::ParseResult<ast::FnDecl<'source>> {
+    grammar::FnDeclParser::new()
         .parse(source)
         .map_err(err::ParseError::from)
 }

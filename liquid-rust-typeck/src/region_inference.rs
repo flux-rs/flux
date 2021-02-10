@@ -12,14 +12,14 @@ use liquid_rust_core::{
     names::{ContId, Field},
     ty::{self, BaseTy, ContTy, Heap, Ty, TyCtxt, TyS},
 };
-use ty::FnTy;
+use ty::FnDecl;
 
 pub fn infer_regions<I>(
     tcx: &TyCtxt,
     func: &FnDef<I>,
     conts: HashMap<ContId, ContTy>,
-    fn_ty: FnTy,
-) -> (HashMap<ContId, ContTy>, FnTy) {
+    fn_ty: FnDecl,
+) -> (HashMap<ContId, ContTy>, FnDecl) {
     let solution = RegionInferer::new(tcx, &conts).infer(func, &fn_ty);
     solution.fix_regions(tcx, fn_ty, conts)
 }
@@ -43,7 +43,7 @@ impl<'a> RegionInferer<'a> {
         }
     }
 
-    pub fn infer<I>(mut self, func: &ast::FnDef<I>, fn_ty: &FnTy) -> Solution {
+    pub fn infer<I>(mut self, func: &ast::FnDef<I>, fn_ty: &FnDecl) -> Solution {
         self.env.insert_locals(fn_ty.inputs(&func.params));
         self.env.extend_heap(&fn_ty.in_heap);
         self.visit_fn_body(&func.body);
@@ -150,7 +150,6 @@ fn subtyping(
     ty2: &TyS,
 ) {
     match (ty1.kind(), ty2.kind()) {
-        (ty::TyKind::Fn(..), ty::TyKind::Fn(..)) => todo!(),
         (ty::TyKind::Tuple(tup1), ty::TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
             for (ty1, ty2) in tup1.types().zip(tup2.types()) {
                 subtyping(constraints, heap1, ty1, heap2, ty2);
@@ -229,9 +228,9 @@ impl Solution {
     fn fix_regions(
         &self,
         tcx: &TyCtxt,
-        fn_ty: FnTy,
+        fn_ty: FnDecl,
         conts: HashMap<ContId, ContTy>,
-    ) -> (HashMap<ContId, ContTy>, FnTy) {
+    ) -> (HashMap<ContId, ContTy>, FnDecl) {
         let conts = conts
             .into_iter()
             .map(|(id, cont_ty)| (id, self.fix_regions_cont_ty(tcx, cont_ty)))
@@ -248,8 +247,8 @@ impl Solution {
         }
     }
 
-    fn fix_regions_fn_ty(&self, tcx: &TyCtxt, fn_ty: FnTy) -> FnTy {
-        FnTy {
+    fn fix_regions_fn_ty(&self, tcx: &TyCtxt, fn_ty: FnDecl) -> FnDecl {
+        FnDecl {
             regions: fn_ty.regions.clone(),
             in_heap: self.fix_regions_heap(tcx, fn_ty.in_heap),
             inputs: fn_ty.inputs,
