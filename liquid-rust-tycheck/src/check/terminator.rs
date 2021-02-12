@@ -5,7 +5,7 @@ use crate::{
 
 use liquid_rust_fixpoint::Emitter;
 use liquid_rust_mir::{
-    ty::{Literal, Predicate, Ty, Variable},
+    ty::{BaseTy, Literal, Predicate, Ty, UnOp, Variable},
     Local, Operand, Terminator, TerminatorKind,
 };
 
@@ -25,8 +25,16 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 ty.subtype(target_ty, emitter)
             }
             TerminatorKind::Assert(cond, expected, target) => {
+                let cond_ty = if *expected {
+                    Ty::Refined(BaseTy::Bool, Predicate::Bound)
+                } else {
+                    Ty::Refined(
+                        BaseTy::Bool,
+                        Predicate::UnaryOp(UnOp::Not, Box::new(Predicate::Bound)),
+                    )
+                };
                 // An assertion is well-typed if `cond` has type `{b : bool | b == expected}`.
-                cond.check(&Ty::singleton(Literal::from(*expected)), (&ty, emitter));
+                cond.check(&cond_ty, (&ty, emitter));
                 // Then, the type of the assertion is the type of the target block.
                 let target_ty = bb_env.get_ty(*target).unwrap().clone();
                 ty.subtype(target_ty, emitter)
@@ -60,7 +68,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 let lhs_ty = ty.get_ty((*lhs).into()).unwrap();
 
                 // The return type and the type of the left-hand side must have the same shape.
-                assert!(!rhs_ty.shape_eq(lhs_ty));
+                assert!(rhs_ty.shape_eq(lhs_ty));
 
                 // Annotate the left-hand side local with the return type. This introduces a new
                 // local variable for the left-hand side local instead of overwriting the type for

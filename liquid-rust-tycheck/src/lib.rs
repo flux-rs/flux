@@ -24,7 +24,9 @@ use std::rc::Rc;
 
 pub fn check_program(program: &Program) {
     let func_env = FuncEnv::new(program.iter().map(|(_, func)| func.ty().clone()));
-    let generator = Rc::new(IndexGen::new());
+    let ghost_gen = Rc::new(IndexGen::new());
+
+    let hole_gen = IndexGen::<HoleId>::new();
 
     let mut emitter = Emitter::new();
 
@@ -34,7 +36,7 @@ pub fn check_program(program: &Program) {
 
             let ret_local = local_gen.generate();
 
-            let mut init_env = LocalEnv::empty(Rc::clone(&generator));
+            let mut init_env = LocalEnv::empty(Rc::clone(&ghost_gen));
 
             let func_ty = func
                 .ty()
@@ -45,26 +47,31 @@ pub fn check_program(program: &Program) {
 
             for arg_ty in func_ty.arguments() {
                 let arg = local_gen.generate();
+                emitter.add_bind(Variable::Local(arg), arg_ty);
                 init_env.bind(Variable::Local(arg), arg_ty.clone());
             }
 
-            init_env.bind(Variable::Local(ret_local), func.return_ty().refined());
+            let ret_ty = func.return_ty().refined();
+            emitter.add_bind(Variable::Local(ret_local), &ret_ty);
+            init_env.bind(Variable::Local(ret_local), ret_ty);
 
             for (local, local_ty) in func.temporaries() {
-                init_env.bind(Variable::Local(local), local_ty.refined());
+                let local_ty = local_ty.refined();
+                emitter.add_bind(Variable::Local(local), &local_ty);
+                init_env.bind(Variable::Local(local), local_ty);
             }
 
             let mut bb_env = BBlockEnv::new();
 
-            let hole_gen = IndexGen::<HoleId>::new();
-
             for _ in func.bblocks() {
-                let mut env = LocalEnv::empty(Rc::clone(&generator));
+                let mut env = LocalEnv::empty(Rc::clone(&ghost_gen));
 
                 for (variable, init_ty) in init_env.iter() {
                     if let Ty::Refined(base_ty, _) = init_ty {
-                        let ty = Ty::Refined(*base_ty, Predicate::Hole(hole_gen.generate().into()));
+                        let hole_id = hole_gen.generate();
+                        let ty = Ty::Refined(*base_ty, Predicate::Hole(hole_id.into()));
                         env.bind(*variable, ty);
+                        emitter.add_wf(*base_ty, hole_id).unwrap();
                     } else {
                         panic!()
                     }

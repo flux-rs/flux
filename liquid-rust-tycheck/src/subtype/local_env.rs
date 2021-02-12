@@ -52,8 +52,5 @@ impl<'env> Subtype<'env> for LocalEnv {
                 _ => todo!(),
             }
         }
-        while let Some(var1) = self.first() {
-            while let Some(var2) = other.first() {}
-        }
     }
 }
