@@ -82,18 +82,15 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
             TerminatorKind::Switch(local, branches, default) => {
                 // Synthetize the type of the local. Keep the predicate to be able to constraint it
                 // for the default branch.
-                let (base_ty, mut pred) = match Operand::Local(*local).synth(&ty) {
-                    Ty::Refined(base_ty, pred) => (base_ty, pred),
-                    // Locals cannot be functions yet.
-                    _ => unreachable!(),
-                };
+                let base_ty = Operand::Local(*local).synth(&ty).get_base().unwrap();
 
-                let var = Variable::Local((*local).into());
+                let mut default_pred = true.into();
 
                 // A switch terminator is well-typed if all its branches are well-typed.
                 for &(bits, target) in branches.as_ref() {
                     let lit = Literal::new(bits, base_ty);
-                    let op_ty = Ty::singleton(lit).selfify(var);
+                    let op_ty =
+                        Ty::Refined(base_ty, Predicate::Bound.eq(base_ty, lit)).selfify(*local);
 
                     // Annotate the local with the singleton type for the literal of the
                     // branch.
@@ -104,12 +101,12 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                     ty.subtype(target_ty, emitter);
 
                     // The local cannot be equal to the branch literal outside the branch.
-                    pred = pred & Predicate::Bound.neq(base_ty, lit);
+                    default_pred = default_pred & Predicate::Var((*local).into()).neq(base_ty, lit);
                 }
 
                 // Annotate the local with a type refined to ensure that the local was not equal to
                 // any of the literals in the branches.
-                ty.rebind((*local).into(), Ty::Refined(base_ty, pred));
+                ty.rebind((*local).into(), Ty::Refined(base_ty, default_pred).selfify(*local));
 
                 let default_ty = bb_env.get_ty(*default).unwrap().clone();
                 ty.subtype(default_ty, emitter)

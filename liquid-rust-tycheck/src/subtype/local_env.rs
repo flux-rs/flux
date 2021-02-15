@@ -49,7 +49,14 @@ impl<'env> Subtype<'env> for LocalEnv {
                     }
                 },
                 (None, None) => break,
-                _ => todo!(),
+                (Some(_), None) => {
+                    let (var1, ty1) = self.remove_first();
+                    env.bind(var1, ty1);
+                }
+                (None, Some(_)) => {
+                    let (var2, ty2) = self.remove_first();
+                    env.bind(var2, ty2);
+                }
             }
         }
     }

@@ -107,7 +107,7 @@ impl Emit for BinOp {
 impl Emit for Variable {
     fn emit(&self, f: &mut fmt::Formatter<'_>, _emitter: &Emitter) -> fmt::Result {
         match self {
-            Variable::Local(local) => write!(f, "l{}", local),
+            Variable::Local(local) => write!(f, "x{}", local.index()),
             Variable::Ghost(ghost) => write!(f, "{}", ghost),
         }
     }
