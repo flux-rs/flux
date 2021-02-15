@@ -49,12 +49,13 @@ impl Emitter {
         file.write_all(b"qualif QGt(v : @(0), x : @(0)): ((x > v))\n")?;
         file.write_all(b"qualif QGte(v : @(0), x : @(0)): ((x >= v))\n")?;
         file.write_all(b"qualif QNot(v : bool): (not v)\n")?;
-        file.write_all(b"qualif QZero(v : int): ((v == 0))\n")?;
-        file.write_all(b"qualif QNonZero(v : int): ((v != 0))\n")?;
+        file.write_all(b"qualif QEqZero(v : int): ((v == 0))\n")?;
+        file.write_all(b"qualif QNeqZero(v : int): ((v != 0))\n")?;
         file.write_all(b"qualif QGtZero(v : int): ((v > 0))\n")?;
         file.write_all(b"qualif QGteZero(v : int): ((v >= 0))\n")?;
         file.write_all(b"qualif QLtZero(v : int): ((v < 0))\n")?;
         file.write_all(b"qualif QLteZero(v : int): ((v <= 0))\n")?;
+        file.write_all(b"qualif QEqOne(v : int): ((v == 1))\n")?;
         file.write_all(b"qualif QBoolFalse(v : bool): (false)\n")?;
         file.write_all(b"qualif QIntFalse(v : int): (false)\n")?;
         file.write_all(b"qualif QIffLt(v :bool, x : @(0), y:@(0)): (v <=> x < y)\n\n")?;
