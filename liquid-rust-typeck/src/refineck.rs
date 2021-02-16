@@ -7,9 +7,8 @@ use ast::{FnBody, StatementKind};
 use liquid_rust_core::{
     ast::{self, ContDef, FnDef, Rvalue, Statement},
     names::*,
-    ty::{self, pred, subst::Subst, BaseTy, ContTy, Heap, Pred, Ty, TyCtxt, TyKind, TyS},
+    ty::{self, pred, subst::Subst, BaseTy, ContTy, Pred, Ty, TyCtxt},
 };
-use pred::Place;
 
 use crate::env::Env;
 
@@ -314,36 +313,5 @@ impl<'a> RefineChecker<'a> {
 
     fn report_ownership_error(&mut self, err: OwnershipError) {
         self.errors.push(err);
-    }
-}
-
-pub fn subtyping(tcx: &TyCtxt, heap1: &Heap, ty1: &TyS, heap2: &Heap, ty2: &TyS) -> Constraint {
-    match (ty1.kind(), ty2.kind()) {
-        (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => tup1
-            .iter()
-            .zip(tup2.types())
-            .rev()
-            .fold(Constraint::True, |c, ((f, ty1), ty2)| {
-                Constraint::Conj(vec![
-                    subtyping(tcx, heap1, ty1, heap2, ty2),
-                    Constraint::from_binding(*f, ty1.clone(), c),
-                ])
-            }),
-        // TODO check regions
-        (TyKind::Ref(bk1, _, l1), TyKind::Ref(bk2, _, l2)) if bk1 >= bk2 => {
-            let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
-            let ty2 = &heap2[l2];
-            subtyping(tcx, heap1, ty1, heap2, ty2)
-        }
-        (TyKind::OwnRef(l1), TyKind::OwnRef(l2)) => {
-            let ty1 = &tcx.selfify(&heap1[l1], Place::from(*l1));
-            let ty2 = &heap2[l2];
-            subtyping(tcx, heap1, ty1, heap2, ty2)
-        }
-        (TyKind::Refine(bty1, refine1), TyKind::Refine(bty2, refine2)) if bty1 == bty2 => {
-            Constraint::from_subtype(*bty1, refine1, refine2)
-        }
-        (_, TyKind::Uninit(n)) if ty1.size() == *n => Constraint::True,
-        _ => bug!("{} {}", ty1, ty2),
     }
 }

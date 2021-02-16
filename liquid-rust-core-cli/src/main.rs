@@ -45,6 +45,7 @@ fn diagnostics(
     err: ParseError,
 ) -> Result<(), codespan_reporting::files::Error> {
     use lalrpop_util::ParseError::*;
+
     let diagnostic: Diagnostic<()> = match err {
         User { error } => Diagnostic::error().with_message(error.to_string()),
 
