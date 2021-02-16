@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp};
+use liquid_rust_mir::ty::{BaseTy, BinOp, Predicate, UnOp};
 
 impl<'source> Solve<'source> for AstPredicate<'source> {
     type Output = Predicate;
@@ -28,9 +28,9 @@ impl<'source> Solve<'source> for AstPredicate<'source> {
             }
             AstPredicateKind::Var(ident) => {
                 // variable predicates can be solved by solving their identifier.
-                let (variable, base_ty) = rcx.solve(ident)?;
+                let (predicate, base_ty) = rcx.solve(ident)?;
 
-                Ok((Predicate::Var(variable), base_ty))
+                Ok((predicate, base_ty))
             }
             AstPredicateKind::UnaryOp(un_op, op) => {
                 // solve the operand.

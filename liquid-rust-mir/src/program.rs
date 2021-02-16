@@ -5,29 +5,29 @@ use crate::{
     statement::StatementKind,
 };
 
-use liquid_rust_common::index::{Index, IndexMap, IndexMapBuilder};
+use liquid_rust_common::index::IndexMap;
 
-pub struct Program<S> {
-    functions: IndexMap<FuncId, Func<S>>,
+pub struct Program {
+    functions: IndexMap<FuncId, Func>,
 }
 
-impl<S> Program<S> {
-    pub fn builder(functions_len: usize) -> ProgramBuilder<S> {
+impl Program {
+    pub fn builder(functions_len: usize) -> ProgramBuilder {
         ProgramBuilder {
-            functions: FuncId::index_map_builder(functions_len),
+            functions: IndexMap::from_raw((0..functions_len).map(|_| None).collect()),
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (FuncId, &Func<S>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (FuncId, &Func)> {
         self.functions.iter()
     }
 
-    pub fn get_func(&self, func_id: FuncId) -> &Func<S> {
-        self.functions.get(func_id)
+    pub fn get_func(&self, func_id: FuncId) -> &Func {
+        self.functions.get(func_id).unwrap()
     }
 }
 
-impl<S> fmt::Display for Program<S> {
+impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (func_id, func) in self.iter() {
             write!(f, "\n{}", func_id)?;
@@ -75,22 +75,32 @@ impl<S> fmt::Display for Program<S> {
     }
 }
 
-pub struct ProgramBuilder<S> {
-    functions: IndexMapBuilder<FuncId, Func<S>>,
+pub struct ProgramBuilder {
+    functions: IndexMap<FuncId, Option<Func>>,
 }
 
-impl<S> ProgramBuilder<S> {
-    pub fn add_func(&mut self, func_id: FuncId, func: Func<S>) -> bool {
-        self.functions.insert(func_id, func)
+impl ProgramBuilder {
+    pub fn add_func(&mut self, func_id: FuncId, func: Func) -> bool {
+        self.functions
+            .get_mut(func_id)
+            .unwrap()
+            .replace(func)
+            .is_some()
     }
 
     pub fn func_ids(&self) -> impl Iterator<Item = FuncId> {
         self.functions.keys()
     }
 
-    pub fn build(self) -> Result<Program<S>, FuncId> {
+    pub fn build(self) -> Result<Program, FuncId> {
+        let mut functions = Vec::with_capacity(self.functions.len());
+
+        for (func_id, func) in self.functions {
+            functions.push(func.ok_or(func_id)?);
+        }
+
         Ok(Program {
-            functions: self.functions.build()?,
+            functions: IndexMap::from_raw(functions),
         })
     }
 }

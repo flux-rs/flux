@@ -1,4 +1,4 @@
-use crate::{int_sign::IntSign, int_size::IntSize, ty::Ty};
+use crate::ty::{int_sign::IntSign, int_size::IntSize, ty::Ty};
 
 use std::fmt;
 
@@ -17,7 +17,7 @@ pub enum BaseTy {
 
 impl BaseTy {
     /// Consume the base type `B` and return the refined type `{b : B | true}`.
-    pub fn refined<V>(self) -> Ty<V> {
+    pub fn refined(self) -> Ty {
         Ty::Refined(self, true.into())
     }
 }

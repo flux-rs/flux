@@ -7,6 +7,5 @@ members = [
     "liquid-rust-fixpoint",
     "liquid-rust-mir",
     "liquid-rust-parser",
-    "liquid-rust-ty",
     "liquid-rust-tycheck",
 ]

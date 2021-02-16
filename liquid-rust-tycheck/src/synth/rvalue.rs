@@ -1,45 +1,17 @@
-use crate::{env::Env, glob_env::GlobEnv};
+use crate::{local_env::LocalEnv, synth::Synth};
 
-use liquid_rust_mir::{Operand, Rvalue};
-use liquid_rust_ty::{BaseTy, BinOp, LocalVariable, Predicate, Ty, UnOp, Variable};
+use liquid_rust_mir::{
+    ty::{BaseTy, BinOp, Predicate, Ty, UnOp},
+    Rvalue,
+};
 
-/// Rule to synthetize a type for a term.
-pub trait Synth<S> {
-    fn synth(&self, genv: &GlobEnv<S>, env: &mut Env<S>) -> Ty;
-}
+impl<'env> Synth<'env> for Rvalue {
+    type Ty = Ty;
+    type Env = &'env LocalEnv;
 
-impl<S> Synth<S> for LocalVariable {
-    // This returns the type of a local variable without selfification. Most likely you want to use
-    // the synth rule for operands. This rule only exists to synthetize the return type.
-    fn synth(&self, _genv: &GlobEnv<S>, env: &mut Env<S>) -> Ty {
-        env.get_ty(*self).clone()
-    }
-}
-
-impl<S> Synth<S> for Operand {
-    fn synth(&self, _genv: &GlobEnv<S>, env: &mut Env<S>) -> Ty {
+    fn synth(&self, env: Self::Env) -> Self::Ty {
         match self {
-            // Follow the `Syn-Var` rule.
-            Operand::Local(local) => {
-                let variable = env.resolve_local(*local);
-                // The type of the local is the type stored in the environment after selfification
-                env.get_ty(variable).clone().selfify(variable)
-            }
-            // Follow the `Syn-Const` rule.
-            Operand::Literal(literal) => {
-                // the type of a literal is the singleton type for the literal.
-                Ty::singleton(*literal)
-            }
-        }
-    }
-}
-
-impl<S> Synth<S> for Rvalue {
-    fn synth(&self, genv: &GlobEnv<S>, env: &mut Env<S>) -> Ty {
-        match self {
-            // Using an operand has the type of the operand.
-            Rvalue::Use(operand) => operand.synth(genv, env),
-            // Follow the synthesis rules for unary operations.
+            Rvalue::Use(operand) => operand.synth(env),
             Rvalue::UnApp(un_op, op) => {
                 let (param_ty, ret_ty) = match un_op {
                     // the `-` operator receives an integer and returns an integer of the same
@@ -50,22 +22,21 @@ impl<S> Synth<S> for Rvalue {
                 };
 
                 // Synthetize the type of the operand
-                let op_ty1 = op.synth(genv, env);
+                let op_ty1 = op.synth(env);
                 // The type of the operand must have the type that the operator receives as base
                 // type.
-                assert_eq!(op_ty1.get_base(), Some(param_ty));
-
+                assert!(op_ty1.has_base(param_ty));
+                //
                 // Resolve the operand into a predicate. This is possible because operands are
                 // literals or locals.
-                let op = Box::new(env.resolve_operand(op));
+                let op = Box::new(Predicate::from(op.clone()));
 
                 // Return the `{ b : B | b == (un_op op) }` type.
                 Ty::Refined(
                     ret_ty,
-                    Predicate::Var(Variable::Bound).eq(ret_ty, Predicate::UnaryOp(*un_op, op)),
+                    Predicate::Bound.eq(ret_ty, Predicate::UnaryOp(*un_op, op)),
                 )
             }
-            // Follow the synthesis rules for binary operations.
             Rvalue::BinApp(bin_op, op1, op2) => {
                 let (op_ty, ret_ty) = match bin_op {
                     // Arithmetic operators receive two integers of the same type and return an
@@ -91,27 +62,27 @@ impl<S> Synth<S> for Rvalue {
                     | BinOp::Gte(sign, size) => (BaseTy::Int(*sign, *size), BaseTy::Bool),
                 };
                 // Synthetize the types of the operands.
-                let op_ty1 = op1.synth(genv, env);
-                let op_ty2 = op2.synth(genv, env);
+                let op_ty1 = op1.synth(env);
+                let op_ty2 = op2.synth(env);
 
                 // The type of the operands should be the same.
                 //
                 // FIXME: this is not the case for the offset and shift operators.
                 assert!(op_ty1.shape_eq(&op_ty2));
+
                 // The type of the operands must have the type that the operator receives as base
                 // type.
-                assert_eq!(op_ty1.get_base(), Some(op_ty));
+                assert!(op_ty1.has_base(op_ty));
 
                 // Resolve the operands into predicates. This is possible because operands are
                 // literals or locals.
-                let op1 = Box::new(env.resolve_operand(op1));
-                let op2 = Box::new(env.resolve_operand(op2));
+                let op1 = Box::new(Predicate::from(op1.clone()));
+                let op2 = Box::new(Predicate::from(op2.clone()));
 
                 // Return the `{ b : B | b == (op1 bin_op op2) }` type.
                 Ty::Refined(
                     ret_ty,
-                    Predicate::Var(Variable::Bound)
-                        .eq(ret_ty, Predicate::BinaryOp(*bin_op, op1, op2)),
+                    Predicate::Bound.eq(ret_ty, Predicate::BinaryOp(*bin_op, op1, op2)),
                 )
             }
         }

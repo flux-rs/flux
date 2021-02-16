@@ -1,4 +1,4 @@
-use crate::{base_ty::BaseTy, int_sign::IntSign, int_size::IntSize};
+use crate::ty::{base_ty::BaseTy, int_sign::IntSign, int_size::IntSize};
 
 use std::fmt;
 

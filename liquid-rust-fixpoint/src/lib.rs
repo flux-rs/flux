@@ -1,234 +1,180 @@
-use liquid_rust_ty::{BaseTy, BinOp, Predicate, UnOp, Variable};
+#![feature(rustc_private)]
+
+mod emit;
+mod glob_variable;
+
+use emit::{Emit, Writer};
+
+use liquid_rust_mir::{
+    ty::{BaseTy, HoleId, Predicate, Ty, Variable},
+    Span,
+};
 
 use std::{
-    collections::BTreeMap,
+    cell::RefCell,
+    fs::File,
     io::{self, Write},
 };
 
-/// An environment binding of a variable to a base type and a predicate.
-struct Bind<A> {
-    variable: A,
-    base_ty: BaseTy,
-    predicate: Predicate<A>,
+pub struct Emitter {
+    variables: Vec<usize>,
+    binds: RefCell<Vec<u8>>,
+    wf: RefCell<Vec<u8>>,
+    constraints: RefCell<Vec<u8>>,
+    len_constraints: usize,
+    len_binds: usize,
 }
 
-/// An environment constraint that must hold for the program to be well-typed.
-///
-/// All constraints have the form `b : base_ty . lhs  => rhs`.
-struct Constraint<A, S> {
-    /// The environment for this constraint.
-    ///
-    /// Each variable here must have a valid binding inside the `Emitter.env` field.
-    env: Vec<A>,
-    /// The base type of the variable bound by the constraint.
-    base_ty: BaseTy,
-    /// The left-hand side of the implication.
-    lhs: Predicate<A>,
-    /// The right-hand side of the implication.
-    rhs: Predicate<A>,
-    /// The span where an error should be reported if this constraint is false.
-    span: S,
-}
-
-/// A struct used to emit constraints.
-pub struct Emitter<A, S> {
-    /// All the environment bindings.
-    env: Vec<Bind<A>>,
-    /// All the constraints for the current program.
-    constraints: Vec<Constraint<A, S>>,
-}
-
-impl<A: Emit + Copy + Ord, S> Emitter<A, S> {
-    /// Create a new empty emitter
+impl Emitter {
     pub fn new() -> Self {
         Self {
-            env: Vec::new(),
-            constraints: Vec::new(),
+            variables: Vec::new(),
+            binds: RefCell::new(Vec::new()),
+            wf: RefCell::new(Vec::new()),
+            constraints: RefCell::new(Vec::new()),
+            len_constraints: 0,
+            len_binds: 0,
         }
     }
 
-    /// Add a binding in the current environment.
-    pub fn add_bind(&mut self, variable: A, base_ty: BaseTy, predicate: Predicate<A>) {
-        self.env.push(Bind {
-            variable,
-            base_ty,
-            predicate,
-        });
+    pub fn emit(self) -> io::Result<()> {
+        let mut file = File::create("output.fq")?;
+        file.write_all(b"fixpoint \"--save\"\n")?;
+        file.write_all(b"fixpoint \"--eliminate=none\"\n\n")?;
+
+        file.write_all(&self.binds.into_inner())?;
+        file.write_all(b"\n")?;
+
+        file.write_all(b"qualif QEq(v : @(0), x : @(0)): ((x == v))\n")?;
+        file.write_all(b"qualif QGt(v : @(0), x : @(0)): ((x > v))\n")?;
+        file.write_all(b"qualif QGte(v : @(0), x : @(0)): ((x >= v))\n")?;
+        file.write_all(b"qualif QNot(v : bool): (not v)\n")?;
+        file.write_all(b"qualif QEqZero(v : int): ((v == 0))\n")?;
+        file.write_all(b"qualif QNeqZero(v : int): ((v != 0))\n")?;
+        file.write_all(b"qualif QGtZero(v : int): ((v > 0))\n")?;
+        file.write_all(b"qualif QGteZero(v : int): ((v >= 0))\n")?;
+        file.write_all(b"qualif QLtZero(v : int): ((v < 0))\n")?;
+        file.write_all(b"qualif QLteZero(v : int): ((v <= 0))\n")?;
+        file.write_all(b"qualif QEqOne(v : int): ((v == 1))\n")?;
+        file.write_all(b"qualif QBoolFalse(v : bool): (false)\n")?;
+        file.write_all(b"qualif QIntFalse(v : int): (false)\n")?;
+        file.write_all(b"qualif QIffLt(v :bool, x : @(0), y:@(0)): (v <=> x < y)\n\n")?;
+
+        file.write_all(&self.wf.into_inner())?;
+
+        file.write_all(&self.constraints.into_inner())
     }
 
-    /// Add a constraint to be emitted later.
+    pub fn clear(&mut self) {
+        self.variables.clear();
+    }
+
+    pub fn add_bind(&mut self, var: Variable, ty: &Ty) {
+        if let Ty::Refined(base_ty, predicate) = ty {
+            writeln!(
+                self.binds.borrow_mut(),
+                "bind {} {} : {{ b : {} | {} }}",
+                self.len_binds,
+                self.writer(var),
+                self.writer(base_ty),
+                self.writer(predicate)
+            )
+            .unwrap();
+
+            self.variables.push(self.len_binds);
+            self.len_binds += 1;
+
+            println!("added bind for {}", var);
+        } else {
+            panic!()
+        }
+    }
+
     pub fn add_constraint(
         &mut self,
-        env: Vec<A>,
         base_ty: BaseTy,
-        lhs: Predicate<A>,
-        rhs: Predicate<A>,
-        span: S,
-    ) {
-        self.constraints.push(Constraint {
-            env,
-            base_ty,
-            lhs,
-            rhs,
-            span,
-        });
-    }
-}
-
-impl<A: Emit + Copy + Ord, S: std::fmt::Debug> Emitter<A, S> {
-    /// Emit all the constraints into a file.
-    pub fn emit(self) -> io::Result<()> {
-        let mut file = std::fs::File::create("./output.fq")?;
-        // The index of the binding for each variable.
-        let mut vars = BTreeMap::new();
-
-        // First we emit all the environment bindings.
-        for (index, bind) in self.env.into_iter().enumerate() {
-            // Store the index for the variable.
-            vars.insert(bind.variable, index);
-
-            // Bindings are emitted with this format:
-            // `bind <index> : { <variable> : <base_ty> | <predicate>}`.
-            write!(file, "bind {} ", index)?;
-            bind.variable.emit(&mut file)?;
-            write!(file, " : {{")?;
-            Variable::<A>::Bound.emit(&mut file)?;
-            write!(file, ": ")?;
-            bind.base_ty.emit(&mut file)?;
-            write!(file, " | ")?;
-            bind.predicate.emit(&mut file)?;
-            writeln!(file, "}}")?;
-        }
-
-        for (id, constraint) in self.constraints.into_iter().enumerate() {
-            println!(
-                "Emitting constraint {} with span {:?}.",
-                id, constraint.span
-            );
-
-            writeln!(file, "\nconstraint:")?;
-
-            // The `env` field  has the format `env [<index> ; ...]` where `index` ranges over the
-            // indices of the binding for each variable in the environment of the constraint.
-            write!(file, "\tenv [")?;
-            let mut env = constraint.env.into_iter();
-            if let Some(var) = env.next() {
-                write!(file, "{}", vars[&var])?;
-                for var in env {
-                    write!(file, "; {}", vars[&var])?;
+        lhs: Predicate,
+        rhs: Predicate,
+        span: Span,
+    ) -> io::Result<()> {
+        match rhs {
+            Predicate::And(preds) => {
+                for pred in preds {
+                    self.add_constraint(base_ty, lhs.clone(), pred, span)?;
                 }
+
+                Ok(())
             }
-            writeln!(file, "]")?;
+            _ => {
+                let mut buffer = self.constraints.borrow_mut();
+                writeln!(buffer, "constraint:")?;
 
-            // The `lhs` field has the format `lhs { b : <base_ty> | <lhs> }`.
-            write!(file, "\tlhs {{")?;
-            Variable::<A>::Bound.emit(&mut file)?;
-            write!(file, ": ")?;
-            constraint.base_ty.emit(&mut file)?;
-            write!(file, " | ")?;
-            constraint.lhs.emit(&mut file)?;
-            writeln!(file, "}}")?;
+                write!(buffer, "  env [")?;
+                self.variables
+                    .iter()
+                    .fold(io::Result::Ok(true), |first, bind_id| {
+                        if !first? {
+                            write!(buffer, "; ")?;
+                        }
+                        write!(buffer, "{}", bind_id)?;
+                        Ok(false)
+                    })?;
+                writeln!(buffer, "]")?;
 
-            // The `lhs` field has the format `rhs { b : <base_ty> | <lhs> }`.
-            write!(file, "\trhs {{")?;
-            Variable::<A>::Bound.emit(&mut file)?;
-            write!(file, ": ")?;
-            constraint.base_ty.emit(&mut file)?;
-            write!(file, " | ")?;
-            constraint.rhs.emit(&mut file)?;
-            writeln!(file, "}}")?;
+                writeln!(
+                    buffer,
+                    "  lhs {{ b : {} | {} }}",
+                    self.writer(base_ty),
+                    self.writer(lhs)
+                )?;
 
-            // The `id` field has the format `id <id> tag []`.
-            //
-            // This `<id>` can be used to display error information.
-            writeln!(file, "\tid {} tag []", id)?;
-        }
+                writeln!(
+                    buffer,
+                    "  rhs {{ b : {} | {} }}",
+                    self.writer(base_ty),
+                    self.writer(rhs)
+                )?;
 
-        Ok(())
-    }
-}
+                writeln!(buffer, "  id {} tag []", self.len_constraints)?;
 
-/// The trait that every type that can be emitted by `Emitter` must implement.
-pub trait Emit {
-    /// Emit a value into a buffer.
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()>;
-}
+                self.len_constraints += 1;
 
-impl<A: Emit> Emit for Predicate<A> {
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        match self {
-            // Literals are emitted in the same way as they are displayed.
-            Predicate::Lit(literal) => write!(writer, "{}", literal),
-            // Literals are emitted according to their `Emit` implementation.
-            Predicate::Var(variable) => variable.emit(writer),
-            // Unary operations are emitted between parentheses.
-            Predicate::UnaryOp(un_op, op) => {
-                write!(writer, "(")?;
-                un_op.emit(writer)?;
-                write!(writer, " ")?;
-                op.emit(writer)?;
-                write!(writer, ")")
-            }
-            // Binary operations are emitted between parentheses.
-            Predicate::BinaryOp(bin_op, op1, op2) => {
-                write!(writer, "(")?;
-                op1.emit(writer)?;
-                write!(writer, " ")?;
-                bin_op.emit(writer)?;
-                write!(writer, " ")?;
-                op2.emit(writer)?;
-                write!(writer, ")")
+                writeln!(buffer)
             }
         }
     }
-}
 
-impl<A: Emit> Emit for &A {
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        (*self).emit(writer)
+    pub fn add_wf(&mut self, base_ty: BaseTy, hole_id: HoleId) -> io::Result<()> {
+        let mut buffer = self.wf.borrow_mut();
+
+        writeln!(buffer, "wf:")?;
+
+        write!(buffer, "  env [")?;
+        self.variables
+            .iter()
+            .fold(io::Result::Ok(true), |first, bind_id| {
+                if !first? {
+                    write!(buffer, "; ")?;
+                }
+                write!(buffer, "{}", bind_id)?;
+                Ok(false)
+            })?;
+        writeln!(buffer, "]")?;
+
+        writeln!(
+            buffer,
+            "  reft {{ b : {} | {} }}",
+            self.writer(base_ty),
+            self.writer(hole_id),
+        )?;
+
+        writeln!(buffer)
     }
-}
 
-impl Emit for UnOp {
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        match self {
-            // Use `not` instead of `!`.
-            UnOp::Not { .. } => write!(writer, "not"),
-            _ => write!(writer, "{}", self),
-        }
-    }
-}
-
-impl Emit for BinOp {
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        match self {
-            // Use `<=>` instead of `==` for booleans.
-            BinOp::Eq(BaseTy::Bool) => write!(writer, "<=>"),
-            _ => write!(writer, "{}", self),
-        }
-    }
-}
-
-impl Emit for BaseTy {
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        let s = match self {
-            BaseTy::Unit => "unit",
-            BaseTy::Bool => "bool",
-            // Emit all integer types as `int`.
-            BaseTy::Int { .. } => "int",
-        };
-
-        write!(writer, "{}", s)
-    }
-}
-
-impl<A: Emit> Emit for Variable<A> {
-    fn emit<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        match self {
-            Variable::Bound => write!(writer, "b"),
-            Variable::Local(a) => a.emit(writer),
-            // All arguments should have been projected.
-            Variable::Arg(_) => unreachable!(),
+    fn writer<'e, T: Emit>(&'e self, inner: T) -> Writer<'e, T> {
+        Writer {
+            emitter: self,
+            inner,
         }
     }
 }

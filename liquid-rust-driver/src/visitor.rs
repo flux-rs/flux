@@ -1,9 +1,9 @@
+use liquid_rust_mir::ty::Ty;
 use liquid_rust_parser::{
     parse_ty,
     resolution::{solve_ty, ResolutionErrorKind},
     ParseErrorKind,
 };
-use liquid_rust_ty::Ty;
 
 use rustc_ast::ast::{AttrItem, AttrKind, Attribute};
 use rustc_ast_pretty::pprust::tts_to_string;
@@ -76,9 +76,7 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
                             let span = map_span(err.span);
                             let msg = match err.kind {
                                 UnexpectedEOF => "Type annotation ended unexpectedly.".to_owned(),
-                                UnexpectedToken(token) => {
-                                    format!("Unexpected token `{}`.", token)
-                                }
+                                UnexpectedToken(token) => format!("Unexpected token `{}`.", token),
                             };
 
                             self.buffer_error(span, &msg);
@@ -86,7 +84,6 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
                             continue;
                         }
                     };
-                    println!("solve");
 
                     let ty = match solve_ty(&ast) {
                         Ok(ty) => ty,

@@ -1,6 +1,6 @@
 use crate::ast::{ident::Ident, predicate::Predicate, Span};
 
-use liquid_rust_ty::BaseTy;
+use liquid_rust_mir::ty::BaseTy;
 
 /// The AST representation of a refinement type.
 #[derive(Debug)]

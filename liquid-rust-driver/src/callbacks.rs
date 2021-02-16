@@ -1,7 +1,7 @@
 use crate::{lower::LowerCtx, visitor::DefCollector};
 
-use liquid_rust_mir::{FuncId, Program};
-use liquid_rust_ty::Ty;
+use liquid_rust_mir::{ty::Ty, FuncId, Program};
+
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hir::def_id::DefId;
 use rustc_interface::{interface::Compiler, Queries};

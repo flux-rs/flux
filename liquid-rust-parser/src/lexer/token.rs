@@ -221,7 +221,7 @@ impl<'source> fmt::Display for Token<'source> {
             Colon => ";".fmt(f),
             Comma => ",".fmt(f),
             Arrow => "->".fmt(f),
-            Invalid => unreachable!(),
+            Invalid => "invalid character".fmt(f),
         }
     }
 }

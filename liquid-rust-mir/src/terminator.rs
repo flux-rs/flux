@@ -1,10 +1,10 @@
-use crate::{bblock::BBlockId, func::FuncId, local::Local, operand::Operand};
+use crate::{bblock::BBlockId, func::FuncId, local::Local, operand::Operand, Span};
 
 use std::fmt;
 
-pub struct Terminator<S> {
+pub struct Terminator {
     pub kind: TerminatorKind,
-    pub span: S,
+    pub span: Span,
 }
 
 pub enum TerminatorKind {
@@ -15,7 +15,7 @@ pub enum TerminatorKind {
     Switch(Local, Box<[(u128, BBlockId)]>, BBlockId),
 }
 
-impl<S> fmt::Display for Terminator<S> {
+impl fmt::Display for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => "return".fmt(f),

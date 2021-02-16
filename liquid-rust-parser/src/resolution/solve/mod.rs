@@ -6,7 +6,7 @@ use crate::{
     resolution::ResolutionCtx,
 };
 
-use liquid_rust_ty::BaseTy;
+use liquid_rust_mir::ty::BaseTy;
 
 pub type ResolutionResult<'source, T> = Result<T, ResolutionError<'source>>;
 

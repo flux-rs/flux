@@ -1,6 +1,7 @@
-use crate::operand::Operand;
-
-use liquid_rust_ty::{BinOp, UnOp};
+use crate::{
+    operand::Operand,
+    ty::{BinOp, UnOp},
+};
 
 use std::fmt;
 

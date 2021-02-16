@@ -6,4 +6,5 @@ cargo run "$@"
 
 if [[ $? -eq 0 ]]; then
     fixpoint output.fq
+    cat ./.liquid/output.fq.fqout
 fi

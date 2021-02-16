@@ -8,7 +8,7 @@ pub use solve::{ResolutionError, ResolutionErrorKind, ResolutionResult};
 
 use crate::ast::{Ident, Ty as AstTy, TyKind as AstTyKind};
 
-use liquid_rust_ty::{Argument, BaseTy, FuncTy, Ty, Variable};
+use liquid_rust_mir::ty::{Argument, BaseTy, FuncTy, Predicate, Ty};
 
 /// Solve an AST representation of a type into a well-formed type.
 pub fn solve_ty<'source>(ast_ty: &AstTy<'source>) -> ResolutionResult<'source, Ty> {
@@ -57,8 +57,8 @@ impl<'source> ResolutionCtx<'source> {
     /// Bind an identifier in the innermost scope.
     ///
     /// This function panics if the stack with the scopes is empty.
-    fn bind_ident(&mut self, ident: &Ident<'source>, variable: Variable, base_ty: BaseTy) {
-        self.scope_mut().bind_ident(ident, variable, base_ty);
+    fn bind_ident(&mut self, ident: &Ident<'source>, predicate: Predicate, base_ty: BaseTy) {
+        self.scope_mut().bind_ident(ident, predicate, base_ty);
     }
     /// Free the latest bound identifier.
     ///
@@ -82,7 +82,7 @@ impl<'source> ResolutionCtx<'source> {
             AstTyKind::Base(base_ty) => Ok(base_ty.refined()),
             AstTyKind::Refined(ident, base_ty, ast_pred) => {
                 // bind the ident as the bound variable of the predicate in the current scope.
-                self.bind_ident(ident, Variable::Bound, *base_ty);
+                self.bind_ident(ident, Predicate::Bound, *base_ty);
                 // solve the predicate.
                 let (predicate, ty) = self.solve(ast_pred)?;
                 // if the predicate is not boolean, return an error.
@@ -113,7 +113,7 @@ impl<'source> ResolutionCtx<'source> {
                             return ResolutionErrorKind::FuncArgument.into_err(ast_ty.span.clone());
                         };
                         // Bind the argument's identifier.
-                        self.bind_ident(ident, Argument::new(pos).into(), base_ty);
+                        self.bind_ident(ident, Predicate::Arg(Argument::new(pos)), base_ty);
 
                         Ok(arg_ty)
                     })

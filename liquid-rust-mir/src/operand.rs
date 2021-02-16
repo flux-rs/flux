@@ -1,9 +1,8 @@
-use crate::local::Local;
-
-use liquid_rust_ty::Literal;
+use crate::{local::Local, ty::Literal};
 
 use std::fmt;
 
+#[derive(Clone)]
 pub enum Operand {
     Local(Local),
     Literal(Literal),

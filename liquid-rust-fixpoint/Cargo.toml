@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-ty = { path = "../liquid-rust-ty" }
+liquid-rust-mir = { path = "../liquid-rust-mir" }
