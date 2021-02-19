@@ -7,3 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+liquid-rust-parser = { path = "../liquid-rust-parser" }
+
+rustc-workspace-hack = "1.0.0"
