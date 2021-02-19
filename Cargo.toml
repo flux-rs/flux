@@ -4,4 +4,5 @@ members = [
     "liquid-rust",
     "liquid-rust-driver",
     "liquid-rust-fixpoint",
+    "liquid-rust-parser",
 ]

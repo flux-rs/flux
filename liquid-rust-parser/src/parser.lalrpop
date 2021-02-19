@@ -25,7 +25,7 @@ Args: Vec<ast::Ty<'source>> = {
     }
 };
 
-pub Ty: ast::Ty<'source> = {
+Ty: ast::Ty<'source> = {
     <spanned:Spanned<TyKind>> => {
         ast::Ty { kind: spanned.0, span: spanned.1 }
     },
