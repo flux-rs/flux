@@ -1,0 +1,182 @@
+use crate::{ast::{self, Span}, lexer::{LexerError, Token}};
+
+grammar<'source>(source: &'source str);
+
+
+pub FnDecl: ast::FnDecl<'source> = {
+    "fn" "(" <inputs:Args> <right_paren:Spanned<")">> <return_ty:("->" <Ty>)?> => {
+        let span = if let Some(return_ty) = &return_ty {
+            return_ty.span.clone()
+        } else {
+            right_paren.1
+        };
+
+        ast::FnDecl { inputs: inputs, output: return_ty, span }
+    },
+}
+
+Args: Vec<ast::Ty<'source>> = {
+    <mut args:(<Ty> ",")*> <arg:Ty?> => match arg {
+        None => args,
+        Some(arg) => {
+            args.push(arg);
+            args
+        }
+    }
+};
+
+pub Ty: ast::Ty<'source> = {
+    <spanned:Spanned<TyKind>> => {
+        ast::Ty { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+TyKind: ast::TyKind<'source> = {
+    <BaseTy> => ast::TyKind::Base(<>),
+    "{" <variable: Ident> ":" <base_ty: BaseTy> "|" <refinement: Predicate> "}" => {
+        ast::TyKind::Refined(ast::RefinedTy { variable, base_ty, refinement })
+    },
+}
+
+Predicate = Tier<BinOpKind1, BinaryOp2>;
+BinaryOp2 = Tier<BinOpKind2, BinaryOp3>;
+BinaryOp3 = Tier<BinOpKind3, BinaryOp4>;
+BinaryOp4 = Tier<BinOpKind4, BinaryOp5>;
+BinaryOp5 = Tier<BinOpKind5, UnaryOp>;
+
+Tier<OpKind, NextTier>: ast::Predicate<'source> = {
+    <op1:Tier<OpKind, NextTier>> <bin_op:Spanned<OpKind>> <op2:NextTier> => {
+        let bin_op = ast::BinOp { kind: bin_op.0, span: bin_op.1 };
+        let span = op1.span.start..op2.span.end;
+
+        ast::Predicate {
+            kind: ast::PredicateKind::BinaryOp(
+                bin_op,
+                Box::new(op1),
+                Box::new(op2)
+            ),
+            span,
+        }
+    },
+    NextTier
+}
+
+BinOpKind1: ast::BinOpKind = {
+    "||" => ast::BinOpKind::Or,
+}
+
+BinOpKind2: ast::BinOpKind = {
+    "&&" => ast::BinOpKind::And,
+}
+
+BinOpKind3: ast::BinOpKind = {
+    "==" => ast::BinOpKind::Eq,
+    "!=" => ast::BinOpKind::Neq,
+    ">" => ast::BinOpKind::Gt,
+    "<" => ast::BinOpKind::Lt,
+    ">=" => ast::BinOpKind::Gte,
+    "<=" => ast::BinOpKind::Lte,
+}
+
+BinOpKind4: ast::BinOpKind = {
+    "+" => ast::BinOpKind::Add,
+    "-" => ast::BinOpKind::Sub,
+}
+
+BinOpKind5: ast::BinOpKind = {
+    "*" => ast::BinOpKind::Mul,
+    "/" => ast::BinOpKind::Div,
+    "%" => ast::BinOpKind::Rem,
+}
+
+UnaryOp: ast::Predicate<'source> = {
+    <un_op:UnOp> <op:BasePredicate> => {
+        let span = un_op.span.start..op.span.end;
+        ast::Predicate {
+            kind: ast::PredicateKind::UnaryOp(un_op, Box::new(op)),
+            span,
+        }
+    },
+    <BasePredicate>,
+}
+
+UnOp: ast::UnOp = {
+    <spanned:Spanned<UnOpKind>> => {
+        ast::UnOp { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+UnOpKind: ast::UnOpKind = {
+    "!" => ast::UnOpKind::Not,
+    "-" => ast::UnOpKind::Neg,
+}
+
+BasePredicate: ast::Predicate<'source> = {
+    <spanned:Spanned<PredicateKind>> => {
+        ast::Predicate { kind: spanned.0, span: spanned.1 }
+    },
+}
+
+PredicateKind: ast::PredicateKind<'source> = {
+    <Literal> => ast::PredicateKind::Lit(<>),
+    <Ident> => ast::PredicateKind::Var(<>),
+    "(" <PredicateKind> ")"
+}
+
+Ident: ast::Ident<'source> = {
+    <spanned:Spanned<"ident">> => {
+        ast::Ident { symbol: spanned.0, span: spanned.1 }
+    },
+}
+
+Literal: ast::Literal = {
+    "true" => ast::Literal::Bool(true),
+    "false" => ast::Literal::Bool(false),
+    "integer" => ast::Literal::Int(<>),
+}
+
+BaseTy: ast::BaseTy = {
+    "bool" => ast::BaseTy::Bool,
+    "int" => ast::BaseTy::Int,
+};
+
+Spanned<T>: (T, Span) = {
+    <start:@L> <term:T> <end:@R> => (term, start..end),
+}
+
+extern {
+    type Location = usize;
+    type Error = LexerError;
+
+    enum Token<'source> {
+        "bool" => Token::Bool,
+        "int" => Token::Int,
+        "true" => Token::True,
+        "false" => Token::False,
+        "integer" => Token::Integer(<u128>),
+        "ident" => Token::Ident(<&'source str>),
+        "fn" => Token::Fn,
+        "+" => Token::Add,
+        "-" => Token::Sub,
+        "*" => Token::Mul,
+        "/" => Token::Div,
+        "%" => Token::Rem,
+        "&&" => Token::And,
+        "||" => Token::Or,
+        "!" => Token::Not,
+        "==" => Token::Eq,
+        "!=" => Token::Neq,
+        ">" => Token::Gt,
+        "<" => Token::Lt,
+        ">=" => Token::Gte,
+        "<=" => Token::Lte,
+        "(" => Token::OpenParen,
+        ")" => Token::CloseParen,
+        "{" => Token::OpenBracket,
+        "}" => Token::CloseBracket,
+        "|" => Token::Pipe,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "->" => Token::Arrow,
+    }
+}
