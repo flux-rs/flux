@@ -25,6 +25,11 @@ impl LocalEnv {
         self.types.push((variable, ty));
     }
 
+    pub(crate) fn bind_ghost(&mut self, ty: Ty) {
+        let ghost = self.generator.generate();
+        self.bind(Variable::Ghost(ghost), ty);
+    }
+
     pub(crate) fn rebind(&mut self, old_variable: Variable, mut ty: Ty) {
         let new_variable = Variable::Ghost(self.generator.generate());
 

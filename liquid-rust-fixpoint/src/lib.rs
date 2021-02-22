@@ -69,7 +69,7 @@ impl Emitter {
         self.variables.clear();
     }
 
-    pub fn add_bind(&mut self, var: Variable, ty: &Ty) {
+    pub fn add_bind(&mut self, var: Variable, ty: &Ty) -> usize {
         if let Ty::Refined(base_ty, predicate) = ty {
             writeln!(
                 self.binds.borrow_mut(),
@@ -81,10 +81,12 @@ impl Emitter {
             )
             .unwrap();
 
-            self.variables.push(self.len_binds);
+            let bind_id = self.len_binds;
+            self.variables.push(bind_id);
             self.len_binds += 1;
 
             println!("added bind for {}", var);
+            bind_id
         } else {
             panic!()
         }
@@ -144,21 +146,22 @@ impl Emitter {
         }
     }
 
-    pub fn add_wf(&mut self, base_ty: BaseTy, hole_id: HoleId) -> io::Result<()> {
+    pub fn add_wf(&mut self, base_ty: BaseTy, hole_id: HoleId, bind_id: usize) -> io::Result<()> {
         let mut buffer = self.wf.borrow_mut();
 
         writeln!(buffer, "wf:")?;
 
         write!(buffer, "  env [")?;
-        self.variables
-            .iter()
-            .fold(io::Result::Ok(true), |first, bind_id| {
+        self.variables.iter().filter(|id| **id != bind_id).fold(
+            io::Result::Ok(true),
+            |first, bind_id| {
                 if !first? {
                     write!(buffer, "; ")?;
                 }
                 write!(buffer, "{}", bind_id)?;
                 Ok(false)
-            })?;
+            },
+        )?;
         writeln!(buffer, "]")?;
 
         writeln!(

@@ -20,7 +20,7 @@ use liquid_rust_mir::{
     BBlockId, Local, Program,
 };
 
-use std::rc::Rc;
+use std::{collections::BTreeMap, rc::Rc};
 
 pub fn check_program(program: &Program) {
     let func_env = FuncEnv::new(program.iter().map(|(_, func)| func.ty().clone()));
@@ -38,6 +38,8 @@ pub fn check_program(program: &Program) {
 
             let mut init_env = LocalEnv::empty(Rc::clone(&ghost_gen));
 
+            let mut binds = BTreeMap::new();
+
             let func_ty = func
                 .ty()
                 .clone()
@@ -46,19 +48,24 @@ pub fn check_program(program: &Program) {
             let return_ty = func_ty.return_ty();
 
             for arg_ty in func_ty.arguments() {
-                let arg = local_gen.generate();
-                emitter.add_bind(Variable::Local(arg), arg_ty);
-                init_env.bind(Variable::Local(arg), arg_ty.clone());
+                let arg = Variable::Local(local_gen.generate());
+                let id = emitter.add_bind(arg, arg_ty);
+                init_env.bind(arg, arg_ty.clone());
+                binds.insert(arg, id);
             }
 
             let ret_ty = func.return_ty().refined();
-            emitter.add_bind(Variable::Local(ret_local), &ret_ty);
-            init_env.bind(Variable::Local(ret_local), ret_ty);
+            let ret_var = Variable::Local(ret_local);
+            let id = emitter.add_bind(ret_var, &ret_ty);
+            init_env.bind(ret_var, ret_ty);
+            binds.insert(ret_var, id);
 
             for (local, local_ty) in func.temporaries() {
+                let local = Variable::Local(local);
                 let local_ty = local_ty.refined();
-                emitter.add_bind(Variable::Local(local), &local_ty);
-                init_env.bind(Variable::Local(local), local_ty);
+                let id = emitter.add_bind(local, &local_ty);
+                init_env.bind(local, local_ty);
+                binds.insert(local, id);
             }
 
             let mut bb_env = BBlockEnv::new();
@@ -71,7 +78,8 @@ pub fn check_program(program: &Program) {
                         let hole_id = hole_gen.generate();
                         let ty = Ty::Refined(*base_ty, Predicate::Hole(hole_id.into()));
                         env.bind(*variable, ty);
-                        emitter.add_wf(*base_ty, hole_id).unwrap();
+                        let bind_id = binds[variable];
+                        emitter.add_wf(*base_ty, hole_id, bind_id).unwrap();
                     } else {
                         panic!()
                     }

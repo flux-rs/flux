@@ -89,24 +89,27 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 // A switch terminator is well-typed if all its branches are well-typed.
                 for &(bits, target) in branches.as_ref() {
                     let lit = Literal::new(bits, base_ty);
-                    let op_ty =
-                        Ty::Refined(base_ty, Predicate::Bound.eq(base_ty, lit)).selfify(*local);
+                    let op_ty = Ty::Refined(
+                        base_ty,
+                        Predicate::Var(Variable::Local(*local)).eq(base_ty, lit),
+                    );
 
-                    // Annotate the local with the singleton type for the literal of the
+                    // Annotate a ghost variable with the singleton type for the literal of the
                     // branch.
                     let mut ty = ty.clone();
-                    ty.rebind((*local).into(), op_ty);
+                    ty.bind_ghost(op_ty);
 
                     let target_ty = bb_env.get_ty(target).unwrap().clone();
                     ty.subtype(target_ty, emitter);
 
                     // The local cannot be equal to the branch literal outside the branch.
-                    default_pred = default_pred & Predicate::Var((*local).into()).neq(base_ty, lit);
+                    default_pred =
+                        default_pred & Predicate::Var(Variable::Local(*local)).neq(base_ty, lit);
                 }
 
-                // Annotate the local with a type refined to ensure that the local was not equal to
+                // Annotate a ghost variable with a type refined to ensure that the local was not equal to
                 // any of the literals in the branches.
-                ty.rebind((*local).into(), Ty::Refined(base_ty, default_pred).selfify(*local));
+                ty.bind_ghost(Ty::Refined(base_ty, default_pred));
 
                 let default_ty = bb_env.get_ty(*default).unwrap().clone();
                 ty.subtype(default_ty, emitter)

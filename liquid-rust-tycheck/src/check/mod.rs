@@ -1,7 +1,7 @@
 mod bblock;
-mod terminator;
 mod operand;
 mod rvalue;
+mod terminator;
 
 pub(crate) trait Check<'ty, 'env> {
     type Env: 'env;
