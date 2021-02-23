@@ -9,7 +9,10 @@ pub use result::{ParseError, ParseErrorKind, ParseResult};
 
 use lalrpop_util::lalrpop_mod;
 
-lalrpop_mod!(parser);
+lalrpop_mod!(
+    #[allow(clippy::all)]
+    parser
+);
 
 /// Parse a function declaration annotation to produce an AST representation of a type with it.
 pub fn parse_fn_decl<'source>(source: &'source str) -> ParseResult<FnDecl<'source>> {
