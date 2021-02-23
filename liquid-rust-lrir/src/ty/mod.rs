@@ -44,7 +44,6 @@ impl TyS {
 impl fmt::Display for TyS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
-            TyKind::OwnRef(gv) => write!(f, "own({})", gv),
             TyKind::Ref(BorrowKind::Shared, r, gv) => write!(f, "&{} {}", r, gv),
             TyKind::Ref(BorrowKind::Mut, r, gv) => write!(f, "&{} mut {}", r, gv),
             TyKind::Tuple(tup) => {
@@ -76,8 +75,6 @@ pub enum TyKind {
     Refined(BaseTy, Refine),
     /// A dependent tuple: `(x: int, y: {int | x > v})`.
     Tuple(Tuple),
-    /// An owned reference.
-    OwnRef(GhostVar),
     /// A borrowed reference.
     Ref(BorrowKind, Region, GhostVar),
     /// Unitialized memory of given size.

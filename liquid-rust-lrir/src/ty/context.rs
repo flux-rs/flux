@@ -36,10 +36,6 @@ impl TyCtxt {
 
     // Types
 
-    pub fn mk_own_ref(&self, g: GhostVar) -> Ty {
-        self.mk_ty(TyKind::OwnRef(g))
-    }
-
     pub fn mk_tuple(&self, tup: Tuple) -> Ty {
         self.mk_ty(TyKind::Tuple(tup))
     }
