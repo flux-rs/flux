@@ -16,7 +16,7 @@ impl fmt::Display for Local {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Proj {
     /// A field projection into a tuple: the 0 in `p.0`.
     Field(usize),

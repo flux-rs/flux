@@ -1,10 +1,11 @@
 [package]
 authors = ["The Liquid Rust Project Developers"]
 edition = "2018"
-name = "liquid-rust-common"
+name = "liquid-rust-typeck"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-indexmap = "1.6"
+liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-lrir = { path = "../liquid-rust-lrir" }

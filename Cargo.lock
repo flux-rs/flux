@@ -291,6 +291,14 @@ name = "liquid-rust-fixpoint"
 version = "0.1.0"
 
 [[package]]
+name = "liquid-rust-lrir"
+version = "0.1.0"
+dependencies = [
+ "hashconsing",
+ "liquid-rust-common",
+]
+
+[[package]]
 name = "liquid-rust-parser"
 version = "0.1.0"
 dependencies = [
@@ -300,11 +308,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "liquid-rust-ty"
+name = "liquid-rust-typeck"
 version = "0.1.0"
 dependencies = [
- "hashconsing",
  "liquid-rust-common",
+ "liquid-rust-lrir",
 ]
 
 [[package]]

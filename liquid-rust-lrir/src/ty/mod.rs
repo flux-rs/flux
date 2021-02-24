@@ -28,7 +28,7 @@ pub struct FnDecl {
     pub output: GhostVar,
 }
 
-type Ty = HConsed<TyS>;
+pub type Ty = HConsed<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TyS {
@@ -103,6 +103,12 @@ impl Tuple {
         )
     }
 
+    pub fn map_ty_at(&self, n: usize, f: impl FnOnce(&Ty) -> Ty) -> Tuple {
+        let mut v = self.0.clone();
+        v[n].1 = f(&v[n].1);
+        Tuple(v)
+    }
+
     pub fn ty_at(&self, n: usize) -> &Ty {
         &self.0[n].1
     }
@@ -134,7 +140,7 @@ impl From<Pred> for Refine {
     }
 }
 
-type Pred = HConsed<PredS>;
+pub type Pred = HConsed<PredS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PredS {
@@ -191,9 +197,9 @@ impl Path {
     }
 }
 
-impl From<Var> for Path {
-    fn from(base: Var) -> Self {
-        Path::new(base, vec![])
+impl<T: Into<Var>> From<T> for Path {
+    fn from(base: T) -> Self {
+        Path::new(base.into(), vec![])
     }
 }
 
@@ -219,6 +225,18 @@ pub enum Var {
     Ghost(GhostVar),
     /// A field name in a dependent tuple.
     Field(Field),
+}
+
+impl From<Field> for Var {
+    fn from(v: Field) -> Self {
+        Self::Field(v)
+    }
+}
+
+impl From<GhostVar> for Var {
+    fn from(v: GhostVar) -> Self {
+        Self::Ghost(v)
+    }
 }
 
 impl fmt::Display for Var {
@@ -367,6 +385,12 @@ pub enum Region {
     Abstract(UniversalRegion),
     /// A region that needs to be inferred.
     Infer(RegionVid),
+}
+
+impl From<Place> for Region {
+    fn from(place: Place) -> Self {
+        Region::Concrete(vec![place])
+    }
 }
 
 impl fmt::Display for Region {

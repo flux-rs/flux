@@ -1,17 +1,19 @@
 use std::cell::RefCell;
 
 use hashconsing::{HConsign, HashConsign};
+use liquid_rust_common::index::IndexGen;
 
 use super::*;
 
 /// Type context used to allocate types.
 ///
-/// During type checking we create pass around many types. To save on space we intern types using
+/// During type checking we create and pass around many types. To save on space we intern types using
 /// [hashconsing]. [TyCtxt] is the main data structure used to allocate and work with types.
 pub struct TyCtxt {
     interner: RefCell<Interner>,
     pub preds: CommonPreds,
     pub types: CommonTypes,
+    indexgen: RefCell<IndexGen>,
 }
 
 impl TyCtxt {
@@ -23,7 +25,12 @@ impl TyCtxt {
             interner: RefCell::new(interner),
             preds,
             types,
+            indexgen: RefCell::new(IndexGen::new()),
         }
+    }
+
+    pub fn fresh_ghost(&self) -> GhostVar {
+        self.indexgen.borrow_mut().fresh()
     }
 
     pub fn mk_ty(&self, ty: TyKind) -> Ty {
