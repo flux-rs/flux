@@ -10,8 +10,6 @@ impl<'env> Subtype<'env> for LocalEnv {
     type Env = &'env mut Emitter;
 
     fn subtype(mut self, mut other: Self, emitter: Self::Env) {
-        println!("Sub-Env: {} <: {}", self, other);
-
         while let Some(_) = other.first() {
             let (var, ty2) = other.remove_first();
             match var {

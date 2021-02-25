@@ -94,6 +94,7 @@ pub fn check_program(program: &Program) {
 
             for (bb_id, bb) in func.bblocks() {
                 let ty = bb_env.get_ty(bb_id).unwrap().clone();
+                println!("{}: {}", bb_id, ty);
                 bb.check(ty, (&func_env, &bb_env, return_ty, &mut emitter));
             }
         }

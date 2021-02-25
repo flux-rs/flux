@@ -85,7 +85,6 @@ impl Emitter {
             self.variables.push(bind_id);
             self.len_binds += 1;
 
-            println!("added bind for {}", var);
             bind_id
         } else {
             panic!()

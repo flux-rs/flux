@@ -7,7 +7,6 @@ impl<'env> Subtype<'env> for &Ty {
     type Env = (&'env LocalEnv, &'env mut Emitter);
 
     fn subtype(self, other: Self, (env, emitter): Self::Env) {
-        println!("Sub-Ty:  {} |- {} <: {}", env, self, other);
         match (self, other) {
             (Ty::Refined(base_ty1, pred1), Ty::Refined(base_ty2, pred2)) => {
                 assert_eq!(base_ty1, base_ty2);
