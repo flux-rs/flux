@@ -46,8 +46,9 @@ impl Emitter {
         file.write_all(b"\n")?;
 
         file.write_all(b"qualif QEq(v : @(0), x : @(0)): ((x == v))\n")?;
-        file.write_all(b"qualif QGt(v : @(0), x : @(0)): ((x > v))\n")?;
-        file.write_all(b"qualif QGte(v : @(0), x : @(0)): ((x >= v))\n")?;
+        file.write_all(b"qualif QNeq(v : @(0), x : @(0)): ((x != v))\n")?;
+        file.write_all(b"qualif QLt(v : @(0), x : @(0)): ((x < v))\n")?;
+        file.write_all(b"qualif QLte(v : @(0), x : @(0)): ((x <= v))\n")?;
         file.write_all(b"qualif QNot(v : bool): (not v)\n")?;
         file.write_all(b"qualif QEqZero(v : int): ((v == 0))\n")?;
         file.write_all(b"qualif QNeqZero(v : int): ((v != 0))\n")?;
@@ -59,6 +60,7 @@ impl Emitter {
         file.write_all(b"qualif QBoolFalse(v : bool): (false)\n")?;
         file.write_all(b"qualif QIntFalse(v : int): (false)\n")?;
         file.write_all(b"qualif QIffLt(v :bool, x : @(0), y:@(0)): (v <=> x < y)\n\n")?;
+        file.write_all(b"qualif QIffLte(v :bool, x : @(0), y:@(0)): (v <=> x <= y)\n\n")?;
 
         file.write_all(&self.wf.into_inner())?;
 
