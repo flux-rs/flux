@@ -61,6 +61,17 @@ impl fmt::Display for Program {
                     }
                 }
                 writeln!(f, "]")?;
+
+                write!(f, "\t\\\\ closed locals: [")?;
+                let mut locals = bb.closed_locals().iter();
+                if let Some(local) = locals.next() {
+                    write!(f, "{}", local)?;
+                    for local in locals {
+                        write!(f, ", {}", local)?;
+                    }
+                }
+                writeln!(f, "]")?;
+
                 writeln!(f, "\t{}: {{", bb_id)?;
 
                 for statement in bb.statements() {

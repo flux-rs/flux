@@ -1,6 +1,10 @@
-use crate::{statement::Statement, terminator::Terminator};
+use crate::{
+    local::Local,
+    statement::{Statement, StatementKind},
+    terminator::Terminator,
+};
 
-use liquid_rust_common::new_index;
+use liquid_rust_common::{index::IndexMap, new_index};
 
 use std::fmt;
 
@@ -25,6 +29,7 @@ pub struct BBlock {
     statements: Box<[Statement]>,
     terminator: Terminator,
     predecessors: Box<[BBlockId]>,
+    closed_locals: Box<[Local]>,
 }
 
 impl BBlock {
@@ -39,14 +44,40 @@ impl BBlock {
     pub fn predecessors(&self) -> &[BBlockId] {
         self.predecessors.as_ref()
     }
+
+    pub fn closed_locals(&self) -> &[Local] {
+        self.closed_locals.as_ref()
+    }
 }
 
 impl BBlock {
-    pub fn builder() -> BBlockBuilder {
+    pub fn builder(len_locals: usize) -> BBlockBuilder {
         BBlockBuilder {
             statements: Vec::new(),
             terminator: None,
             predecessors: Vec::new(),
+            locals: IndexMap::from_raw(vec![LocalState::Unknown; len_locals]),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalState {
+    Alive,
+    Dead,
+    Unknown,
+}
+
+impl LocalState {
+    fn live(&mut self) {
+        *self = Self::Alive;
+    }
+
+    fn dead(&mut self) {
+        match self {
+            Self::Alive => *self = Self::Dead,
+            Self::Dead => *self = Self::Dead,
+            Self::Unknown => (),
         }
     }
 }
@@ -55,6 +86,7 @@ pub struct BBlockBuilder {
     statements: Vec<Statement>,
     terminator: Option<Terminator>,
     predecessors: Vec<BBlockId>,
+    locals: IndexMap<Local, LocalState>,
 }
 
 impl BBlockBuilder {
@@ -63,6 +95,12 @@ impl BBlockBuilder {
     }
 
     pub fn add_statement(&mut self, statement: Statement) {
+        match &statement.kind {
+            StatementKind::StorageLive(local) => self.locals.get_mut(*local).unwrap().live(),
+            StatementKind::StorageDead(local) => self.locals.get_mut(*local).unwrap().dead(),
+            _ => (),
+        }
+
         self.statements.push(statement);
     }
 
@@ -75,6 +113,11 @@ impl BBlockBuilder {
             statements: self.statements.into_boxed_slice(),
             terminator: self.terminator?,
             predecessors: self.predecessors.into_boxed_slice(),
+            closed_locals: self
+                .locals
+                .into_iter()
+                .filter_map(|(local, state)| (state == LocalState::Dead).then(|| local))
+                .collect(),
         })
     }
 }

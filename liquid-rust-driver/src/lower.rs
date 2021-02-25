@@ -486,7 +486,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
 impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
     type Output = BBlock;
     fn lower(&self, lcx: &mut LowerCtx<'tcx, '_>) -> Result<Self::Output, LowerError> {
-        let mut builder = BBlock::builder();
+        let mut builder = BBlock::builder(lcx.locals.len());
         for statement in &self.statements {
             builder.add_statement(lcx.lower(statement)?);
         }
