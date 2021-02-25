@@ -16,6 +16,7 @@ use std::{collections::HashMap, fmt};
 pub struct LowerCtx<'tcx, 'low> {
     tcx: TyCtxt<'tcx>,
     body: &'low mir::Body<'tcx>,
+    bb: mir::BasicBlock,
     locals: IndexVec<mir::Local, Local>,
     blocks: IndexVec<mir::BasicBlock, BBlockId>,
     func_ids: &'low HashMap<DefId, FuncId>,
@@ -31,6 +32,7 @@ impl<'tcx, 'low> LowerCtx<'tcx, 'low> {
         Self {
             tcx,
             body,
+            bb: mir::START_BLOCK,
             locals: IndexVec::new(),
             blocks: IndexVec::new(),
             func_ids,
@@ -490,6 +492,9 @@ impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
         }
 
         builder.add_terminator(lcx.lower(self.terminator.as_ref().unwrap())?);
+        for bb in &lcx.body.predecessors()[lcx.bb] {
+            builder.add_predecessor(lcx.lower(bb)?);
+        }
 
         Ok(builder.build().unwrap())
     }
@@ -516,6 +521,7 @@ impl<'tcx> Lower<'tcx> for mir::Body<'tcx> {
         }
 
         for (basic_block, basic_block_data) in self.basic_blocks().iter_enumerated() {
+            lcx.bb = basic_block;
             let bb_id = lcx.blocks[basic_block];
             let bb = lcx
                 .lower(basic_block_data)

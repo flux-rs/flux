@@ -24,6 +24,7 @@ impl fmt::Display for BBlockId {
 pub struct BBlock {
     statements: Box<[Statement]>,
     terminator: Terminator,
+    predecessors: Box<[BBlockId]>,
 }
 
 impl BBlock {
@@ -34,6 +35,10 @@ impl BBlock {
     pub fn terminator(&self) -> &Terminator {
         &self.terminator
     }
+
+    pub fn predecessors(&self) -> &[BBlockId] {
+        self.predecessors.as_ref()
+    }
 }
 
 impl BBlock {
@@ -41,6 +46,7 @@ impl BBlock {
         BBlockBuilder {
             statements: Vec::new(),
             terminator: None,
+            predecessors: Vec::new(),
         }
     }
 }
@@ -48,6 +54,7 @@ impl BBlock {
 pub struct BBlockBuilder {
     statements: Vec<Statement>,
     terminator: Option<Terminator>,
+    predecessors: Vec<BBlockId>,
 }
 
 impl BBlockBuilder {
@@ -59,10 +66,15 @@ impl BBlockBuilder {
         self.statements.push(statement);
     }
 
+    pub fn add_predecessor(&mut self, predecessor: BBlockId) {
+        self.predecessors.push(predecessor);
+    }
+
     pub fn build(self) -> Option<BBlock> {
         Some(BBlock {
             statements: self.statements.into_boxed_slice(),
             terminator: self.terminator?,
+            predecessors: self.predecessors.into_boxed_slice(),
         })
     }
 }

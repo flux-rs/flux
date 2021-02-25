@@ -52,7 +52,16 @@ impl fmt::Display for Program {
             }
 
             for (bb_id, bb) in func.bblocks() {
-                writeln!(f, "\n\t{}: {{", bb_id)?;
+                write!(f, "\n\t\\\\ predecessors: [")?;
+                let mut predecessors = bb.predecessors().iter();
+                if let Some(predecessor) = predecessors.next() {
+                    write!(f, "{}", predecessor)?;
+                    for predecessor in predecessors {
+                        write!(f, ", {}", predecessor)?;
+                    }
+                }
+                writeln!(f, "]")?;
+                writeln!(f, "\t{}: {{", bb_id)?;
 
                 for statement in bb.statements() {
                     writeln!(f, "\t\t{};", statement)?;
