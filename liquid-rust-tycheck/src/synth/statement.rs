@@ -9,6 +9,8 @@ impl<'env> Synth<'env> for Statement {
     fn synth(&self, mut env: Self::Env) -> Self::Ty {
         match &self.kind {
             StatementKind::Noop => env,
+            StatementKind::StorageLive(_) => env,
+            StatementKind::StorageDead(_) => env,
             StatementKind::Assign(lhs, rhs) => {
                 let lhs = (*lhs).into();
                 // Synthetize a type for the right-hand side of the assignment.

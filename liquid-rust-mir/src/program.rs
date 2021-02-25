@@ -1,9 +1,6 @@
 use std::fmt;
 
-use crate::{
-    func::{Func, FuncId},
-    statement::StatementKind,
-};
+use crate::func::{Func, FuncId};
 
 use liquid_rust_common::index::IndexMap;
 
@@ -58,9 +55,7 @@ impl fmt::Display for Program {
                 writeln!(f, "\n\t{}: {{", bb_id)?;
 
                 for statement in bb.statements() {
-                    if !matches!(statement.kind, StatementKind::Noop) {
-                        writeln!(f, "\t\t{};", statement)?;
-                    }
+                    writeln!(f, "\t\t{};", statement)?;
                 }
 
                 writeln!(f, "\t\t{};", bb.terminator())?;

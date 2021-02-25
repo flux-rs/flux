@@ -1,10 +1,7 @@
 use crate::{local_env::LocalEnv, subtype::Subtype, synth::Synth};
 
 use liquid_rust_fixpoint::Emitter;
-use liquid_rust_mir::{
-    ty::{Predicate, Ty, Variable},
-    Operand,
-};
+use liquid_rust_mir::{ty::Variable, Operand};
 
 impl<'env> Subtype<'env> for LocalEnv {
     type Env = &'env mut Emitter;

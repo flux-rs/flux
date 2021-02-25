@@ -9,7 +9,7 @@ use rustc_ast::ast::{AttrItem, AttrKind, Attribute};
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::{Diagnostic, Handler};
 use rustc_hir::{
-    def_id::DefId, itemlikevisit::ItemLikeVisitor, ImplItem, Item, ItemKind, TraitItem,
+    def_id::DefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, Item, ItemKind, TraitItem,
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{BytePos, Span};
@@ -116,7 +116,7 @@ impl<'tcx, 'vis> DefCollector<'tcx, 'vis> {
 impl<'hir, 'tcx, 'vis> ItemLikeVisitor<'hir> for DefCollector<'tcx, 'vis> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
-            let def_id = self.tcx.hir().local_def_id(item.hir_id).to_def_id();
+            let def_id = self.tcx.hir().local_def_id(item.hir_id()).to_def_id();
 
             if let Some(ty) = self.extract_annotations(item.attrs) {
                 self.annotations.insert(def_id, ty);
@@ -126,4 +126,5 @@ impl<'hir, 'tcx, 'vis> ItemLikeVisitor<'hir> for DefCollector<'tcx, 'vis> {
 
     fn visit_trait_item(&mut self, _trait_item: &'hir TraitItem<'hir>) {}
     fn visit_impl_item(&mut self, _impl_item: &'hir ImplItem<'hir>) {}
+    fn visit_foreign_item(&mut self, _foreign_item: &'hir ForeignItem<'hir>) {}
 }

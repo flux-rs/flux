@@ -17,10 +17,6 @@ impl LocalEnv {
         }
     }
 
-    pub(crate) fn spawn_empty(&self) -> Self {
-        Self::empty(Rc::clone(&self.generator))
-    }
-
     pub(crate) fn bind(&mut self, variable: Variable, ty: Ty) {
         self.types.push((variable, ty));
     }
@@ -60,10 +56,6 @@ impl LocalEnv {
 
     pub(crate) fn first(&self) -> Option<Variable> {
         Some(self.types.first()?.0)
-    }
-
-    pub(crate) fn first_ty(&self) -> Option<&Ty> {
-        Some(&self.types.first()?.1)
     }
 
     pub(crate) fn remove_first(&mut self) -> (Variable, Ty) {

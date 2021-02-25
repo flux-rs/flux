@@ -4,12 +4,11 @@ use liquid_rust_mir::{
     Terminator, TerminatorKind,
 };
 
-use rustc_ast::ast::{IntTy, UintTy};
 use rustc_hir::def_id::DefId;
 use rustc_index::vec::IndexVec;
 use rustc_middle::{
     bug, mir,
-    ty::{ConstKind, ParamEnv, Ty as MirTy, TyCtxt, TyKind},
+    ty::{ConstKind, IntTy, ParamEnv, Ty as MirTy, TyCtxt, TyKind, UintTy},
 };
 use rustc_span::{Span, DUMMY_SP};
 use std::{collections::HashMap, fmt};
@@ -127,6 +126,7 @@ impl<'tcx> Lower<'tcx> for mir::Local {
         }
     }
 }
+
 impl<'tcx> Lower<'tcx> for IntTy {
     type Output = IntSize;
 
@@ -188,9 +188,13 @@ impl<'tcx> Lower<'tcx> for mir::Statement<'tcx> {
                 let rvalue = lcx.lower(rvalue).map_err(|err| err.with_span(span))?;
                 StatementKind::Assign(local, rvalue)
             }
-            mir::StatementKind::StorageLive(..)
-            | mir::StatementKind::StorageDead(..)
-            | mir::StatementKind::Nop => StatementKind::Noop,
+            mir::StatementKind::StorageLive(local) => {
+                StatementKind::StorageLive(lcx.lower(local).map_err(|err| err.with_span(span))?)
+            }
+            mir::StatementKind::StorageDead(local) => {
+                StatementKind::StorageDead(lcx.lower(local).map_err(|err| err.with_span(span))?)
+            }
+            mir::StatementKind::Nop => StatementKind::Noop,
             statement => {
                 let msg = match statement {
                     mir::StatementKind::Assign(..)
