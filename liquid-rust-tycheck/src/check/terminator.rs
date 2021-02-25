@@ -11,7 +11,12 @@ use liquid_rust_mir::{
 
 impl<'ty, 'env> Check<'ty, 'env> for Terminator {
     type Ty = LocalEnv;
-    type Env = (&'env FuncEnv, &'env BBlockEnv, &'env Ty, &'env mut Emitter);
+    type Env = (
+        &'env FuncEnv,
+        &'env mut BBlockEnv,
+        &'env Ty,
+        &'env mut Emitter,
+    );
 
     fn check(&self, mut ty: Self::Ty, (func_env, bb_env, return_ty, emitter): Self::Env) {
         match &self.kind {
@@ -20,10 +25,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
 
                 return_local.check(return_ty, (&ty, emitter))
             }
-            TerminatorKind::Goto(target) => {
-                let target_ty = bb_env.get_ty(*target).unwrap().clone();
-                ty.subtype(target_ty, emitter)
-            }
+            TerminatorKind::Goto(target) => ty.subtype(*target, (bb_env, emitter)),
             TerminatorKind::Assert(cond, expected, target) => {
                 let cond_ty = if *expected {
                     Ty::Refined(BaseTy::Bool, Predicate::Bound)
@@ -36,8 +38,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 // An assertion is well-typed if `cond` has type `{b : bool | b == expected}`.
                 cond.check(&cond_ty, (&ty, emitter));
                 // Then, the type of the assertion is the type of the target block.
-                let target_ty = bb_env.get_ty(*target).unwrap().clone();
-                ty.subtype(target_ty, emitter)
+                ty.subtype(*target, (bb_env, emitter))
             }
             TerminatorKind::Call(lhs, func, args, target) => {
                 // Retrieve all the arguments of the call as predicates.
@@ -76,8 +77,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 ty.rebind((*lhs).into(), rhs_ty.clone());
 
                 // Then, the type of the call is the type of the target block.
-                let target_ty = bb_env.get_ty(*target).unwrap().clone();
-                ty.subtype(target_ty, emitter)
+                ty.subtype(*target, (bb_env, emitter))
             }
             TerminatorKind::Switch(local, branches, default) => {
                 // Synthetize the type of the local. Keep the predicate to be able to constraint it
@@ -99,8 +99,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                     let mut ty = ty.clone();
                     ty.bind_ghost(op_ty);
 
-                    let target_ty = bb_env.get_ty(target).unwrap().clone();
-                    ty.subtype(target_ty, emitter);
+                    ty.subtype(target, (bb_env, emitter));
 
                     // The local cannot be equal to the branch literal outside the branch.
                     default_pred =
@@ -111,8 +110,7 @@ impl<'ty, 'env> Check<'ty, 'env> for Terminator {
                 // any of the literals in the branches.
                 ty.bind_ghost(Ty::Refined(base_ty, default_pred));
 
-                let default_ty = bb_env.get_ty(*default).unwrap().clone();
-                ty.subtype(default_ty, emitter)
+                ty.subtype(*default, (bb_env, emitter))
             }
         }
     }

@@ -70,32 +70,35 @@ pub fn check_program(program: &Program) {
 
             let mut bb_env = BBlockEnv::new();
 
-            for _ in func.bblocks() {
-                let mut env = LocalEnv::empty(Rc::clone(&ghost_gen));
+            for (_, bb) in func.bblocks() {
+                if bb.predecessors().len() > 1 {
+                    let mut env = LocalEnv::empty(Rc::clone(&ghost_gen));
 
-                for (variable, init_ty) in init_env.iter() {
-                    if let Ty::Refined(base_ty, _) = init_ty {
-                        let hole_id = hole_gen.generate();
-                        let ty = Ty::Refined(*base_ty, Predicate::Hole(hole_id.into()));
-                        env.bind(*variable, ty);
-                        let bind_id = binds[variable];
-                        emitter.add_wf(*base_ty, hole_id, bind_id).unwrap();
-                    } else {
-                        panic!()
+                    for (variable, init_ty) in init_env.iter() {
+                        if let Ty::Refined(base_ty, _) = init_ty {
+                            let hole_id = hole_gen.generate();
+                            let ty = Ty::Refined(*base_ty, Predicate::Hole(hole_id.into()));
+                            env.bind(*variable, ty);
+                            let bind_id = binds[variable];
+                            emitter.add_wf(*base_ty, hole_id, bind_id).unwrap();
+                        } else {
+                            panic!()
+                        }
                     }
-                }
 
-                bb_env.insert(env);
+                    bb_env.insert(Some(env));
+                } else {
+                    bb_env.insert(None);
+                }
             }
 
-            let bb0_env = bb_env.get_ty(BBlockId::start()).unwrap().clone();
-
-            init_env.subtype(bb0_env, &mut emitter);
+            init_env.subtype(BBlockId::start(), (&mut bb_env, &mut emitter));
 
             for (bb_id, bb) in func.bblocks() {
-                let ty = bb_env.get_ty(bb_id).unwrap().clone();
-                println!("{}: {}", bb_id, ty);
-                bb.check(ty, (&func_env, &bb_env, return_ty, &mut emitter));
+                if let Some(ty) = bb_env.get_ty(bb_id).cloned() {
+                    println!("{}: {}", bb_id, ty);
+                    bb.check(ty, (&func_env, &mut bb_env, return_ty, &mut emitter));
+                }
             }
         }
     }
