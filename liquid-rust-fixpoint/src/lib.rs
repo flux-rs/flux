@@ -1,34 +1,18 @@
-use liquid_rust_lrir::ty::{UnOp, BinOp};
+mod constant;
+mod constraint;
+mod embed;
+mod emit;
+mod pred;
+mod sort;
+mod variable;
 
-pub enum Constraint {
-    Pred(Pred),
-    Conj(Vec<Self>),
-    ForAll(Sort, Pred, Box<Self>),
-    Guard(Pred, Box<Self>),
-}
+use embed::Embed;
+use emit::{Emit, Emitter};
 
-pub enum Sort {
-    Int,
-    Bool,
-}
+pub struct Fixpoint {}
 
-pub enum Pred {
-    Const(Constant),
-    Var(Variable),
-    BinaryOp(BinOp, Box<Self>, Box<Self>),
-    UnaryOp(UnOp, Box<Self>),
-}
-
-pub enum Constant {
-    Bool(bool),
-    Int(u128),
-    Unit,
-}
-
-pub struct Variable {
-    index: usize,
-}
-
-pub struct Fixpoint {
-
+impl Fixpoint {
+    fn embed<E: Embed>(&self, e: &E) -> E::Output {
+        e.embed(self)
+    }
 }
