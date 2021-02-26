@@ -1,9 +1,9 @@
-use crate::mir::{BasicBlock, Operand, Place, SourceInfo};
+use crate::mir::{BasicBlock, Operand, Place, Span};
 use crate::ty::BaseTy;
 
 pub struct Terminator {
-    pub source_info: SourceInfo,
     pub kind: TerminatorKind,
+    pub span: Span,
 }
 
 pub enum TerminatorKind {

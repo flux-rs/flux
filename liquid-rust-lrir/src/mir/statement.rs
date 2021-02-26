@@ -1,8 +1,8 @@
-use crate::mir::{Local, Place, Rvalue, SourceInfo};
+use crate::mir::{Local, Place, Rvalue, Span};
 
 pub struct Statement {
     pub kind: StatementKind,
-    pub source_info: SourceInfo,
+    pub span: Span,
 }
 
 pub enum StatementKind {
