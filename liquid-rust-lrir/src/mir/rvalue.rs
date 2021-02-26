@@ -1,5 +1,5 @@
-use crate::mir::{Operand, Place};
-use crate::ty::{BinOp, BorrowKind, Region, UnOp};
+use crate::mir::{BinOp, Operand, Place, UnOp};
+use crate::ty::{BorrowKind, Region};
 
 pub enum Rvalue {
     Use(Operand),

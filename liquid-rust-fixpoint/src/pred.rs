@@ -2,7 +2,7 @@ use crate::{
     constant::Constant, emit, emit::Emit, impl_emit_by_display, variable::Variable, Fixpoint,
 };
 
-use liquid_rust_lrir::ty::{BinOp, UnOp};
+use liquid_rust_lrir::mir::{BinOp, UnOp};
 
 use std::fmt;
 
