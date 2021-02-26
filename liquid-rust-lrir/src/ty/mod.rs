@@ -2,7 +2,7 @@ pub mod context;
 
 pub use context::TyCtxt;
 
-use crate::mir::Place;
+use crate::mir::{Constant, Place};
 
 use liquid_rust_common::new_index;
 
@@ -176,7 +176,7 @@ pub enum PredKind {
     /// A unary operation applied to a predicate.
     UnaryOp(UnOp, Pred),
     /// A constant value.
-    Const(Const),
+    Const(Constant),
 }
 
 /// A path to a value. Note that unlike [Place], a [Path] only contains field projections, i.e.,
@@ -247,46 +247,6 @@ impl fmt::Display for Var {
             Var::Nu => write!(f, "v"),
             Var::Ghost(l) => write!(f, "{}", l),
             Var::Field(fld) => write!(f, "{}", fld),
-        }
-    }
-}
-
-/// A typed constant.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Const {
-    /// The bit layout of the constant based on Rust's data layout, e.g. `true` is represented as
-    /// `1`, `false` is represented as `0`.
-    bits: u128,
-    /// The type of the constant.
-    ty: BaseTy,
-}
-
-impl Const {
-    /// return the type of the constant
-    pub fn ty(&self) -> BaseTy {
-        self.ty
-    }
-
-    /// Check if the literal is identical to `true`.
-    pub const fn is_true(&self) -> bool {
-        matches!(self.ty, BaseTy::Bool) && self.bits == 1
-    }
-}
-
-impl From<bool> for Const {
-    fn from(b: bool) -> Self {
-        Const {
-            bits: b as u128,
-            ty: BaseTy::Bool,
-        }
-    }
-}
-
-impl fmt::Display for Const {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.ty {
-            BaseTy::Bool => write!(f, "{}", self.bits != 0),
-            BaseTy::Int => write!(f, "{}", self.bits),
         }
     }
 }

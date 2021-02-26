@@ -1,9 +1,14 @@
 use std::cell::RefCell;
 
-use hashconsing::{HConsign, HashConsign};
+use crate::mir::Constant;
+use crate::ty::{
+    BaseTy, BinOp, BorrowKind, GhostVar, Path, Pred, PredKind, PredS, Refine, Region, Tuple, Ty,
+    TyKind, TyS, UnOp, Var,
+};
+
 use liquid_rust_common::index::IndexGen;
 
-use super::*;
+use hashconsing::{HConsign, HashConsign};
 
 /// Type context used to allocate types.
 ///
@@ -75,7 +80,7 @@ impl TyCtxt {
 
     // Predicates
 
-    pub fn mk_const(&self, c: Const) -> Pred {
+    pub fn mk_const(&self, c: Constant) -> Pred {
         self.mk_pred(PredKind::Const(c))
     }
 
@@ -138,8 +143,8 @@ impl CommonPreds {
         let mut intern = |pred| interner.intern_pred(pred);
         Self {
             nu: intern(PredKind::Path(Path::from(Var::Nu))),
-            tt: intern(PredKind::Const(Const::from(true))),
-            ff: intern(PredKind::Const(Const::from(false))),
+            tt: intern(PredKind::Const(Constant::from(true))),
+            ff: intern(PredKind::Const(Constant::from(false))),
         }
     }
 
