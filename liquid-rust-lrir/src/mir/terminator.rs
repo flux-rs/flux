@@ -1,5 +1,7 @@
-use crate::mir::{BasicBlock, Operand, Place, Span};
-use crate::ty::BaseTy;
+use crate::{
+    mir::{BasicBlock, Operand, Place, Span},
+    ty::BaseTy,
+};
 
 pub struct Terminator {
     pub kind: TerminatorKind,

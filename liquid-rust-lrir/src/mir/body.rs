@@ -1,4 +1,4 @@
-use crate::mir::{Local, LocalDecl, BasicBlock, BasicBlockData, Span};
+use crate::mir::{BasicBlock, BasicBlockData, Local, LocalDecl, Span};
 
 use std::collections::HashMap;
 

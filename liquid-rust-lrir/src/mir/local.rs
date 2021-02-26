@@ -1,5 +1,4 @@
-use crate::mir::Span;
-use crate::ty::BaseTy;
+use crate::{mir::Span, ty::BaseTy};
 
 use liquid_rust_common::new_index;
 

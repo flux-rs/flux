@@ -3,8 +3,9 @@ use liquid_rust_parser::{parse_fn_decl, ParseErrorKind};
 use rustc_ast::{AttrKind, Attribute};
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::{Diagnostic, Handler};
-use rustc_hir::itemlikevisit::ItemLikeVisitor;
-use rustc_hir::{def_id::DefId, ForeignItem, ImplItem, Item, ItemKind, TraitItem};
+use rustc_hir::{
+    def_id::DefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, Item, ItemKind, TraitItem,
+};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{BytePos, Pos, Span};
 

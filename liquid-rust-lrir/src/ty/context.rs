@@ -1,9 +1,11 @@
 use std::cell::RefCell;
 
-use crate::mir::Constant;
-use crate::ty::{
-    BaseTy, BinOp, BorrowKind, GhostVar, Path, Pred, PredKind, PredS, Refine, Region, Tuple, Ty,
-    TyKind, TyS, UnOp, Var,
+use crate::{
+    mir::Constant,
+    ty::{
+        BaseTy, BinOp, BorrowKind, GhostVar, Path, Pred, PredKind, PredS, Refine, Region, Tuple,
+        Ty, TyKind, TyS, UnOp, Var,
+    },
 };
 
 use liquid_rust_common::index::IndexGen;
