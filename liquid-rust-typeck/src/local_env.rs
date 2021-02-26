@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt};
 
 use liquid_rust_common::ordered_hash_map::OrderedHashMap;
 use liquid_rust_lrir::{
+    mir::{Local, PlaceElem, PlaceRef},
     ty::{GhostVar, Path, Ty, TyCtxt, TyKind},
-    Local, PlaceRef, Proj,
 };
 
 pub struct LocalEnv<'tcx> {
@@ -33,13 +33,13 @@ impl<'tcx> LocalEnv<'tcx> {
 
     /// Lookup the current type of a place (following references).
     pub fn lookup(&self, place: PlaceRef) -> &Ty {
-        let mut ty = &self.ghost_vars[&self.locals[&place.base]];
-        for proj in place.projs {
+        let mut ty = &self.ghost_vars[&self.locals[&place.local]];
+        for proj in place.projection {
             match (ty.kind(), proj) {
-                (TyKind::Tuple(tuple), &Proj::Field(n)) => {
+                (TyKind::Tuple(tuple), &PlaceElem::Field(n)) => {
                     ty = tuple.ty_at(n);
                 }
-                (TyKind::Ref(.., gv), Proj::Deref) => {
+                (TyKind::Ref(.., gv), PlaceElem::Deref) => {
                     ty = &self.ghost_vars[gv];
                 }
                 _ => unreachable!("{} {} {:?}", ty, place, proj),
@@ -54,24 +54,24 @@ impl<'tcx> LocalEnv<'tcx> {
     /// Returns the freshly generated [GhostVar] assigned to the [base](liquid_rust_lrir::Place::base)
     /// of `place`.
     pub fn update(&mut self, place: PlaceRef, ty: Ty) -> GhostVar {
-        let gv = self.locals[&place.base];
+        let gv = self.locals[&place.local];
         let root = self.tcx.selfify(&self.ghost_vars[&gv], Path::from(gv));
         let fresh_gv = self.tcx.fresh_ghost();
-        let ty = self.update_rec(&root, place.projs, ty);
-        self.locals.insert(place.base, fresh_gv);
+        let ty = self.update_rec(&root, place.projection, ty);
+        self.locals.insert(place.local, fresh_gv);
         self.ghost_vars.insert(fresh_gv, ty);
         fresh_gv
     }
 
-    fn update_rec(&mut self, root: &Ty, projs: &[Proj], ty: Ty) -> Ty {
+    fn update_rec(&mut self, root: &Ty, projs: &[PlaceElem], ty: Ty) -> Ty {
         let tcx = self.tcx;
         match (root.kind(), projs) {
             (_, []) => ty,
-            (TyKind::Tuple(tup), &[Proj::Field(n), ..]) => {
+            (TyKind::Tuple(tup), &[PlaceElem::Field(n), ..]) => {
                 let ty = self.update_rec(tup.ty_at(n), &projs[1..], ty);
                 tcx.mk_tuple(tup.map_ty_at(n, |_| ty))
             }
-            (TyKind::Ref(bk, r, gv), [Proj::Deref, ..]) => {
+            (TyKind::Ref(bk, r, gv), [PlaceElem::Deref, ..]) => {
                 let root = tcx.selfify(&self.ghost_vars[gv], Path::from(*gv));
                 let fresh_gv = tcx.fresh_ghost();
                 let ty = self.update_rec(&root, &projs[1..], ty);
@@ -94,16 +94,16 @@ impl<'tcx> LocalEnv<'tcx> {
 
     /// Get the current [Path] corresponding to `place`.
     pub fn current_path(&self, place: PlaceRef) -> Path {
-        let mut base = self.locals[&place.base];
+        let mut base = self.locals[&place.local];
         let mut ty = &self.ghost_vars[&base];
         let mut projs = Vec::new();
-        for proj in place.projs {
+        for proj in place.projection {
             match (ty.kind(), proj) {
-                (TyKind::Tuple(tup), &Proj::Field(n)) => {
+                (TyKind::Tuple(tup), &PlaceElem::Field(n)) => {
                     ty = tup.ty_at(n);
                     projs.push(n);
                 }
-                (TyKind::Ref(.., gv), Proj::Deref) => {
+                (TyKind::Ref(.., gv), PlaceElem::Deref) => {
                     projs.clear();
                     base = *gv;
                     ty = &self.ghost_vars[&base];

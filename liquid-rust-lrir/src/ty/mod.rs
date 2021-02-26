@@ -1,11 +1,13 @@
 pub mod context;
 
-use std::fmt;
+pub use context::TyCtxt;
+
+use crate::mir::Place;
+
+use liquid_rust_common::new_index;
 
 use hashconsing::HConsed;
-
-use super::Place;
-pub use context::TyCtxt;
+use std::fmt;
 
 /// A function type declaration
 pub struct FnDecl {
