@@ -1,11 +1,11 @@
 use crate::mir::{BasicBlock, BasicBlockData, Local, LocalDecl, Span};
 
-use std::collections::HashMap;
+use liquid_rust_common::index::IndexMap;
 
 pub struct Body {
-    basic_blocks: HashMap<BasicBlock, BasicBlockData>,
-    pub local_decls: HashMap<Local, LocalDecl>,
+    pub basic_blocks: IndexMap<BasicBlock, BasicBlockData>,
+    pub local_decls: IndexMap<Local, LocalDecl>,
     pub arg_count: usize,
     pub span: Span,
-    predecessors: HashMap<BasicBlock, Vec<BasicBlock>>,
+    pub predecessors: IndexMap<BasicBlock, Vec<BasicBlock>>,
 }

@@ -22,6 +22,10 @@ impl Constant {
     pub const fn is_true(&self) -> bool {
         matches!(self.ty, BaseTy::Bool) && self.bits == 1
     }
+
+    pub const fn new(bits: u128, ty: BaseTy) -> Self {
+        Self { bits, ty }
+    }
 }
 
 impl From<bool> for Constant {

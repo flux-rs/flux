@@ -34,3 +34,12 @@ pub struct SwitchTargets {
     values: Vec<u128>,
     targets: Vec<BasicBlock>,
 }
+
+impl SwitchTargets {
+    pub fn new(targets: impl Iterator<Item = (u128, BasicBlock)>, otherwise: BasicBlock) -> Self {
+        let (values, mut targets) = targets.unzip::<u128, BasicBlock, Vec<_>, Vec<_>>();
+        targets.push(otherwise);
+
+        Self { values, targets }
+    }
+}
