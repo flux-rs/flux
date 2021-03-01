@@ -1,3 +1,7 @@
+mod map;
+
+pub use map::IndexMap;
+
 use std::{any, collections::HashMap};
 
 /// Create an `usize` newtype that implements the [Index] trait.
