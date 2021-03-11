@@ -12,7 +12,7 @@ mod ty;
 
 use result::LowerResult;
 
-pub use context::LowerCtx;
+use context::LowerCtx;
 
 trait Lower<'tcx> {
     type Output;

@@ -9,6 +9,15 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
+impl Place {
+    pub fn as_ref(&self) -> PlaceRef {
+        PlaceRef {
+            local: self.local,
+            projection: &self.projection,
+        }
+    }
+}
+
 impl fmt::Display for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         PlaceRef::from(self).fmt(f)
@@ -34,6 +43,15 @@ impl<'a> From<&'a Place> for PlaceRef<'a> {
         PlaceRef {
             local: place.local,
             projection: &place.projection,
+        }
+    }
+}
+
+impl From<Local> for PlaceRef<'_> {
+    fn from(local: Local) -> Self {
+        PlaceRef {
+            local,
+            projection: &[],
         }
     }
 }

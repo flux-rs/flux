@@ -1,4 +1,5 @@
 pub mod context;
+pub mod subst;
 
 pub use context::TyCtxt;
 
@@ -22,9 +23,10 @@ pub struct FnDecl {
     /// variables in this mapping are existentially quantified and can be _assumed_ at the call
     /// site after the function returns.
     pub ensures: Vec<(GhostVar, Ty)>,
-    /// Updated ghost variables (bound in [ensures](Self::ensures)) for argument [references](TyKind::Ref)
-    /// Arguments are referenced by specifying their index in [inputs](Self::inputs).
-    pub outputs: Vec<(usize, GhostVar)>,
+    // FIXME: bring back outputs once we properly handle references
+    // /// Updated ghost variables (bound in [ensures](Self::ensures)) for argument [references](TyKind::Ref)
+    // /// Arguments are referenced by specifying their index in [inputs](Self::inputs).
+    // pub outputs: Vec<GhostVar>,
     /// Ghost variable (bound in [ensures](Self::ensures)) corresponding to the output of this
     /// function.
     pub output: GhostVar,
@@ -40,6 +42,35 @@ pub struct TyS {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+
+    /// Whether this type is a refined integer type.
+    pub fn is_int(&self) -> bool {
+        matches!(self.kind(), TyKind::Refined(BaseTy::Int, ..))
+    }
+
+    /// Whether this type is a refined boolean type.
+    pub fn is_bool(&self) -> bool {
+        matches!(self.kind(), TyKind::Refined(BaseTy::Bool, ..))
+    }
+
+    /// Whether the type is copy.
+    pub fn is_copy(&self) -> bool {
+        match self.kind() {
+            TyKind::Ref(BorrowKind::Shared, ..) | TyKind::Refined(_, _) => true,
+            TyKind::Tuple(tup) => tup.types().all(|ty| ty.is_copy()),
+            _ => false,
+        }
+    }
+
+    /// Size in bytes.
+    pub fn size(&self) -> usize {
+        match self.kind() {
+            TyKind::Refined(bty, _) => bty.size(),
+            TyKind::Tuple(tup) => tup.types().map(|ty| ty.size()).sum(),
+            TyKind::Ref(_, _, _) => 1,
+            TyKind::Uninit(size) => *size,
+        }
     }
 }
 
@@ -79,7 +110,7 @@ pub enum TyKind {
     Tuple(Tuple),
     /// A borrowed reference.
     Ref(BorrowKind, Region, GhostVar),
-    /// Unitialized memory of given size.
+    /// Uninitialized memory of given size.
     Uninit(usize),
 }
 
@@ -220,7 +251,7 @@ impl fmt::Display for Path {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Var {
     /// The variable bound by a refined base type, i.e., the `v` in `{v: int | v > 0}`. The name nu
-    /// is used because the greek letter nu is tipically used to range over this variables when
+    /// is used because the greek letter nu is typically used to range over this variables when
     /// formalized.
     Nu,
     /// A ghost variable.
@@ -241,6 +272,15 @@ impl From<GhostVar> for Var {
     }
 }
 
+impl<'a, T> From<&'a T> for Var
+where
+    T: Copy + Into<Var>,
+{
+    fn from(v: &'a T) -> Self {
+        (*v).into()
+    }
+}
+
 impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -256,6 +296,12 @@ impl fmt::Display for Var {
 pub enum BaseTy {
     Int,
     Bool,
+}
+
+impl BaseTy {
+    pub fn size(&self) -> usize {
+        1
+    }
 }
 
 impl fmt::Display for BaseTy {
