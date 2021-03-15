@@ -282,6 +282,8 @@ dependencies = [
 name = "liquid-rust-driver"
 version = "0.1.0"
 dependencies = [
+ "liquid-rust-common",
+ "liquid-rust-lrir",
  "liquid-rust-parser",
  "rustc-workspace-hack",
 ]
@@ -289,6 +291,9 @@ dependencies = [
 [[package]]
 name = "liquid-rust-fixpoint"
 version = "0.1.0"
+dependencies = [
+ "liquid-rust-lrir",
+]
 
 [[package]]
 name = "liquid-rust-lrir"
@@ -296,6 +301,7 @@ version = "0.1.0"
 dependencies = [
  "hashconsing",
  "liquid-rust-common",
+ "rustc-workspace-hack",
 ]
 
 [[package]]
