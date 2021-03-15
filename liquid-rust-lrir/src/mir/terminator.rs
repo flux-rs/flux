@@ -42,4 +42,11 @@ impl SwitchTargets {
 
         Self { values, targets }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (u128, BasicBlock)> + '_ {
+        self.values
+            .iter()
+            .zip(&self.targets)
+            .map(|(bits, target)| (*bits, *target))
+    }
 }

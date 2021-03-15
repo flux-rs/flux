@@ -1,4 +1,6 @@
-/// A hash map that preserves insertion order when iterated.
+use std::iter::FromIterator;
+
+/// A hash map that preserves insertion order.
 #[derive(Default)]
 pub struct OrderedHashMap<K, V> {
     // IndexMap preserves insertion order as long as swap_remove and related methods are not used.
@@ -14,6 +16,29 @@ impl<K, V> OrderedHashMap<K, V> {
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
         self.inner.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    pub fn truncate(&mut self, n: usize) {
+        self.inner.truncate(n)
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for OrderedHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        Self {
+            inner: FromIterator::from_iter(iter),
+        }
     }
 }
 

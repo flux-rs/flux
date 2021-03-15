@@ -1,14 +1,14 @@
 use crate::index::Index;
 
-use std::{fmt, marker::PhantomData};
+use std::{fmt, iter, marker::PhantomData, ops};
 
 /// An associative array which uses an [Index] as key.
 ///
 /// This is just a thin wrapper over a [Vec].
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct IndexMap<K: Index, V> {
     inner: Vec<V>,
-    marker: PhantomData<K>,
+    _marker: PhantomData<K>,
 }
 
 impl<K: Index, V> IndexMap<K, V> {
@@ -16,7 +16,7 @@ impl<K: Index, V> IndexMap<K, V> {
     pub fn new() -> Self {
         Self {
             inner: Vec::new(),
-            marker: PhantomData,
+            _marker: PhantomData,
         }
     }
 
@@ -25,13 +25,18 @@ impl<K: Index, V> IndexMap<K, V> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: Vec::with_capacity(capacity),
-            marker: PhantomData,
+            _marker: PhantomData,
         }
     }
 
     /// Return the number of elements of the map.
     pub fn len(&self) -> usize {
         self.inner.len()
+    }
+
+    /// Whether the container is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     /// Get the key that would be returned when calling `insert`.
@@ -106,7 +111,7 @@ impl<K: Index, V> IndexMap<K, V> {
     pub fn from_raw(inner: Vec<V>) -> Self {
         Self {
             inner,
-            marker: PhantomData,
+            _marker: PhantomData,
         }
     }
 }
@@ -213,5 +218,34 @@ impl<'map, K: Index, V> IntoIterator for &'map mut IndexMap<K, V> {
 impl<K: Index + fmt::Debug, V: fmt::Debug> fmt::Debug for IndexMap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self).finish()
+    }
+}
+
+impl<K: Index, V> ops::Index<K> for IndexMap<K, V> {
+    type Output = V;
+
+    #[inline]
+    fn index(&self, index: K) -> &V {
+        &self.inner[index.index()]
+    }
+}
+
+impl<K: Index, V> ops::IndexMut<K> for IndexMap<K, V> {
+    #[inline]
+    fn index_mut(&mut self, index: K) -> &mut Self::Output {
+        &mut self.inner[index.index()]
+    }
+}
+
+impl<K: Index, V> iter::FromIterator<V> for IndexMap<K, V> {
+    #[inline]
+    fn from_iter<J>(iter: J) -> Self
+    where
+        J: IntoIterator<Item = V>,
+    {
+        Self {
+            inner: iter::FromIterator::from_iter(iter),
+            _marker: PhantomData,
+        }
     }
 }

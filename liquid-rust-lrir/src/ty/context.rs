@@ -80,6 +80,16 @@ impl TyCtxt {
         }
     }
 
+    pub fn uninitialize(&self, ty: &Ty) -> Ty {
+        match ty.kind() {
+            TyKind::Tuple(tup) => {
+                let tup = tup.map(|_, fld, ty| (*fld, self.uninitialize(ty)));
+                self.mk_tuple(tup)
+            }
+            _ => self.mk_uninit(ty.size()),
+        }
+    }
+
     // Predicates
 
     pub fn mk_const(&self, c: Constant) -> Pred {
