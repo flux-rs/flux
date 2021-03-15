@@ -1,8 +1,8 @@
 [package]
-name = "liquid-rust-driver"
-version = "0.1.0"
 authors = ["The Liquid Rust Project Developers"]
 edition = "2018"
+name = "liquid-rust-driver"
+version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,4 +11,5 @@ liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-lrir = { path = "../liquid-rust-lrir" }
 liquid-rust-parser = { path = "../liquid-rust-parser" }
 
+quickscope = "0.1.6"
 rustc-workspace-hack = "1.0.0"

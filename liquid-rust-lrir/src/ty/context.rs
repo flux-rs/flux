@@ -96,8 +96,8 @@ impl TyCtxt {
         self.mk_pred(PredKind::Const(c))
     }
 
-    pub fn mk_path(&self, path: Path) -> Pred {
-        self.mk_pred(PredKind::Path(path))
+    pub fn mk_path<P: Into<Path>>(&self, path: P) -> Pred {
+        self.mk_pred(PredKind::Path(path.into()))
     }
 
     pub fn mk_bin_op(&self, bin_op: BinOp, op1: Pred, op2: Pred) -> Pred {
@@ -119,6 +119,7 @@ impl Default for TyCtxt {
 pub struct CommonTypes {
     int: Ty,
     bool: Ty,
+    unit: Ty,
 }
 
 impl CommonTypes {
@@ -128,6 +129,7 @@ impl CommonTypes {
         CommonTypes {
             int: intern(mk_refine(BaseTy::Int)),
             bool: intern(mk_refine(BaseTy::Bool)),
+            unit: intern(TyKind::Tuple(Tuple::empty())),
         }
     }
 
@@ -138,11 +140,15 @@ impl CommonTypes {
     pub fn bool(&self) -> Ty {
         self.bool.clone()
     }
+
+    pub fn unit(&self) -> Ty {
+        self.unit.clone()
+    }
 }
 
 /// Common predicates
 pub struct CommonPreds {
-    /// PredKind::Path(Path { base: Var::Nu, projs: vec![] })
+    /// PredKind::Path(Path { local: Var::Nu, projection: vec![] })
     nu: Pred,
     /// PredKind::Const(Const { bits: 1, ty: BaseTy::Bool })
     tt: Pred,

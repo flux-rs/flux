@@ -3,7 +3,7 @@ pub mod subst;
 
 pub use context::TyCtxt;
 
-use crate::mir::{BinOp, Constant, Place, UnOp};
+pub use crate::mir::{BinOp, Constant, Place, UnOp};
 
 use liquid_rust_common::new_index;
 
@@ -118,6 +118,9 @@ pub enum TyKind {
 pub struct Tuple(Vec<(Field, Ty)>);
 
 impl Tuple {
+    pub fn empty() -> Self {
+        Self(Vec::new())
+    }
     pub fn len(&self) -> usize {
         self.0.len()
     }

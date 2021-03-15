@@ -15,8 +15,8 @@ pub FnDecl: ast::FnDecl<'source> = {
     },
 }
 
-Args: Vec<ast::Ty<'source>> = {
-    <mut args:(<Ty> ",")*> <arg:Ty?> => match arg {
+Args: Vec<(ast::Ident<'source>, ast::Ty<'source>)> = {
+    <mut args:(<Ident> ":" <Ty> ",")*> <arg:(<Ident> ":" <Ty>)?> => match arg {
         None => args,
         Some(arg) => {
             args.push(arg);

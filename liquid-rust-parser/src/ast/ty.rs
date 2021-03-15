@@ -30,7 +30,7 @@ pub enum TyKind<'source> {
 /// The AST representation of a dependent function type.
 #[derive(Debug)]
 pub struct FnDecl<'source> {
-    pub inputs: Vec<Ty<'source>>,
+    pub inputs: Vec<(Ident<'source>, Ty<'source>)>,
     pub output: Option<Ty<'source>>,
     pub span: Span,
 }

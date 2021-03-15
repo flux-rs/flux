@@ -285,6 +285,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-lrir",
  "liquid-rust-parser",
+ "quickscope",
  "rustc-workspace-hack",
 ]
 
@@ -413,6 +414,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quickscope"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56957ce87bc2e87b571220844dad33f458a295c3a134b524e900f2ab74858be6"
+dependencies = [
+ "indexmap",
+ "smallvec",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -479,6 +490,12 @@ name = "siphasher"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa8f3741c7372e75519bd9346068370c9cdaabcc1f9599cbcf2a2719352286b7"
+
+[[package]]
+name = "smallvec"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
 
 [[package]]
 name = "string_cache"
