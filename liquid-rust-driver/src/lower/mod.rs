@@ -12,9 +12,9 @@ mod ty;
 
 use result::LowerResult;
 
-use context::LowerCtx;
+pub(crate) use context::LowerCtx;
 
-trait Lower<'tcx> {
+pub(crate) trait Lower<'tcx> {
     type Output;
 
     fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output>;

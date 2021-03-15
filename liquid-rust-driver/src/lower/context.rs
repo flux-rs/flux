@@ -6,7 +6,7 @@ use liquid_rust_lrir::mir::Body;
 use rustc_middle::{mir, ty::TyCtxt};
 
 #[derive(Clone, Copy)]
-pub(super) struct LowerCtx<'tcx> {
+pub(crate) struct LowerCtx<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub body: &'tcx mir::Body<'tcx>,
 }
