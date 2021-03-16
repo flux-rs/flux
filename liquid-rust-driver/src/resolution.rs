@@ -10,6 +10,13 @@ pub struct Resolver<'src, 'a> {
 }
 
 impl<'src, 'a> Resolver<'src, 'a> {
+    pub fn new(tcx: &'a ty::TyCtxt) -> Self {
+        Self {
+            tcx,
+            vars: ScopeMap::new(),
+            var_gen: IndexGen::new(),
+        }
+    }
     pub fn resolve(&mut self, fn_decl: ast::FnDecl<'src>) -> ty::FnDecl {
         let mut requires = Vec::new();
         let mut inputs = Vec::new();

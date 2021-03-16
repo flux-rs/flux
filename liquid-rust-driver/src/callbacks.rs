@@ -1,5 +1,6 @@
 use crate::collector::Collector;
 
+use liquid_rust_lrir::ty;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::{Diagnostic, Handler};
 use rustc_interface::{interface::Compiler, Queries};
@@ -26,7 +27,8 @@ impl Callbacks for LiquidCallbacks {
         let mut diagnostics = Vec::new();
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            Collector::collect(tcx, handler, &mut diagnostics);
+            let lr_tcx = ty::TyCtxt::new();
+            let annotations = Collector::collect(&lr_tcx, tcx, handler, &mut diagnostics);
 
             Self::emit_diagnostics(diagnostics, handler);
         });

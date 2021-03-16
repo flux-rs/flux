@@ -13,3 +13,6 @@ liquid-rust-parser = { path = "../liquid-rust-parser" }
 
 quickscope = "0.1.6"
 rustc-workspace-hack = "1.0.0"
+
+[package.metadata.rust-analyzer]
+rustc_private = true
