@@ -89,7 +89,7 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
     fn parse_ty_annotation(&mut self, def_id: DefId, input: &str, input_span: Span) {
         match parse_fn_decl(&input.trim_matches('"')) {
             Ok(fn_decl) => {
-                // FIXME: we probably need to move this from here once we handle references
+                // FIXME: we probably need to move this to somewhere else once we handle references
                 // as the resolution/lowering will require more information from the compiler.
                 let fn_decl = Resolver::new(self.lr_tcx).resolve(fn_decl);
                 self.annotations.insert(def_id, fn_decl);

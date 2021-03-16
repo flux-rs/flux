@@ -53,9 +53,10 @@ impl BindingTree {
     pub fn push_binding<V: Into<Var>>(&mut self, var: V, ty: Ty) {
         let var = var.into();
         self.push_node(Node {
-            kind: NodeKind::Binding(var, ty),
+            kind: NodeKind::Binding(var, ty.clone()),
             children: vec![],
         });
+        self.curr_bindings.insert(var, ty);
     }
 
     pub fn push_guard(&mut self, pred: Pred) {

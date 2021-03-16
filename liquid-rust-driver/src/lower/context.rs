@@ -12,6 +12,10 @@ pub(crate) struct LowerCtx<'tcx> {
 }
 
 impl<'tcx> LowerCtx<'tcx> {
+    pub(crate) fn new(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> Self {
+        Self { tcx, body }
+    }
+
     pub fn lower_body(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> LowerResult<Body> {
         let lcx = Self { tcx, body };
 

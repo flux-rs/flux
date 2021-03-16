@@ -3,12 +3,12 @@ pub mod subst;
 
 pub use context::TyCtxt;
 
-pub use crate::mir::{BinOp, Constant, Place, UnOp};
+pub use crate::mir::{BinOp, Constant, Local, Place, UnOp};
 
 use liquid_rust_common::new_index;
 
 use hashconsing::HConsed;
-use std::fmt;
+use std::{fmt, iter::FromIterator};
 
 /// A function type declaration
 pub struct FnDecl {
@@ -162,12 +162,24 @@ impl Tuple {
     }
 }
 
+impl FromIterator<(Field, Ty)> for Tuple {
+    fn from_iter<T: IntoIterator<Item = (Field, Ty)>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Refine {
     /// A refinement that needs to be inferred.
     Infer(Kvar),
     /// A refinement predicate.
     Pred(Pred),
+}
+
+impl From<Kvar> for Refine {
+    fn from(v: Kvar) -> Self {
+        Self::Infer(v)
+    }
 }
 
 impl From<Pred> for Refine {
@@ -251,7 +263,7 @@ impl fmt::Display for Path {
 
 // TODO: investigate if is convenient to use DeBruijn instead of Nu and Field.
 /// A variable that can be used inside a refinement predicate.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Var {
     /// The variable bound by a refined base type, i.e., the `v` in `{v: int | v > 0}`. The name nu
     /// is used because the greek letter nu is typically used to range over this variables when

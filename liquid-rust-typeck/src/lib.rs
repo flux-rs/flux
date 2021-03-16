@@ -1,9 +1,9 @@
 #![feature(or_patterns)]
-mod bblock_env;
+pub mod bblock_env;
 mod binding_tree;
 pub mod local_env;
 
-use bblock_env::BBlockEnv;
+pub use bblock_env::BBlockEnv;
 use liquid_rust_common::index::{Index, IndexMap};
 use liquid_rust_lrir::{
     mir::{
@@ -132,6 +132,8 @@ impl<'a> Checker<'a> {
     }
 
     fn check_goto(&self, bb_env: &BBlockEnv, env: &mut LocalEnv) {
+        println!("{}", env);
+        println!("{}", bb_env);
         let subst = env.infer_subst(bb_env);
         let bb_env = subst.apply(bb_env, self.tcx);
 

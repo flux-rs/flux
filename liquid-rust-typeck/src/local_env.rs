@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fmt};
 
 use liquid_rust_lrir::{
-    mir::{Body, Local, PlaceElem, PlaceRef},
-    ty::{subst::Subst, FnDecl, GhostVar, Path, Pred, Ty, TyCtxt, TyKind, Var},
+    mir::{Local, PlaceElem, PlaceRef},
+    ty::{subst::Subst, GhostVar, Path, Pred, Ty, TyCtxt, TyKind, Var},
 };
 
 use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
@@ -133,6 +133,7 @@ impl<'tcx> LocalEnv<'tcx> {
         let mut subst = Subst::new();
         for (local, gv2) in &bb_env.locals {
             let gv1 = &self.lookup_local(*local);
+            println!("{:?} {:?} {:?}", local, gv1, gv2);
             subst.add_ghost_var_subst(*gv2, *gv1);
             let ty1 = self.lookup_var(gv1);
             let ty2 = &bb_env.ghost_vars[gv2];

@@ -11,6 +11,7 @@ extern crate rustc_middle;
 extern crate rustc_mir;
 extern crate rustc_span;
 
+mod bbenv_builder;
 mod callbacks;
 mod collector;
 mod lower;

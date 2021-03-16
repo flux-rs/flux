@@ -285,6 +285,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-lrir",
  "liquid-rust-parser",
+ "liquid-rust-typeck",
  "quickscope",
  "rustc-workspace-hack",
 ]

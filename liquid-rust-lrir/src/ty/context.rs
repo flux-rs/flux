@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use crate::{
     mir::Constant,
     ty::{
-        BaseTy, BinOp, BorrowKind, GhostVar, Path, Pred, PredKind, PredS, Refine, Region, Tuple,
-        Ty, TyKind, TyS, UnOp, Var,
+        BaseTy, BinOp, BorrowKind, GhostVar, KVid, Path, Pred, PredKind, PredS, Refine, Region,
+        Tuple, Ty, TyKind, TyS, UnOp, Var,
     },
 };
 
@@ -37,6 +37,10 @@ impl TyCtxt {
     }
 
     pub fn fresh_ghost(&self) -> GhostVar {
+        self.indexgen.borrow_mut().fresh()
+    }
+
+    pub fn fresh_kvid(&self) -> KVid {
         self.indexgen.borrow_mut().fresh()
     }
 
