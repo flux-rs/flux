@@ -33,7 +33,7 @@ impl<'tcx> LocalEnv<'tcx> {
     ///
     /// Returns the freshly generated [GhostVar] assigned to `local`.
     pub fn alloc(&mut self, local: Local, ty: Ty) -> GhostVar {
-        let fresh_gv = self.tcx.fresh_ghost();
+        let fresh_gv = self.fresh_ghost();
         self.insert_local(local, fresh_gv);
         self.push_binding(fresh_gv, ty);
         fresh_gv
@@ -73,7 +73,7 @@ impl<'tcx> LocalEnv<'tcx> {
     pub fn update(&mut self, place: PlaceRef, ty: Ty) -> GhostVar {
         let gv = self.lookup_local(place.local);
         let root = self.tcx.selfify(self.lookup_var(gv), Path::from(gv));
-        let fresh_gv = self.tcx.fresh_ghost();
+        let fresh_gv = self.fresh_ghost();
         let ty = self.update_rec(&root, place.projection, ty);
         self.insert_local(place.local, fresh_gv);
         self.push_binding(fresh_gv, ty);
@@ -90,7 +90,7 @@ impl<'tcx> LocalEnv<'tcx> {
             }
             (TyKind::Ref(bk, r, gv), [PlaceElem::Deref, ..]) => {
                 let root = tcx.selfify(self.lookup_var(gv), Path::from(*gv));
-                let fresh_gv = tcx.fresh_ghost();
+                let fresh_gv = self.fresh_ghost();
                 let ty = self.update_rec(&root, &projs[1..], ty);
                 self.push_binding(fresh_gv, ty);
                 tcx.mk_ref(*bk, r.clone(), fresh_gv)
@@ -104,7 +104,7 @@ impl<'tcx> LocalEnv<'tcx> {
         let ty = self
             .tcx
             .selfify(&self.lookup(place), self.current_path(place));
-        let fresh_gv = self.tcx.fresh_ghost();
+        let fresh_gv = self.fresh_ghost();
         self.push_binding(fresh_gv, ty);
         fresh_gv
     }
@@ -187,7 +187,7 @@ impl<'tcx> LocalEnv<'tcx> {
         let depth = self.bindings.curr_depth();
         let mut subst = Subst::new();
         for (gv, ty) in bb_env.ghost_vars.iter() {
-            let fresh_gv = self.tcx.fresh_ghost();
+            let fresh_gv = self.fresh_ghost();
             self.push_binding(fresh_gv, subst.apply(ty, self.tcx));
             subst.add_ghost_var_subst(*gv, fresh_gv);
         }

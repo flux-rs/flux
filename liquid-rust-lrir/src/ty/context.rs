@@ -3,12 +3,10 @@ use std::cell::RefCell;
 use crate::{
     mir::Constant,
     ty::{
-        BaseTy, BinOp, BorrowKind, GhostVar, KVid, Path, Pred, PredKind, PredS, Refine, Region,
-        Tuple, Ty, TyKind, TyS, UnOp, Var,
+        BaseTy, BinOp, BorrowKind, GhostVar, Path, Pred, PredKind, PredS, Refine, Region, Tuple,
+        Ty, TyKind, TyS, UnOp, Var,
     },
 };
-
-use liquid_rust_common::index::IndexGen;
 
 use hashconsing::{HConsign, HashConsign};
 
@@ -20,7 +18,6 @@ pub struct TyCtxt {
     interner: RefCell<Interner>,
     pub preds: CommonPreds,
     pub types: CommonTypes,
-    indexgen: RefCell<IndexGen>,
 }
 
 impl TyCtxt {
@@ -32,16 +29,7 @@ impl TyCtxt {
             interner: RefCell::new(interner),
             preds,
             types,
-            indexgen: RefCell::new(IndexGen::new()),
         }
-    }
-
-    pub fn fresh_ghost(&self) -> GhostVar {
-        self.indexgen.borrow_mut().fresh()
-    }
-
-    pub fn fresh_kvid(&self) -> KVid {
-        self.indexgen.borrow_mut().fresh()
     }
 
     pub fn mk_ty(&self, ty: TyKind) -> Ty {
