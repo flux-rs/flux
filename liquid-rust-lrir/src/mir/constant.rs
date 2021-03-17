@@ -37,6 +37,15 @@ impl From<bool> for Constant {
     }
 }
 
+impl From<u128> for Constant {
+    fn from(i: u128) -> Self {
+        Self {
+            bits: i,
+            ty: BaseTy::Int,
+        }
+    }
+}
+
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.ty {

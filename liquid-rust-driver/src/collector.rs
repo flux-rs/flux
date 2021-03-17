@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use liquid_rust_lrir::ty;
 use liquid_rust_parser::{parse_fn_decl, ParseErrorKind};
 
 use rustc_ast::{AttrKind, Attribute};
@@ -9,18 +12,29 @@ use rustc_hir::{
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{BytePos, Pos, Span};
 
+use crate::resolution::Resolver;
+
 pub(crate) struct Collector<'tcx, 'a> {
+    lr_tcx: &'a ty::TyCtxt,
     tcx: TyCtxt<'tcx>,
     handler: &'a Handler,
     diagnostics: &'a mut Vec<Diagnostic>,
+    annotations: HashMap<DefId, ty::FnDecl>,
 }
 
 impl<'tcx, 'a> Collector<'tcx, 'a> {
-    fn new(tcx: TyCtxt<'tcx>, handler: &'a Handler, diagnostics: &'a mut Vec<Diagnostic>) -> Self {
+    fn new(
+        lr_tcx: &'a ty::TyCtxt,
+        tcx: TyCtxt<'tcx>,
+        handler: &'a Handler,
+        diagnostics: &'a mut Vec<Diagnostic>,
+    ) -> Self {
         Self {
             tcx,
+            lr_tcx,
             handler,
             diagnostics,
+            annotations: HashMap::new(),
         }
     }
 
@@ -72,10 +86,13 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
         }
     }
 
-    fn parse_ty_annotation(&mut self, _def_id: DefId, input: &str, input_span: Span) {
+    fn parse_ty_annotation(&mut self, def_id: DefId, input: &str, input_span: Span) {
         match parse_fn_decl(&input.trim_matches('"')) {
-            Ok(_fn_decl) => {
-                // FIXME: lower the AST and store the types.
+            Ok(fn_decl) => {
+                // FIXME: we probably need to move this to somewhere else once we handle references
+                // as the resolution/lowering will require more information from the compiler.
+                let fn_decl = Resolver::new(self.lr_tcx).resolve(fn_decl);
+                self.annotations.insert(def_id, fn_decl);
             }
             Err(err) => {
                 // Turn the relative span of the parsing error into an absolute one.
@@ -95,13 +112,15 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
     }
 
     pub(crate) fn collect(
+        lr_tcx: &'a ty::TyCtxt,
         tcx: TyCtxt<'tcx>,
         handler: &'a Handler,
         diagnostics: &'a mut Vec<Diagnostic>,
-    ) {
-        let mut collector = Self::new(tcx, handler, diagnostics);
+    ) -> HashMap<DefId, ty::FnDecl> {
+        let mut collector = Self::new(lr_tcx, tcx, handler, diagnostics);
 
         tcx.hir().krate().visit_all_item_likes(&mut collector);
+        collector.annotations
     }
 }
 

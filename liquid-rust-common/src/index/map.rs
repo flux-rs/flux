@@ -91,6 +91,10 @@ impl<K: Index, V> IndexMap<K, V> {
         self.inner.iter_mut()
     }
 
+    pub fn iter_enumerated(&self) -> impl Iterator<Item = (K, &V)> {
+        (0..self.len()).map(K::new).zip(&self.inner)
+    }
+
     /// Get an iterator over the keys and values (by mutable reference) of the map.
     pub fn iter_mut(&mut self) -> IndexIterMut<K, V> {
         IndexIterMut {

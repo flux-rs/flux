@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fmt};
 
+use liquid_rust_common::index::IndexGen;
 use liquid_rust_lrir::{
-    mir::{Body, Local, PlaceElem, PlaceRef},
-    ty::{subst::Subst, FnDecl, GhostVar, Path, Pred, Ty, TyCtxt, TyKind, Var},
+    mir::{Local, PlaceElem, PlaceRef},
+    ty::{subst::Subst, GhostVar, Path, Pred, Ty, TyCtxt, TyKind, Var},
 };
 
 use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
@@ -11,6 +12,7 @@ pub struct LocalEnv<'tcx> {
     tcx: &'tcx TyCtxt,
     bindings: BindingTree,
     locals: Vec<HashMap<Local, GhostVar>>,
+    pub var_gen: IndexGen,
 }
 
 impl<'tcx> LocalEnv<'tcx> {
@@ -19,11 +21,12 @@ impl<'tcx> LocalEnv<'tcx> {
             tcx,
             bindings: BindingTree::new(),
             locals: vec![HashMap::new()],
+            var_gen: IndexGen::new(),
         }
     }
 
-    pub fn fresh_ghost(&self) -> GhostVar {
-        self.tcx.fresh_ghost()
+    pub fn fresh_ghost(&mut self) -> GhostVar {
+        self.var_gen.fresh()
     }
 
     /// Add a new `local` to the environment with current type `ty`.
