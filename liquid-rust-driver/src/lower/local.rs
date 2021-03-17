@@ -14,12 +14,12 @@ impl<'tcx> Lower<'tcx> for mir::Local {
 }
 
 impl<'tcx> Lower<'tcx> for mir::LocalDecl<'tcx> {
-    type Output = LocalDecl;
+    type Output = LocalDecl<'tcx>;
 
-    fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
+    fn lower(&self, _lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
         let output = LocalDecl {
             is_mutable: self.mutability == mir::Mutability::Mut,
-            ty: self.ty.lower(lcx)?,
+            ty: self.ty,
             span: self.source_info.span,
         };
 

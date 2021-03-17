@@ -1,17 +1,42 @@
 use std::fmt;
 
-use liquid_rust_common::ordered_hash_map::OrderedHashMap;
+use liquid_rust_common::{
+    index::{IndexGen, IndexMap},
+    ordered_hash_map::OrderedHashMap,
+};
 use liquid_rust_lrir::{
-    mir::Local,
+    mir::{Local, LocalDecl},
     ty::{
+        refiner::{MaybeUninitRefiner, TypeRefiner},
         subst::{ApplySubst, Subst},
-        GhostVar, Ty, TyCtxt,
+        GhostVar, Ty, TyCtxt, Var,
     },
 };
 
 pub struct BBlockEnv {
     pub ghost_vars: OrderedHashMap<GhostVar, Ty>,
     pub locals: Vec<(Local, GhostVar)>,
+}
+
+impl BBlockEnv {
+    pub fn new<'tcx>(
+        local_decls: &IndexMap<Local, LocalDecl<'tcx>>,
+        mut refiner: MaybeUninitRefiner<'_, 'tcx>,
+        vars_in_scope: &mut Vec<Var>,
+        var_gen: &mut IndexGen,
+    ) -> Self {
+        let mut ghost_vars = OrderedHashMap::new();
+        let mut locals = vec![];
+        for (local, local_decl) in local_decls.iter_enumerated() {
+            let fresh_gv = var_gen.fresh();
+            let ty = refiner.refine(local_decl.ty, local, var_gen, vars_in_scope);
+            ghost_vars.insert(fresh_gv, ty);
+            vars_in_scope.push(Var::from(fresh_gv));
+            locals.push((local, fresh_gv));
+        }
+        vars_in_scope.truncate(vars_in_scope.len() - local_decls.len());
+        BBlockEnv { ghost_vars, locals }
+    }
 }
 
 impl ApplySubst for BBlockEnv {

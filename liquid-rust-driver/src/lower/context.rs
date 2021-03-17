@@ -12,11 +12,7 @@ pub(crate) struct LowerCtx<'tcx> {
 }
 
 impl<'tcx> LowerCtx<'tcx> {
-    pub(crate) fn new(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> Self {
-        Self { tcx, body }
-    }
-
-    pub fn lower_body(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> LowerResult<Body> {
+    pub fn lower_body(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> LowerResult<Body<'tcx>> {
         let lcx = Self { tcx, body };
 
         let basic_blocks = IndexMap::from_raw(

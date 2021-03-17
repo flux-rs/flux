@@ -2,15 +2,15 @@ use crate::mir::{BasicBlock, BasicBlockData, Local, LocalDecl, Span};
 
 use liquid_rust_common::index::{Index, IndexMap};
 
-pub struct Body {
+pub struct Body<'tcx> {
     pub basic_blocks: IndexMap<BasicBlock, BasicBlockData>,
-    pub local_decls: IndexMap<Local, LocalDecl>,
+    pub local_decls: IndexMap<Local, LocalDecl<'tcx>>,
     pub arg_count: usize,
     pub span: Span,
     pub predecessors: IndexMap<BasicBlock, Vec<BasicBlock>>,
 }
 
-impl Body {
+impl Body<'_> {
     /// Returns an iterator over all function arguments.
     #[inline]
     pub fn args_iter(&self) -> impl Iterator<Item = Local> {

@@ -1,4 +1,9 @@
+#![feature(rustc_private)]
 #![feature(or_patterns)]
+
+extern crate rustc_middle;
+extern crate rustc_mir;
+
 pub mod bblock_env;
 mod binding_tree;
 pub mod local_env;
@@ -10,9 +15,15 @@ use liquid_rust_lrir::{
         BasicBlock, BasicBlockData, BinOp, Body, Constant, Local, Operand, PlaceRef, Rvalue,
         Statement, StatementKind, Terminator, TerminatorKind, UnOp,
     },
-    ty::{subst::Subst, BaseTy, FnDecl, Path, Pred, Ty, TyCtxt, TyKind},
+    ty::{
+        refiner::{MaybeUninitRefiner, TypeRefiner, UninitRefiner},
+        subst::Subst,
+        BaseTy, FnDecl, Path, Pred, Ty, TyCtxt, TyKind, Var,
+    },
 };
 use local_env::LocalEnv;
+use rustc_middle::mir;
+use rustc_mir::dataflow::{self, impls::MaybeUninitializedPlaces, move_paths::MoveData};
 
 pub struct Checker<'a> {
     tcx: &'a TyCtxt,
@@ -21,48 +32,60 @@ pub struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    pub fn check(
-        body: &Body,
-        fn_decl: &FnDecl,
-        bblock_envs: &IndexMap<BasicBlock, BBlockEnv>,
-        tcx: &'a TyCtxt,
-    ) {
+    pub fn check<'tcx>(task: CheckingTask<'a, 'tcx>, tcx: &'a TyCtxt) {
         let mut env = LocalEnv::new(tcx);
 
         let mut subst = Subst::new();
-        // FIXME: some of this logic is repeated in LocalEnv::enter_basic_block
-        for (gv, ty) in &fn_decl.requires {
+        let mut vars_in_scope = vec![];
+        for (gv, ty) in &task.fn_decl.requires {
             let fresh_gv = env.fresh_ghost();
             env.push_binding(fresh_gv, subst.apply(ty, tcx));
+            vars_in_scope.push(Var::from(fresh_gv));
             subst.add_ghost_var_subst(*gv, fresh_gv);
         }
-        for (local, gv) in body.args_iter().zip(&fn_decl.inputs) {
+        for (local, gv) in task.body.args_iter().zip(&task.fn_decl.inputs) {
             env.insert_local(local, subst.apply(gv, tcx));
         }
-        // FIXME: local_decls should support tuples as well. Maybe bring back layouts?
-        for local in body.vars_and_temps_iter() {
-            let bty = body.local_decls[local].ty;
-            env.alloc(local, tcx.mk_uninit(bty.size()));
+        for local in task.body.vars_and_temps_iter() {
+            let ty = UninitRefiner::new(tcx).refine(
+                task.body.local_decls[local].ty,
+                local,
+                &mut env.var_gen,
+                &mut vars_in_scope,
+            );
+            env.alloc(local, ty);
         }
         // FIXME: put ret_place = Local::new(0) somewhere else.
         let ret_place = Local::new(0);
-        env.alloc(
+        let ret_ty = UninitRefiner::new(tcx).refine(
+            task.body.local_decls[ret_place].ty,
             ret_place,
-            tcx.mk_uninit(body.local_decls[ret_place].ty.size()),
+            &mut env.var_gen,
+            &mut vec![],
         );
+        env.alloc(ret_place, ret_ty);
 
-        let bb_envs = bblock_envs
-            .values()
-            .map(|bb_env| subst.apply(bb_env, tcx))
+        let bb_envs = (0..task.body.basic_blocks.len())
+            .map(|i| {
+                let bb = mir::BasicBlock::from_usize(i);
+                let refiner = task.refiner_for_block(tcx, bb);
+                BBlockEnv::new(
+                    &task.body.local_decls,
+                    refiner,
+                    &mut vars_in_scope,
+                    &mut env.var_gen,
+                )
+            })
             .collect();
 
         let ret_env = BBlockEnv {
-            ghost_vars: fn_decl
+            ghost_vars: task
+                .fn_decl
                 .ensures
                 .iter()
                 .map(|(gv, ty)| (*gv, subst.apply(ty, tcx)))
                 .collect(),
-            locals: vec![(ret_place, subst.apply(&fn_decl.output, tcx))],
+            locals: vec![(ret_place, subst.apply(&task.fn_decl.output, tcx))],
         };
 
         let checker = Checker {
@@ -76,7 +99,7 @@ impl<'a> Checker<'a> {
         // naturally fixed once we implement type checking considering the dominator tree.
         let bb0 = BasicBlock::new(0);
         checker.check_goto(&checker.bb_envs[bb0], &mut env);
-        for (bb, bb_data) in &body.basic_blocks {
+        for (bb, bb_data) in &task.body.basic_blocks {
             checker.check_basic_block(bb, bb_data, &mut env);
         }
     }
@@ -132,8 +155,6 @@ impl<'a> Checker<'a> {
     }
 
     fn check_goto(&self, bb_env: &BBlockEnv, env: &mut LocalEnv) {
-        println!("{}", env);
-        println!("{}", bb_env);
         let subst = env.infer_subst(bb_env);
         let bb_env = subst.apply(bb_env, self.tcx);
 
@@ -215,5 +236,36 @@ impl<'a> Checker<'a> {
                 (tcx.mk_const(c), tcx.mk_refine(c.ty(), refine))
             }
         }
+    }
+}
+
+pub struct CheckingTask<'a, 'tcx> {
+    body: &'a Body<'tcx>,
+    fn_decl: &'a FnDecl,
+    move_data: MoveData<'tcx>,
+    flow_uninit: dataflow::Results<'tcx, MaybeUninitializedPlaces<'a, 'tcx>>,
+}
+
+impl<'a, 'tcx> CheckingTask<'a, 'tcx> {
+    pub fn new(
+        body: &'a Body<'tcx>,
+        fn_decl: &'a FnDecl,
+        move_data: MoveData<'tcx>,
+        flow_uninit: dataflow::Results<'tcx, MaybeUninitializedPlaces<'a, 'tcx>>,
+    ) -> Self {
+        Self {
+            body,
+            fn_decl,
+            move_data,
+            flow_uninit,
+        }
+    }
+
+    fn refiner_for_block(&self, tcx: &'a TyCtxt, bb: mir::BasicBlock) -> MaybeUninitRefiner {
+        MaybeUninitRefiner::new(
+            tcx,
+            &self.move_data,
+            self.flow_uninit.entry_set_for_block(bb),
+        )
     }
 }

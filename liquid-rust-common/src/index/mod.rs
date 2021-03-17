@@ -13,8 +13,12 @@ macro_rules! new_index {
         pub struct $index(usize);
 
         impl $index {
-            fn as_usize(&self) -> usize {
+            pub fn as_usize(&self) -> usize {
                 self.0
+            }
+
+            pub fn from_usize(n: usize) -> Self {
+                Self(n)
             }
         }
 

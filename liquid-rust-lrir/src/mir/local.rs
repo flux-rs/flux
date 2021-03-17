@@ -1,6 +1,7 @@
-use crate::{mir::Span, ty::BaseTy};
+use crate::mir::Span;
 
 use liquid_rust_common::new_index;
+use rustc_middle::ty as lr;
 
 use std::fmt;
 
@@ -15,8 +16,8 @@ impl fmt::Display for Local {
     }
 }
 
-pub struct LocalDecl {
+pub struct LocalDecl<'tcx> {
     pub is_mutable: bool,
-    pub ty: BaseTy,
+    pub ty: lr::Ty<'tcx>,
     pub span: Span,
 }
