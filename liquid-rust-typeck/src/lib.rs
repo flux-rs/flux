@@ -9,17 +9,13 @@ mod binding_tree;
 pub mod local_env;
 
 pub use bblock_env::BBlockEnv;
-use liquid_rust_common::index::{Index, IndexMap};
+use liquid_rust_common::index::{Index, IndexGen, IndexMap};
 use liquid_rust_lrir::{
     mir::{
         BasicBlock, BasicBlockData, BinOp, Body, Constant, Local, Operand, PlaceRef, Rvalue,
         Statement, StatementKind, Terminator, TerminatorKind, UnOp,
     },
-    ty::{
-        refiner::{MaybeUninitRefiner, TypeRefiner, UninitRefiner},
-        subst::Subst,
-        BaseTy, FnDecl, Path, Pred, Ty, TyCtxt, TyKind, Var,
-    },
+    ty::{refiner::Refiner, subst::Subst, BaseTy, FnDecl, Path, Pred, Ty, TyCtxt, TyKind, Var},
 };
 use local_env::LocalEnv;
 use rustc_middle::mir;
@@ -47,34 +43,19 @@ impl<'a> Checker<'a> {
             env.insert_local(local, subst.apply(gv, tcx));
         }
         for local in task.body.vars_and_temps_iter() {
-            let ty = UninitRefiner::new(tcx).refine(
-                task.body.local_decls[local].ty,
-                local,
-                &mut env.var_gen,
-                &mut vars_in_scope,
-            );
+            let ty = Refiner::uninit(tcx, task.body.local_decls[local].ty);
             env.alloc(local, ty);
         }
         // FIXME: put ret_place = Local::new(0) somewhere else.
         let ret_place = Local::new(0);
-        let ret_ty = UninitRefiner::new(tcx).refine(
-            task.body.local_decls[ret_place].ty,
-            ret_place,
-            &mut env.var_gen,
-            &mut vec![],
-        );
+        let ret_ty = Refiner::uninit(tcx, task.body.local_decls[ret_place].ty);
         env.alloc(ret_place, ret_ty);
 
         let bb_envs = (0..task.body.basic_blocks.len())
             .map(|i| {
                 let bb = mir::BasicBlock::from_usize(i);
-                let refiner = task.refiner_for_block(tcx, bb);
-                BBlockEnv::new(
-                    &task.body.local_decls,
-                    refiner,
-                    &mut vars_in_scope,
-                    &mut env.var_gen,
-                )
+                let refiner = task.refiner_for_block(tcx, &mut env.var_gen, bb);
+                BBlockEnv::new(&task.body.local_decls, refiner, &mut vars_in_scope)
             })
             .collect();
 
@@ -261,11 +242,17 @@ impl<'a, 'tcx> CheckingTask<'a, 'tcx> {
         }
     }
 
-    fn refiner_for_block(&self, tcx: &'a TyCtxt, bb: mir::BasicBlock) -> MaybeUninitRefiner {
-        MaybeUninitRefiner::new(
+    fn refiner_for_block<'b>(
+        &'b self,
+        tcx: &'b TyCtxt,
+        var_gen: &'b mut IndexGen,
+        bb: mir::BasicBlock,
+    ) -> Refiner {
+        Refiner::new(
             tcx,
             &self.move_data,
             self.flow_uninit.entry_set_for_block(bb),
+            var_gen,
         )
     }
 }
