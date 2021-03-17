@@ -33,6 +33,22 @@ pub enum BinOp {
     Or,
 }
 
+impl BinOp {
+    pub fn precedence(&self) -> u32 {
+        match self {
+            BinOp::Mul | BinOp::Div | BinOp::Rem => 5,
+            BinOp::Add | BinOp::Sub => 4,
+            BinOp::Eq(_) | BinOp::Neq(_) | BinOp::Lt | BinOp::Gt | BinOp::Lte | BinOp::Gte => 3,
+            BinOp::And => 2,
+            BinOp::Or => 1,
+        }
+    }
+
+    pub fn associative(precedence: u32) -> bool {
+        precedence != 3
+    }
+}
+
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {

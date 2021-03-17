@@ -198,12 +198,41 @@ pub struct PredS {
 
 impl fmt::Display for PredS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind() {
-            PredKind::Path(path) => write!(f, "{}", path),
-            PredKind::BinaryOp(bin_op, op1, op2) => write!(f, "({} {} {})", op1, bin_op, op2),
-            PredKind::UnaryOp(un_op, op) => write!(f, "{}{}", un_op, op),
-            PredKind::Const(c) => write!(f, "{}", c),
+        fn should_parenthesize(bin_op: BinOp, child: &Pred) -> bool {
+            if let PredKind::BinaryOp(child_op, ..) = child.kind() {
+                child_op.precedence() < bin_op.precedence()
+                    || (child_op.precedence() == bin_op.precedence()
+                        && !BinOp::associative(bin_op.precedence()))
+            } else {
+                false
+            }
         }
+
+        match self.kind() {
+            PredKind::Path(path) => write!(f, "{}", path)?,
+            PredKind::BinaryOp(bin_op, op1, op2) => {
+                if should_parenthesize(*bin_op, op1) {
+                    write!(f, "({})", op1)?;
+                } else {
+                    write!(f, "{}", op1)?;
+                }
+                write!(f, " {} ", bin_op)?;
+                if should_parenthesize(*bin_op, op2) {
+                    write!(f, "({})", op2)?;
+                } else {
+                    write!(f, "{}", op2)?;
+                }
+            }
+            PredKind::UnaryOp(un_op, op) => {
+                if matches!(op.kind(), PredKind::Path(..) | PredKind::Const(..)) {
+                    write!(f, "{}{}", un_op, op)?;
+                } else {
+                    write!(f, "{}({})", un_op, op)?;
+                }
+            }
+            PredKind::Const(c) => write!(f, "{}", c)?,
+        }
+        Ok(())
     }
 }
 

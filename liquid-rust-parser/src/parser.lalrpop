@@ -115,12 +115,12 @@ BasePredicate: ast::Predicate<'source> = {
     <spanned:Spanned<PredicateKind>> => {
         ast::Predicate { kind: spanned.0, span: spanned.1 }
     },
+    "(" <Predicate> ")" => <>
 }
 
 PredicateKind: ast::PredicateKind<'source> = {
     <Literal> => ast::PredicateKind::Lit(<>),
     <Ident> => ast::PredicateKind::Var(<>),
-    "(" <PredicateKind> ")"
 }
 
 Ident: ast::Ident<'source> = {
