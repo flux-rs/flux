@@ -64,7 +64,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rs::TyKind::Bool => tcx.mk_refine(BaseTy::Bool, self.fresh_kvar(cx)),
             rs::TyKind::Int(_) | rs::TyKind::Uint(_) => {
-                tcx.mk_refine(BaseTy::Bool, self.fresh_kvar(cx))
+                tcx.mk_refine(BaseTy::Int, self.fresh_kvar(cx))
             }
             rs::TyKind::Ref(..) => todo!(),
             _ => todo!(),
