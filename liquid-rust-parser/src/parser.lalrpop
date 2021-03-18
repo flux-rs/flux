@@ -24,7 +24,10 @@ Ty: ast::Ty<'source> = {
 TyKind: ast::TyKind<'source> = {
     <BaseTy> => ast::TyKind::Base(<>),
     "{" <variable: Ident> ":" <base_ty: BaseTy> "|" <refinement: Predicate> "}" => {
-        ast::TyKind::Refined(ast::RefinedTy { variable, base_ty, refinement })
+        ast::TyKind::Refined(ast::RefinedTy { variable: Some(variable), base_ty, refinement })
+    },
+    "{" <base_ty: BaseTy> "|" <refinement: Predicate> "}" => {
+        ast::TyKind::Refined(ast::RefinedTy { variable: None, base_ty, refinement })
     },
     "(" <Comma<TupleEntry>> ")" => ast::TyKind::Tuple(<>)
 }

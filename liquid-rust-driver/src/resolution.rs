@@ -118,11 +118,16 @@ impl<'src> Resolve<'src> for ast::Ty<'src> {
                 tcx.mk_refine(bty, tcx.preds.tt())
             }
             ast::TyKind::Refined(refine) => {
-                cx.vars.push_layer();
-                cx.vars.define(refine.variable.symbol, Var::Nu);
-                let pred = refine.refinement.resolve(cx);
-                cx.vars.pop_layer();
-                tcx.mk_refine(map_base_ty(refine.base_ty), pred)
+                if let Some(ident) = refine.variable {
+                    cx.vars.push_layer();
+                    cx.vars.define(ident.symbol, Var::Nu);
+                    let pred = refine.refinement.resolve(cx);
+                    cx.vars.pop_layer();
+                    tcx.mk_refine(map_base_ty(refine.base_ty), pred)
+                } else {
+                    let pred = refine.refinement.resolve(cx);
+                    tcx.mk_refine(map_base_ty(refine.base_ty), pred)
+                }
             }
             ast::TyKind::Tuple(tup) => {
                 cx.vars.push_layer();

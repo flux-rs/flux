@@ -10,7 +10,7 @@ pub enum BaseTy {
 /// The AST representation of a refinement type.
 #[derive(Debug)]
 pub struct RefinedTy<'source> {
-    pub variable: Ident<'source>,
+    pub variable: Option<Ident<'source>>,
     pub base_ty: BaseTy,
     pub refinement: Predicate<'source>,
 }
