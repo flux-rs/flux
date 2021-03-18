@@ -98,8 +98,8 @@ impl<'src> Resolve<'src> for ast::Predicate<'src> {
             }
             ast::PredicateKind::Path(ident, projection) => {
                 let path = Path {
-                    base: cx.vars[ident.symbol],
-                    projs: projection,
+                    var: cx.vars[ident.symbol],
+                    projection,
                 };
                 tcx.mk_path(path)
             }

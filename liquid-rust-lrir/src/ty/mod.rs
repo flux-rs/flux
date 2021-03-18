@@ -259,19 +259,22 @@ pub enum PredKind {
 /// it doesn't have dereferences.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Path {
-    pub base: Var,
-    pub projs: Vec<usize>,
+    pub var: Var,
+    pub projection: Vec<usize>,
 }
 
 impl Path {
-    pub fn new(base: Var, projs: Vec<usize>) -> Self {
-        Self { base, projs }
+    pub fn new(var: Var, projs: Vec<usize>) -> Self {
+        Self {
+            var,
+            projection: projs,
+        }
     }
 
     pub fn extend(&self, n: usize) -> Self {
-        let mut projs = self.projs.clone();
+        let mut projs = self.projection.clone();
         projs.push(n);
-        Path::new(self.base, projs)
+        Path::new(self.var, projs)
     }
 }
 
@@ -283,8 +286,8 @@ impl<T: Into<Var>> From<T> for Path {
 
 impl fmt::Display for Path {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.base)?;
-        for proj in &self.projs {
+        write!(f, "{}", self.var)?;
+        for proj in &self.projection {
             write!(f, ".{}", proj)?;
         }
         Ok(())

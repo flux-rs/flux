@@ -89,8 +89,8 @@ impl ApplySubst for Pred {
 impl ApplySubst for Path {
     fn apply_subst(&self, tcx: &TyCtxt, subst: &Subst) -> Self {
         Self {
-            base: subst.apply(&self.base, tcx),
-            projs: self.projs.clone(),
+            var: subst.apply(&self.var, tcx),
+            projection: self.projection.clone(),
         }
     }
 }
