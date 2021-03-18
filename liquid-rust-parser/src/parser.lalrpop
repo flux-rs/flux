@@ -15,16 +15,6 @@ pub FnDecl: ast::FnDecl<'source> = {
     },
 }
 
-Args: Vec<(ast::Ident<'source>, ast::Ty<'source>)> = {
-    <mut args:(<Ident> ":" <Ty> ",")*> <arg:(<Ident> ":" <Ty>)?> => match arg {
-        None => args,
-        Some(arg) => {
-            args.push(arg);
-            args
-        }
-    }
-};
-
 Ty: ast::Ty<'source> = {
     <spanned:Spanned<TyKind>> => {
         ast::Ty { kind: spanned.0, span: spanned.1 }
@@ -36,6 +26,12 @@ TyKind: ast::TyKind<'source> = {
     "{" <variable: Ident> ":" <base_ty: BaseTy> "|" <refinement: Predicate> "}" => {
         ast::TyKind::Refined(ast::RefinedTy { variable, base_ty, refinement })
     },
+    "(" <Comma<TupleEntry>> ")" => ast::TyKind::Tuple(<>)
+}
+
+TupleEntry: (Option<ast::Ident<'source>>, ast::Ty<'source>) = {
+    <Ty>                      => (None, <>),
+    <fld: Ident> ":" <ty: Ty> => (Some(fld), ty)
 }
 
 Predicate = Tier<BinOpKind1, BinaryOp2>;
@@ -115,12 +111,20 @@ BasePredicate: ast::Predicate<'source> = {
     <spanned:Spanned<PredicateKind>> => {
         ast::Predicate { kind: spanned.0, span: spanned.1 }
     },
-    "(" <Predicate> ")" => <>
+    "(" <Predicate> ")"
 }
 
 PredicateKind: ast::PredicateKind<'source> = {
-    <Literal> => ast::PredicateKind::Lit(<>),
-    <Ident> => ast::PredicateKind::Var(<>),
+    <Literal>  => ast::PredicateKind::Lit(<>),
+    <ident:Ident> <proj:("." <"integer">)*> => {
+        ast::PredicateKind::Path(
+            ident,
+            // FIXME: we shouldn't be dealing with integer sizes at parsing time.
+            proj.into_iter()
+                .map(|n| n as usize)
+                .collect()
+        )
+    }
 }
 
 Ident: ast::Ident<'source> = {
@@ -177,6 +181,21 @@ extern {
         "|" => Token::Pipe,
         ":" => Token::Colon,
         "," => Token::Comma,
+        "." => Token::Dot,
         "->" => Token::Arrow,
     }
 }
+
+Sep<S, T>: Vec<T> = {
+    <v:(<T> S)*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+}
+Comma<T> = Sep<",", T>;
+Binding<A, B> = <A> ":" <B>;
+Args = Comma<Binding<Ident, Ty>>;

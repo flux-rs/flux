@@ -25,6 +25,7 @@ pub struct Ty<'source> {
 pub enum TyKind<'source> {
     Base(BaseTy),
     Refined(RefinedTy<'source>),
+    Tuple(Vec<(Option<Ident<'source>>, Ty<'source>)>),
 }
 
 /// The AST representation of a dependent function type.

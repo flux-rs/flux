@@ -83,7 +83,7 @@ impl fmt::Display for TyS {
             TyKind::Tuple(tup) => {
                 let tup = tup
                     .iter()
-                    .map(|(f, ty)| format!("@{}: {}", f, ty))
+                    .map(|(f, ty)| format!("{}: {}", f, ty))
                     .collect::<Vec<_>>()
                     .join(", ");
                 write!(f, "({})", tup)

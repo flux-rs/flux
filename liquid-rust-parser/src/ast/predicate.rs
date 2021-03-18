@@ -15,8 +15,8 @@ pub struct Predicate<'source> {
 pub enum PredicateKind<'source> {
     /// A literal.
     Lit(Literal),
-    /// A variable.
-    Var(Ident<'source>),
+    /// A path.
+    Path(Ident<'source>, Vec<usize>),
     /// An unary operation between predicates.
     UnaryOp(UnOp, Box<Predicate<'source>>),
     /// A binary operation between predicates.

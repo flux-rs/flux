@@ -90,6 +90,9 @@ pub enum Token<'source> {
     /// The `,` token.
     #[token(",")]
     Comma,
+    /// The `.` token.
+    #[token(".")]
+    Dot,
     /// The `->` token.
     #[token("->")]
     Arrow,
@@ -132,6 +135,7 @@ impl<'source> fmt::Display for Token<'source> {
             Pipe => "|".fmt(f),
             Colon => ";".fmt(f),
             Comma => ",".fmt(f),
+            Dot => ".".fmt(f),
             Arrow => "->".fmt(f),
             Invalid => "invalid character".fmt(f),
         }

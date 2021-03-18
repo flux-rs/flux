@@ -1,5 +1,5 @@
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_lrir::ty::{self, Var};
+use liquid_rust_lrir::ty::{self, Path, Var};
 use liquid_rust_parser::ast;
 use quickscope::ScopeMap;
 
@@ -17,6 +17,7 @@ impl<'src, 'a> Resolver<'src, 'a> {
             var_gen: IndexGen::new(),
         }
     }
+
     pub fn resolve(&mut self, fn_decl: ast::FnDecl<'src>) -> ty::FnDecl {
         let mut requires = Vec::new();
         let mut inputs = Vec::new();
@@ -66,7 +67,6 @@ impl<'src> Resolve<'src> for ast::Predicate<'src> {
             // FIXME: We should have a uniform way to represent constants.
             ast::PredicateKind::Lit(ast::Literal::Bool(b)) => tcx.mk_const(b.into()),
             ast::PredicateKind::Lit(ast::Literal::Int(i)) => tcx.mk_const(i.into()),
-            ast::PredicateKind::Var(ident) => tcx.mk_path(cx.vars[ident.symbol]),
             ast::PredicateKind::UnaryOp(un_op, op) => {
                 let un_op = match un_op.kind {
                     ast::UnOpKind::Not => ty::UnOp::Not,
@@ -96,6 +96,13 @@ impl<'src> Resolve<'src> for ast::Predicate<'src> {
                 let op2 = op2.resolve(cx);
                 tcx.mk_bin_op(bin_op, op1, op2)
             }
+            ast::PredicateKind::Path(ident, projection) => {
+                let path = Path {
+                    base: cx.vars[ident.symbol],
+                    projs: projection,
+                };
+                tcx.mk_path(path)
+            }
         }
     }
 }
@@ -116,6 +123,27 @@ impl<'src> Resolve<'src> for ast::Ty<'src> {
                 let pred = refine.refinement.resolve(cx);
                 cx.vars.pop_layer();
                 tcx.mk_refine(map_base_ty(refine.base_ty), pred)
+            }
+            ast::TyKind::Tuple(tup) => {
+                cx.vars.push_layer();
+                let tup = tup
+                    .into_iter()
+                    .map(|(fld, ty)| {
+                        let fresh_fld = cx.var_gen.fresh();
+                        if let Some(ident) = fld {
+                            cx.vars.push_layer();
+                            cx.vars.define(ident.symbol, Var::Nu);
+                            let ty = ty.resolve(cx);
+                            cx.vars.pop_layer();
+                            cx.vars.define(ident.symbol, Var::Field(fresh_fld));
+                            (fresh_fld, ty)
+                        } else {
+                            (fresh_fld, ty.resolve(cx))
+                        }
+                    })
+                    .collect();
+                cx.vars.pop_layer();
+                tcx.mk_tuple(tup)
             }
         }
     }
