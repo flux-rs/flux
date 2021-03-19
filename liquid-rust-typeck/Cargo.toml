@@ -9,6 +9,7 @@ version = "0.1.0"
 [dependencies]
 liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-lrir = { path = "../liquid-rust-lrir" }
+liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 
 [package.metadata.rust-analyzer]
 rustc_private = true

@@ -10,6 +10,7 @@ pub mod local_env;
 
 pub use bblock_env::BBlockEnv;
 use liquid_rust_common::index::{Index, IndexGen, IndexMap};
+use liquid_rust_fixpoint::Fixpoint;
 use liquid_rust_lrir::{
     mir::{
         BasicBlock, BasicBlockData, BinOp, Body, Constant, Local, Operand, PlaceRef, Rvalue,
@@ -83,6 +84,8 @@ impl<'a> Checker<'a> {
         for (bb, bb_data) in &task.body.basic_blocks {
             checker.check_basic_block(bb, bb_data, &mut env);
         }
+
+        env.bindings.foo(&mut Fixpoint::default());
     }
 
     fn check_basic_block(&self, bb: BasicBlock, bb_data: &BasicBlockData, env: &mut LocalEnv) {

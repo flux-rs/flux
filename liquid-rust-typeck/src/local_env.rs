@@ -10,7 +10,7 @@ use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
 
 pub struct LocalEnv<'tcx> {
     tcx: &'tcx TyCtxt,
-    bindings: BindingTree,
+    pub bindings: BindingTree,
     locals: Vec<HashMap<Local, GhostVar>>,
     pub var_gen: IndexGen,
 }
@@ -174,7 +174,7 @@ impl<'tcx> LocalEnv<'tcx> {
             }
             (TyKind::Refined(bty1, refine1), TyKind::Refined(bty2, refine2)) if bty1 == bty2 => {
                 self.bindings
-                    .push_constraint(refine1.clone(), refine2.clone());
+                    .push_constraint(ty1.clone(), refine2.clone());
             }
             (TyKind::Refined(..) | TyKind::Uninit(..), TyKind::Uninit(size))
                 if ty1.size() == *size => {}

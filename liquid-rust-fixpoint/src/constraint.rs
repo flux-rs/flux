@@ -1,30 +1,42 @@
-use crate::{emit, emit::Emit, pred::Pred, sort::Sort, variable::Variable, Fixpoint};
+use crate::{
+    constant::Constant,
+    emit,
+    emit::{Ctx, Emit},
+    pred::Pred,
+    sort::Sort,
+};
 
 use std::fmt;
 
 pub enum Constraint {
     Pred(Pred),
     Conj(Vec<Self>),
-    ForAll(Variable, Sort, Pred, Box<Self>),
+    ForAll(Sort, Pred, Box<Self>),
+}
+
+impl Constraint {
+    pub const fn tru() -> Self {
+        Self::Pred(Pred::Constant(Constant::Bool(true)))
+    }
 }
 
 impl Emit for Constraint {
-    fn emit<W: fmt::Write>(&self, w: &mut W, fixpoint: &Fixpoint) -> fmt::Result {
+    fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
         match self {
-            Self::Pred(pred) => pred.emit(w, fixpoint),
+            Self::Pred(pred) => pred.emit(w, ctx),
             Self::Conj(preds) => {
-                emit!(w, fixpoint, "(and")?;
+                emit!(w, ctx, "(and")?;
                 for pred in preds {
-                    emit!(w, fixpoint, " {}", pred)?;
+                    emit!(w, ctx, " {}", pred)?;
                 }
-                emit!(w, fixpoint, ")")
+                emit!(w, ctx, ")")
             }
-            Self::ForAll(variable, sort, premise, conclusion) => {
+            Self::ForAll(sort, premise, conclusion) => {
                 emit!(
                     w,
-                    fixpoint,
-                    "(forall (({} {}) {}) {})",
-                    variable,
+                    &(*ctx + 1),
+                    "(forall ((v{} {}) {}) {})",
+                    ctx,
                     sort,
                     premise,
                     conclusion

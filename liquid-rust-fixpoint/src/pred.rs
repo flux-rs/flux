@@ -1,25 +1,40 @@
 use crate::{
-    constant::Constant, emit, emit::Emit, impl_emit_by_display, variable::Variable, Fixpoint,
+    constant::Constant,
+    emit,
+    emit::{Ctx, Emit},
+    impl_emit_by_display,
 };
 
-use liquid_rust_lrir::mir::{BinOp, UnOp};
-
+use liquid_rust_lrir::{
+    mir::{BinOp, UnOp},
+    ty::KVid,
+};
 use std::fmt;
 
 pub enum Pred {
+    Kvar(KVid, Vec<usize>),
+    Variable(usize),
     Constant(Constant),
-    Variable(Variable),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
     UnaryOp(UnOp, Box<Self>),
 }
 
 impl Emit for Pred {
-    fn emit<W: fmt::Write>(&self, w: &mut W, fixpoint: &Fixpoint) -> fmt::Result {
+    fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
         match self {
+            Self::Kvar(kvid, args) => {
+                let vars = args
+                    .iter()
+                    .map(|v| format!("v{}", v))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                write!(w, "{}[{}]", kvid, vars)
+            }
+            Self::Variable(index) => write!(w, "v{}", index),
             Self::Constant(constant) => write!(w, "{}", constant),
-            Self::Variable(variable) => write!(w, "{}", variable),
-            Self::BinaryOp(bin_op, lop, rop) => emit!(w, fixpoint, "({} {} {})", bin_op, lop, rop),
-            Self::UnaryOp(un_op, op) => emit!(w, fixpoint, "({} {})", un_op, op),
+            Self::BinaryOp(bin_op, lop, rop) => emit!(w, ctx, "({} {} {})", bin_op, lop, rop),
+            Self::UnaryOp(un_op, op) => emit!(w, ctx, "({} {})", un_op, op),
         }
     }
 }
