@@ -42,8 +42,8 @@ impl Embed for ty::Pred {
     fn embed(&self, fixpoint: &Fixpoint) -> Self::Output {
         match self.kind() {
             ty::PredKind::Path(path) => {
-                assert_eq!(0, path.projs.len());
-                Pred::Variable(fixpoint.get_index(&path.base))
+                assert_eq!(0, path.projection.len());
+                Pred::Variable(fixpoint.get_index(&path.var))
             }
             ty::PredKind::BinaryOp(bin_op, lop, rop) => Pred::BinaryOp(
                 *bin_op,

@@ -58,15 +58,16 @@ impl BindingTree {
         self.curr_bindings.insert(var, ty);
     }
 
-    pub fn push_guard(&mut self, pred: Pred) {
+    pub fn push_guard(&mut self, refine: Refine) {
         self.push_node(Node {
-            kind: NodeKind::Guard(pred),
+            kind: NodeKind::Guard(refine),
             children: vec![],
         });
     }
 
     pub fn push_constraint(&mut self, ty: Ty, refine: Refine) {
         self.push_binding(Var::Nu, ty);
+        self.push_guard(refine);
     }
 
     fn push_node(&mut self, node: Node) {
@@ -126,7 +127,15 @@ impl BindingTree {
                     bar(conj)
                 }
             },
-            NodeKind::Guard(_) => todo!(),
+            NodeKind::Guard(refine) => {
+                let mut conj = vec![Constraint::Pred(fixpoint.embed(refine))];
+
+                for &node_id in node.children.iter() {
+                    conj.push(self.foo_aux(node_id, fixpoint));
+                }
+
+                bar(conj)
+            }
         }
     }
 
@@ -161,7 +170,7 @@ impl Node {
 enum NodeKind {
     Blank,
     Binding(Var, Ty),
-    Guard(Pred),
+    Guard(Refine),
 }
 
 impl fmt::Display for BindingTree {

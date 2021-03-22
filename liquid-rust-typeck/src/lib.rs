@@ -126,7 +126,7 @@ impl<'a> Checker<'a> {
                 for (bits, target) in targets.iter() {
                     let constant = tcx.mk_const(Constant::new(bits, *switch_ty));
                     let guard = tcx.mk_bin_op(BinOp::Eq(*switch_ty), discr.clone(), constant);
-                    env.with_guard(guard, |env| {
+                    env.with_guard(guard.into(), |env| {
                         self.check_goto(&self.bb_envs[target], env);
                     });
                 }

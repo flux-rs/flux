@@ -189,6 +189,15 @@ impl From<Pred> for Refine {
     }
 }
 
+impl fmt::Display for Refine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Refine::Pred(pred) => pred.fmt(f),
+            Refine::Infer(kvar) => kvar.fmt(f),
+        }
+    }
+}
+
 pub type Pred = HConsed<PredS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
