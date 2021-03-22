@@ -1,30 +1,36 @@
 use std::fmt;
 
-use liquid_rust_common::{index::IndexMap, new_index, ordered_hash_map::OrderedHashMap};
+use liquid_rust_common::{
+    index::{newtype_index, IndexVec},
+    ordered_map::OrderedMap,
+};
 use liquid_rust_fixpoint::{Constraint, Fixpoint};
-use liquid_rust_lrir::ty::{BaseTy, Pred, Refine, Ty, Var};
+use liquid_rust_lrir::ty::{Refine, Ty, Var};
 
-new_index! {
-    NodeId
+newtype_index! {
+    struct NodeId {
+        DEBUG_FORMAT = "node{}",
+        const FIRST_NODE = 0
+    }
 }
 
 pub struct BindingTree {
-    nodes: IndexMap<NodeId, Node>,
+    nodes: IndexVec<NodeId, Node>,
     curr_path: Vec<NodeId>,
-    curr_bindings: OrderedHashMap<Var, Ty>,
+    curr_bindings: OrderedMap<Var, Ty>,
 }
 
 impl BindingTree {
     pub fn new() -> Self {
-        let mut nodes = IndexMap::new();
-        let curr_node = nodes.insert(Node {
+        let mut nodes = IndexVec::new();
+        let curr_node = nodes.push(Node {
             kind: NodeKind::Blank,
             children: vec![],
         });
         Self {
             nodes,
             curr_path: vec![curr_node],
-            curr_bindings: OrderedHashMap::new(),
+            curr_bindings: OrderedMap::new(),
         }
     }
 
@@ -39,8 +45,7 @@ impl BindingTree {
             .skip(depth)
             .filter(|node_id| self.nodes[**node_id].is_binding())
             .count();
-        self.curr_bindings
-            .truncate(self.curr_bindings.len() - bindings_count);
+        self.curr_bindings.truncate(bindings_count);
         self.curr_path.truncate(depth);
     }
 
@@ -72,7 +77,7 @@ impl BindingTree {
 
     fn push_node(&mut self, node: Node) {
         let curr_node_id = self.curr_node_id();
-        let new_node_id = self.nodes.insert(node);
+        let new_node_id = self.nodes.push(node);
         self.nodes[curr_node_id].children.push(new_node_id);
         self.curr_path.push(new_node_id);
     }
@@ -140,7 +145,7 @@ impl BindingTree {
     }
 
     pub fn foo(&self, fixpoint: &mut Fixpoint) {
-        let constraint = self.foo_aux(NodeId(0), fixpoint);
+        let constraint = self.foo_aux(FIRST_NODE, fixpoint);
         let mut buf = String::new();
         fixpoint.emit(&constraint, &mut buf).unwrap();
         println!("{}", buf);

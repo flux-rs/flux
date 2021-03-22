@@ -58,7 +58,7 @@ impl From<Local> for PlaceRef<'_> {
 
 impl<'a> fmt::Display for PlaceRef<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = format!("{}", self.local);
+        let mut s = format!("{:?}", self.local);
         let mut need_parens = false;
         for elem in self.projection {
             match elem {

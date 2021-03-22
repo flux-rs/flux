@@ -1,36 +1,45 @@
 #![feature(rustc_private)]
+#![feature(const_panic)]
 #![feature(or_patterns)]
 
 extern crate rustc_middle;
 extern crate rustc_mir;
+extern crate rustc_serialize;
 
 pub mod bblock_env;
 mod binding_tree;
 pub mod local_env;
 
 pub use bblock_env::BBlockEnv;
-use liquid_rust_common::index::{Index, IndexGen, IndexMap};
+use local_env::LocalEnv;
+
+use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint::Fixpoint;
 use liquid_rust_lrir::{
     mir::{
         BasicBlock, BasicBlockData, BinOp, Body, Constant, Local, Operand, PlaceRef, Rvalue,
         Statement, StatementKind, Terminator, TerminatorKind, UnOp,
     },
-    ty::{refiner::Refiner, subst::Subst, BaseTy, FnDecl, Path, Pred, Ty, TyCtxt, TyKind, Var},
+    ty::{
+        refiner::Refiner, subst::Subst, BaseTy, FnDecl, KVid, Path, Pred, Ty, TyCtxt, TyKind, Var,
+    },
 };
-use local_env::LocalEnv;
+
 use rustc_middle::mir;
 use rustc_mir::dataflow::{self, impls::MaybeUninitializedPlaces, move_paths::MoveData};
 
 pub struct Checker<'a> {
     tcx: &'a TyCtxt,
-    bb_envs: IndexMap<BasicBlock, BBlockEnv>,
+    bb_envs: IndexVec<BasicBlock, BBlockEnv>,
     ret_env: BBlockEnv,
 }
 
 impl<'a> Checker<'a> {
     pub fn check<'tcx>(task: CheckingTask<'a, 'tcx>, tcx: &'a TyCtxt) {
-        let mut env = LocalEnv::new(tcx);
+        let kvid_gen = IndexGen::new();
+        let ghost_gen = IndexGen::new();
+
+        let mut env = LocalEnv::new(tcx, &ghost_gen);
 
         let mut subst = Subst::new();
         let mut vars_in_scope = vec![];
@@ -55,8 +64,13 @@ impl<'a> Checker<'a> {
         let bb_envs = (0..task.body.basic_blocks.len())
             .map(|i| {
                 let bb = mir::BasicBlock::from_usize(i);
-                let refiner = task.refiner_for_block(tcx, &mut env.var_gen, bb);
-                BBlockEnv::new(&task.body.local_decls, refiner, &mut vars_in_scope)
+                let refiner = task.refiner_for_block(tcx, &kvid_gen, bb);
+                BBlockEnv::new(
+                    &task.body.local_decls,
+                    refiner,
+                    &mut vars_in_scope,
+                    &ghost_gen,
+                )
             })
             .collect();
 
@@ -81,7 +95,7 @@ impl<'a> Checker<'a> {
         // naturally fixed once we implement type checking considering the dominator tree.
         let bb0 = BasicBlock::new(0);
         checker.check_goto(&checker.bb_envs[bb0], &mut env);
-        for (bb, bb_data) in &task.body.basic_blocks {
+        for (bb, bb_data) in task.body.basic_blocks.iter_enumerated() {
             checker.check_basic_block(bb, bb_data, &mut env);
         }
 
@@ -248,14 +262,14 @@ impl<'a, 'tcx> CheckingTask<'a, 'tcx> {
     fn refiner_for_block<'b>(
         &'b self,
         tcx: &'b TyCtxt,
-        var_gen: &'b mut IndexGen,
+        kvid_gen: &'b IndexGen<KVid>,
         bb: mir::BasicBlock,
     ) -> Refiner {
         Refiner::new(
             tcx,
             &self.move_data,
             self.flow_uninit.entry_set_for_block(bb),
-            var_gen,
+            kvid_gen,
         )
     }
 }

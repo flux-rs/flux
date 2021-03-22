@@ -1,13 +1,13 @@
 use crate::mir::{BasicBlock, BasicBlockData, Local, LocalDecl, Span};
 
-use liquid_rust_common::index::{Index, IndexMap};
+use liquid_rust_common::index::{Idx, IndexVec};
 
 pub struct Body<'tcx> {
-    pub basic_blocks: IndexMap<BasicBlock, BasicBlockData>,
-    pub local_decls: IndexMap<Local, LocalDecl<'tcx>>,
+    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
+    pub local_decls: IndexVec<Local, LocalDecl<'tcx>>,
     pub arg_count: usize,
     pub span: Span,
-    pub predecessors: IndexMap<BasicBlock, Vec<BasicBlock>>,
+    pub predecessors: IndexVec<BasicBlock, Vec<BasicBlock>>,
 }
 
 impl Body<'_> {

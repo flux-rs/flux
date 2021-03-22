@@ -3,13 +3,13 @@ use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir, ty as rs};
 use rustc_mir::dataflow::move_paths::{LookupResult, MoveData, MovePathIndex};
 
-use super::{BaseTy, Field, Kvar, Local, Ty, TyCtxt, Var};
+use super::{BaseTy, Field, KVid, Kvar, Local, Ty, TyCtxt, Var};
 
 pub struct Refiner<'a, 'tcx> {
     tcx: &'a TyCtxt,
     move_data: &'a MoveData<'tcx>,
     maybe_uninit: &'a BitSet<MovePathIndex>,
-    pub var_gen: &'a mut IndexGen,
+    kvid_gen: &'a IndexGen<KVid>,
 }
 
 impl<'a, 'tcx> Refiner<'a, 'tcx> {
@@ -17,13 +17,13 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         tcx: &'a TyCtxt,
         move_data: &'a MoveData<'tcx>,
         maybe_uninit: &'a BitSet<MovePathIndex>,
-        var_gen: &'a mut IndexGen,
+        kvid_gen: &'a IndexGen<KVid>,
     ) -> Self {
         Self {
             tcx,
             move_data,
             maybe_uninit,
-            var_gen,
+            kvid_gen,
         }
     }
 
@@ -89,9 +89,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
-    fn fresh_kvar(&mut self, cx: &mut RefinerCtxt<'_, 'tcx>) -> Kvar {
+    fn fresh_kvar(&self, cx: &mut RefinerCtxt<'_, 'tcx>) -> Kvar {
         Kvar {
-            id: self.var_gen.fresh(),
+            id: self.kvid_gen.fresh(),
             vars: cx.vars_in_scope.clone(),
         }
     }
