@@ -1,7 +1,8 @@
-use std::{collections::HashMap, fmt};
+use std::fmt;
 
 use liquid_rust_common::{index::IndexMap, new_index, ordered_hash_map::OrderedHashMap};
-use liquid_rust_lrir::ty::{Pred, Refine, Ty, Var};
+use liquid_rust_fixpoint::{Constraint, Fixpoint};
+use liquid_rust_lrir::ty::{BaseTy, Pred, Refine, Ty, Var};
 
 new_index! {
     NodeId
@@ -9,7 +10,6 @@ new_index! {
 
 pub struct BindingTree {
     nodes: IndexMap<NodeId, Node>,
-    constraints: HashMap<NodeId, Vec<(Refine, Refine)>>,
     curr_path: Vec<NodeId>,
     curr_bindings: OrderedHashMap<Var, Ty>,
 }
@@ -23,7 +23,6 @@ impl BindingTree {
         });
         Self {
             nodes,
-            constraints: HashMap::new(),
             curr_path: vec![curr_node],
             curr_bindings: OrderedHashMap::new(),
         }
@@ -66,11 +65,8 @@ impl BindingTree {
         });
     }
 
-    pub fn push_constraint(&mut self, refine1: Refine, refine2: Refine) {
-        self.constraints
-            .entry(self.curr_node_id())
-            .or_default()
-            .push((refine1, refine2));
+    pub fn push_constraint(&mut self, ty: Ty, refine: Refine) {
+        self.push_binding(Var::Nu, ty);
     }
 
     fn push_node(&mut self, node: Node) {
@@ -82,6 +78,71 @@ impl BindingTree {
 
     fn curr_node_id(&self) -> NodeId {
         self.curr_path.last().copied().unwrap()
+    }
+
+    fn foo_aux(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
+        let node = &self.nodes[node_id];
+
+        match &node.kind {
+            NodeKind::Blank => {
+                let mut conj = vec![];
+
+                for &node_id in node.children.iter() {
+                    conj.push(self.foo_aux(node_id, fixpoint));
+                }
+
+                bar(conj)
+            }
+            NodeKind::Binding(var, ty) => match ty.kind() {
+                liquid_rust_lrir::ty::TyKind::Refined(base_ty, refinement) => {
+                    fixpoint.push_var(Var::Nu);
+                    let refinement = fixpoint.embed(refinement);
+                    fixpoint.pop_var();
+
+                    let sort = fixpoint.embed(base_ty);
+
+                    let mut conj = vec![];
+
+                    fixpoint.push_var(var.clone());
+
+                    for &node_id in node.children.iter() {
+                        conj.push(self.foo_aux(node_id, fixpoint));
+                    }
+
+                    fixpoint.pop_var();
+
+                    Constraint::ForAll(sort, refinement, Box::new(bar(conj)))
+                }
+
+                liquid_rust_lrir::ty::TyKind::Tuple(_) => todo!(),
+                liquid_rust_lrir::ty::TyKind::Ref(_, _, _) => todo!(),
+                liquid_rust_lrir::ty::TyKind::Uninit(_size) => {
+                    let mut conj = vec![];
+
+                    for &node_id in node.children.iter() {
+                        conj.push(self.foo_aux(node_id, fixpoint));
+                    }
+
+                    bar(conj)
+                }
+            },
+            NodeKind::Guard(_) => todo!(),
+        }
+    }
+
+    pub fn foo(&self, fixpoint: &mut Fixpoint) {
+        let constraint = self.foo_aux(NodeId(0), fixpoint);
+        let mut buf = String::new();
+        fixpoint.emit(&constraint, &mut buf).unwrap();
+        println!("{}", buf);
+    }
+}
+
+fn bar(mut conj: Vec<Constraint>) -> Constraint {
+    match conj.len() {
+        0 => Constraint::tru(),
+        1 => conj.remove(0),
+        _ => Constraint::Conj(conj),
     }
 }
 
