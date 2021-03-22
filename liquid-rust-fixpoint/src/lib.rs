@@ -29,7 +29,7 @@ impl Fixpoint {
     }
 
     fn get_index(&self, target: &Var) -> usize {
-        for (index, var) in self.scope.iter().rev().enumerate() {
+        for (index, var) in self.scope.iter().enumerate() {
             if var == target {
                 return index;
             }
