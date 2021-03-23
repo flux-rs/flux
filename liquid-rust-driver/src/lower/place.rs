@@ -9,7 +9,7 @@ impl<'tcx> Lower<'tcx> for mir::Place<'tcx> {
 
     fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
         Ok(Place {
-            local: self.local.lower(lcx)?,
+            local: self.local,
             projection: self
                 .projection
                 .iter()

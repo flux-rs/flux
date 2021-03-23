@@ -1,16 +1,8 @@
 use crate::lower::{Lower, LowerCtx, LowerResult};
 
-use liquid_rust_lrir::mir::{BasicBlock, BasicBlockData};
+use liquid_rust_lrir::mir::BasicBlockData;
 
 use rustc_middle::mir;
-
-impl<'tcx> Lower<'tcx> for mir::BasicBlock {
-    type Output = BasicBlock;
-
-    fn lower(&self, _lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
-        Ok(*self)
-    }
-}
 
 impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
     type Output = BasicBlockData;

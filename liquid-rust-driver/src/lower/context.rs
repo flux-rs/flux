@@ -30,13 +30,8 @@ impl<'tcx> LowerCtx<'tcx> {
         let predecessors = body
             .predecessors()
             .iter()
-            .map(|basic_blocks| {
-                basic_blocks
-                    .iter()
-                    .map(|basic_block| basic_block.lower(lcx))
-                    .collect::<LowerResult<Vec<_>>>()
-            })
-            .collect::<LowerResult<IndexVec<_, _>>>()?;
+            .map(|basic_blocks| basic_blocks.iter().copied().collect::<Vec<_>>())
+            .collect::<IndexVec<_, _>>();
 
         Ok(Body {
             basic_blocks,
