@@ -1,6 +1,9 @@
 use std::fmt;
 
-use liquid_rust_common::{index::IndexMap, ordered_hash_map::OrderedHashMap};
+use liquid_rust_common::{
+    index::{IndexGen, IndexVec},
+    ordered_map::OrderedMap,
+};
 use liquid_rust_lrir::{
     mir::{Local, LocalDecl},
     ty::{
@@ -11,20 +14,21 @@ use liquid_rust_lrir::{
 };
 
 pub struct BBlockEnv {
-    pub ghost_vars: OrderedHashMap<GhostVar, Ty>,
+    pub ghost_vars: OrderedMap<GhostVar, Ty>,
     pub locals: Vec<(Local, GhostVar)>,
 }
 
 impl BBlockEnv {
     pub fn new<'tcx>(
-        local_decls: &IndexMap<Local, LocalDecl<'tcx>>,
+        local_decls: &IndexVec<Local, LocalDecl<'tcx>>,
         mut refiner: Refiner<'_, 'tcx>,
         vars_in_scope: &mut Vec<Var>,
+        ghost_gen: &IndexGen<GhostVar>,
     ) -> Self {
-        let mut ghost_vars = OrderedHashMap::new();
+        let mut ghost_vars = OrderedMap::new();
         let mut locals = vec![];
         for (local, local_decl) in local_decls.iter_enumerated() {
-            let fresh_gv = refiner.var_gen.fresh();
+            let fresh_gv = ghost_gen.fresh();
             let ty = refiner.maybe_uninit(local_decl.ty, local, vars_in_scope);
             ghost_vars.insert(fresh_gv, ty);
             vars_in_scope.push(Var::from(fresh_gv));
@@ -63,7 +67,7 @@ impl fmt::Display for BBlockEnv {
         let locals = self
             .locals
             .iter()
-            .map(|(local, gv)| format!("{}: {}", local, gv))
+            .map(|(local, gv)| format!("{:?}: {}", local, gv))
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "[{}]\n[{}]", ghost_vars, locals)

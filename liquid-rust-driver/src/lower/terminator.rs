@@ -10,9 +10,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
     fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
         let kind = match &self.kind {
             mir::TerminatorKind::Return => TerminatorKind::Return,
-            mir::TerminatorKind::Goto { target } => TerminatorKind::Goto {
-                target: target.lower(lcx)?,
-            },
+            mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
             mir::TerminatorKind::SwitchInt {
                 discr,
                 switch_ty,
@@ -20,12 +18,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
             } => TerminatorKind::SwitchInt {
                 discr: discr.lower(lcx)?,
                 switch_ty: switch_ty.lower(lcx)?,
-                targets: SwitchTargets::new(
-                    targets.iter().map(|(value, target)| {
-                        (value, target.lower(lcx).ok().expect("This never fails"))
-                    }),
-                    targets.otherwise().lower(lcx)?,
-                ),
+                targets: SwitchTargets::new(targets.iter(), targets.otherwise()),
             },
             mir::TerminatorKind::Call {
                 func,
@@ -40,7 +33,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
                     .collect::<LowerResult<Vec<_>>>()?,
                 destination: destination
                     .ok_or_else(|| todo!())
-                    .and_then(|(place, target)| Ok((place.lower(lcx)?, target.lower(lcx)?)))?,
+                    .and_then(|(place, target)| Ok((place.lower(lcx)?, target)))?,
             },
             mir::TerminatorKind::Assert {
                 cond,
@@ -50,7 +43,7 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
             } => TerminatorKind::Assert {
                 cond: cond.lower(lcx)?,
                 expected: *expected,
-                target: target.lower(lcx)?,
+                target: *target,
             },
             _ => todo!(),
         };

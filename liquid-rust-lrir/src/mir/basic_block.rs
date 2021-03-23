@@ -1,10 +1,6 @@
 use crate::mir::{Statement, Terminator};
 
-use liquid_rust_common::new_index;
-
-new_index! {
-    BasicBlock
-}
+pub use rustc_middle::mir::BasicBlock;
 
 pub struct BasicBlockData {
     pub statements: Vec<Statement>,

@@ -1,4 +1,5 @@
 #![feature(rustc_private)]
+#![feature(const_panic)]
 
 extern crate rustc_index;
 extern crate rustc_middle;

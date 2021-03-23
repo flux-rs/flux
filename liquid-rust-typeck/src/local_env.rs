@@ -3,9 +3,8 @@ use std::{collections::HashMap, fmt};
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_lrir::{
     mir::{Local, PlaceElem, PlaceRef},
-    ty::{subst::Subst, GhostVar, Path, Ty, TyCtxt, TyKind, Var},
+    ty::{subst::Subst, GhostVar, Path, Refine, Ty, TyCtxt, TyKind, Var},
 };
-use liquid_rust_lrir::ty::Refine;
 
 use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
 
@@ -13,21 +12,21 @@ pub struct LocalEnv<'tcx> {
     tcx: &'tcx TyCtxt,
     pub bindings: BindingTree,
     locals: Vec<HashMap<Local, GhostVar>>,
-    pub var_gen: IndexGen,
+    ghost_gen: &'tcx IndexGen<GhostVar>,
 }
 
 impl<'tcx> LocalEnv<'tcx> {
-    pub fn new(tcx: &'tcx TyCtxt) -> Self {
+    pub fn new(tcx: &'tcx TyCtxt, ghost_gen: &'tcx IndexGen<GhostVar>) -> Self {
         Self {
             tcx,
             bindings: BindingTree::new(),
             locals: vec![HashMap::new()],
-            var_gen: IndexGen::new(),
+            ghost_gen,
         }
     }
 
     pub fn fresh_ghost(&mut self) -> GhostVar {
-        self.var_gen.fresh()
+        self.ghost_gen.fresh()
     }
 
     /// Add a new `local` to the environment with current type `ty`.
@@ -173,9 +172,8 @@ impl<'tcx> LocalEnv<'tcx> {
                 }
                 self.bindings.pop_to(depth);
             }
-            (TyKind::Refined(bty1, refine1), TyKind::Refined(bty2, refine2)) if bty1 == bty2 => {
-                self.bindings
-                    .push_constraint(ty1.clone(), refine2.clone());
+            (TyKind::Refined(bty1, _), TyKind::Refined(bty2, refine2)) if bty1 == bty2 => {
+                self.bindings.push_constraint(ty1.clone(), refine2.clone());
             }
             (TyKind::Refined(..) | TyKind::Uninit(..), TyKind::Uninit(size))
                 if ty1.size() == *size => {}
@@ -236,7 +234,7 @@ impl fmt::Display for LocalEnv<'_> {
             .iter()
             .copied()
             .flatten()
-            .map(|(local, gv)| format!("{}: {}", local, gv))
+            .map(|(local, gv)| format!("{:?}: {}", local, gv))
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "{}\n[{}]", self.bindings, locals)

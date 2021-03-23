@@ -6,7 +6,7 @@ pub use context::TyCtxt;
 
 pub use crate::mir::{BinOp, Constant, Local, Place, UnOp};
 
-use liquid_rust_common::new_index;
+use liquid_rust_common::index::newtype_index;
 
 use hashconsing::HConsed;
 use std::{fmt, iter::FromIterator};
@@ -305,7 +305,7 @@ impl fmt::Display for Path {
 
 // TODO: investigate if is convenient to use DeBruijn instead of Nu and Field.
 /// A variable that can be used inside a refinement predicate.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Var {
     /// The variable bound by a refined base type, i.e., the `v` in `{v: int | v > 0}`. The name nu
     /// is used because the greek letter nu is typically used to range over this variables when
@@ -433,9 +433,11 @@ impl fmt::Display for Kvar {
     }
 }
 
-new_index! {
+newtype_index! {
     /// A **K** **v**ariable **ID** that needs to be inferred.
-    KVid
+    pub struct KVid {
+        DEBUG_FORMAT = "kvid{}"
+    }
 }
 
 impl fmt::Display for KVid {
@@ -444,9 +446,11 @@ impl fmt::Display for KVid {
     }
 }
 
-new_index! {
+newtype_index! {
     /// A **Region** **v**ariable **ID** that needs to be inferred.
-    RegionVid
+    pub struct RegionVid {
+        DEBUG_FORMAT = "rvid{}"
+    }
 }
 
 impl fmt::Display for RegionVid {
@@ -455,9 +459,11 @@ impl fmt::Display for RegionVid {
     }
 }
 
-new_index! {
+newtype_index! {
     /// A field name in a dependent tuple.
-    Field
+    pub struct Field {
+        DEBUG_FORMAT = "fld{}"
+    }
 }
 
 impl fmt::Display for Field {
@@ -466,9 +472,11 @@ impl fmt::Display for Field {
     }
 }
 
-new_index! {
+newtype_index! {
     /// A universally quantified region, i.e., the `'a` in  `fn foo<'a>(n: &'a int)`
-    UniversalRegion
+    pub struct UniversalRegion {
+        DEBUG_FORMAT = "ur{}"
+    }
 }
 
 impl fmt::Display for UniversalRegion {
@@ -477,13 +485,15 @@ impl fmt::Display for UniversalRegion {
     }
 }
 
-new_index! {
+newtype_index! {
     /// A (logical) ghost variable. During typechecking we don't associate types to places directly,
     /// but create ghost variables corresponding to them after each update.
     /// Refinements do not depend directly on [Local]s but on ghost variables. Because we create new
     /// ghost variables without removing old ones, refinements can also depend on old values.
     /// Very much like SSA.
-    GhostVar
+    pub struct GhostVar {
+        DEBUG_FORMAT = "g{}"
+    }
 }
 
 impl fmt::Display for GhostVar {

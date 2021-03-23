@@ -14,8 +14,8 @@ impl<'tcx> Lower<'tcx> for mir::Statement<'tcx> {
 
                 StatementKind::Assign(place.lower(lcx)?, rvalue.lower(lcx)?)
             }
-            mir::StatementKind::StorageLive(local) => StatementKind::StorageLive(local.lower(lcx)?),
-            mir::StatementKind::StorageDead(local) => StatementKind::StorageDead(local.lower(lcx)?),
+            mir::StatementKind::StorageLive(local) => StatementKind::StorageLive(*local),
+            mir::StatementKind::StorageDead(local) => StatementKind::StorageDead(*local),
             mir::StatementKind::Nop => StatementKind::Nop,
             _ => todo!(),
         };

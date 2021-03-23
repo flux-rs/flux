@@ -1,12 +1,13 @@
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_lrir::ty::{self, Path, Var};
+use liquid_rust_lrir::ty::{self, Field, GhostVar, Path, Var};
 use liquid_rust_parser::ast;
 use quickscope::ScopeMap;
 
 pub struct Resolver<'src, 'a> {
     tcx: &'a ty::TyCtxt,
     vars: ScopeMap<&'src str, Var>,
-    var_gen: IndexGen,
+    ghost_gen: IndexGen<GhostVar>,
+    fld_gen: IndexGen<Field>,
 }
 
 impl<'src, 'a> Resolver<'src, 'a> {
@@ -14,7 +15,8 @@ impl<'src, 'a> Resolver<'src, 'a> {
         Self {
             tcx,
             vars: ScopeMap::new(),
-            var_gen: IndexGen::new(),
+            ghost_gen: IndexGen::new(),
+            fld_gen: IndexGen::new(),
         }
     }
 
@@ -28,14 +30,14 @@ impl<'src, 'a> Resolver<'src, 'a> {
             let ty = ty.resolve(self);
             self.vars.pop_layer();
 
-            let fresh_gv = self.var_gen.fresh();
+            let fresh_gv = self.ghost_gen.fresh();
             self.vars.define(ident.symbol, Var::Ghost(fresh_gv));
 
             requires.push((fresh_gv, ty));
             inputs.push(fresh_gv);
         }
 
-        let output_gv = self.var_gen.fresh();
+        let output_gv = self.ghost_gen.fresh();
         let output_ty = match fn_decl.output {
             Some(ty) => ty.resolve(self),
             None => self.tcx.types.unit(),
@@ -134,7 +136,7 @@ impl<'src> Resolve<'src> for ast::Ty<'src> {
                 let tup = tup
                     .into_iter()
                     .map(|(fld, ty)| {
-                        let fresh_fld = cx.var_gen.fresh();
+                        let fresh_fld = cx.fld_gen.fresh();
                         if let Some(ident) = fld {
                             cx.vars.push_layer();
                             cx.vars.define(ident.symbol, Var::Nu);

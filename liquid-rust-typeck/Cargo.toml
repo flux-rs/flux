@@ -11,5 +11,7 @@ liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-lrir = { path = "../liquid-rust-lrir" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 
+rustc-workspace-hack = "1.0.0"
+
 [package.metadata.rust-analyzer]
 rustc_private = true
