@@ -32,15 +32,27 @@ impl Emit for Constraint {
                 emit!(w, ctx, ")")
             }
             Self::ForAll(sort, premise, conclusion) => {
-                emit!(
-                    w,
-                    &(*ctx + 1),
-                    "(forall ((v{} {}) {}) {})",
-                    ctx,
-                    sort,
-                    premise,
-                    conclusion
-                )
+                if let Constraint::ForAll(..) = conclusion.as_ref() {
+                    emit!(
+                        w,
+                        &(*ctx + 1),
+                        "(forall ((v{} {}) ({})) {})",
+                        ctx,
+                        sort,
+                        premise,
+                        conclusion
+                    )
+                } else {
+                    emit!(
+                        w,
+                        &(*ctx + 1),
+                        "(forall ((v{} {}) ({})) ({}))",
+                        ctx,
+                        sort,
+                        premise,
+                        conclusion
+                    )
+                }
             }
         }
     }

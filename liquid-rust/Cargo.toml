@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 liquid-rust-driver = { path = "../liquid-rust-driver" }
+
+[package.metadata.rust-analyzer]
+rustc_private = true

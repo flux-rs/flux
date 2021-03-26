@@ -146,9 +146,7 @@ impl BindingTree {
 
     pub fn foo(&self, fixpoint: &mut Fixpoint) {
         let constraint = self.foo_aux(FIRST_NODE, fixpoint);
-        let mut buf = String::new();
-        fixpoint.emit(&constraint, &mut buf).unwrap();
-        println!("{}", buf);
+        fixpoint.check(constraint);
     }
 }
 

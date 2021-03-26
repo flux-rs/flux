@@ -33,11 +33,19 @@ impl Emit for Pred {
             }
             Self::Variable(index) => write!(w, "v{}", index),
             Self::Constant(constant) => write!(w, "{}", constant),
-            Self::BinaryOp(bin_op, lop, rop) => emit!(w, ctx, "({} {} {})", bin_op, lop, rop),
+            Self::BinaryOp(bin_op, lop, rop) => emit!(w, ctx, "({} {} {})", lop, bin_op, rop),
             Self::UnaryOp(un_op, op) => emit!(w, ctx, "({} {})", un_op, op),
         }
     }
 }
 
-impl_emit_by_display!(BinOp);
 impl_emit_by_display!(UnOp);
+
+impl Emit for BinOp {
+    fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
+        match self {
+            BinOp::Eq(_) => write!(w, "="),
+            _ => write!(w, "{}", self),
+        }
+    }
+}

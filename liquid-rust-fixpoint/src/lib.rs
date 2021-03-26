@@ -5,6 +5,11 @@ mod emit;
 mod pred;
 mod sort;
 
+use std::{
+    io::{BufWriter, Write},
+    process::{Command, Stdio},
+};
+
 use embed::Embed;
 use emit::Emit;
 
@@ -41,7 +46,25 @@ impl Fixpoint {
         e.embed(self)
     }
 
-    pub fn emit<E: Emit, W: std::fmt::Write>(&self, e: &E, w: &mut W) -> std::fmt::Result {
-        e.emit(w, &0)
+    pub fn check(&self, constraint: Constraint) {
+        let mut child = Command::new("fixpoint")
+            .arg("-q")
+            .arg("--stdin")
+            .arg("--json")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+
+        let mut stdin = None;
+        std::mem::swap(&mut stdin, &mut child.stdin);
+        {
+            let mut w = BufWriter::new(stdin.unwrap());
+            emit!(w, &0, "(constraint {})", constraint).unwrap();
+        }
+
+        let out = child.wait_with_output().unwrap();
+        println!("{:?}", out);
     }
 }
