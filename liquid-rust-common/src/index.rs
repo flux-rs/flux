@@ -26,10 +26,16 @@ impl<I: Idx> IndexGen<I> {
 
     /// Generate a fresh index of type `I`.
     ///
-    /// ```
+    /// ```ignore
     /// # use liquid_rust_common::index::IndexGen;
-    /// # use liquid_rust_common::new_index;
-    /// newtype_index!(Idx);
+    /// # use liquid_rust_common::newtype_index;
+    ///
+    /// newtype_index! {
+    ///     struct Idx {
+    ///         DEBUG_FORMAT = "idx_{}",
+    ///     }
+    /// }
+    ///
     /// let mut gen = IndexGen::new();
     /// let idx1: Idx = gen.fresh();
     /// let idx2: Idx = gen.fresh();
