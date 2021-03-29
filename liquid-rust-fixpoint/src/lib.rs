@@ -65,6 +65,9 @@ impl Fixpoint {
         }
 
         let out = child.wait_with_output().unwrap();
-        println!("{:?}", out);
+
+        if !out.status.success() {
+            panic!("{:?}", out);
+        }
     }
 }
