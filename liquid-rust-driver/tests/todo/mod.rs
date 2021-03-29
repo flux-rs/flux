@@ -19,3 +19,4 @@ macro_rules! todo_test {
 }
 
 todo_test!(identity);
+todo_test!(array);
