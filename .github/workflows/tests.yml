@@ -17,10 +17,10 @@ jobs:
 
       - name: Compile Fixpoint
         run: |
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.fixpoint" >> $GITHUB_PATH
           git clone https://github.com/ucsd-progsys/liquid-fixpoint
           cd liquid-fixpoint
-          stack install --fast
+          stack install --fast --local-bin-path "$HOME/.fixpoint/"
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
