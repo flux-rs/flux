@@ -9,35 +9,46 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Clone Fixpoint
+        run: |
+          git clone https://github.com/ucsd-progsys/liquid-fixpoint
+          echo "fixpoint_hash=$(git -C liquid-fixpoint/ rev-parse HEAD)" >> $GITHUB_ENV
+          echo "local_binaries_path=$(pwd)/local-binaries" >> $GITHUB_ENV
+
+      - name: Cache Fixpoint
+        uses: actions/cache@v2
+        id: cache-fixpoint
+        with:
+          path: local-binaries
+          key: fixpoint-bin-${{ runner.os }}-${{ env.fixpoint_hash }}
+
       - name: Install Haskell
+        if: steps.cache-fixpoint.outputs.cache-hit != 'true'
         uses: haskell/actions/setup@v1
         with:
           enable-stack: true
           stack-version: 'latest'
 
       - name: Compile Fixpoint
+        if: steps.cache-fixpoint.outputs.cache-hit != 'true'
         run: |
-          echo "$HOME/.fixpoint" >> $GITHUB_PATH
-          git clone https://github.com/ucsd-progsys/liquid-fixpoint
           cd liquid-fixpoint
-          stack install --fast --local-bin-path "$HOME/.fixpoint/"
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: nightly-2021-02-18
-            override: true
-            components: rust-src, rustc-dev, llvm-tools-preview
-
-      - name: Build project
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
+          stack install --fast --local-bin-path "$local_binaries_path"
 
       - name: Install Z3
         uses: pavpanchekha/setup-z3@1.2.2
 
-      - name: Run tests
-        uses: actions-rs/cargo@v1
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
         with:
-          command: test
+          toolchain: nightly-2021-02-18
+          override: true
+          components: rust-src, rustc-dev, llvm-tools-preview
+
+      - name: Add Fixpoint to the path
+        run: |
+          echo "$local_binaries_path" >> $GITHUB_PATH
+
+      - name: Run tests
+        run: |
+          which fixpoint && cargo test
