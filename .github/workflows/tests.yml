@@ -8,21 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: nightly-2021-02-18
-            override: true
-            components: rust-src, rustc-dev, llvm-tools-preview
 
       - name: Install Haskell
         uses: haskell/actions/setup@v1
         with:
           enable-stack: true
           stack-version: 'latest'
-
-      - name: Install Z3
-        uses: pavpanchekha/setup-z3@1.2.2
 
       - name: Compile Fixpoint
         run: |
@@ -31,10 +22,20 @@ jobs:
           cd liquid-fixpoint
           stack install --fast
 
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly-2021-02-18
+            override: true
+            components: rust-src, rustc-dev, llvm-tools-preview
+
       - name: Build project
         uses: actions-rs/cargo@v1
         with:
           command: check
+
+      - name: Install Z3
+        uses: pavpanchekha/setup-z3@1.2.2
 
       - name: Run tests
         uses: actions-rs/cargo@v1
