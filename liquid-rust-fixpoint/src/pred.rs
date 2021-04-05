@@ -29,7 +29,7 @@ impl Emit for Pred {
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                write!(w, "{}[{}]", kvid, vars)
+                write!(w, "({} {})", kvid, vars)
             }
             Self::Variable(index) => write!(w, "v{}", index),
             Self::Constant(constant) => write!(w, "{}", constant),
