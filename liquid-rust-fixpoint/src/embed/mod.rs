@@ -43,7 +43,7 @@ impl Embed for ty::Pred {
         match self.kind() {
             ty::PredKind::Path(path) => {
                 assert_eq!(0, path.projection.len());
-                Pred::Variable(fixpoint.get_index(&path.var))
+                Pred::Variable(fixpoint.get_index(&path.var).unwrap())
             }
             ty::PredKind::BinaryOp(bin_op, lop, rop) => Pred::BinaryOp(
                 *bin_op,
@@ -65,7 +65,7 @@ impl Embed for ty::Refine {
                 kvar.id,
                 kvar.vars
                     .iter()
-                    .map(|var| fixpoint.get_index(var))
+                    .filter_map(|var| fixpoint.get_index(var))
                     .collect(),
             ),
             ty::Refine::Pred(pred) => pred.embed(fixpoint),

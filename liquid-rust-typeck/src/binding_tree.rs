@@ -148,6 +148,30 @@ impl BindingTree {
         let constraint = self.foo_aux(FIRST_NODE, fixpoint);
         fixpoint.check(constraint);
     }
+
+    pub fn dot<W: std::io::Write>(&self, mut buf: W) -> std::io::Result<()> {
+        writeln!(buf, "graph g {{")?;
+
+        for (id, node) in self.nodes.iter_enumerated() {
+            writeln!(buf, "  \"{:?}\"[", id)?;
+
+            match &node.kind {
+                NodeKind::Blank => writeln!(buf, "    label = \"blank\"")?,
+                NodeKind::Binding(var, ty) => writeln!(buf, "    label = \"{}: {}\"", var, ty)?,
+                NodeKind::Guard(refine) => writeln!(buf, "    label = \"{}\"", refine)?,
+            }
+
+            writeln!(buf, "  ];")?;
+
+            for child in node.children.iter() {
+                writeln!(buf, "  \"{:?}\" -> \"{:?}\"", id, child)?;
+            }
+        }
+
+        writeln!(buf, "}}")?;
+
+        Ok(())
+    }
 }
 
 fn bar(mut conj: Vec<Constraint>) -> Constraint {

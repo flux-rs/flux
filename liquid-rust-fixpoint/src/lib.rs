@@ -33,13 +33,13 @@ impl Fixpoint {
         self.scope.pop().unwrap()
     }
 
-    fn get_index(&self, target: &Var) -> usize {
+    fn get_index(&self, target: &Var) -> Option<usize> {
         for (index, var) in self.scope.iter().enumerate() {
             if var == target {
-                return index;
+                return Some(index);
             }
         }
-        panic!()
+        None
     }
 
     pub fn embed<E: Embed>(&self, e: &E) -> E::Output {
