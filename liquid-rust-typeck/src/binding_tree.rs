@@ -73,6 +73,7 @@ impl BindingTree {
     pub fn push_constraint(&mut self, ty: Ty, refine: Refine) {
         self.push_binding(Var::Nu, ty);
         self.push_guard(refine);
+        self.pop_to(self.curr_depth() - 2);
     }
 
     fn push_node(&mut self, node: Node) {
@@ -86,7 +87,7 @@ impl BindingTree {
         self.curr_path.last().copied().unwrap()
     }
 
-    fn foo_aux(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
+    fn check_aux(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
         let node = &self.nodes[node_id];
 
         match &node.kind {
@@ -94,7 +95,7 @@ impl BindingTree {
                 let mut conj = vec![];
 
                 for &node_id in node.children.iter() {
-                    conj.push(self.foo_aux(node_id, fixpoint));
+                    conj.push(self.check_aux(node_id, fixpoint));
                 }
 
                 bar(conj)
@@ -112,7 +113,7 @@ impl BindingTree {
                     fixpoint.push_var(var.clone());
 
                     for &node_id in node.children.iter() {
-                        conj.push(self.foo_aux(node_id, fixpoint));
+                        conj.push(self.check_aux(node_id, fixpoint));
                     }
 
                     fixpoint.pop_var();
@@ -126,7 +127,7 @@ impl BindingTree {
                     let mut conj = vec![];
 
                     for &node_id in node.children.iter() {
-                        conj.push(self.foo_aux(node_id, fixpoint));
+                        conj.push(self.check_aux(node_id, fixpoint));
                     }
 
                     bar(conj)
@@ -136,7 +137,7 @@ impl BindingTree {
                 let mut conj = vec![Constraint::Pred(fixpoint.embed(refine))];
 
                 for &node_id in node.children.iter() {
-                    conj.push(self.foo_aux(node_id, fixpoint));
+                    conj.push(self.check_aux(node_id, fixpoint));
                 }
 
                 bar(conj)
@@ -144,8 +145,8 @@ impl BindingTree {
         }
     }
 
-    pub fn foo(&self, fixpoint: &mut Fixpoint) {
-        let constraint = self.foo_aux(FIRST_NODE, fixpoint);
+    pub fn check(&self, fixpoint: &mut Fixpoint) {
+        let constraint = self.check_aux(FIRST_NODE, fixpoint);
         fixpoint.check(constraint);
     }
 

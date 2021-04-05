@@ -101,7 +101,7 @@ impl<'a> Checker<'a> {
 
         env.bindings.dot(std::io::stdout().lock()).unwrap();
 
-        env.bindings.foo(&mut Fixpoint::default());
+        env.bindings.check(&mut Fixpoint::default());
     }
 
     fn check_basic_block(&self, bb: BasicBlock, bb_data: &BasicBlockData, env: &mut LocalEnv) {
