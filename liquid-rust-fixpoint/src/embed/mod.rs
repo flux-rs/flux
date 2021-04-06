@@ -1,4 +1,4 @@
-use crate::Fixpoint;
+use crate::{pred::Expr, Fixpoint};
 
 pub trait Embed {
     type Output;
@@ -37,21 +37,21 @@ impl Embed for ty::Constant {
 use crate::pred::Pred;
 
 impl Embed for ty::Pred {
-    type Output = Pred;
+    type Output = Expr;
 
     fn embed(&self, fixpoint: &Fixpoint) -> Self::Output {
         match self.kind() {
             ty::PredKind::Path(path) => {
                 assert_eq!(0, path.projection.len());
-                Pred::Variable(fixpoint.get_index(&path.var).unwrap())
+                Expr::Variable(fixpoint.get_index(&path.var).unwrap())
             }
-            ty::PredKind::BinaryOp(bin_op, lop, rop) => Pred::BinaryOp(
+            ty::PredKind::BinaryOp(bin_op, lop, rop) => Expr::BinaryOp(
                 *bin_op,
                 Box::new(lop.embed(fixpoint)),
                 Box::new(rop.embed(fixpoint)),
             ),
-            ty::PredKind::UnaryOp(un_op, op) => Pred::UnaryOp(*un_op, Box::new(op.embed(fixpoint))),
-            ty::PredKind::Const(constant) => Pred::Constant(constant.embed(fixpoint)),
+            ty::PredKind::UnaryOp(un_op, op) => Expr::UnaryOp(*un_op, Box::new(op.embed(fixpoint))),
+            ty::PredKind::Const(constant) => Expr::Constant(constant.embed(fixpoint)),
         }
     }
 }
@@ -61,14 +61,14 @@ impl Embed for ty::Refine {
 
     fn embed(&self, fixpoint: &Fixpoint) -> Self::Output {
         match self {
-            ty::Refine::Infer(kvar) => Pred::Kvar(
+            ty::Refine::Infer(kvar) => Pred::KVar(
                 kvar.id,
                 kvar.vars
                     .iter()
                     .filter_map(|var| fixpoint.get_index(var))
                     .collect(),
             ),
-            ty::Refine::Pred(pred) => pred.embed(fixpoint),
+            ty::Refine::Pred(pred) => Pred::Expr(pred.embed(fixpoint)),
         }
     }
 }

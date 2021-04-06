@@ -2,7 +2,7 @@ use crate::{
     constant::Constant,
     emit,
     emit::{Ctx, Emit},
-    pred::Pred,
+    pred::{Expr, Pred},
     sort::Sort,
 };
 
@@ -17,14 +17,14 @@ pub enum Constraint {
 
 impl Constraint {
     pub const fn tru() -> Self {
-        Self::Pred(Pred::Constant(Constant::Bool(true)))
+        Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))))
     }
 }
 
 impl Emit for Constraint {
     fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
         match self {
-            Self::Pred(pred) => pred.emit(w, ctx),
+            Self::Pred(pred) => emit!(w, ctx, "({})", pred),
             Self::Conj(preds) => {
                 emit!(w, ctx, "(and")?;
                 for pred in preds {
@@ -33,30 +33,18 @@ impl Emit for Constraint {
                 emit!(w, ctx, ")")
             }
             Self::ForAll(sort, premise, conclusion) => {
-                if let Constraint::ForAll(..) = conclusion.as_ref() {
-                    emit!(
-                        w,
-                        &(*ctx + 1),
-                        "(forall ((v{} {}) ({})) {})",
-                        ctx,
-                        sort,
-                        premise,
-                        conclusion
-                    )
-                } else {
-                    emit!(
-                        w,
-                        &(*ctx + 1),
-                        "(forall ((v{} {}) ({})) ({}))",
-                        ctx,
-                        sort,
-                        premise,
-                        conclusion
-                    )
-                }
+                emit!(
+                    w,
+                    &(*ctx + 1),
+                    "(forall ((v{} {}) {}) {})",
+                    ctx,
+                    sort,
+                    premise,
+                    conclusion
+                )
             }
             Self::Guard(premise, conclusion) => {
-                emit!(w, ctx, "(forall ((_ int) ({})) {})", premise, conclusion)
+                emit!(w, ctx, "(forall ((_ int) {}) {})", premise, conclusion)
             }
         }
     }

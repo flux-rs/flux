@@ -17,7 +17,7 @@ newtype_index! {
 pub struct BindingTree {
     nodes: IndexVec<NodeId, Node>,
     curr_path: Vec<NodeId>,
-    pub curr_bindings: OrderedMap<Var, Ty>,
+    curr_bindings: OrderedMap<Var, Ty>,
 }
 
 impl BindingTree {
