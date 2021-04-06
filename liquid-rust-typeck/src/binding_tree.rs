@@ -151,7 +151,7 @@ impl BindingTree {
     }
 
     pub fn dot<W: std::io::Write>(&self, mut buf: W) -> std::io::Result<()> {
-        writeln!(buf, "graph g {{")?;
+        writeln!(buf, "digraph g {{")?;
 
         for (id, node) in self.nodes.iter_enumerated() {
             writeln!(buf, "  \"{:?}\"[", id)?;

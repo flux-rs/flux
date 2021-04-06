@@ -99,7 +99,8 @@ impl<'a> Checker<'a> {
             checker.check_basic_block(bb, bb_data, &mut env);
         }
 
-        env.bindings.dot(std::io::stdout().lock()).unwrap();
+        let file = std::fs::File::create("binding_tree.dot").unwrap();
+        env.bindings.dot(file).unwrap();
 
         env.bindings.check(&mut Fixpoint::default());
     }
