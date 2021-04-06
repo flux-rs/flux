@@ -3,7 +3,7 @@ use std::iter::FromIterator;
 /// An associative array that preserves insertion order.
 #[derive(Default)]
 pub struct OrderedMap<K, V> {
-    inner: Vec<(K, V)>,
+    pub inner: Vec<(K, V)>,
 }
 
 impl<K, V> OrderedMap<K, V> {

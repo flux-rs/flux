@@ -11,6 +11,7 @@ use std::fmt;
 pub enum Constraint {
     Pred(Pred),
     Conj(Vec<Self>),
+    Guard(Pred, Box<Self>),
     ForAll(Sort, Pred, Box<Self>),
 }
 
@@ -53,6 +54,9 @@ impl Emit for Constraint {
                         conclusion
                     )
                 }
+            }
+            Self::Guard(premise, conclusion) => {
+                emit!(w, ctx, "(forall ((_ int) ({})) {})", premise, conclusion)
             }
         }
     }
