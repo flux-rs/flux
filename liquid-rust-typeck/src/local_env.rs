@@ -163,23 +163,24 @@ impl<'tcx> LocalEnv<'tcx> {
     }
 
     pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
+        let depth = self.bindings.curr_depth();
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
-                let depth = self.bindings.curr_depth();
                 for ((fld, ty1), ty2) in tup1.iter().zip(tup2.types()) {
                     self.subtyping(ty1, ty2);
                     self.push_binding(*fld, ty1.clone());
                 }
-                self.bindings.pop_to(depth);
             }
             (TyKind::Refined(bty1, _), TyKind::Refined(bty2, refine2)) if bty1 == bty2 => {
-                self.bindings.push_constraint(ty1.clone(), refine2.clone());
+                self.bindings.push_binding(Var::Nu, ty1.clone());
+                self.bindings.push_pred(refine2.clone());
             }
             (TyKind::Refined(..) | TyKind::Uninit(..), TyKind::Uninit(size))
                 if ty1.size() == *size => {}
             (TyKind::Ref(..), TyKind::Ref(..)) => todo!(),
             _ => unreachable!("{} {}", ty1, ty2),
         }
+        self.bindings.pop_to(depth);
     }
 
     pub fn enter_basic_block(&mut self, bb_env: &BBlockEnv, f: impl FnOnce(&mut Self)) {

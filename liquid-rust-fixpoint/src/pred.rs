@@ -12,7 +12,12 @@ use liquid_rust_lrir::{
 use std::fmt;
 
 pub enum Pred {
-    Kvar(KVid, Vec<usize>),
+    And(Vec<Self>),
+    KVar(KVid, Vec<usize>),
+    Expr(Expr),
+}
+
+pub enum Expr {
     Variable(usize),
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
@@ -22,7 +27,7 @@ pub enum Pred {
 impl Emit for Pred {
     fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
         match self {
-            Self::Kvar(kvid, args) => {
+            Self::KVar(kvid, args) => {
                 let vars = args
                     .iter()
                     .map(|v| format!("v{}", v))
@@ -31,6 +36,21 @@ impl Emit for Pred {
 
                 write!(w, "({} {})", kvid, vars)
             }
+            Self::And(preds) => {
+                emit!(w, ctx, "(and")?;
+                for pred in preds {
+                    emit!(w, ctx, " {}", pred)?;
+                }
+                emit!(w, ctx, ")")
+            }
+            Self::Expr(expr) => emit!(w, ctx, "({})", expr),
+        }
+    }
+}
+
+impl Emit for Expr {
+    fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
+        match self {
             Self::Variable(index) => write!(w, "v{}", index),
             Self::Constant(constant) => write!(w, "{}", constant),
             Self::BinaryOp(bin_op, lop, rop) => emit!(w, ctx, "({} {} {})", lop, bin_op, rop),

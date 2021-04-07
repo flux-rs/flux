@@ -275,7 +275,7 @@ dependencies = [
 name = "liquid-rust-common"
 version = "0.1.0"
 dependencies = [
- "indexmap",
+ "rustc-workspace-hack",
 ]
 
 [[package]]
@@ -320,7 +320,9 @@ name = "liquid-rust-typeck"
 version = "0.1.0"
 dependencies = [
  "liquid-rust-common",
+ "liquid-rust-fixpoint",
  "liquid-rust-lrir",
+ "rustc-workspace-hack",
 ]
 
 [[package]]

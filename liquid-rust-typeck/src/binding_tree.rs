@@ -23,10 +23,7 @@ pub struct BindingTree {
 impl BindingTree {
     pub fn new() -> Self {
         let mut nodes = IndexVec::new();
-        let curr_node = nodes.push(Node {
-            kind: NodeKind::Blank,
-            children: vec![],
-        });
+        let curr_node = nodes.push(Node::Blank(vec![]));
         Self {
             nodes,
             curr_path: vec![curr_node],
@@ -45,7 +42,8 @@ impl BindingTree {
             .skip(depth)
             .filter(|node_id| self.nodes[**node_id].is_binding())
             .count();
-        self.curr_bindings.truncate(bindings_count);
+        self.curr_bindings
+            .truncate(self.curr_bindings.len() - bindings_count);
         self.curr_path.truncate(depth);
     }
 
@@ -56,30 +54,22 @@ impl BindingTree {
 
     pub fn push_binding<V: Into<Var>>(&mut self, var: V, ty: Ty) {
         let var = var.into();
-        self.push_node(Node {
-            kind: NodeKind::Binding(var, ty.clone()),
-            children: vec![],
-        });
+        self.push_node(Node::Binding(var, ty.clone(), vec![]));
         self.curr_bindings.insert(var, ty);
     }
 
     pub fn push_guard(&mut self, refine: Refine) {
-        self.push_node(Node {
-            kind: NodeKind::Guard(refine),
-            children: vec![],
-        });
+        self.push_node(Node::Guard(refine, vec![]));
     }
 
-    pub fn push_constraint(&mut self, ty: Ty, refine: Refine) {
-        self.push_binding(Var::Nu, ty);
-        self.push_guard(refine);
-        self.pop_to(self.curr_depth() - 2);
+    pub fn push_pred(&mut self, refine: Refine) {
+        self.push_node(Node::Leaf(refine));
     }
 
     fn push_node(&mut self, node: Node) {
         let curr_node_id = self.curr_node_id();
         let new_node_id = self.nodes.push(node);
-        self.nodes[curr_node_id].children.push(new_node_id);
+        self.nodes[curr_node_id].push_child(new_node_id);
         self.curr_path.push(new_node_id);
     }
 
@@ -90,17 +80,18 @@ impl BindingTree {
     fn check_aux(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
         let node = &self.nodes[node_id];
 
-        match &node.kind {
-            NodeKind::Blank => {
+        match node {
+            Node::Leaf(refine) => Constraint::Pred(fixpoint.embed(refine)),
+            Node::Blank(children) => {
                 let mut conj = vec![];
 
-                for &node_id in node.children.iter() {
+                for &node_id in children {
                     conj.push(self.check_aux(node_id, fixpoint));
                 }
 
                 bar(conj)
             }
-            NodeKind::Binding(var, ty) => match ty.kind() {
+            Node::Binding(var, ty, children) => match ty.kind() {
                 liquid_rust_lrir::ty::TyKind::Refined(base_ty, refinement) => {
                     fixpoint.push_var(Var::Nu);
                     let refinement = fixpoint.embed(refinement);
@@ -110,9 +101,9 @@ impl BindingTree {
 
                     let mut conj = vec![];
 
-                    fixpoint.push_var(var.clone());
+                    fixpoint.push_var(*var);
 
-                    for &node_id in node.children.iter() {
+                    for &node_id in children {
                         conj.push(self.check_aux(node_id, fixpoint));
                     }
 
@@ -126,21 +117,21 @@ impl BindingTree {
                 liquid_rust_lrir::ty::TyKind::Uninit(_size) => {
                     let mut conj = vec![];
 
-                    for &node_id in node.children.iter() {
+                    for &node_id in children {
                         conj.push(self.check_aux(node_id, fixpoint));
                     }
 
                     bar(conj)
                 }
             },
-            NodeKind::Guard(refine) => {
+            Node::Guard(refine, children) => {
                 let mut conj = vec![Constraint::Pred(fixpoint.embed(refine))];
 
-                for &node_id in node.children.iter() {
+                for &node_id in children {
                     conj.push(self.check_aux(node_id, fixpoint));
                 }
 
-                bar(conj)
+                Constraint::Guard(fixpoint.embed(refine), Box::new(bar(conj)))
             }
         }
     }
@@ -156,15 +147,16 @@ impl BindingTree {
         for (id, node) in self.nodes.iter_enumerated() {
             writeln!(buf, "  \"{:?}\"[", id)?;
 
-            match &node.kind {
-                NodeKind::Blank => writeln!(buf, "    label = \"blank\"")?,
-                NodeKind::Binding(var, ty) => writeln!(buf, "    label = \"{}: {}\"", var, ty)?,
-                NodeKind::Guard(refine) => writeln!(buf, "    label = \"{}\"", refine)?,
+            match &node {
+                Node::Blank(..) => writeln!(buf, "    label = \"blank\"")?,
+                Node::Binding(var, ty, ..) => writeln!(buf, "    label = \"{}: {}\"", var, ty)?,
+                Node::Guard(refine, ..) => writeln!(buf, "    label = \"{}\"", refine)?,
+                Node::Leaf(refine) => writeln!(buf, "    label = \"{}\"", refine)?,
             }
 
             writeln!(buf, "  ];")?;
 
-            for child in node.children.iter() {
+            for child in node.children() {
                 writeln!(buf, "  \"{:?}\" -> \"{:?}\"", id, child)?;
             }
         }
@@ -183,22 +175,40 @@ fn bar(mut conj: Vec<Constraint>) -> Constraint {
     }
 }
 
-struct Node {
-    kind: NodeKind,
-    children: Vec<NodeId>,
+enum Node {
+    Blank(Vec<NodeId>),
+    Binding(Var, Ty, Vec<NodeId>),
+    Guard(Refine, Vec<NodeId>),
+    Leaf(Refine),
 }
 
 impl Node {
-    /// Returns `true` if the node is a [`Binding`].
-    fn is_binding(&self) -> bool {
-        matches!(self.kind, NodeKind::Binding(..))
+    fn children(&self) -> impl Iterator<Item = NodeId> + '_ {
+        let iter = match self {
+            Node::Blank(children) => children.iter(),
+            Node::Binding(_, _, children) => children.iter(),
+            Node::Guard(_, children) => children.iter(),
+            Node::Leaf(_) => [].iter(),
+        };
+        iter.copied()
+    }
+
+    fn push_child(&mut self, child: NodeId) {
+        let children = match self {
+            Node::Blank(children) => children,
+            Node::Binding(_, _, children) => children,
+            Node::Guard(_, children) => children,
+            Node::Leaf(_) => panic!("Trying to push a child into a leaf node."),
+        };
+        children.push(child);
     }
 }
 
-enum NodeKind {
-    Blank,
-    Binding(Var, Ty),
-    Guard(Refine),
+impl Node {
+    /// Returns `true` if the node is [`Binding`].
+    fn is_binding(&self) -> bool {
+        matches!(self, Self::Binding(..))
+    }
 }
 
 impl fmt::Display for BindingTree {
@@ -206,10 +216,10 @@ impl fmt::Display for BindingTree {
         let env = self
             .curr_path
             .iter()
-            .filter_map(|node_id| match &self.nodes[*node_id].kind {
-                NodeKind::Blank => None,
-                NodeKind::Binding(v, ty) => Some(format!("{}: {}", v, ty)),
-                NodeKind::Guard(pred) => Some(format!("{}", pred)),
+            .filter_map(|node_id| match &self.nodes[*node_id] {
+                Node::Binding(v, ty, ..) => Some(format!("{}: {}", v, ty)),
+                Node::Guard(pred, ..) => Some(format!("{}", pred)),
+                _ => None,
             })
             .collect::<Vec<_>>()
             .join(", ");
