@@ -66,8 +66,10 @@ impl Fixpoint {
 
         let out = child.wait_with_output().unwrap();
 
+        std::io::stdout().lock().write(&out.stdout).unwrap();
+
         if !out.status.success() {
-            panic!("{:?}", out);
+            panic!("{:?}", out.status);
         }
     }
 }
