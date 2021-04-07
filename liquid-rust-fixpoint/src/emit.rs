@@ -37,11 +37,11 @@ impl<'fix, E: Emit> fmt::Display for Emitter<'fix, E> {
 
 #[macro_export]
 macro_rules! emit {
-    ($dst:expr, $fix:expr, $fmt:expr) => {
+    ($dst:expr, $ctx:expr, $fmt:expr) => {
         write!($dst, $fmt)
     };
-    ($dst:expr, $fix:expr, $fmt:expr, $($args:tt),*) => {
-        write!($dst, $fmt, $($crate::emit::Emitter::new($args, $fix),)*)
+    ($dst:expr, $ctx:expr, $fmt:expr, $($args:tt),*) => {
+        write!($dst, $fmt, $($crate::emit::Emitter::new($args, $ctx),)*)
     }
 }
 

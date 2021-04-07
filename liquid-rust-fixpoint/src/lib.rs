@@ -61,12 +61,13 @@ impl Fixpoint {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
+            // let mut w = BufWriter::new(std::io::stdout());
             emit!(w, &0, "(constraint {})", constraint).unwrap();
         }
 
         let out = child.wait_with_output().unwrap();
 
-        std::io::stdout().lock().write(&out.stdout).unwrap();
+        std::io::stdout().lock().write_all(&out.stdout).unwrap();
 
         if !out.status.success() {
             panic!("{:?}", out.status);

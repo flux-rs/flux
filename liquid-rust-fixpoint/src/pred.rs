@@ -2,7 +2,6 @@ use crate::{
     constant::Constant,
     emit,
     emit::{Ctx, Emit},
-    impl_emit_by_display,
 };
 
 use liquid_rust_lrir::{
@@ -50,16 +49,51 @@ impl Emit for Pred {
 
 impl Emit for Expr {
     fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
+        fn should_parenthesize(bin_op: BinOp, child: &Expr) -> bool {
+            if let Expr::BinaryOp(child_op, ..) = child {
+                child_op.precedence() < bin_op.precedence()
+                    || (child_op.precedence() == bin_op.precedence()
+                        && !BinOp::associative(bin_op.precedence()))
+            } else {
+                false
+            }
+        }
         match self {
             Self::Variable(index) => write!(w, "v{}", index),
             Self::Constant(constant) => write!(w, "{}", constant),
-            Self::BinaryOp(bin_op, lop, rop) => emit!(w, ctx, "({} {} {})", lop, bin_op, rop),
-            Self::UnaryOp(un_op, op) => emit!(w, ctx, "({} {})", un_op, op),
+            Self::BinaryOp(bin_op, op1, op2) => {
+                if should_parenthesize(*bin_op, op1) {
+                    emit!(w, ctx, "({})", op1)?;
+                } else {
+                    emit!(w, ctx, "{}", op1)?;
+                }
+                emit!(w, ctx, " {} ", bin_op)?;
+                if should_parenthesize(*bin_op, op2) {
+                    emit!(w, ctx, "({})", op2)?;
+                } else {
+                    emit!(w, ctx, "{}", op2)?;
+                }
+                Ok(())
+            }
+            Self::UnaryOp(un_op, op) => {
+                if matches!(op.as_ref(), Expr::Variable(..) | Expr::Constant(..)) {
+                    emit!(w, ctx, "{}{}", un_op, op)
+                } else {
+                    emit!(w, ctx, "{}({})", un_op, op)
+                }
+            }
         }
     }
 }
 
-impl_emit_by_display!(UnOp);
+impl Emit for UnOp {
+    fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
+        match self {
+            UnOp::Not => write!(w, "~"),
+            UnOp::Neg => write!(w, "-"),
+        }
+    }
+}
 
 impl Emit for BinOp {
     fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
