@@ -90,9 +90,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 
     fn fresh_kvar(&self, cx: &mut RefinerCtxt<'_, 'tcx>) -> Kvar {
+        // Fixpoint requires the first argument of kvar to be Nu
+        let mut vars = vec![Var::Nu];
+        vars.extend(cx.vars_in_scope.iter());
         Kvar {
             id: self.kvid_gen.fresh(),
-            vars: cx.vars_in_scope.clone(),
+            vars,
         }
     }
 

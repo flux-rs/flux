@@ -31,7 +31,7 @@ impl Emit for Pred {
                     .iter()
                     .map(|v| format!("v{}", v))
                     .collect::<Vec<_>>()
-                    .join(", ");
+                    .join(" ");
 
                 write!(w, "({} {})", kvid, vars)
             }
