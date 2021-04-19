@@ -8,6 +8,8 @@ use liquid_rust_lrir::{
 
 use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
 
+pub mod pretty;
+
 pub struct LocalEnv<'tcx> {
     tcx: &'tcx TyCtxt,
     pub bindings: BindingTree,
