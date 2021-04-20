@@ -40,7 +40,7 @@ macro_rules! emit {
     ($dst:expr, $ctx:expr, $fmt:expr) => {
         write!($dst, $fmt)
     };
-    ($dst:expr, $ctx:expr, $fmt:expr, $($args:tt),*) => {
+    ($dst:expr, $ctx:expr, $fmt:expr, $($args:expr),*) => {
         write!($dst, $fmt, $($crate::emit::Emitter::new($args, $ctx),)*)
     }
 }

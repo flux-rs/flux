@@ -1,12 +1,13 @@
-use crate::{pred::Expr, Fixpoint};
+use crate::{
+    constraint::{Constant, Expr, Sort},
+    Fixpoint,
+};
 
 pub trait Embed {
     type Output;
 
     fn embed(&self, fixpoint: &Fixpoint) -> Self::Output;
 }
-
-use crate::sort::Sort;
 
 use liquid_rust_lrir::ty;
 
@@ -21,8 +22,6 @@ impl Embed for ty::BaseTy {
     }
 }
 
-use crate::constant::Constant;
-
 impl Embed for ty::Constant {
     type Output = Constant;
 
@@ -34,7 +33,7 @@ impl Embed for ty::Constant {
     }
 }
 
-use crate::pred::Pred;
+use crate::constraint::Pred;
 
 impl Embed for ty::Pred {
     type Output = Expr;

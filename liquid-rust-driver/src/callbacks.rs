@@ -52,7 +52,11 @@ impl Callbacks for LiquidCallbacks {
 
                         let task = CheckingTask::new(&lrir_body, fn_decl, move_data, flow_uninit);
 
-                        Checker::check(task, &lr_tcx);
+                        if !Checker::check(task, &lr_tcx).ok {
+                            handler
+                                .struct_fatal("Liquid type error")
+                                .buffer(&mut diagnostics);
+                        }
                     }
                     Err(_) => {
                         todo!()

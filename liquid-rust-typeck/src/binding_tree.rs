@@ -10,7 +10,7 @@ use liquid_rust_lrir::ty::{Refine, Ty, Var};
 newtype_index! {
     struct NodeId {
         DEBUG_FORMAT = "node{}",
-        const FIRST_NODE = 0
+        const ROOT = 0
     }
 }
 
@@ -77,7 +77,11 @@ impl BindingTree {
         self.curr_path.last().copied().unwrap()
     }
 
-    fn check_aux(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
+    pub fn gen_constraint(&self, fixpoint: &mut Fixpoint) -> Constraint {
+        self.gen_constraint_rec(ROOT, fixpoint)
+    }
+
+    fn gen_constraint_rec(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
         let node = &self.nodes[node_id];
 
         match node {
@@ -86,7 +90,7 @@ impl BindingTree {
                 let mut conj = vec![];
 
                 for &node_id in children {
-                    conj.push(self.check_aux(node_id, fixpoint));
+                    conj.push(self.gen_constraint_rec(node_id, fixpoint));
                 }
 
                 bar(conj)
@@ -104,7 +108,7 @@ impl BindingTree {
                     fixpoint.push_var(*var);
 
                     for &node_id in children {
-                        conj.push(self.check_aux(node_id, fixpoint));
+                        conj.push(self.gen_constraint_rec(node_id, fixpoint));
                     }
 
                     fixpoint.pop_var();
@@ -118,7 +122,7 @@ impl BindingTree {
                     let mut conj = vec![];
 
                     for &node_id in children {
-                        conj.push(self.check_aux(node_id, fixpoint));
+                        conj.push(self.gen_constraint_rec(node_id, fixpoint));
                     }
 
                     bar(conj)
@@ -128,17 +132,12 @@ impl BindingTree {
                 let mut conj = vec![Constraint::Pred(fixpoint.embed(refine))];
 
                 for &node_id in children {
-                    conj.push(self.check_aux(node_id, fixpoint));
+                    conj.push(self.gen_constraint_rec(node_id, fixpoint));
                 }
 
                 Constraint::Guard(fixpoint.embed(refine), Box::new(bar(conj)))
             }
         }
-    }
-
-    pub fn check(&self, fixpoint: &mut Fixpoint) {
-        let constraint = self.check_aux(FIRST_NODE, fixpoint);
-        fixpoint.check(constraint);
     }
 
     pub fn dot<W: std::io::Write>(&self, mut buf: W) -> std::io::Result<()> {
@@ -169,7 +168,7 @@ impl BindingTree {
 
 fn bar(mut conj: Vec<Constraint>) -> Constraint {
     match conj.len() {
-        0 => Constraint::tru(),
+        0 => Constraint::tt(),
         1 => conj.remove(0),
         _ => Constraint::Conj(conj),
     }

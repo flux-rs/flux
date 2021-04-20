@@ -1,15 +1,14 @@
-mod constant;
 mod constraint;
+use serde::Deserialize;
 mod embed;
 mod emit;
-mod pred;
-mod sort;
 
 use std::{
     io::{BufWriter, Write},
     process::{Command, Stdio},
 };
 
+use constraint::KVarGatherCtx;
 use embed::Embed;
 use emit::Emit;
 
@@ -46,7 +45,7 @@ impl Fixpoint {
         e.embed(self)
     }
 
-    pub fn check(&self, constraint: Constraint) {
+    pub fn check(&self, constraint: Constraint) -> FixpointResult {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -62,15 +61,28 @@ impl Fixpoint {
         {
             let mut w = BufWriter::new(stdin.unwrap());
             // let mut w = BufWriter::new(std::io::stdout());
+
+            for kvar in KVarGatherCtx::gather_kvars(&constraint) {
+                emit!(w, &0, "{}", kvar).unwrap();
+            }
+
             emit!(w, &0, "(constraint {})", constraint).unwrap();
         }
 
         let out = child.wait_with_output().unwrap();
 
-        std::io::stdout().lock().write_all(&out.stdout).unwrap();
-
-        if !out.status.success() {
-            panic!("{:?}", out.status);
-        }
+        serde_json::from_slice(&out.stdout).unwrap()
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FixpointResult {
+    pub tag: Safeness,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+pub enum Safeness {
+    Safe,
+    Unsafe,
+    Crash,
 }

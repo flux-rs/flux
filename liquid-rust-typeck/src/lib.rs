@@ -14,7 +14,7 @@ pub use bblock_env::BBlockEnv;
 use local_env::LocalEnv;
 
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
-use liquid_rust_fixpoint::Fixpoint;
+use liquid_rust_fixpoint::{Fixpoint, Safeness};
 use liquid_rust_lrir::{
     mir::{
         BasicBlock, BasicBlockData, BinOp, Body, Constant, Local, Operand, PlaceRef, Rvalue,
@@ -35,7 +35,7 @@ pub struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    pub fn check<'tcx>(task: CheckingTask<'a, 'tcx>, tcx: &'a TyCtxt) {
+    pub fn check<'tcx>(task: CheckingTask<'a, 'tcx>, tcx: &'a TyCtxt) -> CheckingResult {
         let kvid_gen = IndexGen::new();
         let ghost_gen = IndexGen::new();
 
@@ -99,10 +99,15 @@ impl<'a> Checker<'a> {
             checker.check_basic_block(bb, bb_data, &mut env);
         }
 
-        let file = std::fs::File::create("binding_tree.dot").unwrap();
-        env.bindings.dot(file).unwrap();
+        // let file = std::fs::File::create("binding_tree.dot").unwrap();
+        // env.bindings.dot(file).unwrap();
 
-        env.bindings.check(&mut Fixpoint::default());
+        let mut fixpoint = Fixpoint::default();
+        let constraint = env.bindings.gen_constraint(&mut fixpoint);
+        match fixpoint.check(constraint).tag {
+            Safeness::Safe => CheckingResult { ok: true },
+            _ => CheckingResult { ok: false },
+        }
     }
 
     fn check_basic_block(&self, bb: BasicBlock, bb_data: &BasicBlockData, env: &mut LocalEnv) {
@@ -130,7 +135,7 @@ impl<'a> Checker<'a> {
     fn check_terminator(&self, terminator: &Terminator, env: &mut LocalEnv) {
         let tcx = self.tcx;
         match &terminator.kind {
-            TerminatorKind::Goto { target } => {
+            TerminatorKind::Goto { target } | TerminatorKind::Assert { target, .. } => {
                 self.check_goto(&self.bb_envs[*target], env);
             }
             TerminatorKind::SwitchInt {
@@ -151,7 +156,7 @@ impl<'a> Checker<'a> {
             TerminatorKind::Return => {
                 self.check_goto(&self.ret_env, env);
             }
-            TerminatorKind::Call { .. } | TerminatorKind::Assert { .. } => todo!(),
+            TerminatorKind::Call { .. } => todo!(),
         }
     }
 
@@ -275,4 +280,8 @@ impl<'a, 'tcx> CheckingTask<'a, 'tcx> {
             kvid_gen,
         )
     }
+}
+
+pub struct CheckingResult {
+    pub ok: bool,
 }
