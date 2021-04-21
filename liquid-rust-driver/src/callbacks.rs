@@ -72,6 +72,7 @@ impl Callbacks for LiquidCallbacks {
 }
 
 fn mk_mpde<'tcx>(move_data: MoveData<'tcx>, param_env: ParamEnv<'tcx>) -> MoveDataParamEnv<'tcx> {
+    #![allow(dead_code)]
     // FIXME: Ugly hack, but we need a MoveDataParamEnv to call the mir dataflow and
     // fields in MoveDataParamEnv are private.
     struct MPDE<'tcx> {

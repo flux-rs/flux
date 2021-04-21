@@ -7,9 +7,10 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+itertools = "0.10.0"
 liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-lrir = { path = "../liquid-rust-lrir" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
+liquid-rust-lrir = { path = "../liquid-rust-lrir" }
 
 rustc-workspace-hack = "1.0.0"
 

@@ -11,6 +11,7 @@ mod binding_tree;
 pub mod local_env;
 
 pub use bblock_env::BBlockEnv;
+use itertools::Itertools;
 use local_env::LocalEnv;
 
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
@@ -99,8 +100,8 @@ impl<'a> Checker<'a> {
             checker.check_basic_block(bb, bb_data, &mut env);
         }
 
-        // let file = std::fs::File::create("binding_tree.dot").unwrap();
-        // env.bindings.dot(file).unwrap();
+        let file = std::fs::File::create("binding_tree.dot").unwrap();
+        env.bindings.dot(file).unwrap();
 
         let mut fixpoint = Fixpoint::default();
         let constraint = env.bindings.gen_constraint(&mut fixpoint);
@@ -133,6 +134,8 @@ impl<'a> Checker<'a> {
     }
 
     fn check_terminator(&self, terminator: &Terminator, env: &mut LocalEnv) {
+        #![allow(clippy::or_fun_call)]
+
         let tcx = self.tcx;
         match &terminator.kind {
             TerminatorKind::Goto { target } | TerminatorKind::Assert { target, .. } => {
@@ -148,10 +151,24 @@ impl<'a> Checker<'a> {
                 for (bits, target) in targets.iter() {
                     let constant = tcx.mk_const(Constant::new(bits, *switch_ty));
                     let guard = tcx.mk_bin_op(BinOp::Eq(*switch_ty), discr.clone(), constant);
-                    env.with_guard(guard.into(), |env| {
+                    env.with_guard(guard, |env| {
                         self.check_goto(&self.bb_envs[target], env);
                     });
                 }
+                let guard = targets
+                    .iter()
+                    .map(|(bits, _)| {
+                        let v = tcx.mk_const(Constant::new(bits, *switch_ty));
+                        tcx.mk_un_op(
+                            UnOp::Not,
+                            tcx.mk_bin_op(BinOp::Eq(*switch_ty), discr.clone(), v),
+                        )
+                    })
+                    .fold1(|p1, p2| tcx.mk_bin_op(BinOp::And, p1, p2))
+                    .unwrap_or(tcx.preds.tt());
+                env.with_guard(guard, |env| {
+                    self.check_goto(&self.bb_envs[targets.otherwise()], env);
+                });
             }
             TerminatorKind::Return => {
                 self.check_goto(&self.ret_env, env);

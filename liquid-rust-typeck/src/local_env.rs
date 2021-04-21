@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_lrir::{
     mir::{Local, PlaceElem, PlaceRef},
-    ty::{subst::Subst, GhostVar, Path, Refine, Ty, TyCtxt, TyKind, Var},
+    ty::{subst::Subst, GhostVar, Path, Pred, Refine, Ty, TyCtxt, TyKind, Var},
 };
 
 use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
@@ -205,9 +205,9 @@ impl<'tcx> LocalEnv<'tcx> {
         self.bindings.pop_to(depth);
     }
 
-    pub fn with_guard(&mut self, guard: Refine, f: impl FnOnce(&mut Self)) {
+    pub fn with_guard(&mut self, guard: Pred, f: impl FnOnce(&mut Self)) {
         let depth = self.bindings.curr_depth();
-        self.bindings.push_guard(guard);
+        self.bindings.push_guard(Refine::Pred(guard));
         f(self);
         self.bindings.pop_to(depth);
     }

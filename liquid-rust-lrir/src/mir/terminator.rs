@@ -49,4 +49,8 @@ impl SwitchTargets {
             .zip(&self.targets)
             .map(|(bits, target)| (*bits, *target))
     }
+
+    pub fn otherwise(&self) -> BasicBlock {
+        *self.targets.last().unwrap()
+    }
 }
