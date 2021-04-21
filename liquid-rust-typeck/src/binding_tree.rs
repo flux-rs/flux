@@ -79,21 +79,21 @@ impl BindingTree {
 
     pub fn gen_constraint(&self, fixpoint: &mut Fixpoint) -> Constraint {
         self.gen_constraint_rec(ROOT, fixpoint)
+            .unwrap_or(Constraint::TRUE)
     }
 
-    fn gen_constraint_rec(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Constraint {
+    fn gen_constraint_rec(&self, node_id: NodeId, fixpoint: &mut Fixpoint) -> Option<Constraint> {
         let node = &self.nodes[node_id];
 
         match node {
-            Node::Leaf(refine) => Constraint::Pred(fixpoint.embed(refine)),
+            Node::Leaf(refine) => Some(Constraint::Pred(fixpoint.embed(refine))),
             Node::Blank(children) => {
-                let mut conj = vec![];
+                let conj = children
+                    .iter()
+                    .filter_map(|&node_id| self.gen_constraint_rec(node_id, fixpoint))
+                    .collect();
 
-                for &node_id in children {
-                    conj.push(self.gen_constraint_rec(node_id, fixpoint));
-                }
-
-                bar(conj)
+                Constraint::join(conj)
             }
             Node::Binding(var, ty, children) => match ty.kind() {
                 liquid_rust_lrir::ty::TyKind::Refined(base_ty, refinement) => {
@@ -103,39 +103,43 @@ impl BindingTree {
 
                     let sort = fixpoint.embed(base_ty);
 
-                    let mut conj = vec![];
-
                     fixpoint.push_var(*var);
 
-                    for &node_id in children {
-                        conj.push(self.gen_constraint_rec(node_id, fixpoint));
-                    }
+                    let conj = children
+                        .iter()
+                        .filter_map(|&node_id| self.gen_constraint_rec(node_id, fixpoint))
+                        .collect();
 
                     fixpoint.pop_var();
 
-                    Constraint::ForAll(sort, refinement, Box::new(bar(conj)))
+                    Some(Constraint::ForAll(
+                        sort,
+                        refinement,
+                        Box::new(Constraint::join(conj)?),
+                    ))
                 }
 
                 liquid_rust_lrir::ty::TyKind::Tuple(_) => todo!(),
                 liquid_rust_lrir::ty::TyKind::Ref(_, _, _) => todo!(),
                 liquid_rust_lrir::ty::TyKind::Uninit(_size) => {
-                    let mut conj = vec![];
+                    let conj = children
+                        .iter()
+                        .filter_map(|&node_id| self.gen_constraint_rec(node_id, fixpoint))
+                        .collect();
 
-                    for &node_id in children {
-                        conj.push(self.gen_constraint_rec(node_id, fixpoint));
-                    }
-
-                    bar(conj)
+                    Constraint::join(conj)
                 }
             },
             Node::Guard(refine, children) => {
-                let mut conj = vec![];
+                let conj = children
+                    .iter()
+                    .filter_map(|&node_id| self.gen_constraint_rec(node_id, fixpoint))
+                    .collect();
 
-                for &node_id in children {
-                    conj.push(self.gen_constraint_rec(node_id, fixpoint));
-                }
-
-                Constraint::Guard(fixpoint.embed(refine), Box::new(bar(conj)))
+                Some(Constraint::Guard(
+                    fixpoint.embed(refine),
+                    Box::new(Constraint::join(conj)?),
+                ))
             }
         }
     }
@@ -166,11 +170,9 @@ impl BindingTree {
     }
 }
 
-fn bar(mut conj: Vec<Constraint>) -> Constraint {
-    match conj.len() {
-        0 => Constraint::tt(),
-        1 => conj.remove(0),
-        _ => Constraint::Conj(conj),
+impl Default for BindingTree {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

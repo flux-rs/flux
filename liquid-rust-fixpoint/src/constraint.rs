@@ -17,8 +17,14 @@ pub enum Constraint {
 }
 
 impl Constraint {
-    pub const fn tt() -> Self {
-        Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))))
+    pub const TRUE: Self = Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))));
+
+    pub fn join(mut constraints: Vec<Self>) -> Option<Self> {
+        match constraints.len() {
+            0 => None,
+            1 => Some(constraints.remove(0)),
+            _ => Some(Constraint::Conj(constraints)),
+        }
     }
 }
 
