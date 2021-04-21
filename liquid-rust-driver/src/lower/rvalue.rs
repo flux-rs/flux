@@ -38,7 +38,7 @@ impl<'tcx> Lower<'tcx> for mir::Rvalue<'tcx> {
 
             Self::Ref { .. } => todo!(),
 
-            _ => todo!(),
+            _ => todo!("{:#?}", self),
         };
 
         Ok(output)

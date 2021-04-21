@@ -176,6 +176,27 @@ impl fmt::Display for Constant {
     }
 }
 
+pub struct Qualifier {
+    pub name: String,
+    pub vars: Vec<Sort>,
+    pub pred: Expr,
+}
+
+impl Emit for Qualifier {
+    fn emit<W: fmt::Write>(&self, w: &mut W, ctx: &Ctx) -> fmt::Result {
+        write!(w, "(qualif {} (", self.name)?;
+        let vars = self
+            .vars
+            .iter()
+            .enumerate()
+            .map(|(v, sort)| format!("(v{} {})", v, sort))
+            .collect::<Vec<_>>()
+            .join(" ");
+        write!(w, "{})", vars)?;
+        emit!(w, ctx, "({}))", &self.pred)
+    }
+}
+
 pub struct KVar {
     id: KVid,
     sorts: Vec<Sort>,

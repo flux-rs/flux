@@ -129,7 +129,7 @@ impl BindingTree {
                 }
             },
             Node::Guard(refine, children) => {
-                let mut conj = vec![Constraint::Pred(fixpoint.embed(refine))];
+                let mut conj = vec![];
 
                 for &node_id in children {
                     conj.push(self.gen_constraint_rec(node_id, fixpoint));

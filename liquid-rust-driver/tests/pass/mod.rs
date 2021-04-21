@@ -12,6 +12,7 @@ macro_rules! pass_test {
                 "whatever".into(),
                 path.into(),
                 sysroot.into(),
+                "-O".into(),
                 "--crate-type=lib".into(),
             ]);
             assert!(code == 0);

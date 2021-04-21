@@ -8,11 +8,12 @@ use std::{
     process::{Command, Stdio},
 };
 
-use constraint::KVarGatherCtx;
+use constraint::{Expr, KVarGatherCtx, Qualifier, Sort};
 use embed::Embed;
 use emit::Emit;
+use liquid_rust_lrir::ty::BaseTy;
 
-use liquid_rust_lrir::ty::Var;
+use liquid_rust_lrir::{mir::BinOp, ty::Var};
 
 pub use constraint::Constraint;
 
@@ -62,6 +63,8 @@ impl Fixpoint {
             let mut w = BufWriter::new(stdin.unwrap());
             // let mut w = BufWriter::new(std::io::stdout());
 
+            emit_preamble(&mut w).unwrap();
+
             for kvar in KVarGatherCtx::gather_kvars(&constraint) {
                 emit!(w, &0, "{}", kvar).unwrap();
             }
@@ -73,6 +76,33 @@ impl Fixpoint {
 
         serde_json::from_slice(&out.stdout).unwrap()
     }
+}
+
+fn emit_preamble<W: std::io::Write>(w: &mut W) -> std::io::Result<()> {
+    let qualifiers = [
+        Qualifier {
+            name: "Eq".into(),
+            vars: vec![Sort::Int, Sort::Int],
+            pred: Expr::BinaryOp(
+                BinOp::Eq(BaseTy::Bool),
+                Box::new(Expr::Variable(0)),
+                Box::new(Expr::Variable(1)),
+            ),
+        },
+        Qualifier {
+            name: "Lte".into(),
+            vars: vec![Sort::Int, Sort::Int],
+            pred: Expr::BinaryOp(
+                BinOp::Lte,
+                Box::new(Expr::Variable(0)),
+                Box::new(Expr::Variable(1)),
+            ),
+        },
+    ];
+    for qualif in qualifiers.iter() {
+        emit!(w, &0, "{}", qualif)?;
+    }
+    Ok(())
 }
 
 #[derive(Deserialize, Debug)]
