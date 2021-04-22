@@ -1,10 +1,12 @@
 pub mod context;
+pub mod embed;
 pub mod refiner;
 pub mod subst;
 
 pub use context::TyCtxt;
+pub use liquid_rust_fixpoint::{BinOp, Constant, UnOp};
 
-pub use crate::mir::{BinOp, Constant, Local, Place, UnOp};
+pub use crate::mir::{Local, Place};
 
 use liquid_rust_common::index::newtype_index;
 
@@ -90,14 +92,13 @@ impl fmt::Display for TyS {
             }
             TyKind::Uninit(size) => write!(f, "uninit({})", size),
             TyKind::Refined(bty, Refine::Infer(k)) => write!(f, "{{ {} | {} }}", bty, k),
-            TyKind::Refined(bty, Refine::Pred(pred)) => match pred.kind() {
-                PredKind::Const(c) if c.is_true() => {
+            TyKind::Refined(bty, Refine::Pred(pred)) => {
+                if pred.is_true() {
                     write!(f, "{}", bty)
-                }
-                _ => {
+                } else {
                     write!(f, "{{ {} | {} }}", bty, pred)
                 }
-            },
+            }
         }
     }
 }
@@ -248,6 +249,10 @@ impl fmt::Display for PredS {
 impl PredS {
     pub fn kind(&self) -> &PredKind {
         &self.kind
+    }
+
+    pub fn is_true(&self) -> bool {
+        matches!(self.kind(), PredKind::Const(Constant::Bool(true)))
     }
 }
 

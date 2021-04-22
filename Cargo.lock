@@ -300,7 +300,6 @@ dependencies = [
 name = "liquid-rust-fixpoint"
 version = "0.1.0"
 dependencies = [
- "liquid-rust-lrir",
  "serde",
  "serde_json",
 ]
@@ -311,6 +310,7 @@ version = "0.1.0"
 dependencies = [
  "hashconsing",
  "liquid-rust-common",
+ "liquid-rust-fixpoint",
  "rustc-workspace-hack",
 ]
 

@@ -1,6 +1,5 @@
 mod constraint;
 use serde::Deserialize;
-mod embed;
 mod emit;
 
 use std::{
@@ -8,44 +7,15 @@ use std::{
     process::{Command, Stdio},
 };
 
-use constraint::{Expr, KVarGatherCtx, Qualifier, Sort};
-use embed::Embed;
+use constraint::{KVarGatherCtx, Qualifier};
 use emit::Emit;
-use liquid_rust_lrir::ty::BaseTy;
 
-use liquid_rust_lrir::{mir::BinOp, ty::Var};
-
-pub use constraint::Constraint;
+pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Pred, Sort, UnOp};
 
 #[derive(Default)]
-pub struct Fixpoint {
-    scope: Vec<Var>,
-}
+pub struct Fixpoint;
 
 impl Fixpoint {
-    pub fn push_var(&mut self, var: Var) -> usize {
-        let index = self.scope.len();
-        self.scope.push(var);
-        index
-    }
-
-    pub fn pop_var(&mut self) -> Var {
-        self.scope.pop().unwrap()
-    }
-
-    fn get_index(&self, target: &Var) -> Option<usize> {
-        for (index, var) in self.scope.iter().enumerate() {
-            if var == target {
-                return Some(index);
-            }
-        }
-        None
-    }
-
-    pub fn embed<E: Embed>(&self, e: &E) -> E::Output {
-        e.embed(self)
-    }
-
     pub fn check(&self, constraint: Constraint) -> FixpointResult {
         let mut child = Command::new("fixpoint")
             .arg("-q")
@@ -84,7 +54,7 @@ fn emit_preamble<W: std::io::Write>(w: &mut W) -> std::io::Result<()> {
             name: "Eq".into(),
             vars: vec![Sort::Int, Sort::Int],
             pred: Expr::BinaryOp(
-                BinOp::Eq(BaseTy::Bool),
+                BinOp::Eq,
                 Box::new(Expr::Variable(0)),
                 Box::new(Expr::Variable(1)),
             ),

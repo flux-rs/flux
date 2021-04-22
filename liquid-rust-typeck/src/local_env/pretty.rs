@@ -1,8 +1,5 @@
 use super::*;
-use liquid_rust_lrir::{
-    mir::BinOp,
-    ty::{BorrowKind, Pred, PredKind, PredS, TyS},
-};
+use liquid_rust_lrir::ty::{BinOp, BorrowKind, Pred, PredKind, PredS, TyS};
 use std::{
     collections::HashSet,
     io::{self, Write},
@@ -61,16 +58,15 @@ fn write_ty(l: &LocalEnv, w: &mut dyn Write, t: &TyS) -> io::Result<()> {
         }
         TyKind::Uninit(size) => write!(w, "uninit({})", size),
         TyKind::Refined(bty, Refine::Infer(k)) => write!(w, "{{ {} | {} }}", bty, k),
-        TyKind::Refined(bty, Refine::Pred(pred)) => match pred.kind() {
-            PredKind::Const(c) if c.is_true() => {
+        TyKind::Refined(bty, Refine::Pred(pred)) => {
+            if pred.is_true() {
                 write!(w, "{}", bty)
-            }
-            _ => {
+            } else {
                 write!(w, "{{ {} | ", bty)?;
                 write_pred(l, w, pred)?;
                 write!(w, " }}")
             }
-        },
+        }
     }
 }
 

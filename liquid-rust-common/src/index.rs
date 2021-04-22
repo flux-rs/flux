@@ -48,3 +48,9 @@ impl<I: Idx> IndexGen<I> {
         I::new(index)
     }
 }
+
+impl<I: Idx> Default for IndexGen<I> {
+    fn default() -> Self {
+        Self::new()
+    }
+}

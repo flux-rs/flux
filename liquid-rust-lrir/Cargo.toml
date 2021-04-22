@@ -8,6 +8,7 @@ version = "0.1.0"
 
 [dependencies]
 liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 
 hashconsing = "1.3"
 

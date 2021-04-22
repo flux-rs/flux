@@ -67,8 +67,8 @@ impl<'src> Resolve<'src> for ast::Predicate<'src> {
         let tcx = cx.tcx;
         match self.kind {
             // FIXME: We should have a uniform way to represent constants.
-            ast::PredicateKind::Lit(ast::Literal::Bool(b)) => tcx.mk_const(b.into()),
-            ast::PredicateKind::Lit(ast::Literal::Int(i)) => tcx.mk_const(i.into()),
+            ast::PredicateKind::Lit(ast::Literal::Bool(b)) => tcx.mk_const(ty::Constant::Bool(b)),
+            ast::PredicateKind::Lit(ast::Literal::Int(i)) => tcx.mk_const(ty::Constant::Int(i)),
             ast::PredicateKind::UnaryOp(un_op, op) => {
                 let un_op = match un_op.kind {
                     ast::UnOpKind::Not => ty::UnOp::Not,
@@ -86,9 +86,8 @@ impl<'src> Resolve<'src> for ast::Predicate<'src> {
                     ast::BinOpKind::Rem => ty::BinOp::Rem,
                     ast::BinOpKind::And => ty::BinOp::And,
                     ast::BinOpKind::Or => ty::BinOp::Or,
-                    // FIXME: fill with typechecking info
-                    ast::BinOpKind::Eq => ty::BinOp::Eq(ty::BaseTy::Int),
-                    ast::BinOpKind::Neq => ty::BinOp::Neq(ty::BaseTy::Int),
+                    ast::BinOpKind::Eq => ty::BinOp::Eq,
+                    ast::BinOpKind::Neq => ty::BinOp::Neq,
                     ast::BinOpKind::Lt => ty::BinOp::Lt,
                     ast::BinOpKind::Gt => ty::BinOp::Gt,
                     ast::BinOpKind::Lte => ty::BinOp::Lte,

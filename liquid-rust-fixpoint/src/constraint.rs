@@ -2,10 +2,6 @@ use crate::{
     emit,
     emit::{Ctx, Emit},
 };
-use liquid_rust_lrir::{
-    mir::{BinOp, UnOp},
-    ty::KVid,
-};
 
 use std::{collections::HashMap, fmt};
 
@@ -73,6 +69,21 @@ impl fmt::Display for Sort {
 }
 
 crate::impl_emit_by_display!(Sort);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct KVid(usize);
+
+impl KVid {
+    pub fn from_usize(n: usize) -> Self {
+        KVid(n)
+    }
+}
+
+impl fmt::Display for KVid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "$k{}", self.0)
+    }
+}
 
 pub enum Pred {
     And(Vec<Self>),
@@ -149,25 +160,7 @@ impl Emit for Expr {
         }
     }
 }
-
-impl Emit for UnOp {
-    fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
-        match self {
-            UnOp::Not => write!(w, "~"),
-            UnOp::Neg => write!(w, "-"),
-        }
-    }
-}
-
-impl Emit for BinOp {
-    fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
-        match self {
-            BinOp::Eq(_) => write!(w, "="),
-            _ => write!(w, "{}", self),
-        }
-    }
-}
-
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Constant {
     Bool(bool),
     Int(u128),
@@ -279,6 +272,109 @@ impl Pred {
                 cx.kvars.insert(*kvid, sorts);
             }
             Pred::Expr(_) => {}
+        }
+    }
+}
+
+/// A primitive binary operator.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BinOp {
+    /// The integer addition operator.
+    Add,
+    /// The integer subtraction operator.
+    Sub,
+    /// The integer multiplication operator.
+    Mul,
+    /// The `/` operator.
+    Div,
+    /// The `%` operator.
+    Rem,
+    /// The `&&` operator.
+    Eq,
+    /// The "not equal to" operator for a particular base type.
+    Neq,
+    /// The "less than" integer operator.
+    Lt,
+    /// The "greater than" integer operator.
+    Gt,
+    /// The "less than or equal" integer operator.
+    Lte,
+    /// The "greater than or equal" integer operator.
+    Gte,
+    /// The boolean "and" operator.
+    And,
+    /// The boolean "or" operator.
+    Or,
+}
+
+impl BinOp {
+    pub fn precedence(&self) -> u32 {
+        match self {
+            BinOp::Mul | BinOp::Div | BinOp::Rem => 5,
+            BinOp::Add | BinOp::Sub => 4,
+            BinOp::Eq | BinOp::Neq | BinOp::Lt | BinOp::Gt | BinOp::Lte | BinOp::Gte => 3,
+            BinOp::And => 2,
+            BinOp::Or => 1,
+        }
+    }
+
+    pub fn associative(precedence: u32) -> bool {
+        precedence != 3
+    }
+}
+
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Eq => write!(f, "="),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
+            BinOp::Rem => write!(f, "%"),
+            BinOp::Neq => write!(f, "!="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Lte => write!(f, "<="),
+            BinOp::Gte => write!(f, ">="),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Or => write!(f, "||"),
+        }
+    }
+}
+
+impl Emit for BinOp {
+    fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
+        match self {
+            BinOp::Rem => write!(w, "mod"),
+            _ => write!(w, "{}", self),
+        }
+    }
+}
+
+/// A primitive unary operator.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnOp {
+    /// The boolean negation operator.
+    Not,
+    /// The integer negation operator.
+    Neg,
+}
+
+impl fmt::Display for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnOp::Not => write!(f, "!"),
+            UnOp::Neg => write!(f, "-"),
+        }
+    }
+}
+
+impl Emit for UnOp {
+    fn emit<W: fmt::Write>(&self, w: &mut W, _ctx: &Ctx) -> fmt::Result {
+        match self {
+            UnOp::Not => write!(w, "~"),
+            UnOp::Neg => write!(w, "-"),
         }
     }
 }

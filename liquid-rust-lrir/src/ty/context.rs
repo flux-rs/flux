@@ -1,11 +1,8 @@
 use std::cell::RefCell;
 
-use crate::{
-    mir::Constant,
-    ty::{
-        BaseTy, BinOp, BorrowKind, GhostVar, Path, Pred, PredKind, PredS, Refine, Region, Tuple,
-        Ty, TyKind, TyS, UnOp, Var,
-    },
+use crate::ty::{
+    BaseTy, BinOp, BorrowKind, Constant, GhostVar, Path, Pred, PredKind, PredS, Refine, Region,
+    Tuple, Ty, TyKind, TyS, UnOp, Var,
 };
 
 use hashconsing::{HConsign, HashConsign};
@@ -61,7 +58,7 @@ impl TyCtxt {
     pub fn selfify(&self, ty: &Ty, path: Path) -> Ty {
         match ty.kind() {
             TyKind::Refined(bty, _) => {
-                let pred = self.mk_bin_op(BinOp::Eq(*bty), self.preds.nu(), self.mk_path(path));
+                let pred = self.mk_bin_op(BinOp::Eq, self.preds.nu(), self.mk_path(path));
                 self.mk_refine(*bty, pred)
             }
             TyKind::Tuple(tup) => {
@@ -86,6 +83,14 @@ impl TyCtxt {
 
     pub fn mk_const(&self, c: Constant) -> Pred {
         self.mk_pred(PredKind::Const(c))
+    }
+
+    pub fn mk_const_from_bits(&self, bits: u128, ty: BaseTy) -> Pred {
+        let c = match ty {
+            BaseTy::Int => Constant::Int(bits),
+            BaseTy::Bool => Constant::Bool(bits != 0),
+        };
+        self.mk_const(c)
     }
 
     pub fn mk_path<P: Into<Path>>(&self, path: P) -> Pred {
@@ -153,8 +158,8 @@ impl CommonPreds {
         let mut intern = |pred| interner.intern_pred(pred);
         Self {
             nu: intern(PredKind::Path(Path::from(Var::Nu))),
-            tt: intern(PredKind::Const(Constant::from(true))),
-            ff: intern(PredKind::Const(Constant::from(false))),
+            tt: intern(PredKind::Const(Constant::Bool(true))),
+            ff: intern(PredKind::Const(Constant::Bool(false))),
         }
     }
 

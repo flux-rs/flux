@@ -18,11 +18,12 @@ use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint::{Fixpoint, Safeness};
 use liquid_rust_lrir::{
     mir::{
-        BasicBlock, BasicBlockData, BinOp, Body, Constant, Local, Operand, PlaceRef, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind, UnOp,
+        BasicBlock, BasicBlockData, BinOp, Body, Local, Operand, PlaceRef, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{
-        refiner::Refiner, subst::Subst, BaseTy, FnDecl, KVid, Path, Pred, Ty, TyCtxt, TyKind, Var,
+        self, refiner::Refiner, subst::Subst, BaseTy, FnDecl, KVid, Path, Pred, Ty, TyCtxt, TyKind,
+        Var,
     },
 };
 
@@ -103,9 +104,8 @@ impl<'a> Checker<'a> {
         let file = std::fs::File::create("binding_tree.dot").unwrap();
         env.bindings.dot(file).unwrap();
 
-        let mut fixpoint = Fixpoint::default();
-        let constraint = env.bindings.gen_constraint(&mut fixpoint);
-        match fixpoint.check(constraint).tag {
+        let constraint = env.bindings.gen_constraint();
+        match Fixpoint::default().check(constraint).tag {
             Safeness::Safe => CheckingResult { ok: true },
             _ => CheckingResult { ok: false },
         }
@@ -149,8 +149,8 @@ impl<'a> Checker<'a> {
                 let (discr, ty) = self.check_operand(discr, env);
                 assert!(matches!(ty.kind(), TyKind::Refined(bty, ..) if bty == switch_ty));
                 for (bits, target) in targets.iter() {
-                    let constant = tcx.mk_const(Constant::new(bits, *switch_ty));
-                    let guard = tcx.mk_bin_op(BinOp::Eq(*switch_ty), discr.clone(), constant);
+                    let constant = tcx.mk_const_from_bits(bits, *switch_ty);
+                    let guard = tcx.mk_bin_op(ty::BinOp::Eq, discr.clone(), constant);
                     env.with_guard(guard, |env| {
                         self.check_goto(&self.bb_envs[target], env);
                     });
@@ -158,13 +158,13 @@ impl<'a> Checker<'a> {
                 let guard = targets
                     .iter()
                     .map(|(bits, _)| {
-                        let v = tcx.mk_const(Constant::new(bits, *switch_ty));
+                        let v = tcx.mk_const_from_bits(bits, *switch_ty);
                         tcx.mk_un_op(
-                            UnOp::Not,
-                            tcx.mk_bin_op(BinOp::Eq(*switch_ty), discr.clone(), v),
+                            ty::UnOp::Not,
+                            tcx.mk_bin_op(ty::BinOp::Eq, discr.clone(), v),
                         )
                     })
-                    .fold1(|p1, p2| tcx.mk_bin_op(BinOp::And, p1, p2))
+                    .fold1(|p1, p2| tcx.mk_bin_op(ty::BinOp::And, p1, p2))
                     .unwrap_or(tcx.preds.tt());
                 env.with_guard(guard, |env| {
                     self.check_goto(&self.bb_envs[targets.otherwise()], env);
@@ -198,42 +198,71 @@ impl<'a> Checker<'a> {
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 let (op1, ty1) = self.check_operand(op1, env);
                 let (op2, ty2) = self.check_operand(op2, env);
+                let ty_bin_op = match bin_op {
+                    BinOp::Add => Some(ty::BinOp::Add),
+                    BinOp::Sub => Some(ty::BinOp::Sub),
+                    BinOp::Eq => Some(ty::BinOp::Eq),
+                    BinOp::Lt => Some(ty::BinOp::Lt),
+                    BinOp::Le => Some(ty::BinOp::Lte),
+                    BinOp::Ne => Some(ty::BinOp::Neq),
+                    BinOp::Ge => Some(ty::BinOp::Gte),
+                    BinOp::Gt => Some(ty::BinOp::Gt),
+                    BinOp::Mul => Some(ty::BinOp::Mul),
+                    BinOp::Div => Some(ty::BinOp::Div),
+                    BinOp::Rem => Some(ty::BinOp::Rem),
+                    BinOp::BitXor
+                    | BinOp::BitAnd
+                    | BinOp::BitOr
+                    | BinOp::Shl
+                    | BinOp::Shr
+                    | BinOp::Offset => None,
+                };
                 let ret_ty = match bin_op {
-                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
+                    BinOp::Add
+                    | BinOp::Sub
+                    | BinOp::Mul
+                    | BinOp::Div
+                    | BinOp::Rem
+                    | BinOp::BitXor
+                    | BinOp::BitAnd
+                    | BinOp::BitOr
+                    | BinOp::Shl
+                    | BinOp::Shr => {
                         assert!(ty1.is_int() && ty2.is_int());
                         BaseTy::Int
                     }
-                    BinOp::Lt | BinOp::Gt | BinOp::Lte | BinOp::Gte => {
+                    BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
                         assert!(ty1.is_int() && ty2.is_int());
                         BaseTy::Bool
                     }
                     // FIXME: we should check that the operation and operands have the same base type
-                    BinOp::Eq(_) | BinOp::Neq(_) => BaseTy::Bool,
-                    // Rust's MIR does not have boolean binary operators. They are here just to be
-                    // reused in predicates.
-                    BinOp::And | BinOp::Or => unreachable!(),
+                    BinOp::Eq | BinOp::Ne => BaseTy::Bool,
+                    BinOp::Offset => todo!(),
                 };
-                let pred = tcx.mk_bin_op(
-                    BinOp::Eq(ret_ty),
-                    tcx.preds.nu(),
-                    tcx.mk_bin_op(*bin_op, op1, op2),
-                );
-                tcx.mk_refine(ret_ty, pred)
+                let refine = if let Some(ty_bin_op) = ty_bin_op {
+                    tcx.mk_bin_op(
+                        ty::BinOp::Eq,
+                        tcx.preds.nu(),
+                        tcx.mk_bin_op(ty_bin_op, op1, op2),
+                    )
+                } else {
+                    tcx.preds.tt()
+                };
+                tcx.mk_refine(ret_ty, refine)
             }
             Rvalue::UnaryOp(un_op, op) => {
                 let (op, ty) = self.check_operand(op, env);
-                let ret_ty = match un_op {
+                let (ret_ty, un_op) = match un_op {
                     UnOp::Not => {
                         assert!(ty.is_bool());
-                        BaseTy::Bool
+                        (BaseTy::Bool, ty::UnOp::Not)
                     }
                     UnOp::Neg => {
                         assert!(ty.is_int());
-                        BaseTy::Int
+                        (BaseTy::Int, ty::UnOp::Neg)
                     }
                 };
-                let pred =
-                    tcx.mk_bin_op(BinOp::Eq(ret_ty), tcx.preds.nu(), tcx.mk_un_op(*un_op, op));
+                let pred = tcx.mk_bin_op(ty::BinOp::Eq, tcx.preds.nu(), tcx.mk_un_op(un_op, op));
                 tcx.mk_refine(ret_ty, pred)
             }
         }
@@ -255,8 +284,15 @@ impl<'a> Checker<'a> {
                 (tcx.mk_path(path.clone()), tcx.selfify(&ty, path))
             }
             &Operand::Constant(c) => {
-                let refine = tcx.mk_bin_op(BinOp::Eq(c.ty()), tcx.preds.nu(), tcx.mk_const(c));
-                (tcx.mk_const(c), tcx.mk_refine(c.ty(), refine))
+                let refine = tcx.mk_bin_op(
+                    ty::BinOp::Eq,
+                    tcx.preds.nu(),
+                    tcx.mk_const_from_bits(c.bits(), c.ty()),
+                );
+                (
+                    tcx.mk_const_from_bits(c.bits(), c.ty()),
+                    tcx.mk_refine(c.ty(), refine),
+                )
             }
         }
     }
