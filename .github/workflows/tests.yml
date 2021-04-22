@@ -38,11 +38,6 @@ jobs:
       - name: Install Z3
         uses: pavpanchekha/setup-z3@1.2.2
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          override: true
-
       - name: Add Fixpoint to the path
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
