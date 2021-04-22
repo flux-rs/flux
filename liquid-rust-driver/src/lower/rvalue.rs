@@ -17,8 +17,8 @@ impl<'tcx> Lower<'tcx> for mir::Rvalue<'tcx> {
                 };
                 Rvalue::UnaryOp(un_op, operand.lower(lcx)?)
             }
-            Self::BinaryOp(bin_op, left_operand, right_operand) => {
-                Rvalue::BinaryOp(*bin_op, left_operand.lower(lcx)?, right_operand.lower(lcx)?)
+            Self::BinaryOp(bin_op, box (op1, op2)) => {
+                Rvalue::BinaryOp(*bin_op, op1.lower(lcx)?, op2.lower(lcx)?)
             }
 
             Self::Ref { .. } => todo!(),

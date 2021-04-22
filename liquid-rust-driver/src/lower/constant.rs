@@ -10,10 +10,10 @@ impl<'tcx> Lower<'tcx> for mir::Constant<'tcx> {
     fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
         let bits = self
             .literal
-            .try_eval_bits(lcx.tcx, ParamEnv::empty(), self.literal.ty)
+            .try_eval_bits(lcx.tcx, ParamEnv::empty(), self.literal.ty())
             .ok_or_else(|| todo!())?;
 
-        let base_ty = self.literal.ty.lower(lcx)?;
+        let base_ty = self.literal.ty().lower(lcx)?;
 
         Ok(Constant::new(bits, base_ty))
     }

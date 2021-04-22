@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use liquid_rust_lrir::ty;
 use liquid_rust_parser::{parse_fn_decl, ParseErrorKind};
 
-use rustc_ast::{AttrKind, Attribute};
+use rustc_ast::{AttrKind, Attribute, MacArgs};
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::{Diagnostic, Handler};
 use rustc_hir::{
@@ -69,14 +69,17 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
                 match segments {
                     [second] => match &*second.ident.as_str() {
                         "ty" => {
-                            let tokens = attr_item.args.inner_tokens();
-                            // FIXME: Is it possible to avoid this allocation?
-                            let input = tts_to_string(&tokens);
-                            let input_span = tokens.span().unwrap();
+                            if let MacArgs::Delimited(span, _, tokens) = &attr_item.args {
+                                // FIXME: Is it possible to avoid this allocation?
+                                let input = tts_to_string(tokens);
+                                let input_span = span.entire();
 
-                            self.parse_ty_annotation(def_id, &input, input_span);
+                                self.parse_ty_annotation(def_id, &input, input_span);
 
-                            parsed_annotation = true;
+                                parsed_annotation = true;
+                            } else {
+                                self.push_error("Invalid liquid annotation.", attr_item.span())
+                            }
                         }
                         _ => self.push_error("Invalid liquid annotation.", attr_item.span()),
                     },
@@ -96,8 +99,8 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
             }
             Err(err) => {
                 // Turn the relative span of the parsing error into an absolute one.
-                let lo = input_span.lo() + BytePos::from_usize(err.span.start + 1);
-                let hi = input_span.lo() + BytePos::from_usize(err.span.end + 1);
+                let lo = input_span.lo() + BytePos::from_usize(err.span.start + 2);
+                let hi = input_span.lo() + BytePos::from_usize(err.span.end + 2);
                 let span = Span::new(lo, hi, input_span.ctxt());
 
                 use ParseErrorKind::*;
@@ -127,8 +130,10 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
 impl<'hir, 'tcx, 'a> ItemLikeVisitor<'hir> for Collector<'tcx, 'a> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
-            let def_id = self.tcx.hir().local_def_id(item.hir_id()).to_def_id();
-            self.parse_annotations(def_id, item.attrs);
+            let hir_id = item.hir_id();
+            let def_id = self.tcx.hir().local_def_id(hir_id).to_def_id();
+            let attrs = self.tcx.hir().attrs(hir_id);
+            self.parse_annotations(def_id, attrs);
         }
     }
 

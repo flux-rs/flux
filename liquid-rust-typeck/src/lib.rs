@@ -1,6 +1,5 @@
 #![feature(rustc_private)]
 #![feature(const_panic)]
-#![feature(or_patterns)]
 
 extern crate rustc_middle;
 extern crate rustc_mir;
