@@ -40,10 +40,6 @@ jobs:
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2021-02-18
-          override: true
-          components: rust-src, rustc-dev, llvm-tools-preview
 
       - name: Add Fixpoint to the path
         run: |
