@@ -1,14 +1,17 @@
+use rustc_hir::def_id::DefId;
+use rustc_middle::ty::subst::SubstsRef;
+
 use crate::{
     mir::{BasicBlock, Operand, Place, Span},
     ty::BaseTy,
 };
 
-pub struct Terminator {
-    pub kind: TerminatorKind,
+pub struct Terminator<'tcx> {
+    pub kind: TerminatorKind<'tcx>,
     pub span: Span,
 }
 
-pub enum TerminatorKind {
+pub enum TerminatorKind<'tcx> {
     Goto {
         target: BasicBlock,
     },
@@ -19,7 +22,7 @@ pub enum TerminatorKind {
     },
     Return,
     Call {
-        func: Operand,
+        func: (DefId, SubstsRef<'tcx>),
         args: Vec<Operand>,
         destination: (Place, BasicBlock),
     },

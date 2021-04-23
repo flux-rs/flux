@@ -13,8 +13,8 @@ use liquid_rust_common::index::newtype_index;
 use hashconsing::HConsed;
 use std::{fmt, iter::FromIterator};
 
-/// A function type declaration
-pub struct FnDecl {
+/// A function type signature
+pub struct FnSig {
     /// A mapping between ghost variables and their required types. From caller's perspective, ghost
     /// variables in this mapping are universally quantified and need to be instantiated at the
     /// call site with concrete ghost variables satisfying the type requirements.

@@ -2,10 +2,10 @@ use crate::lower::{Lower, LowerCtx, LowerResult};
 
 use liquid_rust_lrir::mir::{SwitchTargets, Terminator, TerminatorKind};
 
-use rustc_middle::mir;
+use rustc_middle::{mir, ty};
 
 impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
-    type Output = Terminator;
+    type Output = Terminator<'tcx>;
 
     fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
         let kind = match &self.kind {
@@ -25,16 +25,25 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
                 args,
                 destination,
                 ..
-            } => TerminatorKind::Call {
-                func: func.lower(lcx)?,
-                args: args
-                    .iter()
-                    .map(|arg| arg.lower(lcx))
-                    .collect::<LowerResult<Vec<_>>>()?,
-                destination: destination
-                    .ok_or_else(|| todo!())
-                    .and_then(|(place, target)| Ok((place.lower(lcx)?, target)))?,
-            },
+            } => {
+                let func = match func.ty(lcx.body, lcx.tcx).kind() {
+                    ty::TyKind::FnDef(fn_def, substs) => (*fn_def, *substs),
+                    _ => {
+                        unreachable!("Calling non function");
+                    }
+                };
+
+                TerminatorKind::Call {
+                    func,
+                    args: args
+                        .iter()
+                        .map(|arg| arg.lower(lcx))
+                        .collect::<LowerResult<Vec<_>>>()?,
+                    destination: destination
+                        .ok_or_else(|| todo!())
+                        .and_then(|(place, target)| Ok((place.lower(lcx)?, target)))?,
+                }
+            }
             mir::TerminatorKind::Assert {
                 cond,
                 expected,
