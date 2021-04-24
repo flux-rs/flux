@@ -1,7 +1,7 @@
 use crate::{collector::Collector, lower::LowerCtx};
 
 use liquid_rust_lrir::ty;
-use liquid_rust_typeck::{Checker, CheckingTask};
+use liquid_rust_typeck::{global_env::GlobalEnv, Checker, CheckingTask};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::{Diagnostic, Handler};
 use rustc_interface::{interface::Compiler, Queries};
@@ -34,8 +34,9 @@ impl Callbacks for LiquidCallbacks {
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             let lr_tcx = ty::TyCtxt::new();
             let annotations = Collector::collect(&lr_tcx, tcx, handler, &mut diagnostics);
+            let global_env = GlobalEnv::new(tcx, annotations);
 
-            for (def_id, fn_decl) in &annotations {
+            for (def_id, fn_sig) in &global_env.sigs {
                 let body = tcx.optimized_mir(*def_id);
                 match LowerCtx::lower_body(tcx, body) {
                     Ok(lrir_body) => {
@@ -50,7 +51,13 @@ impl Callbacks for LiquidCallbacks {
                             .into_engine(tcx, body)
                             .iterate_to_fixpoint();
 
-                        let task = CheckingTask::new(&lrir_body, fn_decl, move_data, flow_uninit);
+                        let task = CheckingTask::new(
+                            &global_env,
+                            &lrir_body,
+                            fn_sig,
+                            move_data,
+                            flow_uninit,
+                        );
 
                         if !Checker::check(task, &lr_tcx).ok {
                             handler

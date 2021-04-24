@@ -46,7 +46,7 @@ impl<'src, 'a> Resolver<'src, 'a> {
         let output = output_gv;
 
         ty::FnSig {
-            requires,
+            requires: requires.into_iter().collect(),
             inputs,
             ensures,
             output,

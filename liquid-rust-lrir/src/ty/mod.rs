@@ -8,7 +8,7 @@ pub use liquid_rust_fixpoint::{BinOp, Constant, UnOp};
 
 pub use crate::mir::{Local, Place};
 
-use liquid_rust_common::index::newtype_index;
+use liquid_rust_common::{index::newtype_index, ordered_map::OrderedMap};
 
 use hashconsing::HConsed;
 use std::{fmt, iter::FromIterator};
@@ -18,7 +18,7 @@ pub struct FnSig {
     /// A mapping between ghost variables and their required types. From caller's perspective, ghost
     /// variables in this mapping are universally quantified and need to be instantiated at the
     /// call site with concrete ghost variables satisfying the type requirements.
-    pub requires: Vec<(GhostVar, Ty)>,
+    pub requires: OrderedMap<GhostVar, Ty>,
     /// The ghost variables (bound in [requires](Self::requires)) corresponding to each
     /// input argument.
     pub inputs: Vec<GhostVar>,
@@ -504,5 +504,14 @@ newtype_index! {
 impl fmt::Display for GhostVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "g{}", self.as_usize())
+    }
+}
+pub trait GhostVarMap {
+    fn lookup(&self, gv: &GhostVar) -> &Ty;
+}
+
+impl GhostVarMap for OrderedMap<GhostVar, Ty> {
+    fn lookup(&self, gv: &GhostVar) -> &Ty {
+        &self[gv]
     }
 }

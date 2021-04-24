@@ -24,7 +24,7 @@ pub enum TerminatorKind<'tcx> {
     Call {
         func: (DefId, SubstsRef<'tcx>),
         args: Vec<Operand>,
-        destination: (Place, BasicBlock),
+        destination: Option<(Place, BasicBlock)>,
     },
     Assert {
         cond: Operand,

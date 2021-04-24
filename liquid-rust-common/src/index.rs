@@ -47,6 +47,12 @@ impl<I: Idx> IndexGen<I> {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         I::new(index)
     }
+
+    /// Skip `n` indices
+    pub fn skip(&self, n: usize) {
+        self.count
+            .fetch_add(n, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 impl<I: Idx> Default for IndexGen<I> {

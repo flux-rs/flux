@@ -20,7 +20,7 @@ macro_rules! pass_test {
     };
 }
 
-pass_test!(one);
-pass_test!(identity);
-pass_test!(abs);
-pass_test!(abs_mut);
+pass_test!(branches);
+pass_test!(fun_call);
+pass_test!(simple);
+pass_test!(while_loop);

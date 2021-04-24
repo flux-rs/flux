@@ -40,8 +40,8 @@ impl<'tcx> Lower<'tcx> for mir::Terminator<'tcx> {
                         .map(|arg| arg.lower(lcx))
                         .collect::<LowerResult<Vec<_>>>()?,
                     destination: destination
-                        .ok_or_else(|| todo!())
-                        .and_then(|(place, target)| Ok((place.lower(lcx)?, target)))?,
+                        .map(|(place, target)| Ok((place.lower(lcx)?, target)))
+                        .transpose()?,
                 }
             }
             mir::TerminatorKind::Assert {

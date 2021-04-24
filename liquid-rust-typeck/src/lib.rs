@@ -37,6 +37,7 @@ pub struct Checker<'tcx, 'a> {
     global_env: &'a GlobalEnv<'tcx>,
     bb_envs: IndexVec<BasicBlock, BBlockEnv>,
     ret_env: BBlockEnv,
+    local_gen: IndexGen<Local>,
 }
 
 impl<'tcx, 'a> Checker<'tcx, 'a> {
@@ -89,11 +90,14 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
             locals: vec![(ret_place, subst.apply(&task.fn_decl.output, tcx))],
         };
 
+        let local_gen = IndexGen::new();
+        local_gen.skip(task.body.local_decls.len());
         let checker = Checker {
-            global_env: task.global_env,
             tcx,
+            global_env: task.global_env,
             bb_envs,
             ret_env,
+            local_gen,
         };
 
         // FIXME: Checking a jump to bb0 is redundant because its BBlockEnv is always going
@@ -188,13 +192,29 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
                 destination,
             } => {
                 let fn_sig = self.global_env.fn_sig(*def_id, substs);
-                let args = args.iter().map(|op| self.check_operand(op, env).0);
+                let args = args
+                    .iter()
+                    .map(|arg| {
+                        // ANF normalization on-the-fly
+                        let local = self.local_gen.fresh();
+                        let ty = self.check_operand(arg, env).1;
+                        env.alloc(local, ty);
+                        local
+                    })
+                    .collect::<Vec<_>>();
+                let (in_env, out_env, ret) = env.open_fn_sig(fn_sig, &args);
+                env.env_subtyping(&in_env);
+                env.extend(out_env);
+                if let Some((place, bb)) = destination {
+                    env.update(place.as_ref(), ret);
+                    self.check_goto(&self.bb_envs[*bb], env);
+                }
             }
         }
     }
 
     fn check_goto(&self, bb_env: &BBlockEnv, env: &mut LocalEnv) {
-        let subst = env.infer_subst(bb_env);
+        let subst = env.infer_jump_subst(bb_env);
         let bb_env = subst.apply(bb_env, self.tcx);
 
         for &(local, gv) in &bb_env.locals {
@@ -314,7 +334,7 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
     }
 }
 
-pub struct CheckingTask<'a, 'tcx> {
+pub struct CheckingTask<'tcx, 'a> {
     global_env: &'a GlobalEnv<'tcx>,
     body: &'a Body<'tcx>,
     fn_decl: &'a FnSig,
@@ -322,7 +342,7 @@ pub struct CheckingTask<'a, 'tcx> {
     flow_uninit: dataflow::Results<'tcx, MaybeUninitializedPlaces<'a, 'tcx>>,
 }
 
-impl<'a, 'tcx> CheckingTask<'a, 'tcx> {
+impl<'tcx, 'a> CheckingTask<'tcx, 'a> {
     pub fn new(
         global_env: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
