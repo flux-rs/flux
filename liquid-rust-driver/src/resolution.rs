@@ -20,7 +20,7 @@ impl<'src, 'a> Resolver<'src, 'a> {
         }
     }
 
-    pub fn resolve(&mut self, fn_decl: ast::FnDecl<'src>) -> ty::FnDecl {
+    pub fn resolve(&mut self, fn_decl: ast::FnDecl<'src>) -> ty::FnSig {
         let mut requires = Vec::new();
         let mut inputs = Vec::new();
 
@@ -45,8 +45,8 @@ impl<'src, 'a> Resolver<'src, 'a> {
         let ensures = vec![(output_gv, output_ty)];
         let output = output_gv;
 
-        ty::FnDecl {
-            requires,
+        ty::FnSig {
+            requires: requires.into_iter().collect(),
             inputs,
             ensures,
             output,

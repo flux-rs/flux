@@ -16,6 +16,28 @@ impl Subst {
         }
     }
 
+    pub fn infer<E1, E2>(&mut self, env1: &E1, ty1: &Ty, env2: &E2, ty2: &Ty)
+    where
+        E1: GhostVarMap,
+        E2: GhostVarMap,
+    {
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Ref(_, _, gv1), TyKind::Ref(_, _, gv2)) => {
+                self.add_ghost_var_subst(*gv2, *gv1);
+                let ty1 = env1.lookup(gv1);
+                let ty2 = env2.lookup(gv2);
+                self.infer(env1, ty1, env2, ty2);
+            }
+            (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
+                for ((fld1, ty1), (fld2, ty2)) in tup1.iter().zip(tup2.iter()) {
+                    self.add_field_subst(*fld2, *fld1);
+                    self.infer(env1, ty1, env2, ty2);
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn apply<T: ApplySubst>(&self, e: &T, tcx: &TyCtxt) -> T {
         e.apply_subst(tcx, self)
     }
@@ -114,5 +136,17 @@ impl ApplySubst for GhostVar {
 impl ApplySubst for Field {
     fn apply_subst(&self, _tcx: &TyCtxt, subst: &Subst) -> Self {
         subst.get_field(*self).unwrap_or(*self)
+    }
+}
+
+impl<K, V> ApplySubst for OrderedMap<K, V>
+where
+    K: ApplySubst + Eq + std::hash::Hash,
+    V: ApplySubst,
+{
+    fn apply_subst(&self, tcx: &TyCtxt, subst: &Subst) -> Self {
+        self.iter()
+            .map(|(gv, ty)| (gv.apply_subst(tcx, subst), ty.apply_subst(tcx, subst)))
+            .collect()
     }
 }

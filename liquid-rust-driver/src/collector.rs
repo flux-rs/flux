@@ -19,7 +19,7 @@ pub(crate) struct Collector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
     handler: &'a Handler,
     diagnostics: &'a mut Vec<Diagnostic>,
-    annotations: HashMap<DefId, ty::FnDecl>,
+    annotations: HashMap<DefId, ty::FnSig>,
 }
 
 impl<'tcx, 'a> Collector<'tcx, 'a> {
@@ -119,7 +119,7 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
         tcx: TyCtxt<'tcx>,
         handler: &'a Handler,
         diagnostics: &'a mut Vec<Diagnostic>,
-    ) -> HashMap<DefId, ty::FnDecl> {
+    ) -> HashMap<DefId, ty::FnSig> {
         let mut collector = Self::new(lr_tcx, tcx, handler, diagnostics);
 
         tcx.hir().krate().visit_all_item_likes(&mut collector);

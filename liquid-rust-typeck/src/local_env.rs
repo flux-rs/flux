@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_lrir::{
     mir::{Local, PlaceElem, PlaceRef},
-    ty::{subst::Subst, GhostVar, Path, Pred, Refine, Ty, TyCtxt, TyKind, Var},
+    ty::{subst::Subst, FnSig, GhostVar, GhostVarMap, Path, Pred, Refine, Ty, TyCtxt, TyKind, Var},
 };
 
 use crate::{bblock_env::BBlockEnv, binding_tree::BindingTree};
@@ -68,9 +68,9 @@ impl<'tcx> LocalEnv<'tcx> {
     }
 
     /// Update the type of `place` to be `ty` creating new ghost variables for the
-    /// [base](liquid_rust_lrir::Place::base) of place and every updated reference.
+    /// [local](liquid_rust_lrir::Place::local) of `place` and every updated reference.
     ///
-    /// Returns the freshly generated [GhostVar] assigned to the [base](liquid_rust_lrir::Place::base)
+    /// Returns the freshly generated [GhostVar] assigned to the [local](liquid_rust_lrir::Place::local)
     /// of `place`.
     pub fn update(&mut self, place: PlaceRef, ty: Ty) -> GhostVar {
         let gv = self.lookup_local(place.local);
@@ -80,6 +80,12 @@ impl<'tcx> LocalEnv<'tcx> {
         self.insert_local(place.local, fresh_gv);
         self.push_binding(fresh_gv, ty);
         fresh_gv
+    }
+
+    pub fn extend(&mut self, ghost_vars: Vec<(GhostVar, Ty)>) {
+        for (gv, ty) in ghost_vars {
+            self.bindings.push_binding(gv, ty);
+        }
     }
 
     fn update_rec(&mut self, root: &Ty, projs: &[PlaceElem], ty: Ty) -> Ty {
@@ -133,34 +139,66 @@ impl<'tcx> LocalEnv<'tcx> {
         Path::new(base.into(), projs)
     }
 
-    /// Infer substitution required to jump to `bb_env`.
-    pub fn infer_subst(&self, bb_env: &BBlockEnv) -> Subst {
+    pub fn open_fn_sig(
+        &self,
+        fn_sig: &FnSig,
+        args: &[Local],
+    ) -> (BBlockEnv, Vec<(GhostVar, Ty)>, Ty) {
+        let tcx = self.tcx;
+        let mut subst = self.infer_call_subst(fn_sig, args);
+        let input_env = BBlockEnv {
+            ghost_vars: subst.apply(&fn_sig.requires, tcx),
+            locals: args
+                .iter()
+                .zip(&fn_sig.inputs)
+                .map(|(local, gv)| (*local, subst.apply(gv, tcx)))
+                .collect(),
+        };
+        let mut ret = None;
+        let mut out_env = vec![];
+        for (gv, ty) in &fn_sig.ensures {
+            let fresh_gv = self.ghost_gen.fresh();
+            let ty = subst.apply(ty, tcx);
+            out_env.push((fresh_gv, ty.clone()));
+            if *gv == fn_sig.output {
+                ret = Some(ty)
+            }
+            subst.add_ghost_var_subst(*gv, fresh_gv);
+        }
+        (input_env, out_env, ret.unwrap())
+    }
+
+    pub fn infer_call_subst(&self, fn_sig: &FnSig, args: &[Local]) -> Subst {
         let mut subst = Subst::new();
-        for (local, gv2) in &bb_env.locals {
-            let gv1 = &self.lookup_local(*local);
-            subst.add_ghost_var_subst(*gv2, *gv1);
-            let ty1 = self.lookup_var(gv1);
-            let ty2 = &bb_env.ghost_vars[gv2];
-            self.infer_subst_rec(ty1, ty2, bb_env, &mut subst);
+        for (local, gv2) in args.iter().zip(&fn_sig.inputs) {
+            let gv1 = self.lookup_local(*local);
+            subst.add_ghost_var_subst(*gv2, gv1);
+            let ty1 = self.lookup_var(&gv1);
+            let ty2 = &fn_sig.requires[&gv2];
+            subst.infer(self, ty1, &fn_sig.requires, ty2);
         }
         subst
     }
 
-    fn infer_subst_rec(&self, ty1: &Ty, ty2: &Ty, bb_env: &BBlockEnv, subst: &mut Subst) {
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Ref(_, _, gv1), TyKind::Ref(_, _, gv2)) => {
-                subst.add_ghost_var_subst(*gv2, *gv1);
-                let ty1 = self.lookup_var(gv1);
-                let ty2 = &bb_env.ghost_vars[gv2];
-                self.infer_subst_rec(ty1, ty2, bb_env, subst);
-            }
-            (TyKind::Tuple(tup1), TyKind::Tuple(tup2)) if tup1.len() == tup2.len() => {
-                for ((fld1, ty1), (fld2, ty2)) in tup1.iter().zip(tup2.iter()) {
-                    subst.add_field_subst(*fld2, *fld1);
-                    self.infer_subst_rec(ty1, ty2, bb_env, subst);
-                }
-            }
-            _ => {}
+    pub fn infer_jump_subst(&self, env: &BBlockEnv) -> Subst {
+        let mut subst = Subst::new();
+        for (local, gv2) in &env.locals {
+            let gv1 = self.lookup_local(*local);
+            subst.add_ghost_var_subst(*gv2, gv1);
+            let ty1 = self.lookup_var(&gv1);
+            let ty2 = &env.ghost_vars[gv2];
+            subst.infer(self, ty1, env, ty2);
+        }
+        subst
+    }
+
+    pub fn env_subtyping(&mut self, env: &BBlockEnv) {
+        for &(local, gv) in &env.locals {
+            let ty1 = &self
+                .tcx
+                .selfify(&self.lookup(PlaceRef::from(local)), Path::from(gv));
+            let ty2 = &env.ghost_vars[&gv];
+            self.subtyping(ty1, ty2);
         }
     }
 
@@ -241,5 +279,11 @@ impl fmt::Display for LocalEnv<'_> {
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "{}\n[{}]", self.bindings, locals)
+    }
+}
+
+impl GhostVarMap for LocalEnv<'_> {
+    fn lookup(&self, gv: &GhostVar) -> &Ty {
+        self.lookup_var(gv)
     }
 }

@@ -3,7 +3,7 @@ use crate::mir::{BasicBlock, BasicBlockData, Local, LocalDecl, Span};
 use liquid_rust_common::index::{Idx, IndexVec};
 
 pub struct Body<'tcx> {
-    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
+    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl<'tcx>>,
     pub arg_count: usize,
     pub span: Span,

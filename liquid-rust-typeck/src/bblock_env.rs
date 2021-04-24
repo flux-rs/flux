@@ -9,7 +9,7 @@ use liquid_rust_lrir::{
     ty::{
         refiner::Refiner,
         subst::{ApplySubst, Subst},
-        GhostVar, Ty, TyCtxt, Var,
+        GhostVar, GhostVarMap, Ty, TyCtxt, Var,
     },
 };
 
@@ -77,5 +77,11 @@ impl fmt::Display for BBlockEnv {
 impl fmt::Debug for BBlockEnv {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
+    }
+}
+
+impl GhostVarMap for BBlockEnv {
+    fn lookup(&self, gv: &GhostVar) -> &Ty {
+        self.ghost_vars.lookup(gv)
     }
 }

@@ -11,8 +11,8 @@ impl<K, V> OrderedMap<K, V> {
         OrderedMap { inner: Vec::new() }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &(K, V)> {
-        self.inner.iter()
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.inner.iter().map(|(k, v)| (k, v))
     }
 
     pub fn len(&self) -> usize {
@@ -70,5 +70,15 @@ where
         }
 
         panic!("Key not found");
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a OrderedMap<K, V> {
+    type Item = (&'a K, &'a V);
+
+    type IntoIter = impl Iterator<Item = Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }

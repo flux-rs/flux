@@ -5,7 +5,7 @@ use liquid_rust_lrir::mir::BasicBlockData;
 use rustc_middle::mir;
 
 impl<'tcx> Lower<'tcx> for mir::BasicBlockData<'tcx> {
-    type Output = BasicBlockData;
+    type Output = BasicBlockData<'tcx>;
 
     fn lower(&self, lcx: LowerCtx<'tcx>) -> LowerResult<Self::Output> {
         let output = BasicBlockData {
