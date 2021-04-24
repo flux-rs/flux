@@ -60,8 +60,9 @@ impl Callbacks for LiquidCallbacks {
                         );
 
                         if !Checker::check(task, &lr_tcx).ok {
+                            let span = body.span;
                             handler
-                                .struct_fatal("Liquid type error")
+                                .struct_span_fatal(span, "Liquid type error")
                                 .buffer(&mut diagnostics);
                         }
                     }
