@@ -10,6 +10,7 @@ macro_rules! pass_test {
 
             let code = liquid_rust_driver::run_compiler(vec![
                 "whatever".into(),
+                "-Znll-facts".into(),
                 path.into(),
                 sysroot.into(),
                 "-O".into(),
