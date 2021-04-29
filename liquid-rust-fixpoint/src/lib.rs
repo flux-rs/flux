@@ -3,6 +3,7 @@ use serde::Deserialize;
 mod emit;
 
 use std::{
+    fs::{canonicalize, File},
     io::{BufWriter, Write},
     process::{Command, Stdio},
 };
@@ -12,11 +13,28 @@ use emit::Emit;
 
 pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Pred, Sort, UnOp};
 
+use liquid_rust_common::config::*;
+
 #[derive(Default)]
 pub struct Fixpoint;
 
 impl Fixpoint {
     pub fn check(&self, constraint: Constraint) -> FixpointResult {
+        // First dump the constraint to a file
+        // for debug purposes
+        if should_dump_constraint() {
+            let p = canonicalize(dump_constraint()).expect("couldn't get path");
+            let mut w = BufWriter::new(File::create(p).expect("couldn't create file to dump constraints"));
+
+            emit_preamble(&mut w).unwrap();
+
+            for kvar in KVarGatherCtx::gather_kvars(&constraint) {
+                emit!(w, &0, "{}", kvar).unwrap();
+            }
+
+            emit!(w, &0, "(constraint {})", &constraint).unwrap();
+        }
+        
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")

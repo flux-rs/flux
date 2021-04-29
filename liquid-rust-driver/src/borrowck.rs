@@ -363,4 +363,3 @@ pub fn load_facts(facts_dir: &Path) -> FactLoader {
     fl.load_all_facts(facts_dir);
     fl
 }
-
