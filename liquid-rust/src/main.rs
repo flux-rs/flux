@@ -1,4 +1,5 @@
 use std::{env::args, process::exit};
+use liquid_rust_common::config::CMD_PREFIX;
 
 /// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
 /// environment variables are not set.
@@ -10,7 +11,7 @@ fn sysroot() -> Option<String> {
 
 fn main() {
     // Get the arguments from the command line.
-    let mut args: Vec<String> = args().collect();
+    let mut args: Vec<String> = args().filter(|x| !x.starts_with(CMD_PREFIX)).collect();
     // Add the sysroot path to the arguments.
     args.push("--sysroot".into());
     args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
