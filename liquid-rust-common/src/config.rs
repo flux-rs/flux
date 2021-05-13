@@ -2,8 +2,7 @@
 
 use config::{Config, ConfigError, Environment, Source, Value};
 use itertools::Itertools;
-use std::collections::HashMap;
-use std::env;
+use std::{collections::HashMap, env};
 
 pub const CMD_PREFIX: &'static str = "-L";
 
@@ -36,9 +35,7 @@ pub struct CommandLine {
 
 impl CommandLine {
     pub fn new() -> Self {
-        CommandLine {
-            prefix: None,
-        }
+        CommandLine { prefix: None }
     }
 
     pub fn prefix(mut self, s: &str) -> Self {
@@ -67,16 +64,17 @@ impl Source for CommandLine {
             if arg.starts_with(&self.get_prefix()) {
                 let (key, val) = arg
                     .get(self.get_prefix().len()..)
-                    .ok_or_else(|| ConfigError::Message(format!("invalid command line arg: {}", arg)))?
+                    .ok_or_else(|| {
+                        ConfigError::Message(format!("invalid command line arg: {}", arg))
+                    })?
                     .splitn(2, '=')
                     .map(|s| s.to_owned())
                     .next_tuple()
-                    .ok_or_else(|| ConfigError::Message(format!("invalid command line arg: {}", arg)))?;
+                    .ok_or_else(|| {
+                        ConfigError::Message(format!("invalid command line arg: {}", arg))
+                    })?;
 
-                res.insert(
-                    key.to_lowercase(),
-                    Value::new(Some(&uri), val),
-                );
+                res.insert(key.to_lowercase(), Value::new(Some(&uri), val));
             }
         }
 

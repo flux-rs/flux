@@ -24,7 +24,8 @@ impl Fixpoint {
         // for debug purposes
         if should_dump_constraint() {
             let p = canonicalize(dump_constraint()).expect("couldn't get path");
-            let mut w = BufWriter::new(File::create(p).expect("couldn't create file to dump constraints"));
+            let mut w =
+                BufWriter::new(File::create(p).expect("couldn't create file to dump constraints"));
 
             emit_preamble(&mut w).unwrap();
 
@@ -34,7 +35,7 @@ impl Fixpoint {
 
             emit!(w, &0, "(constraint {})", &constraint).unwrap();
         }
-        
+
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")

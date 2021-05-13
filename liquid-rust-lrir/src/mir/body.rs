@@ -4,6 +4,7 @@ use liquid_rust_common::index::{Idx, IndexVec};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
+    pub rev_post: Vec<BasicBlock>,
     pub local_decls: IndexVec<Local, LocalDecl<'tcx>>,
     pub arg_count: usize,
     pub span: Span,
@@ -11,7 +12,7 @@ pub struct Body<'tcx> {
 }
 
 impl Body<'_> {
-    /// Returns an iterator over all function arguments.
+    /// Returns an iterator over all function arguments
     #[inline]
     pub fn args_iter(&self) -> impl Iterator<Item = Local> {
         let arg_count = self.arg_count;

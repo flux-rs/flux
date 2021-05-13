@@ -3,7 +3,10 @@ use crate::lower::{Lower, LowerResult};
 use liquid_rust_common::index::IndexVec;
 use liquid_rust_lrir::mir::Body;
 
-use rustc_middle::{mir, ty::TyCtxt};
+use rustc_middle::{
+    mir::{self, traversal::reverse_postorder},
+    ty::TyCtxt,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) struct LowerCtx<'tcx> {
@@ -21,6 +24,8 @@ impl<'tcx> LowerCtx<'tcx> {
             .map(|basic_block_data| basic_block_data.lower(lcx))
             .collect::<LowerResult<IndexVec<_, _>>>()?;
 
+        let rev_post = reverse_postorder(body).map(|(x, _)| x).collect::<Vec<_>>();
+
         let local_decls = body
             .local_decls
             .iter()
@@ -35,6 +40,7 @@ impl<'tcx> LowerCtx<'tcx> {
 
         Ok(Body {
             basic_blocks,
+            rev_post,
             local_decls,
             arg_count: body.arg_count,
             span: body.span,
