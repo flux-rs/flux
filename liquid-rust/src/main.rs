@@ -1,5 +1,5 @@
-use std::{env::args, process::exit};
 use liquid_rust_common::config::CMD_PREFIX;
+use std::{env::args, process::exit};
 
 /// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
 /// environment variables are not set.

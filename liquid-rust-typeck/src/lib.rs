@@ -20,8 +20,8 @@ use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint::{Fixpoint, Safeness};
 use liquid_rust_lrir::{
     mir::{
-        BasicBlock, BasicBlockData, BinOp, Body, Local, Operand, PlaceRef, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind, UnOp,
+        BasicBlock, BinOp, Body, Local, Operand, PlaceRef, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind, UnOp,
     },
     ty::{
         self, refiner::Refiner, subst::Subst, BaseTy, FnSig, KVid, Path, Pred, Ty, TyCtxt, TyKind,
@@ -32,10 +32,13 @@ use liquid_rust_lrir::{
 use rustc_middle::mir;
 use rustc_mir::dataflow::{self, impls::MaybeUninitializedPlaces, move_paths::MoveData};
 
+use std::collections::HashSet;
+
 pub struct Checker<'tcx, 'a> {
     tcx: &'a TyCtxt,
     global_env: &'a GlobalEnv<'tcx>,
     bb_envs: IndexVec<BasicBlock, BBlockEnv>,
+    body: &'a Body<'tcx>,
     ret_env: BBlockEnv,
     local_gen: IndexGen<Local>,
 }
@@ -96,17 +99,20 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
             tcx,
             global_env: task.global_env,
             bb_envs,
+            body: &task.body,
             ret_env,
             local_gen,
         };
+
+        let mut seen = HashSet::new();
 
         // FIXME: Checking a jump to bb0 is redundant because its BBlockEnv is always going
         // to be "equivalent" to the LocalEnv initialized above. I think this is going to be
         // naturally fixed once we implement type checking considering the dominator tree.
         let bb0 = BasicBlock::new(0);
         checker.check_goto(&checker.bb_envs[bb0], &mut env);
-        for (bb, bb_data) in task.body.basic_blocks.iter_enumerated() {
-            checker.check_basic_block(bb, bb_data, &mut env);
+        for bb in task.body.rev_post.iter() {
+            checker.check_basic_block(*bb, &mut env, &mut seen);
         }
 
         let file = std::fs::File::create("binding_tree.dot").unwrap();
@@ -122,17 +128,21 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
     fn check_basic_block(
         &self,
         bb: BasicBlock,
-        bb_data: &BasicBlockData<'tcx>,
         env: &mut LocalEnv,
+        seen: &mut HashSet<BasicBlock>,
     ) {
-        let bb_env = &self.bb_envs[bb];
+        // If we haven't seen this bb yet:
+        if seen.insert(bb) {
+            let bb_data = &self.body.basic_blocks[bb];
+            let bb_env = &self.bb_envs[bb];
 
-        env.enter_basic_block(bb_env, |env| {
-            for statement in &bb_data.statements {
-                self.check_statement(statement, env);
-            }
-            self.check_terminator(&bb_data.terminator, env);
-        });
+            env.enter_basic_block(bb_env, |env| {
+                for statement in &bb_data.statements {
+                    self.check_statement(statement, env);
+                }
+                self.check_terminator(&bb_data.terminator, env, seen);
+            });
+        }
     }
 
     fn check_statement(&self, statement: &Statement, env: &mut LocalEnv) {
@@ -146,13 +156,18 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
         }
     }
 
-    fn check_terminator(&self, terminator: &Terminator<'tcx>, env: &mut LocalEnv) {
+    fn check_terminator(
+        &self,
+        terminator: &Terminator<'tcx>,
+        env: &mut LocalEnv,
+        seen: &mut HashSet<BasicBlock>,
+    ) {
         #![allow(clippy::or_fun_call)]
 
         let tcx = self.tcx;
         match &terminator.kind {
             TerminatorKind::Goto { target } | TerminatorKind::Assert { target, .. } => {
-                self.check_goto(&self.bb_envs[*target], env);
+                self.check_goto_or_inline(*target, env, seen);
             }
             TerminatorKind::SwitchInt {
                 discr,
@@ -165,7 +180,9 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
                     let constant = tcx.mk_const_from_bits(bits, *switch_ty);
                     let guard = tcx.mk_bin_op(ty::BinOp::Eq, discr.clone(), constant);
                     env.with_guard(guard, |env| {
-                        self.check_goto(&self.bb_envs[target], env);
+                        // If the target only has one predecessor (i.e. this one),
+                        // we can just check it without checking the goto.
+                        self.check_goto_or_inline(target, env, seen);
                     });
                 }
                 let guard = targets
@@ -180,7 +197,7 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
                     .fold1(|p1, p2| tcx.mk_bin_op(ty::BinOp::And, p1, p2))
                     .unwrap_or(tcx.preds.tt());
                 env.with_guard(guard, |env| {
-                    self.check_goto(&self.bb_envs[targets.otherwise()], env);
+                    self.check_goto_or_inline(targets.otherwise(), env, seen);
                 });
             }
             TerminatorKind::Return => {
@@ -210,6 +227,19 @@ impl<'tcx, 'a> Checker<'tcx, 'a> {
                     self.check_goto(&self.bb_envs[*bb], env);
                 }
             }
+        }
+    }
+
+    fn check_goto_or_inline(
+        &self,
+        bb: BasicBlock,
+        env: &mut LocalEnv,
+        seen: &mut HashSet<BasicBlock>,
+    ) {
+        if self.body.predecessors[bb].len() == 1 {
+            self.check_basic_block(bb, env, seen);
+        } else {
+            self.check_goto(&self.bb_envs[bb], env);
         }
     }
 
