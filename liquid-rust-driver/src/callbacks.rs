@@ -6,7 +6,7 @@ use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::{Diagnostic, Handler};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::ParamEnv;
-use rustc_mir::dataflow::{
+use rustc_mir_dataflow::{
     impls::MaybeUninitializedPlaces, move_paths::MoveData, Analysis, MoveDataParamEnv,
 };
 

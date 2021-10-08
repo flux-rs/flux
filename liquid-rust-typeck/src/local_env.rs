@@ -41,6 +41,13 @@ impl<'tcx> LocalEnv<'tcx> {
         fresh_gv
     }
 
+    /// Marks place as uninitialized memory and returns its current type.
+    pub fn move_place(&mut self, place: PlaceRef) -> Ty {
+        let ty = self.lookup(place);
+        self.update(place, self.tcx.uninitialize(&ty));
+        ty
+    }
+
     /// Lookup the current type of a place (following references).
     ///
     /// This function panics if `place` is not valid.
@@ -58,13 +65,6 @@ impl<'tcx> LocalEnv<'tcx> {
             }
         }
         ty.clone()
-    }
-
-    /// Marks place as uninitialized memory and returns its current type.
-    pub fn move_place(&mut self, place: PlaceRef) -> Ty {
-        let ty = self.lookup(place);
-        self.update(place, self.tcx.uninitialize(&ty));
-        ty
     }
 
     /// Update the type of `place` to be `ty` creating new ghost variables for the

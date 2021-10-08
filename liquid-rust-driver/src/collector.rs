@@ -101,7 +101,7 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
                 // Turn the relative span of the parsing error into an absolute one.
                 let lo = input_span.lo() + BytePos::from_usize(err.span.start + 2);
                 let hi = input_span.lo() + BytePos::from_usize(err.span.end + 2);
-                let span = Span::new(lo, hi, input_span.ctxt());
+                let span = Span::new(lo, hi, input_span.ctxt(), input_span.parent());
 
                 use ParseErrorKind::*;
                 let msg = match err.kind {
@@ -122,7 +122,7 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
     ) -> HashMap<DefId, ty::FnSig> {
         let mut collector = Self::new(lr_tcx, tcx, handler, diagnostics);
 
-        tcx.hir().krate().visit_all_item_likes(&mut collector);
+        tcx.hir().visit_all_item_likes(&mut collector);
         collector.annotations
     }
 }

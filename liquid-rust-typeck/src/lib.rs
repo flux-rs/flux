@@ -1,9 +1,9 @@
 #![feature(rustc_private)]
-#![feature(const_panic)]
+#![feature(min_specialization)]
 
 extern crate rustc_hir;
 extern crate rustc_middle;
-extern crate rustc_mir;
+extern crate rustc_mir_dataflow;
 extern crate rustc_serialize;
 
 pub mod bblock_env;
@@ -30,7 +30,7 @@ use liquid_rust_lrir::{
 };
 
 use rustc_middle::mir;
-use rustc_mir::dataflow::{self, impls::MaybeUninitializedPlaces, move_paths::MoveData};
+use rustc_mir_dataflow::{self as dataflow, impls::MaybeUninitializedPlaces, move_paths::MoveData};
 
 use std::collections::HashSet;
 

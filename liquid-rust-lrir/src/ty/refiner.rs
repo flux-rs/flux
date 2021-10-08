@@ -1,7 +1,7 @@
 use liquid_rust_common::index::IndexGen;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir, ty as rs};
-use rustc_mir::dataflow::move_paths::{LookupResult, MoveData, MovePathIndex};
+use rustc_mir_dataflow::move_paths::{LookupResult, MoveData, MovePathIndex};
 
 use super::{BaseTy, Field, KVid, Kvar, Local, Ty, TyCtxt, Var};
 
