@@ -1,14 +1,8 @@
 [package]
 name = "liquid-rust"
 version = "0.1.0"
-authors = ["The Liquid Rust Project Developers"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-driver = { path = "../liquid-rust-driver" }
-
-[package.metadata.rust-analyzer]
-rustc_private = true

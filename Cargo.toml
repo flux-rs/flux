@@ -1,11 +1,5 @@
 [workspace]
 
 members = [
-    "liquid-rust",
-    "liquid-rust-common",
-    "liquid-rust-driver",
-    "liquid-rust-fixpoint",
-    "liquid-rust-lrir",
-    "liquid-rust-parser",
-    "liquid-rust-typeck",
+    "liquid-rust"
 ]
