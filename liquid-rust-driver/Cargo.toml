@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name = "liquid-rust-driver"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.10"
+liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-core = { path = "../liquid-rust-core" }
+liquid-rust-parser = { path = "../liquid-rust-parser" }
+liquid-rust-typeck = { path = "../liquid-rust-typeck" }
+quickscope = "0.1"
+
+[package.metadata.rust-analyzer]
+rustc_private = true

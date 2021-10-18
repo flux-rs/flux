@@ -1,0 +1,106 @@
+use crate::{
+    UserParseError,
+    parse_literal,
+    ast,
+    lexer::{Lit, Location, Token, DelimToken, BinOpToken}
+};
+use rustc_span::{Span, Symbol};
+use lalrpop_util::ParseError;
+
+grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
+
+pub FnSig: ast::FnSig = {
+    "ident" <params:Params?> "(" <args:Comma<Ty>> ")" "->" <ret:Ty> => {
+        let params = params.unwrap_or_else(|| vec![]);
+        ast::FnSig { <> }
+    }
+}
+
+Ty: ast::Ty = {
+    <refine:Expr> "@" <name:Ident> => ast::Ty { <> }
+}
+
+Params: Vec<(ast::Ident, ast::RType)> = {
+    "<" <Comma<Binding<Ident, RType>>> ">"
+}
+
+RType: ast::RType = {
+    "{" <bty:Ident> "|" <pred:Expr> "}" => ast::RType { <> }
+}
+
+Expr = Level<BinaryOp1, Atom>;
+
+Atom: ast::Expr = {
+    <lo:@L> <lit:"literal"> <hi:@R> =>? {
+        let lit = parse_literal(lit, lo, hi, mk_span)
+            .map_err(|error| ParseError::User { error })?;
+        Ok(ast::Expr {
+            kind: ast::ExprKind::Literal(lit),
+            span: mk_span(lo, hi),
+        })
+    },
+    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::Var(var),
+        span: mk_span(lo, hi),
+    },
+}
+
+Level<Op, NextLevel>: ast::Expr = {
+    <lo:@L> <e1:Level<Op, NextLevel>> <op:Op> <e2:NextLevel> <hi:@R> =>
+        ast::Expr {
+            kind: ast::ExprKind::BinaryOp(
+                op,
+                Box::new(e1),
+                Box::new(e2)
+            ),
+            span: mk_span(lo, hi),
+        },
+    NextLevel
+}
+
+BinaryOp1: ast::BinaryOp = {
+    "==" => ast::BinaryOp::Eq
+}
+
+
+Ident: ast::Ident = {
+    <lo:@L> <ident:"ident"> <hi:@R> => {
+        ast::Ident { symbol: ident, span: mk_span(lo, hi) }
+    }
+}
+
+Sep<S, T>: Vec<T> = {
+    <v:(<T> S)*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+}
+Comma<T> = Sep<",", T>;
+Binding<A, B>: (A, B) = <A> ":" <B>;
+
+extern {
+    type Location = Location;
+    type Error = UserParseError;
+
+    enum Token {
+        "literal" => Token::Literal(<Lit>),
+        "ident" => Token::Ident(<Symbol>),
+        "fn" => Token::Fn,
+        "@" => Token::At,
+        "==" => Token::EqEq,
+        "|" => Token::Caret,
+        "(" => Token::OpenDelim(DelimToken::Paren),
+        ")" => Token::CloseDelim(DelimToken::Paren),
+        "{" => Token::OpenDelim(DelimToken::Brace),
+        "}" => Token::CloseDelim(DelimToken::Brace),
+        "<" => Token::Lt,
+        ">" => Token::Gt,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "->" => Token::RArrow,
+    }
+}

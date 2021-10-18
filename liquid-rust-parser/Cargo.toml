@@ -1,9 +1,16 @@
 [package]
 edition = "2021"
-name = "liquid-rust"
+name = "liquid-rust-parser"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-liquid-rust-driver = { path = "../liquid-rust-driver" }
+lalrpop-util = "0.19"
+logos = "0.12"
+
+[build-dependencies]
+lalrpop = "0.19"
+
+[package.metadata.rust-analyzer]
+rustc_private = true
