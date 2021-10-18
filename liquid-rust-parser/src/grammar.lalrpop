@@ -25,7 +25,7 @@ Params: Vec<(ast::Ident, ast::RType)> = {
 }
 
 RType: ast::RType = {
-    "{" <bty:Ident> "|" <pred:Expr> "}" => ast::RType { <> }
+    "{" <sort:Ident> "|" <pred:Expr> "}" => ast::RType { <> }
 }
 
 Expr = Level<BinaryOp1, Atom>;

@@ -73,11 +73,11 @@ impl Wf<'_> {
     }
 
     fn check_rtype(&mut self, rty: ast::RType) -> Result<ty::RType, ErrorReported> {
-        let bty = self.resolve_btype(rty.bty);
+        let sort = self.resolve_sort(rty.sort);
         let pred = self.check_expr(rty.pred);
 
         Ok(ty::RType {
-            sort: bty?,
+            sort: sort?,
             refine: ty::Refine::Pred(pred?),
         })
     }
@@ -107,13 +107,13 @@ impl Wf<'_> {
         }
     }
 
-    fn resolve_btype(&mut self, bty: ast::Ident) -> Result<ty::Sort, ErrorReported> {
-        if bty.symbol == self.symbols.int {
+    fn resolve_sort(&mut self, sort: ast::Ident) -> Result<ty::Sort, ErrorReported> {
+        if sort.symbol == self.symbols.int {
             Ok(ty::Sort::Int)
         } else {
             self.emit_error(
-                &format!("Cannot find base type `{}` in this scope", bty.symbol),
-                bty.span,
+                &format!("Cannot find base type `{}` in this scope", sort.symbol),
+                sort.span,
             );
             Err(ErrorReported)
         }

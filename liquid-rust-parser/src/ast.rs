@@ -15,7 +15,7 @@ pub struct Ty {
 
 #[derive(Debug)]
 pub struct RType {
-    pub bty: Ident,
+    pub sort: Ident,
     pub pred: Expr,
 }
 
