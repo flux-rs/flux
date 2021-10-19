@@ -50,7 +50,7 @@ impl<'tck> Checker<'tck> {
         };
 
         checker.check_basic_block(BasicBlock::new(0), &mut env);
-        println!("{:?}", Fixpoint::check(&env.to_constraint()));
+        println!("{:?}", Fixpoint::check(&env.into_constraint()));
     }
 
     fn check_basic_block(&self, bb: BasicBlock, env: &mut LocalEnv) {
@@ -77,7 +77,7 @@ impl<'tck> Checker<'tck> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = &env.lookup_local(RETURN_PLACE);
-                env.check_subtyping(ret_place_ty, &self.ret_ty);
+                env.check_subtyping(ret_place_ty, self.ret_ty);
             }
         }
     }

@@ -29,7 +29,7 @@ impl<'tck> LocalEnv<'tck> {
         }
     }
 
-    pub fn to_constraint(self) -> Constraint {
+    pub fn into_constraint(self) -> Constraint {
         self.constraint.finalize()
     }
 

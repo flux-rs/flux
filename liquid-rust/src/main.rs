@@ -1,6 +1,6 @@
 use std::{env::args, process::exit};
 
-const CMD_PREFIX: &'static str = "-L";
+const CMD_PREFIX: &str = "-L";
 
 /// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
 /// environment variables are not set.

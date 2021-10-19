@@ -160,13 +160,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
         match &c.literal {
             mir::ConstantKind::Val(ConstValue::Scalar(scalar), ty) if ty.is_integral() => {
                 match ty.kind() {
-                    &rustc_middle::ty::TyKind::Int(int_ty) => {
-                        Ok(Constant::Int(scalar.to_i128().unwrap(), int_ty))
+                    rustc_middle::ty::TyKind::Int(int_ty) => {
+                        Ok(Constant::Int(scalar.to_i128().unwrap(), *int_ty))
                     }
-                    &rustc_middle::ty::TyKind::Uint(int_ty) => {
-                        Ok(Constant::Uint(scalar.to_u128().unwrap(), int_ty))
+                    rustc_middle::ty::TyKind::Uint(int_ty) => {
+                        Ok(Constant::Uint(scalar.to_u128().unwrap(), *int_ty))
                     }
-                    _ => unreachable!("Type has to be integral at this point"),
+                    _ => unreachable!("type has to be integral at this point"),
                 }
             }
             _ => {
@@ -178,8 +178,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_ty(&self, ty: &rustc_middle::ty::Ty<'tcx>) -> Result<TypeLayout, ErrorReported> {
         match ty.kind() {
-            &rustc_middle::ty::TyKind::Int(int_ty) => Ok(TypeLayout::Int(int_ty)),
-            &rustc_middle::ty::TyKind::Uint(int_ty) => Ok(TypeLayout::Uint(int_ty)),
+            rustc_middle::ty::TyKind::Int(int_ty) => Ok(TypeLayout::Int(*int_ty)),
+            rustc_middle::ty::TyKind::Uint(int_ty) => Ok(TypeLayout::Uint(*int_ty)),
             _ => {
                 self.tcx.sess.err("type not supported");
                 Err(ErrorReported)

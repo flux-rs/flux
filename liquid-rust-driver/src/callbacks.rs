@@ -20,7 +20,7 @@ impl Callbacks for LiquidCallbacks {
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let _ = check_crate(tcx, &compiler.session());
+            let _ = check_crate(tcx, compiler.session());
         });
 
         Compilation::Stop
@@ -30,7 +30,7 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let lr = LrCtxt::new();
 
-    let annotations = Collector::collect(tcx, &sess)?;
+    let annotations = Collector::collect(tcx, sess)?;
 
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()

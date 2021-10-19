@@ -18,6 +18,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_span::{BytePos, Span, SyntaxContext};
 
 lalrpop_mod!(
+    #[allow(warnings)]
     #[allow(clippy::all)]
     grammar
 );
