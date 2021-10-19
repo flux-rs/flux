@@ -16,6 +16,7 @@ extern crate rustc_span;
 mod callbacks;
 mod collector;
 mod lowering;
+mod resolve;
 mod wf;
 
 use callbacks::LiquidCallbacks;

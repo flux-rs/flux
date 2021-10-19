@@ -10,10 +10,7 @@ pub mod lexer;
 use ast::FnSig;
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
-use rustc_ast::{
-    token::{Lit, LitKind},
-    tokenstream::TokenStream,
-};
+use rustc_ast::tokenstream::TokenStream;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{BytePos, Span, SyntaxContext};
 
@@ -33,31 +30,8 @@ pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
         .map_err(|err| map_err(err, offset, ctx, parent))
 }
 
-fn parse_literal(
-    lit: Lit,
-    lo: Location,
-    hi: Location,
-    mk_span: &impl Fn(Location, Location) -> Span,
-) -> Result<ast::Lit, UserParseError> {
-    match lit.kind {
-        LitKind::Integer => {
-            let int = lit
-                .symbol
-                .as_str()
-                .parse()
-                .map_err(|_| UserParseError::IntTooLarge(lo, hi))?;
-            Ok(ast::Lit {
-                kind: ast::LitKind::Int(int),
-                span: mk_span(lo, hi),
-            })
-        }
-        _ => Err(UserParseError::UnsupportedLiteral(lo, hi)),
-    }
-}
-
 pub enum UserParseError {
     UnsupportedLiteral(Location, Location),
-    IntTooLarge(Location, Location),
 }
 
 type LalrpopError = lalrpop_util::ParseError<Location, Token, UserParseError>;
@@ -103,9 +77,6 @@ fn map_err(
         LalrpopError::User {
             error: UserParseError::UnsupportedLiteral(lo, hi),
         } => ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent),
-        LalrpopError::User {
-            error: UserParseError::IntTooLarge(lo, hi),
-        } => ParseErrorKind::IntTooLarge.into_error(offset, lo, hi, ctx, parent),
         LalrpopError::UnrecognizedEOF {
             location,
             expected: _,

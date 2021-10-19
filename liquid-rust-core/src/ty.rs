@@ -1,4 +1,7 @@
-use rustc_span::{Span, Symbol};
+pub use liquid_rust_fixpoint::Sort;
+pub use liquid_rust_syntax::ast::{BinaryOp, Ident};
+pub use rustc_middle::ty::{IntTy, UintTy};
+use rustc_span::Span;
 
 #[derive(Debug)]
 pub struct FnSig {
@@ -8,14 +11,13 @@ pub struct FnSig {
 }
 
 #[derive(Debug)]
-pub struct Ty {
-    pub name: Ident,
-    pub refine: Expr,
+pub enum Ty {
+    Int(Expr, IntTy),
 }
 
 #[derive(Debug)]
 pub struct RType {
-    pub sort: Ident,
+    pub sort: Sort,
     pub pred: Expr,
 }
 
@@ -43,13 +45,8 @@ pub enum LitKind {
     Int(i128),
 }
 
-#[derive(Debug)]
-pub enum BinaryOp {
-    Eq,
-}
-
-#[derive(Debug)]
-pub struct Ident {
-    pub symbol: Symbol,
-    pub span: Span,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TypeLayout {
+    Int(IntTy),
+    Uint(UintTy),
 }

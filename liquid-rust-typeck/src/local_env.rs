@@ -1,31 +1,29 @@
-use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::{
-    ir::Local,
-    ty::{
-        context::LrCtxt,
-        pure::{BinOp, RType, Var},
-        Refine, Sort, Ty, TyKind,
-    },
+use crate::ty::{
+    context::LrCtxt,
+    pure::{BinOp, RType, Var},
+    Refine, Sort, Ty, TyKind,
 };
+use liquid_rust_common::index::IndexGen;
+use liquid_rust_core::ir::Local;
 use liquid_rust_fixpoint::Constraint;
 use rustc_hash::FxHashMap;
 
 use crate::constraint_builder::ConstraintBuilder;
 
-pub struct LocalEnv<'tck> {
-    lr: &'tck LrCtxt,
+pub struct LocalEnv<'a> {
+    lr: &'a LrCtxt,
     locals: FxHashMap<Local, Ty>,
     pub constraint: ConstraintBuilder,
-    name_gen: IndexGen<Var>,
+    name_gen: &'a IndexGen<Var>,
 }
 
-impl<'tck> LocalEnv<'tck> {
-    pub fn new(lr: &'tck LrCtxt) -> LocalEnv {
+impl<'a> LocalEnv<'a> {
+    pub fn new(lr: &'a LrCtxt, name_gen: &'a IndexGen<Var>) -> Self {
         LocalEnv {
             lr,
             locals: FxHashMap::default(),
             constraint: ConstraintBuilder::new(),
-            name_gen: IndexGen::new(),
+            name_gen,
         }
     }
 

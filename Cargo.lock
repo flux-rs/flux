@@ -283,9 +283,9 @@ dependencies = [
 name = "liquid-rust-core"
 version = "0.1.0"
 dependencies = [
- "hashconsing",
  "liquid-rust-common",
  "liquid-rust-fixpoint",
+ "liquid-rust-syntax",
 ]
 
 [[package]]
@@ -295,7 +295,7 @@ dependencies = [
  "itertools",
  "liquid-rust-common",
  "liquid-rust-core",
- "liquid-rust-parser",
+ "liquid-rust-syntax",
  "liquid-rust-typeck",
  "quickscope",
 ]
@@ -312,7 +312,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "liquid-rust-parser"
+name = "liquid-rust-syntax"
 version = "0.1.0"
 dependencies = [
  "lalrpop",
@@ -324,9 +324,11 @@ dependencies = [
 name = "liquid-rust-typeck"
 version = "0.1.0"
 dependencies = [
+ "hashconsing",
  "liquid-rust-common",
  "liquid-rust-core",
  "liquid-rust-fixpoint",
+ "quickscope",
 ]
 
 [[package]]

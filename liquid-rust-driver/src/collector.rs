@@ -1,5 +1,5 @@
 use liquid_rust_common::errors::ErrorReported;
-use liquid_rust_parser::{ast::FnSig, parse_fn_sig, ParseErrorKind};
+use liquid_rust_syntax::{ast::FnSig, parse_fn_sig, ParseErrorKind};
 use rustc_ast::{tokenstream::TokenStream, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
 use rustc_hir::{

@@ -61,7 +61,7 @@ impl Cursor {
             TokenKind::RArrow => Token::RArrow,
             TokenKind::OpenDelim(delim) => Token::OpenDelim(delim),
             TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
-            TokenKind::Literal(lit) => Token::Literal(lit),
+            TokenKind::Literal(lit) if lit.suffix.is_none() => Token::Literal(lit),
             TokenKind::Ident(symb, _) if symb == self.fn_ident => Token::Fn,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,

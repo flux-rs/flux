@@ -26,6 +26,27 @@ pub trait IterExt: Iterator {
             None => Ok(v),
         }
     }
+
+    fn try_foreach_exhaust<T, E, F>(self, mut f: F) -> Result<(), E>
+    where
+        Self: Iterator<Item = T> + Sized,
+        E: SemiGroup,
+        F: FnMut(T) -> Result<(), E>,
+    {
+        let mut acc: Option<E> = None;
+        for v in self {
+            if let Err(e) = f(v) {
+                match acc.take() {
+                    Some(curr) => acc = Some(curr.append(e)),
+                    None => acc = Some(e),
+                }
+            }
+        }
+        match acc {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
+    }
 }
 
 impl<I> IterExt for I where I: Iterator {}

@@ -5,42 +5,48 @@ extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_serialize;
+extern crate rustc_span;
 
 mod constraint_builder;
 pub mod global_env;
 mod local_env;
+mod lowering;
+pub mod ty;
 
-use liquid_rust_common::index::Idx;
+use liquid_rust_common::index::{Idx, IndexGen};
 use liquid_rust_core::{
     ir::{
         BasicBlock, Body, Constant, Operand, Rvalue, Statement, StatementKind, Terminator,
         TerminatorKind,
     },
-    ty::{self, context::LrCtxt, subst::Subst, FnSig, Ty},
+    ty as core,
 };
 use liquid_rust_fixpoint::Fixpoint;
 use local_env::LocalEnv;
 use rustc_middle::mir::RETURN_PLACE;
+use ty::{context::LrCtxt, Ty};
 
-pub struct Checker<'tck> {
-    lr: &'tck LrCtxt,
-    body: &'tck Body,
-    ret_ty: &'tck Ty,
+use crate::lowering::LowerCtxt;
+
+pub struct Checker<'a> {
+    lr: &'a LrCtxt,
+    body: &'a Body,
+    ret_ty: &'a Ty,
 }
 
-impl<'tck> Checker<'tck> {
-    pub fn check(lr: &LrCtxt, body: &Body, fn_sig: &FnSig) {
-        let mut env = LocalEnv::new(lr);
+impl Checker<'_> {
+    pub fn check(lr: &LrCtxt, body: &Body, fn_sig: &core::FnSig) {
+        let name_gen = IndexGen::new();
+        let fn_sig = LowerCtxt::lower(lr, &name_gen, fn_sig);
 
-        let mut subst = Subst::new(lr);
-        for (param_name, param_ty) in &fn_sig.params {
-            let fresh_name = env.fresh_name();
-            env.push_param(fresh_name, subst.subst_rtype(param_ty.clone()));
-            subst.insert(*param_name, lr.mk_var(fresh_name));
+        let mut env = LocalEnv::new(lr, &name_gen);
+
+        for (name, rty) in &fn_sig.params {
+            env.push_param(*name, rty.clone());
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            env.insert_local(local, subst.subst_ty(ty.clone()));
+            env.insert_local(local, ty.clone());
         }
 
         let checker = Checker {

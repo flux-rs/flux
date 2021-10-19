@@ -3,7 +3,7 @@ pub use rustc_middle::ty::{IntTy, UintTy};
 
 pub mod context;
 pub mod pure;
-pub mod subst;
+// mod subst;
 
 pub use pure::{BinOp, Constant, Expr, ExprKind, RType, Refine, Sort, Var};
 
@@ -25,12 +25,6 @@ pub struct FnSig {
     pub params: Vec<(pure::Var, pure::RType)>,
     pub args: Vec<Ty>,
     pub ret: Ty,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TypeLayout {
-    Int(IntTy),
-    Uint(UintTy),
 }
 
 impl TyS {

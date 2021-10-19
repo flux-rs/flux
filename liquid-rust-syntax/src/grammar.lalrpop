@@ -1,6 +1,5 @@
 use crate::{
     UserParseError,
-    parse_literal,
     ast,
     lexer::{Lit, Location, Token, DelimToken, BinOpToken}
 };
@@ -31,13 +30,16 @@ RType: ast::RType = {
 Expr = Level<BinaryOp1, Atom>;
 
 Atom: ast::Expr = {
-    <lo:@L> <lit:"literal"> <hi:@R> =>? {
-        let lit = parse_literal(lit, lo, hi, mk_span)
-            .map_err(|error| ParseError::User { error })?;
-        Ok(ast::Expr {
+    <lo:@L> <lit:"literal"> <hi:@R> => {
+        let lit = ast::Lit  {
+            kind: lit.kind,
+            span: mk_span(lo, hi),
+            symbol: lit.symbol
+        };
+        ast::Expr {
             kind: ast::ExprKind::Literal(lit),
             span: mk_span(lo, hi),
-        })
+        }
     },
     <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
         kind: ast::ExprKind::Var(var),

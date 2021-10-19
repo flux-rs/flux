@@ -1,10 +1,10 @@
 use std::fmt::{self, Write};
 
+use crate::ty::{self, ExprKind, RType, Refine, Var};
 use liquid_rust_common::{
     format::PadAdapter,
     index::{newtype_index, IndexVec},
 };
-use liquid_rust_core::ty::{self, ExprKind, RType, Refine, Var};
 use liquid_rust_fixpoint::{self as fixpoint, Constraint, Pred};
 
 pub struct ConstraintBuilder {

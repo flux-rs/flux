@@ -9,7 +9,7 @@ version = "0.1.0"
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-core = { path = "../liquid-rust-core" }
-liquid-rust-parser = { path = "../liquid-rust-parser" }
+liquid-rust-syntax = { path = "../liquid-rust-syntax" }
 liquid-rust-typeck = { path = "../liquid-rust-typeck" }
 quickscope = "0.1"
 

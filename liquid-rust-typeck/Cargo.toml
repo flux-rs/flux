@@ -6,9 +6,11 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hashconsing = "1.5"
 liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-core = { path = "../liquid-rust-core" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
+quickscope = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

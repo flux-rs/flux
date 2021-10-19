@@ -6,6 +6,6 @@ members = [
     "liquid-rust-core",
     "liquid-rust-driver",
     "liquid-rust-fixpoint",
-    "liquid-rust-parser",
+    "liquid-rust-syntax",
     "liquid-rust-typeck",
 ]

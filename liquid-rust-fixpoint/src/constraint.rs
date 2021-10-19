@@ -10,7 +10,7 @@ pub enum Constraint {
     ForAll(Var, Sort, Pred, Box<Self>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Sort {
     Int,
 }

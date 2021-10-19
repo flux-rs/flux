@@ -1,13 +1,12 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_core::ty::context::LrCtxt;
-use liquid_rust_typeck::{global_env::GlobalEnv, Checker};
+use liquid_rust_typeck::{global_env::GlobalEnv, ty::context::LrCtxt, Checker};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 
-use crate::{collector::Collector, lowering::LoweringCtxt, wf::Wf};
+use crate::{collector::Collector, lowering::LoweringCtxt, resolve::Resolver, wf::Wf};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
@@ -32,10 +31,16 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
 
     let annotations = Collector::collect(tcx, sess)?;
 
+    let resolver = Resolver::new(sess);
+
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
-        .map(|(def_id, fn_sig)| Ok((def_id, Wf::check(&lr, sess, fn_sig)?)))
+        .map(|(def_id, fn_sig)| Ok((def_id, resolver.resolve_fn_sig(fn_sig)?)))
         .try_collect_exhaust()?;
+
+    fn_sigs
+        .iter()
+        .try_foreach_exhaust(|(_, fn_sig)| Wf::check(sess, fn_sig))?;
 
     let global_env = GlobalEnv::new(fn_sigs);
 
