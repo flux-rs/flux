@@ -30,6 +30,7 @@ pub enum Expr {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
     Eq,
+    Add,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -63,6 +64,7 @@ impl Constraint {
 impl BinOp {
     pub fn precedence(&self) -> u32 {
         match self {
+            BinOp::Add => 4,
             BinOp::Eq => 3,
         }
     }
@@ -162,6 +164,7 @@ impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BinOp::Eq => write!(f, "="),
+            BinOp::Add => write!(f, "+"),
         }
     }
 }

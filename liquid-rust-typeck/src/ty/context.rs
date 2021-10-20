@@ -3,10 +3,7 @@ use std::cell::RefCell;
 use hashconsing::{HConsign, HashConsign};
 use rustc_middle::ty::{IntTy, UintTy};
 
-use super::{
-    pure::{BinOp, Constant, Expr, ExprKind, ExprS, Var},
-    Ty, TyKind, TyS,
-};
+use super::{BinOp, Constant, EVar, Expr, ExprKind, ExprS, Refine, Ty, TyKind, TyS, Var};
 
 pub struct LrCtxt {
     interner: RefCell<Interner>,
@@ -30,12 +27,12 @@ impl LrCtxt {
         self.interner.borrow_mut().intern_ty(kind)
     }
 
-    pub fn mk_int(&self, n: Expr, int_ty: IntTy) -> Ty {
-        self.mk_ty(TyKind::Int(n, int_ty))
+    pub fn mk_int(&self, n: impl Into<Refine>, int_ty: IntTy) -> Ty {
+        self.mk_ty(TyKind::Int(n.into(), int_ty))
     }
 
-    pub fn mk_uint(&self, n: Expr, int_ty: UintTy) -> Ty {
-        self.mk_ty(TyKind::Uint(n, int_ty))
+    pub fn mk_uint(&self, n: impl Into<Refine>, int_ty: UintTy) -> Ty {
+        self.mk_ty(TyKind::Uint(n.into(), int_ty))
     }
 
     // Exprs
@@ -46,6 +43,10 @@ impl LrCtxt {
 
     pub fn mk_var(&self, x: Var) -> Expr {
         self.mk_expr(ExprKind::Var(x))
+    }
+
+    pub fn mk_evar(&self, x: EVar) -> Expr {
+        self.mk_expr(ExprKind::EVar(x))
     }
 
     pub fn mk_constant(&self, c: Constant) -> Expr {

@@ -1,22 +1,30 @@
+use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
-pub use liquid_rust_syntax::ast::{BinaryOp, Ident};
+pub use liquid_rust_syntax::ast::BinOp;
 pub use rustc_middle::ty::{IntTy, UintTy};
 use rustc_span::Span;
 
 #[derive(Debug)]
 pub struct FnSig {
-    pub params: Vec<(Ident, RType)>,
+    pub params: Vec<Param>,
     pub args: Vec<Ty>,
     pub ret: Ty,
 }
 
 #[derive(Debug)]
 pub enum Ty {
-    Int(Expr, IntTy),
+    Int(Refine, IntTy),
 }
 
 #[derive(Debug)]
-pub struct RType {
+pub enum Refine {
+    Var(Ident),
+    Literal(Lit),
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: Ident,
     pub sort: Sort,
     pub pred: Expr,
 }
@@ -31,7 +39,7 @@ pub struct Expr {
 pub enum ExprKind {
     Var(Ident),
     Literal(Lit),
-    BinaryOp(BinaryOp, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -49,4 +57,16 @@ pub enum LitKind {
 pub enum TypeLayout {
     Int(IntTy),
     Uint(UintTy),
+}
+
+#[derive(Debug)]
+pub struct Ident {
+    pub name: Name,
+    pub span: Span,
+}
+
+newtype_index! {
+    pub struct Name {
+        DEBUG_FORMAT = "x{}",
+    }
 }

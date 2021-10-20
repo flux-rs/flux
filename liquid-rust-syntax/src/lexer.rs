@@ -9,6 +9,7 @@ use rustc_span::{BytePos, Symbol};
 pub enum Token {
     Caret,
     EqEq,
+    Plus,
     Colon,
     Comma,
     RArrow,
@@ -65,6 +66,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == self.fn_ident => Token::Fn,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
+            TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,
             _ => Token::Invalid,
         };
         (

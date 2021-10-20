@@ -3,7 +3,7 @@ use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
 pub struct FnSig {
-    pub params: Vec<(Ident, RType)>,
+    pub params: Vec<Param>,
     pub args: Vec<Ty>,
     pub ret: Ty,
 }
@@ -11,11 +11,18 @@ pub struct FnSig {
 #[derive(Debug)]
 pub struct Ty {
     pub name: Ident,
-    pub refine: Expr,
+    pub refine: Refine,
 }
 
 #[derive(Debug)]
-pub struct RType {
+pub enum Refine {
+    Var(Ident),
+    Literal(Lit),
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: Ident,
     pub sort: Ident,
     pub pred: Expr,
 }
@@ -30,7 +37,7 @@ pub struct Expr {
 pub enum ExprKind {
     Var(Ident),
     Literal(Lit),
-    BinaryOp(BinaryOp, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug)]
@@ -41,8 +48,9 @@ pub struct Lit {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum BinaryOp {
+pub enum BinOp {
     Eq,
+    Add,
 }
 
 #[derive(Debug)]

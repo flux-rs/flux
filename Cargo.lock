@@ -286,6 +286,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-fixpoint",
  "liquid-rust-syntax",
+ "quickscope",
 ]
 
 [[package]]
@@ -325,6 +326,7 @@ name = "liquid-rust-typeck"
 version = "0.1.0"
 dependencies = [
  "hashconsing",
+ "itertools",
  "liquid-rust-common",
  "liquid-rust-core",
  "liquid-rust-fixpoint",

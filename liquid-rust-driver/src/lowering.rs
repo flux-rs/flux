@@ -2,21 +2,25 @@ use itertools::Itertools;
 use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     ir::{
-        BasicBlockData, Body, Constant, Local, LocalDecl, Operand, Rvalue, Statement,
+        BasicBlockData, BinOp, Body, Constant, Local, LocalDecl, Operand, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
     ty::TypeLayout,
 };
 use rustc_const_eval::interpret::ConstValue;
-use rustc_middle::{mir, ty::TyCtxt};
+use rustc_middle::{
+    mir,
+    ty::{ParamEnv, TyCtxt},
+};
 
 pub struct LoweringCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
+    body: &'tcx mir::Body<'tcx>,
 }
 
 impl<'tcx> LoweringCtxt<'tcx> {
-    pub fn lower(tcx: TyCtxt<'tcx>, body: &mir::Body<'tcx>) -> Result<Body, ErrorReported> {
-        let lower = Self { tcx };
+    pub fn lower(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> Result<Body, ErrorReported> {
+        let lower = Self { tcx, body };
 
         let basic_blocks = body
             .basic_blocks()
@@ -89,9 +93,41 @@ impl<'tcx> LoweringCtxt<'tcx> {
         Ok(Statement { kind })
     }
 
-    fn lower_terminator(&self, terminator: &mir::Terminator) -> Result<Terminator, ErrorReported> {
-        let kind = match terminator.kind {
+    fn lower_terminator(
+        &self,
+        terminator: &mir::Terminator<'tcx>,
+    ) -> Result<Terminator, ErrorReported> {
+        let kind = match &terminator.kind {
             mir::TerminatorKind::Return => TerminatorKind::Return,
+            mir::TerminatorKind::Call {
+                func,
+                args,
+                destination,
+                ..
+            } => {
+                let func = match func.ty(self.body, self.tcx).kind() {
+                    rustc_middle::ty::TyKind::FnDef(fn_def, substs) if substs.is_empty() => *fn_def,
+                    _ => {
+                        self.tcx
+                            .sess
+                            .span_err(terminator.source_info.span, "unsupported function call");
+                        return Err(ErrorReported);
+                    }
+                };
+                let destination = match destination {
+                    Some((place, bb)) => Some((self.lower_place(place)?, *bb)),
+                    None => None,
+                };
+
+                TerminatorKind::Call {
+                    func,
+                    destination,
+                    args: args
+                        .iter()
+                        .map(|arg| self.lower_operand(arg))
+                        .try_collect()?,
+                }
+            }
             mir::TerminatorKind::Goto { .. }
             | mir::TerminatorKind::SwitchInt { .. }
             | mir::TerminatorKind::Resume
@@ -99,7 +135,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::Drop { .. }
             | mir::TerminatorKind::DropAndReplace { .. }
-            | mir::TerminatorKind::Call { .. }
             | mir::TerminatorKind::Assert { .. }
             | mir::TerminatorKind::Yield { .. }
             | mir::TerminatorKind::GeneratorDrop
@@ -118,8 +153,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_rvalue(&self, rvalue: &mir::Rvalue<'tcx>) -> Result<Rvalue, ErrorReported> {
         match rvalue {
             mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
+            mir::Rvalue::BinaryOp(bin_op, operands) => Ok(Rvalue::BinaryOp(
+                self.lower_bin_op(*bin_op)?,
+                self.lower_operand(&operands.0)?,
+                self.lower_operand(&operands.1)?,
+            )),
             mir::Rvalue::UnaryOp(_, _)
-            | mir::Rvalue::BinaryOp(_, _)
             | mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
             | mir::Rvalue::ThreadLocalRef(_)
@@ -137,14 +176,38 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
+    fn lower_bin_op(&self, bin_op: mir::BinOp) -> Result<BinOp, ErrorReported> {
+        match bin_op {
+            mir::BinOp::Add => Ok(BinOp::Add),
+            mir::BinOp::Sub
+            | mir::BinOp::Mul
+            | mir::BinOp::Div
+            | mir::BinOp::Rem
+            | mir::BinOp::BitXor
+            | mir::BinOp::BitAnd
+            | mir::BinOp::BitOr
+            | mir::BinOp::Shl
+            | mir::BinOp::Shr
+            | mir::BinOp::Eq
+            | mir::BinOp::Lt
+            | mir::BinOp::Le
+            | mir::BinOp::Ne
+            | mir::BinOp::Ge
+            | mir::BinOp::Gt
+            | mir::BinOp::Offset => {
+                self.tcx
+                    .sess
+                    .err(&format!("unsupported binary operation: `{:?}`", bin_op));
+                Err(ErrorReported)
+            }
+        }
+    }
+
     fn lower_operand(&self, op: &mir::Operand<'tcx>) -> Result<Operand, ErrorReported> {
         match op {
             mir::Operand::Copy(place) => Ok(Operand::Copy(self.lower_place(place)?)),
+            mir::Operand::Move(place) => Ok(Operand::Move(self.lower_place(place)?)),
             mir::Operand::Constant(c) => Ok(Operand::Constant(self.lower_constant(c)?)),
-            mir::Operand::Move(_) => {
-                self.tcx.sess.err("operand not supported");
-                Err(ErrorReported)
-            }
         }
     }
 
@@ -157,20 +220,33 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
+        use rustc_middle::ty::{Const, ConstKind};
+        let tcx = self.tcx;
         match &c.literal {
-            mir::ConstantKind::Val(ConstValue::Scalar(scalar), ty) if ty.is_integral() => {
-                match ty.kind() {
-                    rustc_middle::ty::TyKind::Int(int_ty) => {
-                        Ok(Constant::Int(scalar.to_i128().unwrap(), *int_ty))
-                    }
-                    rustc_middle::ty::TyKind::Uint(int_ty) => {
-                        Ok(Constant::Uint(scalar.to_u128().unwrap(), *int_ty))
-                    }
-                    _ => unreachable!("type has to be integral at this point"),
+            mir::ConstantKind::Ty(&Const {
+                ty,
+                val: ConstKind::Value(ConstValue::Scalar(scalar)),
+            }) if ty.is_integral() => match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
+                (rustc_middle::ty::TyKind::Int(int_ty), Some(bits)) => {
+                    Ok(Constant::Int(bits as i128, *int_ty))
                 }
-            }
+                (rustc_middle::ty::TyKind::Uint(int_ty), Some(bits)) => {
+                    Ok(Constant::Uint(bits as u128, *int_ty))
+                }
+                (_, None) => {
+                    self.tcx.sess.span_err(
+                        c.span,
+                        &format!("constant not supported: `{:?}`", c.literal),
+                    );
+                    Err(ErrorReported)
+                }
+                _ => unreachable!("type has to be integral at this point"),
+            },
             _ => {
-                self.tcx.sess.span_err(c.span, "constant not supported");
+                self.tcx.sess.span_err(
+                    c.span,
+                    &format!("constant not supported: `{:?}`", c.literal),
+                );
                 Err(ErrorReported)
             }
         }
@@ -186,4 +262,16 @@ impl<'tcx> LoweringCtxt<'tcx> {
             }
         }
     }
+}
+
+fn scalar_to_bits<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    scalar: mir::interpret::Scalar,
+    ty: rustc_middle::ty::Ty<'tcx>,
+) -> Option<u128> {
+    let size = tcx
+        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
+        .unwrap()
+        .size;
+    scalar.to_bits(size).ok()
 }

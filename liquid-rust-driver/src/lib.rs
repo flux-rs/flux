@@ -17,7 +17,6 @@ mod callbacks;
 mod collector;
 mod lowering;
 mod resolve;
-mod wf;
 
 use callbacks::LiquidCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};

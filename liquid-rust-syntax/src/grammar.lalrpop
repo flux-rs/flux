@@ -16,26 +16,26 @@ pub FnSig: ast::FnSig = {
 }
 
 Ty: ast::Ty = {
-    <refine:Expr> "@" <name:Ident> => ast::Ty { <> }
+    <refine:Refine> "@" <name:Ident> => ast::Ty { <> }
 }
 
-Params: Vec<(ast::Ident, ast::RType)> = {
-    "<" <Comma<Binding<Ident, RType>>> ">"
+Refine: ast::Refine = {
+    <lit:Lit> => ast::Refine::Literal(lit),
+    <ident:Ident> => ast::Refine::Var(ident),
 }
 
-RType: ast::RType = {
-    "{" <sort:Ident> "|" <pred:Expr> "}" => ast::RType { <> }
+Params: Vec<ast::Param> = {
+    "<" <Comma<Param>> ">"
 }
 
-Expr = Level<BinaryOp1, Atom>;
+Param: ast::Param = {
+    <name:Ident> ":" "{" <sort:Ident> "|" <pred:Expr> "}" => ast::Param { <> }
+}
 
-Atom: ast::Expr = {
-    <lo:@L> <lit:"literal"> <hi:@R> => {
-        let lit = ast::Lit  {
-            kind: lit.kind,
-            span: mk_span(lo, hi),
-            symbol: lit.symbol
-        };
+Expr = Level<BinOp1, Level2>;
+Level2 = Level<BinOp2, Level3>;
+Level3: ast::Expr = {
+    <lo:@L> <lit:Lit> <hi:@R> => {
         ast::Expr {
             kind: ast::ExprKind::Literal(lit),
             span: mk_span(lo, hi),
@@ -45,7 +45,9 @@ Atom: ast::Expr = {
         kind: ast::ExprKind::Var(var),
         span: mk_span(lo, hi),
     },
+    "(" <expr: Expr> ")" => <>
 }
+
 
 Level<Op, NextLevel>: ast::Expr = {
     <lo:@L> <e1:Level<Op, NextLevel>> <op:Op> <e2:NextLevel> <hi:@R> =>
@@ -60,8 +62,20 @@ Level<Op, NextLevel>: ast::Expr = {
     NextLevel
 }
 
-BinaryOp1: ast::BinaryOp = {
-    "==" => ast::BinaryOp::Eq
+BinOp1: ast::BinOp = {
+    "==" => ast::BinOp::Eq
+}
+
+BinOp2: ast::BinOp = {
+    "+" => ast::BinOp::Add
+}
+
+Lit: ast::Lit = {
+    <lo:@L> <lit:"literal"> <hi:@R> => ast::Lit {
+        kind: lit.kind,
+        span: mk_span(lo, hi),
+        symbol: lit.symbol
+    },
 }
 
 
@@ -94,6 +108,7 @@ extern {
         "fn" => Token::Fn,
         "@" => Token::At,
         "==" => Token::EqEq,
+        "+" => Token::Plus,
         "|" => Token::Caret,
         "(" => Token::OpenDelim(DelimToken::Paren),
         ")" => Token::CloseDelim(DelimToken::Paren),

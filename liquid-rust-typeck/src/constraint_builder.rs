@@ -1,11 +1,14 @@
 use std::fmt::{self, Write};
 
-use crate::ty::{self, ExprKind, RType, Refine, Var};
+use crate::{
+    ty::{self, ExprKind, Pred, Sort, Var},
+    unification::UnificationCtxt,
+};
 use liquid_rust_common::{
     format::PadAdapter,
     index::{newtype_index, IndexVec},
 };
-use liquid_rust_fixpoint::{self as fixpoint, Constraint, Pred};
+use liquid_rust_fixpoint::{self as fixpoint, Constraint};
 
 pub struct ConstraintBuilder {
     nodes: IndexVec<NodeId, Node>,
@@ -14,9 +17,9 @@ pub struct ConstraintBuilder {
 
 enum Node {
     Conj(Vec<NodeId>),
-    ForAll(Var, RType, Vec<NodeId>),
-    Guard(ty::Expr, Vec<NodeId>),
-    Head(Refine),
+    ForAll(Var, Sort, Pred, Vec<NodeId>),
+    // Guard(ty::Expr, Vec<NodeId>),
+    Head(Pred),
 }
 
 newtype_index! {
@@ -37,19 +40,20 @@ impl ConstraintBuilder {
         }
     }
 
-    pub fn finalize(self) -> Constraint {
-        self.finalize_inner(ROOT).unwrap_or(Constraint::TRUE)
+    pub fn finalize(self, unification_cx: &UnificationCtxt) -> Constraint {
+        self.finalize_inner(ROOT, unification_cx)
+            .unwrap_or(Constraint::TRUE)
     }
 
-    pub fn push_forall(&mut self, x: Var, rty: RType) {
-        self.push_node(Node::ForAll(x, rty, vec![]));
+    pub fn push_forall(&mut self, x: Var, sort: Sort, refine: Pred) {
+        self.push_node(Node::ForAll(x, sort, refine, vec![]));
     }
 
-    pub fn push_guard(&mut self, guard: ty::Expr) {
-        self.push_node(Node::Guard(guard, vec![]));
-    }
+    // pub fn push_guard(&mut self, guard: ty::Expr) {
+    //     self.push_node(Node::Guard(guard, vec![]));
+    // }
 
-    pub fn push_head(&mut self, refine: impl Into<Refine>) {
+    pub fn push_head(&mut self, refine: impl Into<Pred>) {
         self.push_node(Node::Head(refine.into()));
         self.curr_path.pop();
     }
@@ -65,34 +69,42 @@ impl ConstraintBuilder {
         self.curr_path.last().copied().unwrap()
     }
 
-    fn finalize_inner(&self, node_id: NodeId) -> Option<Constraint> {
+    fn finalize_inner(
+        &self,
+        node_id: NodeId,
+        unification_cx: &UnificationCtxt,
+    ) -> Option<Constraint> {
         let node = &self.nodes[node_id];
         match node {
-            Node::Conj(children) => self.finalize_children(children),
-            Node::ForAll(var, RType { sort, refine }, children) => {
-                let children = self.finalize_children(children)?;
+            Node::Conj(children) => self.finalize_children(children, unification_cx),
+            Node::ForAll(var, sort, pred, children) => {
+                let children = self.finalize_children(children, unification_cx)?;
                 Some(Constraint::ForAll(
                     *var,
                     *sort,
-                    finalize_refinement(refine),
+                    finalize_pred(pred, unification_cx),
                     Box::new(children),
                 ))
             }
-            Node::Guard(pred, children) => {
-                let children = self.finalize_children(children)?;
-                Some(Constraint::Guard(
-                    Pred::Expr(finalize_expr(pred)),
-                    Box::new(children),
-                ))
-            }
-            Node::Head(refine) => Some(Constraint::Pred(finalize_refinement(refine))),
+            // Node::Guard(pred, children) => {
+            //     let children = self.finalize_children(children)?;
+            //     Some(Constraint::Guard(
+            //         fixpoint::Pred::Expr(finalize_expr(pred)),
+            //         Box::new(children),
+            //     ))
+            // }
+            Node::Head(pred) => Some(Constraint::Pred(finalize_pred(pred, unification_cx))),
         }
     }
 
-    fn finalize_children(&self, children: &[NodeId]) -> Option<Constraint> {
+    fn finalize_children(
+        &self,
+        children: &[NodeId],
+        unification_cx: &UnificationCtxt,
+    ) -> Option<Constraint> {
         let mut children: Vec<Constraint> = children
             .iter()
-            .filter_map(|&node_id| self.finalize_inner(node_id))
+            .filter_map(|&node_id| self.finalize_inner(node_id, unification_cx))
             .collect();
         match children.len() {
             0 => None,
@@ -106,8 +118,8 @@ impl Node {
     fn push_child(&mut self, child: NodeId) {
         let children = match self {
             Node::Conj(children) => children,
-            Node::ForAll(_, _, children) => children,
-            Node::Guard(_, children) => children,
+            Node::ForAll(_, _, _, children) => children,
+            // Node::Guard(_, children) => children,
             Node::Head(_) => unreachable!("trying to push a child into a leaf node."),
         };
         children.push(child);
@@ -116,7 +128,7 @@ impl Node {
 
 impl fmt::Debug for ConstraintBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}@{:?}", ROOT, NodeDebug(ROOT, self))
+        write!(f, "{:?}", NodeDebug(ROOT, self))
     }
 }
 
@@ -131,7 +143,7 @@ impl fmt::Debug for NodeDebug<'_> {
         ) -> fmt::Result {
             let mut w = PadAdapter::wrap_fmt(f);
             for child in children {
-                write!(w, "\n{:?}@{:?}", child, NodeDebug(*child, node.1))?;
+                write!(w, "\n{:?}", NodeDebug(*child, node.1))?;
             }
             if Some(&node.0) == node.1.curr_path.last() {
                 write!(w, "\n☐")?;
@@ -144,35 +156,41 @@ impl fmt::Debug for NodeDebug<'_> {
                 debug_children(self, children, f)?;
                 write!(f, "\n}}")
             }
-            Node::ForAll(var, rty, children) => {
-                write!(f, "Forall({:?}: {:?}) {{", var, rty)?;
+            Node::ForAll(var, sort, refine, children) => {
+                write!(f, "Forall({:?}: {{{:?} | {:?}}}) {{", var, sort, refine)?;
                 debug_children(self, children, f)?;
                 write!(f, "\n}}")
             }
-            Node::Guard(guard, children) => {
-                write!(f, "Guard({:?}) {{", guard)?;
-                debug_children(self, children, f)?;
-                write!(f, "\n}}")
-            }
+            // Node::Guard(guard, children) => {
+            //     write!(f, "Guard({:?}) {{", guard)?;
+            //     debug_children(self, children, f)?;
+            //     write!(f, "\n}}")
+            // }
             Node::Head(pred) => write!(f, "({:?})", pred),
         }
     }
 }
 
-fn finalize_refinement(refine: &Refine) -> Pred {
+fn finalize_pred(refine: &Pred, unification_cx: &UnificationCtxt) -> fixpoint::Pred {
     match refine {
-        Refine::Pred(expr) => Pred::Expr(finalize_expr(expr)),
+        Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr, unification_cx)),
     }
 }
 
-fn finalize_expr(expr: &ty::Expr) -> fixpoint::Expr {
+fn finalize_expr(expr: &ty::Expr, unification_cx: &UnificationCtxt) -> fixpoint::Expr {
     match expr.kind() {
         ExprKind::Var(x) => fixpoint::Expr::Var(*x),
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ExprKind::BinaryOp(op, e1, e2) => fixpoint::Expr::BinaryOp(
             *op,
-            Box::new(finalize_expr(e1)),
-            Box::new(finalize_expr(e2)),
+            Box::new(finalize_expr(e1, unification_cx)),
+            Box::new(finalize_expr(e2, unification_cx)),
         ),
+        ExprKind::EVar(evar) => match unification_cx.lookup(*evar) {
+            Some(expr) => finalize_expr(&expr, unification_cx),
+            None => {
+                unreachable!("trying to finalize constraint with uninstantiated evar.")
+            }
+        },
     }
 }

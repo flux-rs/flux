@@ -1,6 +1,7 @@
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_core::ty;
+use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
+use liquid_rust_core::ty::{self, Name};
 use liquid_rust_syntax::ast;
+use quickscope::ScopeMap;
 use rustc_session::Session;
 use rustc_span::{sym, Span, Symbol};
 
@@ -13,6 +14,8 @@ struct Symbols {
     int: Symbol,
 }
 
+type Map = ScopeMap<Symbol, Name>;
+
 impl Resolver<'_> {
     pub fn new(sess: &Session) -> Resolver {
         Resolver {
@@ -22,19 +25,37 @@ impl Resolver<'_> {
     }
 
     pub fn resolve_fn_sig(&self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
+        let name_gen = IndexGen::new();
+        let mut map = ScopeMap::new();
+
         let params = fn_sig
             .params
             .into_iter()
-            .map(|(ident, rty)| Ok((ident, self.resolve_rtype(rty)?)))
+            .map(|param| {
+                let name = name_gen.fresh();
+                map.push_layer();
+                map.define(param.name.symbol, name);
+                let name = ty::Ident {
+                    name,
+                    span: param.name.span,
+                };
+                let sort = self.resolve_sort(param.sort);
+                let pred = self.resolve_expr(param.pred, &map);
+                Ok(ty::Param {
+                    name,
+                    sort: sort?,
+                    pred: pred?,
+                })
+            })
             .try_collect_exhaust();
 
         let args = fn_sig
             .args
             .into_iter()
-            .map(|ty| self.resolve_ty(ty))
+            .map(|ty| self.resolve_ty(ty, &map))
             .try_collect_exhaust();
 
-        let ret = self.resolve_ty(fn_sig.ret);
+        let ret = self.resolve_ty(fn_sig.ret, &map);
 
         Ok(ty::FnSig {
             params: params?,
@@ -43,9 +64,12 @@ impl Resolver<'_> {
         })
     }
 
-    pub fn resolve_ty(&self, ty: ast::Ty) -> Result<ty::Ty, ErrorReported> {
+    pub fn resolve_ty(&self, ty: ast::Ty, map: &Map) -> Result<ty::Ty, ErrorReported> {
         match ty.name.symbol {
-            sym::i32 => Ok(ty::Ty::Int(self.resolve_expr(ty.refine)?, ty::IntTy::I32)),
+            sym::i32 => Ok(ty::Ty::Int(
+                self.resolve_refine(ty.refine, map)?,
+                ty::IntTy::I32,
+            )),
             _ => {
                 self.emit_error(
                     &format!("unsupported type `{}`", ty.name.symbol),
@@ -56,23 +80,24 @@ impl Resolver<'_> {
         }
     }
 
-    pub fn resolve_rtype(&self, rty: ast::RType) -> Result<ty::RType, ErrorReported> {
-        let sort = self.resolve_sort(rty.sort);
-        let pred = self.resolve_expr(rty.pred);
-
-        Ok(ty::RType {
-            sort: sort?,
-            pred: pred?,
-        })
+    pub fn resolve_refine(
+        &self,
+        refine: ast::Refine,
+        map: &Map,
+    ) -> Result<ty::Refine, ErrorReported> {
+        match refine {
+            ast::Refine::Var(ident) => Ok(ty::Refine::Var(self.resolve_ident(ident, map)?)),
+            ast::Refine::Literal(lit) => Ok(ty::Refine::Literal(self.resolve_lit(lit)?)),
+        }
     }
 
-    pub fn resolve_expr(&self, expr: ast::Expr) -> Result<ty::Expr, ErrorReported> {
+    pub fn resolve_expr(&self, expr: ast::Expr, map: &Map) -> Result<ty::Expr, ErrorReported> {
         let kind = match expr.kind {
-            ast::ExprKind::Var(ident) => ty::ExprKind::Var(ident),
+            ast::ExprKind::Var(ident) => ty::ExprKind::Var(self.resolve_ident(ident, map)?),
             ast::ExprKind::Literal(lit) => ty::ExprKind::Literal(self.resolve_lit(lit)?),
             ast::ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = self.resolve_expr(*e1);
-                let e2 = self.resolve_expr(*e2);
+                let e1 = self.resolve_expr(*e1, map);
+                let e2 = self.resolve_expr(*e2, map);
                 ty::ExprKind::BinaryOp(op, Box::new(e1?), Box::new(e2?))
             }
         };
@@ -80,6 +105,22 @@ impl Resolver<'_> {
             kind,
             span: expr.span,
         })
+    }
+
+    pub fn resolve_ident(&self, ident: ast::Ident, map: &Map) -> Result<ty::Ident, ErrorReported> {
+        match map.get(&ident.symbol) {
+            Some(name) => Ok(ty::Ident {
+                span: ident.span,
+                name: *name,
+            }),
+            None => {
+                self.emit_error(
+                    &format!("cannot find value `{}` in this scope", ident.symbol),
+                    ident.span,
+                );
+                Err(ErrorReported)
+            }
+        }
     }
 
     fn resolve_lit(&self, lit: ast::Lit) -> Result<ty::Lit, ErrorReported> {

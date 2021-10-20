@@ -1,12 +1,12 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_typeck::{global_env::GlobalEnv, ty::context::LrCtxt, Checker};
+use liquid_rust_typeck::{global_env::GlobalEnv, Checker};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 
-use crate::{collector::Collector, lowering::LoweringCtxt, resolve::Resolver, wf::Wf};
+use crate::{collector::Collector, lowering::LoweringCtxt, resolve::Resolver};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
@@ -27,8 +27,6 @@ impl Callbacks for LiquidCallbacks {
 }
 
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
-    let lr = LrCtxt::new();
-
     let annotations = Collector::collect(tcx, sess)?;
 
     let resolver = Resolver::new(sess);
@@ -38,10 +36,6 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .map(|(def_id, fn_sig)| Ok((def_id, resolver.resolve_fn_sig(fn_sig)?)))
         .try_collect_exhaust()?;
 
-    fn_sigs
-        .iter()
-        .try_foreach_exhaust(|(_, fn_sig)| Wf::check(sess, fn_sig))?;
-
     let global_env = GlobalEnv::new(fn_sigs);
 
     let mut lower_error = false;
@@ -49,7 +43,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         let body = tcx.optimized_mir(*def_id);
         match LoweringCtxt::lower(tcx, body) {
             Ok(body) => {
-                Checker::check(&lr, &body, fn_sig);
+                Checker::check(&global_env, &body, fn_sig);
             }
             Err(_) => {
                 lower_error = true;

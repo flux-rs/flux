@@ -1,4 +1,5 @@
 use liquid_rust_common::index::{Idx, IndexVec};
+use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{BasicBlock, Local};
 use rustc_middle::ty::{IntTy, UintTy};
 
@@ -30,6 +31,11 @@ pub struct Terminator {
 #[derive(Debug)]
 pub enum TerminatorKind {
     Return,
+    Call {
+        func: DefId,
+        args: Vec<Operand>,
+        destination: Option<(Local, BasicBlock)>,
+    },
 }
 
 #[derive(Debug)]
@@ -46,11 +52,18 @@ pub enum StatementKind {
 #[derive(Debug)]
 pub enum Rvalue {
     Use(Operand),
+    BinaryOp(BinOp, Operand, Operand),
+}
+
+#[derive(Debug)]
+pub enum BinOp {
+    Add,
 }
 
 #[derive(Debug)]
 pub enum Operand {
     Copy(Local),
+    Move(Local),
     Constant(Constant),
 }
 

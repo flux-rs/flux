@@ -1,7 +1,6 @@
-use crate::ty::{
-    context::LrCtxt,
-    pure::{BinOp, RType, Var},
-    Refine, Sort, Ty, TyKind,
+use crate::{
+    ty::{context::LrCtxt, BinOp, Pred, Refine, Sort, Ty, TyKind, Var},
+    unification::UnificationCtxt,
 };
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ir::Local;
@@ -27,16 +26,12 @@ impl<'a> LocalEnv<'a> {
         }
     }
 
-    pub fn into_constraint(self) -> Constraint {
-        self.constraint.finalize()
-    }
-
     pub fn fresh_name(&self) -> Var {
         self.name_gen.fresh()
     }
 
-    pub fn push_param(&mut self, x: Var, rty: RType) {
-        self.constraint.push_forall(x, rty);
+    pub fn push_param(&mut self, name: Var, sort: Sort, pred: Pred) {
+        self.constraint.push_forall(name, sort, pred);
     }
 
     pub fn insert_local(&mut self, local: Local, ty: Ty) {
@@ -47,38 +42,40 @@ impl<'a> LocalEnv<'a> {
         self.locals.get(&local).cloned().unwrap()
     }
 
-    pub fn check_subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
+    pub fn check_subtyping(&mut self, unification_cx: &mut UnificationCtxt, ty1: &Ty, ty2: &Ty) {
         let lr = self.lr;
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Int(n1, int_ty1), TyKind::Int(n2, int_ty2)) if int_ty1 == int_ty2 => {
-                let fresh = self.fresh_name();
-                let var = lr.mk_var(fresh);
-                let p1 = lr.mk_bin_op(BinOp::Eq, var.clone(), n1.clone());
-                let p2 = lr.mk_bin_op(BinOp::Eq, var, n2.clone());
-                self.constraint.push_forall(
-                    fresh,
-                    RType {
-                        sort: Sort::Int,
-                        refine: Refine::Pred(p1),
-                    },
-                );
-                self.constraint.push_head(p2);
+            (
+                TyKind::Int(Refine::EVar(evar1), int_ty1),
+                TyKind::Int(Refine::EVar(evar2), int_ty2),
+            ) if int_ty1 == int_ty2 => {
+                unification_cx.unify(*evar1, *evar2);
             }
-            (TyKind::Uint(n1, int_ty1), TyKind::Uint(n2, int_ty2)) if int_ty1 == int_ty2 => {
-                let fresh = self.fresh_name();
-                let var = lr.mk_var(fresh);
-                let p1 = lr.mk_bin_op(BinOp::Eq, var.clone(), n1.clone());
-                let p2 = lr.mk_bin_op(BinOp::Eq, var, n2.clone());
-                self.constraint.push_forall(
-                    fresh,
-                    RType {
-                        sort: Sort::Int,
-                        refine: Refine::Pred(p1),
-                    },
-                );
-                self.constraint.push_head(p2);
+            (TyKind::Int(Refine::Expr(p), int_ty1), TyKind::Int(Refine::EVar(evar), int_ty2))
+                if int_ty1 == int_ty2 =>
+            {
+                unification_cx.instantiate(*evar, p.clone(), Sort::Int);
             }
-            _ => unreachable!("Subtyping between incompatible types"),
+            (TyKind::Int(Refine::Expr(p1), int_ty1), TyKind::Int(Refine::Expr(p2), int_ty2))
+                if int_ty1 == int_ty2 =>
+            {
+                self.constraint
+                    .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
+            }
+            (TyKind::Int(Refine::EVar(evar), int_ty1), TyKind::Int(Refine::Expr(p2), int_ty2))
+                if int_ty1 == int_ty2 =>
+            {
+                let p1 = lr.mk_evar(*evar);
+                self.constraint
+                    .push_head(lr.mk_bin_op(BinOp::Eq, p1, p2.clone()));
+            }
+            (TyKind::Uint(Refine::Expr(p1), int_ty1), TyKind::Uint(Refine::Expr(p2), int_ty2))
+                if int_ty1 == int_ty2 =>
+            {
+                self.constraint
+                    .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
+            }
+            _ => panic!("unimplemented or subtyping between incompatible types"),
         }
     }
 }

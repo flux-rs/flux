@@ -10,4 +10,8 @@ impl GlobalEnv {
     pub fn new(sigs: FxHashMap<DefId, FnSig>) -> Self {
         Self { sigs }
     }
+
+    pub fn lookup_fn_sig(&self, def_id: DefId) -> &FnSig {
+        &self.sigs[&def_id]
+    }
 }
