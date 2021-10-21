@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use hashconsing::{HConsign, HashConsign};
-use rustc_middle::ty::{IntTy, UintTy};
+use rustc_middle::ty::IntTy;
 
 use super::{BinOp, Constant, Expr, ExprKind, ExprS, Ty, TyKind, TyS, Var};
 
@@ -29,10 +29,6 @@ impl LrCtxt {
 
     pub fn mk_int(&self, e: Expr, int_ty: IntTy) -> Ty {
         self.mk_ty(TyKind::Int(e, int_ty))
-    }
-
-    pub fn mk_uint(&self, e: Expr, int_ty: UintTy) -> Ty {
-        self.mk_ty(TyKind::Uint(e, int_ty))
     }
 
     // Exprs

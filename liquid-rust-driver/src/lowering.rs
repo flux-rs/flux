@@ -230,17 +230,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 (rustc_middle::ty::TyKind::Int(int_ty), Some(bits)) => {
                     Ok(Constant::Int(bits as i128, *int_ty))
                 }
-                (rustc_middle::ty::TyKind::Uint(int_ty), Some(bits)) => {
-                    Ok(Constant::Uint(bits as u128, *int_ty))
-                }
-                (_, None) => {
+                _ => {
                     self.tcx.sess.span_err(
                         c.span,
                         &format!("constant not supported: `{:?}`", c.literal),
                     );
                     Err(ErrorReported)
                 }
-                _ => unreachable!("type has to be integral at this point"),
             },
             _ => {
                 self.tcx.sess.span_err(
@@ -255,7 +251,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_ty(&self, ty: &rustc_middle::ty::Ty<'tcx>) -> Result<TypeLayout, ErrorReported> {
         match ty.kind() {
             rustc_middle::ty::TyKind::Int(int_ty) => Ok(TypeLayout::Int(*int_ty)),
-            rustc_middle::ty::TyKind::Uint(int_ty) => Ok(TypeLayout::Uint(*int_ty)),
             _ => {
                 self.tcx.sess.err("type not supported");
                 Err(ErrorReported)

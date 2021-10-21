@@ -11,6 +11,7 @@ mod constraint_builder;
 pub mod global_env;
 mod local_env;
 mod lowering;
+pub mod subst;
 pub mod ty;
 
 use global_env::GlobalEnv;
@@ -26,9 +27,9 @@ use liquid_rust_fixpoint::Fixpoint;
 use local_env::LocalEnv;
 use rustc_hash::FxHashMap;
 use rustc_middle::mir::RETURN_PLACE;
-use ty::{context::LrCtxt, BinOp, Expr, Ty};
+use ty::{context::LrCtxt, BinOp, Expr, Sort, Ty, Var};
 
-use crate::{constraint_builder::ConstraintBuilder, lowering::LowerCtxt, ty::TyKind};
+use crate::{constraint_builder::ConstraintBuilder, lowering::LowerCtxt, subst::Subst, ty::TyKind};
 
 pub struct Checker<'a> {
     lr: &'a LrCtxt,
@@ -36,6 +37,7 @@ pub struct Checker<'a> {
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
     constraint: ConstraintBuilder,
+    name_gen: IndexGen<Var>,
 }
 
 impl Checker<'_> {
@@ -43,8 +45,8 @@ impl Checker<'_> {
         let lr = &LrCtxt::new();
         let mut constraint = ConstraintBuilder::new();
 
-        let name_gen = &IndexGen::new();
-        let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(lr, name_gen, fn_sig);
+        let name_gen = IndexGen::new();
+        let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(lr, &name_gen, fn_sig);
 
         let mut env = LocalEnv::new();
 
@@ -62,6 +64,7 @@ impl Checker<'_> {
             body,
             ret_ty,
             constraint: ConstraintBuilder::new(),
+            name_gen,
         };
 
         checker.check_basic_block(BasicBlock::new(0), &mut env);
@@ -146,10 +149,6 @@ impl Checker<'_> {
                 let expr = lr.mk_constant(ty::Constant::from(*n));
                 lr.mk_int(expr, *int_ty)
             }
-            Constant::Uint(n, int_ty) => {
-                let expr = lr.mk_constant(ty::Constant::from(*n));
-                lr.mk_uint(expr, *int_ty)
-            }
         }
     }
 
@@ -176,14 +175,6 @@ impl Checker<'_> {
                     *int_ty1,
                 )
             }
-            (ty::TyKind::Uint(e1, int_ty1), ty::TyKind::Uint(e2, int_ty2))
-                if int_ty1 == int_ty2 =>
-            {
-                lr.mk_uint(
-                    lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()),
-                    *int_ty1,
-                )
-            }
             _ => unreachable!("addition between incompatible types"),
         }
     }
@@ -197,13 +188,25 @@ impl Checker<'_> {
                         .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
                 }
             }
-            (TyKind::Uint(p1, int_ty1), TyKind::Uint(p2, int_ty2)) if int_ty1 == int_ty2 => {
-                if p1 != p2 {
-                    self.constraint
-                        .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
-                }
+            (TyKind::ExistsInt(var, int_ty, p), _) => {
+                let fresh = self.name_gen.fresh();
+                self.constraint.push_forall(
+                    fresh,
+                    Sort::Int,
+                    Subst::new(lr, [(*var, lr.mk_var(fresh))]).subst_expr(p.clone()),
+                );
+                self.check_subtyping(lr.mk_ty(TyKind::Int(lr.mk_var(fresh), *int_ty)), ty2)
             }
-            _ => panic!("unimplemented or subtyping between incompatible types"),
+            (TyKind::Int(p1, int_ty1), TyKind::ExistsInt(var, int_ty2, p2))
+                if int_ty1 == int_ty2 =>
+            {
+                self.constraint
+                    .push_head(Subst::new(lr, [(*var, p1.clone())]).subst_expr(p2.clone()))
+            }
+            _ => panic!(
+                "unimplemented or subtyping between incompatible types: {:?} {:?}",
+                ty1, ty2
+            ),
         }
     }
 }
@@ -224,14 +227,11 @@ fn infer_subst<'a>(
             }
             (TyKind::Int(_, int_ty1), core::Ty::Int(core::Refine::Literal(_), int_ty2))
                 if int_ty1 == int_ty2 => {}
-            (TyKind::Int(..), core::Ty::Int(..)) => {
-                unreachable!("i have to remove this at some point")
+            (TyKind::ExistsInt(_, _, _), core::Ty::Int(_, _)) => {
+                panic!("unimplemented")
             }
             _ => {
-                unreachable!(
-                    "inferring substitution betweetn incompatible types: `{:?}` `{:?}`",
-                    actual, formal
-                )
+                unreachable!("inferring substitution between incompatible types")
             }
         }
     }

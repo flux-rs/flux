@@ -41,8 +41,8 @@ impl ConstraintBuilder {
         self.finalize_inner(ROOT).unwrap_or(Constraint::TRUE)
     }
 
-    pub fn push_forall(&mut self, x: Var, sort: Sort, refine: Pred) {
-        self.push_node(Node::ForAll(x, sort, refine, vec![]));
+    pub fn push_forall(&mut self, x: Var, sort: Sort, pred: impl Into<Pred>) {
+        self.push_node(Node::ForAll(x, sort, pred.into(), vec![]));
     }
 
     // pub fn push_guard(&mut self, guard: ty::Expr) {

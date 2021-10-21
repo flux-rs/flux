@@ -1,7 +1,7 @@
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{BasicBlock, Local};
-use rustc_middle::ty::{IntTy, UintTy};
+use rustc_middle::ty::IntTy;
 
 use crate::ty::TypeLayout;
 
@@ -70,7 +70,6 @@ pub enum Operand {
 #[derive(Debug)]
 pub enum Constant {
     Int(i128, IntTy),
-    Uint(u128, UintTy),
 }
 
 impl Body {

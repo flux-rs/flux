@@ -1,7 +1,7 @@
 use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
-pub use rustc_middle::ty::{IntTy, UintTy};
+pub use rustc_middle::ty::IntTy;
 use rustc_span::Span;
 
 #[derive(Debug)]
@@ -57,7 +57,6 @@ pub enum LitKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeLayout {
     Int(IntTy),
-    Uint(UintTy),
 }
 
 #[derive(Debug)]
