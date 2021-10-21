@@ -194,3 +194,9 @@ impl From<i128> for Constant {
         }
     }
 }
+
+impl From<bool> for Constant {
+    fn from(b: bool) -> Self {
+        Constant::Bool(b)
+    }
+}

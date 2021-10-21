@@ -3,7 +3,7 @@ use liquid_rust_core::ty::{self, Name};
 use liquid_rust_syntax::ast;
 use quickscope::ScopeMap;
 use rustc_session::Session;
-use rustc_span::{sym, Span, Symbol};
+use rustc_span::{sym, symbol::kw, Span, Symbol};
 
 pub struct Resolver<'a> {
     sess: &'a Session,
@@ -72,7 +72,7 @@ impl Resolver<'_> {
             )),
             _ => {
                 self.emit_error(
-                    &format!("unsupported type `{}`", ty.name.symbol),
+                    &format!("unsupported type: `{}`", ty.name.symbol),
                     ty.name.span,
                 );
                 Err(ErrorReported)
@@ -132,6 +132,7 @@ impl Resolver<'_> {
                     return Err(ErrorReported);
                 }
             },
+            ast::LitKind::Bool => ty::LitKind::Bool(lit.symbol == kw::True),
             _ => {
                 self.sess.span_err(lit.span, "unexpected literal");
                 return Err(ErrorReported);

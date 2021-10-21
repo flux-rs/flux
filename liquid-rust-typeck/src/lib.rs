@@ -12,7 +12,6 @@ pub mod global_env;
 mod local_env;
 mod lowering;
 pub mod ty;
-mod unification;
 
 use global_env::GlobalEnv;
 use liquid_rust_common::index::{Idx, IndexGen};
@@ -21,37 +20,36 @@ use liquid_rust_core::{
         self, BasicBlock, Body, Constant, Operand, Rvalue, Statement, StatementKind, Terminator,
         TerminatorKind,
     },
-    ty as core,
+    ty::{self as core, Name},
 };
 use liquid_rust_fixpoint::Fixpoint;
 use local_env::LocalEnv;
+use rustc_hash::FxHashMap;
 use rustc_middle::mir::RETURN_PLACE;
-use ty::{context::LrCtxt, EVar, Ty, Var};
-use unification::UnificationCtxt;
+use ty::{context::LrCtxt, BinOp, Expr, Ty};
 
-use crate::lowering::LowerCtxt;
+use crate::{constraint_builder::ConstraintBuilder, lowering::LowerCtxt, ty::TyKind};
 
 pub struct Checker<'a> {
     lr: &'a LrCtxt,
     body: &'a Body,
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
-    name_gen: &'a IndexGen<Var>,
-    evar_gen: &'a IndexGen<EVar>,
-    unification_cx: &'a mut UnificationCtxt,
+    constraint: ConstraintBuilder,
 }
 
 impl Checker<'_> {
     pub fn check(global_env: &GlobalEnv, body: &Body, fn_sig: &core::FnSig) {
         let lr = &LrCtxt::new();
+        let mut constraint = ConstraintBuilder::new();
 
         let name_gen = &IndexGen::new();
         let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(lr, name_gen, fn_sig);
 
-        let mut env = LocalEnv::new(lr, &name_gen);
+        let mut env = LocalEnv::new();
 
         for (var, sort, pred) in params {
-            env.push_param(var, sort, pred);
+            constraint.push_forall(var, sort, pred);
         }
 
         for (local, ty) in body.args_iter().zip(args) {
@@ -63,15 +61,12 @@ impl Checker<'_> {
             global_env,
             body,
             ret_ty,
-            name_gen,
-            evar_gen: &IndexGen::new(),
-            unification_cx: &mut UnificationCtxt::new(),
+            constraint: ConstraintBuilder::new(),
         };
 
         checker.check_basic_block(BasicBlock::new(0), &mut env);
-        println!("{:?}", env.constraint);
-        println!("{:?}", checker.unification_cx);
-        let constraint = env.constraint.finalize(checker.unification_cx);
+        println!("{:?}", checker.constraint);
+        let constraint = checker.constraint.finalize();
         println!("{:?}", Fixpoint::check(&constraint));
     }
 
@@ -98,8 +93,8 @@ impl Checker<'_> {
     fn check_terminator(&mut self, terminator: &Terminator, env: &mut LocalEnv) {
         match &terminator.kind {
             TerminatorKind::Return => {
-                let ret_place_ty = &env.lookup_local(RETURN_PLACE);
-                env.check_subtyping(self.unification_cx, ret_place_ty, &self.ret_ty);
+                let ret_place_ty = env.lookup_local(RETURN_PLACE);
+                self.check_subtyping(ret_place_ty, self.ret_ty.clone());
             }
             TerminatorKind::Call {
                 func,
@@ -107,14 +102,19 @@ impl Checker<'_> {
                 destination,
             } => {
                 let fn_sig = self.global_env.lookup_fn_sig(*func);
-                let (params, formals, ret) =
-                    LowerCtxt::lower_with_fresh_evars(self.lr, self.unification_cx, &fn_sig);
-                for (_, _, pred) in params {
-                    env.constraint.push_head(pred);
+
+                let subst = infer_subst(
+                    args.iter().map(|op| self.check_operand(op, env)),
+                    fn_sig.args.iter(),
+                );
+
+                let (params, formals, ret) = LowerCtxt::lower_with_subst(self.lr, &subst, &fn_sig);
+                for pred in params {
+                    self.constraint.push_head(pred);
                 }
                 for (op, formal) in args.iter().zip(formals) {
                     let actual = self.check_operand(op, env);
-                    env.check_subtyping(&mut self.unification_cx, &actual, &formal);
+                    self.check_subtyping(actual, formal);
                 }
                 if let Some((local, bb)) = destination {
                     env.insert_local(*local, ret);
@@ -133,7 +133,7 @@ impl Checker<'_> {
 
     fn check_operand(&self, operand: &Operand, env: &mut LocalEnv) -> Ty {
         match operand {
-            // TODO: should we do something different for move?
+            // TODO: we should uninitialize when moving
             Operand::Copy(local) | Operand::Move(local) => env.lookup_local(*local),
             Operand::Constant(c) => self.check_constant(c),
         }
@@ -170,26 +170,70 @@ impl Checker<'_> {
         let ty1 = self.check_operand(op1, env);
         let ty2 = self.check_operand(op2, env);
         match (ty1.kind(), ty2.kind()) {
-            (ty::TyKind::Int(refine1, int_ty1), ty::TyKind::Int(refine2, int_ty2))
-                if int_ty1 == int_ty2 =>
-            {
-                let e1 = refine1.to_expr(self.lr);
-                let e2 = refine2.to_expr(self.lr);
-                lr.mk_int(lr.mk_bin_op(ty::BinOp::Add, e1, e2), *int_ty1)
+            (ty::TyKind::Int(e1, int_ty1), ty::TyKind::Int(e2, int_ty2)) if int_ty1 == int_ty2 => {
+                lr.mk_int(
+                    lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()),
+                    *int_ty1,
+                )
             }
-            (ty::TyKind::Uint(refine1, int_ty1), ty::TyKind::Uint(refine2, int_ty2))
+            (ty::TyKind::Uint(e1, int_ty1), ty::TyKind::Uint(e2, int_ty2))
                 if int_ty1 == int_ty2 =>
             {
-                let e1 = refine1.to_expr(self.lr);
-                let e2 = refine2.to_expr(self.lr);
-                lr.mk_uint(lr.mk_bin_op(ty::BinOp::Add, e1, e2), *int_ty1)
+                lr.mk_uint(
+                    lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()),
+                    *int_ty1,
+                )
             }
             _ => unreachable!("addition between incompatible types"),
         }
     }
+
+    pub fn check_subtyping(&mut self, ty1: Ty, ty2: Ty) {
+        let lr = self.lr;
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Int(p1, int_ty1), TyKind::Int(p2, int_ty2)) if int_ty1 == int_ty2 => {
+                if p1 != p2 {
+                    self.constraint
+                        .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
+                }
+            }
+            (TyKind::Uint(p1, int_ty1), TyKind::Uint(p2, int_ty2)) if int_ty1 == int_ty2 => {
+                if p1 != p2 {
+                    self.constraint
+                        .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
+                }
+            }
+            _ => panic!("unimplemented or subtyping between incompatible types"),
+        }
+    }
 }
 
-// foo: forall n: int. (n + 1) @ i32 -> (n + 2) @ i32
-//
-// foo<m>(m)
-// m: int { m = 1 }
+fn infer_subst<'a>(
+    actuals: impl ExactSizeIterator<Item = Ty>,
+    formals: impl ExactSizeIterator<Item = &'a core::Ty>,
+) -> FxHashMap<Name, Expr> {
+    assert!(actuals.len() == formals.len());
+
+    let mut subst = FxHashMap::default();
+    for (actual, formal) in actuals.zip(formals) {
+        match (actual.kind(), formal) {
+            (TyKind::Int(e1, int_ty1), core::Ty::Int(core::Refine::Var(ident), int_ty2))
+                if int_ty1 == int_ty2 =>
+            {
+                subst.insert(ident.name, e1.clone());
+            }
+            (TyKind::Int(_, int_ty1), core::Ty::Int(core::Refine::Literal(_), int_ty2))
+                if int_ty1 == int_ty2 => {}
+            (TyKind::Int(..), core::Ty::Int(..)) => {
+                unreachable!("i have to remove this at some point")
+            }
+            _ => {
+                unreachable!(
+                    "inferring substitution betweetn incompatible types: `{:?}` `{:?}`",
+                    actual, formal
+                )
+            }
+        }
+    }
+    subst
+}

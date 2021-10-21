@@ -51,6 +51,7 @@ pub struct Lit {
 #[derive(Clone, Copy, Debug)]
 pub enum LitKind {
     Int(i128),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

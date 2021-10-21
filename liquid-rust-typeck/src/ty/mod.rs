@@ -5,8 +5,6 @@ pub use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, Var};
 pub use rustc_middle::ty::{IntTy, UintTy};
 
-use self::context::LrCtxt;
-
 pub mod context;
 
 #[derive(Debug)]
@@ -25,20 +23,8 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TyKind {
-    Int(Refine, IntTy),
-    Uint(Refine, UintTy),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum Refine {
-    Expr(Expr),
-    EVar(EVar),
-}
-
-newtype_index! {
-    pub struct EVar {
-        DEBUG_FORMAT = "?{}",
-    }
+    Int(Expr, IntTy),
+    Uint(Expr, UintTy),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -64,7 +50,6 @@ pub struct ExprS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ExprKind {
     Var(Var),
-    EVar(EVar),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
 }
@@ -110,7 +95,6 @@ impl fmt::Debug for ExprS {
 
         match self.kind() {
             ExprKind::Var(x) => write!(f, "{:?}", x),
-            ExprKind::EVar(evar) => write!(f, "{:?}", evar),
             ExprKind::BinaryOp(op, e1, e2) => {
                 if should_parenthesize(*op, e1) {
                     write!(f, "({:?})", e1)?;
@@ -126,21 +110,6 @@ impl fmt::Debug for ExprS {
                 Ok(())
             }
             ExprKind::Constant(c) => write!(f, "{}", c),
-        }
-    }
-}
-
-impl From<Expr> for Refine {
-    fn from(v: Expr) -> Self {
-        Self::Expr(v)
-    }
-}
-
-impl Refine {
-    pub fn to_expr(&self, lr: &LrCtxt) -> Expr {
-        match self {
-            Self::Expr(expr) => expr.clone(),
-            Self::EVar(evar) => lr.mk_evar(*evar),
         }
     }
 }

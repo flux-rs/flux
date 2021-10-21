@@ -1,9 +1,6 @@
 use std::fmt::{self, Write};
 
-use crate::{
-    ty::{self, ExprKind, Pred, Sort, Var},
-    unification::UnificationCtxt,
-};
+use crate::ty::{self, ExprKind, Pred, Sort, Var};
 use liquid_rust_common::{
     format::PadAdapter,
     index::{newtype_index, IndexVec},
@@ -40,9 +37,8 @@ impl ConstraintBuilder {
         }
     }
 
-    pub fn finalize(self, unification_cx: &UnificationCtxt) -> Constraint {
-        self.finalize_inner(ROOT, unification_cx)
-            .unwrap_or(Constraint::TRUE)
+    pub fn finalize(self) -> Constraint {
+        self.finalize_inner(ROOT).unwrap_or(Constraint::TRUE)
     }
 
     pub fn push_forall(&mut self, x: Var, sort: Sort, refine: Pred) {
@@ -69,20 +65,16 @@ impl ConstraintBuilder {
         self.curr_path.last().copied().unwrap()
     }
 
-    fn finalize_inner(
-        &self,
-        node_id: NodeId,
-        unification_cx: &UnificationCtxt,
-    ) -> Option<Constraint> {
+    fn finalize_inner(&self, node_id: NodeId) -> Option<Constraint> {
         let node = &self.nodes[node_id];
         match node {
-            Node::Conj(children) => self.finalize_children(children, unification_cx),
+            Node::Conj(children) => self.finalize_children(children),
             Node::ForAll(var, sort, pred, children) => {
-                let children = self.finalize_children(children, unification_cx)?;
+                let children = self.finalize_children(children)?;
                 Some(Constraint::ForAll(
                     *var,
                     *sort,
-                    finalize_pred(pred, unification_cx),
+                    finalize_pred(pred),
                     Box::new(children),
                 ))
             }
@@ -93,18 +85,14 @@ impl ConstraintBuilder {
             //         Box::new(children),
             //     ))
             // }
-            Node::Head(pred) => Some(Constraint::Pred(finalize_pred(pred, unification_cx))),
+            Node::Head(pred) => Some(Constraint::Pred(finalize_pred(pred))),
         }
     }
 
-    fn finalize_children(
-        &self,
-        children: &[NodeId],
-        unification_cx: &UnificationCtxt,
-    ) -> Option<Constraint> {
+    fn finalize_children(&self, children: &[NodeId]) -> Option<Constraint> {
         let mut children: Vec<Constraint> = children
             .iter()
-            .filter_map(|&node_id| self.finalize_inner(node_id, unification_cx))
+            .filter_map(|&node_id| self.finalize_inner(node_id))
             .collect();
         match children.len() {
             0 => None,
@@ -171,26 +159,20 @@ impl fmt::Debug for NodeDebug<'_> {
     }
 }
 
-fn finalize_pred(refine: &Pred, unification_cx: &UnificationCtxt) -> fixpoint::Pred {
+fn finalize_pred(refine: &Pred) -> fixpoint::Pred {
     match refine {
-        Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr, unification_cx)),
+        Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr)),
     }
 }
 
-fn finalize_expr(expr: &ty::Expr, unification_cx: &UnificationCtxt) -> fixpoint::Expr {
+fn finalize_expr(expr: &ty::Expr) -> fixpoint::Expr {
     match expr.kind() {
         ExprKind::Var(x) => fixpoint::Expr::Var(*x),
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ExprKind::BinaryOp(op, e1, e2) => fixpoint::Expr::BinaryOp(
             *op,
-            Box::new(finalize_expr(e1, unification_cx)),
-            Box::new(finalize_expr(e2, unification_cx)),
+            Box::new(finalize_expr(e1)),
+            Box::new(finalize_expr(e2)),
         ),
-        ExprKind::EVar(evar) => match unification_cx.lookup(*evar) {
-            Some(expr) => finalize_expr(&expr, unification_cx),
-            None => {
-                unreachable!("trying to finalize constraint with uninstantiated evar.")
-            }
-        },
     }
 }

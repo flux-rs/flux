@@ -3,7 +3,7 @@ use rustc_ast::{
     token::{self, TokenKind},
     tokenstream::{self, TokenStream, TokenTree},
 };
-use rustc_span::{BytePos, Symbol};
+use rustc_span::{symbol::kw, BytePos, Symbol};
 
 #[derive(Clone, Debug)]
 pub enum Token {
@@ -63,6 +63,13 @@ impl Cursor {
             TokenKind::OpenDelim(delim) => Token::OpenDelim(delim),
             TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
             TokenKind::Literal(lit) if lit.suffix.is_none() => Token::Literal(lit),
+            TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
+                Token::Literal(Lit {
+                    kind: LitKind::Bool,
+                    symbol: symb,
+                    suffix: None,
+                })
+            }
             TokenKind::Ident(symb, _) if symb == self.fn_ident => Token::Fn,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
