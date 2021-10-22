@@ -118,5 +118,6 @@ fn map_bin_op(op: core::BinOp) -> ty::BinOp {
     match op {
         core::BinOp::Eq => ty::BinOp::Eq,
         core::BinOp::Add => ty::BinOp::Add,
+        core::BinOp::Gt => ty::BinOp::Gt,
     }
 }

@@ -62,7 +62,10 @@ impl Cursor<'_> {
                 Node::Head(_) => unreachable!("trying to push a node into a head node."),
             };
             children.push(node);
-            self.0 = NonNull::new_unchecked(children.last_mut().unwrap() as *mut Node);
+            let node = children.last_mut().unwrap();
+            if !node.is_head() {
+                self.0 = NonNull::new_unchecked(node as *mut Node);
+            }
         }
     }
 }
@@ -82,6 +85,13 @@ impl Node {
             }
             Node::Head(pred) => Some(fixpoint::Constraint::Pred(finalize_pred(pred))),
         }
+    }
+
+    /// Returns `true` if the node is [`Head`].
+    ///
+    /// [`Head`]: Node::Head
+    fn is_head(&self) -> bool {
+        matches!(self, Self::Head(..))
     }
 }
 

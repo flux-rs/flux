@@ -40,7 +40,12 @@ Param: ast::Param = {
     <name:Ident> ":" "{" <sort:Ident> "|" <pred:Expr> "}" => ast::Param { <> }
 }
 
-Expr = Level<BinOp1, Level2>;
+Expr: ast::Expr = {
+    <lo:@L> <e1:Level2> <op:BinOp1> <e2:Level2> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
+        span: mk_span(lo, hi)
+    }
+}
 Level2 = Level<BinOp2, Level3>;
 Level3: ast::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
@@ -71,7 +76,8 @@ Level<Op, NextLevel>: ast::Expr = {
 }
 
 BinOp1: ast::BinOp = {
-    "==" => ast::BinOp::Eq
+    "==" => ast::BinOp::Eq,
+    ">" => ast::BinOp::Gt
 }
 
 BinOp2: ast::BinOp = {

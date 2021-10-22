@@ -57,6 +57,7 @@ pub struct Lit {
 pub enum BinOp {
     Eq,
     Add,
+    Gt,
 }
 
 #[derive(Debug)]
