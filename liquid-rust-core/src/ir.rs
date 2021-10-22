@@ -1,7 +1,7 @@
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{BasicBlock, Local};
-use rustc_middle::ty::IntTy;
+use rustc_middle::{mir::SourceInfo, ty::IntTy};
 
 use crate::ty::TypeLayout;
 
@@ -26,6 +26,7 @@ pub struct BasicBlockData {
 #[derive(Debug)]
 pub struct Terminator {
     pub kind: TerminatorKind,
+    pub source_info: SourceInfo,
 }
 
 #[derive(Debug)]

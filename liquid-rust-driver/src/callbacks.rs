@@ -30,30 +30,18 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let annotations = Collector::collect(tcx, sess)?;
 
     let resolver = Resolver::new(sess);
-
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
         .map(|(def_id, fn_sig)| Ok((def_id, resolver.resolve(fn_sig)?)))
         .try_collect_exhaust()?;
 
     let global_env = GlobalEnv::new(fn_sigs);
-
-    let mut lower_error = false;
-    for (def_id, fn_sig) in &global_env.sigs {
-        let body = tcx.optimized_mir(*def_id);
-        match LoweringCtxt::lower(tcx, body) {
-            Ok(body) => {
-                Checker::check(&global_env, &body, fn_sig);
-            }
-            Err(_) => {
-                lower_error = true;
-            }
-        }
-    }
-
-    if lower_error {
-        Err(ErrorReported)
-    } else {
-        Ok(())
-    }
+    global_env
+        .sigs
+        .iter()
+        .map(|(def_id, fn_sig)| {
+            let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
+            Checker::check(&global_env, sess, &body, fn_sig)
+        })
+        .try_collect_exhaust()
 }

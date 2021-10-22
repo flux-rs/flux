@@ -37,6 +37,7 @@ impl<'a> Resolver<'a> {
                 subst.define(param.name.symbol, name);
                 let name = ty::Ident {
                     name,
+                    symbol: param.name.symbol,
                     span: param.name.span,
                 };
                 let sort = self.resolve_sort(param.sort);
@@ -129,6 +130,7 @@ impl<'a> Resolver<'a> {
         match map.get(&ident.symbol) {
             Some(name) => Ok(ty::Ident {
                 span: ident.span,
+                symbol: ident.symbol,
                 name: *name,
             }),
             None => {

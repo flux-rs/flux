@@ -147,7 +147,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 return Err(ErrorReported);
             }
         };
-        Ok(Terminator { kind })
+        Ok(Terminator {
+            kind,
+            source_info: terminator.source_info,
+        })
     }
 
     fn lower_rvalue(&self, rvalue: &mir::Rvalue<'tcx>) -> Result<Rvalue, ErrorReported> {

@@ -1,4 +1,8 @@
-use std::fmt::{self, Write};
+use std::{
+    fmt::{self, Write},
+    marker::PhantomData,
+    ptr::NonNull,
+};
 
 use crate::ty::{self, Pred, Sort, Var};
 use itertools::Itertools;
@@ -6,26 +10,26 @@ use liquid_rust_common::format::PadAdapter;
 use liquid_rust_fixpoint as fixpoint;
 
 pub struct ConstraintBuilder {
-    root: Cursor,
+    root: Node,
 }
 
-pub struct Cursor(Node);
+pub struct Cursor<'a>(NonNull<Node>, PhantomData<&'a mut Node>);
 
 enum Node {
-    Conj(Vec<Cursor>),
-    ForAll(Var, Sort, Pred, Vec<Cursor>),
+    Conj(Vec<Node>),
+    ForAll(Var, Sort, Pred, Vec<Node>),
     Head(Pred),
 }
 
 impl ConstraintBuilder {
     pub fn new() -> Self {
         ConstraintBuilder {
-            root: Cursor(Node::Conj(vec![])),
+            root: Node::Conj(vec![]),
         }
     }
 
-    pub fn as_cursor(&mut self) -> &mut Cursor {
-        &mut self.root
+    pub fn as_cursor(&mut self) -> Cursor {
+        unsafe { Cursor::new_unchecked(&mut self.root as *mut Node) }
     }
 
     pub fn finalize(self) -> fixpoint::Constraint {
@@ -33,29 +37,39 @@ impl ConstraintBuilder {
     }
 }
 
-impl Cursor {
-    #[must_use]
-    pub fn push_forall(&mut self, var: Var, sort: Sort, pred: impl Into<Pred>) -> &mut Cursor {
-        self.push_child(Node::ForAll(var, sort, pred.into(), Vec::new()))
+impl Cursor<'_> {
+    unsafe fn new_unchecked(node: *mut Node) -> Self {
+        Cursor(NonNull::new_unchecked(node), PhantomData)
+    }
+
+    pub fn snapshot(&mut self) -> Cursor {
+        Cursor(self.0, PhantomData)
+    }
+
+    pub fn push_forall(&mut self, var: Var, sort: Sort, pred: impl Into<Pred>) {
+        self.push_node(Node::ForAll(var, sort, pred.into(), vec![]))
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>) {
-        let _ = self.push_child(Node::Head(pred.into()));
+        let _ = self.push_node(Node::Head(pred.into()));
     }
 
-    #[must_use]
-    fn push_child(&mut self, node: Node) -> &mut Cursor {
-        let children = match &mut self.0 {
-            Node::Conj(children) => children,
-            Node::ForAll(_, _, _, children) => children,
-            Node::Head(_) => unreachable!("trying to push a child into a head node."),
-        };
-        children.push(Cursor(node));
-        children.last_mut().unwrap()
+    fn push_node(&mut self, node: Node) {
+        unsafe {
+            let children = match self.0.as_mut() {
+                Node::Conj(children) => children,
+                Node::ForAll(_, _, _, children) => children,
+                Node::Head(_) => unreachable!("trying to push a node into a head node."),
+            };
+            children.push(node);
+            self.0 = NonNull::new_unchecked(children.last_mut().unwrap() as *mut Node);
+        }
     }
+}
 
+impl Node {
     fn finalize(self) -> Option<fixpoint::Constraint> {
-        match self.0 {
+        match self {
             Node::Conj(children) => finalize_children(children),
             Node::ForAll(var, sort, pred, children) => {
                 let children = finalize_children(children)?;
@@ -71,7 +85,7 @@ impl Cursor {
     }
 }
 
-fn finalize_children(children: Vec<Cursor>) -> Option<fixpoint::Constraint> {
+fn finalize_children(children: Vec<Node>) -> Option<fixpoint::Constraint> {
     let mut children = children
         .into_iter()
         .filter_map(|node| node.finalize())
@@ -107,9 +121,9 @@ impl fmt::Debug for ConstraintBuilder {
     }
 }
 
-impl fmt::Debug for Cursor {
+impl fmt::Debug for Node {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 {
+        match &self {
             Node::Conj(children) => {
                 write!(f, "Conj {{")?;
                 debug_children(children, f)?;
@@ -127,7 +141,7 @@ impl fmt::Debug for Cursor {
     }
 }
 
-fn debug_children(children: &[Cursor], f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let mut w = PadAdapter::wrap_fmt(f);
     for child in children {
         write!(w, "\n{:?}", child)?;
