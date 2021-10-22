@@ -146,9 +146,9 @@ fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result 
     for child in children {
         write!(w, "\n{:?}", child)?;
     }
-    if children.len() > 0 {
-        write!(f, "\n")
-    } else {
+    if children.is_empty() {
         write!(f, " ")
+    } else {
+        writeln!(f)
     }
 }

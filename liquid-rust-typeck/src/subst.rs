@@ -39,6 +39,9 @@ impl Subst<'_> {
     }
 
     pub fn subst_var(&self, x: Var) -> Expr {
-        self.map.get(&x).cloned().unwrap_or(self.lr.mk_var(x))
+        self.map
+            .get(&x)
+            .cloned()
+            .unwrap_or_else(|| self.lr.mk_var(x))
     }
 }
