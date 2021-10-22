@@ -2,7 +2,7 @@ use std::fmt;
 
 use hashconsing::HConsed;
 pub use liquid_rust_common::index::newtype_index;
-pub use liquid_rust_core::ty::BaseTy;
+pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, Var};
 pub use rustc_middle::ty::IntTy;
 
@@ -19,13 +19,7 @@ pub struct TyS {
 pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Var, Expr),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Param {
-    pub name: Var,
-    pub sort: Sort,
-    pub pred: Pred,
+    Uninit(TypeLayout),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]

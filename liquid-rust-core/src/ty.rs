@@ -32,7 +32,7 @@ pub enum Refine {
 pub struct Param {
     pub name: Ident,
     pub sort: Sort,
-    pub pred: Expr,
+    pub pred: Option<Expr>,
 }
 
 #[derive(Debug)]

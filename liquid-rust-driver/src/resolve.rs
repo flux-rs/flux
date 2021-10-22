@@ -41,7 +41,10 @@ impl<'a> Resolver<'a> {
                     span: param.name.span,
                 };
                 let sort = self.resolve_sort(param.sort);
-                let pred = self.resolve_expr(param.pred, &subst);
+                let pred = param
+                    .pred
+                    .map(|pred| self.resolve_expr(pred, &subst))
+                    .transpose();
                 Ok(ty::Param {
                     name,
                     sort: sort?,

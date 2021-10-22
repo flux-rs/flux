@@ -27,11 +27,12 @@ impl<'a> LowerCtxt<'a> {
         for param in &fn_sig.params {
             let fresh = name_gen.fresh();
             subst.insert(param.name.name, lr.mk_var(fresh));
-            params.push((
-                fresh,
-                param.sort,
-                ty::Pred::Expr(cx.lower_expr(&param.pred, &subst)),
-            ));
+            let expr = param
+                .pred
+                .as_ref()
+                .map(|e| cx.lower_expr(e, &subst))
+                .unwrap_or(lr.exprs.tt());
+            params.push((fresh, param.sort, ty::Pred::Expr(expr)));
         }
 
         let args = fn_sig
@@ -55,7 +56,12 @@ impl<'a> LowerCtxt<'a> {
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
-            params.push(ty::Pred::Expr(cx.lower_expr(&param.pred, &subst)));
+            let expr = param
+                .pred
+                .as_ref()
+                .map(|e| cx.lower_expr(e, &subst))
+                .unwrap_or(lr.exprs.tt());
+            params.push(ty::Pred::Expr(expr));
         }
 
         let args = fn_sig

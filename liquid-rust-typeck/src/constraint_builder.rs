@@ -47,11 +47,11 @@ impl Cursor<'_> {
     }
 
     pub fn push_forall(&mut self, var: Var, sort: Sort, pred: impl Into<Pred>) {
-        self.push_node(Node::ForAll(var, sort, pred.into(), vec![]))
+        self.push_node(Node::ForAll(var, sort, pred.into(), vec![]));
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>) {
-        let _ = self.push_node(Node::Head(pred.into()));
+        self.push_node(Node::Head(pred.into()));
     }
 
     fn push_node(&mut self, node: Node) {

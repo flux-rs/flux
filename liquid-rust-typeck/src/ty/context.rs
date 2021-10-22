@@ -2,10 +2,15 @@ use std::cell::RefCell;
 
 use hashconsing::{HConsign, HashConsign};
 
-use super::{BaseTy, BinOp, Constant, Expr, ExprKind, ExprS, Ty, TyKind, TyS, Var};
+use super::{BaseTy, BinOp, Constant, Expr, ExprKind, ExprS, Ty, TyKind, TyS, TypeLayout, Var};
 
 pub struct LrCtxt {
     interner: RefCell<Interner>,
+    pub exprs: CommonExprs,
+}
+
+pub struct CommonExprs {
+    tt: Expr,
 }
 
 struct Interner {
@@ -15,8 +20,11 @@ struct Interner {
 
 impl LrCtxt {
     pub fn new() -> Self {
+        let mut interner = Interner::new();
+        let exprs = CommonExprs::new(&mut interner);
         LrCtxt {
-            interner: RefCell::new(Interner::new()),
+            interner: RefCell::new(interner),
+            exprs,
         }
     }
 
@@ -32,6 +40,10 @@ impl LrCtxt {
 
     pub fn mk_exists(&self, bty: BaseTy, evar: Var, e: Expr) -> Ty {
         self.mk_ty(TyKind::Exists(bty, evar, e))
+    }
+
+    pub fn mk_uninit(&self, layout: TypeLayout) -> Ty {
+        self.mk_ty(TyKind::Uninit(layout))
     }
 
     // Exprs
@@ -67,5 +79,18 @@ impl Interner {
 
     fn intern_expr(&mut self, kind: ExprKind) -> Expr {
         self.exprs.mk(ExprS { kind })
+    }
+}
+
+impl CommonExprs {
+    fn new(interner: &mut Interner) -> Self {
+        let mut intern = |kind| interner.intern_expr(kind);
+        Self {
+            tt: intern(ExprKind::Constant(Constant::Bool(true))),
+        }
+    }
+
+    pub fn tt(&self) -> Expr {
+        self.tt.clone()
     }
 }

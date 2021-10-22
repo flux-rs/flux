@@ -39,7 +39,7 @@ use rustc_hash::FxHashMap;
 use rustc_middle::mir::{SourceInfo, RETURN_PLACE};
 use rustc_session::Session;
 use rustc_span::MultiSpan;
-use ty::{context::LrCtxt, BaseTy, BinOp, Expr, Sort, Ty, Var};
+use ty::{context::LrCtxt, BaseTy, BinOp, Expr, Ty, Var};
 
 pub struct Checker<'a> {
     lr: &'a LrCtxt,
@@ -73,6 +73,15 @@ impl Checker<'_> {
         for (local, ty) in body.args_iter().zip(args) {
             env.insert_local(local, ty);
         }
+
+        for local in body.vars_and_temps_iter() {
+            env.insert_local(local, lr.mk_uninit(body.local_decls[local].layout.clone()));
+        }
+
+        env.insert_local(
+            RETURN_PLACE,
+            lr.mk_uninit(body.local_decls[RETURN_PLACE].layout.clone()),
+        );
 
         let checker = Checker {
             lr,
@@ -136,9 +145,10 @@ impl Checker<'_> {
 
                 let subst = self.infer_subst(
                     cursor,
+                    terminator.source_info,
                     args.iter().map(|op| self.check_operand(env, op)),
                     fn_sig.args.iter(),
-                );
+                )?;
                 self.check_subst(&subst, &fn_sig.params, terminator.source_info)?;
 
                 let (params, formals, ret) =
@@ -221,7 +231,6 @@ impl Checker<'_> {
 
     fn unpack(&self, cursor: &mut Cursor, ty: Ty) -> Ty {
         match ty.kind() {
-            TyKind::Refine(_, _) => ty,
             TyKind::Exists(bty, evar, e) => {
                 let lr = self.lr;
                 let fresh = self.name_gen.fresh();
@@ -232,11 +241,13 @@ impl Checker<'_> {
                 );
                 lr.mk_refine(*bty, lr.mk_var(fresh))
             }
+            TyKind::Refine(_, _) | TyKind::Uninit(_) => ty,
         }
     }
 
     fn check_subtyping(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) {
         let lr = self.lr;
+        let ty1 = self.unpack(cursor, ty1);
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 debug_assert_eq!(bty1, bty2);
@@ -244,22 +255,15 @@ impl Checker<'_> {
                     cursor.push_head(lr.mk_bin_op(BinOp::Eq, e1.clone(), e2.clone()));
                 }
             }
-            (TyKind::Exists(bty, evar, e), _) => {
-                let fresh = self.name_gen.fresh();
-                cursor.push_forall(
-                    fresh,
-                    Sort::Int,
-                    Subst::new(lr, [(*evar, lr.mk_var(fresh))]).subst_expr(e.clone()),
-                );
-                self.check_subtyping(
-                    cursor,
-                    lr.mk_ty(TyKind::Refine(*bty, lr.mk_var(fresh))),
-                    ty2,
-                )
-            }
             (TyKind::Refine(bty1, e1), TyKind::Exists(bty2, evar, e2)) => {
                 debug_assert_eq!(bty1, bty2);
                 cursor.push_head(Subst::new(lr, [(*evar, e1.clone())]).subst_expr(e2.clone()))
+            }
+            (TyKind::Uninit(_), _) | (_, TyKind::Uninit(_)) => {
+                unreachable!("subtyping between uninitialized types")
+            }
+            (TyKind::Exists(..), _) => {
+                unreachable!("subtyping with unpacked existential")
             }
         }
     }
@@ -267,9 +271,10 @@ impl Checker<'_> {
     fn infer_subst<'a>(
         &self,
         cursor: &mut Cursor,
+        source_info: SourceInfo,
         actuals: impl ExactSizeIterator<Item = Ty>,
         formals: impl ExactSizeIterator<Item = &'a core::Ty>,
-    ) -> FxHashMap<Name, Expr> {
+    ) -> Result<FxHashMap<Name, Expr>, ErrorReported> {
         assert!(actuals.len() == formals.len());
         let lr = self.lr;
 
@@ -277,14 +282,25 @@ impl Checker<'_> {
         for (actual, formal) in actuals.zip(formals) {
             let (bty2, ident) = match formal {
                 core::Ty::Refine(bty2, core::Refine::Var(ident)) => (bty2, ident),
-                core::Ty::Refine(_, core::Refine::Literal(..)) => continue,
+                core::Ty::Refine(_, _) => continue,
                 core::Ty::Exists(_, _, _) => continue,
             };
 
             match actual.kind() {
                 TyKind::Refine(bty1, e) => {
                     debug_assert!(bty1 == bty2);
-                    subst.insert(ident.name, e.clone());
+                    match subst.insert(ident.name, e.clone()) {
+                        Some(old_e) if &old_e != e => {
+                            let mut s = MultiSpan::from_span(source_info.span);
+                            s.push_span_label(
+                                source_info.span,
+                                format!("abiguous instantiation for parameter `{}`", ident.symbol),
+                            );
+                            self.sess.span_err(s, "parameter inference failed");
+                            return Err(ErrorReported);
+                        }
+                        _ => {}
+                    }
                 }
                 TyKind::Exists(bty1, evar, e) => {
                     debug_assert!(bty1 == bty2);
@@ -296,9 +312,12 @@ impl Checker<'_> {
                     );
                     subst.insert(ident.name, lr.mk_var(fresh));
                 }
+                TyKind::Uninit(_) => {
+                    unreachable!("inferring substitution with uninitialized type")
+                }
             }
         }
-        subst
+        Ok(subst)
     }
 
     fn check_subst(
@@ -313,11 +332,14 @@ impl Checker<'_> {
                 s.push_span_label(
                     source_info.span,
                     format!(
-                        "cannot infer the value of pure parameter `{}` for this function call",
+                        "cannot infer the value of parameter `{}` in this function call",
                         param.name.symbol
                     ),
                 );
-                s.push_span_label(param.name.span, "parameter declared here".to_string());
+                s.push_span_label(
+                    param.name.span,
+                    format!("parameter `{}` declared here", param.name.symbol),
+                );
                 self.sess.span_err(s, "parameter inference failed");
                 return Err(ErrorReported);
             }
