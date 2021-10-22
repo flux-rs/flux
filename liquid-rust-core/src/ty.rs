@@ -13,7 +13,13 @@ pub struct FnSig {
 
 #[derive(Debug)]
 pub enum Ty {
-    Int(Refine, IntTy),
+    Refine(BaseTy, Refine),
+    Exists(BaseTy, Name, Expr),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum BaseTy {
+    Int(IntTy),
 }
 
 #[derive(Debug)]
@@ -68,5 +74,13 @@ pub struct Ident {
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "x{}",
+    }
+}
+
+impl BaseTy {
+    pub fn sort(&self) -> Sort {
+        match self {
+            BaseTy::Int(_) => Sort::Int,
+        }
     }
 }

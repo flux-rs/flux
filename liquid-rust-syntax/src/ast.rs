@@ -10,8 +10,14 @@ pub struct FnSig {
 
 #[derive(Debug)]
 pub struct Ty {
-    pub name: Ident,
-    pub refine: Refine,
+    pub kind: TyKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum TyKind {
+    RefineTy { bty: Ident, refine: Refine },
+    Exists { bind: Ident, bty: Ident, pred: Expr },
 }
 
 #[derive(Debug)]

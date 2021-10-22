@@ -14,6 +14,7 @@ mod lowering;
 pub mod subst;
 pub mod ty;
 
+use constraint_builder::Cursor;
 use global_env::GlobalEnv;
 use liquid_rust_common::index::{Idx, IndexGen};
 use liquid_rust_core::{
@@ -27,7 +28,7 @@ use liquid_rust_fixpoint::Fixpoint;
 use local_env::LocalEnv;
 use rustc_hash::FxHashMap;
 use rustc_middle::mir::RETURN_PLACE;
-use ty::{context::LrCtxt, BinOp, Expr, Sort, Ty, Var};
+use ty::{context::LrCtxt, BaseTy, BinOp, Expr, Sort, Ty, Var};
 
 use crate::{constraint_builder::ConstraintBuilder, lowering::LowerCtxt, subst::Subst, ty::TyKind};
 
@@ -36,7 +37,6 @@ pub struct Checker<'a> {
     body: &'a Body,
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
-    constraint: ConstraintBuilder,
     name_gen: IndexGen<Var>,
 }
 
@@ -50,54 +50,54 @@ impl Checker<'_> {
 
         let mut env = LocalEnv::new();
 
+        let mut cursor = constraint.as_cursor();
         for (var, sort, pred) in params {
-            constraint.push_forall(var, sort, pred);
+            cursor = cursor.push_forall(var, sort, pred);
         }
 
         for (local, ty) in body.args_iter().zip(args) {
             env.insert_local(local, ty);
         }
 
-        let mut checker = Checker {
+        let checker = Checker {
             lr,
             global_env,
             body,
             ret_ty,
-            constraint: ConstraintBuilder::new(),
             name_gen,
         };
 
-        checker.check_basic_block(BasicBlock::new(0), &mut env);
-        println!("{:?}", checker.constraint);
-        let constraint = checker.constraint.finalize();
+        checker.check_basic_block(&mut env, cursor, BasicBlock::new(0));
+        println!("{:?}", constraint);
+        let constraint = constraint.finalize();
         println!("{:?}", Fixpoint::check(&constraint));
     }
 
-    fn check_basic_block(&mut self, bb: BasicBlock, env: &mut LocalEnv) {
+    fn check_basic_block(&self, env: &mut LocalEnv, cursor: &mut Cursor, bb: BasicBlock) {
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            self.check_statement(stmt, env);
+            self.check_statement(env, stmt);
         }
         if let Some(terminator) = &data.terminator {
-            self.check_terminator(terminator, env);
+            self.check_terminator(env, cursor, terminator);
         }
     }
 
-    fn check_statement(&self, stmt: &Statement, env: &mut LocalEnv) {
+    fn check_statement(&self, env: &mut LocalEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(local, rvalue) => {
-                let ty = self.check_rvalue(rvalue, env);
+                let ty = self.check_rvalue(env, rvalue);
                 env.insert_local(*local, ty);
             }
             StatementKind::Nop => {}
         }
     }
 
-    fn check_terminator(&mut self, terminator: &Terminator, env: &mut LocalEnv) {
+    fn check_terminator(&self, env: &mut LocalEnv, cursor: &mut Cursor, terminator: &Terminator) {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                self.check_subtyping(ret_place_ty, self.ret_ty.clone());
+                self.check_subtyping(cursor, ret_place_ty, self.ret_ty.clone());
             }
             TerminatorKind::Call {
                 func,
@@ -106,35 +106,37 @@ impl Checker<'_> {
             } => {
                 let fn_sig = self.global_env.lookup_fn_sig(*func);
 
-                let subst = infer_subst(
-                    args.iter().map(|op| self.check_operand(op, env)),
+                let (subst, cursor) = self.infer_subst(
+                    cursor,
+                    args.iter().map(|op| self.check_operand(env, op)),
                     fn_sig.args.iter(),
                 );
 
-                let (params, formals, ret) = LowerCtxt::lower_with_subst(self.lr, &subst, &fn_sig);
+                let (params, formals, ret) =
+                    LowerCtxt::lower_with_subst(self.lr, &self.name_gen, subst, &fn_sig);
                 for pred in params {
-                    self.constraint.push_head(pred);
+                    cursor.push_head(pred);
                 }
                 for (op, formal) in args.iter().zip(formals) {
-                    let actual = self.check_operand(op, env);
-                    self.check_subtyping(actual, formal);
+                    let actual = self.check_operand(env, op);
+                    self.check_subtyping(cursor, actual, formal);
                 }
                 if let Some((local, bb)) = destination {
                     env.insert_local(*local, ret);
-                    self.check_basic_block(*bb, env);
+                    self.check_basic_block(env, cursor, *bb);
                 }
             }
         }
     }
 
-    fn check_rvalue(&self, rvalue: &Rvalue, env: &mut LocalEnv) -> Ty {
+    fn check_rvalue(&self, env: &mut LocalEnv, rvalue: &Rvalue) -> Ty {
         match rvalue {
-            Rvalue::Use(operand) => self.check_operand(operand, env),
-            Rvalue::BinaryOp(bin_op, op1, op2) => self.check_binary_op(bin_op, op1, op2, env),
+            Rvalue::Use(operand) => self.check_operand(env, operand),
+            Rvalue::BinaryOp(bin_op, op1, op2) => self.check_binary_op(env, bin_op, op1, op2),
         }
     }
 
-    fn check_operand(&self, operand: &Operand, env: &mut LocalEnv) -> Ty {
+    fn check_operand(&self, env: &mut LocalEnv, operand: &Operand) -> Ty {
         match operand {
             // TODO: we should uninitialize when moving
             Operand::Copy(local) | Operand::Move(local) => env.lookup_local(*local),
@@ -147,93 +149,99 @@ impl Checker<'_> {
         match c {
             Constant::Int(n, int_ty) => {
                 let expr = lr.mk_constant(ty::Constant::from(*n));
-                lr.mk_int(expr, *int_ty)
+                lr.mk_refine(BaseTy::Int(*int_ty), expr)
             }
         }
     }
 
     fn check_binary_op(
         &self,
+        env: &mut LocalEnv,
         bin_op: &ir::BinOp,
         op1: &Operand,
         op2: &Operand,
-        env: &mut LocalEnv,
     ) -> Ty {
         match bin_op {
-            ir::BinOp::Add => self.check_add(op1, op2, env),
+            ir::BinOp::Add => self.check_add(env, op1, op2),
         }
     }
 
-    fn check_add(&self, op1: &Operand, op2: &Operand, env: &mut LocalEnv) -> Ty {
+    fn check_add(&self, env: &mut LocalEnv, op1: &Operand, op2: &Operand) -> Ty {
         let lr = self.lr;
-        let ty1 = self.check_operand(op1, env);
-        let ty2 = self.check_operand(op2, env);
+        let ty1 = self.check_operand(env, op1);
+        let ty2 = self.check_operand(env, op2);
         match (ty1.kind(), ty2.kind()) {
-            (ty::TyKind::Int(e1, int_ty1), ty::TyKind::Int(e2, int_ty2)) if int_ty1 == int_ty2 => {
-                lr.mk_int(
-                    lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()),
-                    *int_ty1,
-                )
+            (ty::TyKind::Refine(bty1, e1), ty::TyKind::Refine(bty2, e2)) => {
+                debug_assert_eq!(bty1, bty2);
+                lr.mk_refine(*bty1, lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()))
             }
-            _ => unreachable!("addition between incompatible types"),
+            _ => todo!("implement existentials"),
         }
     }
 
-    pub fn check_subtyping(&mut self, ty1: Ty, ty2: Ty) {
+    pub fn check_subtyping(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) {
         let lr = self.lr;
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Int(p1, int_ty1), TyKind::Int(p2, int_ty2)) if int_ty1 == int_ty2 => {
-                if p1 != p2 {
-                    self.constraint
-                        .push_head(lr.mk_bin_op(BinOp::Eq, p1.clone(), p2.clone()));
+            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
+                debug_assert_eq!(bty1, bty2);
+                if e1 != e2 {
+                    cursor.push_head(lr.mk_bin_op(BinOp::Eq, e1.clone(), e2.clone()));
                 }
             }
-            (TyKind::ExistsInt(var, int_ty, p), _) => {
+            (TyKind::Exists(bty, evar, e), _) => {
                 let fresh = self.name_gen.fresh();
-                self.constraint.push_forall(
+                let cursor = cursor.push_forall(
                     fresh,
                     Sort::Int,
-                    Subst::new(lr, [(*var, lr.mk_var(fresh))]).subst_expr(p.clone()),
+                    Subst::new(lr, [(*evar, lr.mk_var(fresh))]).subst_expr(e.clone()),
                 );
-                self.check_subtyping(lr.mk_ty(TyKind::Int(lr.mk_var(fresh), *int_ty)), ty2)
+                self.check_subtyping(
+                    cursor,
+                    lr.mk_ty(TyKind::Refine(*bty, lr.mk_var(fresh))),
+                    ty2,
+                )
             }
-            (TyKind::Int(p1, int_ty1), TyKind::ExistsInt(var, int_ty2, p2))
-                if int_ty1 == int_ty2 =>
-            {
-                self.constraint
-                    .push_head(Subst::new(lr, [(*var, p1.clone())]).subst_expr(p2.clone()))
-            }
-            _ => panic!(
-                "unimplemented or subtyping between incompatible types: {:?} {:?}",
-                ty1, ty2
-            ),
-        }
-    }
-}
-
-fn infer_subst<'a>(
-    actuals: impl ExactSizeIterator<Item = Ty>,
-    formals: impl ExactSizeIterator<Item = &'a core::Ty>,
-) -> FxHashMap<Name, Expr> {
-    assert!(actuals.len() == formals.len());
-
-    let mut subst = FxHashMap::default();
-    for (actual, formal) in actuals.zip(formals) {
-        match (actual.kind(), formal) {
-            (TyKind::Int(e1, int_ty1), core::Ty::Int(core::Refine::Var(ident), int_ty2))
-                if int_ty1 == int_ty2 =>
-            {
-                subst.insert(ident.name, e1.clone());
-            }
-            (TyKind::Int(_, int_ty1), core::Ty::Int(core::Refine::Literal(_), int_ty2))
-                if int_ty1 == int_ty2 => {}
-            (TyKind::ExistsInt(_, _, _), core::Ty::Int(_, _)) => {
-                panic!("unimplemented")
-            }
-            _ => {
-                unreachable!("inferring substitution between incompatible types")
+            (TyKind::Refine(bty1, e1), TyKind::Exists(bty2, evar, e2)) => {
+                debug_assert_eq!(bty1, bty2);
+                cursor.push_head(Subst::new(lr, [(*evar, e1.clone())]).subst_expr(e2.clone()))
             }
         }
     }
-    subst
+
+    fn infer_subst<'a, 'b>(
+        &self,
+        mut cursor: &'b mut Cursor,
+        actuals: impl ExactSizeIterator<Item = Ty>,
+        formals: impl ExactSizeIterator<Item = &'a core::Ty>,
+    ) -> (FxHashMap<Name, Expr>, &'b mut Cursor) {
+        assert!(actuals.len() == formals.len());
+        let lr = self.lr;
+
+        let mut subst = FxHashMap::default();
+        for (actual, formal) in actuals.zip(formals) {
+            let (bty2, ident) = match formal {
+                core::Ty::Refine(bty2, core::Refine::Var(ident)) => (bty2, ident),
+                core::Ty::Refine(_, core::Refine::Literal(..)) => continue,
+                core::Ty::Exists(_, _, _) => continue,
+            };
+
+            match actual.kind() {
+                TyKind::Refine(bty1, e) => {
+                    debug_assert!(bty1 == bty2);
+                    subst.insert(ident.name, e.clone());
+                }
+                TyKind::Exists(bty1, evar, e) => {
+                    debug_assert!(bty1 == bty2);
+                    let fresh = self.name_gen.fresh();
+                    cursor = cursor.push_forall(
+                        fresh,
+                        bty1.sort(),
+                        Subst::new(lr, [(*evar, lr.mk_var(fresh))]).subst_expr(e.clone()),
+                    );
+                    subst.insert(ident.name, lr.mk_var(fresh));
+                }
+            }
+        }
+        (subst, cursor)
+    }
 }

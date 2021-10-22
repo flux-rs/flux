@@ -2,6 +2,7 @@ use std::fmt;
 
 use hashconsing::HConsed;
 pub use liquid_rust_common::index::newtype_index;
+pub use liquid_rust_core::ty::BaseTy;
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, Var};
 pub use rustc_middle::ty::IntTy;
 
@@ -16,8 +17,8 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TyKind {
-    Int(Expr, IntTy),
-    ExistsInt(Var, IntTy, Expr),
+    Refine(BaseTy, Expr),
+    Exists(BaseTy, Var, Expr),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]

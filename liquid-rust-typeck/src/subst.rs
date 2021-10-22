@@ -18,13 +18,10 @@ impl Subst<'_> {
     pub fn subst_ty(&self, ty: Ty) -> Ty {
         let lr = self.lr;
         match ty.kind() {
-            TyKind::Int(e, int_ty) => lr.mk_ty(TyKind::Int(self.subst_expr(e.clone()), *int_ty)),
-            TyKind::ExistsInt(var, int_ty, e) => {
-                if self.map.contains_key(var) {
-                    ty
-                } else {
-                    lr.mk_ty(TyKind::ExistsInt(*var, *int_ty, self.subst_expr(e.clone())))
-                }
+            TyKind::Refine(bty, e) => lr.mk_refine(*bty, self.subst_expr(e.clone())),
+            TyKind::Exists(bty, evar, e) => {
+                // We keep the invariant that there is no shadowing
+                lr.mk_exists(*bty, *evar, self.subst_expr(e.clone()))
             }
         }
     }

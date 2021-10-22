@@ -16,7 +16,15 @@ pub FnSig: ast::FnSig = {
 }
 
 Ty: ast::Ty = {
-    <refine:Refine> "@" <name:Ident> => ast::Ty { <> }
+    <lo:@L> <kind:TyKind> <hi:@L> => ast::Ty {
+        kind,
+        span: mk_span(lo, hi)
+    }
+}
+
+TyKind: ast::TyKind = {
+    <refine:Refine> "@" <bty:Ident> => ast::TyKind::RefineTy { <> },
+    <bty:Ident> "{" <bind:Ident> ":" <pred:Expr> "}" => ast::TyKind::Exists { <> }
 }
 
 Refine: ast::Refine = {

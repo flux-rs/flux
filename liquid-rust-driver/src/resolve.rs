@@ -14,33 +14,33 @@ struct Symbols {
     int: Symbol,
 }
 
-type Map = ScopeMap<Symbol, Name>;
+type Subst = ScopeMap<Symbol, Name>;
 
-impl Resolver<'_> {
-    pub fn new(sess: &Session) -> Resolver {
-        Resolver {
+impl<'a> Resolver<'a> {
+    pub fn new(sess: &'a Session) -> Self {
+        Self {
             sess,
             symbols: Symbols::new(),
         }
     }
 
-    pub fn resolve_fn_sig(&self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
+    pub fn resolve(&self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
+        let mut subst = ScopeMap::new();
         let name_gen = IndexGen::new();
-        let mut map = ScopeMap::new();
 
         let params = fn_sig
             .params
             .into_iter()
             .map(|param| {
                 let name = name_gen.fresh();
-                map.push_layer();
-                map.define(param.name.symbol, name);
+                subst.push_layer();
+                subst.define(param.name.symbol, name);
                 let name = ty::Ident {
                     name,
                     span: param.name.span,
                 };
                 let sort = self.resolve_sort(param.sort);
-                let pred = self.resolve_expr(param.pred, &map);
+                let pred = self.resolve_expr(param.pred, &subst);
                 Ok(ty::Param {
                     name,
                     sort: sort?,
@@ -52,10 +52,10 @@ impl Resolver<'_> {
         let args = fn_sig
             .args
             .into_iter()
-            .map(|ty| self.resolve_ty(ty, &map))
+            .map(|ty| self.resolve_ty(ty, &mut subst, &name_gen))
             .try_collect_exhaust();
 
-        let ret = self.resolve_ty(fn_sig.ret, &map);
+        let ret = self.resolve_ty(fn_sig.ret, &mut subst, &name_gen);
 
         Ok(ty::FnSig {
             params: params?,
@@ -64,26 +64,44 @@ impl Resolver<'_> {
         })
     }
 
-    pub fn resolve_ty(&self, ty: ast::Ty, map: &Map) -> Result<ty::Ty, ErrorReported> {
-        match ty.name.symbol {
-            sym::i32 => Ok(ty::Ty::Int(
-                self.resolve_refine(ty.refine, map)?,
-                ty::IntTy::I32,
-            )),
+    fn resolve_ty(
+        &self,
+        ty: ast::Ty,
+        subst: &mut Subst,
+        name_gen: &IndexGen<Name>,
+    ) -> Result<ty::Ty, ErrorReported> {
+        match ty.kind {
+            ast::TyKind::RefineTy { bty, refine } => {
+                let bty = self.resolve_bty(bty);
+                let refine = self.resolve_refine(refine, subst);
+                Ok(ty::Ty::Refine(bty?, refine?))
+            }
+            ast::TyKind::Exists { bind, bty, pred } => {
+                let fresh = name_gen.fresh();
+                let bty = self.resolve_bty(bty);
+                subst.push_layer();
+                subst.define(bind.symbol, fresh);
+                let pred = self.resolve_expr(pred, subst);
+                subst.pop_layer();
+                Ok(ty::Ty::Exists(bty?, fresh, pred?))
+            }
+        }
+    }
+
+    fn resolve_bty(&self, ident: ast::Ident) -> Result<ty::BaseTy, ErrorReported> {
+        match ident.symbol {
+            sym::i32 => Ok(ty::BaseTy::Int(ty::IntTy::I32)),
             _ => {
-                self.emit_error(
-                    &format!("unsupported type: `{}`", ty.name.symbol),
-                    ty.name.span,
-                );
+                self.emit_error(&format!("unsupported type: `{}`", ident.symbol), ident.span);
                 Err(ErrorReported)
             }
         }
     }
 
-    pub fn resolve_refine(
+    fn resolve_refine(
         &self,
         refine: ast::Refine,
-        map: &Map,
+        map: &Subst,
     ) -> Result<ty::Refine, ErrorReported> {
         match refine {
             ast::Refine::Var(ident) => Ok(ty::Refine::Var(self.resolve_ident(ident, map)?)),
@@ -91,7 +109,7 @@ impl Resolver<'_> {
         }
     }
 
-    pub fn resolve_expr(&self, expr: ast::Expr, map: &Map) -> Result<ty::Expr, ErrorReported> {
+    fn resolve_expr(&self, expr: ast::Expr, map: &Subst) -> Result<ty::Expr, ErrorReported> {
         let kind = match expr.kind {
             ast::ExprKind::Var(ident) => ty::ExprKind::Var(self.resolve_ident(ident, map)?),
             ast::ExprKind::Literal(lit) => ty::ExprKind::Literal(self.resolve_lit(lit)?),
@@ -107,7 +125,7 @@ impl Resolver<'_> {
         })
     }
 
-    pub fn resolve_ident(&self, ident: ast::Ident, map: &Map) -> Result<ty::Ident, ErrorReported> {
+    fn resolve_ident(&self, ident: ast::Ident, map: &Subst) -> Result<ty::Ident, ErrorReported> {
         match map.get(&ident.symbol) {
             Some(name) => Ok(ty::Ident {
                 span: ident.span,

@@ -1,9 +1,8 @@
 use std::cell::RefCell;
 
 use hashconsing::{HConsign, HashConsign};
-use rustc_middle::ty::IntTy;
 
-use super::{BinOp, Constant, Expr, ExprKind, ExprS, Ty, TyKind, TyS, Var};
+use super::{BaseTy, BinOp, Constant, Expr, ExprKind, ExprS, Ty, TyKind, TyS, Var};
 
 pub struct LrCtxt {
     interner: RefCell<Interner>,
@@ -27,8 +26,12 @@ impl LrCtxt {
         self.interner.borrow_mut().intern_ty(kind)
     }
 
-    pub fn mk_int(&self, e: Expr, int_ty: IntTy) -> Ty {
-        self.mk_ty(TyKind::Int(e, int_ty))
+    pub fn mk_refine(&self, bty: BaseTy, e: Expr) -> Ty {
+        self.mk_ty(TyKind::Refine(bty, e))
+    }
+
+    pub fn mk_exists(&self, bty: BaseTy, evar: Var, e: Expr) -> Ty {
+        self.mk_ty(TyKind::Exists(bty, evar, e))
     }
 
     // Exprs

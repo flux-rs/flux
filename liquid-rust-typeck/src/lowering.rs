@@ -5,18 +5,23 @@ use rustc_hash::FxHashMap;
 
 pub struct LowerCtxt<'a> {
     lr: &'a LrCtxt,
+    name_gen: &'a IndexGen<ty::Var>,
 }
 
 type Subst = FxHashMap<core::Name, ty::Expr>;
 
-impl LowerCtxt<'_> {
+impl<'a> LowerCtxt<'a> {
+    fn new(lr: &'a LrCtxt, name_gen: &'a IndexGen<ty::Var>) -> Self {
+        Self { lr, name_gen }
+    }
+
     pub fn lower_with_fresh_names(
         lr: &LrCtxt,
         name_gen: &IndexGen<ty::Var>,
         fn_sig: &core::FnSig,
     ) -> (Vec<(ty::Var, ty::Sort, ty::Pred)>, Vec<ty::Ty>, ty::Ty) {
         let mut subst = FxHashMap::default();
-        let cx = LowerCtxt { lr };
+        let cx = LowerCtxt::new(lr, name_gen);
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
@@ -32,20 +37,21 @@ impl LowerCtxt<'_> {
         let args = fn_sig
             .args
             .iter()
-            .map(|ty| cx.lower_ty(ty, &subst))
+            .map(|ty| cx.lower_ty(ty, &mut subst))
             .collect();
 
-        let ret = cx.lower_ty(&fn_sig.ret, &subst);
+        let ret = cx.lower_ty(&fn_sig.ret, &mut subst);
 
         (params, args, ret)
     }
 
     pub fn lower_with_subst(
         lr: &LrCtxt,
-        subst: &Subst,
+        name_gen: &IndexGen<ty::Var>,
+        mut subst: Subst,
         fn_sig: &core::FnSig,
     ) -> (Vec<ty::Pred>, Vec<ty::Ty>, ty::Ty) {
-        let cx = LowerCtxt { lr };
+        let cx = LowerCtxt::new(lr, name_gen);
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
@@ -55,17 +61,24 @@ impl LowerCtxt<'_> {
         let args = fn_sig
             .args
             .iter()
-            .map(|ty| cx.lower_ty(ty, &subst))
+            .map(|ty| cx.lower_ty(ty, &mut subst))
             .collect();
 
-        let ret = cx.lower_ty(&fn_sig.ret, &subst);
+        let ret = cx.lower_ty(&fn_sig.ret, &mut subst);
 
         (params, args, ret)
     }
 
-    fn lower_ty(&self, ty: &core::Ty, subst: &Subst) -> ty::Ty {
+    fn lower_ty(&self, ty: &core::Ty, subst: &mut Subst) -> ty::Ty {
         match ty {
-            core::Ty::Int(n, int_ty) => self.lr.mk_int(self.lower_refine(n, subst), *int_ty),
+            core::Ty::Refine(bty, r) => self.lr.mk_refine(*bty, self.lower_refine(r, subst)),
+            core::Ty::Exists(bty, evar, e) => {
+                let fresh = self.name_gen.fresh();
+                subst.insert(*evar, self.lr.mk_var(fresh));
+                let e = self.lower_expr(e, subst);
+                subst.remove(evar);
+                self.lr.mk_exists(*bty, fresh, e)
+            }
         }
     }
 

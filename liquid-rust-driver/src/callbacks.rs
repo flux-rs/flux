@@ -33,7 +33,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
 
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
-        .map(|(def_id, fn_sig)| Ok((def_id, resolver.resolve_fn_sig(fn_sig)?)))
+        .map(|(def_id, fn_sig)| Ok((def_id, resolver.resolve(fn_sig)?)))
         .try_collect_exhaust()?;
 
     let global_env = GlobalEnv::new(fn_sigs);
