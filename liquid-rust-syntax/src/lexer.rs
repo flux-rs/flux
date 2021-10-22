@@ -9,6 +9,8 @@ use rustc_span::{symbol::kw, BytePos, Symbol};
 pub enum Token {
     Caret,
     EqEq,
+    AndAnd,
+    OrOr,
     Plus,
     Colon,
     Comma,
@@ -55,6 +57,8 @@ impl Cursor {
         let token = match token.kind {
             TokenKind::Lt => Token::Lt,
             TokenKind::EqEq => Token::EqEq,
+            TokenKind::AndAnd => Token::AndAnd,
+            TokenKind::OrOr => Token::OrOr,
             TokenKind::Gt => Token::Gt,
             TokenKind::At => Token::At,
             TokenKind::Comma => Token::Comma,

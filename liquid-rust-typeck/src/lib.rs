@@ -225,7 +225,7 @@ impl Checker<'_> {
                 debug_assert_eq!(bty1, bty2);
                 lr.mk_refine(*bty1, lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()))
             }
-            _ => unreachable!("implement existentials"),
+            _ => unreachable!("addition between incompatible types"),
         }
     }
 

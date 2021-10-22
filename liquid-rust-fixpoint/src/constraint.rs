@@ -32,6 +32,8 @@ pub enum BinOp {
     Eq,
     Add,
     Gt,
+    Or,
+    And,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -67,6 +69,8 @@ impl BinOp {
         match self {
             BinOp::Add => 4,
             BinOp::Eq | BinOp::Gt => 3,
+            BinOp::And => 2,
+            BinOp::Or => 1,
         }
     }
 
@@ -167,6 +171,8 @@ impl fmt::Display for BinOp {
             BinOp::Eq => write!(f, "="),
             BinOp::Add => write!(f, "+"),
             BinOp::Gt => write!(f, ">"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::And => write!(f, "&&"),
         }
     }
 }

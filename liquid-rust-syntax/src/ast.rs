@@ -58,6 +58,8 @@ pub enum BinOp {
     Eq,
     Add,
     Gt,
+    Or,
+    And,
 }
 
 #[derive(Debug)]

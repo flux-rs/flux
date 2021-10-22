@@ -41,14 +41,16 @@ Param: ast::Param = {
     <name:Ident> ":" <sort:Ident>                         => ast::Param { name, sort, pred: None },
 }
 
-Expr: ast::Expr = {
-    <lo:@L> <e1:Level2> <op:BinOp1> <e2:Level2> <hi:@R> => ast::Expr {
+Expr = Level<BinOp1, Level2>;
+Level2 = Level<BinOp2, Level3>;
+Level3: ast::Expr = {
+    <lo:@L> <e1:Level4> <op:BinOp3> <e2:Level4> <hi:@R> => ast::Expr {
         kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
         span: mk_span(lo, hi)
     }
 }
-Level2 = Level<BinOp2, Level3>;
-Level3: ast::Expr = {
+Level4 = Level<BinOp4, Level5>;
+Level5: ast::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
         ast::Expr {
             kind: ast::ExprKind::Literal(lit),
@@ -77,11 +79,19 @@ Level<Op, NextLevel>: ast::Expr = {
 }
 
 BinOp1: ast::BinOp = {
+    "||" => ast::BinOp::Or,
+}
+
+BinOp2: ast::BinOp = {
+    "&&" => ast::BinOp::And,
+}
+
+BinOp3: ast::BinOp = {
     "==" => ast::BinOp::Eq,
     ">" => ast::BinOp::Gt
 }
 
-BinOp2: ast::BinOp = {
+BinOp4: ast::BinOp = {
     "+" => ast::BinOp::Add
 }
 
@@ -119,20 +129,22 @@ extern {
 
     enum Token {
         "literal" => Token::Literal(<Lit>),
-        "ident" => Token::Ident(<Symbol>),
+        "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
-        "@" => Token::At,
+        "@"  => Token::At,
         "==" => Token::EqEq,
-        "+" => Token::Plus,
-        "|" => Token::Caret,
-        "(" => Token::OpenDelim(DelimToken::Paren),
-        ")" => Token::CloseDelim(DelimToken::Paren),
-        "{" => Token::OpenDelim(DelimToken::Brace),
-        "}" => Token::CloseDelim(DelimToken::Brace),
-        "<" => Token::Lt,
-        ">" => Token::Gt,
-        ":" => Token::Colon,
-        "," => Token::Comma,
+        "&&" => Token::AndAnd,
+        "||" => Token::OrOr,
+        "+"  => Token::Plus,
+        "|"  => Token::Caret,
+        "("  => Token::OpenDelim(DelimToken::Paren),
+        ")"  => Token::CloseDelim(DelimToken::Paren),
+        "{"  => Token::OpenDelim(DelimToken::Brace),
+        "}"  => Token::CloseDelim(DelimToken::Brace),
+        "<"  => Token::Lt,
+        ">"  => Token::Gt,
+        ":"  => Token::Colon,
+        ","  => Token::Comma,
         "->" => Token::RArrow,
     }
 }

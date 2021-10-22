@@ -125,5 +125,7 @@ fn map_bin_op(op: core::BinOp) -> ty::BinOp {
         core::BinOp::Eq => ty::BinOp::Eq,
         core::BinOp::Add => ty::BinOp::Add,
         core::BinOp::Gt => ty::BinOp::Gt,
+        core::BinOp::Or => ty::BinOp::Or,
+        core::BinOp::And => ty::BinOp::And,
     }
 }
