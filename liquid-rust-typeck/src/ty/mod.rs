@@ -2,6 +2,7 @@ use std::fmt;
 
 use hashconsing::HConsed;
 pub use liquid_rust_common::index::newtype_index;
+use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, Var};
 pub use rustc_middle::ty::IntTy;
@@ -20,6 +21,12 @@ pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Var, Expr),
     Uninit(TypeLayout),
+    MutRef(Region),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum Region {
+    Concrete(Local),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -45,6 +52,14 @@ pub enum ExprKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+
+    pub fn layout(&self) -> TypeLayout {
+        match self.kind() {
+            TyKind::Refine(bty, _) | TyKind::Exists(bty, _, _) => TypeLayout::BaseTy(*bty),
+            TyKind::Uninit(layout) => layout.clone(),
+            TyKind::MutRef(_) => TypeLayout::MutRef,
+        }
     }
 }
 
@@ -99,5 +114,11 @@ impl fmt::Debug for ExprS {
             }
             ExprKind::Constant(c) => write!(f, "{}", c),
         }
+    }
+}
+
+impl From<Local> for Region {
+    fn from(v: Local) -> Self {
+        Self::Concrete(v)
     }
 }

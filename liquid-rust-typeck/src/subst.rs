@@ -23,7 +23,7 @@ impl Subst<'_> {
                 // We keep the invariant that there is no shadowing
                 lr.mk_exists(*bty, *evar, self.subst_expr(e.clone()))
             }
-            TyKind::Uninit(_) => ty,
+            TyKind::Uninit(_) | TyKind::MutRef(_) => ty,
         }
     }
 

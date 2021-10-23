@@ -35,7 +35,7 @@ pub enum TerminatorKind {
     Call {
         func: DefId,
         args: Vec<Operand>,
-        destination: Option<(Local, BasicBlock)>,
+        destination: Option<(Place, BasicBlock)>,
     },
 }
 
@@ -46,13 +46,14 @@ pub struct Statement {
 
 #[derive(Debug)]
 pub enum StatementKind {
-    Assign(Local, Rvalue),
+    Assign(Place, Rvalue),
     Nop,
 }
 
 #[derive(Debug)]
 pub enum Rvalue {
     Use(Operand),
+    MutRef(Local),
     BinaryOp(BinOp, Operand, Operand),
 }
 
@@ -63,9 +64,20 @@ pub enum BinOp {
 
 #[derive(Debug)]
 pub enum Operand {
-    Copy(Local),
-    Move(Local),
+    Copy(Place),
+    Move(Place),
     Constant(Constant),
+}
+
+#[derive(Debug)]
+pub struct Place {
+    pub local: Local,
+    pub projection: Vec<PlaceElem>,
+}
+
+#[derive(Debug)]
+pub enum PlaceElem {
+    Deref,
 }
 
 #[derive(Debug)]

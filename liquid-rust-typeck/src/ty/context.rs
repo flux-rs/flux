@@ -2,7 +2,9 @@ use std::cell::RefCell;
 
 use hashconsing::{HConsign, HashConsign};
 
-use super::{BaseTy, BinOp, Constant, Expr, ExprKind, ExprS, Ty, TyKind, TyS, TypeLayout, Var};
+use super::{
+    BaseTy, BinOp, Constant, Expr, ExprKind, ExprS, Region, Ty, TyKind, TyS, TypeLayout, Var,
+};
 
 pub struct LrCtxt {
     interner: RefCell<Interner>,
@@ -44,6 +46,14 @@ impl LrCtxt {
 
     pub fn mk_uninit(&self, layout: TypeLayout) -> Ty {
         self.mk_ty(TyKind::Uninit(layout))
+    }
+
+    pub fn mk_mut_ref(&self, r: impl Into<Region>) -> Ty {
+        self.mk_ty(TyKind::MutRef(r.into()))
+    }
+
+    pub fn uninit(&self, ty: Ty) -> Ty {
+        self.mk_ty(TyKind::Uninit(ty.layout()))
     }
 
     // Exprs

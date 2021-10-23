@@ -2,10 +2,10 @@ use itertools::Itertools;
 use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     ir::{
-        BasicBlockData, BinOp, Body, Constant, Local, LocalDecl, Operand, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, LocalDecl, Operand, Place, PlaceElem, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
-    ty::TypeLayout,
+    ty::{BaseTy, TypeLayout},
 };
 use rustc_const_eval::interpret::ConstValue;
 use rustc_middle::{
@@ -161,6 +161,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 self.lower_operand(&operands.0)?,
                 self.lower_operand(&operands.1)?,
             )),
+            mir::Rvalue::Ref(
+                _,
+                mir::BorrowKind::Mut {
+                    allow_two_phase_borrow: false,
+                },
+                p,
+            ) if p.projection.is_empty() => Ok(Rvalue::MutRef(p.local)),
             mir::Rvalue::UnaryOp(_, _)
             | mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
@@ -214,12 +221,21 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
-    fn lower_place(&self, place: &mir::Place<'tcx>) -> Result<Local, ErrorReported> {
-        if !place.projection.is_empty() {
-            self.tcx.sess.err("place not supported");
-            return Err(ErrorReported);
+    fn lower_place(&self, place: &mir::Place<'tcx>) -> Result<Place, ErrorReported> {
+        let mut projection = vec![];
+        for elem in place.projection {
+            match elem {
+                mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+                _ => {
+                    self.tcx.sess.err("place not supported");
+                    return Err(ErrorReported);
+                }
+            }
         }
-        Ok(place.local)
+        Ok(Place {
+            local: place.local,
+            projection,
+        })
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
@@ -252,10 +268,17 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_ty(&self, ty: &rustc_middle::ty::Ty<'tcx>) -> Result<TypeLayout, ErrorReported> {
+        use rustc_middle::ty::{RegionKind, TyKind};
+
         match ty.kind() {
-            rustc_middle::ty::TyKind::Int(int_ty) => Ok(TypeLayout::Int(*int_ty)),
+            TyKind::Int(int_ty) => Ok(TypeLayout::BaseTy(BaseTy::Int(*int_ty))),
+            TyKind::Ref(RegionKind::ReErased, _, rustc_hir::Mutability::Mut) => {
+                Ok(TypeLayout::MutRef)
+            }
             _ => {
-                self.tcx.sess.err("type not supported");
+                self.tcx
+                    .sess
+                    .err(&format!("type not supported: `{:?}`", ty));
                 Err(ErrorReported)
             }
         }

@@ -62,7 +62,8 @@ pub enum LitKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeLayout {
-    Int(IntTy),
+    BaseTy(BaseTy),
+    MutRef,
 }
 
 #[derive(Debug)]

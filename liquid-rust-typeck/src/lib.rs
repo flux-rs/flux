@@ -10,10 +10,10 @@ extern crate rustc_span;
 
 mod constraint_builder;
 pub mod global_env;
-mod local_env;
 mod lowering;
 pub mod subst;
 pub mod ty;
+mod tyenv;
 
 use crate::{
     constraint_builder::{ConstraintBuilder, Cursor},
@@ -34,12 +34,12 @@ use liquid_rust_core::{
     ty::{self as core, Name},
 };
 use liquid_rust_fixpoint::Fixpoint;
-use local_env::LocalEnv;
 use rustc_hash::FxHashMap;
 use rustc_middle::mir::{SourceInfo, RETURN_PLACE};
 use rustc_session::Session;
 use rustc_span::MultiSpan;
 use ty::{context::LrCtxt, BaseTy, BinOp, Expr, Ty, Var};
+use tyenv::TyEnv;
 
 pub struct Checker<'a> {
     lr: &'a LrCtxt,
@@ -63,7 +63,7 @@ impl Checker<'_> {
         let name_gen = IndexGen::new();
         let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(lr, &name_gen, fn_sig);
 
-        let mut env = LocalEnv::new();
+        let mut env = TyEnv::new();
 
         let mut cursor = constraint.as_cursor();
         for (var, sort, pred) in params {
@@ -101,7 +101,7 @@ impl Checker<'_> {
 
     fn check_basic_block(
         &self,
-        env: &mut LocalEnv,
+        env: &mut TyEnv,
         cursor: &mut Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
@@ -115,11 +115,12 @@ impl Checker<'_> {
         Ok(())
     }
 
-    fn check_statement(&self, env: &mut LocalEnv, cursor: &mut Cursor, stmt: &Statement) {
+    fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
-            StatementKind::Assign(local, rvalue) => {
+            // OWNERSHIP CHECK
+            StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, cursor, rvalue);
-                env.insert_local(*local, ty);
+                env.write_place(p, ty);
             }
             StatementKind::Nop => {}
         }
@@ -127,7 +128,7 @@ impl Checker<'_> {
 
     fn check_terminator(
         &self,
-        env: &mut LocalEnv,
+        env: &mut TyEnv,
         cursor: &mut Cursor,
         terminator: &Terminator,
     ) -> Result<(), ErrorReported> {
@@ -160,8 +161,8 @@ impl Checker<'_> {
                     let actual = self.check_operand(env, op);
                     self.check_subtyping(&mut cursor.snapshot(), actual, formal);
                 }
-                if let Some((local, bb)) = destination {
-                    env.insert_local(*local, ret);
+                if let Some((p, bb)) = destination {
+                    env.write_place(p, ret);
                     self.check_basic_block(env, cursor, *bb)?;
                 }
             }
@@ -169,19 +170,22 @@ impl Checker<'_> {
         Ok(())
     }
 
-    fn check_rvalue(&self, env: &mut LocalEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
+    fn check_rvalue(&self, env: &mut TyEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 self.check_binary_op(env, cursor, bin_op, op1, op2)
             }
+            // TODO: this should check ownership safety
+            Rvalue::MutRef(local) => self.lr.mk_mut_ref(*local),
         }
     }
 
-    fn check_operand(&self, env: &mut LocalEnv, operand: &Operand) -> Ty {
+    fn check_operand(&self, env: &mut TyEnv, operand: &Operand) -> Ty {
         match operand {
-            // TODO: we should uninitialize when moving
-            Operand::Copy(local) | Operand::Move(local) => env.lookup_local(*local),
+            // OWNERSHIP CHECK
+            // TODO: we should uninitialize when moving and also check ownership safety
+            Operand::Copy(p) | Operand::Move(p) => env.lookup_place(p),
             Operand::Constant(c) => self.check_constant(c),
         }
     }
@@ -198,7 +202,7 @@ impl Checker<'_> {
 
     fn check_binary_op(
         &self,
-        env: &mut LocalEnv,
+        env: &mut TyEnv,
         cursor: &mut Cursor,
         bin_op: &ir::BinOp,
         op1: &Operand,
@@ -209,13 +213,7 @@ impl Checker<'_> {
         }
     }
 
-    fn check_add(
-        &self,
-        env: &mut LocalEnv,
-        cursor: &mut Cursor,
-        op1: &Operand,
-        op2: &Operand,
-    ) -> Ty {
+    fn check_add(&self, env: &mut TyEnv, cursor: &mut Cursor, op1: &Operand, op2: &Operand) -> Ty {
         let lr = self.lr;
         let ty1 = self.unpack(cursor, self.check_operand(env, op1));
         let ty2 = self.unpack(cursor, self.check_operand(env, op2));
@@ -241,7 +239,7 @@ impl Checker<'_> {
                 );
                 lr.mk_refine(*bty, lr.mk_var(fresh))
             }
-            TyKind::Refine(_, _) | TyKind::Uninit(_) => ty,
+            TyKind::Refine(_, _) | TyKind::Uninit(_) | TyKind::MutRef(_) => ty,
         }
     }
 
@@ -259,11 +257,17 @@ impl Checker<'_> {
                 debug_assert_eq!(bty1, bty2);
                 cursor.push_head(Subst::new(lr, [(*evar, e1.clone())]).subst_expr(e2.clone()))
             }
+            (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
+                assert!(r1 == r2);
+            }
             (TyKind::Uninit(_), _) | (_, TyKind::Uninit(_)) => {
                 unreachable!("subtyping between uninitialized types")
             }
             (TyKind::Exists(..), _) => {
                 unreachable!("subtyping with unpacked existential")
+            }
+            _ => {
+                unreachable!("subtyping between incompatible types")
             }
         }
     }
@@ -315,6 +319,8 @@ impl Checker<'_> {
                 TyKind::Uninit(_) => {
                     unreachable!("inferring substitution with uninitialized type")
                 }
+                // TODO: we should also infer region substitution
+                TyKind::MutRef(_) => {}
             }
         }
         Ok(subst)
