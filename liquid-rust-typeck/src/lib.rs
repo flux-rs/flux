@@ -1,5 +1,4 @@
-#![feature(rustc_private)]
-#![feature(min_specialization)]
+#![feature(rustc_private, min_specialization, once_cell)]
 
 extern crate rustc_hash;
 extern crate rustc_hir;
@@ -38,11 +37,10 @@ use rustc_hash::FxHashMap;
 use rustc_middle::mir::{SourceInfo, RETURN_PLACE};
 use rustc_session::Session;
 use rustc_span::MultiSpan;
-use ty::{context::LrCtxt, BaseTy, BinOp, Expr, Ty, Var};
+use ty::{BaseTy, BinOp, Expr, ExprKind, Region, Ty, Var};
 use tyenv::TyEnv;
 
 pub struct Checker<'a> {
-    lr: &'a LrCtxt,
     sess: &'a Session,
     body: &'a Body,
     ret_ty: Ty,
@@ -57,11 +55,10 @@ impl Checker<'_> {
         body: &Body,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
-        let lr = &LrCtxt::new();
         let mut constraint = ConstraintBuilder::new();
 
         let name_gen = IndexGen::new();
-        let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(lr, &name_gen, fn_sig);
+        let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(&name_gen, fn_sig);
 
         let mut env = TyEnv::new();
 
@@ -75,16 +72,18 @@ impl Checker<'_> {
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_local(local, lr.mk_uninit(body.local_decls[local].layout.clone()));
+            env.insert_local(
+                local,
+                TyKind::Uninit(body.local_decls[local].layout.clone()).intern(),
+            );
         }
 
         env.insert_local(
             RETURN_PLACE,
-            lr.mk_uninit(body.local_decls[RETURN_PLACE].layout.clone()),
+            TyKind::Uninit(body.local_decls[RETURN_PLACE].layout.clone()).intern(),
         );
 
         let checker = Checker {
-            lr,
             sess,
             global_env,
             body,
@@ -153,7 +152,7 @@ impl Checker<'_> {
                 self.check_subst(&subst, &fn_sig.params, terminator.source_info)?;
 
                 let (params, formals, ret) =
-                    LowerCtxt::lower_with_subst(self.lr, &self.name_gen, subst, fn_sig);
+                    LowerCtxt::lower_with_subst(&self.name_gen, subst, fn_sig);
                 for pred in params {
                     cursor.push_head(pred);
                 }
@@ -177,7 +176,7 @@ impl Checker<'_> {
                 self.check_binary_op(env, cursor, bin_op, op1, op2)
             }
             // TODO: this should check ownership safety
-            Rvalue::MutRef(local) => self.lr.mk_mut_ref(*local),
+            Rvalue::MutRef(local) => TyKind::MutRef(Region::Concrete(*local)).intern(),
         }
     }
 
@@ -191,11 +190,10 @@ impl Checker<'_> {
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
-        let lr = self.lr;
         match c {
             Constant::Int(n, int_ty) => {
-                let expr = lr.mk_constant(ty::Constant::from(*n));
-                lr.mk_refine(BaseTy::Int(*int_ty), expr)
+                let expr = ExprKind::Constant(ty::Constant::from(*n)).intern();
+                TyKind::Refine(BaseTy::Int(*int_ty), expr).intern()
             }
         }
     }
@@ -214,14 +212,17 @@ impl Checker<'_> {
     }
 
     fn check_add(&self, env: &mut TyEnv, cursor: &mut Cursor, op1: &Operand, op2: &Operand) -> Ty {
-        let lr = self.lr;
         let ty1 = self.unpack(cursor, self.check_operand(env, op1));
         let ty2 = self.unpack(cursor, self.check_operand(env, op2));
 
         match (ty1.kind(), ty2.kind()) {
             (ty::TyKind::Refine(bty1, e1), ty::TyKind::Refine(bty2, e2)) => {
                 debug_assert_eq!(bty1, bty2);
-                lr.mk_refine(*bty1, lr.mk_bin_op(ty::BinOp::Add, e1.clone(), e2.clone()))
+                TyKind::Refine(
+                    *bty1,
+                    ExprKind::BinaryOp(ty::BinOp::Add, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
             }
             _ => unreachable!("addition between incompatible types"),
         }
@@ -230,32 +231,32 @@ impl Checker<'_> {
     fn unpack(&self, cursor: &mut Cursor, ty: Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, evar, e) => {
-                let lr = self.lr;
                 let fresh = self.name_gen.fresh();
+                let var = ExprKind::Var(fresh).intern();
                 cursor.push_forall(
                     fresh,
                     bty.sort(),
-                    Subst::new(lr, [(*evar, lr.mk_var(fresh))]).subst_expr(e.clone()),
+                    Subst::new([(*evar, var.clone())]).subst_expr(e.clone()),
                 );
-                lr.mk_refine(*bty, lr.mk_var(fresh))
+                TyKind::Refine(*bty, var).intern()
             }
             TyKind::Refine(_, _) | TyKind::Uninit(_) | TyKind::MutRef(_) => ty,
         }
     }
 
     fn check_subtyping(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) {
-        let lr = self.lr;
         let ty1 = self.unpack(cursor, ty1);
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 debug_assert_eq!(bty1, bty2);
                 if e1 != e2 {
-                    cursor.push_head(lr.mk_bin_op(BinOp::Eq, e1.clone(), e2.clone()));
+                    cursor
+                        .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
                 }
             }
             (TyKind::Refine(bty1, e1), TyKind::Exists(bty2, evar, e2)) => {
                 debug_assert_eq!(bty1, bty2);
-                cursor.push_head(Subst::new(lr, [(*evar, e1.clone())]).subst_expr(e2.clone()))
+                cursor.push_head(Subst::new([(*evar, e1.clone())]).subst_expr(e2.clone()))
             }
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
                 assert!(r1 == r2);
@@ -280,7 +281,6 @@ impl Checker<'_> {
         formals: impl ExactSizeIterator<Item = &'a core::Ty>,
     ) -> Result<FxHashMap<Name, Expr>, ErrorReported> {
         assert!(actuals.len() == formals.len());
-        let lr = self.lr;
 
         let mut subst = FxHashMap::default();
         for (actual, formal) in actuals.zip(formals) {
@@ -309,12 +309,13 @@ impl Checker<'_> {
                 TyKind::Exists(bty1, evar, e) => {
                     debug_assert!(bty1 == bty2);
                     let fresh = self.name_gen.fresh();
+                    let var = ExprKind::Var(fresh).intern();
                     cursor.push_forall(
                         fresh,
                         bty1.sort(),
-                        Subst::new(lr, [(*evar, lr.mk_var(fresh))]).subst_expr(e.clone()),
+                        Subst::new([(*evar, var.clone())]).subst_expr(e.clone()),
                     );
-                    subst.insert(ident.name, lr.mk_var(fresh));
+                    subst.insert(ident.name, var);
                 }
                 TyKind::Uninit(_) => {
                     unreachable!("inferring substitution with uninitialized type")

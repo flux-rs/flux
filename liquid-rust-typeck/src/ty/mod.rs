@@ -1,15 +1,16 @@
-use std::fmt;
+use std::{fmt, lazy::SyncOnceCell};
 
-use hashconsing::HConsed;
 pub use liquid_rust_common::index::newtype_index;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, Var};
 pub use rustc_middle::ty::IntTy;
 
-pub mod context;
+use self::intern::Interned;
 
-pub type Ty = HConsed<TyS>;
+mod intern;
+
+pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct TyS {
@@ -35,11 +36,11 @@ pub enum Pred {
     Expr(Expr),
 }
 
-pub type Expr = HConsed<ExprS>;
+pub type Expr = Interned<ExprS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ExprS {
-    pub(crate) kind: ExprKind,
+    kind: ExprKind,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -47,6 +48,12 @@ pub enum ExprKind {
     Var(Var),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
+}
+
+impl TyKind {
+    pub fn intern(self) -> Ty {
+        Interned::new(TyS { kind: self })
+    }
 }
 
 impl TyS {
@@ -60,6 +67,20 @@ impl TyS {
             TyKind::Uninit(layout) => layout.clone(),
             TyKind::MutRef(_) => TypeLayout::MutRef,
         }
+    }
+}
+
+impl ExprKind {
+    pub fn intern(self) -> Expr {
+        Interned::new(ExprS { kind: self })
+    }
+}
+
+impl Expr {
+    pub fn tt() -> Expr {
+        static TRUE: SyncOnceCell<Expr> = SyncOnceCell::new();
+        TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
+            .clone()
     }
 }
 

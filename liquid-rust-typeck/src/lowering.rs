@@ -1,37 +1,35 @@
-use crate::ty::{self, context::LrCtxt};
+use crate::ty::{self, Expr};
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
 pub struct LowerCtxt<'a> {
-    lr: &'a LrCtxt,
     name_gen: &'a IndexGen<ty::Var>,
 }
 
 type Subst = FxHashMap<core::Name, ty::Expr>;
 
 impl<'a> LowerCtxt<'a> {
-    fn new(lr: &'a LrCtxt, name_gen: &'a IndexGen<ty::Var>) -> Self {
-        Self { lr, name_gen }
+    fn new(name_gen: &'a IndexGen<ty::Var>) -> Self {
+        Self { name_gen }
     }
 
     pub fn lower_with_fresh_names(
-        lr: &LrCtxt,
         name_gen: &IndexGen<ty::Var>,
         fn_sig: &core::FnSig,
     ) -> (Vec<(ty::Var, ty::Sort, ty::Pred)>, Vec<ty::Ty>, ty::Ty) {
         let mut subst = FxHashMap::default();
-        let cx = LowerCtxt::new(lr, name_gen);
+        let cx = LowerCtxt::new(name_gen);
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
             let fresh = name_gen.fresh();
-            subst.insert(param.name.name, lr.mk_var(fresh));
+            subst.insert(param.name.name, ty::ExprKind::Var(fresh).intern());
             let expr = param
                 .pred
                 .as_ref()
                 .map(|e| cx.lower_expr(e, &subst))
-                .unwrap_or(lr.exprs.tt());
+                .unwrap_or(Expr::tt());
             params.push((fresh, param.sort, ty::Pred::Expr(expr)));
         }
 
@@ -47,12 +45,11 @@ impl<'a> LowerCtxt<'a> {
     }
 
     pub fn lower_with_subst(
-        lr: &LrCtxt,
         name_gen: &IndexGen<ty::Var>,
         mut subst: Subst,
         fn_sig: &core::FnSig,
     ) -> (Vec<ty::Pred>, Vec<ty::Ty>, ty::Ty) {
-        let cx = LowerCtxt::new(lr, name_gen);
+        let cx = LowerCtxt::new(name_gen);
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
@@ -60,7 +57,7 @@ impl<'a> LowerCtxt<'a> {
                 .pred
                 .as_ref()
                 .map(|e| cx.lower_expr(e, &subst))
-                .unwrap_or(lr.exprs.tt());
+                .unwrap_or(Expr::tt());
             params.push(ty::Pred::Expr(expr));
         }
 
@@ -77,13 +74,15 @@ impl<'a> LowerCtxt<'a> {
 
     fn lower_ty(&self, ty: &core::Ty, subst: &mut Subst) -> ty::Ty {
         match ty {
-            core::Ty::Refine(bty, r) => self.lr.mk_refine(*bty, self.lower_refine(r, subst)),
+            core::Ty::Refine(bty, r) => {
+                ty::TyKind::Refine(*bty, self.lower_refine(r, subst)).intern()
+            }
             core::Ty::Exists(bty, evar, e) => {
                 let fresh = self.name_gen.fresh();
-                subst.insert(*evar, self.lr.mk_var(fresh));
+                subst.insert(*evar, ty::ExprKind::Var(fresh).intern());
                 let e = self.lower_expr(e, subst);
                 subst.remove(evar);
-                self.lr.mk_exists(*bty, fresh, e)
+                ty::TyKind::Exists(*bty, fresh, e).intern()
             }
         }
     }
@@ -91,20 +90,20 @@ impl<'a> LowerCtxt<'a> {
     fn lower_refine(&self, refine: &core::Refine, subst: &Subst) -> ty::Expr {
         match refine {
             core::Refine::Var(ident) => subst.get(&ident.name).unwrap().clone(),
-            core::Refine::Literal(lit) => self.lr.mk_constant(self.lower_lit(*lit)),
+            core::Refine::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
         }
     }
 
     fn lower_expr(&self, expr: &core::Expr, subst: &Subst) -> ty::Expr {
-        let lr = self.lr;
         match &expr.kind {
             core::ExprKind::Var(ident) => self.lower_ident(ident, subst),
-            core::ExprKind::Literal(lit) => lr.mk_constant(self.lower_lit(*lit)),
-            core::ExprKind::BinaryOp(op, e1, e2) => lr.mk_bin_op(
+            core::ExprKind::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
+            core::ExprKind::BinaryOp(op, e1, e2) => ty::ExprKind::BinaryOp(
                 map_bin_op(*op),
                 self.lower_expr(e1, subst),
                 self.lower_expr(e2, subst),
-            ),
+            )
+            .intern(),
         }
     }
 

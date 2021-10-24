@@ -1,27 +1,24 @@
 use rustc_hash::FxHashMap;
 
-use crate::ty::{context::LrCtxt, Expr, ExprKind, Ty, TyKind, Var};
+use crate::ty::{Expr, ExprKind, Ty, TyKind, Var};
 
-pub struct Subst<'a> {
-    lr: &'a LrCtxt,
+pub struct Subst {
     map: FxHashMap<Var, Expr>,
 }
 
-impl Subst<'_> {
-    pub fn new(lr: &LrCtxt, map: impl IntoIterator<Item = (Var, Expr)>) -> Subst {
+impl Subst {
+    pub fn new(map: impl IntoIterator<Item = (Var, Expr)>) -> Subst {
         Subst {
-            lr,
             map: map.into_iter().collect(),
         }
     }
 
     pub fn subst_ty(&self, ty: Ty) -> Ty {
-        let lr = self.lr;
         match ty.kind() {
-            TyKind::Refine(bty, e) => lr.mk_refine(*bty, self.subst_expr(e.clone())),
+            TyKind::Refine(bty, e) => TyKind::Refine(*bty, self.subst_expr(e.clone())).intern(),
             TyKind::Exists(bty, evar, e) => {
                 // We keep the invariant that there is no shadowing
-                lr.mk_exists(*bty, *evar, self.subst_expr(e.clone()))
+                TyKind::Exists(*bty, *evar, self.subst_expr(e.clone())).intern()
             }
             TyKind::Uninit(_) | TyKind::MutRef(_) => ty,
         }
@@ -34,7 +31,7 @@ impl Subst<'_> {
             ExprKind::BinaryOp(op, e1, e2) => {
                 let e1 = self.subst_expr(e1.clone());
                 let e2 = self.subst_expr(e2.clone());
-                self.lr.mk_bin_op(*op, e1, e2)
+                ExprKind::BinaryOp(*op, e1, e2).intern()
             }
         }
     }
@@ -43,6 +40,6 @@ impl Subst<'_> {
         self.map
             .get(&x)
             .cloned()
-            .unwrap_or_else(|| self.lr.mk_var(x))
+            .unwrap_or_else(|| ExprKind::Var(x).intern())
     }
 }

@@ -6,6 +6,7 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dashmap = { version = "4.0.2", features = ["raw-api"] }
 hashconsing = "1.5"
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
