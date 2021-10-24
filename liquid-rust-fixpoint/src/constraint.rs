@@ -33,7 +33,9 @@ pub enum Expr {
 pub enum BinOp {
     Eq,
     Add,
+    Sub,
     Gt,
+    Lt,
     Or,
     And,
 }
@@ -41,6 +43,7 @@ pub enum BinOp {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnOp {
     Not,
+    Neg,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -63,7 +66,7 @@ newtype_index! {
 
 newtype_index! {
     pub struct Var {
-        DEBUG_FORMAT = "x{}",
+        DEBUG_FORMAT = "v{}",
     }
 }
 
@@ -74,8 +77,8 @@ impl Constraint {
 impl BinOp {
     pub fn precedence(&self) -> u32 {
         match self {
-            BinOp::Add => 4,
-            BinOp::Eq | BinOp::Gt => 3,
+            BinOp::Add | BinOp::Sub => 4,
+            BinOp::Eq | BinOp::Gt | BinOp::Lt => 3,
             BinOp::And => 2,
             BinOp::Or => 1,
         }
@@ -191,7 +194,9 @@ impl fmt::Display for BinOp {
         match self {
             BinOp::Eq => write!(f, "="),
             BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
             BinOp::Gt => write!(f, ">"),
+            BinOp::Lt => write!(f, "<"),
             BinOp::Or => write!(f, "||"),
             BinOp::And => write!(f, "&&"),
         }
@@ -202,6 +207,7 @@ impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UnOp::Not => write!(f, "~"),
+            UnOp::Neg => write!(f, "-"),
         }
     }
 }

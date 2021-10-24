@@ -172,8 +172,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 },
                 p,
             ) if p.projection.is_empty() => Ok(Rvalue::MutRef(p.local)),
-            mir::Rvalue::UnaryOp(_, _)
-            | mir::Rvalue::Repeat(_, _)
+            mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
+            mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
             | mir::Rvalue::ThreadLocalRef(_)
             | mir::Rvalue::AddressOf(_, _)
@@ -193,8 +193,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_bin_op(&self, bin_op: mir::BinOp) -> Result<BinOp, ErrorReported> {
         match bin_op {
             mir::BinOp::Add => Ok(BinOp::Add),
-            mir::BinOp::Sub
-            | mir::BinOp::Mul
+            mir::BinOp::Sub => Ok(BinOp::Sub),
+            mir::BinOp::Gt => Ok(BinOp::Gt),
+            mir::BinOp::Lt => Ok(BinOp::Lt),
+            mir::BinOp::Mul
             | mir::BinOp::Div
             | mir::BinOp::Rem
             | mir::BinOp::BitXor
@@ -203,11 +205,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::BinOp::Shl
             | mir::BinOp::Shr
             | mir::BinOp::Eq
-            | mir::BinOp::Lt
             | mir::BinOp::Le
             | mir::BinOp::Ne
             | mir::BinOp::Ge
-            | mir::BinOp::Gt
             | mir::BinOp::Offset => {
                 self.tcx
                     .sess

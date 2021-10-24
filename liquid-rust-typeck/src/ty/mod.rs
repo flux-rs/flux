@@ -83,6 +83,14 @@ impl Expr {
         TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
             .clone()
     }
+
+    pub fn not(&self) -> Expr {
+        ExprKind::UnaryOp(UnOp::Not, self.clone()).intern()
+    }
+
+    pub fn neg(&self) -> Expr {
+        ExprKind::UnaryOp(UnOp::Neg, self.clone()).intern()
+    }
 }
 
 impl ExprS {

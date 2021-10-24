@@ -1,6 +1,6 @@
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::mir::{BasicBlock, Local, SourceInfo, SwitchTargets};
+pub use rustc_middle::mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp};
 use rustc_middle::ty::IntTy;
 
 use crate::ty::TypeLayout;
@@ -62,11 +62,15 @@ pub enum Rvalue {
     Use(Operand),
     MutRef(Local),
     BinaryOp(BinOp, Operand, Operand),
+    UnaryOp(UnOp, Operand),
 }
 
 #[derive(Debug)]
 pub enum BinOp {
     Add,
+    Sub,
+    Gt,
+    Lt,
 }
 
 #[derive(Debug)]
