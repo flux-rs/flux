@@ -57,7 +57,10 @@ pub struct Lit {
 pub enum BinOp {
     Eq,
     Add,
+    Lt,
+    Le,
     Gt,
+    Ge,
     Or,
     And,
 }

@@ -35,7 +35,9 @@ pub enum BinOp {
     Add,
     Sub,
     Gt,
+    Ge,
     Lt,
+    Le,
     Or,
     And,
 }
@@ -78,7 +80,7 @@ impl BinOp {
     pub fn precedence(&self) -> u32 {
         match self {
             BinOp::Add | BinOp::Sub => 4,
-            BinOp::Eq | BinOp::Gt | BinOp::Lt => 3,
+            BinOp::Eq | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => 3,
             BinOp::And => 2,
             BinOp::Or => 1,
         }
@@ -196,7 +198,9 @@ impl fmt::Display for BinOp {
             BinOp::Add => write!(f, "+"),
             BinOp::Sub => write!(f, "-"),
             BinOp::Gt => write!(f, ">"),
+            BinOp::Ge => write!(f, ">="),
             BinOp::Lt => write!(f, "<"),
+            BinOp::Le => write!(f, "<="),
             BinOp::Or => write!(f, "||"),
             BinOp::And => write!(f, "&&"),
         }

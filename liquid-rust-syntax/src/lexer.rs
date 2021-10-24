@@ -16,7 +16,9 @@ pub enum Token {
     Comma,
     RArrow,
     Lt,
+    Le,
     Gt,
+    Ge,
     At,
     Fn,
     Literal(Lit),
@@ -56,10 +58,12 @@ impl Cursor {
         let span = token.span;
         let token = match token.kind {
             TokenKind::Lt => Token::Lt,
+            TokenKind::Le => Token::Le,
             TokenKind::EqEq => Token::EqEq,
             TokenKind::AndAnd => Token::AndAnd,
             TokenKind::OrOr => Token::OrOr,
             TokenKind::Gt => Token::Gt,
+            TokenKind::Ge => Token::Ge,
             TokenKind::At => Token::At,
             TokenKind::Comma => Token::Comma,
             TokenKind::Colon => Token::Colon,
