@@ -47,7 +47,8 @@ Level3: ast::Expr = {
     <lo:@L> <e1:Level4> <op:BinOp3> <e2:Level4> <hi:@R> => ast::Expr {
         kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
         span: mk_span(lo, hi)
-    }
+    },
+    Level4
 }
 Level4 = Level<BinOp4, Level5>;
 Level5: ast::Expr = {

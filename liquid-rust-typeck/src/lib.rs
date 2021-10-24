@@ -27,17 +27,17 @@ use liquid_rust_common::{
 };
 use liquid_rust_core::{
     ir::{
-        self, BasicBlock, Body, Constant, Operand, Rvalue, Statement, StatementKind, Terminator,
-        TerminatorKind,
+        self, BasicBlock, Body, Constant, Operand, Rvalue, SourceInfo, Statement, StatementKind,
+        Terminator, TerminatorKind,
     },
     ty::{self as core, Name},
 };
 use liquid_rust_fixpoint::Fixpoint;
 use rustc_hash::FxHashMap;
-use rustc_middle::mir::{SourceInfo, RETURN_PLACE};
+use rustc_middle::mir::RETURN_PLACE;
 use rustc_session::Session;
 use rustc_span::MultiSpan;
-use ty::{BaseTy, BinOp, Expr, ExprKind, Region, Ty, Var};
+use ty::{BaseTy, BinOp, Expr, ExprKind, Region, Ty, UnOp, Var};
 use tyenv::TyEnv;
 
 pub struct Checker<'a> {
@@ -116,9 +116,9 @@ impl Checker<'_> {
 
     fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
-            // OWNERSHIP CHECK
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, cursor, rvalue);
+                // OWNERSHIP SAFETY CHECK
                 env.write_place(p, ty);
             }
             StatementKind::Nop => {}
@@ -135,6 +135,47 @@ impl Checker<'_> {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
                 self.check_subtyping(cursor, ret_place_ty, self.ret_ty.clone());
+            }
+            TerminatorKind::Goto { target } => {
+                self.check_basic_block(env, cursor, *target)?;
+            }
+            TerminatorKind::SwitchInt { discr, targets } => {
+                let discr_ty = self.check_operand(env, discr);
+                let discr_ty = self.unpack(cursor, discr_ty);
+                match discr_ty.kind() {
+                    TyKind::Refine(BaseTy::Bool, discr_expr) => {
+                        for (bits, bb) in targets.iter() {
+                            let cursor = &mut cursor.snapshot();
+                            let guard = if bits != 0 {
+                                discr_expr.clone()
+                            } else {
+                                ExprKind::UnaryOp(UnOp::Not, discr_expr.clone()).intern()
+                            };
+                            cursor.push_guard(guard);
+                            self.check_basic_block(env, cursor, bb)?;
+                        }
+                        let otherwise = targets
+                            .iter()
+                            .map(|(bits, _)| {
+                                if bits != 0 {
+                                    ExprKind::UnaryOp(UnOp::Not, discr_expr.clone()).intern()
+                                } else {
+                                    discr_expr.clone()
+                                }
+                            })
+                            .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
+
+                        if let Some(otherwise) = otherwise {
+                            cursor.push_guard(otherwise);
+                        }
+
+                        self.check_basic_block(env, cursor, targets.otherwise())?;
+                    }
+                    TyKind::Refine(BaseTy::Int(_), _) => {
+                        todo!("switch_int not implemented for integer discriminants")
+                    }
+                    _ => unreachable!("discr with incompatible type"),
+                };
             }
             TerminatorKind::Call {
                 func,
@@ -175,16 +216,23 @@ impl Checker<'_> {
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 self.check_binary_op(env, cursor, bin_op, op1, op2)
             }
-            // TODO: this should check ownership safety
-            Rvalue::MutRef(local) => TyKind::MutRef(Region::Concrete(*local)).intern(),
+            Rvalue::MutRef(local) => {
+                // OWNERSHIP SAFETY CHECK
+                TyKind::MutRef(Region::Concrete(*local)).intern()
+            }
         }
     }
 
     fn check_operand(&self, env: &mut TyEnv, operand: &Operand) -> Ty {
         match operand {
-            // OWNERSHIP CHECK
-            // TODO: we should uninitialize when moving and also check ownership safety
-            Operand::Copy(p) | Operand::Move(p) => env.lookup_place(p),
+            Operand::Copy(p) => {
+                // OWNERSHIP SAFETY CHECK
+                env.lookup_place(p)
+            }
+            Operand::Move(p) => {
+                // OWNERSHIP SAFETY CHECK
+                env.move_place(p)
+            }
             Operand::Constant(c) => self.check_constant(c),
         }
     }
@@ -194,6 +242,10 @@ impl Checker<'_> {
             Constant::Int(n, int_ty) => {
                 let expr = ExprKind::Constant(ty::Constant::from(*n)).intern();
                 TyKind::Refine(BaseTy::Int(*int_ty), expr).intern()
+            }
+            Constant::Bool(b) => {
+                let expr = ExprKind::Constant(ty::Constant::from(*b)).intern();
+                TyKind::Refine(BaseTy::Bool, expr).intern()
             }
         }
     }

@@ -36,6 +36,23 @@ impl TyEnv {
         ty
     }
 
+    pub fn move_place(&mut self, place: &ir::Place) -> Ty {
+        let mut ty = self.lookup_local(place.local);
+        self.insert_local(place.local, TyKind::Uninit(ty.layout()).intern());
+        for elem in &place.projection {
+            match (elem, ty.kind()) {
+                (ir::PlaceElem::Deref, TyKind::MutRef(Region::Concrete(local))) => {
+                    self.insert_local(*local, TyKind::Uninit(ty.layout()).intern());
+                    ty = self.lookup_local(*local);
+                }
+                _ => {
+                    unreachable!("invalid place for lookup: `{:?}`", place);
+                }
+            }
+        }
+        ty
+    }
+
     pub fn write_place(&mut self, place: &ir::Place, new_ty: Ty) {
         let mut ty = self.lookup_local(place.local);
         let mut local = place.local;

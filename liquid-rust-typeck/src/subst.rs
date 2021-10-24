@@ -33,6 +33,7 @@ impl Subst {
                 let e2 = self.subst_expr(e2.clone());
                 ExprKind::BinaryOp(*op, e1, e2).intern()
             }
+            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, self.subst_expr(e.clone())).intern(),
         }
     }
 

@@ -3,7 +3,7 @@ use std::{fmt, lazy::SyncOnceCell};
 pub use liquid_rust_common::index::newtype_index;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
-pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, Var};
+pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, UnOp, Var};
 pub use rustc_middle::ty::IntTy;
 
 use self::intern::Interned;
@@ -48,6 +48,7 @@ pub enum ExprKind {
     Var(Var),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
+    UnaryOp(UnOp, Expr),
 }
 
 impl TyKind {
@@ -107,11 +108,11 @@ impl fmt::Debug for Pred {
 
 impl fmt::Debug for ExprS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn should_parenthesize(bin_op: BinOp, child: &Expr) -> bool {
+        fn should_parenthesize(op: BinOp, child: &Expr) -> bool {
             if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                child_op.precedence() < bin_op.precedence()
-                    || (child_op.precedence() == bin_op.precedence()
-                        && !BinOp::associative(bin_op.precedence()))
+                child_op.precedence() < op.precedence()
+                    || (child_op.precedence() == op.precedence()
+                        && !BinOp::associative(op.precedence()))
             } else {
                 false
             }
@@ -134,6 +135,13 @@ impl fmt::Debug for ExprS {
                 Ok(())
             }
             ExprKind::Constant(c) => write!(f, "{}", c),
+            ExprKind::UnaryOp(op, e) => {
+                if matches!(e.kind(), ExprKind::Var(_) | ExprKind::Constant(_)) {
+                    write!(f, "{}{:?}", op, e)
+                } else {
+                    write!(f, "{}({:?})", op, e)
+                }
+            }
         }
     }
 }

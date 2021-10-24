@@ -4,7 +4,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::ty::{self, Pred, Sort, Var};
+use crate::ty::{self, Expr, Pred, Sort, Var};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use liquid_rust_fixpoint as fixpoint;
@@ -18,6 +18,7 @@ pub struct Cursor<'a>(NonNull<Node>, PhantomData<&'a mut Node>);
 enum Node {
     Conj(Vec<Node>),
     ForAll(Var, Sort, Pred, Vec<Node>),
+    Guard(Expr, Vec<Node>),
     Head(Pred),
 }
 
@@ -50,6 +51,10 @@ impl Cursor<'_> {
         self.push_node(Node::ForAll(var, sort, pred.into(), vec![]));
     }
 
+    pub fn push_guard(&mut self, expr: Expr) {
+        self.push_node(Node::Guard(expr, vec![]));
+    }
+
     pub fn push_head(&mut self, pred: impl Into<Pred>) {
         self.push_node(Node::Head(pred.into()));
     }
@@ -57,9 +62,10 @@ impl Cursor<'_> {
     fn push_node(&mut self, node: Node) {
         unsafe {
             let children = match self.0.as_mut() {
-                Node::Conj(children) => children,
-                Node::ForAll(_, _, _, children) => children,
-                Node::Head(_) => unreachable!("trying to push a node into a head node."),
+                Node::Conj(children)
+                | Node::ForAll(_, _, _, children)
+                | Node::Guard(_, children) => children,
+                Node::Head(_) => unreachable!("trying to push into a head node."),
             };
             children.push(node);
             let node = children.last_mut().unwrap();
@@ -74,15 +80,16 @@ impl Node {
     fn finalize(self) -> Option<fixpoint::Constraint> {
         match self {
             Node::Conj(children) => finalize_children(children),
-            Node::ForAll(var, sort, pred, children) => {
-                let children = finalize_children(children)?;
-                Some(fixpoint::Constraint::ForAll(
-                    var,
-                    sort,
-                    finalize_pred(pred),
-                    Box::new(children),
-                ))
-            }
+            Node::ForAll(var, sort, pred, children) => Some(fixpoint::Constraint::ForAll(
+                var,
+                sort,
+                finalize_pred(pred),
+                Box::new(finalize_children(children)?),
+            )),
+            Node::Guard(expr, children) => Some(fixpoint::Constraint::Guard(
+                finalize_expr(expr),
+                Box::new(finalize_children(children)?),
+            )),
             Node::Head(pred) => Some(fixpoint::Constraint::Pred(finalize_pred(pred))),
         }
     }
@@ -122,6 +129,9 @@ fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
             Box::new(finalize_expr(e1.clone())),
             Box::new(finalize_expr(e2.clone())),
         ),
+        ty::ExprKind::UnaryOp(op, e) => {
+            fixpoint::Expr::UnaryOp(*op, Box::new(finalize_expr(e.clone())))
+        }
     }
 }
 
@@ -141,6 +151,11 @@ impl fmt::Debug for Node {
             }
             Node::ForAll(var, sort, pred, children) => {
                 write!(f, "Forall({:?}: {{{:?} | {:?}}}) {{", var, sort, pred)?;
+                debug_children(children, f)?;
+                write!(f, "}}")
+            }
+            Node::Guard(expr, children) => {
+                write!(f, "Guard({:?}) {{", expr)?;
                 debug_children(children, f)?;
                 write!(f, "}}")
             }

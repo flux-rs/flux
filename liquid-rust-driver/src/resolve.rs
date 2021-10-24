@@ -95,6 +95,7 @@ impl<'a> Resolver<'a> {
     fn resolve_bty(&self, ident: ast::Ident) -> Result<ty::BaseTy, ErrorReported> {
         match ident.symbol {
             sym::i32 => Ok(ty::BaseTy::Int(ty::IntTy::I32)),
+            sym::bool => Ok(ty::BaseTy::Bool),
             _ => {
                 self.emit_error(&format!("unsupported type: `{}`", ident.symbol), ident.span);
                 Err(ErrorReported)

@@ -128,9 +128,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .try_collect()?,
                 }
             }
-            mir::TerminatorKind::Goto { .. }
-            | mir::TerminatorKind::SwitchInt { .. }
-            | mir::TerminatorKind::Resume
+            mir::TerminatorKind::SwitchInt { discr, targets, .. } => TerminatorKind::SwitchInt {
+                discr: self.lower_operand(discr)?,
+                targets: targets.clone(),
+            },
+            mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
+            mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::Drop { .. }
@@ -141,9 +144,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::TerminatorKind::FalseEdge { .. }
             | mir::TerminatorKind::FalseUnwind { .. }
             | mir::TerminatorKind::InlineAsm { .. } => {
-                self.tcx
-                    .sess
-                    .span_err(terminator.source_info.span, "unsupported terminator kind");
+                self.tcx.sess.span_err(
+                    terminator.source_info.span,
+                    &format!("unsupported terminator kind: {:?}", terminator.kind),
+                );
                 return Err(ErrorReported);
             }
         };
@@ -239,16 +243,15 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
-        use rustc_middle::ty::{Const, ConstKind};
+        use rustc_middle::ty::{Const, ConstKind, TyKind};
         let tcx = self.tcx;
         match &c.literal {
             mir::ConstantKind::Ty(&Const {
                 ty,
                 val: ConstKind::Value(ConstValue::Scalar(scalar)),
-            }) if ty.is_integral() => match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
-                (rustc_middle::ty::TyKind::Int(int_ty), Some(bits)) => {
-                    Ok(Constant::Int(bits as i128, *int_ty))
-                }
+            }) => match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
+                (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
+                (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
                 _ => {
                     self.tcx.sess.span_err(
                         c.span,
@@ -272,6 +275,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
         match ty.kind() {
             TyKind::Int(int_ty) => Ok(TypeLayout::BaseTy(BaseTy::Int(*int_ty))),
+            TyKind::Bool => Ok(TypeLayout::BaseTy(BaseTy::Bool)),
             TyKind::Ref(RegionKind::ReErased, _, rustc_hir::Mutability::Mut) => {
                 Ok(TypeLayout::MutRef)
             }

@@ -20,6 +20,7 @@ pub enum Ty {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum BaseTy {
     Int(IntTy),
+    Bool,
 }
 
 #[derive(Debug)]
@@ -83,6 +84,14 @@ impl BaseTy {
     pub fn sort(&self) -> Sort {
         match self {
             BaseTy::Int(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
         }
+    }
+
+    /// Returns `true` if the base ty is [`Bool`].
+    ///
+    /// [`Bool`]: BaseTy::Bool
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
     }
 }

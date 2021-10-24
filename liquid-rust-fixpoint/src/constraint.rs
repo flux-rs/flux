@@ -6,13 +6,14 @@ use liquid_rust_common::{format::PadAdapter, index::newtype_index};
 pub enum Constraint {
     Pred(Pred),
     Conj(Vec<Self>),
-    Guard(Pred, Box<Self>),
+    Guard(Expr, Box<Self>),
     ForAll(Var, Sort, Pred, Box<Self>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sort {
     Int,
+    Bool,
 }
 
 pub enum Pred {
@@ -25,6 +26,7 @@ pub enum Expr {
     Var(Var),
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
+    UnaryOp(UnOp, Box<Self>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -34,6 +36,11 @@ pub enum BinOp {
     Gt,
     Or,
     And,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnOp {
+    Not,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -92,7 +99,7 @@ impl fmt::Display for Constraint {
                 write!(f, "\n)")
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ int) {})", body)?;
+                write!(f, "(forall ((_ int) ({}))", body)?;
                 write!(PadAdapter::wrap_fmt(f), "\n{}", head)?;
                 write!(f, "\n)")
             }
@@ -109,7 +116,14 @@ impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Int => write!(f, "int"),
+            Sort::Bool => write!(f, "bool"),
         }
+    }
+}
+
+impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -161,6 +175,13 @@ impl fmt::Display for Expr {
                 }
                 Ok(())
             }
+            Expr::UnaryOp(op, e) => {
+                if matches!(e.as_ref(), Expr::Constant(_) | Expr::Var(_)) {
+                    write!(f, "{}{}", op, e)
+                } else {
+                    write!(f, "{}({})", op, e)
+                }
+            }
         }
     }
 }
@@ -173,6 +194,14 @@ impl fmt::Display for BinOp {
             BinOp::Gt => write!(f, ">"),
             BinOp::Or => write!(f, "||"),
             BinOp::And => write!(f, "&&"),
+        }
+    }
+}
+
+impl fmt::Display for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnOp::Not => write!(f, "~"),
         }
     }
 }

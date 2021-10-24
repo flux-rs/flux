@@ -9,7 +9,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, Pred, Sort, Var};
+pub use constraint::{BinOp, Constant, Constraint, Expr, Pred, Sort, UnOp, Var};
 use liquid_rust_common::format::PadAdapter;
 use serde::Deserialize;
 
