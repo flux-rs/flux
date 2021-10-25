@@ -1,18 +1,18 @@
 [package]
-authors = ["The Liquid Rust Project Developers"]
-edition = "2018"
+edition = "2021"
 name = "liquid-rust-typeck"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-itertools = "0.10.0"
+dashmap = { version = "4.0.2", features = ["raw-api"] }
+hashconsing = "1.5"
+itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-core = { path = "../liquid-rust-core" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
-liquid-rust-lrir = { path = "../liquid-rust-lrir" }
-
-rustc-workspace-hack = "1.0.0"
+quickscope = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

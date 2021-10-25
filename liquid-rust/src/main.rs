@@ -1,5 +1,6 @@
-use liquid_rust_common::config::CMD_PREFIX;
 use std::{env::args, process::exit};
+
+const CMD_PREFIX: &str = "-L";
 
 /// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
 /// environment variables are not set.
@@ -15,8 +16,6 @@ fn main() {
     // Add the sysroot path to the arguments.
     args.push("--sysroot".into());
     args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
-    // Record nll-facts for this compilation.
-    args.push("-Znll-facts".into());
     // Add release mode to the arguments.
     args.push("-O".into());
     // Run the rust compiler with the arguments.

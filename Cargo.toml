@@ -3,9 +3,9 @@
 members = [
     "liquid-rust",
     "liquid-rust-common",
+    "liquid-rust-core",
     "liquid-rust-driver",
     "liquid-rust-fixpoint",
-    "liquid-rust-lrir",
-    "liquid-rust-parser",
+    "liquid-rust-syntax",
     "liquid-rust-typeck",
 ]

@@ -1,27 +1,24 @@
-#![feature(rustc_private)]
-#![feature(box_patterns)]
-#![feature(min_specialization)]
+#![feature(rustc_private, box_patterns)]
 
 extern crate rustc_ast;
 extern crate rustc_ast_pretty;
+extern crate rustc_const_eval;
 extern crate rustc_driver;
 extern crate rustc_errors;
+extern crate rustc_hash;
 extern crate rustc_hir;
-extern crate rustc_index;
 extern crate rustc_interface;
+extern crate rustc_macros;
 extern crate rustc_middle;
-extern crate rustc_mir_dataflow;
-extern crate rustc_serialize;
+extern crate rustc_session;
 extern crate rustc_span;
 
-pub mod borrowck;
 mod callbacks;
 mod collector;
-mod lower;
-mod resolution;
+mod lowering;
+mod resolve;
 
 use callbacks::LiquidCallbacks;
-
 use rustc_driver::{catch_with_exit_code, RunCompiler};
 
 /// Run Liquid Rust and return the exit status code.

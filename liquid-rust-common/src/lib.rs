@@ -1,8 +1,13 @@
-#![feature(rustc_private)]
-#![feature(type_alias_impl_trait)]
+#![feature(rustc_private, try_trait_v2, try_blocks, never_type)]
 
+extern crate rustc_errors;
 extern crate rustc_index;
 
-pub mod config;
+pub mod errors;
+pub mod format;
 pub mod index;
-pub mod ordered_map;
+pub mod iter;
+
+pub trait SemiGroup {
+    fn append(self, b: Self) -> Self;
+}
