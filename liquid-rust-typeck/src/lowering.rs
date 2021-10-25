@@ -29,7 +29,7 @@ impl<'a> LowerCtxt<'a> {
                 .pred
                 .as_ref()
                 .map(|e| cx.lower_expr(e, &subst))
-                .unwrap_or(Expr::tt());
+                .unwrap_or_else(Expr::tt);
             params.push((fresh, param.sort, ty::Pred::Expr(expr)));
         }
 
@@ -57,7 +57,7 @@ impl<'a> LowerCtxt<'a> {
                 .pred
                 .as_ref()
                 .map(|e| cx.lower_expr(e, &subst))
-                .unwrap_or(Expr::tt());
+                .unwrap_or_else(Expr::tt);
             params.push(ty::Pred::Expr(expr));
         }
 

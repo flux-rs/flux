@@ -27,19 +27,16 @@ impl TyEnv<'_> {
 
     pub fn lookup_local(&mut self, cursor: &mut Cursor, local: Local) -> Ty {
         let mut ty = self.locals.get(&local).cloned().unwrap();
-        match ty.kind() {
-            TyKind::Exists(bty, evar, e) => {
-                let fresh = self.name_gen.fresh();
-                let var = ExprKind::Var(fresh).intern();
-                cursor.push_forall(
-                    fresh,
-                    bty.sort(),
-                    Subst::new([(*evar, var.clone())]).subst_expr(e.clone()),
-                );
-                ty = TyKind::Refine(*bty, var).intern();
-                self.insert_local(local, ty.clone());
-            }
-            _ => {}
+        if let TyKind::Exists(bty, evar, e) = ty.kind() {
+            let fresh = self.name_gen.fresh();
+            let var = ExprKind::Var(fresh).intern();
+            cursor.push_forall(
+                fresh,
+                bty.sort(),
+                Subst::new([(*evar, var.clone())]).subst_expr(e.clone()),
+            );
+            ty = TyKind::Refine(*bty, var).intern();
+            self.insert_local(local, ty.clone());
         }
         ty
     }

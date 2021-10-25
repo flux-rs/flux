@@ -192,7 +192,7 @@ impl Checker<'_> {
                 self.check_subst(&subst, &fn_sig.params, terminator.source_info)?;
 
                 let (params, formals, ret) =
-                    LowerCtxt::lower_with_subst(&self.name_gen, subst, fn_sig);
+                    LowerCtxt::lower_with_subst(self.name_gen, subst, fn_sig);
                 for pred in params {
                     cursor.push_head(pred);
                 }
