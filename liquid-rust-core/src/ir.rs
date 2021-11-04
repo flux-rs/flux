@@ -1,3 +1,5 @@
+use std::fmt;
+
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp};
@@ -46,7 +48,6 @@ pub enum TerminatorKind {
     },
 }
 
-#[derive(Debug)]
 pub struct Statement {
     pub kind: StatementKind,
 }
@@ -57,7 +58,6 @@ pub enum StatementKind {
     Nop,
 }
 
-#[derive(Debug)]
 pub enum Rvalue {
     Use(Operand),
     MutRef(Local),
@@ -73,14 +73,12 @@ pub enum BinOp {
     Lt,
 }
 
-#[derive(Debug)]
 pub enum Operand {
     Copy(Place),
     Move(Place),
     Constant(Constant),
 }
 
-#[derive(Debug)]
 pub struct Place {
     pub local: Local,
     pub projection: Vec<PlaceElem>,
@@ -91,7 +89,6 @@ pub enum PlaceElem {
     Deref,
 }
 
-#[derive(Debug)]
 pub enum Constant {
     Int(i128, IntTy),
     Bool(bool),
@@ -106,5 +103,57 @@ impl Body {
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl Iterator<Item = Local> {
         (self.arg_count + 1..self.local_decls.len()).map(Local::new)
+    }
+}
+
+impl fmt::Debug for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            StatementKind::Assign(place, rvalue) => {
+                write!(f, "{:?} = {:?}", place, rvalue)
+            }
+            StatementKind::Nop => write!(f, "nop"),
+        }
+    }
+}
+
+impl fmt::Debug for Place {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for elem in &self.projection {
+            match elem {
+                PlaceElem::Deref => write!(f, "*")?,
+            }
+        }
+        write!(f, "{:?}", self.local)
+    }
+}
+
+impl fmt::Debug for Rvalue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Use(op) => write!(f, "{:?}", op),
+            Self::MutRef(local) => write!(f, "&mut {:?}", local),
+            Self::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
+            Self::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
+        }
+    }
+}
+
+impl fmt::Debug for Operand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Copy(place) => write!(f, "copy {:?}", place),
+            Self::Move(place) => write!(f, "move {:?}", place),
+            Self::Constant(c) => write!(f, "{:?}", c),
+        }
+    }
+}
+
+impl fmt::Debug for Constant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(n, int_ty) => write!(f, "{}{:?}", n, int_ty),
+            Self::Bool(b) => write!(f, "{}", b),
+        }
     }
 }
