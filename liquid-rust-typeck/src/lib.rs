@@ -40,15 +40,15 @@ use rustc_session::Session;
 use rustc_span::MultiSpan;
 use tyenv::TyEnv;
 
-pub struct Checker<'a> {
+pub struct Checker<'a, 'tcx> {
     sess: &'a Session,
-    body: &'a Body,
+    body: &'a Body<'tcx>,
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
     name_gen: &'a IndexGen<Var>,
 }
 
-impl Checker<'_> {
+impl Checker<'_, '_> {
     pub fn check(
         global_env: &GlobalEnv,
         sess: &Session,

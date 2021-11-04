@@ -3,15 +3,16 @@ use std::fmt;
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp};
-use rustc_middle::ty::IntTy;
+use rustc_middle::{mir, ty::IntTy};
 
 use crate::ty::TypeLayout;
 
 #[derive(Debug)]
-pub struct Body {
+pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
     pub local_decls: IndexVec<Local, LocalDecl>,
+    pub mir: &'tcx mir::Body<'tcx>,
 }
 
 #[derive(Debug)]
@@ -94,15 +95,20 @@ pub enum Constant {
     Bool(bool),
 }
 
-impl Body {
+impl Body<'_> {
     #[inline]
-    pub fn args_iter(&self) -> impl Iterator<Item = Local> {
+    pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (1..self.arg_count + 1).map(Local::new)
     }
 
     #[inline]
-    pub fn vars_and_temps_iter(&self) -> impl Iterator<Item = Local> {
+    pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (self.arg_count + 1..self.local_decls.len()).map(Local::new)
+    }
+
+    #[inline]
+    pub fn reverse_postorder(&self) -> impl ExactSizeIterator<Item = BasicBlock> + '_ {
+        mir::traversal::reverse_postorder(self.mir).map(|(bb, _)| bb)
     }
 }
 

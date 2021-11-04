@@ -19,7 +19,10 @@ pub struct LoweringCtxt<'tcx> {
 }
 
 impl<'tcx> LoweringCtxt<'tcx> {
-    pub fn lower(tcx: TyCtxt<'tcx>, body: &'tcx mir::Body<'tcx>) -> Result<Body, ErrorReported> {
+    pub fn lower(
+        tcx: TyCtxt<'tcx>,
+        body: &'tcx mir::Body<'tcx>,
+    ) -> Result<Body<'tcx>, ErrorReported> {
         let lower = Self { tcx, body };
 
         let basic_blocks = body
@@ -38,6 +41,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             basic_blocks,
             local_decls,
             arg_count: body.arg_count,
+            mir: body,
         })
     }
 
