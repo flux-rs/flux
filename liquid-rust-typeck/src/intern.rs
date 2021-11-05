@@ -422,9 +422,9 @@ pub trait Internable: Hash + Eq + 'static {
 #[doc(hidden)]
 macro_rules! _impl_internable {
     ( $($t:path),+ $(,)? ) => { $(
-        impl Internable for $t {
-            fn storage() -> &'static InternStorage<Self> {
-                static STORAGE: InternStorage<$t> = InternStorage::new();
+        impl $crate::intern::Internable for $t {
+            fn storage() -> &'static $crate::intern::InternStorage<Self> {
+                static STORAGE: $crate::intern::InternStorage<$t> = $crate::intern::InternStorage::new();
                 &STORAGE
             }
         }
@@ -432,5 +432,3 @@ macro_rules! _impl_internable {
 }
 
 pub use crate::_impl_internable as impl_internable;
-
-impl_internable!(crate::ty::TyS, crate::ty::ExprS);

@@ -2,6 +2,7 @@
 
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_index;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
@@ -9,6 +10,8 @@ extern crate rustc_span;
 
 mod constraint_builder;
 pub mod global_env;
+mod inference;
+mod intern;
 mod lowering;
 pub mod subst;
 pub mod ty;
@@ -16,6 +19,7 @@ mod tyenv;
 
 use crate::{
     constraint_builder::{ConstraintBuilder, Cursor},
+    inference::InferCtxt,
     lowering::LowerCtxt,
     subst::Subst,
     ty::{BaseTy, BinOp, Expr, ExprKind, Region, Ty, TyKind, Var},
@@ -29,13 +33,12 @@ use liquid_rust_common::{
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Rvalue, SourceInfo, Statement, StatementKind,
-        Terminator, TerminatorKind,
+        Terminator, TerminatorKind, RETURN_PLACE,
     },
     ty::{self as core, Name},
 };
 use liquid_rust_fixpoint::Fixpoint;
 use rustc_hash::FxHashMap;
-use rustc_middle::mir::RETURN_PLACE;
 use rustc_session::Session;
 use rustc_span::MultiSpan;
 use tyenv::TyEnv;
@@ -55,6 +58,9 @@ impl Checker<'_, '_> {
         body: &Body,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
+        InferCtxt::infer(body);
+        return Ok(());
+
         let mut constraint = ConstraintBuilder::new();
 
         let name_gen = &IndexGen::new();
@@ -216,7 +222,8 @@ impl Checker<'_, '_> {
             }
             Rvalue::MutRef(local) => {
                 // OWNERSHIP SAFETY CHECK
-                TyKind::MutRef(Region::Concrete(*local)).intern()
+                todo!()
+                // TyKind::MutRef(Region::Concrete(*local)).intern()
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, cursor, *un_op, op),
         }

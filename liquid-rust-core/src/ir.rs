@@ -2,7 +2,9 @@ use std::fmt;
 
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp};
+pub use rustc_middle::mir::{
+    BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
+};
 use rustc_middle::{mir, ty::IntTy};
 
 use crate::ty::TypeLayout;
@@ -61,7 +63,7 @@ pub enum StatementKind {
 
 pub enum Rvalue {
     Use(Operand),
-    MutRef(Local),
+    MutRef(Place),
     BinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
 }
@@ -109,6 +111,11 @@ impl Body<'_> {
     #[inline]
     pub fn reverse_postorder(&self) -> impl ExactSizeIterator<Item = BasicBlock> + '_ {
         mir::traversal::reverse_postorder(self.mir).map(|(bb, _)| bb)
+    }
+
+    #[inline]
+    pub fn is_join_point(&self, bb: BasicBlock) -> bool {
+        self.mir.predecessors()[bb].len() > 1
     }
 }
 

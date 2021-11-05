@@ -1,14 +1,11 @@
 use std::{fmt, lazy::SyncOnceCell};
 
-pub use liquid_rust_common::index::newtype_index;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, UnOp, Var};
 pub use rustc_middle::ty::IntTy;
 
-use self::intern::Interned;
-
-mod intern;
+use crate::intern::{impl_internable, Interned};
 
 pub type Ty = Interned<TyS>;
 
@@ -159,3 +156,5 @@ impl From<Local> for Region {
         Self::Concrete(v)
     }
 }
+
+impl_internable!(crate::ty::TyS, crate::ty::ExprS);
