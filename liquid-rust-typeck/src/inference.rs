@@ -1,7 +1,10 @@
-use std::{cell::Cell, cmp::Ordering, collections::hash_map::Entry, fmt};
+use std::{collections::hash_map::Entry, fmt};
 
 use itertools::Itertools;
-use liquid_rust_common::index::{newtype_index, IndexGen, IndexVec};
+use liquid_rust_common::{
+    disjoint_sets::DisjointSetsMap,
+    index::{newtype_index, IndexGen},
+};
 use liquid_rust_core::ir::{
     BasicBlock, Body, Local, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind,
     Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
@@ -14,36 +17,37 @@ use crate::intern::{impl_internable, Interned};
 type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-enum TyS {
+pub enum TyS {
     Refine(ExprIdx),
     Exists,
     Uninit,
     MutRef(Region),
 }
 
-type Region = Interned<RegionS>;
+pub type Region = Interned<RegionS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct RegionS(Vec<Local>);
+pub struct RegionS(Vec<Local>);
 
 pub struct InferCtxt<'a, 'tcx> {
     body: &'a Body<'tcx>,
     expr_gen: &'a IndexGen<ExprIdx>,
     visited: BitSet<BasicBlock>,
-    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+    bb_envs: FxHashMap<BasicBlock, TypeEnv<'a>>,
 }
 
 newtype_index! {
-    struct ExprIdx {
+    pub struct ExprIdx {
         DEBUG_FORMAT = "e{}"
     }
 }
 
-impl InferCtxt<'_, '_> {
-    pub fn infer(body: &Body) {
+impl<'a> InferCtxt<'a, '_> {
+    pub fn infer(body: &Body) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
         let expr_gen = &IndexGen::new();
         let mut env = TypeEnv::new(expr_gen, body.local_decls.len());
 
+        // FIXME: Do not assume everything is a refined bty
         for local in body.args_iter() {
             env.define_local(local, TyS::Refine(expr_gen.fresh()).intern());
         }
@@ -65,19 +69,19 @@ impl InferCtxt<'_, '_> {
         cx.infer_basic_block(&mut env, START_BLOCK);
         for bb in body.reverse_postorder() {
             if !cx.visited.contains(bb) {
-                println!("------------------------------------");
-                println!("{:?}", bb);
-                println!("{:?}", cx.bb_envs[&bb]);
-                // cx.infer_basic_block(&mut env, bb);
+                let mut env = cx.bb_envs.get(&bb).unwrap().clone();
+                env.unpack();
+                cx.infer_basic_block(&mut env, bb);
             }
         }
+        cx.bb_envs
+            .into_iter()
+            .map(|(bb, env)| (bb, env.types))
+            .collect()
     }
 
-    fn infer_basic_block(&mut self, env: &mut TypeEnv, bb: BasicBlock) {
+    fn infer_basic_block(&mut self, env: &mut TypeEnv<'a>, bb: BasicBlock) {
         self.visited.insert(bb);
-        println!("------------------------------------");
-        println!("{:?}", bb);
-        println!("{:?}", env);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
@@ -91,17 +95,15 @@ impl InferCtxt<'_, '_> {
     fn infer_statement(&self, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                println!("{:?}", stmt);
                 let ty = self.infer_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
                 env.write_place(p, ty);
-                println!("{:?}", env);
             }
             StatementKind::Nop => {}
         }
     }
 
-    fn infer_terminator(&mut self, env: &mut TypeEnv, terminator: &Terminator) {
+    fn infer_terminator(&mut self, env: &mut TypeEnv<'a>, terminator: &Terminator) {
         match &terminator.kind {
             TerminatorKind::Return => {}
             TerminatorKind::Call {
@@ -118,7 +120,7 @@ impl InferCtxt<'_, '_> {
                                 entry.get_mut().join_with(env);
                             },
                             Entry::Vacant(entry) => {
-                                entry.insert(BasicBlockEnv::from_env(env));
+                                entry.insert(env.clone());
                             },
                         };
                     } else {
@@ -130,16 +132,10 @@ impl InferCtxt<'_, '_> {
                 if self.body.is_join_point(*target) {
                     match self.bb_envs.entry(*target) {
                         Entry::Occupied(mut entry) => {
-                            println!("===================================");
-                            println!("joining");
-                            println!("{:?}", entry.get());
-                            println!("{:?}", env);
                             entry.get_mut().join_with(env);
-                            println!("{:?}", entry.get());
-                            println!("===================================");
                         },
                         Entry::Vacant(entry) => {
-                            entry.insert(BasicBlockEnv::from_env(env));
+                            entry.insert(env.clone());
                         },
                     };
                 } else {
@@ -152,7 +148,6 @@ impl InferCtxt<'_, '_> {
     fn infer_rvalue(&self, env: &mut TypeEnv, rvalue: &Rvalue) -> Ty {
         match rvalue {
             Rvalue::Use(op) => self.infer_op(env, op),
-            // Rvalue::MutRef(local) => TyS::MutRef(Region::from(*local)).intern(),
             Rvalue::MutRef(place) => TyS::MutRef(env.get_region(place)).intern(),
             Rvalue::BinaryOp(_, _, _) => TyS::Refine(self.expr_gen.fresh()).intern(),
             Rvalue::UnaryOp(_, _) => TyS::Refine(self.expr_gen.fresh()).intern(),
@@ -170,22 +165,15 @@ impl InferCtxt<'_, '_> {
 
 #[derive(Clone)]
 struct TypeEnv<'a> {
-    types: FxHashMap<Local, Ty>,
+    types: DisjointSetsMap<Local, Ty>,
     expr_gen: &'a IndexGen<ExprIdx>,
-    // Union by rank
-    parent: IndexVec<Local, Cell<Local>>,
-    rank: IndexVec<Local, usize>,
-    next: IndexVec<Local, Local>,
 }
 
 impl TypeEnv<'_> {
     pub fn new(expr_gen: &IndexGen<ExprIdx>, nlocals: usize) -> TypeEnv {
         TypeEnv {
-            types: FxHashMap::default(),
+            types: DisjointSetsMap::new(nlocals),
             expr_gen,
-            parent: IndexVec::from_fn_n(|local| Cell::new(local), nlocals),
-            rank: IndexVec::from_elem_n(0, nlocals),
-            next: IndexVec::from_fn_n(|local| local, nlocals),
         }
     }
 
@@ -194,32 +182,51 @@ impl TypeEnv<'_> {
     }
 
     pub fn write_place(&mut self, place: &Place, new_ty: Ty) {
-        let (key, ty) = self.walk_place(place);
+        let (local, ty) = self.walk_place(place);
 
         match (&*ty, &*new_ty) {
             (TyS::Refine(_) | TyS::Uninit, TyS::Refine(_)) => {
-                self.types.insert(key, new_ty);
+                self.types.insert(local, new_ty);
             }
             (TyS::Uninit, TyS::MutRef(_)) => {
-                self.types.insert(key, new_ty);
+                self.types.insert(local, new_ty);
             }
             (TyS::MutRef(_), TyS::MutRef(_)) => {
-                let new_ty = self.join(ty, new_ty);
-                self.types.insert(key, new_ty);
+                let ty = ty.join(&new_ty);
+                self.types.insert(local, ty.clone());
+                self.union_cascade(ty, true);
             }
             _ => unreachable!("unexpected types: `{:?}` `{:?}`", ty, new_ty),
         }
     }
 
-    pub fn get_region(&self, place: &Place) -> Region {
-        let (root, _) = self.walk_place(place);
-        let mut locals = vec![root];
-        let mut current = root;
-        while self.next[current] != root {
-            current = self.next[current];
-            locals.push(current);
+    pub fn join_with(&mut self, other: &TypeEnv) {
+        self.types
+            .merge_with(&other.types, |ty1, ty2| ty1.join(&ty2));
+
+        let mut sources = BitSet::new_filled(self.types.len());
+        for ty in self.types.values() {
+            match &**ty {
+                TyS::MutRef(region) => {
+                    for local in region.iter() {
+                        sources.remove(local);
+                    }
+                }
+                _ => {}
+            }
         }
-        locals.into_iter().collect()
+        let sources = sources
+            .iter()
+            .dedup_by(|a, b| self.types.same_set(*a, *b))
+            .collect_vec();
+        for source in sources {
+            self.union_cascade(self.types[source].clone(), false);
+        }
+    }
+
+    pub fn get_region(&self, place: &Place) -> Region {
+        let (local, _) = self.walk_place(place);
+        self.types.iter_set(local).collect()
     }
 
     pub fn copy_place(&self, place: &Place) -> Ty {
@@ -228,14 +235,13 @@ impl TypeEnv<'_> {
     }
 
     pub fn move_place(&mut self, place: &Place) -> Ty {
-        let mut ty = self.lookup(place.local);
-        self.set(place.local, TyS::Uninit.intern());
+        let mut ty = self.types[place.local].clone();
+        self.types[place.local] = TyS::Uninit.intern();
         for elem in &place.projection {
             match (elem, &*ty) {
                 (PlaceElem::Deref, TyS::MutRef(region)) => {
-                    debug_assert!(region.iter().map(|local| self.find(local)).all_equal());
-                    self.set(region[0], TyS::Uninit.intern());
-                    ty = self.lookup(region[0]);
+                    self.types[region[0]] = TyS::Uninit.intern();
+                    ty = self.types[region[0]].clone();
                 }
                 _ => unreachable!("unexpected type: {:?}", ty),
             }
@@ -244,96 +250,58 @@ impl TypeEnv<'_> {
     }
 
     fn walk_place(&self, place: &Place) -> (Local, Ty) {
-        let mut root = self.find(place.local);
-        let mut ty = self.types[&root].clone();
+        let mut local = place.local;
+        let mut ty = self.types.get(place.local).unwrap().clone();
         for elem in &place.projection {
             match (elem, &*ty) {
                 (PlaceElem::Deref, TyS::MutRef(region)) => {
-                    // The region in the reference should always be a subset of one of regions in the env.
-                    debug_assert!(region.iter().map(|local| self.find(local)).all_equal());
-                    root = self.find(region[0]);
-                    ty = self.types[&root].clone();
+                    local = region[0];
+                    ty = self.types[local].clone();
                 }
                 _ => {
                     unreachable!("unexpected type: {:?}", ty);
                 }
             }
         }
-        (root, ty)
+        (local, ty)
     }
 
-    fn join(&mut self, ty1: Ty, ty2: Ty) -> Ty {
-        match (&*ty1, &*ty2) {
-            (TyS::Refine(e1), TyS::Refine(e2)) => {
-                if e1 == e2 {
-                    ty1
-                } else {
-                    TyS::Refine(self.expr_gen.fresh()).intern()
-                }
+    fn union_cascade(&mut self, ty: Ty, unpack: bool) {
+        match &*ty {
+            TyS::MutRef(region) => {
+                self.types.multi_union(region.iter(), |ty1, ty2| {
+                    if unpack {
+                        ty1.join(&ty2).unpack(self.expr_gen)
+                    } else {
+                        ty1.join(&ty2)
+                    }
+                });
+                let ty = self.types[region[0]].clone();
+                self.union_cascade(ty, unpack);
             }
-            (TyS::MutRef(region1), TyS::MutRef(region2)) => {
-                debug_assert!(region1.iter().map(|local| self.find(local)).all_equal());
-                debug_assert!(region2.iter().map(|local| self.find(local)).all_equal());
-                self.union(region1[0], region2[0]);
-                TyS::MutRef(region1 + region2).intern()
-            }
-            _ => {
-                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
-            }
+            _ => {}
         }
     }
 
-    fn union(&mut self, local1: Local, local2: Local) {
-        let root1 = self.find(local1);
-        let root2 = self.find(local2);
-
-        if root1 == root2 {
-            return;
+    fn unpack(&mut self) {
+        for ty in self.types.values_mut() {
+            *ty = ty.unpack(self.expr_gen);
         }
-
-        self.next.swap(root1, root2);
-
-        let root = match Ord::cmp(&self.rank[root1], &self.rank[root2]) {
-            Ordering::Less => {
-                self.parent[root1].set(root2);
-                root2
-            }
-            Ordering::Equal => {
-                *self.parent[root1].get_mut() = root2;
-                self.rank[root2] += 1;
-                root2
-            }
-            Ordering::Greater => {
-                self.parent[root2].set(root1);
-                root1
-            }
-        };
-        let ty1 = self.types.remove(&root1).unwrap();
-        let ty2 = self.types.remove(&root2).unwrap();
-        let ty = self.join(ty1, ty2);
-        self.types.insert(root, ty);
-    }
-
-    fn find(&self, local: Local) -> Local {
-        let parent = self.parent[local].get();
-        if parent != local {
-            self.parent[local].set(self.find(parent));
-        }
-        self.parent[local].get()
-    }
-
-    fn lookup(&self, local: Local) -> Ty {
-        self.types[&self.find(local)].clone()
-    }
-
-    fn set(&mut self, local: Local, ty: Ty) {
-        self.types.insert(self.find(local), ty);
     }
 }
 
 impl TyS {
     pub fn intern(self) -> Ty {
         Interned::new(self)
+    }
+
+    pub fn unpack(&self, gen: &IndexGen<ExprIdx>) -> Ty {
+        match self {
+            TyS::Exists => TyS::Refine(gen.fresh()).intern(),
+            TyS::Refine(e) => TyS::Refine(*e).intern(),
+            TyS::Uninit => TyS::Uninit.intern(),
+            TyS::MutRef(region) => TyS::MutRef(region.clone()).intern(),
+        }
     }
 
     pub fn join(&self, other: &TyS) -> Ty {
@@ -408,29 +376,7 @@ impl_internable!(TyS, RegionS);
 
 impl fmt::Debug for TypeEnv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[")?;
-        for (root, group) in self
-            .parent
-            .indices()
-            .into_group_map_by(|local| self.find(*local))
-            .into_iter()
-            .sorted()
-        {
-            if group.len() == 1 {
-                write!(f, "{:?}: ", group[0])?;
-            } else {
-                write!(f, "{{{:?}}}: ", group.iter().sorted().format(", "),)?;
-            }
-            match self.types.get(&root) {
-                Some(ty) => {
-                    write!(f, "{:?}, ", ty)?;
-                }
-                None => {
-                    write!(f, "unknown, ")?;
-                }
-            }
-        }
-        write!(f, "]")
+        fmt::Debug::fmt(&self.types, f)
     }
 }
 
@@ -439,7 +385,7 @@ impl fmt::Debug for TyS {
         match self {
             Self::Refine(e) => write!(f, "refine({:?})", e),
             Self::Uninit => write!(f, "uninit"),
-            Self::MutRef(region) => write!(f, "ref<mut, {:?}>", region),
+            Self::MutRef(region) => write!(f, "ref<{:?}>", region),
             TyS::Exists => write!(f, "exists"),
         }
     }
@@ -452,139 +398,5 @@ impl fmt::Debug for RegionS {
         } else {
             write!(f, "{{{:?}}}", self.0.iter().format(","))
         }
-    }
-}
-
-struct BasicBlockEnv {
-    types: FxHashMap<Local, Ty>,
-    parent: IndexVec<Local, Cell<Local>>,
-    rank: IndexVec<Local, usize>,
-}
-
-impl BasicBlockEnv {
-    fn from_env(env: &TypeEnv) -> BasicBlockEnv {
-        BasicBlockEnv {
-            types: env.types.clone(),
-            parent: env.parent.clone(),
-            rank: env.rank.clone(),
-        }
-    }
-
-    fn join_with(&mut self, env: &TypeEnv) {
-        debug_assert!(self.parent.len() == env.parent.len());
-
-        for local in self.parent.indices() {
-            let p = env.find(local);
-            if p == local {
-                let ty1 = env.lookup(local);
-                let ty2 = self.lookup(local);
-                self.set(local, ty1.join(&ty2));
-            } else {
-                self.union(local, p);
-            }
-        }
-        let mut sources = BitSet::new_filled(self.parent.len());
-        for ty in self.types.values() {
-            match &**ty {
-                TyS::MutRef(region) => {
-                    for local in region.iter() {
-                        sources.remove(local);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        for source in sources.iter() {
-            if self.find(source) != source {
-                continue;
-            }
-            self.propagate(source);
-        }
-    }
-
-    fn propagate(&mut self, root: Local) {
-        let ty = self.types[&root].clone();
-        match &*ty {
-            TyS::MutRef(region) => {
-                let first = region[0];
-                for local in region.iter() {
-                    self.union(first, local);
-                }
-                self.propagate(self.find(first));
-            }
-            _ => {}
-        }
-    }
-
-    fn union(&mut self, local1: Local, local2: Local) {
-        let root1 = self.find(local1);
-        let root2 = self.find(local2);
-        if root1 == root2 {
-            return;
-        }
-
-        let root = match Ord::cmp(&self.rank[root1], &self.rank[root2]) {
-            Ordering::Less => {
-                self.parent[root1].set(root2);
-                root2
-            }
-            Ordering::Equal => {
-                *self.parent[root1].get_mut() = root2;
-                self.rank[root2] += 1;
-                root2
-            }
-            Ordering::Greater => {
-                self.parent[root2].set(root1);
-                root1
-            }
-        };
-        let ty1 = self.types.remove(&root1).unwrap();
-        let ty2 = self.types.remove(&root2).unwrap();
-        self.types.insert(root, ty1.join(&ty2));
-    }
-
-    fn lookup(&self, local: Local) -> Ty {
-        self.types[&self.find(local)].clone()
-    }
-
-    fn set(&mut self, local: Local, ty: Ty) {
-        self.types.insert(self.find(local), ty);
-    }
-
-    fn find(&self, local: Local) -> Local {
-        let parent = self.parent[local].get();
-        if parent != local {
-            self.parent[local].set(self.find(parent));
-        }
-        self.parent[local].get()
-    }
-}
-
-impl fmt::Debug for BasicBlockEnv {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[")?;
-        for (root, group) in self
-            .parent
-            .indices()
-            .into_group_map_by(|local| self.find(*local))
-            .into_iter()
-            .sorted()
-        {
-            if group.len() == 1 {
-                write!(f, "{:?}: ", group[0])?;
-            } else {
-                write!(f, "{{{:?}}}: ", group.iter().sorted().format(", "),)?;
-            }
-            match self.types.get(&root) {
-                Some(ty) => {
-                    write!(f, "{:?}, ", ty)?;
-                }
-                None => {
-                    write!(f, "unknown, ")?;
-                }
-            }
-        }
-        write!(f, "]")
     }
 }

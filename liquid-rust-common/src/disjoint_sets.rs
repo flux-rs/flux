@@ -1,23 +1,25 @@
-use std::{cell::Cell, cmp::Ordering};
+use std::{cell::Cell, cmp::Ordering, fmt};
 
+use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
 pub use crate::index::{Idx, IndexVec};
 
-pub struct DisjointSets<I: Idx, T> {
+#[derive(Clone)]
+pub struct DisjointSetsMap<I: Idx, T> {
     map: FxHashMap<I, T>,
     parent: IndexVec<I, Cell<I>>,
     rank: IndexVec<I, usize>,
     next: IndexVec<I, I>,
 }
 
-pub struct Set<'a, I: Idx, T> {
-    disjoint_sets: &'a DisjointSets<I, T>,
+pub struct SetIter<'a, I: Idx, T> {
+    disjoint_sets: &'a DisjointSetsMap<I, T>,
     current: Option<I>,
     root: I,
 }
 
-impl<I: Idx, T> DisjointSets<I, T> {
+impl<I: Idx, T> DisjointSetsMap<I, T> {
     pub fn new(n: usize) -> Self {
         let parent = IndexVec::from_fn_n(|idx| Cell::new(idx), n);
         let rank = IndexVec::from_elem_n(0, n);
@@ -39,7 +41,12 @@ impl<I: Idx, T> DisjointSets<I, T> {
         self.rank.push(0);
         self.next.push(idx);
     }
-    pub fn union(&mut self, idx1: I, idx2: I, merge: impl FnOnce(&mut Self, T, T) -> T) {
+
+    pub fn same_set(&self, idx1: I, idx2: I) -> bool {
+        self.find(idx1) == self.find(idx2)
+    }
+
+    pub fn union(&mut self, idx1: I, idx2: I, merge: impl FnOnce(T, T) -> T) {
         let root1 = self.find(idx1);
         let root2 = self.find(idx2);
 
@@ -70,10 +77,44 @@ impl<I: Idx, T> DisjointSets<I, T> {
                 self.map.insert(root, elem);
             }
             (Some(elem1), Some(elem2)) => {
-                let elem = merge(self, elem1, elem2);
+                let elem = merge(elem1, elem2);
                 self.map.insert(root, elem);
             }
         }
+    }
+
+    pub fn multi_union(
+        &mut self,
+        indices: impl IntoIterator<Item = I>,
+        merge: impl Fn(T, T) -> T + Copy,
+    ) {
+        let mut indices = indices.into_iter();
+        match indices.next() {
+            None => return,
+            Some(first) => {
+                for idx in indices {
+                    self.union(first, idx, merge)
+                }
+            }
+        }
+    }
+
+    pub fn iter_set(&self, idx: I) -> SetIter<I, T> {
+        let root = self.find(idx);
+        SetIter {
+            disjoint_sets: self,
+            current: Some(root),
+            root,
+        }
+    }
+
+    pub fn iter_sets(&self) -> impl Iterator<Item = Vec<I>> {
+        self.parent
+            .indices()
+            .into_group_map_by(|idx| self.find(*idx))
+            .into_iter()
+            .sorted()
+            .map(|(_, set)| set)
     }
 
     pub fn remove(&mut self, idx: I) -> Option<T> {
@@ -84,8 +125,20 @@ impl<I: Idx, T> DisjointSets<I, T> {
         self.map.get(&self.find(idx))
     }
 
+    pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
+        self.map.get_mut(&self.find(idx))
+    }
+
     pub fn insert(&mut self, idx: I, elem: T) -> Option<T> {
         self.map.insert(self.find(idx), elem)
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &T> {
+        self.map.values()
+    }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.map.values_mut()
     }
 
     fn find(&self, elem: I) -> I {
@@ -97,36 +150,29 @@ impl<I: Idx, T> DisjointSets<I, T> {
     }
 }
 
-impl<I: Idx, T: Clone> DisjointSets<I, T> {
-    pub fn merge_with(&mut self, other: &Self, mut merge: impl FnMut(&mut Self, T, T) -> T) {
-        self.merge_with_inner(other, &mut merge);
-    }
-
-    fn merge_with_inner(&mut self, other: &Self, merge: &mut impl FnMut(&mut Self, T, T) -> T) {
+impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
+    pub fn merge_with(&mut self, other: &Self, merge: impl Fn(T, T) -> T + Copy) {
         for idx in self.parent.indices() {
             let root = other.find(idx);
             if root == idx {
-                match (self.remove(idx), other.get(idx)) {
-                    (None, None) => {}
-                    (None, Some(elem)) => {
-                        self.insert(idx, elem.clone());
-                    }
-                    (Some(elem), None) => {
-                        self.map.insert(idx, elem);
-                    }
-                    (Some(elem1), Some(elem2)) => {
-                        let elem = merge(self, elem1, elem2.clone());
-                        self.insert(idx, elem);
+                if let Some(elem1) = other.get(idx) {
+                    match self.remove(idx) {
+                        Some(elem2) => {
+                            self.insert(idx, merge(elem1.clone(), elem2));
+                        }
+                        None => {
+                            self.insert(idx, elem1.clone());
+                        }
                     }
                 }
             } else {
-                self.union(idx, root, &mut *merge);
+                self.union(idx, root, merge);
             }
         }
     }
 }
 
-impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
+impl<'a, I: Idx, T> Iterator for SetIter<'a, I, T> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -137,5 +183,51 @@ impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
         self.current = if next == self.root { None } else { Some(next) };
 
         Some(current)
+    }
+}
+
+impl<I: Idx, T> std::ops::Index<I> for DisjointSetsMap<I, T> {
+    type Output = T;
+
+    fn index(&self, index: I) -> &Self::Output {
+        self.get(index).unwrap()
+    }
+}
+
+impl<I: Idx, T> std::ops::IndexMut<I> for DisjointSetsMap<I, T> {
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        self.get_mut(index).unwrap()
+    }
+}
+
+impl<I, T> fmt::Debug for DisjointSetsMap<I, T>
+where
+    T: fmt::Debug,
+    I: Idx,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (root, set) in self
+            .parent
+            .indices()
+            .into_group_map_by(|idx| self.find(*idx))
+            .into_iter()
+            .sorted()
+        {
+            if set.len() == 1 {
+                write!(f, "{:?}: ", set[0])?;
+            } else {
+                write!(f, "{{{:?}}}: ", set.iter().sorted().format(", "),)?;
+            }
+            match self.map.get(&root) {
+                Some(ty) => {
+                    write!(f, "{:?}, ", ty)?;
+                }
+                None => {
+                    write!(f, "unknown, ")?;
+                }
+            }
+        }
+        write!(f, "}}")
     }
 }

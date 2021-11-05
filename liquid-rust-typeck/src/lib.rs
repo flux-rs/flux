@@ -58,7 +58,8 @@ impl Checker<'_, '_> {
         body: &Body,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
-        InferCtxt::infer(body);
+        let bb_envs = InferCtxt::infer(body);
+        println!("{:#?}", bb_envs);
         return Ok(());
 
         let mut constraint = ConstraintBuilder::new();
