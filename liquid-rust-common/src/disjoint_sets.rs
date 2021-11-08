@@ -32,7 +32,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.parent.len()
     }
 
@@ -90,7 +90,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
     ) {
         let mut indices = indices.into_iter();
         match indices.next() {
-            None => return,
+            None => {}
             Some(first) => {
                 for idx in indices {
                     self.union(first, idx, merge)

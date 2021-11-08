@@ -5,9 +5,12 @@ use liquid_rust_common::{
     disjoint_sets::DisjointSetsMap,
     index::{newtype_index, IndexGen},
 };
-use liquid_rust_core::ir::{
-    BasicBlock, Body, Local, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind,
-    Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+use liquid_rust_core::{
+    ir::{
+        self, BasicBlock, Body, Local, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+    },
+    ty::{self as core, BaseTy, FnSig},
 };
 use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;
@@ -18,8 +21,8 @@ type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyS {
-    Refine(ExprIdx),
-    Exists,
+    Refine(BaseTy, ExprIdx),
+    Exists(BaseTy),
     Uninit,
     MutRef(Region),
 }
@@ -43,13 +46,13 @@ newtype_index! {
 }
 
 impl<'a> InferCtxt<'a, '_> {
-    pub fn infer(body: &Body) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
+    pub fn infer(body: &Body, fn_sig: &FnSig) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
         let expr_gen = &IndexGen::new();
         let mut env = TypeEnv::new(expr_gen, body.local_decls.len());
 
-        // FIXME: Do not assume everything is a refined bty
-        for local in body.args_iter() {
-            env.define_local(local, TyS::Refine(expr_gen.fresh()).intern());
+        let (args, ret) = lower(fn_sig, expr_gen);
+        for (local, ty) in body.args_iter().zip(args) {
+            env.define_local(local, ty.unpack(expr_gen));
         }
 
         for local in body.vars_and_temps_iter() {
@@ -65,7 +68,7 @@ impl<'a> InferCtxt<'a, '_> {
             bb_envs: FxHashMap::default(),
         };
 
-        // FIXME: Assumming START_BLOCK is not a join point;
+        // FIXME: Do not assume START_BLOCK is not a join point;
         cx.infer_basic_block(&mut env, START_BLOCK);
         for bb in body.reverse_postorder() {
             if !cx.visited.contains(bb) {
@@ -147,18 +150,66 @@ impl<'a> InferCtxt<'a, '_> {
 
     fn infer_rvalue(&self, env: &mut TypeEnv, rvalue: &Rvalue) -> Ty {
         match rvalue {
-            Rvalue::Use(op) => self.infer_op(env, op),
+            Rvalue::Use(op) => self.infer_operand(env, op),
             Rvalue::MutRef(place) => TyS::MutRef(env.get_region(place)).intern(),
-            Rvalue::BinaryOp(_, _, _) => TyS::Refine(self.expr_gen.fresh()).intern(),
-            Rvalue::UnaryOp(_, _) => TyS::Refine(self.expr_gen.fresh()).intern(),
+            Rvalue::BinaryOp(bin_op, op1, op2) => self.infer_binary_op(env, *bin_op, op1, op2),
+            Rvalue::UnaryOp(un_op, op) => self.infer_unary_op(env, *un_op, op),
         }
     }
 
-    fn infer_op(&self, env: &mut TypeEnv, op: &Operand) -> Ty {
+    fn infer_binary_op(
+        &self,
+        env: &mut TypeEnv,
+        bin_op: ir::BinOp,
+        op1: &Operand,
+        op2: &Operand,
+    ) -> Ty {
+        let ty1 = self.infer_operand(env, op1);
+        let ty2 = self.infer_operand(env, op2);
+        match (bin_op, &*ty1, &*ty2) {
+            (ir::BinOp::Add | ir::BinOp::Sub, TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
+                debug_assert_eq!(bty1, bty2);
+                TyS::Refine(*bty1, self.expr_gen.fresh()).intern()
+            }
+            (ir::BinOp::Gt | ir::BinOp::Lt, TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
+                debug_assert_eq!(bty1, bty2);
+                TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern()
+            }
+            _ => {
+                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
+            }
+        }
+    }
+
+    fn infer_unary_op(&self, env: &mut TypeEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
+        let ty = self.infer_operand(env, op);
+        match (un_op, &*ty) {
+            (ir::UnOp::Not, TyS::Refine(BaseTy::Bool, _)) => {
+                TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern()
+            }
+            (ir::UnOp::Neg, TyS::Refine(bty, _)) => {
+                TyS::Refine(*bty, self.expr_gen.fresh()).intern()
+            }
+            _ => {
+                unreachable!("unexpected type: `{:?}`", ty);
+            }
+        }
+    }
+
+    fn infer_operand(&self, env: &mut TypeEnv, op: &Operand) -> Ty {
         match op {
             Operand::Copy(place) => env.copy_place(place),
             Operand::Move(place) => env.move_place(place),
-            Operand::Constant(_) => TyS::Refine(self.expr_gen.fresh()).intern(),
+            Operand::Constant(c) => self.infer_constant(c),
+        }
+    }
+
+    fn infer_constant(&self, c: &ir::Constant) -> Ty {
+        match c {
+            ir::Constant::Int(_, int_ty) => {
+                TyS::Refine(BaseTy::Int(*int_ty), self.expr_gen.fresh()).intern()
+            }
+            ir::Constant::Bool(_) => TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern(),
         }
     }
 }
@@ -185,7 +236,7 @@ impl TypeEnv<'_> {
         let (local, ty) = self.walk_place(place);
 
         match (&*ty, &*new_ty) {
-            (TyS::Refine(_) | TyS::Uninit, TyS::Refine(_)) => {
+            (TyS::Refine(..) | TyS::Uninit, TyS::Refine(..)) => {
                 self.types.insert(local, new_ty);
             }
             (TyS::Uninit, TyS::MutRef(_)) => {
@@ -204,7 +255,7 @@ impl TypeEnv<'_> {
         self.types
             .merge_with(&other.types, |ty1, ty2| ty1.join(&ty2));
 
-        let mut sources = BitSet::new_filled(self.types.len());
+        let mut sources = BitSet::new_filled(self.types.size());
         for ty in self.types.values() {
             match &**ty {
                 TyS::MutRef(region) => {
@@ -297,8 +348,8 @@ impl TyS {
 
     pub fn unpack(&self, gen: &IndexGen<ExprIdx>) -> Ty {
         match self {
-            TyS::Exists => TyS::Refine(gen.fresh()).intern(),
-            TyS::Refine(e) => TyS::Refine(*e).intern(),
+            TyS::Exists(bty) => TyS::Refine(*bty, gen.fresh()).intern(),
+            TyS::Refine(bty, e) => TyS::Refine(*bty, *e).intern(),
             TyS::Uninit => TyS::Uninit.intern(),
             TyS::MutRef(region) => TyS::MutRef(region.clone()).intern(),
         }
@@ -306,8 +357,17 @@ impl TyS {
 
     pub fn join(&self, other: &TyS) -> Ty {
         match (self, other) {
-            (TyS::Refine(e1), TyS::Refine(e2)) if e1 == e2 => TyS::Refine(*e1).intern(),
-            (TyS::Refine(_) | TyS::Exists, TyS::Refine(_) | TyS::Exists) => TyS::Exists.intern(),
+            (TyS::Refine(bty1, e1), TyS::Refine(bty2, e2)) if e1 == e2 => {
+                debug_assert_eq!(bty1, bty2);
+                TyS::Refine(*bty1, *e1).intern()
+            }
+            (
+                TyS::Refine(bty1, _) | TyS::Exists(bty1),
+                TyS::Refine(bty2, _) | TyS::Exists(bty2),
+            ) => {
+                debug_assert_eq!(bty1, bty2);
+                TyS::Exists(*bty1).intern()
+            }
             (TyS::MutRef(region1), TyS::MutRef(region2)) => TyS::MutRef(region1 + region2).intern(),
             (TyS::Uninit, _) | (_, TyS::Uninit) => TyS::Uninit.intern(),
             _ => {
@@ -383,10 +443,10 @@ impl fmt::Debug for TypeEnv<'_> {
 impl fmt::Debug for TyS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Refine(e) => write!(f, "refine({:?})", e),
+            Self::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
             Self::Uninit => write!(f, "uninit"),
             Self::MutRef(region) => write!(f, "ref<{:?}>", region),
-            TyS::Exists => write!(f, "exists"),
+            TyS::Exists(bty) => write!(f, "{:?}{{k}}", bty),
         }
     }
 }
@@ -398,5 +458,18 @@ impl fmt::Debug for RegionS {
         } else {
             write!(f, "{{{:?}}}", self.0.iter().format(","))
         }
+    }
+}
+
+fn lower(fn_sig: &FnSig, gen: &IndexGen<ExprIdx>) -> (Vec<Ty>, Ty) {
+    let args = fn_sig.args.iter().map(|arg| lower_ty(arg, gen)).collect();
+    let ret = lower_ty(&fn_sig.ret, gen);
+    (args, ret)
+}
+
+fn lower_ty(ret: &core::Ty, gen: &IndexGen<ExprIdx>) -> Ty {
+    match ret {
+        core::Ty::Refine(bty, _) => TyS::Refine(*bty, gen.fresh()).intern(),
+        core::Ty::Exists(bty, _, _) => TyS::Exists(*bty).intern(),
     }
 }

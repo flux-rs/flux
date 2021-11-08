@@ -1,4 +1,5 @@
 #![feature(rustc_private, min_specialization, once_cell)]
+#![allow(warnings)]
 
 extern crate rustc_hash;
 extern crate rustc_hir;
@@ -58,8 +59,9 @@ impl Checker<'_, '_> {
         body: &Body,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
-        let bb_envs = InferCtxt::infer(body);
+        let bb_envs = InferCtxt::infer(body, fn_sig);
         println!("{:#?}", bb_envs);
+
         return Ok(());
 
         let mut constraint = ConstraintBuilder::new();

@@ -68,7 +68,7 @@ pub enum Rvalue {
     UnaryOp(UnOp, Operand),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum BinOp {
     Add,
     Sub,
