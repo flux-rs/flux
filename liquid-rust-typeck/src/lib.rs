@@ -1,6 +1,7 @@
 #![feature(rustc_private, min_specialization, once_cell)]
 #![allow(warnings)]
 
+extern crate rustc_data_structures;
 extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_index;
@@ -23,23 +24,26 @@ use crate::{
     inference::InferCtxt,
     lowering::LowerCtxt,
     subst::Subst,
-    ty::{BaseTy, BinOp, Expr, ExprKind, Region, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Expr, ExprKind, KVid, Region, Ty, TyKind, Var},
 };
 use global_env::GlobalEnv;
 use itertools::Itertools;
 use liquid_rust_common::{
+    disjoint_sets::DisjointSetsMap,
     errors::ErrorReported,
     index::{Idx, IndexGen},
 };
 use liquid_rust_core::{
     ir::{
-        self, BasicBlock, Body, Constant, Operand, Rvalue, SourceInfo, Statement, StatementKind,
-        Terminator, TerminatorKind, RETURN_PLACE,
+        self, BasicBlock, Body, Constant, Local, Operand, Rvalue, SourceInfo, Statement,
+        StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
     },
     ty::{self as core, Name},
 };
 use liquid_rust_fixpoint::Fixpoint;
+use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
+use rustc_index::bit_set::BitSet;
 use rustc_session::Session;
 use rustc_span::MultiSpan;
 use tyenv::TyEnv;
@@ -47,9 +51,15 @@ use tyenv::TyEnv;
 pub struct Checker<'a, 'tcx> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
+    // All join points immediatly dominated by a block.
+    dominated_join_points: FxHashMap<BasicBlock, Vec<BasicBlock>>,
+    visited: BitSet<BasicBlock>,
+    bb_envs: FxHashMap<BasicBlock, TyEnv>,
+    bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<Local, inference::Ty>>,
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
     name_gen: &'a IndexGen<Var>,
+    kvid_gen: &'a IndexGen<KVid>,
 }
 
 impl Checker<'_, '_> {
@@ -59,7 +69,7 @@ impl Checker<'_, '_> {
         body: &Body,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
-        let bb_envs = InferCtxt::infer(body, fn_sig);
+        let bb_env_shapes = InferCtxt::infer(body, fn_sig);
         // println!("{:#?}", bb_envs);
 
         // return Ok(());
@@ -69,51 +79,87 @@ impl Checker<'_, '_> {
         let name_gen = &IndexGen::new();
         let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(name_gen, fn_sig);
 
-        let mut env = TyEnv::new(name_gen, body.local_decls.len());
+        let mut env = TyEnv::new();
 
         let mut cursor = constraint.as_cursor();
         for (var, sort, pred) in params {
             cursor.push_forall(var, sort, pred);
         }
 
-        for (local, ty) in body.args_iter().zip(args) {
-            let ty = unpack(name_gen, &mut env, &mut cursor, ty);
-            env.define_local(local, ty);
+        // Return place
+        env.push_local(TyKind::Uninit.intern());
+
+        // Arguments
+        for ty in args {
+            let ty = unpack(name_gen, &mut cursor, ty);
+            env.push_local(ty);
         }
 
-        for local in body.vars_and_temps_iter() {
-            env.define_local(
-                local,
-                TyKind::Uninit(body.local_decls[local].layout.clone()).intern(),
-            );
+        // Vars and temps
+        for _ in body.vars_and_temps_iter() {
+            env.push_local(TyKind::Uninit.intern());
         }
 
-        env.define_local(
-            RETURN_PLACE,
-            TyKind::Uninit(body.local_decls[RETURN_PLACE].layout.clone()).intern(),
-        );
+        let dominators = body.dominators();
+        let mut dominated_join_points = FxHashMap::<BasicBlock, Vec<BasicBlock>>::default();
+        for bb in body.join_points() {
+            dominated_join_points
+                .entry(dominators.immediate_dominator(bb))
+                .or_default()
+                .push(bb);
+        }
 
-        let checker = Checker {
+        let mut checker = Checker {
             sess,
             global_env,
             body,
+            dominated_join_points,
+            bb_envs: FxHashMap::default(),
+            visited: BitSet::new_empty(body.basic_blocks.len()),
+            bb_env_shapes,
             ret_ty,
             name_gen,
+            kvid_gen: &IndexGen::new(),
         };
 
-        checker.check_basic_block(&mut env, &mut cursor, BasicBlock::new(0))?;
+        // FIXME: Do not assume START_BLOCK is not a join point;
+        checker.check_basic_block(&mut env, &mut cursor, START_BLOCK);
+        for bb in body.reverse_postorder() {
+            if !checker.visited.contains(bb) {
+                let mut cursor = cursor.snapshot();
+                let mut env = checker.bb_envs.get(&bb).unwrap().clone();
+                env.unpack(&mut cursor, name_gen);
+                checker.check_basic_block(&mut env, &mut cursor, bb);
+            }
+        }
+        println!("{:#?}", checker.bb_envs);
         println!("{:?}", constraint);
-        let constraint = constraint.finalize();
-        println!("{:?}", Fixpoint::check(&constraint));
+        // let constraint = constraint.finalize();
+        // println!("{:?}", Fixpoint::check(&constraint));
         Ok(())
     }
 
     fn check_basic_block(
-        &self,
+        &mut self,
         env: &mut TyEnv,
         cursor: &mut Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        println!("-------------------------------------");
+        println!("{:?}", bb);
+        self.visited.insert(bb);
+
+        self.dominated_join_points
+            .get(&bb)
+            .iter()
+            .copied()
+            .flatten()
+            .for_each(|bb| {
+                let shape = self.bb_env_shapes.remove(bb).unwrap();
+                let bb_env = env.infer_bb_env(shape, self.name_gen, self.kvid_gen);
+                self.bb_envs.insert(*bb, bb_env);
+            });
+
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
             self.check_statement(env, stmt);
@@ -138,18 +184,18 @@ impl Checker<'_, '_> {
     }
 
     fn check_terminator(
-        &self,
+        &mut self,
         env: &mut TyEnv,
         cursor: &mut Cursor,
         terminator: &Terminator,
     ) -> Result<(), ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
-                let ret_place_ty = env.lookup_place(&ir::Place::from(RETURN_PLACE));
+                let ret_place_ty = env.lookup_local(RETURN_PLACE);
                 self.check_subtyping(cursor, ret_place_ty, self.ret_ty.clone());
             }
             TerminatorKind::Goto { target } => {
-                self.check_basic_block(env, cursor, *target)?;
+                self.check_goto(env, cursor, *target)?;
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(env, discr);
@@ -157,13 +203,12 @@ impl Checker<'_, '_> {
                     TyKind::Refine(BaseTy::Bool, discr_expr) => {
                         for (bits, bb) in targets.iter() {
                             let cursor = &mut cursor.snapshot();
-                            let guard = if bits != 0 {
+                            cursor.push_guard(if bits != 0 {
                                 discr_expr.clone()
                             } else {
                                 discr_expr.not()
-                            };
-                            cursor.push_guard(guard);
-                            self.check_basic_block(&mut env.clone(), cursor, bb)?;
+                            });
+                            self.check_goto(&mut env.clone(), cursor, bb)?;
                         }
                         let otherwise = targets
                             .iter()
@@ -180,7 +225,7 @@ impl Checker<'_, '_> {
                             cursor.push_guard(otherwise);
                         }
 
-                        self.check_basic_block(env, cursor, targets.otherwise())?;
+                        self.check_goto(env, cursor, targets.otherwise())?;
                     }
                     TyKind::Refine(BaseTy::Int(_), _) => {
                         todo!("switch_int not implemented for integer discriminants")
@@ -218,6 +263,28 @@ impl Checker<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    fn check_goto(
+        &mut self,
+        env: &mut TyEnv,
+        cursor: &mut Cursor,
+        target: BasicBlock,
+    ) -> Result<(), ErrorReported> {
+        if self.body.is_join_point(target) {
+            let bb_env = &self.bb_envs[&target];
+            println!("goto {:?}", target);
+            println!("{:?}", bb_env);
+            for (mut region, ty1) in env.iter() {
+                // FIXME: we should check the region in env is a subset of a region in bb_env
+                let local = region.next().unwrap();
+                let ty2 = bb_env.lookup_local(local);
+                self.check_subtyping(cursor, ty1, ty2);
+            }
+            Ok(())
+        } else {
+            self.check_basic_block(env, cursor, target)
+        }
     }
 
     fn check_rvalue(&self, env: &mut TyEnv, rvalue: &Rvalue) -> Ty {
@@ -336,21 +403,20 @@ impl Checker<'_, '_> {
                         .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
                 }
             }
-            (TyKind::Refine(bty1, e1), TyKind::Exists(bty2, evar, e2)) => {
+            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, evar, p)) => {
                 debug_assert_eq!(bty1, bty2);
-                cursor.push_head(Subst::new([(*evar, e1.clone())]).subst_expr(e2.clone()))
+                cursor.push_head(Subst::new([(*evar, e.clone())]).subst_pred(p.clone()))
             }
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
-                assert!(r1 == r2);
+                assert!(r1.subset(r2));
             }
-            (TyKind::Uninit(_), _) | (_, TyKind::Uninit(_)) => {
-                unreachable!("subtyping between uninitialized types")
-            }
+            (TyKind::Uninit, TyKind::Uninit) => {}
+            (TyKind::MutRef(_), TyKind::Uninit) => {}
             (TyKind::Exists(..), _) => {
                 unreachable!("subtyping with unpacked existential")
             }
             _ => {
-                unreachable!("subtyping between incompatible types")
+                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2)
             }
         }
     }
@@ -388,18 +454,18 @@ impl Checker<'_, '_> {
                         _ => {}
                     }
                 }
-                TyKind::Exists(bty1, evar, e) => {
+                TyKind::Exists(bty1, evar, p) => {
                     debug_assert!(bty1 == bty2);
                     let fresh = self.name_gen.fresh();
                     let var = ExprKind::Var(fresh).intern();
                     cursor.push_forall(
                         fresh,
                         bty1.sort(),
-                        Subst::new([(*evar, var.clone())]).subst_expr(e.clone()),
+                        Subst::new([(*evar, var.clone())]).subst_pred(p.clone()),
                     );
                     subst.insert(ident.name, var);
                 }
-                TyKind::Uninit(_) => {
+                TyKind::Uninit => {
                     unreachable!("inferring substitution with uninitialized type")
                 }
                 // TODO: we should also infer region substitution
@@ -437,14 +503,14 @@ impl Checker<'_, '_> {
     }
 }
 
-fn unpack(name_gen: &IndexGen<Var>, env: &mut TyEnv, cursor: &mut Cursor, ty: Ty) -> Ty {
+fn unpack(name_gen: &IndexGen<Var>, cursor: &mut Cursor, ty: Ty) -> Ty {
     match ty.kind() {
-        TyKind::Exists(bty, evar, e) => {
+        TyKind::Exists(bty, evar, p) => {
             let fresh = name_gen.fresh();
             cursor.push_forall(
                 fresh,
                 bty.sort(),
-                Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_expr(e.clone()),
+                Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_pred(p.clone()),
             );
             TyKind::Refine(*bty, ExprKind::Var(fresh).intern()).intern()
         }

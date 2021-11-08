@@ -3,7 +3,7 @@ use std::{fmt, lazy::SyncOnceCell};
 use itertools::Itertools;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
-pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, UnOp, Var};
+pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp, Var};
 pub use rustc_middle::ty::IntTy;
 
 use crate::intern::{impl_internable, Interned};
@@ -18,8 +18,8 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TyKind {
     Refine(BaseTy, Expr),
-    Exists(BaseTy, Var, Expr),
-    Uninit(TypeLayout),
+    Exists(BaseTy, Var, Pred),
+    Uninit,
     MutRef(Region),
 }
 
@@ -30,8 +30,14 @@ pub struct RegionS(Vec<Local>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    // KVar(KVid),
+    KVar(KVar),
     Expr(Expr),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct KVar {
+    pub kvid: KVid,
+    pub args: Interned<Vec<Expr>>,
 }
 
 pub type Expr = Interned<ExprS>;
@@ -58,14 +64,6 @@ impl TyKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
-    }
-
-    pub fn layout(&self) -> TypeLayout {
-        match self.kind() {
-            TyKind::Refine(bty, _) | TyKind::Exists(bty, _, _) => TypeLayout::BaseTy(*bty),
-            TyKind::Uninit(layout) => layout.clone(),
-            TyKind::MutRef(_) => TypeLayout::MutRef,
-        }
     }
 }
 
@@ -106,9 +104,15 @@ impl From<Expr> for Pred {
 impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            // Self::KVar(kvid) => write!(f, "{:?}", kvid),
+            Self::KVar(kvar) => write!(f, "{:?}", kvar),
             Self::Expr(expr) => write!(f, "{:?}", expr),
         }
+    }
+}
+
+impl fmt::Debug for KVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}({:?})", self.kvid, self.args.iter().format(" "))
     }
 }
 
@@ -156,6 +160,10 @@ impl RegionS {
     fn intern(self) -> Region {
         Interned::new(self)
     }
+
+    pub fn subset(&self, other: &RegionS) -> bool {
+        self.iter().all(|local| other.iter().contains(&local))
+    }
 }
 
 impl From<Local> for Region {
@@ -164,7 +172,12 @@ impl From<Local> for Region {
     }
 }
 
-impl_internable!(crate::ty::TyS, crate::ty::ExprS, crate::ty::RegionS);
+impl_internable!(
+    crate::ty::TyS,
+    crate::ty::ExprS,
+    crate::ty::RegionS,
+    Vec<Expr>
+);
 
 impl std::ops::Index<usize> for Region {
     type Output = Local;
@@ -195,7 +208,7 @@ impl RegionS {
         .intern()
     }
 
-    fn iter(&self) -> impl Iterator<Item = Local> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Local> + '_ {
         self.0.iter().copied()
     }
 }
@@ -211,7 +224,7 @@ impl fmt::Debug for TyS {
         match self.kind() {
             TyKind::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
             TyKind::Exists(bty, var, e) => write!(f, "{:?}{{{:?}: {:?}}}", bty, var, e),
-            TyKind::Uninit(_) => write!(f, "uninit"),
+            TyKind::Uninit => write!(f, "uninit"),
             TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
         }
     }
@@ -224,5 +237,20 @@ impl fmt::Debug for RegionS {
         } else {
             write!(f, "{{{:?}}}", self.0.iter().format(","))
         }
+    }
+}
+
+impl KVar {
+    pub fn new(kvid: KVid, args: Vec<Expr>) -> Self {
+        KVar {
+            kvid,
+            args: Interned::new(args),
+        }
+    }
+}
+
+impl From<Var> for Expr {
+    fn from(var: Var) -> Self {
+        ExprKind::Var(var).intern()
     }
 }

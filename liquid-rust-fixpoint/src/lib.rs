@@ -9,7 +9,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, Pred, Sort, UnOp, Var};
+pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Pred, Sort, UnOp, Var};
 use liquid_rust_common::format::PadAdapter;
 use serde::Deserialize;
 
@@ -42,7 +42,7 @@ impl Fixpoint {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
-            // let mut w = BufWriter::new(std::io::stdout());
+            let mut w = BufWriter::new(std::io::stdout());
 
             // emit_preamble(&mut w).unwrap();
 

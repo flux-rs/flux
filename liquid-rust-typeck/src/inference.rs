@@ -15,9 +15,12 @@ use liquid_rust_core::{
 use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;
 
-use crate::intern::{impl_internable, Interned};
+use crate::{
+    intern::{impl_internable, Interned},
+    ty::Region,
+};
 
-type Ty = Interned<TyS>;
+pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyS {
@@ -26,11 +29,6 @@ pub enum TyS {
     Uninit,
     MutRef(Region),
 }
-
-pub type Region = Interned<RegionS>;
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct RegionS(Vec<Local>);
 
 pub struct InferCtxt<'a, 'tcx> {
     body: &'a Body<'tcx>,
@@ -48,18 +46,22 @@ newtype_index! {
 impl<'a> InferCtxt<'a, '_> {
     pub fn infer(body: &Body, fn_sig: &FnSig) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
         let expr_gen = &IndexGen::new();
-        let mut env = TypeEnv::new(expr_gen, body.local_decls.len());
+        let mut env = TypeEnv::new(expr_gen);
 
         let (args, ret) = lower(fn_sig, expr_gen);
-        for (local, ty) in body.args_iter().zip(args) {
-            env.define_local(local, ty.unpack(expr_gen));
+
+        // Return place
+        env.push_local(TyS::Uninit.intern());
+
+        // Arguments
+        for ty in args {
+            env.push_local(ty.unpack(expr_gen));
         }
 
-        for local in body.vars_and_temps_iter() {
-            env.define_local(local, TyS::Uninit.intern());
+        // Vars and temps
+        for _ in body.vars_and_temps_iter() {
+            env.push_local(TyS::Uninit.intern());
         }
-
-        env.define_local(RETURN_PLACE, TyS::Uninit.intern());
 
         let mut cx = InferCtxt {
             body,
@@ -221,15 +223,15 @@ struct TypeEnv<'a> {
 }
 
 impl TypeEnv<'_> {
-    pub fn new(expr_gen: &IndexGen<ExprIdx>, nlocals: usize) -> TypeEnv {
+    pub fn new(expr_gen: &IndexGen<ExprIdx>) -> TypeEnv {
         TypeEnv {
-            types: DisjointSetsMap::new(nlocals),
+            types: DisjointSetsMap::new(),
             expr_gen,
         }
     }
 
-    pub fn define_local(&mut self, local: Local, intern: Ty) {
-        self.types.insert(local, intern);
+    pub fn push_local(&mut self, ty: Ty) {
+        self.types.push(ty);
     }
 
     pub fn write_place(&mut self, place: &Place, new_ty: Ty) {
@@ -380,60 +382,6 @@ impl TyS {
     }
 }
 
-impl Region {
-    fn merge(&self, other: &Region) -> Region {
-        RegionS(
-            self.0
-                .iter()
-                .copied()
-                .merge(other.0.iter().copied())
-                .dedup()
-                .collect(),
-        )
-        .intern()
-    }
-
-    fn iter(&self) -> impl Iterator<Item = Local> + '_ {
-        self.0.iter().copied()
-    }
-}
-
-impl RegionS {
-    fn intern(self) -> Region {
-        Interned::new(self)
-    }
-}
-
-impl From<Local> for Region {
-    fn from(local: Local) -> Self {
-        RegionS(vec![local]).intern()
-    }
-}
-
-impl FromIterator<Local> for Region {
-    fn from_iter<T: IntoIterator<Item = Local>>(iter: T) -> Self {
-        RegionS(iter.into_iter().collect()).intern()
-    }
-}
-
-impl std::ops::Index<usize> for Region {
-    type Output = Local;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl std::ops::Add<&'_ Region> for &'_ Region {
-    type Output = Region;
-
-    fn add(self, rhs: &Region) -> Self::Output {
-        self.merge(rhs)
-    }
-}
-
-impl_internable!(TyS, RegionS);
-
 fn lower(fn_sig: &FnSig, gen: &IndexGen<ExprIdx>) -> (Vec<Ty>, Ty) {
     let args = fn_sig.args.iter().map(|arg| lower_ty(arg, gen)).collect();
     let ret = lower_ty(&fn_sig.ret, gen);
@@ -464,12 +412,4 @@ impl fmt::Debug for TyS {
     }
 }
 
-impl fmt::Debug for RegionS {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0.len() == 1 {
-            write!(f, "{:?}", self.0[0])
-        } else {
-            write!(f, "{{{:?}}}", self.0.iter().format(","))
-        }
-    }
-}
+impl_internable!(TyS);

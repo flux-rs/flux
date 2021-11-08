@@ -82,7 +82,7 @@ impl<'a> LowerCtxt<'a> {
                 subst.insert(*evar, ty::ExprKind::Var(fresh).intern());
                 let e = self.lower_expr(e, subst);
                 subst.remove(evar);
-                ty::TyKind::Exists(*bty, fresh, e).intern()
+                ty::TyKind::Exists(*bty, fresh, ty::Pred::Expr(e)).intern()
             }
         }
     }

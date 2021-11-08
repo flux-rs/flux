@@ -1,6 +1,7 @@
 use std::fmt;
 
 use liquid_rust_common::index::{Idx, IndexVec};
+use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{
     BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
@@ -117,6 +118,18 @@ impl Body<'_> {
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         self.mir.predecessors()[bb].len() > 1
     }
+
+    #[inline]
+    pub fn dominators(&self) -> Dominators<BasicBlock> {
+        self.mir.dominators()
+    }
+
+    #[inline]
+    pub fn join_points(&self) -> impl Iterator<Item = BasicBlock> + '_ {
+        self.basic_blocks
+            .indices()
+            .filter(|bb| self.is_join_point(*bb))
+    }
 }
 
 impl fmt::Debug for Statement {
@@ -167,15 +180,6 @@ impl fmt::Debug for Constant {
         match self {
             Self::Int(n, int_ty) => write!(f, "{}{:?}", n, int_ty),
             Self::Bool(b) => write!(f, "{}", b),
-        }
-    }
-}
-
-impl From<Local> for Place {
-    fn from(local: Local) -> Self {
-        Place {
-            local,
-            projection: Vec::new(),
         }
     }
 }

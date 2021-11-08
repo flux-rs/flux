@@ -1,6 +1,6 @@
 use rustc_hash::FxHashMap;
 
-use crate::ty::{Expr, ExprKind, Ty, TyKind, Var};
+use crate::ty::{Expr, ExprKind, KVar, Pred, Ty, TyKind, Var};
 
 pub struct Subst {
     map: FxHashMap<Var, Expr>,
@@ -16,12 +16,29 @@ impl Subst {
     pub fn subst_ty(&self, ty: Ty) -> Ty {
         match ty.kind() {
             TyKind::Refine(bty, e) => TyKind::Refine(*bty, self.subst_expr(e.clone())).intern(),
-            TyKind::Exists(bty, evar, e) => {
+            TyKind::Exists(bty, evar, pred) => {
                 // We keep the invariant that there is no shadowing
-                TyKind::Exists(*bty, *evar, self.subst_expr(e.clone())).intern()
+                TyKind::Exists(*bty, *evar, self.subst_pred(pred.clone())).intern()
             }
-            TyKind::Uninit(_) | TyKind::MutRef(_) => ty,
+            TyKind::Uninit | TyKind::MutRef(_) => ty,
         }
+    }
+
+    pub fn subst_pred(&self, pred: Pred) -> Pred {
+        match pred {
+            Pred::KVar(kvar) => Pred::KVar(self.subst_kvar(kvar)),
+            Pred::Expr(e) => Pred::Expr(self.subst_expr(e)),
+        }
+    }
+
+    pub fn subst_kvar(&self, kvar: KVar) -> KVar {
+        KVar::new(
+            kvar.kvid,
+            kvar.args
+                .iter()
+                .map(|e| self.subst_expr(e.clone()))
+                .collect(),
+        )
     }
 
     pub fn subst_expr(&self, e: Expr) -> Expr {

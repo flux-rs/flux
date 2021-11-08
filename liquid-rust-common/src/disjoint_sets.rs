@@ -20,15 +20,12 @@ pub struct SetIter<'a, I: Idx, T> {
 }
 
 impl<I: Idx, T> DisjointSetsMap<I, T> {
-    pub fn new(n: usize) -> Self {
-        let parent = IndexVec::from_fn_n(|idx| Cell::new(idx), n);
-        let rank = IndexVec::from_elem_n(0, n);
-        let next = IndexVec::from_fn_n(|idx| idx, n);
+    pub fn new() -> Self {
         Self {
             map: FxHashMap::default(),
-            parent,
-            rank,
-            next,
+            parent: IndexVec::new(),
+            rank: IndexVec::new(),
+            next: IndexVec::new(),
         }
     }
 
@@ -36,7 +33,9 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         self.parent.len()
     }
 
-    pub fn push(&mut self, idx: I) {
+    pub fn push(&mut self, elem: T) {
+        let idx = self.parent.next_index();
+        self.map.insert(idx, elem);
         self.parent.push(Cell::new(idx));
         self.rank.push(0);
         self.next.push(idx);
@@ -71,16 +70,9 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
                 root1
             }
         };
-        match (self.map.remove(&root1), self.map.remove(&root2)) {
-            (None, None) => {}
-            (None, Some(elem)) | (Some(elem), None) => {
-                self.map.insert(root, elem);
-            }
-            (Some(elem1), Some(elem2)) => {
-                let elem = merge(elem1, elem2);
-                self.map.insert(root, elem);
-            }
-        }
+        let elem1 = self.map.remove(&root1).unwrap();
+        let elem2 = self.map.remove(&root2).unwrap();
+        self.map.insert(root, merge(elem1, elem2));
     }
 
     pub fn multi_union(
@@ -106,15 +98,6 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
             current: Some(root),
             root,
         }
-    }
-
-    pub fn iter_sets(&self) -> impl Iterator<Item = Vec<I>> {
-        self.parent
-            .indices()
-            .into_group_map_by(|idx| self.find(*idx))
-            .into_iter()
-            .sorted()
-            .map(|(_, set)| set)
     }
 
     pub fn remove(&mut self, idx: I) -> Option<T> {
@@ -148,6 +131,35 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         }
         self.parent[elem].get()
     }
+
+    pub fn map<R, F>(self, mut f: F) -> DisjointSetsMap<I, R>
+    where
+        F: FnMut(I, T) -> R,
+    {
+        let DisjointSetsMap {
+            map,
+            parent,
+            rank,
+            next,
+        } = self;
+        let f = &mut f;
+        let map = map
+            .into_iter()
+            .map(|(idx, elem)| (idx, f(idx, elem)))
+            .collect();
+        DisjointSetsMap {
+            map,
+            parent,
+            rank,
+            next,
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (SetIter<I, T>, &T)> {
+        self.map
+            .iter()
+            .map(|(idx, elem)| (self.iter_set(*idx), elem))
+    }
 }
 
 impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
@@ -155,16 +167,9 @@ impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
         for idx in self.parent.indices() {
             let root = other.find(idx);
             if root == idx {
-                if let Some(elem1) = other.get(idx) {
-                    match self.remove(idx) {
-                        Some(elem2) => {
-                            self.insert(idx, merge(elem1.clone(), elem2));
-                        }
-                        None => {
-                            self.insert(idx, elem1.clone());
-                        }
-                    }
-                }
+                let elem1 = self[idx].clone();
+                let elem2 = other[idx].clone();
+                self[idx] = merge(elem1, elem2);
             } else {
                 self.union(idx, root, merge);
             }

@@ -18,7 +18,7 @@ pub enum Sort {
 
 pub enum Pred {
     And(Vec<Self>),
-    KVar(KVid, Vec<usize>),
+    KVar(KVid, Vec<Expr>),
     Expr(Expr),
 }
 

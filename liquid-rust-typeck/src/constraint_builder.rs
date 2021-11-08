@@ -4,7 +4,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::ty::{self, Expr, Pred, Sort, Var};
+use crate::ty::{self, Expr, KVar, Pred, Sort, Var};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use liquid_rust_fixpoint as fixpoint;
@@ -117,7 +117,18 @@ fn finalize_children(children: Vec<Node>) -> Option<fixpoint::Constraint> {
 fn finalize_pred(refine: Pred) -> fixpoint::Pred {
     match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr)),
+        Pred::KVar(kvar) => finalize_kvar(kvar),
     }
+}
+
+fn finalize_kvar(kvar: KVar) -> fixpoint::Pred {
+    fixpoint::Pred::KVar(
+        kvar.kvid,
+        kvar.args
+            .iter()
+            .map(|e| finalize_expr(e.clone()))
+            .collect_vec(),
+    )
 }
 
 fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
