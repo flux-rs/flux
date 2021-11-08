@@ -60,16 +60,16 @@ impl Checker<'_, '_> {
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
         let bb_envs = InferCtxt::infer(body, fn_sig);
-        println!("{:#?}", bb_envs);
+        // println!("{:#?}", bb_envs);
 
-        return Ok(());
+        // return Ok(());
 
         let mut constraint = ConstraintBuilder::new();
 
         let name_gen = &IndexGen::new();
         let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(name_gen, fn_sig);
 
-        let mut env = TyEnv::new(name_gen);
+        let mut env = TyEnv::new(name_gen, body.local_decls.len());
 
         let mut cursor = constraint.as_cursor();
         for (var, sort, pred) in params {
@@ -77,17 +77,18 @@ impl Checker<'_, '_> {
         }
 
         for (local, ty) in body.args_iter().zip(args) {
-            env.insert_local(local, ty);
+            let ty = unpack(name_gen, &mut env, &mut cursor, ty);
+            env.define_local(local, ty);
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_local(
+            env.define_local(
                 local,
                 TyKind::Uninit(body.local_decls[local].layout.clone()).intern(),
             );
         }
 
-        env.insert_local(
+        env.define_local(
             RETURN_PLACE,
             TyKind::Uninit(body.local_decls[RETURN_PLACE].layout.clone()).intern(),
         );
@@ -115,7 +116,7 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            self.check_statement(env, cursor, stmt);
+            self.check_statement(env, stmt);
         }
         if let Some(terminator) = &data.terminator {
             self.check_terminator(env, cursor, terminator)?;
@@ -123,12 +124,14 @@ impl Checker<'_, '_> {
         Ok(())
     }
 
-    fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
+    fn check_statement(&self, env: &mut TyEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                let ty = self.check_rvalue(env, cursor, rvalue);
+                println!("{:?}", stmt);
+                let ty = self.check_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
-                env.write_place(cursor, p, ty);
+                env.write_place(p, ty);
+                println!("{:?}", env);
             }
             StatementKind::Nop => {}
         }
@@ -142,14 +145,14 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
-                let ret_place_ty = env.lookup_local(cursor, RETURN_PLACE);
+                let ret_place_ty = env.lookup_place(&ir::Place::from(RETURN_PLACE));
                 self.check_subtyping(cursor, ret_place_ty, self.ret_ty.clone());
             }
             TerminatorKind::Goto { target } => {
                 self.check_basic_block(env, cursor, *target)?;
             }
             TerminatorKind::SwitchInt { discr, targets } => {
-                let discr_ty = self.check_operand(env, cursor, discr);
+                let discr_ty = self.check_operand(env, discr);
                 match discr_ty.kind() {
                     TyKind::Refine(BaseTy::Bool, discr_expr) => {
                         for (bits, bb) in targets.iter() {
@@ -193,7 +196,7 @@ impl Checker<'_, '_> {
                 let fn_sig = self.global_env.lookup_fn_sig(*func);
                 let actuals = args
                     .iter()
-                    .map(|arg| self.check_operand(env, cursor, arg))
+                    .map(|arg| self.check_operand(env, arg))
                     .collect_vec();
 
                 let subst =
@@ -209,7 +212,7 @@ impl Checker<'_, '_> {
                     self.check_subtyping(&mut cursor.snapshot(), actual, formal);
                 }
                 if let Some((p, bb)) = destination {
-                    env.write_place(cursor, p, ret);
+                    env.write_place(p, ret);
                     self.check_basic_block(env, cursor, *bb)?;
                 }
             }
@@ -217,31 +220,27 @@ impl Checker<'_, '_> {
         Ok(())
     }
 
-    fn check_rvalue(&self, env: &mut TyEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
+    fn check_rvalue(&self, env: &mut TyEnv, rvalue: &Rvalue) -> Ty {
         match rvalue {
-            Rvalue::Use(operand) => self.check_operand(env, cursor, operand),
-            Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(env, cursor, bin_op, op1, op2)
-            }
-            Rvalue::MutRef(local) => {
+            Rvalue::Use(operand) => self.check_operand(env, operand),
+            Rvalue::BinaryOp(bin_op, op1, op2) => self.check_binary_op(env, bin_op, op1, op2),
+            Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                todo!()
-                // TyKind::MutRef(Region::Concrete(*local)).intern()
+                TyKind::MutRef(env.get_region(place)).intern()
             }
-            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, cursor, *un_op, op),
+            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, *un_op, op),
         }
     }
 
     fn check_binary_op(
         &self,
         env: &mut TyEnv,
-        cursor: &mut Cursor,
         bin_op: &ir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
-        let ty1 = self.check_operand(env, cursor, op1);
-        let ty2 = self.check_operand(env, cursor, op2);
+        let ty1 = self.check_operand(env, op1);
+        let ty2 = self.check_operand(env, op2);
 
         match bin_op {
             ir::BinOp::Add => self.check_num_op(BinOp::Add, ty1, ty2),
@@ -285,14 +284,8 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn check_unary_op(
-        &self,
-        env: &mut TyEnv,
-        cursor: &mut Cursor,
-        un_op: ir::UnOp,
-        op: &Operand,
-    ) -> Ty {
-        let ty = self.check_operand(env, cursor, op);
+    fn check_unary_op(&self, env: &mut TyEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
+        let ty = self.check_operand(env, op);
         match un_op {
             ir::UnOp::Not => match ty.kind() {
                 TyKind::Refine(BaseTy::Bool, e) => TyKind::Refine(BaseTy::Bool, e.not()).intern(),
@@ -307,15 +300,15 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn check_operand(&self, env: &mut TyEnv, cursor: &mut Cursor, operand: &Operand) -> Ty {
+    fn check_operand(&self, env: &mut TyEnv, operand: &Operand) -> Ty {
         match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(cursor, p)
+                env.lookup_place(p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(cursor, p)
+                env.move_place(p)
             }
             Operand::Constant(c) => self.check_constant(c),
         }
@@ -441,5 +434,20 @@ impl Checker<'_, '_> {
             }
         }
         Ok(())
+    }
+}
+
+fn unpack(name_gen: &IndexGen<Var>, env: &mut TyEnv, cursor: &mut Cursor, ty: Ty) -> Ty {
+    match ty.kind() {
+        TyKind::Exists(bty, evar, e) => {
+            let fresh = name_gen.fresh();
+            cursor.push_forall(
+                fresh,
+                bty.sort(),
+                Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_expr(e.clone()),
+            );
+            TyKind::Refine(*bty, ExprKind::Var(fresh).intern()).intern()
+        }
+        _ => ty,
     }
 }

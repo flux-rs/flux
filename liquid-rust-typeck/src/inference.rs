@@ -302,7 +302,7 @@ impl TypeEnv<'_> {
 
     fn walk_place(&self, place: &Place) -> (Local, Ty) {
         let mut local = place.local;
-        let mut ty = self.types.get(place.local).unwrap().clone();
+        let mut ty = self.types[place.local].clone();
         for elem in &place.projection {
             match (elem, &*ty) {
                 (PlaceElem::Deref, TyS::MutRef(region)) => {
@@ -434,6 +434,19 @@ impl std::ops::Add<&'_ Region> for &'_ Region {
 
 impl_internable!(TyS, RegionS);
 
+fn lower(fn_sig: &FnSig, gen: &IndexGen<ExprIdx>) -> (Vec<Ty>, Ty) {
+    let args = fn_sig.args.iter().map(|arg| lower_ty(arg, gen)).collect();
+    let ret = lower_ty(&fn_sig.ret, gen);
+    (args, ret)
+}
+
+fn lower_ty(ret: &core::Ty, gen: &IndexGen<ExprIdx>) -> Ty {
+    match ret {
+        core::Ty::Refine(bty, _) => TyS::Refine(*bty, gen.fresh()).intern(),
+        core::Ty::Exists(bty, _, _) => TyS::Exists(*bty).intern(),
+    }
+}
+
 impl fmt::Debug for TypeEnv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.types, f)
@@ -458,18 +471,5 @@ impl fmt::Debug for RegionS {
         } else {
             write!(f, "{{{:?}}}", self.0.iter().format(","))
         }
-    }
-}
-
-fn lower(fn_sig: &FnSig, gen: &IndexGen<ExprIdx>) -> (Vec<Ty>, Ty) {
-    let args = fn_sig.args.iter().map(|arg| lower_ty(arg, gen)).collect();
-    let ret = lower_ty(&fn_sig.ret, gen);
-    (args, ret)
-}
-
-fn lower_ty(ret: &core::Ty, gen: &IndexGen<ExprIdx>) -> Ty {
-    match ret {
-        core::Ty::Refine(bty, _) => TyS::Refine(*bty, gen.fresh()).intern(),
-        core::Ty::Exists(bty, _, _) => TyS::Exists(*bty).intern(),
     }
 }

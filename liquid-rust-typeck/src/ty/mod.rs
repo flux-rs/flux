@@ -1,5 +1,6 @@
 use std::{fmt, lazy::SyncOnceCell};
 
+use itertools::Itertools;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, UnOp, Var};
@@ -9,7 +10,7 @@ use crate::intern::{impl_internable, Interned};
 
 pub type Ty = Interned<TyS>;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TyS {
     kind: TyKind,
 }
@@ -22,10 +23,10 @@ pub enum TyKind {
     MutRef(Region),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum Region {
-    Concrete(Local),
-}
+pub type Region = Interned<RegionS>;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RegionS(Vec<Local>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
@@ -151,10 +152,77 @@ impl fmt::Debug for ExprS {
     }
 }
 
-impl From<Local> for Region {
-    fn from(v: Local) -> Self {
-        Self::Concrete(v)
+impl RegionS {
+    fn intern(self) -> Region {
+        Interned::new(self)
     }
 }
 
-impl_internable!(crate::ty::TyS, crate::ty::ExprS);
+impl From<Local> for Region {
+    fn from(v: Local) -> Self {
+        RegionS(vec![v]).intern()
+    }
+}
+
+impl_internable!(crate::ty::TyS, crate::ty::ExprS, crate::ty::RegionS);
+
+impl std::ops::Index<usize> for Region {
+    type Output = Local;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl std::ops::Add<&'_ Region> for &'_ Region {
+    type Output = Region;
+
+    fn add(self, rhs: &Region) -> Self::Output {
+        self.merge(rhs)
+    }
+}
+
+impl RegionS {
+    fn merge(&self, other: &Region) -> Region {
+        RegionS(
+            self.0
+                .iter()
+                .copied()
+                .merge(other.0.iter().copied())
+                .dedup()
+                .collect(),
+        )
+        .intern()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = Local> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+impl FromIterator<Local> for Region {
+    fn from_iter<T: IntoIterator<Item = Local>>(iter: T) -> Self {
+        RegionS(iter.into_iter().collect()).intern()
+    }
+}
+
+impl fmt::Debug for TyS {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind() {
+            TyKind::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
+            TyKind::Exists(bty, var, e) => write!(f, "{:?}{{{:?}: {:?}}}", bty, var, e),
+            TyKind::Uninit(_) => write!(f, "uninit"),
+            TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
+        }
+    }
+}
+
+impl fmt::Debug for RegionS {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0.len() == 1 {
+            write!(f, "{:?}", self.0[0])
+        } else {
+            write!(f, "{{{:?}}}", self.0.iter().format(","))
+        }
+    }
+}

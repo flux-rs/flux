@@ -170,3 +170,12 @@ impl fmt::Debug for Constant {
         }
     }
 }
+
+impl From<Local> for Place {
+    fn from(local: Local) -> Self {
+        Place {
+            local,
+            projection: Vec::new(),
+        }
+    }
+}
