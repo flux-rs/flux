@@ -1,5 +1,6 @@
 use std::fmt;
 
+use itertools::Itertools;
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
@@ -29,7 +30,6 @@ pub struct BasicBlockData {
     pub terminator: Option<Terminator>,
 }
 
-#[derive(Debug)]
 pub struct Terminator {
     pub kind: TerminatorKind,
     pub source_info: SourceInfo,
@@ -139,6 +139,38 @@ impl fmt::Debug for Statement {
                 write!(f, "{:?} = {:?}", place, rvalue)
             }
             StatementKind::Nop => write!(f, "nop"),
+        }
+    }
+}
+
+impl fmt::Debug for Terminator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            TerminatorKind::Return => write!(f, "return"),
+            TerminatorKind::Call {
+                func,
+                args,
+                destination,
+            } => {
+                if let Some((place, target)) = destination {
+                    write!(
+                        f,
+                        "{:?} = call {:?}({:?}) -> {:?}",
+                        place,
+                        func,
+                        args.iter().format(", "),
+                        target
+                    )
+                } else {
+                    write!(f, "call {:?}({:?})", func, args.iter().format(", "))
+                }
+            }
+            TerminatorKind::SwitchInt { discr, .. } => {
+                write!(f, "switchInt({:?}) -> [todo]", discr,)
+            }
+            TerminatorKind::Goto { target } => {
+                write!(f, "goto -> {:?}", *target)
+            }
         }
     }
 }

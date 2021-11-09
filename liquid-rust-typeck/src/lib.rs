@@ -69,7 +69,7 @@ impl Checker<'_, '_> {
         body: &Body,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
-        let bb_env_shapes = InferCtxt::infer(body, fn_sig);
+        let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
 
         let mut constraint = ConstraintBuilder::new();
 
@@ -250,6 +250,7 @@ impl Checker<'_, '_> {
                     cursor.snapshot().subtyping(actual, formal);
                 }
                 if let Some((p, bb)) = destination {
+                    let ret = unpack(self.name_gen, cursor, ret);
                     env.write_place(cursor, p, ret);
                     self.check_basic_block(env, cursor, *bb)?;
                 }

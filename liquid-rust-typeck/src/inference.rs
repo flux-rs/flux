@@ -16,6 +16,7 @@ use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;
 
 use crate::{
+    global_env::GlobalEnv,
     intern::{impl_internable, Interned},
     ty::Region,
 };
@@ -32,6 +33,7 @@ pub enum TyS {
 
 pub struct InferCtxt<'a, 'tcx> {
     body: &'a Body<'tcx>,
+    global_env: &'a GlobalEnv,
     expr_gen: &'a IndexGen<ExprIdx>,
     visited: BitSet<BasicBlock>,
     bb_envs: FxHashMap<BasicBlock, TypeEnv<'a>>,
@@ -44,7 +46,11 @@ newtype_index! {
 }
 
 impl<'a> InferCtxt<'a, '_> {
-    pub fn infer(body: &Body, fn_sig: &FnSig) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
+    pub fn infer(
+        global_env: &GlobalEnv,
+        body: &Body,
+        fn_sig: &FnSig,
+    ) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
         let expr_gen = &IndexGen::new();
         let mut env = TypeEnv::new(expr_gen);
 
@@ -65,6 +71,7 @@ impl<'a> InferCtxt<'a, '_> {
 
         let mut cx = InferCtxt {
             body,
+            global_env,
             expr_gen,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             bb_envs: FxHashMap::default(),
@@ -112,41 +119,43 @@ impl<'a> InferCtxt<'a, '_> {
         match &terminator.kind {
             TerminatorKind::Return => {}
             TerminatorKind::Call {
-                ..
-                // func,
-                // args,
-                // destination,
-            } => todo!(),
-            TerminatorKind::SwitchInt { discr: _, targets } => {
-                for target in targets.all_targets() {
-                    if self.body.is_join_point(*target) {
-                        match self.bb_envs.entry(*target) {
-                            Entry::Occupied(mut entry) => {
-                                entry.get_mut().join_with(env);
-                            },
-                            Entry::Vacant(entry) => {
-                                entry.insert(env.clone());
-                            },
-                        };
-                    } else {
-                        self.infer_basic_block(&mut env.clone(), *target);
-                    }
+                func,
+                args,
+                destination,
+            } => {
+                // Since function signatures can only contain copy arguments, the return type
+                // is the only important thing to check here.
+                let fn_sig = self.global_env.lookup_fn_sig(*func);
+                let (_, ret) = lower(&fn_sig, self.expr_gen);
+                if let Some((place, target)) = destination {
+                    env.write_place(place, ret.unpack(self.expr_gen));
+                    self.infer_goto(env, *target);
                 }
+            }
+            TerminatorKind::SwitchInt { discr: _, targets } => {
+                for (_, target) in targets.iter() {
+                    self.infer_goto(&mut env.clone(), target);
+                }
+                self.infer_goto(env, targets.otherwise());
             }
             TerminatorKind::Goto { target } => {
-                if self.body.is_join_point(*target) {
-                    match self.bb_envs.entry(*target) {
-                        Entry::Occupied(mut entry) => {
-                            entry.get_mut().join_with(env);
-                        },
-                        Entry::Vacant(entry) => {
-                            entry.insert(env.clone());
-                        },
-                    };
-                } else {
-                    self.infer_basic_block(env, *target)
-                }
+                self.infer_goto(env, *target);
             }
+        }
+    }
+
+    fn infer_goto(&mut self, env: &mut TypeEnv<'a>, target: BasicBlock) {
+        if self.body.is_join_point(target) {
+            match self.bb_envs.entry(target) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().join_with(env);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(env.clone());
+                }
+            };
+        } else {
+            self.infer_basic_block(env, target)
         }
     }
 
