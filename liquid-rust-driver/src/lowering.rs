@@ -75,9 +75,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_statement(&self, stmt: &mir::Statement<'tcx>) -> Result<Statement, ErrorReported> {
         let kind = match &stmt.kind {
-            mir::StatementKind::Assign(box (place, rvalue)) => {
-                StatementKind::Assign(self.lower_place(place)?, self.lower_rvalue(rvalue)?)
-            }
+            mir::StatementKind::Assign(box (place, rvalue)) => StatementKind::Assign(
+                self.lower_place(place)?,
+                self.lower_rvalue(rvalue, stmt.source_info)?,
+            ),
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
@@ -161,7 +162,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
         })
     }
 
-    fn lower_rvalue(&self, rvalue: &mir::Rvalue<'tcx>) -> Result<Rvalue, ErrorReported> {
+    fn lower_rvalue(
+        &self,
+        rvalue: &mir::Rvalue<'tcx>,
+        source_info: mir::SourceInfo,
+    ) -> Result<Rvalue, ErrorReported> {
         match rvalue {
             mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
             mir::Rvalue::BinaryOp(bin_op, operands) => Ok(Rvalue::BinaryOp(
@@ -175,7 +180,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     allow_two_phase_borrow: false,
                 },
                 p,
-            ) if p.projection.is_empty() => Ok(Rvalue::MutRef(p.local)),
+            ) => Ok(Rvalue::MutRef(self.lower_place(p)?)),
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
@@ -188,7 +193,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::Rvalue::Discriminant(_)
             | mir::Rvalue::Aggregate(_, _)
             | mir::Rvalue::ShallowInitBox(_, _) => {
-                self.tcx.sess.err("unsupported rvalue kind");
+                self.tcx.sess.span_err(
+                    source_info.span,
+                    &format!("unsupported rvalue: `{:?}`", rvalue),
+                );
                 Err(ErrorReported)
             }
         }

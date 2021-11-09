@@ -1,18 +1,16 @@
 use std::{fmt, lazy::SyncOnceCell};
 
-pub use liquid_rust_common::index::newtype_index;
+use itertools::Itertools;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
-pub use liquid_rust_fixpoint::{BinOp, Constant, Sort, UnOp, Var};
+pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp, Var};
 pub use rustc_middle::ty::IntTy;
 
-use self::intern::Interned;
-
-mod intern;
+use crate::intern::{impl_internable, Interned};
 
 pub type Ty = Interned<TyS>;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TyS {
     kind: TyKind,
 }
@@ -20,19 +18,19 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TyKind {
     Refine(BaseTy, Expr),
-    Exists(BaseTy, Var, Expr),
-    Uninit(TypeLayout),
+    Exists(BaseTy, Var, Pred),
+    Uninit,
     MutRef(Region),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum Region {
-    Concrete(Local),
-}
+pub type Region = Interned<RegionS>;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RegionS(Vec<Local>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    // KVar(KVid),
+    KVar(KVid, Interned<Vec<Expr>>),
     Expr(Expr),
 }
 
@@ -60,14 +58,6 @@ impl TyKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
-    }
-
-    pub fn layout(&self) -> TypeLayout {
-        match self.kind() {
-            TyKind::Refine(bty, _) | TyKind::Exists(bty, _, _) => TypeLayout::BaseTy(*bty),
-            TyKind::Uninit(layout) => layout.clone(),
-            TyKind::MutRef(_) => TypeLayout::MutRef,
-        }
     }
 }
 
@@ -108,7 +98,7 @@ impl From<Expr> for Pred {
 impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            // Self::KVar(kvid) => write!(f, "{:?}", kvid),
+            Self::KVar(kvid, args) => write!(f, "{:?}({:?})", kvid, args.iter().format(" ")),
             Self::Expr(expr) => write!(f, "{:?}", expr),
         }
     }
@@ -154,8 +144,98 @@ impl fmt::Debug for ExprS {
     }
 }
 
+impl RegionS {
+    fn intern(self) -> Region {
+        Interned::new(self)
+    }
+
+    pub fn subset(&self, other: &RegionS) -> bool {
+        self.iter().all(|local| other.iter().contains(&local))
+    }
+}
+
 impl From<Local> for Region {
     fn from(v: Local) -> Self {
-        Self::Concrete(v)
+        RegionS(vec![v]).intern()
+    }
+}
+
+impl_internable!(
+    crate::ty::TyS,
+    crate::ty::ExprS,
+    crate::ty::RegionS,
+    Vec<Expr>
+);
+
+impl std::ops::Index<usize> for Region {
+    type Output = Local;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl std::ops::Add<&'_ Region> for &'_ Region {
+    type Output = Region;
+
+    fn add(self, rhs: &Region) -> Self::Output {
+        self.merge(rhs)
+    }
+}
+
+impl RegionS {
+    fn merge(&self, other: &Region) -> Region {
+        RegionS(
+            self.0
+                .iter()
+                .copied()
+                .merge(other.0.iter().copied())
+                .dedup()
+                .collect(),
+        )
+        .intern()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Local> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+impl FromIterator<Local> for Region {
+    fn from_iter<T: IntoIterator<Item = Local>>(iter: T) -> Self {
+        RegionS(iter.into_iter().collect()).intern()
+    }
+}
+
+impl fmt::Debug for TyS {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind() {
+            TyKind::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
+            TyKind::Exists(bty, var, e) => write!(f, "{:?}{{{:?}: {:?}}}", bty, var, e),
+            TyKind::Uninit => write!(f, "uninit"),
+            TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
+        }
+    }
+}
+
+impl fmt::Debug for RegionS {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0.len() == 1 {
+            write!(f, "{:?}", self.0[0])
+        } else {
+            write!(f, "{{{:?}}}", self.0.iter().format(","))
+        }
+    }
+}
+
+impl Pred {
+    pub fn kvar(kvid: KVid, args: Vec<Expr>) -> Self {
+        Pred::KVar(kvid, Interned::new(args))
+    }
+}
+
+impl From<Var> for Expr {
+    fn from(var: Var) -> Self {
+        ExprKind::Var(var).intern()
     }
 }

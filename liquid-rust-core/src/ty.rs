@@ -1,3 +1,5 @@
+use std::fmt;
+
 use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
@@ -17,7 +19,7 @@ pub enum Ty {
     Exists(BaseTy, Name, Expr),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BaseTy {
     Int(IntTy),
     Bool,
@@ -93,5 +95,19 @@ impl BaseTy {
     /// [`Bool`]: BaseTy::Bool
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+}
+
+impl fmt::Debug for BaseTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(IntTy::I8) => write!(f, "i8"),
+            Self::Int(IntTy::I16) => write!(f, "i16"),
+            Self::Int(IntTy::I32) => write!(f, "i32"),
+            Self::Int(IntTy::I64) => write!(f, "i64"),
+            Self::Int(IntTy::I128) => write!(f, "i128"),
+            Self::Int(IntTy::Isize) => write!(f, "isize"),
+            Self::Bool => write!(f, "bool"),
+        }
     }
 }
