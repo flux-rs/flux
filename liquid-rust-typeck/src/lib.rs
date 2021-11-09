@@ -156,7 +156,7 @@ impl Checker<'_, '_> {
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            self.check_statement(env, stmt);
+            self.check_statement(env, cursor, stmt);
         }
         if let Some(terminator) = &data.terminator {
             self.check_terminator(env, cursor, terminator)?;
@@ -164,12 +164,12 @@ impl Checker<'_, '_> {
         Ok(())
     }
 
-    fn check_statement(&self, env: &mut TyEnv, stmt: &Statement) {
+    fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
-                env.write_place(p, ty);
+                env.write_place(cursor, p, ty);
             }
             StatementKind::Nop => {}
         }
@@ -184,7 +184,7 @@ impl Checker<'_, '_> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                self.check_subtyping(cursor, ret_place_ty, self.ret_ty.clone());
+                cursor.subtyping(ret_place_ty, self.ret_ty.clone());
             }
             TerminatorKind::Goto { target } => {
                 self.check_goto(env, cursor, *target)?;
@@ -246,10 +246,10 @@ impl Checker<'_, '_> {
                     cursor.push_head(pred);
                 }
                 for (actual, formal) in actuals.into_iter().zip(formals) {
-                    self.check_subtyping(&mut cursor.snapshot(), actual, formal);
+                    cursor.snapshot().subtyping(actual, formal);
                 }
                 if let Some((p, bb)) = destination {
-                    env.write_place(p, ret);
+                    env.write_place(cursor, p, ret);
                     self.check_basic_block(env, cursor, *bb)?;
                 }
             }
@@ -269,7 +269,7 @@ impl Checker<'_, '_> {
                 // FIXME: we should check the region in env is a subset of a region in bb_env
                 let local = region.next().unwrap();
                 let ty2 = bb_env.lookup_local(local);
-                self.check_subtyping(cursor, ty1, ty2);
+                cursor.subtyping(ty1, ty2);
             }
             Ok(())
         } else {
@@ -380,33 +380,6 @@ impl Checker<'_, '_> {
             Constant::Bool(b) => {
                 let expr = ExprKind::Constant(ty::Constant::from(*b)).intern();
                 TyKind::Refine(BaseTy::Bool, expr).intern()
-            }
-        }
-    }
-
-    fn check_subtyping(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) {
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
-                debug_assert_eq!(bty1, bty2);
-                if e1 != e2 {
-                    cursor
-                        .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
-                }
-            }
-            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, evar, p)) => {
-                debug_assert_eq!(bty1, bty2);
-                cursor.push_head(Subst::new([(*evar, e.clone())]).subst_pred(p.clone()))
-            }
-            (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
-                assert!(r1.subset(r2));
-            }
-            (TyKind::Uninit, TyKind::Uninit) => {}
-            (TyKind::MutRef(_), TyKind::Uninit) => {}
-            (TyKind::Exists(..), _) => {
-                unreachable!("subtyping with unpacked existential")
-            }
-            _ => {
-                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2)
             }
         }
     }

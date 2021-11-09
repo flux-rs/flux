@@ -4,7 +4,10 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::ty::{self, Expr, ExprKind, Pred, Sort, Var};
+use crate::{
+    subst::Subst,
+    ty::{self, Expr, ExprKind, Pred, Sort, Ty, TyKind, Var},
+};
 use fixpoint::{BinOp, KVar, KVid};
 use itertools::Itertools;
 use liquid_rust_common::{
@@ -79,6 +82,32 @@ impl Cursor<'_> {
         Pred::kvar(kvid, vec![Expr::from(nu)])
     }
 
+    pub fn subtyping(&mut self, ty1: ty::Ty, ty2: ty::Ty) {
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
+                debug_assert_eq!(bty1, bty2);
+                if e1 != e2 {
+                    self.push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
+                }
+            }
+            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, evar, p)) => {
+                debug_assert_eq!(bty1, bty2);
+                self.push_head(Subst::new([(*evar, e.clone())]).subst_pred(p.clone()))
+            }
+            (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
+                assert!(r1.subset(r2));
+            }
+            (TyKind::Uninit, TyKind::Uninit) => {}
+            (TyKind::MutRef(_), TyKind::Uninit) => {}
+            (TyKind::Exists(..), _) => {
+                unreachable!("subtyping with unpacked existential")
+            }
+            _ => {
+                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2)
+            }
+        }
+    }
+
     fn push_node(&mut self, node: Node) {
         unsafe {
             let children = match self.0.as_mut() {
@@ -103,25 +132,25 @@ impl Node {
         kvars: &IndexVec<KVid, Vec<Sort>>,
     ) -> Option<fixpoint::Constraint> {
         match self {
-            Node::Conj(children) => finalize_children(name_gen, kvars, children),
+            Node::Conj(children) => children_to_fixpoint(name_gen, kvars, children),
             Node::ForAll(var, sort, pred, children) => {
-                let (bindings, pred) = finalize_pred(name_gen, kvars, pred);
+                let (bindings, pred) = pred_to_fixpoint(name_gen, kvars, pred);
                 Some(stitch(
                     bindings,
                     fixpoint::Constraint::ForAll(
                         var,
                         sort,
                         pred,
-                        Box::new(finalize_children(name_gen, kvars, children)?),
+                        Box::new(children_to_fixpoint(name_gen, kvars, children)?),
                     ),
                 ))
             }
             Node::Guard(expr, children) => Some(fixpoint::Constraint::Guard(
-                finalize_expr(expr),
-                Box::new(finalize_children(name_gen, kvars, children)?),
+                expr_to_fixpoint(expr),
+                Box::new(children_to_fixpoint(name_gen, kvars, children)?),
             )),
             Node::Head(pred) => {
-                let (bindings, pred) = finalize_pred(name_gen, kvars, pred);
+                let (bindings, pred) = pred_to_fixpoint(name_gen, kvars, pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred)))
             }
         }
@@ -135,7 +164,7 @@ impl Node {
     }
 }
 
-fn finalize_children(
+fn children_to_fixpoint(
     name_gen: &IndexGen<Var>,
     kvars: &IndexVec<KVid, Vec<Sort>>,
     children: Vec<Node>,
@@ -151,14 +180,14 @@ fn finalize_children(
     }
 }
 
-fn finalize_pred(
+fn pred_to_fixpoint(
     name_gen: &IndexGen<Var>,
     kvars: &IndexVec<KVid, Vec<Sort>>,
     refine: Pred,
 ) -> (Vec<(Var, Sort, fixpoint::Expr)>, fixpoint::Pred) {
     let mut bindings = vec![];
     let pred = match refine {
-        Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr)),
+        Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(expr)),
         Pred::KVar(kvid, args) => {
             let args = args.iter().zip(&kvars[kvid]).map(|(arg, sort)| {
                 if let ExprKind::Var(var) = arg.kind() {
@@ -168,7 +197,7 @@ fn finalize_pred(
                     let pred = fixpoint::Expr::BinaryOp(
                         BinOp::Eq,
                         Box::new(fixpoint::Expr::Var(fresh)),
-                        Box::new(finalize_expr(arg.clone())),
+                        Box::new(expr_to_fixpoint(arg.clone())),
                     );
                     bindings.push((fresh, *sort, pred));
                     fresh
@@ -180,17 +209,17 @@ fn finalize_pred(
     (bindings, pred)
 }
 
-fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
+fn expr_to_fixpoint(expr: ty::Expr) -> fixpoint::Expr {
     match expr.kind() {
         ty::ExprKind::Var(x) => fixpoint::Expr::Var(*x),
         ty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ty::ExprKind::BinaryOp(op, e1, e2) => fixpoint::Expr::BinaryOp(
             *op,
-            Box::new(finalize_expr(e1.clone())),
-            Box::new(finalize_expr(e2.clone())),
+            Box::new(expr_to_fixpoint(e1.clone())),
+            Box::new(expr_to_fixpoint(e2.clone())),
         ),
         ty::ExprKind::UnaryOp(op, e) => {
-            fixpoint::Expr::UnaryOp(*op, Box::new(finalize_expr(e.clone())))
+            fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e.clone())))
         }
     }
 }
@@ -203,8 +232,10 @@ impl fmt::Debug for ConstraintBuilder {
             "    kvars: [{}]",
             self.kvars
                 .iter_enumerated()
-                .map(|(kvid, sorts)| { format!("KVar({:?}, {:?})", kvid, sorts) })
-                .format(",")
+                .format_with(", ", |(kvid, sorts), f| f(&format_args!(
+                    "KVar({:?}, {:?})",
+                    kvid, sorts
+                )))
         )?;
 
         writeln!(f, "    root: {:?}", PadAdapter::wrap(&self.root))?;

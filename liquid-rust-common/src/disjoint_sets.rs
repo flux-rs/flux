@@ -1,4 +1,4 @@
-use std::{cell::Cell, cmp::Ordering, fmt};
+use std::{cell::Cell, fmt};
 
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -9,14 +9,14 @@ pub use crate::index::{Idx, IndexVec};
 pub struct DisjointSetsMap<I: Idx, T> {
     map: FxHashMap<I, T>,
     parent: IndexVec<I, Cell<I>>,
-    rank: IndexVec<I, usize>,
+    size: IndexVec<I, usize>,
     next: IndexVec<I, I>,
 }
 
-pub struct SetIter<'a, I: Idx, T> {
+pub struct Set<'a, I: Idx, T> {
     disjoint_sets: &'a DisjointSetsMap<I, T>,
-    current: Option<I>,
-    root: I,
+    remaining: usize,
+    current: I,
 }
 
 impl<I: Idx, T> DisjointSetsMap<I, T> {
@@ -24,7 +24,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         Self {
             map: FxHashMap::default(),
             parent: IndexVec::new(),
-            rank: IndexVec::new(),
+            size: IndexVec::new(),
             next: IndexVec::new(),
         }
     }
@@ -37,7 +37,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         let idx = self.parent.next_index();
         self.map.insert(idx, elem);
         self.parent.push(Cell::new(idx));
-        self.rank.push(0);
+        self.size.push(1);
         self.next.push(idx);
     }
 
@@ -55,21 +55,16 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
 
         self.next.swap(root1, root2);
 
-        let root = match Ord::cmp(&self.rank[root1], &self.rank[root2]) {
-            Ordering::Less => {
-                self.parent[root1].set(root2);
-                root2
-            }
-            Ordering::Equal => {
-                *self.parent[root1].get_mut() = root2;
-                self.rank[root2] += 1;
-                root2
-            }
-            Ordering::Greater => {
-                self.parent[root2].set(root1);
-                root1
-            }
+        let root = if self.size[root1] <= self.size[root2] {
+            self.parent[root1].set(root2);
+            self.size[root2] += self.size[root1];
+            root2
+        } else {
+            self.parent[root2].set(root1);
+            self.size[root1] += self.size[root2];
+            root1
         };
+
         let elem1 = self.map.remove(&root1).unwrap();
         let elem2 = self.map.remove(&root2).unwrap();
         self.map.insert(root, merge(elem1, elem2));
@@ -91,12 +86,12 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         }
     }
 
-    pub fn iter_set(&self, idx: I) -> SetIter<I, T> {
+    pub fn set(&self, idx: I) -> Set<I, T> {
         let root = self.find(idx);
-        SetIter {
+        Set {
             disjoint_sets: self,
-            current: Some(root),
-            root,
+            remaining: self.size[root],
+            current: root,
         }
     }
 
@@ -134,31 +129,29 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
 
     pub fn map<R, F>(self, mut f: F) -> DisjointSetsMap<I, R>
     where
-        F: FnMut(I, T) -> R,
+        F: FnMut(I, usize, T) -> R,
     {
         let DisjointSetsMap {
             map,
             parent,
-            rank,
+            size,
             next,
         } = self;
         let f = &mut f;
         let map = map
             .into_iter()
-            .map(|(idx, elem)| (idx, f(idx, elem)))
+            .map(|(idx, elem)| (idx, f(idx, size[idx], elem)))
             .collect();
         DisjointSetsMap {
             map,
             parent,
-            rank,
+            size,
             next,
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (SetIter<I, T>, &T)> {
-        self.map
-            .iter()
-            .map(|(idx, elem)| (self.iter_set(*idx), elem))
+    pub fn iter(&self) -> impl Iterator<Item = (Set<I, T>, &T)> {
+        self.map.iter().map(|(idx, elem)| (self.set(*idx), elem))
     }
 }
 
@@ -177,17 +170,29 @@ impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
     }
 }
 
-impl<'a, I: Idx, T> Iterator for SetIter<'a, I, T> {
+impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let current = self.current?;
+        if self.remaining <= 0 {
+            return None;
+        }
 
-        let next = self.disjoint_sets.next[current];
-
-        self.current = if next == self.root { None } else { Some(next) };
+        let current = self.current;
+        self.current = self.disjoint_sets.next[current];
+        self.remaining -= 1;
 
         Some(current)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl<'a, I: Idx, T> ExactSizeIterator for Set<'a, I, T> {
+    fn len(&self) -> usize {
+        self.remaining
     }
 }
 

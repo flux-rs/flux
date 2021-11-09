@@ -279,7 +279,7 @@ impl TypeEnv<'_> {
 
     pub fn get_region(&self, place: &Place) -> Region {
         let (local, _) = self.walk_place(place);
-        self.types.iter_set(local).collect()
+        self.types.set(local).collect()
     }
 
     pub fn copy_place(&self, place: &Place) -> Ty {
