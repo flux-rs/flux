@@ -4,16 +4,19 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::ty::{self, Expr, KVar, Pred, Sort, Var};
+use crate::ty::{self, Expr, Pred, Sort, Var};
+use fixpoint::{KVar, KVid};
 use itertools::Itertools;
-use liquid_rust_common::format::PadAdapter;
+use liquid_rust_common::{format::PadAdapter, index::IndexGen};
 use liquid_rust_fixpoint as fixpoint;
 
 pub struct ConstraintBuilder {
     root: Node,
+    kvars: Vec<KVar>,
+    kvid_gen: IndexGen<KVid>,
 }
 
-pub struct Cursor<'a>(NonNull<Node>, PhantomData<&'a mut Node>);
+pub struct Cursor<'a>(NonNull<Node>, &'a mut ConstraintBuilder);
 
 enum Node {
     Conj(Vec<Node>),
@@ -26,11 +29,13 @@ impl ConstraintBuilder {
     pub fn new() -> Self {
         ConstraintBuilder {
             root: Node::Conj(vec![]),
+            kvars: vec![],
+            kvid_gen: IndexGen::new(),
         }
     }
 
     pub fn as_cursor(&mut self) -> Cursor {
-        unsafe { Cursor::new_unchecked(&mut self.root as *mut Node) }
+        unsafe { Cursor::new_unchecked(&mut self.root as *mut Node, self) }
     }
 
     pub fn finalize(self) -> fixpoint::Constraint {
@@ -39,12 +44,12 @@ impl ConstraintBuilder {
 }
 
 impl Cursor<'_> {
-    unsafe fn new_unchecked(node: *mut Node) -> Self {
-        Cursor(NonNull::new_unchecked(node), PhantomData)
+    unsafe fn new_unchecked(node: *mut Node, builder: &mut ConstraintBuilder) -> Cursor {
+        Cursor(NonNull::new_unchecked(node), builder)
     }
 
     pub fn snapshot(&mut self) -> Cursor {
-        Cursor(self.0, PhantomData)
+        Cursor(self.0, &mut self.1)
     }
 
     pub fn push_forall(&mut self, var: Var, sort: Sort, pred: impl Into<Pred>) {
@@ -57,6 +62,12 @@ impl Cursor<'_> {
 
     pub fn push_head(&mut self, pred: impl Into<Pred>) {
         self.push_node(Node::Head(pred.into()));
+    }
+
+    pub fn fresh_kvar(&mut self, nu: Var, sort: Sort) -> Pred {
+        let kvid = self.1.kvid_gen.fresh();
+        self.1.kvars.push(KVar(kvid, vec![sort]));
+        Pred::kvar(kvid, vec![Expr::from(nu)])
     }
 
     fn push_node(&mut self, node: Node) {
@@ -117,18 +128,10 @@ fn finalize_children(children: Vec<Node>) -> Option<fixpoint::Constraint> {
 fn finalize_pred(refine: Pred) -> fixpoint::Pred {
     match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr)),
-        Pred::KVar(kvar) => finalize_kvar(kvar),
+        Pred::KVar(kvid, args) => {
+            fixpoint::Pred::KVar(kvid, args.iter().cloned().map(finalize_expr).collect())
+        }
     }
-}
-
-fn finalize_kvar(kvar: KVar) -> fixpoint::Pred {
-    fixpoint::Pred::KVar(
-        kvar.kvid,
-        kvar.args
-            .iter()
-            .map(|e| finalize_expr(e.clone()))
-            .collect_vec(),
-    )
 }
 
 fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
@@ -148,7 +151,10 @@ fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
 
 impl fmt::Debug for ConstraintBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.root)
+        writeln!(f, "Constraint {{")?;
+        writeln!(f, "    kvars: {:?}", self.kvars)?;
+        writeln!(f, "    root: {:?}", PadAdapter::wrap(&self.root))?;
+        writeln!(f, "}}")
     }
 }
 
@@ -171,7 +177,7 @@ impl fmt::Debug for Node {
                 write!(f, "}}")
             }
             Node::Head(pred) => {
-                write!(f, "({:?})", pred)
+                write!(f, "{:?}", pred)
             }
         }
     }

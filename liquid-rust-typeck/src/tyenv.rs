@@ -4,7 +4,7 @@ use crate::{
     constraint_builder::Cursor,
     inference,
     subst::Subst,
-    ty::{Expr, ExprKind, KVar, KVid, Pred, Region, Ty, TyKind, Var},
+    ty::{Expr, ExprKind, KVid, Pred, Region, Ty, TyKind, Var},
 };
 use liquid_rust_common::{
     disjoint_sets::{DisjointSetsMap, SetIter},
@@ -97,17 +97,16 @@ impl TyEnv {
 
     pub fn infer_bb_env(
         &self,
+        cursor: &mut Cursor,
         shape: DisjointSetsMap<Local, inference::Ty>,
         name_gen: &IndexGen<Var>,
-        kvid_gen: &IndexGen<KVid>,
     ) -> TyEnv {
         let types = shape.map(|local, ty| match &*ty {
             inference::TyS::Refine(_, _) => self.types[local].clone(),
             inference::TyS::Exists(bty) => {
                 let fresh = name_gen.fresh();
-                let kvid = kvid_gen.fresh();
-                let kvar = KVar::new(kvid, vec![Expr::from(fresh)]);
-                TyKind::Exists(*bty, fresh, Pred::KVar(kvar)).intern()
+                let pred = cursor.fresh_kvar(fresh, bty.sort());
+                TyKind::Exists(*bty, fresh, pred).intern()
             }
             inference::TyS::Uninit => TyKind::Uninit.intern(),
             inference::TyS::MutRef(region) => TyKind::MutRef(region.clone()).intern(),

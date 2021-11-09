@@ -1,6 +1,6 @@
 use rustc_hash::FxHashMap;
 
-use crate::ty::{Expr, ExprKind, KVar, Pred, Ty, TyKind, Var};
+use crate::ty::{Expr, ExprKind, Pred, Ty, TyKind, Var};
 
 pub struct Subst {
     map: FxHashMap<Var, Expr>,
@@ -26,19 +26,12 @@ impl Subst {
 
     pub fn subst_pred(&self, pred: Pred) -> Pred {
         match pred {
-            Pred::KVar(kvar) => Pred::KVar(self.subst_kvar(kvar)),
+            Pred::KVar(kvid, args) => Pred::kvar(
+                kvid,
+                args.iter().map(|e| self.subst_expr(e.clone())).collect(),
+            ),
             Pred::Expr(e) => Pred::Expr(self.subst_expr(e)),
         }
-    }
-
-    pub fn subst_kvar(&self, kvar: KVar) -> KVar {
-        KVar::new(
-            kvar.kvid,
-            kvar.args
-                .iter()
-                .map(|e| self.subst_expr(e.clone()))
-                .collect(),
-        )
     }
 
     pub fn subst_expr(&self, e: Expr) -> Expr {

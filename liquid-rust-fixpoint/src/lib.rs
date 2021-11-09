@@ -27,6 +27,9 @@ pub enum Safeness {
     Crash,
 }
 
+#[derive(Debug)]
+pub struct KVar(pub KVid, pub Vec<Sort>);
+
 impl Fixpoint {
     pub fn check(constraint: &Constraint) -> io::Result<FixpointResult> {
         let mut child = Command::new("fixpoint")
@@ -42,7 +45,7 @@ impl Fixpoint {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
-            let mut w = BufWriter::new(std::io::stdout());
+            // let mut w = BufWriter::new(std::io::stdout());
 
             // emit_preamble(&mut w).unwrap();
 

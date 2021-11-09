@@ -15,6 +15,13 @@ impl<T> PadAdapter<T> {
         PadAdapter { inner, state }
     }
 
+    pub fn wrap(inner: T) -> Self {
+        PadAdapter {
+            inner,
+            state: PadAdapterState { on_newline: false },
+        }
+    }
+
     pub fn wrap_on_newline(inner: T) -> Self {
         PadAdapter {
             inner,
@@ -69,5 +76,14 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(PadAdapter::new(f, self.state), "{}", self.inner)
+    }
+}
+
+impl<T> fmt::Debug for PadAdapter<T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(PadAdapter::new(f, self.state), "{:?}", self.inner)
     }
 }

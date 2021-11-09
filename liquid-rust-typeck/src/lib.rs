@@ -156,7 +156,7 @@ impl Checker<'_, '_> {
             .flatten()
             .for_each(|bb| {
                 let shape = self.bb_env_shapes.remove(bb).unwrap();
-                let bb_env = env.infer_bb_env(shape, self.name_gen, self.kvid_gen);
+                let bb_env = env.infer_bb_env(cursor, shape, self.name_gen);
                 self.bb_envs.insert(*bb, bb_env);
             });
 

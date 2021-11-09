@@ -30,14 +30,8 @@ pub struct RegionS(Vec<Local>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    KVar(KVar),
+    KVar(KVid, Interned<Vec<Expr>>),
     Expr(Expr),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar {
-    pub kvid: KVid,
-    pub args: Interned<Vec<Expr>>,
 }
 
 pub type Expr = Interned<ExprS>;
@@ -104,15 +98,9 @@ impl From<Expr> for Pred {
 impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::KVar(kvar) => write!(f, "{:?}", kvar),
+            Self::KVar(kvid, args) => write!(f, "{:?}({:?})", kvid, args.iter().format(" ")),
             Self::Expr(expr) => write!(f, "{:?}", expr),
         }
-    }
-}
-
-impl fmt::Debug for KVar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}({:?})", self.kvid, self.args.iter().format(" "))
     }
 }
 
@@ -240,12 +228,9 @@ impl fmt::Debug for RegionS {
     }
 }
 
-impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>) -> Self {
-        KVar {
-            kvid,
-            args: Interned::new(args),
-        }
+impl Pred {
+    pub fn kvar(kvid: KVid, args: Vec<Expr>) -> Self {
+        Pred::KVar(kvid, Interned::new(args))
     }
 }
 
