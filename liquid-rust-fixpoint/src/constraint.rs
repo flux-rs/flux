@@ -18,7 +18,7 @@ pub enum Sort {
 
 pub enum Pred {
     And(Vec<Self>),
-    KVar(KVid, Vec<Expr>),
+    KVar(KVid, Vec<Var>),
     Expr(Expr),
 }
 
@@ -68,7 +68,7 @@ newtype_index! {
 
 newtype_index! {
     pub struct Var {
-        DEBUG_FORMAT = "v{}",
+        DEBUG_FORMAT = "a{}",
     }
 }
 
@@ -144,7 +144,7 @@ impl fmt::Display for Pred {
                 write!(f, "\n)")
             }
             Pred::KVar(kvid, vars) => {
-                write!(f, "({:?} {})", kvid, vars.iter().format(" "))
+                write!(f, "({:?} {:?})", kvid, vars.iter().format(" "))
             }
             Pred::Expr(expr) => write!(f, "({})", expr),
         }

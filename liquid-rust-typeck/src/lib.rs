@@ -70,9 +70,6 @@ impl Checker<'_, '_> {
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(body, fn_sig);
-        // println!("{:#?}", bb_envs);
-
-        // return Ok(());
 
         let mut constraint = ConstraintBuilder::new();
 
@@ -132,10 +129,9 @@ impl Checker<'_, '_> {
                 checker.check_basic_block(&mut env, &mut cursor, bb);
             }
         }
-        println!("{:#?}", checker.bb_envs);
         println!("{:?}", constraint);
-        // let constraint = constraint.finalize();
-        // println!("{:?}", Fixpoint::check(&constraint));
+        let constraint = constraint.to_fixpoint(name_gen);
+        println!("{:?}", Fixpoint::check(&constraint));
         Ok(())
     }
 
@@ -145,8 +141,6 @@ impl Checker<'_, '_> {
         cursor: &mut Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        println!("-------------------------------------");
-        println!("{:?}", bb);
         self.visited.insert(bb);
 
         self.dominated_join_points
@@ -173,11 +167,9 @@ impl Checker<'_, '_> {
     fn check_statement(&self, env: &mut TyEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                println!("{:?}", stmt);
                 let ty = self.check_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
                 env.write_place(p, ty);
-                println!("{:?}", env);
             }
             StatementKind::Nop => {}
         }
@@ -273,8 +265,6 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
             let bb_env = &self.bb_envs[&target];
-            println!("goto {:?}", target);
-            println!("{:?}", bb_env);
             for (mut region, ty1) in env.iter() {
                 // FIXME: we should check the region in env is a subset of a region in bb_env
                 let local = region.next().unwrap();

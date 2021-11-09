@@ -4,16 +4,18 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::ty::{self, Expr, Pred, Sort, Var};
-use fixpoint::{KVar, KVid};
+use crate::ty::{self, Expr, ExprKind, Pred, Sort, Var};
+use fixpoint::{BinOp, KVar, KVid};
 use itertools::Itertools;
-use liquid_rust_common::{format::PadAdapter, index::IndexGen};
+use liquid_rust_common::{
+    format::PadAdapter,
+    index::{IndexGen, IndexVec},
+};
 use liquid_rust_fixpoint as fixpoint;
 
 pub struct ConstraintBuilder {
     root: Node,
-    kvars: Vec<KVar>,
-    kvid_gen: IndexGen<KVid>,
+    kvars: IndexVec<KVid, Vec<Sort>>,
 }
 
 pub struct Cursor<'a>(NonNull<Node>, &'a mut ConstraintBuilder);
@@ -29,8 +31,7 @@ impl ConstraintBuilder {
     pub fn new() -> Self {
         ConstraintBuilder {
             root: Node::Conj(vec![]),
-            kvars: vec![],
-            kvid_gen: IndexGen::new(),
+            kvars: IndexVec::new(),
         }
     }
 
@@ -38,8 +39,17 @@ impl ConstraintBuilder {
         unsafe { Cursor::new_unchecked(&mut self.root as *mut Node, self) }
     }
 
-    pub fn finalize(self) -> fixpoint::Constraint {
-        self.root.finalize().unwrap_or(fixpoint::Constraint::TRUE)
+    pub fn to_fixpoint(self, name_gen: &IndexGen<Var>) -> fixpoint::Fixpoint {
+        let constraint = self
+            .root
+            .to_fixpoint(name_gen, &self.kvars)
+            .unwrap_or(fixpoint::Constraint::TRUE);
+        let kvars = self
+            .kvars
+            .into_iter_enumerated()
+            .map(|(kvid, sorts)| KVar(kvid, sorts))
+            .collect();
+        fixpoint::Fixpoint::new(kvars, constraint)
     }
 }
 
@@ -65,8 +75,7 @@ impl Cursor<'_> {
     }
 
     pub fn fresh_kvar(&mut self, nu: Var, sort: Sort) -> Pred {
-        let kvid = self.1.kvid_gen.fresh();
-        self.1.kvars.push(KVar(kvid, vec![sort]));
+        let kvid = self.1.kvars.push(vec![sort]);
         Pred::kvar(kvid, vec![Expr::from(nu)])
     }
 
@@ -88,20 +97,33 @@ impl Cursor<'_> {
 }
 
 impl Node {
-    fn finalize(self) -> Option<fixpoint::Constraint> {
+    fn to_fixpoint(
+        self,
+        name_gen: &IndexGen<Var>,
+        kvars: &IndexVec<KVid, Vec<Sort>>,
+    ) -> Option<fixpoint::Constraint> {
         match self {
-            Node::Conj(children) => finalize_children(children),
-            Node::ForAll(var, sort, pred, children) => Some(fixpoint::Constraint::ForAll(
-                var,
-                sort,
-                finalize_pred(pred),
-                Box::new(finalize_children(children)?),
-            )),
+            Node::Conj(children) => finalize_children(name_gen, kvars, children),
+            Node::ForAll(var, sort, pred, children) => {
+                let (bindings, pred) = finalize_pred(name_gen, kvars, pred);
+                Some(stitch(
+                    bindings,
+                    fixpoint::Constraint::ForAll(
+                        var,
+                        sort,
+                        pred,
+                        Box::new(finalize_children(name_gen, kvars, children)?),
+                    ),
+                ))
+            }
             Node::Guard(expr, children) => Some(fixpoint::Constraint::Guard(
                 finalize_expr(expr),
-                Box::new(finalize_children(children)?),
+                Box::new(finalize_children(name_gen, kvars, children)?),
             )),
-            Node::Head(pred) => Some(fixpoint::Constraint::Pred(finalize_pred(pred))),
+            Node::Head(pred) => {
+                let (bindings, pred) = finalize_pred(name_gen, kvars, pred);
+                Some(stitch(bindings, fixpoint::Constraint::Pred(pred)))
+            }
         }
     }
 
@@ -113,10 +135,14 @@ impl Node {
     }
 }
 
-fn finalize_children(children: Vec<Node>) -> Option<fixpoint::Constraint> {
+fn finalize_children(
+    name_gen: &IndexGen<Var>,
+    kvars: &IndexVec<KVid, Vec<Sort>>,
+    children: Vec<Node>,
+) -> Option<fixpoint::Constraint> {
     let mut children = children
         .into_iter()
-        .filter_map(|node| node.finalize())
+        .filter_map(|node| node.to_fixpoint(name_gen, kvars))
         .collect_vec();
     match children.len() {
         0 => None,
@@ -125,13 +151,33 @@ fn finalize_children(children: Vec<Node>) -> Option<fixpoint::Constraint> {
     }
 }
 
-fn finalize_pred(refine: Pred) -> fixpoint::Pred {
-    match refine {
+fn finalize_pred(
+    name_gen: &IndexGen<Var>,
+    kvars: &IndexVec<KVid, Vec<Sort>>,
+    refine: Pred,
+) -> (Vec<(Var, Sort, fixpoint::Expr)>, fixpoint::Pred) {
+    let mut bindings = vec![];
+    let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(finalize_expr(expr)),
         Pred::KVar(kvid, args) => {
-            fixpoint::Pred::KVar(kvid, args.iter().cloned().map(finalize_expr).collect())
+            let args = args.iter().zip(&kvars[kvid]).map(|(arg, sort)| {
+                if let ExprKind::Var(var) = arg.kind() {
+                    *var
+                } else {
+                    let fresh = name_gen.fresh();
+                    let pred = fixpoint::Expr::BinaryOp(
+                        BinOp::Eq,
+                        Box::new(fixpoint::Expr::Var(fresh)),
+                        Box::new(finalize_expr(arg.clone())),
+                    );
+                    bindings.push((fresh, *sort, pred));
+                    fresh
+                }
+            });
+            fixpoint::Pred::KVar(kvid, args.collect())
         }
-    }
+    };
+    (bindings, pred)
 }
 
 fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
@@ -152,7 +198,15 @@ fn finalize_expr(expr: ty::Expr) -> fixpoint::Expr {
 impl fmt::Debug for ConstraintBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Constraint {{")?;
-        writeln!(f, "    kvars: {:?}", self.kvars)?;
+        writeln!(
+            f,
+            "    kvars: [{}]",
+            self.kvars
+                .iter_enumerated()
+                .map(|(kvid, sorts)| { format!("KVar({:?}, {:?})", kvid, sorts) })
+                .format(",")
+        )?;
+
         writeln!(f, "    root: {:?}", PadAdapter::wrap(&self.root))?;
         writeln!(f, "}}")
     }
@@ -193,4 +247,13 @@ fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result 
     } else {
         writeln!(f)
     }
+}
+
+fn stitch(
+    bindings: Vec<(Var, Sort, fixpoint::Expr)>,
+    c: fixpoint::Constraint,
+) -> fixpoint::Constraint {
+    bindings.into_iter().rev().fold(c, |c, (var, sort, e)| {
+        fixpoint::Constraint::ForAll(var, sort, fixpoint::Pred::Expr(e), Box::new(c))
+    })
 }
