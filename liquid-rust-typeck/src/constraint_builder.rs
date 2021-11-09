@@ -108,6 +108,21 @@ impl Cursor<'_> {
         }
     }
 
+    pub fn unpack(&mut self, name_gen: &IndexGen<Var>, ty: ty::Ty) -> ty::Ty {
+        match ty.kind() {
+            TyKind::Exists(bty, evar, p) => {
+                let fresh = name_gen.fresh();
+                self.push_forall(
+                    fresh,
+                    bty.sort(),
+                    Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_pred(p.clone()),
+                );
+                TyKind::Refine(*bty, ExprKind::Var(fresh).intern()).intern()
+            }
+            _ => ty,
+        }
+    }
+
     fn push_node(&mut self, node: Node) {
         unsafe {
             let children = match self.0.as_mut() {

@@ -143,19 +143,7 @@ impl TyEnv {
 
     pub fn unpack(&mut self, cursor: &mut Cursor, name_gen: &IndexGen<Var>) {
         for (region_kind, ty) in self.types.values_mut() {
-            // FIXME: this code is duplicated in crate::lib::unpack
-            match ty.kind() {
-                TyKind::Exists(bty, evar, p) => {
-                    let fresh = name_gen.fresh();
-                    cursor.push_forall(
-                        fresh,
-                        bty.sort(),
-                        Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_pred(p.clone()),
-                    );
-                    *ty = TyKind::Refine(*bty, ExprKind::Var(fresh).intern()).intern();
-                }
-                _ => {}
-            };
+            *ty = cursor.unpack(name_gen, ty.clone());
         }
     }
 }

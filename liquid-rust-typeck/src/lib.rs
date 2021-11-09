@@ -88,8 +88,7 @@ impl Checker<'_, '_> {
 
         // Arguments
         for ty in args {
-            let ty = unpack(name_gen, &mut cursor, ty);
-            env.push_local(ty);
+            env.push_local(cursor.unpack(name_gen, ty));
         }
 
         // Vars and temps
@@ -250,7 +249,7 @@ impl Checker<'_, '_> {
                     cursor.snapshot().subtyping(actual, formal);
                 }
                 if let Some((p, bb)) = destination {
-                    let ret = unpack(self.name_gen, cursor, ret);
+                    let ret = cursor.unpack(self.name_gen, ret);
                     env.write_place(cursor, p, ret);
                     self.check_basic_block(env, cursor, *bb)?;
                 }
@@ -465,20 +464,5 @@ impl Checker<'_, '_> {
             }
         }
         Ok(())
-    }
-}
-
-fn unpack(name_gen: &IndexGen<Var>, cursor: &mut Cursor, ty: Ty) -> Ty {
-    match ty.kind() {
-        TyKind::Exists(bty, evar, p) => {
-            let fresh = name_gen.fresh();
-            cursor.push_forall(
-                fresh,
-                bty.sort(),
-                Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_pred(p.clone()),
-            );
-            TyKind::Refine(*bty, ExprKind::Var(fresh).intern()).intern()
-        }
-        _ => ty,
     }
 }
