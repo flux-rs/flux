@@ -120,7 +120,8 @@ impl Checker<'_, '_> {
         };
 
         // FIXME: Do not assume START_BLOCK is not a join point;
-        checker.check_basic_block(&mut env, &mut cursor, START_BLOCK);
+        assert!(!body.join_points().contains(&START_BLOCK));
+        checker.check_basic_block(&mut env, &mut cursor.snapshot(), START_BLOCK);
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
                 let mut cursor = cursor.snapshot();

@@ -252,7 +252,11 @@ impl fmt::Debug for Node {
                 write!(f, "}}")
             }
             Node::ForAll(var, sort, pred, children) => {
-                write!(f, "Forall({:?}: {{{:?} | {:?}}}) {{", var, sort, pred)?;
+                if pred.is_true() {
+                    write!(f, "Forall({:?}: {:?}) {{", var, sort)?;
+                } else {
+                    write!(f, "Forall({:?}: {:?} {{ {:?} }}) {{", var, sort, pred)?;
+                }
                 debug_children(children, f)?;
                 write!(f, "}}")
             }

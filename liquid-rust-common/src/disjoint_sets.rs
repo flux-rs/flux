@@ -174,7 +174,7 @@ impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining <= 0 {
+        if self.remaining == 0 {
             return None;
         }
 

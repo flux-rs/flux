@@ -87,6 +87,10 @@ impl ExprS {
     pub fn kind(&self) -> &ExprKind {
         &self.kind
     }
+
+    pub fn is_true(&self) -> bool {
+        matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+    }
 }
 
 impl From<Expr> for Pred {
@@ -231,6 +235,13 @@ impl fmt::Debug for RegionS {
 impl Pred {
     pub fn kvar(kvid: KVid, args: Vec<Expr>) -> Self {
         Pred::KVar(kvid, Interned::new(args))
+    }
+
+    pub fn is_true(&self) -> bool {
+        match self {
+            Pred::KVar(_, _) => false,
+            Pred::Expr(e) => e.is_true(),
+        }
     }
 }
 
