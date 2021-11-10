@@ -13,8 +13,8 @@ pub struct DisjointSetsMap<I: Idx, T> {
     next: IndexVec<I, I>,
 }
 
-pub struct Set<'a, I: Idx, T> {
-    disjoint_sets: &'a DisjointSetsMap<I, T>,
+pub struct Set<'a, I: Idx> {
+    next: &'a IndexVec<I, I>,
     remaining: usize,
     current: I,
 }
@@ -86,13 +86,9 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         }
     }
 
-    pub fn set(&self, idx: I) -> Set<I, T> {
+    pub fn set(&self, idx: I) -> Set<I> {
         let root = self.find(idx);
-        Set {
-            disjoint_sets: self,
-            remaining: self.size[root],
-            current: root,
-        }
+        Set::new(&self.next, root, self.size[root])
     }
 
     pub fn remove(&mut self, idx: I) -> Option<T> {
@@ -127,9 +123,9 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         self.parent[elem].get()
     }
 
-    pub fn map<R, F>(self, mut f: F) -> DisjointSetsMap<I, R>
+    pub fn map_values<R, F>(self, mut f: F) -> DisjointSetsMap<I, R>
     where
-        F: FnMut(I, usize, T) -> R,
+        F: FnMut(Set<I>, T) -> R,
     {
         let DisjointSetsMap {
             map,
@@ -140,7 +136,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         let f = &mut f;
         let map = map
             .into_iter()
-            .map(|(idx, elem)| (idx, f(idx, size[idx], elem)))
+            .map(|(root, elem)| (root, f(Set::new(&next, root, size[root]), elem)))
             .collect();
         DisjointSetsMap {
             map,
@@ -150,7 +146,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Set<I, T>, &T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (Set<I>, &T)> {
         self.map.iter().map(|(idx, elem)| (self.set(*idx), elem))
     }
 }
@@ -170,7 +166,7 @@ impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
     }
 }
 
-impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
+impl<'a, I: Idx> Iterator for Set<'a, I> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -179,7 +175,7 @@ impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
         }
 
         let current = self.current;
-        self.current = self.disjoint_sets.next[current];
+        self.current = self.next[current];
         self.remaining -= 1;
 
         Some(current)
@@ -190,7 +186,7 @@ impl<'a, I: Idx, T> Iterator for Set<'a, I, T> {
     }
 }
 
-impl<'a, I: Idx, T> ExactSizeIterator for Set<'a, I, T> {
+impl<'a, I: Idx> ExactSizeIterator for Set<'a, I> {
     fn len(&self) -> usize {
         self.remaining
     }
@@ -239,5 +235,15 @@ where
             }
         }
         write!(f, "}}")
+    }
+}
+
+impl<'a, I: Idx> Set<'a, I> {
+    fn new(next: &'a IndexVec<I, I>, root: I, size: usize) -> Self {
+        Self {
+            next,
+            remaining: size,
+            current: root,
+        }
     }
 }
