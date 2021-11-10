@@ -1,4 +1,4 @@
-use std::{cell::Cell, fmt};
+use std::{cell::Cell, fmt, iter::FusedIterator};
 
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -147,7 +147,9 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Set<I>, &T)> {
-        self.map.iter().map(|(idx, elem)| (self.set(*idx), elem))
+        self.map
+            .iter()
+            .map(|(root, elem)| (Set::new(&self.next, *root, self.size[*root]), elem))
     }
 }
 
@@ -162,6 +164,16 @@ impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
             } else {
                 self.union(idx, root, merge);
             }
+        }
+    }
+}
+
+impl<'a, I: Idx> Set<'a, I> {
+    fn new(next: &'a IndexVec<I, I>, root: I, size: usize) -> Self {
+        Self {
+            next,
+            remaining: size,
+            current: root,
         }
     }
 }
@@ -186,6 +198,8 @@ impl<'a, I: Idx> Iterator for Set<'a, I> {
     }
 }
 
+impl<I: Idx> FusedIterator for Set<'_, I> {}
+
 impl<'a, I: Idx> ExactSizeIterator for Set<'a, I> {
     fn len(&self) -> usize {
         self.remaining
@@ -208,42 +222,19 @@ impl<I: Idx, T> std::ops::IndexMut<I> for DisjointSetsMap<I, T> {
 
 impl<I, T> fmt::Debug for DisjointSetsMap<I, T>
 where
-    T: fmt::Debug,
     I: Idx,
+    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
-        for (root, set) in self
-            .parent
-            .indices()
-            .into_group_map_by(|idx| self.find(*idx))
-            .into_iter()
-            .sorted()
-        {
+        for (mut set, elem) in self.iter() {
             if set.len() == 1 {
-                write!(f, "{:?}: ", set[0])?;
+                write!(f, "{:?}: ", set.next().unwrap())?;
             } else {
-                write!(f, "{{{:?}}}: ", set.iter().sorted().format(", "),)?;
+                write!(f, "{{{:?}}}: ", set.sorted().format(", "))?;
             }
-            match self.map.get(&root) {
-                Some(ty) => {
-                    write!(f, "{:?}, ", ty)?;
-                }
-                None => {
-                    write!(f, "unknown, ")?;
-                }
-            }
+            write!(f, "{:?}", elem)?;
         }
         write!(f, "}}")
-    }
-}
-
-impl<'a, I: Idx> Set<'a, I> {
-    fn new(next: &'a IndexVec<I, I>, root: I, size: usize) -> Self {
-        Self {
-            next,
-            remaining: size,
-            current: root,
-        }
     }
 }
