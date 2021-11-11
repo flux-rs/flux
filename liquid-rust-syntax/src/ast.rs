@@ -16,14 +16,8 @@ pub struct Ty {
 
 #[derive(Debug)]
 pub enum TyKind {
-    RefineTy { bty: Ident, refine: Refine },
+    RefineTy { bty: Ident, refine: Expr },
     Exists { bind: Ident, bty: Ident, pred: Expr },
-}
-
-#[derive(Debug)]
-pub enum Refine {
-    Var(Ident),
-    Literal(Lit),
 }
 
 #[derive(Debug)]

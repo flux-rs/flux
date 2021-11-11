@@ -77,8 +77,7 @@ impl<'a> InferCtxt<'a, '_> {
             bb_envs: FxHashMap::default(),
         };
 
-        // FIXME: Do not assume START_BLOCK is not a join point;
-        cx.infer_basic_block(&mut env, START_BLOCK);
+        cx.infer_goto(&mut env, START_BLOCK);
         for bb in body.reverse_postorder() {
             if !cx.visited.contains(bb) {
                 let mut env = cx.bb_envs.get(&bb).unwrap().clone();

@@ -15,7 +15,7 @@ pub struct FnSig {
 
 #[derive(Debug)]
 pub enum Ty {
-    Refine(BaseTy, Refine),
+    Refine(BaseTy, Expr),
     Exists(BaseTy, Name, Expr),
 }
 
@@ -26,22 +26,16 @@ pub enum BaseTy {
 }
 
 #[derive(Debug)]
-pub enum Refine {
-    Var(Ident),
-    Literal(Lit),
-}
-
-#[derive(Debug)]
 pub struct Param {
     pub name: Ident,
     pub sort: Sort,
-    pub pred: Option<Expr>,
+    pub pred: Expr,
 }
 
 #[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
-    pub span: Span,
+    pub span: Option<Span>,
 }
 
 #[derive(Debug)]
@@ -54,7 +48,7 @@ pub enum ExprKind {
 #[derive(Clone, Copy, Debug)]
 pub struct Lit {
     pub kind: LitKind,
-    pub span: Span,
+    pub span: Option<Span>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -96,6 +90,20 @@ impl BaseTy {
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
+}
+
+impl Expr {
+    pub const TRUE: Expr = Expr {
+        kind: ExprKind::Literal(Lit::TRUE),
+        span: None,
+    };
+}
+
+impl Lit {
+    pub const TRUE: Lit = Lit {
+        kind: LitKind::Bool(true),
+        span: None,
+    };
 }
 
 impl fmt::Debug for BaseTy {

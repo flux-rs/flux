@@ -41,10 +41,10 @@ impl<'a> Resolver<'a> {
                     span: param.name.span,
                 };
                 let sort = self.resolve_sort(param.sort);
-                let pred = param
-                    .pred
-                    .map(|pred| self.resolve_expr(pred, &subst))
-                    .transpose();
+                let pred = match param.pred {
+                    Some(expr) => self.resolve_expr(expr, &subst),
+                    None => Ok(ty::Expr::TRUE),
+                };
                 Ok(ty::Param {
                     name,
                     sort: sort?,
@@ -77,7 +77,7 @@ impl<'a> Resolver<'a> {
         match ty.kind {
             ast::TyKind::RefineTy { bty, refine } => {
                 let bty = self.resolve_bty(bty);
-                let refine = self.resolve_refine(refine, subst);
+                let refine = self.resolve_expr(refine, subst);
                 Ok(ty::Ty::Refine(bty?, refine?))
             }
             ast::TyKind::Exists { bind, bty, pred } => {
@@ -103,17 +103,6 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_refine(
-        &self,
-        refine: ast::Refine,
-        map: &Subst,
-    ) -> Result<ty::Refine, ErrorReported> {
-        match refine {
-            ast::Refine::Var(ident) => Ok(ty::Refine::Var(self.resolve_ident(ident, map)?)),
-            ast::Refine::Literal(lit) => Ok(ty::Refine::Literal(self.resolve_lit(lit)?)),
-        }
-    }
-
     fn resolve_expr(&self, expr: ast::Expr, map: &Subst) -> Result<ty::Expr, ErrorReported> {
         let kind = match expr.kind {
             ast::ExprKind::Var(ident) => ty::ExprKind::Var(self.resolve_ident(ident, map)?),
@@ -126,7 +115,7 @@ impl<'a> Resolver<'a> {
         };
         Ok(ty::Expr {
             kind,
-            span: expr.span,
+            span: Some(expr.span),
         })
     }
 
@@ -164,7 +153,7 @@ impl<'a> Resolver<'a> {
         };
         Ok(ty::Lit {
             kind,
-            span: lit.span,
+            span: Some(lit.span),
         })
     }
 

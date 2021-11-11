@@ -23,13 +23,8 @@ Ty: ast::Ty = {
 }
 
 TyKind: ast::TyKind = {
-    <refine:Refine> "@" <bty:Ident>                  => ast::TyKind::RefineTy { <> },
+    <refine:Expr> "@" <bty:Ident>                    => ast::TyKind::RefineTy { <> },
     <bty:Ident> "{" <bind:Ident> ":" <pred:Expr> "}" => ast::TyKind::Exists { <> }
-}
-
-Refine: ast::Refine = {
-    <lit:Lit>     => ast::Refine::Literal(lit),
-    <ident:Ident> => ast::Refine::Var(ident),
 }
 
 Params: Vec<ast::Param> = {

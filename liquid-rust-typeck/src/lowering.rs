@@ -25,11 +25,7 @@ impl<'a> LowerCtxt<'a> {
         for param in &fn_sig.params {
             let fresh = name_gen.fresh();
             subst.insert(param.name.name, ty::ExprKind::Var(fresh).intern());
-            let expr = param
-                .pred
-                .as_ref()
-                .map(|e| cx.lower_expr(e, &subst))
-                .unwrap_or_else(Expr::tt);
+            let expr = cx.lower_expr(&param.pred, &subst);
             params.push((fresh, param.sort, ty::Pred::Expr(expr)));
         }
 
@@ -53,11 +49,7 @@ impl<'a> LowerCtxt<'a> {
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
-            let expr = param
-                .pred
-                .as_ref()
-                .map(|e| cx.lower_expr(e, &subst))
-                .unwrap_or_else(Expr::tt);
+            let expr = cx.lower_expr(&param.pred, &subst);
             params.push(ty::Pred::Expr(expr));
         }
 
@@ -75,7 +67,7 @@ impl<'a> LowerCtxt<'a> {
     fn lower_ty(&self, ty: &core::Ty, subst: &mut Subst) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, r) => {
-                ty::TyKind::Refine(*bty, self.lower_refine(r, subst)).intern()
+                ty::TyKind::Refine(*bty, self.lower_expr(r, subst)).intern()
             }
             core::Ty::Exists(bty, evar, e) => {
                 let fresh = self.name_gen.fresh();
@@ -84,13 +76,6 @@ impl<'a> LowerCtxt<'a> {
                 subst.remove(evar);
                 ty::TyKind::Exists(*bty, fresh, ty::Pred::Expr(e)).intern()
             }
-        }
-    }
-
-    fn lower_refine(&self, refine: &core::Refine, subst: &Subst) -> ty::Expr {
-        match refine {
-            core::Refine::Var(ident) => subst.get(&ident.name).unwrap().clone(),
-            core::Refine::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
         }
     }
 

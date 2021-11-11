@@ -118,12 +118,12 @@ impl Checker<'_, '_> {
             kvid_gen: &IndexGen::new(),
         };
 
-        checker.check_goto(&mut env, &mut cursor, START_BLOCK);
+        checker.check_goto(&mut env, &mut cursor, START_BLOCK)?;
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
                 let mut env = checker.bb_envs.get(&bb).unwrap().clone();
                 env.unpack(&mut cursor, name_gen);
-                checker.check_basic_block(&mut env, &mut cursor, bb);
+                checker.check_basic_block(&mut env, &mut cursor, bb)?;
             }
         }
         println!("{:?}", constraint);
@@ -395,7 +395,13 @@ impl Checker<'_, '_> {
         let mut subst = FxHashMap::default();
         for (actual, formal) in actuals.iter().zip(formals) {
             let (bty2, ident) = match formal {
-                core::Ty::Refine(bty2, core::Refine::Var(ident)) => (bty2, ident),
+                core::Ty::Refine(
+                    bty2,
+                    core::Expr {
+                        kind: core::ExprKind::Var(ident),
+                        ..
+                    },
+                ) => (bty2, ident),
                 core::Ty::Refine(_, _) => continue,
                 core::Ty::Exists(_, _, _) => continue,
             };
