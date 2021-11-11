@@ -102,7 +102,7 @@ impl From<Expr> for Pred {
 impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::KVar(kvid, args) => write!(f, "{:?}({:?})", kvid, args.iter().format(" ")),
+            Self::KVar(kvid, args) => write!(f, "{:?}({:?})", kvid, args.iter().format(", ")),
             Self::Expr(expr) => write!(f, "{:?}", expr),
         }
     }

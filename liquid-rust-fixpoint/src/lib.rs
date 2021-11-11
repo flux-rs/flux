@@ -68,10 +68,17 @@ impl Fixpoint {
 
 impl fmt::Display for Fixpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Unary
+        writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
         writeln!(f, "(qualif GtZero ((v int)) (v > 0))")?;
         writeln!(f, "(qualif GeZero ((v int)) (v >= 0))")?;
         writeln!(f, "(qualif LtZero ((v int)) (v < 0))")?;
         writeln!(f, "(qualif LeZero ((v int)) (v <= 0))")?;
+
+        // Binary
+        writeln!(f, "(qualif Eq ((a int) (b int)) (a == b))")?;
+        writeln!(f, "(qualif Gt ((a int) (b int)) (a > b))")?;
+        writeln!(f, "(qualif Ge ((a int) (b int)) (a >= b))")?;
 
         for kvar in &self.kvars {
             writeln!(f, "{}", kvar)?;

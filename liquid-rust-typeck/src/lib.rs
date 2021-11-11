@@ -120,10 +120,9 @@ impl Checker<'_, '_> {
 
         // FIXME: Do not assume START_BLOCK is not a join point;
         assert!(!body.join_points().contains(&START_BLOCK));
-        checker.check_basic_block(&mut env, &mut cursor.snapshot(), START_BLOCK);
+        checker.check_basic_block(&mut env, &mut cursor, START_BLOCK);
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
-                let mut cursor = cursor.snapshot();
                 let mut env = checker.bb_envs.get(&bb).unwrap().clone();
                 env.unpack(&mut cursor, name_gen);
                 checker.check_basic_block(&mut env, &mut cursor, bb);
@@ -213,6 +212,7 @@ impl Checker<'_, '_> {
                             })
                             .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
 
+                        let cursor = &mut cursor.snapshot();
                         if let Some(otherwise) = otherwise {
                             cursor.push_guard(otherwise);
                         }
@@ -251,7 +251,7 @@ impl Checker<'_, '_> {
                 if let Some((p, bb)) = destination {
                     let ret = cursor.unpack(self.name_gen, ret);
                     env.write_place(cursor, p, ret);
-                    self.check_basic_block(env, cursor, *bb)?;
+                    self.check_goto(env, cursor, *bb)?;
                 }
             }
         }

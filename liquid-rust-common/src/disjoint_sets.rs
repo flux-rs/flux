@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 pub use crate::index::{Idx, IndexVec};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DisjointSetsMap<I: Idx, T> {
     map: FxHashMap<I, T>,
     parent: IndexVec<I, Cell<I>>,

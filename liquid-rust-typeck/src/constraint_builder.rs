@@ -19,9 +19,14 @@ use liquid_rust_fixpoint as fixpoint;
 pub struct ConstraintBuilder {
     root: Node,
     kvars: IndexVec<KVid, Vec<Sort>>,
+    vars: Vec<(Var, Sort)>,
 }
 
-pub struct Cursor<'a>(NonNull<Node>, &'a mut ConstraintBuilder);
+pub struct Cursor<'a> {
+    builder: &'a mut ConstraintBuilder,
+    node: NonNull<Node>,
+    nvars: usize,
+}
 
 enum Node {
     Conj(Vec<Node>),
@@ -35,11 +40,18 @@ impl ConstraintBuilder {
         ConstraintBuilder {
             root: Node::Conj(vec![]),
             kvars: IndexVec::new(),
+            vars: vec![],
         }
     }
 
     pub fn as_cursor(&mut self) -> Cursor {
-        unsafe { Cursor::new_unchecked(&mut self.root as *mut Node, self) }
+        unsafe {
+            Cursor {
+                node: NonNull::new_unchecked(&mut self.root as *mut Node),
+                builder: self,
+                nvars: 0,
+            }
+        }
     }
 
     pub fn to_fixpoint(self, name_gen: &IndexGen<Var>) -> fixpoint::Fixpoint {
@@ -57,16 +69,17 @@ impl ConstraintBuilder {
 }
 
 impl Cursor<'_> {
-    unsafe fn new_unchecked(node: *mut Node, builder: &mut ConstraintBuilder) -> Cursor {
-        Cursor(NonNull::new_unchecked(node), builder)
-    }
-
     pub fn snapshot(&mut self) -> Cursor {
-        Cursor(self.0, &mut self.1)
+        Cursor {
+            node: self.node,
+            builder: &mut self.builder,
+            nvars: self.nvars,
+        }
     }
 
     pub fn push_forall(&mut self, var: Var, sort: Sort, pred: impl Into<Pred>) {
         self.push_node(Node::ForAll(var, sort, pred.into(), vec![]));
+        self.push_var(var, sort);
     }
 
     pub fn push_guard(&mut self, expr: Expr) {
@@ -74,12 +87,25 @@ impl Cursor<'_> {
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>) {
-        self.push_node(Node::Head(pred.into()));
+        let pred = pred.into();
+        if !pred.is_true() {
+            self.push_node(Node::Head(pred));
+        }
     }
 
     pub fn fresh_kvar(&mut self, nu: Var, sort: Sort) -> Pred {
-        let kvid = self.1.kvars.push(vec![sort]);
-        Pred::kvar(kvid, vec![Expr::from(nu)])
+        let mut sorts = Vec::with_capacity(self.nvars + 1);
+        let mut vars = Vec::with_capacity(self.nvars + 1);
+
+        vars.push(Expr::from(nu));
+        sorts.push(sort);
+        for (var, sort) in self.vars_in_scope() {
+            vars.push(Expr::from(var));
+            sorts.push(sort);
+        }
+
+        let kvid = self.builder.kvars.push(sorts);
+        Pred::kvar(kvid, vars)
     }
 
     pub fn subtyping(&mut self, ty1: ty::Ty, ty2: ty::Ty) {
@@ -125,7 +151,7 @@ impl Cursor<'_> {
 
     fn push_node(&mut self, node: Node) {
         unsafe {
-            let children = match self.0.as_mut() {
+            let children = match self.node.as_mut() {
                 Node::Conj(children)
                 | Node::ForAll(_, _, _, children)
                 | Node::Guard(_, children) => children,
@@ -134,9 +160,22 @@ impl Cursor<'_> {
             children.push(node);
             let node = children.last_mut().unwrap();
             if !node.is_head() {
-                self.0 = NonNull::new_unchecked(node as *mut Node);
+                self.node = NonNull::new_unchecked(node as *mut Node);
             }
         }
+    }
+
+    fn push_var(&mut self, var: Var, sort: Sort) {
+        if self.nvars < self.builder.vars.len() {
+            self.builder.vars[self.nvars] = (var, sort);
+        } else {
+            self.builder.vars.push((var, sort));
+        }
+        self.nvars += 1;
+    }
+
+    fn vars_in_scope(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
+        self.builder.vars[..self.nvars].iter().cloned()
     }
 }
 
@@ -239,6 +278,15 @@ fn expr_to_fixpoint(expr: ty::Expr) -> fixpoint::Expr {
     }
 }
 
+fn stitch(
+    bindings: Vec<(Var, Sort, fixpoint::Expr)>,
+    c: fixpoint::Constraint,
+) -> fixpoint::Constraint {
+    bindings.into_iter().rev().fold(c, |c, (var, sort, e)| {
+        fixpoint::Constraint::ForAll(var, sort, fixpoint::Pred::Expr(e), Box::new(c))
+    })
+}
+
 impl fmt::Debug for ConstraintBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Constraint {{")?;
@@ -268,9 +316,9 @@ impl fmt::Debug for Node {
             }
             Node::ForAll(var, sort, pred, children) => {
                 if pred.is_true() {
-                    write!(f, "Forall({:?}: {:?}) {{", var, sort)?;
+                    write!(f, "ForAll({:?}: {:?}) {{", var, sort)?;
                 } else {
-                    write!(f, "Forall({:?}: {:?} {{ {:?} }}) {{", var, sort, pred)?;
+                    write!(f, "ForAll({:?}: {:?} {{ {:?} }}) {{", var, sort, pred)?;
                 }
                 debug_children(children, f)?;
                 write!(f, "}}")
@@ -299,11 +347,16 @@ fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result 
     }
 }
 
-fn stitch(
-    bindings: Vec<(Var, Sort, fixpoint::Expr)>,
-    c: fixpoint::Constraint,
-) -> fixpoint::Constraint {
-    bindings.into_iter().rev().fold(c, |c, (var, sort, e)| {
-        fixpoint::Constraint::ForAll(var, sort, fixpoint::Pred::Expr(e), Box::new(c))
-    })
+impl fmt::Debug for Cursor<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{{}}}",
+            self.vars_in_scope()
+                .format_with(", ", |(var, sort), f| f(&format_args!(
+                    "{:?}: {:?}",
+                    var, sort
+                )))
+        )
+    }
 }
