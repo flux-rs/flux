@@ -118,9 +118,7 @@ impl Checker<'_, '_> {
             kvid_gen: &IndexGen::new(),
         };
 
-        // FIXME: Do not assume START_BLOCK is not a join point;
-        assert!(!body.join_points().contains(&START_BLOCK));
-        checker.check_basic_block(&mut env, &mut cursor, START_BLOCK);
+        checker.check_goto(&mut env, &mut cursor, START_BLOCK);
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
                 let mut env = checker.bb_envs.get(&bb).unwrap().clone();
