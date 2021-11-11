@@ -1,4 +1,5 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_core::wf::Wf;
 use liquid_rust_typeck::{global_env::GlobalEnv, Checker};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
@@ -30,9 +31,14 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let annotations = Collector::collect(tcx, sess)?;
 
     let resolver = Resolver::new(sess);
+    let wf = Wf::new(sess);
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
-        .map(|(def_id, fn_sig)| Ok((def_id, resolver.resolve(fn_sig)?)))
+        .map(|(def_id, fn_sig)| {
+            let fn_sig = resolver.resolve(fn_sig)?;
+            wf.check_fn_sig(&fn_sig)?;
+            Ok((def_id, fn_sig))
+        })
         .try_collect_exhaust()?;
 
     let global_env = GlobalEnv::new(fn_sigs);

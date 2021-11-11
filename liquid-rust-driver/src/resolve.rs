@@ -142,29 +142,27 @@ impl<'a> Resolver<'a> {
     }
 
     fn resolve_lit(&self, lit: ast::Lit) -> Result<ty::Lit, ErrorReported> {
-        let kind = match lit.kind {
+        match lit.kind {
             ast::LitKind::Integer => match lit.symbol.as_str().parse::<i128>() {
-                Ok(n) => ty::LitKind::Int(n),
+                Ok(n) => Ok(ty::Lit::Int(n)),
                 Err(_) => {
                     self.emit_error("integer literal is too large", lit.span);
-                    return Err(ErrorReported);
+                    Err(ErrorReported)
                 }
             },
-            ast::LitKind::Bool => ty::LitKind::Bool(lit.symbol == kw::True),
+            ast::LitKind::Bool => Ok(ty::Lit::Bool(lit.symbol == kw::True)),
             _ => {
                 self.sess.span_err(lit.span, "unexpected literal");
-                return Err(ErrorReported);
+                Err(ErrorReported)
             }
-        };
-        Ok(ty::Lit {
-            kind,
-            span: Some(lit.span),
-        })
+        }
     }
 
     fn resolve_sort(&self, sort: ast::Ident) -> Result<ty::Sort, ErrorReported> {
         if sort.symbol == self.symbols.int {
             Ok(ty::Sort::Int)
+        } else if sort.symbol == sym::bool {
+            Ok(ty::Sort::Bool)
         } else {
             self.emit_error(
                 &format!("cannot find sort `{}` in this scope", sort.symbol),

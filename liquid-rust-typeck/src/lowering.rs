@@ -97,9 +97,9 @@ impl<'a> LowerCtxt<'a> {
     }
 
     fn lower_lit(&self, lit: core::Lit) -> ty::Constant {
-        match &lit.kind {
-            core::LitKind::Int(n) => ty::Constant::from(*n),
-            core::LitKind::Bool(b) => ty::Constant::from(*b),
+        match lit {
+            core::Lit::Int(n) => ty::Constant::from(n),
+            core::Lit::Bool(b) => ty::Constant::from(b),
         }
     }
 }

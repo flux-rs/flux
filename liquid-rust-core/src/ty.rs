@@ -46,13 +46,7 @@ pub enum ExprKind {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Lit {
-    pub kind: LitKind,
-    pub span: Option<Span>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum LitKind {
+pub enum Lit {
     Int(i128),
     Bool(bool),
 }
@@ -100,10 +94,14 @@ impl Expr {
 }
 
 impl Lit {
-    pub const TRUE: Lit = Lit {
-        kind: LitKind::Bool(true),
-        span: None,
-    };
+    pub const TRUE: Lit = Lit::Bool(true);
+
+    pub fn sort(&self) -> Sort {
+        match self {
+            Lit::Int(_) => Sort::Int,
+            Lit::Bool(_) => Sort::Bool,
+        }
+    }
 }
 
 impl fmt::Debug for BaseTy {
