@@ -23,6 +23,7 @@ Ty: ast::Ty = {
 }
 
 TyKind: ast::TyKind = {
+    <bty:Ident>                                      => ast::TyKind::BaseTy(<>),
     <refine:Expr> "@" <bty:Ident>                    => ast::TyKind::RefineTy { <> },
     <bty:Ident> "{" <bind:Ident> ":" <pred:Expr> "}" => ast::TyKind::Exists { <> }
 }

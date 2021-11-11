@@ -89,6 +89,11 @@ impl<'a> Resolver<'a> {
                 subst.pop_layer();
                 Ok(ty::Ty::Exists(bty?, fresh, pred?))
             }
+            ast::TyKind::BaseTy(bty) => {
+                let fresh = name_gen.fresh();
+                let bty = self.resolve_bty(bty)?;
+                Ok(ty::Ty::Exists(bty, fresh, ty::Expr::TRUE))
+            }
         }
     }
 
