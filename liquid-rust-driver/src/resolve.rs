@@ -53,6 +53,23 @@ impl<'a> Resolver<'a> {
             })
             .try_collect_exhaust();
 
+        let requires = fn_sig
+            .requires
+            .into_iter()
+            .map(|(ident, ty)| {
+                let name = name_gen.fresh();
+                subst.push_layer();
+                subst.define(ident.symbol, name);
+                let ident = ty::Ident {
+                    name,
+                    symbol: ident.symbol,
+                    span: ident.span,
+                };
+                let ty = self.resolve_ty(ty, &mut subst, &name_gen);
+                Ok((ident, ty?))
+            })
+            .try_collect_exhaust();
+
         let args = fn_sig
             .args
             .into_iter()
@@ -61,10 +78,22 @@ impl<'a> Resolver<'a> {
 
         let ret = self.resolve_ty(fn_sig.ret, &mut subst, &name_gen);
 
+        let ensures = fn_sig
+            .ensures
+            .into_iter()
+            .map(|(ident, ty)| {
+                let ident = self.resolve_ident(ident, &subst);
+                let ty = self.resolve_ty(ty, &mut subst, &name_gen);
+                Ok((ident?, ty?))
+            })
+            .try_collect_exhaust();
+
         Ok(ty::FnSig {
             params: params?,
+            requires: requires?,
             args: args?,
             ret: ret?,
+            ensures: ensures?,
         })
     }
 
@@ -94,6 +123,7 @@ impl<'a> Resolver<'a> {
                 let bty = self.resolve_bty(bty)?;
                 Ok(ty::Ty::Exists(bty, fresh, ty::Expr::TRUE))
             }
+            ast::TyKind::MutRef(region) => Ok(ty::Ty::MutRef(self.resolve_ident(region, subst)?)),
         }
     }
 

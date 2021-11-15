@@ -3,7 +3,7 @@ use std::{collections::hash_map::Entry, fmt};
 use itertools::Itertools;
 use liquid_rust_common::{
     disjoint_sets::DisjointSetsMap,
-    index::{newtype_index, IndexGen},
+    index::{newtype_index, Idx, IndexGen},
 };
 use liquid_rust_core::{
     ir::{
@@ -18,7 +18,7 @@ use rustc_index::bit_set::BitSet;
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Interned},
-    ty::Region,
+    ty::{RVid, Region},
 };
 
 pub type Ty = Interned<TyS>;
@@ -50,23 +50,30 @@ impl<'a> InferCtxt<'a, '_> {
         global_env: &GlobalEnv,
         body: &Body,
         fn_sig: &FnSig,
-    ) -> FxHashMap<BasicBlock, DisjointSetsMap<Local, Ty>> {
+    ) -> FxHashMap<BasicBlock, DisjointSetsMap<RVid, Ty>> {
         let expr_gen = &IndexGen::new();
+        let rvid_gen = &IndexGen::new();
+        rvid_gen.skip(body.local_decls.len());
+
         let mut env = TypeEnv::new(expr_gen);
 
-        let (args, ret) = lower(fn_sig, expr_gen);
+        let (requires, args, ret, ensures) = lower(fn_sig, expr_gen, rvid_gen);
 
         // Return place
-        env.push_local(TyS::Uninit.intern());
+        env.push_region(TyS::Uninit.intern());
 
         // Arguments
         for ty in args {
-            env.push_local(ty.unpack(expr_gen));
+            env.push_region(ty.unpack(expr_gen));
         }
 
         // Vars and temps
         for _ in body.vars_and_temps_iter() {
-            env.push_local(TyS::Uninit.intern());
+            env.push_region(TyS::Uninit.intern());
+        }
+
+        for ty in requires {
+            env.push_region(ty);
         }
 
         let mut cx = InferCtxt {
@@ -122,10 +129,20 @@ impl<'a> InferCtxt<'a, '_> {
                 args,
                 destination,
             } => {
-                // Since function signatures can only contain copy arguments, the return type
-                // is the only important thing to check here.
                 let fn_sig = self.global_env.lookup_fn_sig(*func);
-                let (_, ret) = lower(&fn_sig, self.expr_gen);
+                let actuals = args
+                    .iter()
+                    .map(|arg| self.infer_operand(env, arg))
+                    .collect_vec();
+
+                let subst = infer_subst(&actuals, &fn_sig.args);
+                let (requires, args, ret, ensures) =
+                    lower_with_subst(&fn_sig, self.expr_gen, &subst);
+
+                for (region, updated_ty) in ensures {
+                    env.update_region(region[0], updated_ty);
+                }
+
                 if let Some((place, target)) = destination {
                     env.write_place(place, ret.unpack(self.expr_gen));
                     self.infer_goto(env, *target);
@@ -226,7 +243,7 @@ impl<'a> InferCtxt<'a, '_> {
 
 #[derive(Clone)]
 struct TypeEnv<'a> {
-    types: DisjointSetsMap<Local, Ty>,
+    types: DisjointSetsMap<RVid, Ty>,
     expr_gen: &'a IndexGen<ExprIdx>,
 }
 
@@ -238,8 +255,12 @@ impl TypeEnv<'_> {
         }
     }
 
-    pub fn push_local(&mut self, ty: Ty) {
+    pub fn push_region(&mut self, ty: Ty) {
         self.types.push(ty);
+    }
+
+    pub fn update_region(&mut self, rvid: RVid, ty: Ty) {
+        self.types.insert(rvid, ty);
     }
 
     pub fn write_place(&mut self, place: &Place, new_ty: Ty) {
@@ -296,8 +317,8 @@ impl TypeEnv<'_> {
     }
 
     pub fn move_place(&mut self, place: &Place) -> Ty {
-        let mut ty = self.types[place.local].clone();
-        self.types[place.local] = TyS::Uninit.intern();
+        let mut ty = self.types[place.local.into()].clone();
+        self.types[place.local.into()] = TyS::Uninit.intern();
         for elem in &place.projection {
             match (elem, &*ty) {
                 (PlaceElem::Deref, TyS::MutRef(region)) => {
@@ -310,21 +331,21 @@ impl TypeEnv<'_> {
         ty
     }
 
-    fn walk_place(&self, place: &Place) -> (Local, Ty) {
-        let mut local = place.local;
-        let mut ty = self.types[place.local].clone();
+    fn walk_place(&self, place: &Place) -> (RVid, Ty) {
+        let mut rvid = RVid::new(place.local.as_usize());
+        let mut ty = self.types[rvid].clone();
         for elem in &place.projection {
             match (elem, &*ty) {
                 (PlaceElem::Deref, TyS::MutRef(region)) => {
-                    local = region[0];
-                    ty = self.types[local].clone();
+                    rvid = region[0];
+                    ty = self.types[rvid].clone();
                 }
                 _ => {
                     unreachable!("unexpected type: {:?}", ty);
                 }
             }
         }
-        (local, ty)
+        (rvid, ty)
     }
 
     fn union_cascade(&mut self, ty: Ty, unpack: bool) {
@@ -390,16 +411,109 @@ impl TyS {
     }
 }
 
-fn lower(fn_sig: &FnSig, gen: &IndexGen<ExprIdx>) -> (Vec<Ty>, Ty) {
-    let args = fn_sig.args.iter().map(|arg| lower_ty(arg, gen)).collect();
-    let ret = lower_ty(&fn_sig.ret, gen);
-    (args, ret)
+type RegionSubst = FxHashMap<core::Name, Region>;
+
+fn infer_subst(actuals: &[Ty], formals: &[core::Ty]) -> RegionSubst {
+    assert!(actuals.len() == formals.len());
+
+    let mut subst = FxHashMap::default();
+    for (actual, formal) in actuals.iter().zip(formals) {
+        match (&**actual, formal) {
+            (TyS::MutRef(region1), core::Ty::MutRef(region2)) => {
+                match subst.insert(region2.name, region1.clone()) {
+                    Some(old_region) if &old_region != region1 => {
+                        todo!("report this error");
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    subst
 }
 
-fn lower_ty(ret: &core::Ty, gen: &IndexGen<ExprIdx>) -> Ty {
-    match ret {
+fn lower(
+    fn_sig: &FnSig,
+    gen: &IndexGen<ExprIdx>,
+    rvid_gen: &IndexGen<RVid>,
+) -> (Vec<Ty>, Vec<Ty>, Ty, Vec<(Region, Ty)>) {
+    let mut region_subst = FxHashMap::default();
+
+    let requires = fn_sig
+        .requires
+        .iter()
+        .map(|(name, ty)| {
+            let rvid = rvid_gen.fresh();
+            let ty = lower_ty(ty, gen, &region_subst);
+            region_subst.insert(name.name, Region::from(rvid));
+            ty
+        })
+        .collect();
+
+    let args = fn_sig
+        .args
+        .iter()
+        .map(|arg| lower_ty(arg, gen, &region_subst))
+        .collect();
+
+    let ret = lower_ty(&fn_sig.ret, gen, &region_subst);
+
+    let ensures = fn_sig
+        .ensures
+        .iter()
+        .map(|(name, ty)| {
+            let ty = lower_ty(ty, gen, &region_subst);
+            (region_subst[&name.name].clone(), ty)
+        })
+        .collect();
+
+    (requires, args, ret, ensures)
+}
+
+fn lower_with_subst(
+    fn_sig: &FnSig,
+    gen: &IndexGen<ExprIdx>,
+    region_subst: &RegionSubst,
+) -> (Vec<(Region, Ty)>, Vec<Ty>, Ty, Vec<(Region, Ty)>) {
+    let requires = fn_sig
+        .requires
+        .iter()
+        .map(|(name, ty)| {
+            (
+                region_subst[&name.name].clone(),
+                lower_ty(ty, gen, &region_subst),
+            )
+        })
+        .collect();
+
+    let args = fn_sig
+        .args
+        .iter()
+        .map(|arg| lower_ty(arg, gen, &region_subst))
+        .collect();
+
+    let ret = lower_ty(&fn_sig.ret, gen, &region_subst);
+
+    let ensures = fn_sig
+        .ensures
+        .iter()
+        .map(|(name, ty)| {
+            (
+                region_subst[&name.name].clone(),
+                lower_ty(ty, gen, &region_subst),
+            )
+        })
+        .collect();
+
+    (requires, args, ret, ensures)
+}
+
+fn lower_ty(ty: &core::Ty, gen: &IndexGen<ExprIdx>, region_subst: &RegionSubst) -> Ty {
+    match ty {
         core::Ty::Refine(bty, _) => TyS::Refine(*bty, gen.fresh()).intern(),
         core::Ty::Exists(bty, _, _) => TyS::Exists(*bty).intern(),
+        core::Ty::MutRef(region) => TyS::MutRef(region_subst[&region.name].clone()).intern(),
     }
 }
 

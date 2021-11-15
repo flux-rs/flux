@@ -1,6 +1,7 @@
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
+use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp, Var};
@@ -26,7 +27,7 @@ pub enum TyKind {
 pub type Region = Interned<RegionS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct RegionS(Vec<Local>);
+pub struct RegionS(Vec<RVid>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
@@ -148,19 +149,9 @@ impl fmt::Debug for ExprS {
     }
 }
 
-impl RegionS {
-    fn intern(self) -> Region {
-        Interned::new(self)
-    }
-
-    pub fn subset(&self, other: &RegionS) -> bool {
-        self.iter().all(|local| other.iter().contains(&local))
-    }
-}
-
-impl From<Local> for Region {
-    fn from(v: Local) -> Self {
-        RegionS(vec![v]).intern()
+newtype_index! {
+    pub struct RVid {
+        DEBUG_FORMAT = "'{}"
     }
 }
 
@@ -171,23 +162,15 @@ impl_internable!(
     Vec<Expr>
 );
 
-impl std::ops::Index<usize> for Region {
-    type Output = Local;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl std::ops::Add<&'_ Region> for &'_ Region {
-    type Output = Region;
-
-    fn add(self, rhs: &Region) -> Self::Output {
-        self.merge(rhs)
-    }
-}
-
 impl RegionS {
+    fn intern(self) -> Region {
+        Interned::new(self)
+    }
+
+    pub fn subset(&self, other: &RegionS) -> bool {
+        self.iter().all(|local| other.iter().contains(&local))
+    }
+
     fn merge(&self, other: &Region) -> Region {
         RegionS(
             self.0
@@ -200,14 +183,42 @@ impl RegionS {
         .intern()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Local> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = RVid> + '_ {
         self.0.iter().copied()
     }
 }
 
-impl FromIterator<Local> for Region {
-    fn from_iter<T: IntoIterator<Item = Local>>(iter: T) -> Self {
+impl From<RVid> for Region {
+    fn from(rvid: RVid) -> Self {
+        RegionS(vec![rvid]).intern()
+    }
+}
+
+impl From<Local> for RVid {
+    fn from(local: Local) -> Self {
+        RVid::new(local.as_usize())
+    }
+}
+
+impl FromIterator<RVid> for Region {
+    fn from_iter<T: IntoIterator<Item = RVid>>(iter: T) -> Self {
         RegionS(iter.into_iter().collect()).intern()
+    }
+}
+
+impl std::ops::Index<usize> for Region {
+    type Output = RVid;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl std::ops::Add<&'_ Region> for &'_ Region {
+    type Output = Region;
+
+    fn add(self, rhs: &Region) -> Self::Output {
+        self.merge(rhs)
     }
 }
 

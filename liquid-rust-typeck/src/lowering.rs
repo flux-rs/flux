@@ -8,6 +8,7 @@ pub struct LowerCtxt<'a> {
 }
 
 type Subst = FxHashMap<core::Name, ty::Expr>;
+type RegionSubst = FxHashMap<core::Name, ty::Region>;
 
 impl<'a> LowerCtxt<'a> {
     fn new(name_gen: &'a IndexGen<ty::Var>) -> Self {
@@ -16,9 +17,17 @@ impl<'a> LowerCtxt<'a> {
 
     pub fn lower_with_fresh_names(
         name_gen: &IndexGen<ty::Var>,
+        rvid_gen: &IndexGen<ty::RVid>,
         fn_sig: &core::FnSig,
-    ) -> (Vec<(ty::Var, ty::Sort, ty::Pred)>, Vec<ty::Ty>, ty::Ty) {
+    ) -> (
+        Vec<(ty::Var, ty::Sort, ty::Pred)>,
+        Vec<ty::Ty>,
+        Vec<ty::Ty>,
+        ty::Ty,
+        Vec<(ty::Region, ty::Ty)>,
+    ) {
         let mut subst = FxHashMap::default();
+        let mut region_subst = FxHashMap::default();
         let cx = LowerCtxt::new(name_gen);
 
         let mut params = Vec::new();
@@ -29,22 +38,49 @@ impl<'a> LowerCtxt<'a> {
             params.push((fresh, param.sort, ty::Pred::Expr(expr)));
         }
 
+        let requires = fn_sig
+            .requires
+            .iter()
+            .map(|(name, ty)| {
+                let rvid = rvid_gen.fresh();
+                let ty = cx.lower_ty(ty, &mut subst, &region_subst);
+                region_subst.insert(name.name, ty::Region::from(rvid));
+                ty
+            })
+            .collect();
+
         let args = fn_sig
             .args
             .iter()
-            .map(|ty| cx.lower_ty(ty, &mut subst))
+            .map(|ty| cx.lower_ty(ty, &mut subst, &region_subst))
             .collect();
 
-        let ret = cx.lower_ty(&fn_sig.ret, &mut subst);
+        let ret = cx.lower_ty(&fn_sig.ret, &mut subst, &region_subst);
 
-        (params, args, ret)
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|(name, ty)| {
+                let ty = cx.lower_ty(ty, &mut subst, &region_subst);
+                (region_subst[&name.name].clone(), ty)
+            })
+            .collect();
+
+        (params, requires, args, ret, ensures)
     }
 
     pub fn lower_with_subst(
         name_gen: &IndexGen<ty::Var>,
         mut subst: Subst,
+        region_subst: &RegionSubst,
         fn_sig: &core::FnSig,
-    ) -> (Vec<ty::Pred>, Vec<ty::Ty>, ty::Ty) {
+    ) -> (
+        Vec<ty::Pred>,
+        Vec<(ty::Region, ty::Ty)>,
+        Vec<ty::Ty>,
+        ty::Ty,
+        Vec<(ty::Region, ty::Ty)>,
+    ) {
         let cx = LowerCtxt::new(name_gen);
 
         let mut params = Vec::new();
@@ -53,18 +89,40 @@ impl<'a> LowerCtxt<'a> {
             params.push(ty::Pred::Expr(expr));
         }
 
+        let requires = fn_sig
+            .requires
+            .iter()
+            .map(|(name, ty)| {
+                (
+                    region_subst[&name.name].clone(),
+                    cx.lower_ty(ty, &mut subst, &region_subst),
+                )
+            })
+            .collect();
+
         let args = fn_sig
             .args
             .iter()
-            .map(|ty| cx.lower_ty(ty, &mut subst))
+            .map(|ty| cx.lower_ty(ty, &mut subst, &region_subst))
             .collect();
 
-        let ret = cx.lower_ty(&fn_sig.ret, &mut subst);
+        let ret = cx.lower_ty(&fn_sig.ret, &mut subst, &region_subst);
 
-        (params, args, ret)
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|(name, ty)| {
+                (
+                    region_subst[&name.name].clone(),
+                    cx.lower_ty(ty, &mut subst, &region_subst),
+                )
+            })
+            .collect();
+
+        (params, requires, args, ret, ensures)
     }
 
-    fn lower_ty(&self, ty: &core::Ty, subst: &mut Subst) -> ty::Ty {
+    fn lower_ty(&self, ty: &core::Ty, subst: &mut Subst, region_subst: &RegionSubst) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, r) => {
                 ty::TyKind::Refine(*bty, self.lower_expr(r, subst)).intern()
@@ -75,6 +133,9 @@ impl<'a> LowerCtxt<'a> {
                 let e = self.lower_expr(e, subst);
                 subst.remove(evar);
                 ty::TyKind::Exists(*bty, fresh, ty::Pred::Expr(e)).intern()
+            }
+            core::Ty::MutRef(region) => {
+                ty::TyKind::MutRef(region_subst[&region.name].clone()).intern()
             }
         }
     }

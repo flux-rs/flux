@@ -4,7 +4,7 @@ use crate::{
     constraint_builder::Cursor,
     inference,
     subst::Subst,
-    ty::{Expr, ExprKind, KVid, Pred, Region, Ty, TyKind, Var},
+    ty::{Expr, ExprKind, KVid, Pred, RVid, Region, Ty, TyKind, Var},
 };
 use liquid_rust_common::{
     disjoint_sets::{DisjointSetsMap, Set},
@@ -15,7 +15,7 @@ use rustc_hash::FxHashMap;
 
 #[derive(Clone)]
 pub struct TyEnv {
-    regions: DisjointSetsMap<Local, RegionKind>,
+    regions: DisjointSetsMap<RVid, RegionKind>,
 }
 
 #[derive(Clone)]
@@ -47,12 +47,12 @@ impl TyEnv {
         }
     }
 
-    pub fn push_local(&mut self, ty: Ty) {
+    pub fn push_region(&mut self, ty: Ty) {
         self.regions.push(RegionKind::Concrete(ty));
     }
 
-    pub fn lookup_local(&self, local: Local) -> Ty {
-        self.regions[local].ty()
+    pub fn lookup_region(&self, rvid: RVid) -> Ty {
+        self.regions[rvid].ty()
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
@@ -60,9 +60,9 @@ impl TyEnv {
         ty
     }
 
-    fn update_region(&mut self, cursor: &mut Cursor, local: Local, new_ty: Ty) {
-        match &self.regions[local] {
-            RegionKind::Concrete(_) => self.regions[local] = RegionKind::Concrete(new_ty),
+    pub fn update_region(&mut self, cursor: &mut Cursor, rvid: RVid, new_ty: Ty) {
+        match &self.regions[rvid] {
+            RegionKind::Concrete(_) => self.regions[rvid] = RegionKind::Concrete(new_ty),
             RegionKind::Abstract { bound, .. } => {
                 cursor.subtyping(new_ty, bound.clone());
             }
@@ -71,18 +71,18 @@ impl TyEnv {
 
     pub fn get_region(&self, place: &ir::Place) -> Region {
         let (local, _) = self.walk_place(place);
-        self.regions.set(local).collect()
+        self.regions.set(RVid::from(local)).collect()
     }
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
-        let mut local = place.local;
-        let mut ty = self.lookup_local(place.local);
-        self.regions[place.local] = RegionKind::Concrete(TyKind::Uninit.intern());
+        let mut rvid = RVid::from(place.local);
+        let mut ty = self.lookup_region(rvid);
+        self.regions[RVid::from(place.local)] = RegionKind::Concrete(TyKind::Uninit.intern());
         for elem in &place.projection {
             match (elem, ty.kind()) {
                 (ir::PlaceElem::Deref, TyKind::MutRef(region)) => {
                     self.regions[region[0]] = RegionKind::Concrete(TyKind::Uninit.intern());
-                    ty = self.lookup_local(region[0]);
+                    ty = self.lookup_region(region[0]);
                 }
                 _ => {
                     unreachable!("unexpected type: {:?}", ty);
@@ -106,35 +106,35 @@ impl TyEnv {
         }
     }
 
-    fn walk_place(&self, place: &ir::Place) -> (Local, Ty) {
-        let mut local = place.local;
-        let mut ty = self.lookup_local(place.local);
+    fn walk_place(&self, place: &ir::Place) -> (RVid, Ty) {
+        let mut rvid = RVid::from(place.local);
+        let mut ty = self.lookup_region(rvid);
         for elem in &place.projection {
             match (elem, ty.kind()) {
                 (ir::PlaceElem::Deref, TyKind::MutRef(region)) => {
-                    local = region[0];
-                    ty = self.lookup_local(local);
+                    rvid = region[0];
+                    ty = self.lookup_region(rvid);
                 }
                 _ => {
                     unreachable!("unexpected type: {:?}", ty);
                 }
             }
         }
-        (local, ty)
+        (rvid, ty)
     }
 
     pub fn infer_bb_env(
         &self,
         cursor: &mut Cursor,
-        shape: DisjointSetsMap<Local, inference::Ty>,
+        shape: DisjointSetsMap<RVid, inference::Ty>,
         name_gen: &IndexGen<Var>,
     ) -> TyEnv {
         let regions = shape.map_values(|mut region, ty| {
             // We are assuming the region in self is a subset of the region in shape.
             let region_size = region.len();
-            let local = region.next().unwrap();
+            let rvid = region.next().unwrap();
             let ty = match &*ty {
-                inference::TyS::Refine(_, _) => self.lookup_local(local),
+                inference::TyS::Refine(_, _) => self.lookup_region(rvid),
                 inference::TyS::Exists(bty) => {
                     let fresh = name_gen.fresh();
                     let pred = cursor.fresh_kvar(fresh, bty.sort());
@@ -155,7 +155,7 @@ impl TyEnv {
         TyEnv { regions }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Set<Local>, Ty)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (Set<RVid>, Ty)> + '_ {
         self.regions
             .iter()
             .map(|(region, region_kind)| (region, region_kind.ty()))

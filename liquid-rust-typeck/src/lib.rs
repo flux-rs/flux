@@ -24,7 +24,7 @@ use crate::{
     inference::InferCtxt,
     lowering::LowerCtxt,
     subst::Subst,
-    ty::{BaseTy, BinOp, Expr, ExprKind, KVid, Region, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Expr, ExprKind, KVid, RVid, Region, Ty, TyKind, Var},
 };
 use global_env::GlobalEnv;
 use itertools::Itertools;
@@ -55,11 +55,12 @@ pub struct Checker<'a, 'tcx> {
     dominated_join_points: FxHashMap<BasicBlock, Vec<BasicBlock>>,
     visited: BitSet<BasicBlock>,
     bb_envs: FxHashMap<BasicBlock, TyEnv>,
-    bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<Local, inference::Ty>>,
+    bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<RVid, inference::Ty>>,
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
     name_gen: &'a IndexGen<Var>,
     kvid_gen: &'a IndexGen<KVid>,
+    ensures: Vec<(Region, Ty)>,
 }
 
 impl Checker<'_, '_> {
@@ -70,11 +71,14 @@ impl Checker<'_, '_> {
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
+        let rvid_gen = &IndexGen::new();
+        rvid_gen.skip(body.local_decls.len());
 
         let mut constraint = ConstraintBuilder::new();
 
         let name_gen = &IndexGen::new();
-        let (params, args, ret_ty) = LowerCtxt::lower_with_fresh_names(name_gen, fn_sig);
+        let (params, requires, args, ret_ty, ensures) =
+            LowerCtxt::lower_with_fresh_names(name_gen, rvid_gen, fn_sig);
 
         let mut env = TyEnv::new();
 
@@ -84,16 +88,21 @@ impl Checker<'_, '_> {
         }
 
         // Return place
-        env.push_local(TyKind::Uninit.intern());
+        env.push_region(TyKind::Uninit.intern());
 
         // Arguments
         for ty in args {
-            env.push_local(cursor.unpack(name_gen, ty));
+            env.push_region(cursor.unpack(name_gen, ty));
         }
 
         // Vars and temps
         for _ in body.vars_and_temps_iter() {
-            env.push_local(TyKind::Uninit.intern());
+            env.push_region(TyKind::Uninit.intern());
+        }
+
+        // Requires
+        for ty in requires {
+            env.push_region(ty);
         }
 
         let dominators = body.dominators();
@@ -116,6 +125,7 @@ impl Checker<'_, '_> {
             ret_ty,
             name_gen,
             kvid_gen: &IndexGen::new(),
+            ensures,
         };
 
         checker.check_goto(&mut env, &mut cursor, START_BLOCK)?;
@@ -180,8 +190,15 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
-                let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor.subtyping(ret_place_ty, self.ret_ty.clone());
+                let ret_place_ty = env.lookup_region(RVid::from(RETURN_PLACE));
+                cursor
+                    .snapshot()
+                    .subtyping(ret_place_ty, self.ret_ty.clone());
+
+                for (region, ensured_ty) in &self.ensures {
+                    let actual_ty = env.lookup_region(region[0]);
+                    cursor.snapshot().subtyping(actual_ty, ensured_ty.clone());
+                }
             }
             TerminatorKind::Goto { target } => {
                 self.check_goto(env, cursor, *target)?;
@@ -234,20 +251,35 @@ impl Checker<'_, '_> {
                     .map(|arg| self.check_operand(env, arg))
                     .collect_vec();
 
-                let subst =
-                    self.infer_subst(cursor, terminator.source_info, &actuals, &fn_sig.args)?;
+                let (subst, region_subst) = self.infer_subst(
+                    terminator.source_info,
+                    env,
+                    &actuals,
+                    &fn_sig.requires,
+                    &fn_sig.args,
+                )?;
                 self.check_subst(&subst, &fn_sig.params, terminator.source_info)?;
 
-                let (params, formals, ret) =
-                    LowerCtxt::lower_with_subst(self.name_gen, subst, fn_sig);
+                let (params, requires, formals, ret, ensures) =
+                    LowerCtxt::lower_with_subst(self.name_gen, subst, &region_subst, fn_sig);
                 for pred in params {
                     cursor.push_head(pred);
                 }
                 for (actual, formal) in actuals.into_iter().zip(formals) {
                     cursor.snapshot().subtyping(actual, formal);
                 }
+                for (region, required_ty) in requires {
+                    let actual_ty = env.lookup_region(region[0]);
+                    cursor.snapshot().subtyping(actual_ty, required_ty);
+                }
+
+                for (region, updated_ty) in ensures {
+                    env.update_region(cursor, region[0], updated_ty);
+                }
+
                 if let Some((p, bb)) = destination {
                     let ret = cursor.unpack(self.name_gen, ret);
+
                     env.write_place(cursor, p, ret);
                     self.check_goto(env, cursor, *bb)?;
                 }
@@ -267,7 +299,7 @@ impl Checker<'_, '_> {
             for (mut region, ty1) in env.iter() {
                 // FIXME: we should check the region in env is a subset of a region in bb_env
                 let local = region.next().unwrap();
-                let ty2 = bb_env.lookup_local(local);
+                let ty2 = bb_env.lookup_region(local);
                 cursor.subtyping(ty1, ty2);
             }
             Ok(())
@@ -385,29 +417,28 @@ impl Checker<'_, '_> {
 
     fn infer_subst(
         &self,
-        cursor: &mut Cursor,
         source_info: SourceInfo,
+        env: &TyEnv,
         actuals: &[Ty],
+        requires: &[(core::Ident, core::Ty)],
         formals: &[core::Ty],
-    ) -> Result<FxHashMap<Name, Expr>, ErrorReported> {
+    ) -> Result<(FxHashMap<Name, Expr>, FxHashMap<Name, Region>), ErrorReported> {
         assert!(actuals.len() == formals.len());
 
         let mut subst = FxHashMap::default();
+        let mut region_subst = FxHashMap::default();
         for (actual, formal) in actuals.iter().zip(formals) {
-            let (bty2, ident) = match formal {
-                core::Ty::Refine(
-                    bty2,
-                    core::Expr {
-                        kind: core::ExprKind::Var(ident),
-                        ..
-                    },
-                ) => (bty2, ident),
-                core::Ty::Refine(_, _) => continue,
-                core::Ty::Exists(_, _, _) => continue,
-            };
-
-            match actual.kind() {
-                TyKind::Refine(bty1, e) => {
+            match (actual.kind(), formal) {
+                (
+                    TyKind::Refine(bty1, e),
+                    core::Ty::Refine(
+                        bty2,
+                        core::Expr {
+                            kind: core::ExprKind::Var(ident),
+                            ..
+                        },
+                    ),
+                ) => {
                     debug_assert!(bty1 == bty2);
                     match subst.insert(ident.name, e.clone()) {
                         Some(old_e) if &old_e != e => {
@@ -422,25 +453,75 @@ impl Checker<'_, '_> {
                         _ => {}
                     }
                 }
-                TyKind::Exists(bty1, evar, p) => {
-                    debug_assert!(bty1 == bty2);
-                    let fresh = self.name_gen.fresh();
-                    let var = ExprKind::Var(fresh).intern();
-                    cursor.push_forall(
-                        fresh,
-                        bty1.sort(),
-                        Subst::new([(*evar, var.clone())]).subst_pred(p.clone()),
-                    );
-                    subst.insert(ident.name, var);
+                (TyKind::MutRef(region1), core::Ty::MutRef(region2)) => {
+                    match region_subst.insert(region2.name, region1.clone()) {
+                        Some(old_region) if &old_region != region1 => {
+                            let mut s = MultiSpan::from_span(source_info.span);
+                            s.push_span_label(
+                                source_info.span,
+                                format!(
+                                    "abiguous instantiation for region parameter `{}`",
+                                    region2.symbol
+                                ),
+                            );
+                            self.sess.span_err(s, "parameter inference failed");
+                            return Err(ErrorReported);
+                        }
+                        _ => {}
+                    }
                 }
-                TyKind::Uninit => {
-                    unreachable!("inferring substitution with uninitialized type")
-                }
-                // TODO: we should also infer region substitution
-                TyKind::MutRef(_) => {}
+                _ => {}
             }
         }
-        Ok(subst)
+
+        for (region, required) in requires {
+            let actual = env.lookup_region(region_subst[&region.name][0]);
+            match (actual.kind(), required) {
+                (
+                    TyKind::Refine(bty1, e),
+                    core::Ty::Refine(
+                        bty2,
+                        core::Expr {
+                            kind: core::ExprKind::Var(ident),
+                            ..
+                        },
+                    ),
+                ) => {
+                    debug_assert!(bty1 == bty2);
+                    match subst.insert(ident.name, e.clone()) {
+                        Some(old_e) if &old_e != e => {
+                            let mut s = MultiSpan::from_span(source_info.span);
+                            s.push_span_label(
+                                source_info.span,
+                                format!("abiguous instantiation for parameter `{}`", ident.symbol),
+                            );
+                            self.sess.span_err(s, "parameter inference failed");
+                            return Err(ErrorReported);
+                        }
+                        _ => {}
+                    }
+                }
+                (TyKind::MutRef(region1), core::Ty::MutRef(region2)) => {
+                    match region_subst.insert(region2.name, region1.clone()) {
+                        Some(old_region) if &old_region != region1 => {
+                            let mut s = MultiSpan::from_span(source_info.span);
+                            s.push_span_label(
+                                source_info.span,
+                                format!(
+                                    "abiguous instantiation for region parameter `{}`",
+                                    region2.symbol
+                                ),
+                            );
+                            self.sess.span_err(s, "parameter inference failed");
+                            return Err(ErrorReported);
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok((subst, region_subst))
     }
 
     fn check_subst(

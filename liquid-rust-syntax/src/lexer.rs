@@ -14,6 +14,7 @@ pub enum Token {
     Plus,
     Colon,
     Comma,
+    Semi,
     RArrow,
     Lt,
     Le,
@@ -26,12 +27,18 @@ pub enum Token {
     OpenDelim(DelimToken),
     CloseDelim(DelimToken),
     Invalid,
+    Ref,
 }
 
 pub(crate) struct Cursor {
     stack: Vec<Frame>,
     offset: BytePos,
-    fn_ident: Symbol,
+    symbs: Symbols,
+}
+
+struct Symbols {
+    fn_: Symbol,
+    ref_: Symbol,
 }
 
 struct Frame {
@@ -50,7 +57,10 @@ impl Cursor {
                 close: None,
             }],
             offset,
-            fn_ident: Symbol::intern("Fn"),
+            symbs: Symbols {
+                fn_: Symbol::intern("fn"),
+                ref_: Symbol::intern("ref"),
+            },
         }
     }
 
@@ -67,6 +77,7 @@ impl Cursor {
             TokenKind::At => Token::At,
             TokenKind::Comma => Token::Comma,
             TokenKind::Colon => Token::Colon,
+            TokenKind::Semi => Token::Semi,
             TokenKind::RArrow => Token::RArrow,
             TokenKind::OpenDelim(delim) => Token::OpenDelim(delim),
             TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
@@ -78,7 +89,8 @@ impl Cursor {
                     suffix: None,
                 })
             }
-            TokenKind::Ident(symb, _) if symb == self.fn_ident => Token::Fn,
+            TokenKind::Ident(symb, _) if symb == self.symbs.ref_ => Token::Ref,
+            TokenKind::Ident(symb, _) if symb == self.symbs.fn_ => Token::Fn,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,

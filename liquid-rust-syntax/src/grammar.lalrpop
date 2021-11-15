@@ -9,8 +9,14 @@ use lalrpop_util::ParseError;
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
 pub FnSig: ast::FnSig = {
-    "ident" <params:Params?> "(" <args:Comma<Ty>> ")" "->" <ret:Ty> => {
+    "fn"
+    <params:Params?>
+    "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
+    "->"
+    <ret:Ty> <ensures:(";" <Env>)?>=> {
         let params = params.unwrap_or_else(|| vec![]);
+        let requires = requires.unwrap_or_else(|| vec![]);
+        let ensures = ensures.unwrap_or_else(|| vec![]);
         ast::FnSig { <> }
     }
 }
@@ -24,17 +30,20 @@ Ty: ast::Ty = {
 
 TyKind: ast::TyKind = {
     <bty:Ident>                                      => ast::TyKind::BaseTy(<>),
-    <refine:Expr> "@" <bty:Ident>                    => ast::TyKind::RefineTy { <> },
-    <bty:Ident> "{" <bind:Ident> ":" <pred:Expr> "}" => ast::TyKind::Exists { <> }
+    <bty:Ident> "@" <refine:Expr>                    => ast::TyKind::RefineTy { <> },
+    <bty:Ident> "{" <bind:Ident> ":" <pred:Expr> "}" => ast::TyKind::Exists { <> },
+    "ref" "<" <ident:Ident> ">"                      => ast::TyKind::MutRef(<>),
 }
 
 Params: Vec<ast::Param> = {
     "<" <Comma<Param>> ">"
 }
 
+Env = <Comma<(<Ident> ":" <Ty>)>>;
+
 Param: ast::Param = {
-    <name:Ident> ":" "{" <sort:Ident> "|" <pred:Expr> "}" => ast::Param { name, sort, pred: Some(pred) },
-    <name:Ident> ":" <sort:Ident>                         => ast::Param { name, sort, pred: None },
+    <name:Ident> ":" <sort:Ident> "{" <pred:Expr> "}" => ast::Param { name, sort, pred: Some(pred) },
+    <name:Ident> ":" <sort:Ident>                     => ast::Param { name, sort, pred: None },
 }
 
 Expr = Level<BinOp1, Level2>;
@@ -131,6 +140,7 @@ extern {
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
+        "ref" => Token::Ref,
         "@"  => Token::At,
         "==" => Token::EqEq,
         "&&" => Token::AndAnd,
@@ -146,6 +156,7 @@ extern {
         ">"  => Token::Gt,
         ">="  => Token::Ge,
         ":"  => Token::Colon,
+        ";"  => Token::Semi,
         ","  => Token::Comma,
         "->" => Token::RArrow,
     }

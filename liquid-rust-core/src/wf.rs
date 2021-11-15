@@ -46,6 +46,10 @@ impl Wf<'_> {
                 env.remove(var);
                 result
             }
+            Ty::MutRef(_) => {
+                // TODO: check identifier is actually a region
+                Ok(())
+            }
         }
     }
 

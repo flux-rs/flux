@@ -9,14 +9,17 @@ use rustc_span::{Span, Symbol};
 #[derive(Debug)]
 pub struct FnSig {
     pub params: Vec<Param>,
+    pub requires: Vec<(Ident, Ty)>,
     pub args: Vec<Ty>,
     pub ret: Ty,
+    pub ensures: Vec<(Ident, Ty)>,
 }
 
 #[derive(Debug)]
 pub enum Ty {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Name, Expr),
+    MutRef(Ident),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

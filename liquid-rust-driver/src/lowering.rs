@@ -174,13 +174,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 self.lower_operand(&operands.0)?,
                 self.lower_operand(&operands.1)?,
             )),
-            mir::Rvalue::Ref(
-                _,
-                mir::BorrowKind::Mut {
-                    allow_two_phase_borrow: false,
-                },
-                p,
-            ) => Ok(Rvalue::MutRef(self.lower_place(p)?)),
+            mir::Rvalue::Ref(_, mir::BorrowKind::Mut { .. }, p) => {
+                Ok(Rvalue::MutRef(self.lower_place(p)?))
+            }
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
