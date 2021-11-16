@@ -22,7 +22,7 @@ mod tyenv;
 use crate::{
     constraint_builder::{ConstraintBuilder, Cursor},
     inference::InferCtxt,
-    lowering::LowerCtxt,
+    lowering::lower_with_fresh_names,
     subst::Subst,
     ty::{BaseTy, BinOp, Expr, ExprKind, KVid, RVid, Region, Ty, TyKind, Var},
 };
@@ -46,7 +46,7 @@ use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;
 use rustc_session::Session;
 use rustc_span::MultiSpan;
-use tyenv::TyEnv;
+use tyenv::{TyEnv, TyEnvBuilder};
 
 pub struct Checker<'a, 'tcx> {
     sess: &'a Session,
@@ -59,7 +59,6 @@ pub struct Checker<'a, 'tcx> {
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
     name_gen: &'a IndexGen<Var>,
-    kvid_gen: &'a IndexGen<KVid>,
     ensures: Vec<(Region, Ty)>,
 }
 
@@ -71,39 +70,14 @@ impl Checker<'_, '_> {
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
-        let rvid_gen = &IndexGen::new();
-        rvid_gen.skip(body.local_decls.len());
 
         let mut constraint = ConstraintBuilder::new();
 
-        let name_gen = &IndexGen::new();
-        let (params, requires, args, ret_ty, ensures) =
-            LowerCtxt::lower_with_fresh_names(name_gen, rvid_gen, fn_sig);
-
-        let mut env = TyEnv::new();
-
         let mut cursor = constraint.as_cursor();
-        for (var, sort, pred) in params {
-            cursor.push_forall(var, sort, pred);
-        }
 
-        // Return place
-        env.push_region(TyKind::Uninit.intern());
-
-        // Arguments
-        for ty in args {
-            env.push_region(cursor.unpack(name_gen, ty));
-        }
-
-        // Vars and temps
-        for _ in body.vars_and_temps_iter() {
-            env.push_region(TyKind::Uninit.intern());
-        }
-
-        // Requires
-        for ty in requires {
-            env.push_region(ty);
-        }
+        let name_gen = &IndexGen::new();
+        let (mut env, ensures, ret_ty) =
+            lower_with_fresh_names(name_gen, &mut cursor, body, fn_sig);
 
         let dominators = body.dominators();
         let mut dominated_join_points = FxHashMap::<BasicBlock, Vec<BasicBlock>>::default();
@@ -124,7 +98,6 @@ impl Checker<'_, '_> {
             bb_env_shapes,
             ret_ty,
             name_gen,
-            kvid_gen: &IndexGen::new(),
             ensures,
         };
 
@@ -190,7 +163,7 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
-                let ret_place_ty = env.lookup_region(RVid::from(RETURN_PLACE));
+                let ret_place_ty = env.lookup_local(RETURN_PLACE);
                 cursor
                     .snapshot()
                     .subtyping(ret_place_ty, self.ret_ty.clone());
@@ -237,7 +210,10 @@ impl Checker<'_, '_> {
                     TyKind::Refine(BaseTy::Int(_), _) => {
                         todo!("switch_int not implemented for integer discriminants")
                     }
-                    _ => unreachable!("discr with incompatible type"),
+                    TyKind::Exists(..) => {
+                        unreachable!("unpacked existential `{:?}`", discr_ty);
+                    }
+                    _ => unreachable!("discr with incompatible type `{:?}`", discr_ty),
                 };
             }
             TerminatorKind::Call {
@@ -251,34 +227,38 @@ impl Checker<'_, '_> {
                     .map(|arg| self.check_operand(env, arg))
                     .collect_vec();
 
-                let (subst, region_subst) = self.infer_subst(
-                    terminator.source_info,
-                    env,
-                    &actuals,
-                    &fn_sig.requires,
-                    &fn_sig.args,
-                )?;
-                self.check_subst(&subst, &fn_sig.params, terminator.source_info)?;
+                let mut subst = match lowering::Subst::infer_from_fn_call(env, &actuals, fn_sig) {
+                    Ok(subst) => subst,
+                    Err(errors) => {
+                        return self.report_inference_errors(terminator.source_info, errors)
+                    }
+                };
 
-                let (params, requires, formals, ret, ensures) =
-                    LowerCtxt::lower_with_subst(self.name_gen, subst, &region_subst, fn_sig);
-                for pred in params {
-                    cursor.push_head(pred);
+                for param in &fn_sig.params {
+                    cursor.push_head(subst.lower_expr(&param.pred));
                 }
-                for (actual, formal) in actuals.into_iter().zip(formals) {
-                    cursor.snapshot().subtyping(actual, formal);
+
+                for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
+                    cursor
+                        .snapshot()
+                        .subtyping(actual, subst.lower_ty(self.name_gen, formal));
                 }
-                for (region, required_ty) in requires {
-                    let actual_ty = env.lookup_region(region[0]);
+
+                for (region, required_ty) in &fn_sig.requires {
+                    let actual_ty = env.lookup_region(subst.lower_region(region.name)[0]);
+                    let required_ty = subst.lower_ty(self.name_gen, required_ty);
                     cursor.snapshot().subtyping(actual_ty, required_ty);
                 }
 
-                for (region, updated_ty) in ensures {
+                for (region, updated_ty) in &fn_sig.ensures {
+                    let region = subst.lower_region(region.name);
+                    let updated_ty = subst.lower_ty(self.name_gen, updated_ty);
                     env.update_region(cursor, region[0], updated_ty);
                 }
 
                 if let Some((p, bb)) = destination {
-                    let ret = cursor.unpack(self.name_gen, ret);
+                    let ret =
+                        cursor.unpack(self.name_gen, subst.lower_ty(self.name_gen, &fn_sig.ret));
 
                     env.write_place(cursor, p, ret);
                     self.check_goto(env, cursor, *bb)?;
@@ -415,139 +395,30 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn infer_subst(
+    fn report_inference_errors(
         &self,
         source_info: SourceInfo,
-        env: &TyEnv,
-        actuals: &[Ty],
-        requires: &[(core::Ident, core::Ty)],
-        formals: &[core::Ty],
-    ) -> Result<(FxHashMap<Name, Expr>, FxHashMap<Name, Region>), ErrorReported> {
-        assert!(actuals.len() == formals.len());
-
-        let mut subst = FxHashMap::default();
-        let mut region_subst = FxHashMap::default();
-        for (actual, formal) in actuals.iter().zip(formals) {
-            match (actual.kind(), formal) {
-                (
-                    TyKind::Refine(bty1, e),
-                    core::Ty::Refine(
-                        bty2,
-                        core::Expr {
-                            kind: core::ExprKind::Var(ident),
-                            ..
-                        },
-                    ),
-                ) => {
-                    debug_assert!(bty1 == bty2);
-                    match subst.insert(ident.name, e.clone()) {
-                        Some(old_e) if &old_e != e => {
-                            let mut s = MultiSpan::from_span(source_info.span);
-                            s.push_span_label(
-                                source_info.span,
-                                format!("abiguous instantiation for parameter `{}`", ident.symbol),
-                            );
-                            self.sess.span_err(s, "parameter inference failed");
-                            return Err(ErrorReported);
-                        }
-                        _ => {}
-                    }
-                }
-                (TyKind::MutRef(region1), core::Ty::MutRef(region2)) => {
-                    match region_subst.insert(region2.name, region1.clone()) {
-                        Some(old_region) if &old_region != region1 => {
-                            let mut s = MultiSpan::from_span(source_info.span);
-                            s.push_span_label(
-                                source_info.span,
-                                format!(
-                                    "abiguous instantiation for region parameter `{}`",
-                                    region2.symbol
-                                ),
-                            );
-                            self.sess.span_err(s, "parameter inference failed");
-                            return Err(ErrorReported);
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        for (region, required) in requires {
-            let actual = env.lookup_region(region_subst[&region.name][0]);
-            match (actual.kind(), required) {
-                (
-                    TyKind::Refine(bty1, e),
-                    core::Ty::Refine(
-                        bty2,
-                        core::Expr {
-                            kind: core::ExprKind::Var(ident),
-                            ..
-                        },
-                    ),
-                ) => {
-                    debug_assert!(bty1 == bty2);
-                    match subst.insert(ident.name, e.clone()) {
-                        Some(old_e) if &old_e != e => {
-                            let mut s = MultiSpan::from_span(source_info.span);
-                            s.push_span_label(
-                                source_info.span,
-                                format!("abiguous instantiation for parameter `{}`", ident.symbol),
-                            );
-                            self.sess.span_err(s, "parameter inference failed");
-                            return Err(ErrorReported);
-                        }
-                        _ => {}
-                    }
-                }
-                (TyKind::MutRef(region1), core::Ty::MutRef(region2)) => {
-                    match region_subst.insert(region2.name, region1.clone()) {
-                        Some(old_region) if &old_region != region1 => {
-                            let mut s = MultiSpan::from_span(source_info.span);
-                            s.push_span_label(
-                                source_info.span,
-                                format!(
-                                    "abiguous instantiation for region parameter `{}`",
-                                    region2.symbol
-                                ),
-                            );
-                            self.sess.span_err(s, "parameter inference failed");
-                            return Err(ErrorReported);
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
-        }
-        Ok((subst, region_subst))
-    }
-
-    fn check_subst(
-        &self,
-        subst: &FxHashMap<Name, Expr>,
-        params: &[core::Param],
-        source_info: SourceInfo,
+        errors: Vec<lowering::InferenceError>,
     ) -> Result<(), ErrorReported> {
-        for param in params {
-            if !subst.contains_key(&param.name.name) {
-                let mut s = MultiSpan::from_span(source_info.span);
-                s.push_span_label(
-                    source_info.span,
-                    format!(
-                        "cannot infer the value of parameter `{}` in this function call",
-                        param.name.symbol
-                    ),
-                );
-                s.push_span_label(
-                    param.name.span,
-                    format!("parameter `{}` declared here", param.name.symbol),
-                );
-                self.sess.span_err(s, "parameter inference failed");
-                return Err(ErrorReported);
-            }
+        for error in errors {
+            let (ident, param_kind) = match error {
+                lowering::InferenceError::PureParam(ident) => (ident, "pure"),
+                lowering::InferenceError::RegionParam(ident) => (ident, "region"),
+            };
+            let mut s = MultiSpan::from_span(source_info.span);
+            s.push_span_label(
+                source_info.span,
+                format!(
+                    "cannot infer the value of {} parameter `{}` in this function call",
+                    param_kind, ident.symbol
+                ),
+            );
+            s.push_span_label(
+                ident.span,
+                format!("parameter `{}` declared here", ident.symbol),
+            );
+            self.sess.span_err(s, "parameter inference failed");
         }
-        Ok(())
+        Err(ErrorReported)
     }
 }

@@ -194,12 +194,6 @@ impl From<RVid> for Region {
     }
 }
 
-impl From<Local> for RVid {
-    fn from(local: Local) -> Self {
-        RVid::new(local.as_usize())
-    }
-}
-
 impl FromIterator<RVid> for Region {
     fn from_iter<T: IntoIterator<Item = RVid>>(iter: T) -> Self {
         RegionS(iter.into_iter().collect()).intern()

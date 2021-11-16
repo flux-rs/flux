@@ -60,7 +60,7 @@ pub enum TypeLayout {
     MutRef,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ident {
     pub name: Name,
     pub symbol: Symbol,

@@ -317,8 +317,8 @@ impl TypeEnv<'_> {
     }
 
     pub fn move_place(&mut self, place: &Place) -> Ty {
-        let mut ty = self.types[place.local.into()].clone();
-        self.types[place.local.into()] = TyS::Uninit.intern();
+        let mut ty = self.types[RVid::new(place.local.as_usize())].clone();
+        self.types[RVid::new(place.local.as_usize())] = TyS::Uninit.intern();
         for elem in &place.projection {
             match (elem, &*ty) {
                 (PlaceElem::Deref, TyS::MutRef(region)) => {

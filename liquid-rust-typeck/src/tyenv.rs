@@ -8,14 +8,48 @@ use crate::{
 };
 use liquid_rust_common::{
     disjoint_sets::{DisjointSetsMap, Set},
-    index::IndexGen,
+    index::{Idx, IndexGen, IndexVec},
 };
-use liquid_rust_core::ir::{self, Local};
+use liquid_rust_core::{
+    self as core,
+    ir::{self, Local},
+};
 use rustc_hash::FxHashMap;
 
 #[derive(Clone)]
 pub struct TyEnv {
     regions: DisjointSetsMap<RVid, RegionKind>,
+}
+
+pub struct TyEnvBuilder {
+    regions: IndexVec<RVid, Option<RegionKind>>,
+}
+
+impl TyEnvBuilder {
+    pub fn new(locals: usize) -> Self {
+        TyEnvBuilder {
+            regions: IndexVec::from_elem_n(None, locals),
+        }
+    }
+
+    pub fn define_local(&mut self, local: ir::Local, ty: Ty) {
+        self.regions[RVid::new(local.as_usize())] = Some(RegionKind::Concrete(ty));
+    }
+
+    pub fn define_abstract_region(&mut self, ty: Ty) -> RVid {
+        self.regions.push(Some(RegionKind::Abstract {
+            bound: ty.clone(),
+            ty,
+        }))
+    }
+
+    pub fn build(self) -> TyEnv {
+        TyEnv {
+            regions: DisjointSetsMap::from_iter(
+                self.regions.into_iter().map(|rkind| rkind.unwrap()),
+            ),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -47,8 +81,8 @@ impl TyEnv {
         }
     }
 
-    pub fn push_region(&mut self, ty: Ty) {
-        self.regions.push(RegionKind::Concrete(ty));
+    pub fn lookup_local(&self, local: Local) -> Ty {
+        self.lookup_region(RVid::new(local.as_usize()))
     }
 
     pub fn lookup_region(&self, rvid: RVid) -> Ty {
@@ -70,14 +104,15 @@ impl TyEnv {
     }
 
     pub fn get_region(&self, place: &ir::Place) -> Region {
-        let (local, _) = self.walk_place(place);
-        self.regions.set(RVid::from(local)).collect()
+        let (rvid, _) = self.walk_place(place);
+        self.regions.set(rvid).collect()
     }
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
-        let mut rvid = RVid::from(place.local);
+        let mut rvid = RVid::new(place.local.as_usize());
         let mut ty = self.lookup_region(rvid);
-        self.regions[RVid::from(place.local)] = RegionKind::Concrete(TyKind::Uninit.intern());
+        self.regions[RVid::new(place.local.as_usize())] =
+            RegionKind::Concrete(TyKind::Uninit.intern());
         for elem in &place.projection {
             match (elem, ty.kind()) {
                 (ir::PlaceElem::Deref, TyKind::MutRef(region)) => {
@@ -107,7 +142,7 @@ impl TyEnv {
     }
 
     fn walk_place(&self, place: &ir::Place) -> (RVid, Ty) {
-        let mut rvid = RVid::from(place.local);
+        let mut rvid = RVid::new(place.local.as_usize());
         let mut ty = self.lookup_region(rvid);
         for elem in &place.projection {
             match (elem, ty.kind()) {

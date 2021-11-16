@@ -29,6 +29,24 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         }
     }
 
+    pub fn from_iter<Iter>(iter: Iter) -> Self
+    where
+        Iter: IntoIterator<Item = T>,
+        Iter::IntoIter: ExactSizeIterator,
+    {
+        let iter = iter.into_iter();
+        let n = iter.len();
+        Self {
+            map: iter
+                .enumerate()
+                .map(|(idx, elem)| (I::new(idx), elem))
+                .collect(),
+            parent: IndexVec::from_fn_n(|idx| Cell::new(idx), n),
+            size: IndexVec::from_elem_n(1, n),
+            next: IndexVec::from_fn_n(|idx| idx, n),
+        }
+    }
+
     pub fn size(&self) -> usize {
         self.parent.len()
     }
@@ -233,7 +251,7 @@ where
             } else {
                 write!(f, "{{{:?}}}: ", set.sorted().format(", "))?;
             }
-            write!(f, "{:?}", elem)?;
+            write!(f, "{:?}, ", elem)?;
         }
         write!(f, "}}")
     }
