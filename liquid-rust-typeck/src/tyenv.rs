@@ -22,7 +22,7 @@ pub struct TyEnv {
 }
 
 pub struct TyEnvBuilder {
-    regions: IndexVec<RVid, Option<RegionKind>>,
+    regions: IndexVec<RVid, Option<Ty>>,
 }
 
 impl TyEnvBuilder {
@@ -33,20 +33,19 @@ impl TyEnvBuilder {
     }
 
     pub fn define_local(&mut self, local: ir::Local, ty: Ty) {
-        self.regions[RVid::new(local.as_usize())] = Some(RegionKind::Concrete(ty));
+        self.regions[RVid::new(local.as_usize())] = Some(ty);
     }
 
     pub fn define_abstract_region(&mut self, ty: Ty) -> RVid {
-        self.regions.push(Some(RegionKind::Abstract {
-            bound: ty.clone(),
-            ty,
-        }))
+        self.regions.push(Some(ty))
     }
 
     pub fn build(self) -> TyEnv {
         TyEnv {
             regions: DisjointSetsMap::from_iter(
-                self.regions.into_iter().map(|rkind| rkind.unwrap()),
+                self.regions
+                    .into_iter()
+                    .map(|rkind| RegionKind::Strong(rkind.unwrap())),
             ),
         }
     }
@@ -54,22 +53,22 @@ impl TyEnvBuilder {
 
 #[derive(Clone)]
 enum RegionKind {
-    Concrete(Ty),
-    Abstract { bound: Ty, ty: Ty },
+    Strong(Ty),
+    Weak { bound: Ty, ty: Ty },
 }
 
 impl RegionKind {
     fn ty(&self) -> Ty {
         match self {
-            RegionKind::Concrete(ty) => ty.clone(),
-            RegionKind::Abstract { ty, .. } => ty.clone(),
+            RegionKind::Strong(ty) => ty.clone(),
+            RegionKind::Weak { ty, .. } => ty.clone(),
         }
     }
 
     fn ty_mut(&mut self) -> &mut Ty {
         match self {
-            RegionKind::Concrete(ty) => ty,
-            RegionKind::Abstract { ty, .. } => ty,
+            RegionKind::Strong(ty) => ty,
+            RegionKind::Weak { ty, .. } => ty,
         }
     }
 }
@@ -96,8 +95,8 @@ impl TyEnv {
 
     pub fn update_region(&mut self, cursor: &mut Cursor, rvid: RVid, new_ty: Ty) {
         match &self.regions[rvid] {
-            RegionKind::Concrete(_) => self.regions[rvid] = RegionKind::Concrete(new_ty),
-            RegionKind::Abstract { bound, .. } => {
+            RegionKind::Strong(_) => self.regions[rvid] = RegionKind::Strong(new_ty),
+            RegionKind::Weak { bound, .. } => {
                 cursor.subtyping(new_ty, bound.clone());
             }
         }
@@ -112,11 +111,11 @@ impl TyEnv {
         let mut rvid = RVid::new(place.local.as_usize());
         let mut ty = self.lookup_region(rvid);
         self.regions[RVid::new(place.local.as_usize())] =
-            RegionKind::Concrete(TyKind::Uninit.intern());
+            RegionKind::Strong(TyKind::Uninit.intern());
         for elem in &place.projection {
             match (elem, ty.kind()) {
                 (ir::PlaceElem::Deref, TyKind::MutRef(region)) => {
-                    self.regions[region[0]] = RegionKind::Concrete(TyKind::Uninit.intern());
+                    self.regions[region[0]] = RegionKind::Strong(TyKind::Uninit.intern());
                     ty = self.lookup_region(region[0]);
                 }
                 _ => {
@@ -179,12 +178,12 @@ impl TyEnv {
                 inference::TyS::MutRef(region) => TyKind::MutRef(region.clone()).intern(),
             };
             if region_size > 1 {
-                RegionKind::Abstract {
+                RegionKind::Weak {
                     bound: ty.clone(),
                     ty,
                 }
             } else {
-                RegionKind::Concrete(ty)
+                RegionKind::Strong(ty)
             }
         });
         TyEnv { regions }
@@ -212,8 +211,8 @@ impl fmt::Debug for TyEnv {
 impl fmt::Debug for RegionKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RegionKind::Concrete(ty) => write!(f, "{:?}", ty),
-            RegionKind::Abstract { bound, ty } => {
+            RegionKind::Strong(ty) => write!(f, "{:?}", ty),
+            RegionKind::Weak { bound, ty } => {
                 write!(f, "{:?} <: {:?}", ty, bound)
             }
         }
