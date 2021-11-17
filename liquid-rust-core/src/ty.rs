@@ -20,6 +20,7 @@ pub enum Ty {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Name, Pred),
     MutRef(Ident),
+    Param(ParamTy),
 }
 
 #[derive(Debug)]
@@ -71,6 +72,12 @@ newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "x{}",
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ParamTy {
+    pub index: u32,
+    pub name: Symbol,
 }
 
 impl BaseTy {

@@ -130,7 +130,8 @@ impl TyEnv {
         let (local, ty) = self.walk_place(place);
 
         match ty.kind() {
-            TyKind::Uninit | TyKind::Refine(..) => {
+            TyKind::Uninit | TyKind::Refine(..) | TyKind::Param(_) => {
+                // TODO: debug check new_ty has the same "shape" as ty
                 self.update_region(cursor, local, new_ty);
             }
             TyKind::MutRef(_) => {
@@ -176,6 +177,7 @@ impl TyEnv {
                 }
                 inference::TyS::Uninit => TyKind::Uninit.intern(),
                 inference::TyS::MutRef(region) => TyKind::MutRef(region.clone()).intern(),
+                inference::TyS::Param(param) => TyKind::Param(*param).intern(),
             };
             if region_size > 1 {
                 RegionKind::Weak {

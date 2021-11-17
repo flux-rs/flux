@@ -1,13 +1,17 @@
 use itertools::Itertools;
-use liquid_rust_common::errors::ErrorReported;
-use liquid_rust_core::ir::{
-    BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
-    StatementKind, Terminator, TerminatorKind,
+use liquid_rust_common::{errors::ErrorReported, index::Idx};
+use liquid_rust_core::{
+    self as core,
+    ir::{
+        BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
+    },
+    ty::Name,
 };
 use rustc_const_eval::interpret::ConstValue;
 use rustc_middle::{
     mir,
-    ty::{ParamEnv, TyCtxt},
+    ty::{subst::GenericArgKind, ParamEnv, TyCtxt},
 };
 
 pub struct LoweringCtxt<'tcx> {
@@ -92,8 +96,27 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 destination,
                 ..
             } => {
-                let func = match func.ty(self.body, self.tcx).kind() {
-                    rustc_middle::ty::TyKind::FnDef(fn_def, substs) if substs.is_empty() => *fn_def,
+                let (func, substs) = match func.ty(self.body, self.tcx).kind() {
+                    rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
+                        let substs = substs
+                            .iter()
+                            .map(|arg| match arg.unpack() {
+                                GenericArgKind::Type(ty) => self.lower_ty(ty),
+                                GenericArgKind::Lifetime(_) | GenericArgKind::Const(_) => {
+                                    self.tcx.sess.span_err(
+                                        terminator.source_info.span,
+                                        &format!(
+                                            "unsupported terminator kind: {:?}",
+                                            terminator.kind
+                                        ),
+                                    );
+                                    Err(ErrorReported)
+                                }
+                            })
+                            .try_collect()?;
+
+                        (*fn_def, substs)
+                    }
                     _ => {
                         self.tcx
                             .sess
@@ -108,6 +131,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
                 TerminatorKind::Call {
                     func,
+                    substs,
                     destination,
                     args: args
                         .iter()
@@ -255,6 +279,40 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     c.span,
                     &format!("constant not supported: `{:?}`", c.literal),
                 );
+                Err(ErrorReported)
+            }
+        }
+    }
+
+    fn lower_ty(&self, ty: rustc_middle::ty::Ty) -> Result<core::ty::Ty, ErrorReported> {
+        use liquid_rust_core::ty as core;
+        match ty.kind() {
+            rustc_middle::ty::TyKind::Bool => {
+                Ok(core::Ty::Exists(
+                    core::BaseTy::Bool,
+                    // FIXME: this is wrong!
+                    Name::new(0),
+                    core::Pred::Infer,
+                ))
+            }
+            rustc_middle::ty::TyKind::Int(int_ty) => {
+                Ok(core::Ty::Exists(
+                    core::BaseTy::Int(*int_ty),
+                    // FIXME: this is wrong!
+                    Name::new(0),
+                    core::Pred::Infer,
+                ))
+            }
+            rustc_middle::ty::TyKind::Param(param) => Ok(core::Ty::Param(core::ParamTy {
+                index: param.index,
+                name: param.name,
+            })),
+            _ => {
+                self.tcx.sess.err(&format!(
+                    "unsupported type `{:?}`, kind: `{:?}`",
+                    ty,
+                    ty.kind()
+                ));
                 Err(ErrorReported)
             }
         }

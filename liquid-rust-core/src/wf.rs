@@ -56,6 +56,7 @@ impl Wf<'_> {
                 // TODO: check identifier is actually a region
                 Ok(())
             }
+            Ty::Param(_) => Ok(()),
         }
     }
 

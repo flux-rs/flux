@@ -2,8 +2,8 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
-use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::BaseTy;
+use liquid_rust_core::{ir::Local, ty::ParamTy};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp, Var};
 pub use rustc_middle::ty::IntTy;
 
@@ -22,6 +22,7 @@ pub enum TyKind {
     Exists(BaseTy, Var, Pred),
     Uninit,
     MutRef(Region),
+    Param(ParamTy),
 }
 
 pub type Region = Interned<RegionS>;
@@ -223,6 +224,7 @@ impl fmt::Debug for TyS {
             TyKind::Exists(bty, var, e) => write!(f, "{:?}{{{:?}: {:?}}}", bty, var, e),
             TyKind::Uninit => write!(f, "uninit"),
             TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
+            TyKind::Param(ParamTy { name, .. }) => write!(f, "{:?}", name),
         }
     }
 }

@@ -42,8 +42,9 @@ Params: Vec<ast::Param> = {
 Env = <Comma<(<Ident> ":" <Ty>)>>;
 
 Param: ast::Param = {
-    <name:Ident> ":" <sort:Ident> "{" <pred:Expr> "}" => ast::Param { name, sort, pred: Some(pred) },
-    <name:Ident> ":" <sort:Ident>                     => ast::Param { name, sort, pred: None },
+    <name:Ident> ":" <sort:Ident> "{" <pred:Expr> "}" => ast::Param::Pure { name, sort, pred: Some(pred) },
+    <name:Ident> ":" <sort:Ident>                     => ast::Param::Pure { name, sort, pred: None },
+    <name:Ident>                                      => ast::Param::Type(name)
 }
 
 Expr = Level<BinOp1, Level2>;

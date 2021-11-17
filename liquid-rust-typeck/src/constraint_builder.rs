@@ -131,7 +131,12 @@ impl Cursor<'_> {
                 assert!(r1.subset(r2));
             }
             (TyKind::Uninit, TyKind::Uninit) => {}
-            (TyKind::MutRef(_), TyKind::Uninit) => {}
+            (TyKind::MutRef(_), TyKind::Uninit) => {
+                // TODO: this seems shady and should never happen
+            }
+            (TyKind::Param(param1), TyKind::Param(param2)) => {
+                debug_assert_eq!(param1, param2)
+            }
             (TyKind::Exists(..), _) => {
                 unreachable!("subtyping with unpacked existential")
             }

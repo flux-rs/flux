@@ -10,6 +10,7 @@ use rustc_hash::FxHashMap;
 pub struct Subst {
     regions: FxHashMap<core::Name, ty::Region>,
     exprs: FxHashMap<core::Name, ty::Expr>,
+    types: Vec<ty::Ty>,
 }
 
 pub enum InferenceError {
@@ -17,17 +18,12 @@ pub enum InferenceError {
     RegionParam(core::Ident),
 }
 
-pub struct PartialSubst {
-    subst: Subst,
-    errors: Vec<InferenceError>,
-}
-
 pub fn lower_with_fresh_names(
     cursor: &mut Cursor,
     body: &ir::Body,
     fn_sig: &core::FnSig,
 ) -> (TyEnv, Vec<(ty::Region, ty::Ty)>, ty::Ty) {
-    let mut subst = Subst::new();
+    let mut subst = Subst::empty();
     let mut env_builder = TyEnvBuilder::new(body.nlocals);
 
     for param in &fn_sig.params {
@@ -73,10 +69,21 @@ pub fn lower_with_fresh_names(
 }
 
 impl Subst {
-    pub fn new() -> Self {
+    pub fn new(cursor: &mut Cursor, types: &[core::Ty]) -> Self {
+        let mut empty = Subst::empty();
+        let types = types.iter().map(|ty| empty.lower_ty(cursor, ty)).collect();
         Self {
             exprs: FxHashMap::default(),
             regions: FxHashMap::default(),
+            types,
+        }
+    }
+
+    fn empty() -> Self {
+        Self {
+            exprs: FxHashMap::default(),
+            regions: FxHashMap::default(),
+            types: vec![],
         }
     }
 
@@ -85,25 +92,23 @@ impl Subst {
     }
 
     pub fn infer_from_fn_call(
+        &mut self,
         env: &TyEnv,
         actuals: &[ty::Ty],
         fn_sig: &core::FnSig,
-    ) -> Result<Self, Vec<InferenceError>> {
+    ) -> Result<(), Vec<InferenceError>> {
         assert!(actuals.len() == fn_sig.args.len());
-        let mut subst = Subst::new();
 
         for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
-            subst.infer_from_tys(actual.clone(), formal);
+            self.infer_from_tys(actual.clone(), formal);
         }
 
         for (region, required) in &fn_sig.requires {
-            let actual = env.lookup_region(subst.lower_region(region.name)[0]);
-            subst.infer_from_tys(actual, required);
+            let actual = env.lookup_region(self.lower_region(region.name)[0]);
+            self.infer_from_tys(actual, required);
         }
 
-        subst.check_inference(fn_sig)?;
-
-        Ok(subst)
+        self.check_inference(fn_sig)
     }
 
     fn check_inference(&self, fn_sig: &core::FnSig) -> Result<(), Vec<InferenceError>> {
@@ -185,6 +190,11 @@ impl Subst {
             core::Ty::MutRef(region) => {
                 ty::TyKind::MutRef(self.regions[&region.name].clone()).intern()
             }
+            core::Ty::Param(param) => self
+                .types
+                .get(param.index as usize)
+                .cloned()
+                .unwrap_or_else(|| ty::TyKind::Param(*param).intern()),
         }
     }
 

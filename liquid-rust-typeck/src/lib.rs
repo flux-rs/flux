@@ -217,6 +217,7 @@ impl Checker<'_, '_> {
             }
             TerminatorKind::Call {
                 func,
+                substs,
                 args,
                 destination,
             } => {
@@ -226,11 +227,9 @@ impl Checker<'_, '_> {
                     .map(|arg| self.check_operand(env, arg))
                     .collect_vec();
 
-                let mut subst = match lowering::Subst::infer_from_fn_call(env, &actuals, fn_sig) {
-                    Ok(subst) => subst,
-                    Err(errors) => {
-                        return self.report_inference_errors(terminator.source_info, errors)
-                    }
+                let mut subst = lowering::Subst::new(cursor, substs);
+                if let Err(errors) = subst.infer_from_fn_call(env, &actuals, fn_sig) {
+                    return self.report_inference_errors(terminator.source_info, errors);
                 };
 
                 for param in &fn_sig.params {

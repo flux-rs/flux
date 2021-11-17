@@ -9,6 +9,8 @@ pub use rustc_middle::mir::{
 };
 use rustc_middle::{mir, ty::IntTy};
 
+use crate::ty::Ty;
+
 #[derive(Debug)]
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
@@ -33,6 +35,7 @@ pub enum TerminatorKind {
     Return,
     Call {
         func: DefId,
+        substs: Vec<Ty>,
         args: Vec<Operand>,
         destination: Option<(Place, BasicBlock)>,
     },
@@ -142,6 +145,7 @@ impl fmt::Debug for Terminator {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Call {
                 func,
+                substs: ty_subst,
                 args,
                 destination,
             } => {
@@ -155,7 +159,13 @@ impl fmt::Debug for Terminator {
                         target
                     )
                 } else {
-                    write!(f, "call {:?}({:?})", func, args.iter().format(", "))
+                    write!(
+                        f,
+                        "call {:?}<{:?}>({:?})",
+                        func,
+                        ty_subst.iter().format(", "),
+                        args.iter().format(", ")
+                    )
                 }
             }
             TerminatorKind::SwitchInt { discr, .. } => {

@@ -22,13 +22,17 @@ pub enum TyKind {
     RefineTy { bty: Ident, refine: Expr },
     Exists { bind: Ident, bty: Ident, pred: Expr },
     MutRef(Ident),
+    Param(Ident),
 }
 
 #[derive(Debug)]
-pub struct Param {
-    pub name: Ident,
-    pub sort: Ident,
-    pub pred: Option<Expr>,
+pub enum Param {
+    Pure {
+        name: Ident,
+        sort: Ident,
+        pred: Option<Expr>,
+    },
+    Type(Ident),
 }
 
 #[derive(Debug)]
