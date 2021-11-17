@@ -1,11 +1,8 @@
 use itertools::Itertools;
 use liquid_rust_common::errors::ErrorReported;
-use liquid_rust_core::{
-    ir::{
-        BasicBlockData, BinOp, Body, Constant, LocalDecl, Operand, Place, PlaceElem, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind,
-    },
-    ty::{BaseTy, TypeLayout},
+use liquid_rust_core::ir::{
+    BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
+    StatementKind, Terminator, TerminatorKind,
 };
 use rustc_const_eval::interpret::ConstValue;
 use rustc_middle::{
@@ -31,26 +28,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        let local_decls = body
-            .local_decls
-            .iter()
-            .map(|local_decl| lower.lower_local_decl(local_decl))
-            .try_collect()?;
-
         Ok(Body {
             basic_blocks,
-            local_decls,
+            nlocals: body.local_decls.len(),
             arg_count: body.arg_count,
             mir: body,
-        })
-    }
-
-    fn lower_local_decl(
-        &self,
-        local_decl: &mir::LocalDecl<'tcx>,
-    ) -> Result<LocalDecl, ErrorReported> {
-        Ok(LocalDecl {
-            layout: self.lower_ty(&local_decl.ty)?,
         })
     }
 
@@ -273,24 +255,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     c.span,
                     &format!("constant not supported: `{:?}`", c.literal),
                 );
-                Err(ErrorReported)
-            }
-        }
-    }
-
-    fn lower_ty(&self, ty: &rustc_middle::ty::Ty<'tcx>) -> Result<TypeLayout, ErrorReported> {
-        use rustc_middle::ty::{RegionKind, TyKind};
-
-        match ty.kind() {
-            TyKind::Int(int_ty) => Ok(TypeLayout::BaseTy(BaseTy::Int(*int_ty))),
-            TyKind::Bool => Ok(TypeLayout::BaseTy(BaseTy::Bool)),
-            TyKind::Ref(RegionKind::ReErased, _, rustc_hir::Mutability::Mut) => {
-                Ok(TypeLayout::MutRef)
-            }
-            _ => {
-                self.tcx
-                    .sess
-                    .err(&format!("type not supported: `{:?}`", ty));
                 Err(ErrorReported)
             }
         }

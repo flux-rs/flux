@@ -53,7 +53,7 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> FxHashMap<BasicBlock, DisjointSetsMap<RVid, Ty>> {
         let expr_gen = &IndexGen::new();
         let rvid_gen = &IndexGen::new();
-        rvid_gen.skip(body.local_decls.len());
+        rvid_gen.skip(body.nlocals);
 
         let mut env = TypeEnv::new(expr_gen);
 

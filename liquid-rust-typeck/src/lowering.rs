@@ -29,7 +29,7 @@ pub fn lower_with_fresh_names(
     fn_sig: &core::FnSig,
 ) -> (TyEnv, Vec<(ty::Region, ty::Ty)>, ty::Ty) {
     let mut subst = Subst::new();
-    let mut env_builder = TyEnvBuilder::new(body.local_decls.len());
+    let mut env_builder = TyEnvBuilder::new(body.nlocals);
 
     for param in &fn_sig.params {
         let fresh = name_gen.fresh();

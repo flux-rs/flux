@@ -3,7 +3,7 @@ use std::{fmt, lazy::SyncOnceCell};
 use itertools::Itertools;
 use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
 use liquid_rust_core::ir::Local;
-pub use liquid_rust_core::ty::{BaseTy, TypeLayout};
+pub use liquid_rust_core::ty::BaseTy;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp, Var};
 pub use rustc_middle::ty::IntTy;
 

@@ -9,19 +9,12 @@ pub use rustc_middle::mir::{
 };
 use rustc_middle::{mir, ty::IntTy};
 
-use crate::ty::TypeLayout;
-
 #[derive(Debug)]
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
-    pub local_decls: IndexVec<Local, LocalDecl>,
+    pub nlocals: usize,
     pub mir: &'tcx mir::Body<'tcx>,
-}
-
-#[derive(Debug)]
-pub struct LocalDecl {
-    pub layout: TypeLayout,
 }
 
 #[derive(Debug)]
@@ -106,7 +99,7 @@ impl Body<'_> {
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.arg_count + 1..self.nlocals).map(Local::new)
     }
 
     #[inline]

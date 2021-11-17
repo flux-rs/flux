@@ -54,12 +54,6 @@ pub enum Lit {
     Bool(bool),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TypeLayout {
-    BaseTy(BaseTy),
-    MutRef,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct Ident {
     pub name: Name,
