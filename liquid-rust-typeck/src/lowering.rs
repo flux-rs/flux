@@ -23,7 +23,6 @@ pub struct PartialSubst {
 }
 
 pub fn lower_with_fresh_names(
-    name_gen: &IndexGen<ty::Var>,
     cursor: &mut Cursor,
     body: &ir::Body,
     fn_sig: &core::FnSig,
@@ -32,7 +31,7 @@ pub fn lower_with_fresh_names(
     let mut env_builder = TyEnvBuilder::new(body.nlocals);
 
     for param in &fn_sig.params {
-        let fresh = name_gen.fresh();
+        let fresh = cursor.fresh_var();
         subst
             .exprs
             .insert(param.name.name, ty::ExprKind::Var(fresh).intern());
@@ -41,15 +40,15 @@ pub fn lower_with_fresh_names(
     }
 
     for (name, ty) in &fn_sig.requires {
-        let ty = subst.lower_ty(name_gen, cursor, ty);
-        let ty = cursor.unpack(name_gen, ty);
+        let ty = subst.lower_ty(cursor, ty);
+        let ty = cursor.unpack(ty);
         let rvid = env_builder.define_abstract_region(ty);
         subst.regions.insert(name.name, ty::Region::from(rvid));
     }
 
     for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-        let ty = subst.lower_ty(name_gen, cursor, ty);
-        let ty = cursor.unpack(name_gen, ty);
+        let ty = subst.lower_ty(cursor, ty);
+        let ty = cursor.unpack(ty);
         env_builder.define_local(local, ty);
     }
 
@@ -63,12 +62,12 @@ pub fn lower_with_fresh_names(
         .ensures
         .iter()
         .map(|(name, ty)| {
-            let ty = subst.lower_ty(name_gen, cursor, ty);
+            let ty = subst.lower_ty(cursor, ty);
             (subst.regions[&name.name].clone(), ty)
         })
         .collect();
 
-    let ret = subst.lower_ty(name_gen, cursor, &fn_sig.ret);
+    let ret = subst.lower_ty(cursor, &fn_sig.ret);
 
     (env_builder.build(), ensures, ret)
 }
@@ -167,16 +166,11 @@ impl Subst {
         self.regions[&name].clone()
     }
 
-    pub fn lower_ty(
-        &mut self,
-        name_gen: &IndexGen<ty::Var>,
-        cursor: &mut Cursor,
-        ty: &core::Ty,
-    ) -> ty::Ty {
+    pub fn lower_ty(&mut self, cursor: &mut Cursor, ty: &core::Ty) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, e) => ty::TyKind::Refine(*bty, self.lower_expr(e)).intern(),
             core::Ty::Exists(bty, evar, pred) => {
-                let fresh = name_gen.fresh();
+                let fresh = cursor.fresh_var();
                 let pred = match pred {
                     core::Pred::Infer => cursor.fresh_kvar(fresh, bty.sort()),
                     core::Pred::Expr(e) => {

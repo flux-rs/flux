@@ -71,13 +71,12 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
 
-        let mut constraint = ConstraintBuilder::new();
-
-        let mut cursor = constraint.as_cursor();
-
         let name_gen = &IndexGen::new();
-        let (mut env, ensures, ret_ty) =
-            lower_with_fresh_names(name_gen, &mut cursor, body, fn_sig);
+
+        let mut constraint = ConstraintBuilder::new();
+        let mut cursor = constraint.as_cursor(name_gen);
+
+        let (mut env, ensures, ret_ty) = lower_with_fresh_names(&mut cursor, body, fn_sig);
 
         let dominators = body.dominators();
         let mut dominated_join_points = FxHashMap::<BasicBlock, Vec<BasicBlock>>::default();
@@ -105,7 +104,7 @@ impl Checker<'_, '_> {
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
                 let mut env = checker.bb_envs.get(&bb).unwrap().clone();
-                env.unpack(&mut cursor, name_gen);
+                env.unpack(&mut cursor);
                 checker.check_basic_block(&mut env, &mut cursor, bb)?;
             }
         }
@@ -239,25 +238,25 @@ impl Checker<'_, '_> {
                 }
 
                 for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-                    let formal = subst.lower_ty(self.name_gen, cursor, formal);
+                    let formal = subst.lower_ty(cursor, formal);
                     cursor.snapshot().subtyping(actual, formal);
                 }
 
                 for (region, required_ty) in &fn_sig.requires {
                     let actual_ty = env.lookup_region(subst.lower_region(region.name)[0]);
-                    let required_ty = subst.lower_ty(self.name_gen, cursor, required_ty);
+                    let required_ty = subst.lower_ty(cursor, required_ty);
                     cursor.snapshot().subtyping(actual_ty, required_ty);
                 }
 
                 for (region, updated_ty) in &fn_sig.ensures {
                     let region = subst.lower_region(region.name);
-                    let updated_ty = subst.lower_ty(self.name_gen, cursor, updated_ty);
+                    let updated_ty = subst.lower_ty(cursor, updated_ty);
                     env.update_region(cursor, region[0], updated_ty);
                 }
 
                 if let Some((p, bb)) = destination {
-                    let ret = subst.lower_ty(self.name_gen, cursor, &fn_sig.ret);
-                    let ret = cursor.unpack(self.name_gen, ret);
+                    let ret = subst.lower_ty(cursor, &fn_sig.ret);
+                    let ret = cursor.unpack(ret);
 
                     env.write_place(cursor, p, ret);
                     self.check_goto(env, cursor, *bb)?;

@@ -195,9 +195,9 @@ impl TyEnv {
             .map(|(region, region_kind)| (region, region_kind.ty()))
     }
 
-    pub fn unpack(&mut self, cursor: &mut Cursor, name_gen: &IndexGen<Var>) {
+    pub fn unpack(&mut self, cursor: &mut Cursor) {
         for region_kind in self.regions.values_mut() {
-            *region_kind.ty_mut() = cursor.unpack(name_gen, region_kind.ty());
+            *region_kind.ty_mut() = cursor.unpack(region_kind.ty());
         }
     }
 }

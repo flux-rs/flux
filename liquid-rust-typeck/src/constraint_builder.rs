@@ -24,6 +24,7 @@ pub struct ConstraintBuilder {
 
 pub struct Cursor<'a> {
     builder: &'a mut ConstraintBuilder,
+    name_gen: &'a IndexGen<Var>,
     node: NonNull<Node>,
     nvars: usize,
 }
@@ -37,17 +38,18 @@ enum Node {
 
 impl ConstraintBuilder {
     pub fn new() -> Self {
-        ConstraintBuilder {
+        Self {
             root: Node::Conj(vec![]),
             kvars: IndexVec::new(),
             vars: vec![],
         }
     }
 
-    pub fn as_cursor(&mut self) -> Cursor {
+    pub fn as_cursor<'a>(&'a mut self, name_gen: &'a IndexGen<Var>) -> Cursor<'a> {
         unsafe {
             Cursor {
                 node: NonNull::new_unchecked(&mut self.root as *mut Node),
+                name_gen,
                 builder: self,
                 nvars: 0,
             }
@@ -72,6 +74,7 @@ impl Cursor<'_> {
     pub fn snapshot(&mut self) -> Cursor {
         Cursor {
             node: self.node,
+            name_gen: self.name_gen,
             builder: &mut self.builder,
             nvars: self.nvars,
         }
@@ -108,6 +111,10 @@ impl Cursor<'_> {
         Pred::kvar(kvid, vars)
     }
 
+    pub fn fresh_var(&self) -> Var {
+        self.name_gen.fresh()
+    }
+
     pub fn subtyping(&mut self, ty1: ty::Ty, ty2: ty::Ty) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
@@ -134,10 +141,10 @@ impl Cursor<'_> {
         }
     }
 
-    pub fn unpack(&mut self, name_gen: &IndexGen<Var>, ty: ty::Ty) -> ty::Ty {
+    pub fn unpack(&mut self, ty: ty::Ty) -> ty::Ty {
         match ty.kind() {
             TyKind::Exists(bty, evar, p) => {
-                let fresh = name_gen.fresh();
+                let fresh = self.fresh_var();
                 self.push_forall(
                     fresh,
                     bty.sort(),
