@@ -16,9 +16,14 @@ impl Wf<'_> {
 
     pub fn check_fn_sig(&self, fn_sig: &FnSig) -> Result<(), ErrorReported> {
         let mut env = Env::default();
-        for param in &fn_sig.params {
-            env.insert(param.name.name, param.sort);
-        }
+        let params = fn_sig
+            .params
+            .iter()
+            .map(|param| {
+                env.insert(param.name.name, param.sort);
+                self.check_expr(&env, &param.pred, Sort::Bool)
+            })
+            .try_collect_exhaust();
 
         let args = fn_sig
             .args
@@ -30,6 +35,7 @@ impl Wf<'_> {
 
         args?;
         ret?;
+        params?;
 
         Ok(())
     }
