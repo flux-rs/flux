@@ -114,14 +114,14 @@ impl<'a> Resolver<'a> {
                 let bty = self.resolve_bty(bty);
                 subst.push_layer();
                 subst.define(bind.symbol, fresh);
-                let pred = self.resolve_expr(pred, subst);
+                let e = self.resolve_expr(pred, subst);
                 subst.pop_layer();
-                Ok(ty::Ty::Exists(bty?, fresh, pred?))
+                Ok(ty::Ty::Exists(bty?, fresh, ty::Pred::Expr(e?)))
             }
             ast::TyKind::BaseTy(bty) => {
                 let fresh = name_gen.fresh();
                 let bty = self.resolve_bty(bty)?;
-                Ok(ty::Ty::Exists(bty, fresh, ty::Expr::TRUE))
+                Ok(ty::Ty::Exists(bty, fresh, ty::Pred::TRUE))
             }
             ast::TyKind::MutRef(region) => Ok(ty::Ty::MutRef(self.resolve_ident(region, subst)?)),
         }

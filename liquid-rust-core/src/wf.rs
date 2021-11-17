@@ -3,7 +3,7 @@ use rustc_hash::FxHashMap;
 use rustc_session::Session;
 use rustc_span::{MultiSpan, Span};
 
-use crate::ty::{BinOp, Expr, ExprKind, FnSig, Name, Sort, Ty};
+use crate::ty::{BinOp, Expr, ExprKind, FnSig, Name, Pred, Sort, Ty};
 
 pub struct Wf<'a> {
     sess: &'a Session,
@@ -43,12 +43,12 @@ impl Wf<'_> {
     fn check_type(&self, env: &mut Env, ty: &Ty) -> Result<(), ErrorReported> {
         match ty {
             Ty::Refine(bty, e) => self.check_expr(env, e, bty.sort()),
-            Ty::Exists(bty, var, e) => {
+            Ty::Exists(bty, var, pred) => {
                 // We are assuming no variable shadowing which is guaranteed by the resolve phase.
                 debug_assert!(!env.contains_key(var));
 
                 env.insert(*var, bty.sort());
-                let result = self.check_expr(env, e, Sort::Bool);
+                let result = self.check_pred(env, pred, Sort::Bool);
                 env.remove(var);
                 result
             }
@@ -56,6 +56,15 @@ impl Wf<'_> {
                 // TODO: check identifier is actually a region
                 Ok(())
             }
+        }
+    }
+
+    fn check_pred(&self, env: &Env, pred: &Pred, sort: Sort) -> Result<(), ErrorReported> {
+        match pred {
+            Pred::Infer => todo!(
+                "we should report this as an error as inference should be allowed in the syntax"
+            ),
+            Pred::Expr(e) => self.check_expr(env, e, sort),
         }
     }
 

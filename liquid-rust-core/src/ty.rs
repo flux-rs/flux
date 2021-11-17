@@ -18,8 +18,14 @@ pub struct FnSig {
 #[derive(Debug)]
 pub enum Ty {
     Refine(BaseTy, Expr),
-    Exists(BaseTy, Name, Expr),
+    Exists(BaseTy, Name, Pred),
     MutRef(Ident),
+}
+
+#[derive(Debug)]
+pub enum Pred {
+    Infer,
+    Expr(Expr),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -88,6 +94,10 @@ impl Expr {
         kind: ExprKind::Literal(Lit::TRUE),
         span: None,
     };
+}
+
+impl Pred {
+    pub const TRUE: Pred = Pred::Expr(Expr::TRUE);
 }
 
 impl Lit {

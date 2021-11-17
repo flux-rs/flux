@@ -41,13 +41,15 @@ pub fn lower_with_fresh_names(
     }
 
     for (name, ty) in &fn_sig.requires {
-        let ty = cursor.unpack(name_gen, subst.lower_ty(name_gen, ty));
+        let ty = subst.lower_ty(name_gen, cursor, ty);
+        let ty = cursor.unpack(name_gen, ty);
         let rvid = env_builder.define_abstract_region(ty);
         subst.regions.insert(name.name, ty::Region::from(rvid));
     }
 
     for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-        let ty = cursor.unpack(name_gen, subst.lower_ty(name_gen, ty));
+        let ty = subst.lower_ty(name_gen, cursor, ty);
+        let ty = cursor.unpack(name_gen, ty);
         env_builder.define_local(local, ty);
     }
 
@@ -61,12 +63,12 @@ pub fn lower_with_fresh_names(
         .ensures
         .iter()
         .map(|(name, ty)| {
-            let ty = subst.lower_ty(name_gen, ty);
+            let ty = subst.lower_ty(name_gen, cursor, ty);
             (subst.regions[&name.name].clone(), ty)
         })
         .collect();
 
-    let ret = subst.lower_ty(name_gen, &fn_sig.ret);
+    let ret = subst.lower_ty(name_gen, cursor, &fn_sig.ret);
 
     (env_builder.build(), ensures, ret)
 }
@@ -165,15 +167,26 @@ impl Subst {
         self.regions[&name].clone()
     }
 
-    pub fn lower_ty(&mut self, name_gen: &IndexGen<ty::Var>, ty: &core::Ty) -> ty::Ty {
+    pub fn lower_ty(
+        &mut self,
+        name_gen: &IndexGen<ty::Var>,
+        cursor: &mut Cursor,
+        ty: &core::Ty,
+    ) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, e) => ty::TyKind::Refine(*bty, self.lower_expr(e)).intern(),
-            core::Ty::Exists(bty, evar, e) => {
+            core::Ty::Exists(bty, evar, pred) => {
                 let fresh = name_gen.fresh();
-                self.exprs.insert(*evar, ty::ExprKind::Var(fresh).intern());
-                let e = self.lower_expr(e);
-                self.exprs.remove(evar);
-                ty::TyKind::Exists(*bty, fresh, ty::Pred::Expr(e)).intern()
+                let pred = match pred {
+                    core::Pred::Infer => cursor.fresh_kvar(fresh, bty.sort()),
+                    core::Pred::Expr(e) => {
+                        self.exprs.insert(*evar, ty::ExprKind::Var(fresh).intern());
+                        let e = self.lower_expr(e);
+                        self.exprs.remove(evar);
+                        ty::Pred::Expr(e)
+                    }
+                };
+                ty::TyKind::Exists(*bty, fresh, pred).intern()
             }
             core::Ty::MutRef(region) => {
                 ty::TyKind::MutRef(self.regions[&region.name].clone()).intern()
