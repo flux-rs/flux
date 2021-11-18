@@ -17,11 +17,11 @@ pub struct ConstraintBuilder {
     root: Node,
     kvars: IndexVec<KVid, Vec<Sort>>,
     vars: Vec<(fixpoint::Var, Sort)>,
+    name_gen: IndexGen<fixpoint::Var>,
 }
 
 pub struct Cursor<'a> {
     builder: &'a mut ConstraintBuilder,
-    name_gen: &'a IndexGen<fixpoint::Var>,
     node: NonNull<Node>,
     nvars: usize,
 }
@@ -39,24 +39,24 @@ impl ConstraintBuilder {
             root: Node::Conj(vec![]),
             kvars: IndexVec::new(),
             vars: vec![],
+            name_gen: IndexGen::new(),
         }
     }
 
-    pub fn as_cursor<'a>(&'a mut self, name_gen: &'a IndexGen<fixpoint::Var>) -> Cursor<'a> {
+    pub fn as_cursor<'a>(&'a mut self) -> Cursor<'a> {
         unsafe {
             Cursor {
                 node: NonNull::new_unchecked(&mut self.root as *mut Node),
-                name_gen,
                 builder: self,
                 nvars: 0,
             }
         }
     }
 
-    pub fn to_fixpoint(self, name_gen: &IndexGen<fixpoint::Var>) -> fixpoint::Fixpoint {
+    pub fn to_fixpoint(self) -> fixpoint::Fixpoint {
         let constraint = self
             .root
-            .to_fixpoint(name_gen, &self.kvars)
+            .to_fixpoint(&self.name_gen, &self.kvars)
             .unwrap_or(fixpoint::Constraint::TRUE);
         let kvars = self
             .kvars
@@ -71,7 +71,6 @@ impl Cursor<'_> {
     pub fn snapshot(&mut self) -> Cursor {
         Cursor {
             node: self.node,
-            name_gen: self.name_gen,
             builder: &mut self.builder,
             nvars: self.nvars,
         }
@@ -109,7 +108,7 @@ impl Cursor<'_> {
     }
 
     pub fn fresh_var(&self) -> fixpoint::Var {
-        self.name_gen.fresh()
+        self.builder.name_gen.fresh()
     }
 
     pub fn subtyping(&mut self, ty1: ty::Ty, ty2: ty::Ty) {

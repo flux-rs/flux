@@ -68,10 +68,8 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
 
-        let name_gen = &IndexGen::new();
-
         let mut constraint = ConstraintBuilder::new();
-        let mut cursor = constraint.as_cursor(name_gen);
+        let mut cursor = constraint.as_cursor();
 
         let (mut env, ensures, ret_ty) = lower_with_fresh_names(&mut cursor, body, fn_sig);
 
@@ -105,7 +103,7 @@ impl Checker<'_, '_> {
             }
         }
         println!("{:?}", constraint);
-        let constraint = constraint.to_fixpoint(name_gen);
+        let constraint = constraint.to_fixpoint();
         println!("{:?}", Fixpoint::check(&constraint));
         Ok(())
     }
