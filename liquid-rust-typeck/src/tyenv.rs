@@ -3,7 +3,6 @@ use std::fmt;
 use crate::{
     constraint_builder::Cursor,
     inference,
-    subst::Subst,
     ty::{Expr, ExprKind, KVid, Pred, RVid, Region, Ty, TyKind, Var},
 };
 use liquid_rust_common::{
@@ -162,7 +161,6 @@ impl TyEnv {
         &self,
         cursor: &mut Cursor,
         shape: DisjointSetsMap<RVid, inference::Ty>,
-        name_gen: &IndexGen<Var>,
     ) -> TyEnv {
         let regions = shape.map_values(|mut region, ty| {
             // We are assuming the region in self is a subset of the region in shape.
@@ -171,9 +169,8 @@ impl TyEnv {
             let ty = match &*ty {
                 inference::TyS::Refine(_, _) => self.lookup_region(rvid),
                 inference::TyS::Exists(bty) => {
-                    let fresh = name_gen.fresh();
-                    let pred = cursor.fresh_kvar(fresh, bty.sort());
-                    TyKind::Exists(*bty, fresh, pred).intern()
+                    let pred = cursor.fresh_kvar(bty.sort());
+                    TyKind::Exists(*bty, pred).intern()
                 }
                 inference::TyS::Uninit => TyKind::Uninit.intern(),
                 inference::TyS::MutRef(region) => TyKind::MutRef(region.clone()).intern(),

@@ -4,7 +4,7 @@ use itertools::Itertools;
 use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
 pub use liquid_rust_core::ty::BaseTy;
 use liquid_rust_core::{ir::Local, ty::ParamTy};
-pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp, Var};
+pub use liquid_rust_fixpoint::{self as fixpoint, BinOp, Constant, KVid, Sort, UnOp};
 pub use rustc_middle::ty::IntTy;
 
 use crate::intern::{impl_internable, Interned};
@@ -19,7 +19,7 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TyKind {
     Refine(BaseTy, Expr),
-    Exists(BaseTy, Var, Pred),
+    Exists(BaseTy, Pred),
     Uninit,
     MutRef(Region),
     Param(ParamTy),
@@ -49,6 +49,12 @@ pub enum ExprKind {
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
     UnaryOp(UnOp, Expr),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Var {
+    Bound,
+    Free(fixpoint::Var),
 }
 
 impl TyKind {
@@ -92,6 +98,23 @@ impl ExprS {
 
     pub fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+    }
+
+    pub fn subst_bound_vars(&self, to: Expr) -> Expr {
+        match self.kind() {
+            ExprKind::Var(var) => match var {
+                Var::Bound => to,
+                Var::Free(_) => ExprKind::Var(*var).intern(),
+            },
+            ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
+            ExprKind::BinaryOp(op, e1, e2) => ExprKind::BinaryOp(
+                *op,
+                e1.subst_bound_vars(to.clone()),
+                e2.subst_bound_vars(to),
+            )
+            .intern(),
+            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
+        }
     }
 }
 
@@ -146,6 +169,15 @@ impl fmt::Debug for ExprS {
                     write!(f, "{}({:?})", op, e)
                 }
             }
+        }
+    }
+}
+
+impl fmt::Debug for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bound => write!(f, "ν"),
+            Self::Free(var) => write!(f, "{:?}", var),
         }
     }
 }
@@ -221,7 +253,7 @@ impl fmt::Debug for TyS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
             TyKind::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
-            TyKind::Exists(bty, var, e) => write!(f, "{:?}{{{:?}: {:?}}}", bty, var, e),
+            TyKind::Exists(bty, e) => write!(f, "{:?}{{ν: {:?}}}", bty, e),
             TyKind::Uninit => write!(f, "uninit"),
             TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
             TyKind::Param(ParamTy { name, .. }) => write!(f, "{:?}", name),
@@ -240,8 +272,18 @@ impl fmt::Debug for RegionS {
 }
 
 impl Pred {
-    pub fn kvar(kvid: KVid, args: Vec<Expr>) -> Self {
-        Pred::KVar(kvid, Interned::new(args))
+    pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
+        Pred::KVar(kvid, Interned::new(args.into_iter().collect()))
+    }
+
+    pub fn subst_bound_vars(&self, to: Expr) -> Self {
+        match self {
+            Pred::KVar(kvid, args) => Pred::kvar(
+                *kvid,
+                args.iter().map(|arg| arg.subst_bound_vars(to.clone())),
+            ),
+            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
+        }
     }
 
     pub fn is_true(&self) -> bool {

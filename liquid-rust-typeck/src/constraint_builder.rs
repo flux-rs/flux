@@ -4,10 +4,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::{
-    subst::Subst,
-    ty::{self, Expr, ExprKind, Pred, Sort, Ty, TyKind, Var},
-};
+use crate::ty::{self, Expr, ExprKind, Pred, Sort, Ty, TyKind, Var};
 use fixpoint::{BinOp, KVar, KVid};
 use itertools::Itertools;
 use liquid_rust_common::{
@@ -19,19 +16,19 @@ use liquid_rust_fixpoint as fixpoint;
 pub struct ConstraintBuilder {
     root: Node,
     kvars: IndexVec<KVid, Vec<Sort>>,
-    vars: Vec<(Var, Sort)>,
+    vars: Vec<(fixpoint::Var, Sort)>,
 }
 
 pub struct Cursor<'a> {
     builder: &'a mut ConstraintBuilder,
-    name_gen: &'a IndexGen<Var>,
+    name_gen: &'a IndexGen<fixpoint::Var>,
     node: NonNull<Node>,
     nvars: usize,
 }
 
 enum Node {
     Conj(Vec<Node>),
-    ForAll(Var, Sort, Pred, Vec<Node>),
+    ForAll(fixpoint::Var, Sort, Pred, Vec<Node>),
     Guard(Expr, Vec<Node>),
     Head(Pred),
 }
@@ -45,7 +42,7 @@ impl ConstraintBuilder {
         }
     }
 
-    pub fn as_cursor<'a>(&'a mut self, name_gen: &'a IndexGen<Var>) -> Cursor<'a> {
+    pub fn as_cursor<'a>(&'a mut self, name_gen: &'a IndexGen<fixpoint::Var>) -> Cursor<'a> {
         unsafe {
             Cursor {
                 node: NonNull::new_unchecked(&mut self.root as *mut Node),
@@ -56,7 +53,7 @@ impl ConstraintBuilder {
         }
     }
 
-    pub fn to_fixpoint(self, name_gen: &IndexGen<Var>) -> fixpoint::Fixpoint {
+    pub fn to_fixpoint(self, name_gen: &IndexGen<fixpoint::Var>) -> fixpoint::Fixpoint {
         let constraint = self
             .root
             .to_fixpoint(name_gen, &self.kvars)
@@ -80,7 +77,7 @@ impl Cursor<'_> {
         }
     }
 
-    pub fn push_forall(&mut self, var: Var, sort: Sort, pred: impl Into<Pred>) {
+    pub fn push_forall(&mut self, var: fixpoint::Var, sort: Sort, pred: impl Into<Pred>) {
         self.push_node(Node::ForAll(var, sort, pred.into(), vec![]));
         self.push_var(var, sort);
     }
@@ -96,14 +93,14 @@ impl Cursor<'_> {
         }
     }
 
-    pub fn fresh_kvar(&mut self, nu: Var, sort: Sort) -> Pred {
+    pub fn fresh_kvar(&mut self, sort: Sort) -> Pred {
         let mut sorts = Vec::with_capacity(self.nvars + 1);
         let mut vars = Vec::with_capacity(self.nvars + 1);
 
-        vars.push(Expr::from(nu));
+        vars.push(Expr::from(Var::Bound));
         sorts.push(sort);
         for (var, sort) in self.vars_in_scope() {
-            vars.push(Expr::from(var));
+            vars.push(Expr::from(Var::Free(var)));
             sorts.push(sort);
         }
 
@@ -111,7 +108,7 @@ impl Cursor<'_> {
         Pred::kvar(kvid, vars)
     }
 
-    pub fn fresh_var(&self) -> Var {
+    pub fn fresh_var(&self) -> fixpoint::Var {
         self.name_gen.fresh()
     }
 
@@ -123,9 +120,9 @@ impl Cursor<'_> {
                     self.push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
                 }
             }
-            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, evar, p)) => {
+            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 debug_assert_eq!(bty1, bty2);
-                self.push_head(Subst::new([(*evar, e.clone())]).subst_pred(p.clone()))
+                self.push_head(p.subst_bound_vars(e.clone()))
             }
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
                 assert!(r1.subset(r2));
@@ -148,14 +145,14 @@ impl Cursor<'_> {
 
     pub fn unpack(&mut self, ty: ty::Ty) -> ty::Ty {
         match ty.kind() {
-            TyKind::Exists(bty, evar, p) => {
+            TyKind::Exists(bty, p) => {
                 let fresh = self.fresh_var();
                 self.push_forall(
                     fresh,
                     bty.sort(),
-                    Subst::new([(*evar, ExprKind::Var(fresh).intern())]).subst_pred(p.clone()),
+                    p.subst_bound_vars(ExprKind::Var(Var::Free(fresh)).intern()),
                 );
-                TyKind::Refine(*bty, ExprKind::Var(fresh).intern()).intern()
+                TyKind::Refine(*bty, ExprKind::Var(Var::Free(fresh)).intern()).intern()
             }
             _ => ty,
         }
@@ -177,7 +174,7 @@ impl Cursor<'_> {
         }
     }
 
-    fn push_var(&mut self, var: Var, sort: Sort) {
+    fn push_var(&mut self, var: fixpoint::Var, sort: Sort) {
         if self.nvars < self.builder.vars.len() {
             self.builder.vars[self.nvars] = (var, sort);
         } else {
@@ -186,7 +183,7 @@ impl Cursor<'_> {
         self.nvars += 1;
     }
 
-    fn vars_in_scope(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
+    fn vars_in_scope(&self) -> impl Iterator<Item = (fixpoint::Var, Sort)> + '_ {
         self.builder.vars[..self.nvars].iter().cloned()
     }
 }
@@ -194,7 +191,7 @@ impl Cursor<'_> {
 impl Node {
     fn to_fixpoint(
         self,
-        name_gen: &IndexGen<Var>,
+        name_gen: &IndexGen<fixpoint::Var>,
         kvars: &IndexVec<KVid, Vec<Sort>>,
     ) -> Option<fixpoint::Constraint> {
         match self {
@@ -231,7 +228,7 @@ impl Node {
 }
 
 fn children_to_fixpoint(
-    name_gen: &IndexGen<Var>,
+    name_gen: &IndexGen<fixpoint::Var>,
     kvars: &IndexVec<KVid, Vec<Sort>>,
     children: Vec<Node>,
 ) -> Option<fixpoint::Constraint> {
@@ -247,16 +244,16 @@ fn children_to_fixpoint(
 }
 
 fn pred_to_fixpoint(
-    name_gen: &IndexGen<Var>,
+    name_gen: &IndexGen<fixpoint::Var>,
     kvars: &IndexVec<KVid, Vec<Sort>>,
     refine: Pred,
-) -> (Vec<(Var, Sort, fixpoint::Expr)>, fixpoint::Pred) {
+) -> (Vec<(fixpoint::Var, Sort, fixpoint::Expr)>, fixpoint::Pred) {
     let mut bindings = vec![];
     let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(expr)),
         Pred::KVar(kvid, args) => {
             let args = args.iter().zip(&kvars[kvid]).map(|(arg, sort)| {
-                if let ExprKind::Var(var) = arg.kind() {
+                if let ExprKind::Var(Var::Free(var)) = arg.kind() {
                     *var
                 } else {
                     let fresh = name_gen.fresh();
@@ -277,7 +274,7 @@ fn pred_to_fixpoint(
 
 fn expr_to_fixpoint(expr: ty::Expr) -> fixpoint::Expr {
     match expr.kind() {
-        ty::ExprKind::Var(x) => fixpoint::Expr::Var(*x),
+        ty::ExprKind::Var(Var::Free(var)) => fixpoint::Expr::Var(*var),
         ty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ty::ExprKind::BinaryOp(op, e1, e2) => fixpoint::Expr::BinaryOp(
             *op,
@@ -287,11 +284,14 @@ fn expr_to_fixpoint(expr: ty::Expr) -> fixpoint::Expr {
         ty::ExprKind::UnaryOp(op, e) => {
             fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e.clone())))
         }
+        ty::ExprKind::Var(Var::Bound) => {
+            unreachable!("unexpected bound variable")
+        }
     }
 }
 
 fn stitch(
-    bindings: Vec<(Var, Sort, fixpoint::Expr)>,
+    bindings: Vec<(fixpoint::Var, Sort, fixpoint::Expr)>,
     c: fixpoint::Constraint,
 ) -> fixpoint::Constraint {
     bindings.into_iter().rev().fold(c, |c, (var, sort, e)| {

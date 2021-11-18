@@ -30,7 +30,7 @@ pub fn lower_with_fresh_names(
         let fresh = cursor.fresh_var();
         subst.exprs.insert(
             core::Var::Free(param.name.name),
-            ty::ExprKind::Var(fresh).intern(),
+            ty::Expr::from(ty::Var::Free(fresh)),
         );
         let expr = subst.lower_expr(&param.pred);
         cursor.push_forall(fresh, param.sort, ty::Pred::Expr(expr));
@@ -176,18 +176,17 @@ impl Subst {
         match ty {
             core::Ty::Refine(bty, e) => ty::TyKind::Refine(*bty, self.lower_expr(e)).intern(),
             core::Ty::Exists(bty, pred) => {
-                let fresh = cursor.fresh_var();
                 let pred = match pred {
-                    core::Pred::Infer => cursor.fresh_kvar(fresh, bty.sort()),
+                    core::Pred::Infer => cursor.fresh_kvar(bty.sort()),
                     core::Pred::Expr(e) => {
                         self.exprs
-                            .insert(core::Var::Bound, ty::ExprKind::Var(fresh).intern());
+                            .insert(core::Var::Bound, ty::Expr::from(ty::Var::Bound));
                         let e = self.lower_expr(e);
                         self.exprs.remove(&core::Var::Bound);
                         ty::Pred::Expr(e)
                     }
                 };
-                ty::TyKind::Exists(*bty, fresh, pred).intern()
+                ty::TyKind::Exists(*bty, pred).intern()
             }
             core::Ty::MutRef(region) => {
                 ty::TyKind::MutRef(self.regions[&region.name].clone()).intern()

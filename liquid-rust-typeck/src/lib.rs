@@ -15,7 +15,6 @@ pub mod global_env;
 mod inference;
 mod intern;
 mod lowering;
-pub mod subst;
 pub mod ty;
 mod tyenv;
 
@@ -23,7 +22,6 @@ use crate::{
     constraint_builder::{ConstraintBuilder, Cursor},
     inference::InferCtxt,
     lowering::lower_with_fresh_names,
-    subst::Subst,
     ty::{BaseTy, BinOp, Expr, ExprKind, KVid, RVid, Region, Ty, TyKind, Var},
 };
 use global_env::GlobalEnv;
@@ -40,7 +38,7 @@ use liquid_rust_core::{
     },
     ty::{self as core, Name},
 };
-use liquid_rust_fixpoint::Fixpoint;
+use liquid_rust_fixpoint::{self as fixpoint, Fixpoint};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;
@@ -58,7 +56,6 @@ pub struct Checker<'a, 'tcx> {
     bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<RVid, inference::Ty>>,
     ret_ty: Ty,
     global_env: &'a GlobalEnv,
-    name_gen: &'a IndexGen<Var>,
     ensures: Vec<(Region, Ty)>,
 }
 
@@ -96,7 +93,6 @@ impl Checker<'_, '_> {
             visited: BitSet::new_empty(body.basic_blocks.len()),
             bb_env_shapes,
             ret_ty,
-            name_gen,
             ensures,
         };
 
@@ -129,7 +125,7 @@ impl Checker<'_, '_> {
             .flatten()
             .for_each(|bb| {
                 let shape = self.bb_env_shapes.remove(bb).unwrap();
-                let bb_env = env.infer_bb_env(cursor, shape, self.name_gen);
+                let bb_env = env.infer_bb_env(cursor, shape);
                 self.bb_envs.insert(*bb, bb_env);
             });
 
