@@ -132,7 +132,7 @@ impl Cursor<'_> {
             }
             (TyKind::Uninit, TyKind::Uninit) => {}
             (TyKind::MutRef(_), TyKind::Uninit) => {
-                // TODO: this seems shady and should never happen
+                // FIXME: this looks shady
             }
             (TyKind::Param(param1), TyKind::Param(param2)) => {
                 debug_assert_eq!(param1, param2)

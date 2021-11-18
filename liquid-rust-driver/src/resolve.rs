@@ -16,7 +16,7 @@ struct Symbols {
 }
 
 struct Subst {
-    exprs: ScopeMap<Symbol, Name>,
+    exprs: ScopeMap<Symbol, ty::Var>,
     regions: FxHashMap<Symbol, Name>,
     types: FxHashMap<Symbol, ParamTy>,
 }
@@ -49,7 +49,7 @@ impl<'a> Resolver<'a> {
                     symbol: ident.symbol,
                     span: ident.span,
                 };
-                let ty = self.resolve_ty(ty, &mut subst, &name_gen);
+                let ty = self.resolve_ty(ty, &mut subst);
                 Ok((ident, ty?))
             })
             .try_collect_exhaust();
@@ -57,17 +57,17 @@ impl<'a> Resolver<'a> {
         let args = fn_sig
             .args
             .into_iter()
-            .map(|ty| self.resolve_ty(ty, &mut subst, &name_gen))
+            .map(|ty| self.resolve_ty(ty, &mut subst))
             .try_collect_exhaust();
 
-        let ret = self.resolve_ty(fn_sig.ret, &mut subst, &name_gen);
+        let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
         let ensures = fn_sig
             .ensures
             .into_iter()
             .map(|(ident, ty)| {
                 let ident = self.resolve_region_ident(ident, &subst);
-                let ty = self.resolve_ty(ty, &mut subst, &name_gen);
+                let ty = self.resolve_ty(ty, &mut subst);
                 Ok((ident?, ty?))
             })
             .try_collect_exhaust();
@@ -128,7 +128,10 @@ impl<'a> Resolver<'a> {
         name_gen: &IndexGen<Name>,
     ) -> Result<ty::Param, ErrorReported> {
         let fresh = name_gen.fresh();
-        if subst.insert_expr(name.symbol, fresh).is_some() {
+        if subst
+            .insert_expr(name.symbol, ty::Var::Free(fresh))
+            .is_some()
+        {
             self.sess.span_err(name.span, "duplicate parameter name");
             Err(ErrorReported)
         } else {
@@ -150,12 +153,7 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_ty(
-        &self,
-        ty: ast::Ty,
-        subst: &mut Subst,
-        name_gen: &IndexGen<Name>,
-    ) -> Result<ty::Ty, ErrorReported> {
+    fn resolve_ty(&self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
         match ty.kind {
             ast::TyKind::RefineTy { bty, refine } => {
                 let bty = self.resolve_bty(bty);
@@ -163,21 +161,19 @@ impl<'a> Resolver<'a> {
                 Ok(ty::Ty::Refine(bty?, refine?))
             }
             ast::TyKind::Exists { bind, bty, pred } => {
-                let fresh = name_gen.fresh();
                 let bty = self.resolve_bty(bty);
                 subst.push_expr_layer();
-                subst.insert_expr(bind.symbol, fresh);
+                subst.insert_expr(bind.symbol, ty::Var::Bound);
                 let e = self.resolve_expr(pred, subst);
                 subst.pop_expr_layer();
-                Ok(ty::Ty::Exists(bty?, fresh, ty::Pred::Expr(e?)))
+                Ok(ty::Ty::Exists(bty?, ty::Pred::Expr(e?)))
             }
             ast::TyKind::BaseTy(bty) => {
                 if let Some(param_ty) = subst.get_type(bty.symbol) {
                     Ok(ty::Ty::Param(param_ty))
                 } else {
-                    let fresh = name_gen.fresh();
                     let bty = self.resolve_bty(bty)?;
-                    Ok(ty::Ty::Exists(bty, fresh, ty::Pred::TRUE))
+                    Ok(ty::Ty::Exists(bty, ty::Pred::TRUE))
                 }
             }
             ast::TyKind::MutRef(region) => {
@@ -212,13 +208,15 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_expr(&self, expr: ast::Expr, map: &Subst) -> Result<ty::Expr, ErrorReported> {
+    fn resolve_expr(&self, expr: ast::Expr, subst: &Subst) -> Result<ty::Expr, ErrorReported> {
         let kind = match expr.kind {
-            ast::ExprKind::Var(ident) => ty::ExprKind::Var(self.resolve_expr_ident(ident, map)?),
+            ast::ExprKind::Var(ident) => {
+                ty::ExprKind::Var(self.resolve_var(ident, subst)?, ident.symbol, ident.span)
+            }
             ast::ExprKind::Literal(lit) => ty::ExprKind::Literal(self.resolve_lit(lit)?),
             ast::ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = self.resolve_expr(*e1, map);
-                let e2 = self.resolve_expr(*e2, map);
+                let e1 = self.resolve_expr(*e1, subst);
+                let e2 = self.resolve_expr(*e2, subst);
                 ty::ExprKind::BinaryOp(op, Box::new(e1?), Box::new(e2?))
             }
         };
@@ -249,17 +247,9 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_expr_ident(
-        &self,
-        ident: ast::Ident,
-        subst: &Subst,
-    ) -> Result<ty::Ident, ErrorReported> {
+    fn resolve_var(&self, ident: ast::Ident, subst: &Subst) -> Result<ty::Var, ErrorReported> {
         match subst.get_expr(ident.symbol) {
-            Some(name) => Ok(ty::Ident {
-                span: ident.span,
-                symbol: ident.symbol,
-                name,
-            }),
+            Some(var) => Ok(var),
             None => {
                 self.emit_error(
                     &format!("cannot find value `{}` in this scope", ident.symbol),
@@ -331,7 +321,7 @@ impl Subst {
         self.exprs.pop_layer();
     }
 
-    fn insert_expr(&mut self, symb: Symbol, name: Name) -> Option<Name> {
+    fn insert_expr(&mut self, symb: Symbol, name: ty::Var) -> Option<ty::Var> {
         let old = if self.exprs.contains_key_at_top(&symb) {
             self.exprs.get(&symb).copied()
         } else {
@@ -349,7 +339,7 @@ impl Subst {
         self.types.insert(symb, param_ty)
     }
 
-    fn get_expr(&self, symb: Symbol) -> Option<Name> {
+    fn get_expr(&self, symb: Symbol) -> Option<ty::Var> {
         self.exprs.get(&symb).copied()
     }
 

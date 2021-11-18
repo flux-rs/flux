@@ -18,7 +18,7 @@ pub struct FnSig {
 #[derive(Debug)]
 pub enum Ty {
     Refine(BaseTy, Expr),
-    Exists(BaseTy, Name, Pred),
+    Exists(BaseTy, Pred),
     MutRef(Ident),
     Param(ParamTy),
 }
@@ -50,9 +50,15 @@ pub struct Expr {
 
 #[derive(Debug)]
 pub enum ExprKind {
-    Var(Ident),
+    Var(Var, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum Var {
+    Bound,
+    Free(Name),
 }
 
 #[derive(Clone, Copy, Debug)]

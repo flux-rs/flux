@@ -1,12 +1,11 @@
 use itertools::Itertools;
-use liquid_rust_common::{errors::ErrorReported, index::Idx};
+use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
         BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
-    ty::Name,
 };
 use rustc_const_eval::interpret::ConstValue;
 use rustc_middle::{
@@ -144,10 +143,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 targets: targets.clone(),
             },
             mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
+            mir::TerminatorKind::Drop { place, target, .. } => TerminatorKind::Drop {
+                place: self.lower_place(place)?,
+                target: *target,
+            },
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
-            | mir::TerminatorKind::Drop { .. }
             | mir::TerminatorKind::DropAndReplace { .. }
             | mir::TerminatorKind::Assert { .. }
             | mir::TerminatorKind::Yield { .. }
@@ -288,21 +290,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
         use liquid_rust_core::ty as core;
         match ty.kind() {
             rustc_middle::ty::TyKind::Bool => {
-                Ok(core::Ty::Exists(
-                    core::BaseTy::Bool,
-                    // FIXME: this is wrong!
-                    Name::new(0),
-                    core::Pred::Infer,
-                ))
+                Ok(core::Ty::Exists(core::BaseTy::Bool, core::Pred::Infer))
             }
-            rustc_middle::ty::TyKind::Int(int_ty) => {
-                Ok(core::Ty::Exists(
-                    core::BaseTy::Int(*int_ty),
-                    // FIXME: this is wrong!
-                    Name::new(0),
-                    core::Pred::Infer,
-                ))
-            }
+            rustc_middle::ty::TyKind::Int(int_ty) => Ok(core::Ty::Exists(
+                core::BaseTy::Int(*int_ty),
+                core::Pred::Infer,
+            )),
             rustc_middle::ty::TyKind::Param(param) => Ok(core::Ty::Param(core::ParamTy {
                 index: param.index,
                 name: param.name,

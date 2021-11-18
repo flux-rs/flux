@@ -67,7 +67,7 @@ pub enum BinOp {
     And,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ident {
     pub symbol: Symbol,
     pub span: Span,

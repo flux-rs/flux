@@ -160,6 +160,10 @@ impl<'a> InferCtxt<'a, '_> {
             TerminatorKind::Goto { target } => {
                 self.infer_goto(env, *target);
             }
+            TerminatorKind::Drop { place, target } => {
+                let _ = env.move_place(place);
+                self.infer_goto(env, *target);
+            }
         }
     }
 
@@ -523,7 +527,7 @@ impl Subst {
     fn lower_ty(&self, gen: &IndexGen<ExprIdx>, ty: &core::Ty) -> Ty {
         match ty {
             core::Ty::Refine(bty, _) => TyS::Refine(*bty, gen.fresh()).intern(),
-            core::Ty::Exists(bty, _, _) => TyS::Exists(*bty).intern(),
+            core::Ty::Exists(bty, _) => TyS::Exists(*bty).intern(),
             core::Ty::MutRef(region) => TyS::MutRef(self.regions[&region.name].clone()).intern(),
             core::Ty::Param(param) => self
                 .types

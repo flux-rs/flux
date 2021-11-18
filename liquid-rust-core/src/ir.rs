@@ -46,6 +46,10 @@ pub enum TerminatorKind {
     Goto {
         target: BasicBlock,
     },
+    Drop {
+        place: Place,
+        target: BasicBlock,
+    },
 }
 
 pub struct Statement {
@@ -173,6 +177,9 @@ impl fmt::Debug for Terminator {
             }
             TerminatorKind::Goto { target } => {
                 write!(f, "goto -> {:?}", *target)
+            }
+            TerminatorKind::Drop { place, target } => {
+                write!(f, "drop({:?}) -> {:?}", place, target)
             }
         }
     }

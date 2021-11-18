@@ -3,7 +3,7 @@ use rustc_hash::FxHashMap;
 use rustc_session::Session;
 use rustc_span::{MultiSpan, Span};
 
-use crate::ty::{BinOp, Expr, ExprKind, FnSig, Name, Pred, Sort, Ty};
+use crate::ty::{BinOp, Expr, ExprKind, FnSig, Pred, Sort, Ty, Var};
 
 pub struct Wf<'a> {
     sess: &'a Session,
@@ -20,7 +20,7 @@ impl Wf<'_> {
             .params
             .iter()
             .map(|param| {
-                env.insert(param.name.name, param.sort);
+                env.insert(Var::Free(param.name.name), param.sort);
                 self.check_expr(&env, &param.pred, Sort::Bool)
             })
             .try_collect_exhaust();
@@ -43,14 +43,9 @@ impl Wf<'_> {
     fn check_type(&self, env: &mut Env, ty: &Ty) -> Result<(), ErrorReported> {
         match ty {
             Ty::Refine(bty, e) => self.check_expr(env, e, bty.sort()),
-            Ty::Exists(bty, var, pred) => {
-                // We are assuming no variable shadowing which is guaranteed by the resolve phase.
-                debug_assert!(!env.contains_key(var));
-
-                env.insert(*var, bty.sort());
-                let result = self.check_pred(env, pred, Sort::Bool);
-                env.remove(var);
-                result
+            Ty::Exists(bty, pred) => {
+                env.insert(Var::Bound, bty.sort());
+                self.check_pred(env, pred, Sort::Bool)
             }
             Ty::MutRef(_) => {
                 // TODO: check identifier is actually a region
@@ -80,7 +75,7 @@ impl Wf<'_> {
 
     fn synth_expr(&self, env: &Env, e: &Expr) -> Result<Sort, ErrorReported> {
         match &e.kind {
-            ExprKind::Var(ident) => Ok(env[&ident.name]),
+            ExprKind::Var(var, ..) => Ok(env[var]),
             ExprKind::Literal(lit) => Ok(lit.sort()),
             ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
         }
@@ -138,4 +133,4 @@ impl Wf<'_> {
     }
 }
 
-type Env = FxHashMap<Name, Sort>;
+type Env = FxHashMap<Var, Sort>;

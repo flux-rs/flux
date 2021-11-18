@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 pub struct Subst {
     regions: FxHashMap<core::Name, ty::Region>,
-    exprs: FxHashMap<core::Name, ty::Expr>,
+    exprs: FxHashMap<core::Var, ty::Expr>,
     types: Vec<ty::Ty>,
 }
 
@@ -28,9 +28,10 @@ pub fn lower_with_fresh_names(
 
     for param in &fn_sig.params {
         let fresh = cursor.fresh_var();
-        subst
-            .exprs
-            .insert(param.name.name, ty::ExprKind::Var(fresh).intern());
+        subst.exprs.insert(
+            core::Var::Free(param.name.name),
+            ty::ExprKind::Var(fresh).intern(),
+        );
         let expr = subst.lower_expr(&param.pred);
         cursor.push_forall(fresh, param.sort, ty::Pred::Expr(expr));
     }
@@ -87,8 +88,8 @@ impl Subst {
         }
     }
 
-    pub fn contains_key_for_expr(&self, name: core::Name) -> bool {
-        self.exprs.contains_key(&name)
+    pub fn contains_key_for_expr(&self, var: core::Var) -> bool {
+        self.exprs.contains_key(&var)
     }
 
     pub fn infer_from_fn_call(
@@ -114,7 +115,7 @@ impl Subst {
     fn check_inference(&self, fn_sig: &core::FnSig) -> Result<(), Vec<InferenceError>> {
         let mut failed = vec![];
         for param in &fn_sig.params {
-            if !self.exprs.contains_key(&param.name.name) {
+            if !self.exprs.contains_key(&core::Var::Free(param.name.name)) {
                 failed.push(InferenceError::PureParam(param.name))
             }
         }
@@ -139,15 +140,15 @@ impl Subst {
                 core::Ty::Refine(
                     bty2,
                     core::Expr {
-                        kind: core::ExprKind::Var(ident),
+                        kind: core::ExprKind::Var(var, symbol, ..),
                         ..
                     },
                 ),
             ) => {
                 debug_assert!(bty1 == bty2);
-                match self.exprs.insert(ident.name, e.clone()) {
+                match self.exprs.insert(*var, e.clone()) {
                     Some(old_e) if &old_e != e => {
-                        todo!("ambiguous instantiation for parameter `{}`", ident.symbol)
+                        todo!("ambiguous instantiation for parameter `{}`", symbol)
                     }
                     _ => {}
                 }
@@ -174,14 +175,15 @@ impl Subst {
     pub fn lower_ty(&mut self, cursor: &mut Cursor, ty: &core::Ty) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, e) => ty::TyKind::Refine(*bty, self.lower_expr(e)).intern(),
-            core::Ty::Exists(bty, evar, pred) => {
+            core::Ty::Exists(bty, pred) => {
                 let fresh = cursor.fresh_var();
                 let pred = match pred {
                     core::Pred::Infer => cursor.fresh_kvar(fresh, bty.sort()),
                     core::Pred::Expr(e) => {
-                        self.exprs.insert(*evar, ty::ExprKind::Var(fresh).intern());
+                        self.exprs
+                            .insert(core::Var::Bound, ty::ExprKind::Var(fresh).intern());
                         let e = self.lower_expr(e);
-                        self.exprs.remove(evar);
+                        self.exprs.remove(&core::Var::Bound);
                         ty::Pred::Expr(e)
                     }
                 };
@@ -200,7 +202,7 @@ impl Subst {
 
     pub fn lower_expr(&self, expr: &core::Expr) -> ty::Expr {
         match &expr.kind {
-            core::ExprKind::Var(ident) => self.lower_ident(ident),
+            core::ExprKind::Var(var, _, _) => self.lower_var(*var),
             core::ExprKind::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
             core::ExprKind::BinaryOp(op, e1, e2) => {
                 ty::ExprKind::BinaryOp(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
@@ -209,8 +211,8 @@ impl Subst {
         }
     }
 
-    fn lower_ident(&self, ident: &core::Ident) -> ty::Expr {
-        self.exprs.get(&ident.name).unwrap().clone()
+    fn lower_var(&self, var: core::Var) -> ty::Expr {
+        self.exprs.get(&var).unwrap().clone()
     }
 
     fn lower_lit(&self, lit: core::Lit) -> ty::Constant {

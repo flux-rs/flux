@@ -261,6 +261,10 @@ impl Checker<'_, '_> {
                     self.check_goto(env, cursor, *bb)?;
                 }
             }
+            TerminatorKind::Drop { place, target } => {
+                let _ = env.move_place(place);
+                self.check_goto(env, cursor, *target);
+            }
         }
         Ok(())
     }
