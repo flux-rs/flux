@@ -16,6 +16,7 @@ use liquid_rust_fixpoint as fixpoint;
 pub struct ConstraintBuilder {
     root: Node,
     kvars: IndexVec<KVid, Vec<Sort>>,
+    scopes: Vec<usize>,
     vars: Vec<(Name, Sort)>,
     name_gen: IndexGen<Name>,
 }
@@ -23,6 +24,7 @@ pub struct ConstraintBuilder {
 pub struct Cursor<'a> {
     builder: &'a mut ConstraintBuilder,
     node: NonNull<Node>,
+    nscopes: usize,
     nvars: usize,
 }
 
@@ -38,6 +40,7 @@ impl ConstraintBuilder {
         Self {
             root: Node::Conj(vec![]),
             kvars: IndexVec::new(),
+            scopes: vec![],
             vars: vec![],
             name_gen: IndexGen::new(),
         }
@@ -49,6 +52,7 @@ impl ConstraintBuilder {
                 node: NonNull::new_unchecked(&mut self.root as *mut Node),
                 builder: self,
                 nvars: 0,
+                nscopes: 0,
             }
         }
     }
@@ -70,10 +74,18 @@ impl ConstraintBuilder {
 impl Cursor<'_> {
     pub fn snapshot(&mut self) -> Cursor {
         Cursor {
-            node: self.node,
             builder: &mut self.builder,
-            nvars: self.nvars,
+            ..*self
         }
+    }
+
+    pub fn push_scope(&mut self) {
+        if self.nscopes < self.builder.scopes.len() {
+            self.builder.scopes[self.nscopes] = self.nvars;
+        } else {
+            self.builder.scopes.push(self.nvars);
+        }
+        self.nscopes += 1;
     }
 
     pub fn push_forall(&mut self, var: Name, sort: Sort, pred: impl Into<Pred>) {
@@ -93,12 +105,21 @@ impl Cursor<'_> {
     }
 
     pub fn fresh_kvar(&mut self, sort: Sort) -> Pred {
+        self.fresh_kvar_at_scope(sort, self.nvars)
+    }
+
+    pub fn fresh_kvar_at_last_scope(&mut self, sort: Sort) -> Pred {
+        let scope = self.builder.scopes.last().copied().unwrap_or(0);
+        self.fresh_kvar_at_scope(sort, scope)
+    }
+
+    fn fresh_kvar_at_scope(&mut self, sort: Sort, scope: usize) -> Pred {
         let mut sorts = Vec::with_capacity(self.nvars + 1);
         let mut vars = Vec::with_capacity(self.nvars + 1);
 
         vars.push(Expr::from(Var::Bound));
         sorts.push(sort);
-        for (var, sort) in self.vars_in_scope() {
+        for (var, sort) in self.vars_in_scope(scope) {
             vars.push(Expr::from(Var::Free(var)));
             sorts.push(sort);
         }
@@ -126,9 +147,8 @@ impl Cursor<'_> {
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
                 assert!(r1.subset(r2));
             }
-            (TyKind::Uninit, TyKind::Uninit) => {}
-            (TyKind::MutRef(_), TyKind::Uninit) => {
-                // FIXME: this looks shady
+            (_, TyKind::Uninit) => {
+                // FIXME: we should rethink in which situation this is sound.
             }
             (TyKind::Param(param1), TyKind::Param(param2)) => {
                 debug_assert_eq!(param1, param2)
@@ -182,8 +202,8 @@ impl Cursor<'_> {
         self.nvars += 1;
     }
 
-    fn vars_in_scope(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.builder.vars[..self.nvars].iter().cloned()
+    fn vars_in_scope(&self, scope: usize) -> impl Iterator<Item = (Name, Sort)> + '_ {
+        self.builder.vars[..scope].iter().cloned()
     }
 }
 
@@ -363,7 +383,7 @@ impl fmt::Debug for Cursor<'_> {
         write!(
             f,
             "{{{}}}",
-            self.vars_in_scope()
+            self.vars_in_scope(self.nvars)
                 .format_with(", ", |(var, sort), f| f(&format_args!(
                     "{:?}: {:?}",
                     var, sort

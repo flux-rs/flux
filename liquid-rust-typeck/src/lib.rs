@@ -49,8 +49,8 @@ use tyenv::{TyEnv, TyEnvBuilder};
 pub struct Checker<'a, 'tcx> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
-    // All join points immediatly dominated by a block.
-    dominated_join_points: FxHashMap<BasicBlock, Vec<BasicBlock>>,
+    // Whether the block immediately domminates a join point.
+    dominates_join_point: BitSet<BasicBlock>,
     visited: BitSet<BasicBlock>,
     bb_envs: FxHashMap<BasicBlock, TyEnv>,
     bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<RVid, inference::Ty>>,
@@ -74,19 +74,16 @@ impl Checker<'_, '_> {
         let (mut env, ensures, ret_ty) = lower_with_fresh_names(&mut cursor, body, fn_sig);
 
         let dominators = body.dominators();
-        let mut dominated_join_points = FxHashMap::<BasicBlock, Vec<BasicBlock>>::default();
+        let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
         for bb in body.join_points() {
-            dominated_join_points
-                .entry(dominators.immediate_dominator(bb))
-                .or_default()
-                .push(bb);
+            dominates_join_point.insert(dominators.immediate_dominator(bb));
         }
 
         let mut checker = Checker {
             sess,
             global_env,
             body,
-            dominated_join_points,
+            dominates_join_point,
             bb_envs: FxHashMap::default(),
             visited: BitSet::new_empty(body.basic_blocks.len()),
             bb_env_shapes,
@@ -116,16 +113,9 @@ impl Checker<'_, '_> {
     ) -> Result<(), ErrorReported> {
         self.visited.insert(bb);
 
-        self.dominated_join_points
-            .get(&bb)
-            .iter()
-            .copied()
-            .flatten()
-            .for_each(|bb| {
-                let shape = self.bb_env_shapes.remove(bb).unwrap();
-                let bb_env = env.infer_bb_env(cursor, shape);
-                self.bb_envs.insert(*bb, bb_env);
-            });
+        if self.dominates_join_point.contains(bb) {
+            cursor.push_scope();
+        }
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
@@ -270,7 +260,9 @@ impl Checker<'_, '_> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            let bb_env = &self.bb_envs[&target];
+            let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
+                env.infer_bb_env(cursor, self.bb_env_shapes.remove(&target).unwrap())
+            });
             for (mut region, ty1) in env.iter() {
                 // FIXME: we should check the region in env is a subset of a region in bb_env
                 let local = region.next().unwrap();

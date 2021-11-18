@@ -169,7 +169,7 @@ impl TyEnv {
             let ty = match &*ty {
                 inference::TyS::Refine(_, _) => self.lookup_region(rvid),
                 inference::TyS::Exists(bty) => {
-                    let pred = cursor.fresh_kvar(bty.sort());
+                    let pred = cursor.fresh_kvar_at_last_scope(bty.sort());
                     TyKind::Exists(*bty, pred).intern()
                 }
                 inference::TyS::Uninit => TyKind::Uninit.intern(),
