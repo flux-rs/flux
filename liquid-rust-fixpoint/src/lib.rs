@@ -10,7 +10,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Pred, Sort, UnOp, Var};
+pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Sort, UnOp};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use serde::Deserialize;

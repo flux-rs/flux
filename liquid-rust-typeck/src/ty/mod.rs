@@ -4,7 +4,7 @@ use itertools::Itertools;
 use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
 pub use liquid_rust_core::ty::BaseTy;
 use liquid_rust_core::{ir::Local, ty::ParamTy};
-pub use liquid_rust_fixpoint::{self as fixpoint, BinOp, Constant, KVid, Sort, UnOp};
+pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Name, Sort, UnOp};
 pub use rustc_middle::ty::IntTy;
 
 use crate::intern::{impl_internable, Interned};
@@ -54,7 +54,7 @@ pub enum ExprKind {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Var {
     Bound,
-    Free(fixpoint::Var),
+    Free(Name),
 }
 
 impl TyKind {

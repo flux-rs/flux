@@ -38,7 +38,7 @@ use liquid_rust_core::{
     },
     ty::{self as core, Name},
 };
-use liquid_rust_fixpoint::{self as fixpoint, Fixpoint};
+use liquid_rust_fixpoint::Fixpoint;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;

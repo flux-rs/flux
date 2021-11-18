@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::ty::{self, Expr, ExprKind, Pred, Sort, Ty, TyKind, Var};
-use fixpoint::{BinOp, KVar, KVid};
+use fixpoint::{BinOp, KVar, KVid, Name};
 use itertools::Itertools;
 use liquid_rust_common::{
     format::PadAdapter,
@@ -16,8 +16,8 @@ use liquid_rust_fixpoint as fixpoint;
 pub struct ConstraintBuilder {
     root: Node,
     kvars: IndexVec<KVid, Vec<Sort>>,
-    vars: Vec<(fixpoint::Var, Sort)>,
-    name_gen: IndexGen<fixpoint::Var>,
+    vars: Vec<(Name, Sort)>,
+    name_gen: IndexGen<Name>,
 }
 
 pub struct Cursor<'a> {
@@ -28,7 +28,7 @@ pub struct Cursor<'a> {
 
 enum Node {
     Conj(Vec<Node>),
-    ForAll(fixpoint::Var, Sort, Pred, Vec<Node>),
+    ForAll(Name, Sort, Pred, Vec<Node>),
     Guard(Expr, Vec<Node>),
     Head(Pred),
 }
@@ -76,7 +76,7 @@ impl Cursor<'_> {
         }
     }
 
-    pub fn push_forall(&mut self, var: fixpoint::Var, sort: Sort, pred: impl Into<Pred>) {
+    pub fn push_forall(&mut self, var: Name, sort: Sort, pred: impl Into<Pred>) {
         self.push_node(Node::ForAll(var, sort, pred.into(), vec![]));
         self.push_var(var, sort);
     }
@@ -107,7 +107,7 @@ impl Cursor<'_> {
         Pred::kvar(kvid, vars)
     }
 
-    pub fn fresh_var(&self) -> fixpoint::Var {
+    pub fn fresh_var(&self) -> Name {
         self.builder.name_gen.fresh()
     }
 
@@ -173,7 +173,7 @@ impl Cursor<'_> {
         }
     }
 
-    fn push_var(&mut self, var: fixpoint::Var, sort: Sort) {
+    fn push_var(&mut self, var: Name, sort: Sort) {
         if self.nvars < self.builder.vars.len() {
             self.builder.vars[self.nvars] = (var, sort);
         } else {
@@ -182,7 +182,7 @@ impl Cursor<'_> {
         self.nvars += 1;
     }
 
-    fn vars_in_scope(&self) -> impl Iterator<Item = (fixpoint::Var, Sort)> + '_ {
+    fn vars_in_scope(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.builder.vars[..self.nvars].iter().cloned()
     }
 }
@@ -190,7 +190,7 @@ impl Cursor<'_> {
 impl Node {
     fn to_fixpoint(
         self,
-        name_gen: &IndexGen<fixpoint::Var>,
+        name_gen: &IndexGen<Name>,
         kvars: &IndexVec<KVid, Vec<Sort>>,
     ) -> Option<fixpoint::Constraint> {
         match self {
@@ -227,7 +227,7 @@ impl Node {
 }
 
 fn children_to_fixpoint(
-    name_gen: &IndexGen<fixpoint::Var>,
+    name_gen: &IndexGen<Name>,
     kvars: &IndexVec<KVid, Vec<Sort>>,
     children: Vec<Node>,
 ) -> Option<fixpoint::Constraint> {
@@ -243,10 +243,10 @@ fn children_to_fixpoint(
 }
 
 fn pred_to_fixpoint(
-    name_gen: &IndexGen<fixpoint::Var>,
+    name_gen: &IndexGen<Name>,
     kvars: &IndexVec<KVid, Vec<Sort>>,
     refine: Pred,
-) -> (Vec<(fixpoint::Var, Sort, fixpoint::Expr)>, fixpoint::Pred) {
+) -> (Vec<(Name, Sort, fixpoint::Expr)>, fixpoint::Pred) {
     let mut bindings = vec![];
     let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(expr)),
@@ -290,7 +290,7 @@ fn expr_to_fixpoint(expr: ty::Expr) -> fixpoint::Expr {
 }
 
 fn stitch(
-    bindings: Vec<(fixpoint::Var, Sort, fixpoint::Expr)>,
+    bindings: Vec<(Name, Sort, fixpoint::Expr)>,
     c: fixpoint::Constraint,
 ) -> fixpoint::Constraint {
     bindings.into_iter().rev().fold(c, |c, (var, sort, e)| {

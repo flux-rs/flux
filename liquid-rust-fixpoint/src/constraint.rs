@@ -7,7 +7,7 @@ pub enum Constraint {
     Pred(Pred),
     Conj(Vec<Self>),
     Guard(Expr, Box<Self>),
-    ForAll(Var, Sort, Pred, Box<Self>),
+    ForAll(Name, Sort, Pred, Box<Self>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -18,12 +18,12 @@ pub enum Sort {
 
 pub enum Pred {
     And(Vec<Self>),
-    KVar(KVid, Vec<Var>),
+    KVar(KVid, Vec<Name>),
     Expr(Expr),
 }
 
 pub enum Expr {
-    Var(Var),
+    Var(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
     UnaryOp(UnOp, Box<Self>),
@@ -67,7 +67,7 @@ newtype_index! {
 }
 
 newtype_index! {
-    pub struct Var {
+    pub struct Name {
         DEBUG_FORMAT = "a{}",
     }
 }
