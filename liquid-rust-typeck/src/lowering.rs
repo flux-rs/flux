@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 pub struct Subst {
     regions: FxHashMap<core::Name, ty::Region>,
-    exprs: FxHashMap<core::Var, ty::Expr>,
+    exprs: FxHashMap<core::Name, ty::Expr>,
     types: Vec<ty::Ty>,
 }
 
@@ -28,10 +28,9 @@ pub fn lower_with_fresh_names(
 
     for param in &fn_sig.params {
         let fresh = cursor.fresh_var();
-        subst.exprs.insert(
-            core::Var::Free(param.name.name),
-            ty::Expr::from(ty::Var::Free(fresh)),
-        );
+        subst
+            .exprs
+            .insert(param.name.name, ty::Expr::from(ty::Var::Free(fresh)));
         let expr = subst.lower_expr(&param.pred);
         cursor.push_forall(fresh, param.sort, ty::Pred::Expr(expr));
     }
@@ -88,10 +87,6 @@ impl Subst {
         }
     }
 
-    pub fn contains_key_for_expr(&self, var: core::Var) -> bool {
-        self.exprs.contains_key(&var)
-    }
-
     pub fn infer_from_fn_call(
         &mut self,
         env: &TyEnv,
@@ -115,7 +110,7 @@ impl Subst {
     fn check_inference(&self, fn_sig: &core::FnSig) -> Result<(), Vec<InferenceError>> {
         let mut failed = vec![];
         for param in &fn_sig.params {
-            if !self.exprs.contains_key(&core::Var::Free(param.name.name)) {
+            if !self.exprs.contains_key(&param.name.name) {
                 failed.push(InferenceError::PureParam(param.name))
             }
         }
@@ -140,13 +135,13 @@ impl Subst {
                 core::Ty::Refine(
                     bty2,
                     core::Expr {
-                        kind: core::ExprKind::Var(var, symbol, ..),
+                        kind: core::ExprKind::Var(core::Var::Free(name), symbol, ..),
                         ..
                     },
                 ),
             ) => {
                 debug_assert!(bty1 == bty2);
-                match self.exprs.insert(*var, e.clone()) {
+                match self.exprs.insert(*name, e.clone()) {
                     Some(old_e) if &old_e != e => {
                         todo!("ambiguous instantiation for parameter `{}`", symbol)
                     }
@@ -178,13 +173,7 @@ impl Subst {
             core::Ty::Exists(bty, pred) => {
                 let pred = match pred {
                     core::Pred::Infer => cursor.fresh_kvar(bty.sort()),
-                    core::Pred::Expr(e) => {
-                        self.exprs
-                            .insert(core::Var::Bound, ty::Expr::from(ty::Var::Bound));
-                        let e = self.lower_expr(e);
-                        self.exprs.remove(&core::Var::Bound);
-                        ty::Pred::Expr(e)
-                    }
+                    core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
                 ty::TyKind::Exists(*bty, pred).intern()
             }
@@ -211,7 +200,10 @@ impl Subst {
     }
 
     fn lower_var(&self, var: core::Var) -> ty::Expr {
-        self.exprs.get(&var).unwrap().clone()
+        match var {
+            core::Var::Bound => ty::Var::Bound.into(),
+            core::Var::Free(name) => self.exprs[&name].clone(),
+        }
     }
 
     fn lower_lit(&self, lit: core::Lit) -> ty::Constant {
