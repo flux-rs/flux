@@ -1,13 +1,16 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_core::wf::Wf;
-use liquid_rust_typeck::{global_env::GlobalEnv, Checker};
+use liquid_rust_typeck::{
+    global_env::{FnSpec, GlobalEnv},
+    Checker,
+};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 
-use crate::{collector::Collector, lowering::LoweringCtxt, resolve::Resolver};
+use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
@@ -28,29 +31,38 @@ impl Callbacks for LiquidCallbacks {
 }
 
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
-    let annotations = Collector::collect(tcx, sess)?;
+    let annotations = SpecCollector::collect(tcx, sess)?;
 
     let resolver = Resolver::new(sess);
     let wf = Wf::new(sess);
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
-        .map(|(def_id, fn_sig)| {
-            let fn_sig = resolver.resolve(fn_sig)?;
+        .map(|(def_id, spec)| {
+            let fn_sig = resolver.resolve(spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
-            Ok((def_id, fn_sig))
+            Ok((
+                def_id,
+                FnSpec {
+                    fn_sig,
+                    assume: spec.assume,
+                },
+            ))
         })
         .try_collect_exhaust()?;
 
     let global_env = GlobalEnv::new(tcx, fn_sigs);
     global_env
-        .sigs
+        .specs
         .iter()
-        .map(|(def_id, fn_sig)| {
+        .map(|(def_id, spec)| {
+            if spec.assume {
+                return Ok(());
+            }
             println!("#######################################");
             println!("CHECKING: {}", tcx.item_name(*def_id));
             println!("#######################################");
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            Checker::check(&global_env, sess, &body, fn_sig)
+            Checker::check(&global_env, sess, &body, &spec.fn_sig)
         })
         .try_collect_exhaust()
 }

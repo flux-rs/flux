@@ -9,22 +9,27 @@ use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 use rustc_span::Span;
 
-pub(crate) struct Collector<'tcx, 'a> {
+pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
-    annotations: FxHashMap<DefId, FnSig>,
+    specs: FxHashMap<DefId, FnSpec>,
     sess: &'a Session,
     error_reported: bool,
 }
 
-impl<'tcx, 'a> Collector<'tcx, 'a> {
+pub struct FnSpec {
+    pub fn_sig: FnSig,
+    pub assume: bool,
+}
+
+impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(
         tcx: TyCtxt<'tcx>,
         sess: &'a Session,
-    ) -> Result<FxHashMap<DefId, FnSig>, ErrorReported> {
+    ) -> Result<FxHashMap<DefId, FnSpec>, ErrorReported> {
         let mut collector = Self {
             tcx,
             sess,
-            annotations: FxHashMap::default(),
+            specs: FxHashMap::default(),
             error_reported: false,
         };
 
@@ -33,11 +38,13 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
         if collector.error_reported {
             Err(ErrorReported)
         } else {
-            Ok(collector.annotations)
+            Ok(collector.specs)
         }
     }
 
     fn parse_annotations(&mut self, def_id: DefId, attributes: &[Attribute]) {
+        let mut fn_sig = None;
+        let mut assume = false;
         for attribute in attributes {
             if let AttrKind::Normal(attr_item, ..) = &attribute.kind {
                 // Be sure we are in a `liquid` attribute.
@@ -48,23 +55,32 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
 
                 match segments {
                     [second] if &*second.ident.as_str() == "ty" => {
+                        if fn_sig.is_some() {
+                            self.emit_error("Duplicated function signature.", attr_item.span());
+                            return;
+                        }
+
                         if let MacArgs::Delimited(span, _, tokens) = &attr_item.args {
-                            self.parse_fn_annot(def_id, tokens.clone(), span.entire());
+                            fn_sig = self.parse_fn_annot(tokens.clone(), span.entire());
                         } else {
                             self.emit_error("Invalid liquid annotation.", attr_item.span())
                         }
+                    }
+                    [second] if &*second.ident.as_str() == "assume" => {
+                        assume = true;
                     }
                     _ => self.emit_error("Invalid liquid annotation.", attr_item.span()),
                 }
             }
         }
+        if let Some(fn_sig) = fn_sig {
+            self.specs.insert(def_id, FnSpec { fn_sig, assume });
+        }
     }
 
-    fn parse_fn_annot(&mut self, def_id: DefId, tokens: TokenStream, input_span: Span) {
+    fn parse_fn_annot(&mut self, tokens: TokenStream, input_span: Span) -> Option<FnSig> {
         match parse_fn_sig(tokens, input_span) {
-            Ok(fn_sig) => {
-                self.annotations.insert(def_id, fn_sig);
-            }
+            Ok(fn_sig) => Some(fn_sig),
             Err(err) => {
                 let msg = match err.kind {
                     ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
@@ -73,6 +89,7 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
                 };
 
                 self.emit_error(msg, err.span);
+                None
             }
         }
     }
@@ -83,7 +100,7 @@ impl<'tcx, 'a> Collector<'tcx, 'a> {
     }
 }
 
-impl<'hir> ItemLikeVisitor<'hir> for Collector<'_, '_> {
+impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
             let hir_id = item.hir_id();

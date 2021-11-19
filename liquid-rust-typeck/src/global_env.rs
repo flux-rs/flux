@@ -3,17 +3,22 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 
+pub struct FnSpec {
+    pub fn_sig: FnSig,
+    pub assume: bool,
+}
+
 pub struct GlobalEnv<'tcx> {
-    pub sigs: FxHashMap<DefId, FnSig>,
+    pub specs: FxHashMap<DefId, FnSpec>,
     pub tcx: TyCtxt<'tcx>,
 }
 
 impl<'tcx> GlobalEnv<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sigs: FxHashMap<DefId, FnSig>) -> Self {
-        GlobalEnv { tcx, sigs }
+    pub fn new(tcx: TyCtxt<'tcx>, specs: FxHashMap<DefId, FnSpec>) -> Self {
+        GlobalEnv { tcx, specs }
     }
 
     pub fn lookup_fn_sig(&self, did: DefId) -> &FnSig {
-        &self.sigs[&did]
+        &self.specs[&did].fn_sig
     }
 }

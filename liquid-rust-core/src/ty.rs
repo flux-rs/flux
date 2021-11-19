@@ -1,6 +1,3 @@
-use std::fmt;
-
-use itertools::Itertools;
 use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
