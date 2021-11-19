@@ -46,8 +46,7 @@ impl<'a> Resolver<'a> {
                 };
                 let ident = ty::Ident {
                     name,
-                    symbol: ident.symbol,
-                    span: ident.span,
+                    source_info: (ident.span, ident.symbol),
                 };
                 let ty = self.resolve_ty(ty, &mut subst);
                 Ok((ident, ty?))
@@ -137,8 +136,7 @@ impl<'a> Resolver<'a> {
         } else {
             let name = ty::Ident {
                 name: fresh,
-                symbol: name.symbol,
-                span: name.span,
+                source_info: (name.span, name.symbol),
             };
             let sort = self.resolve_sort(sort);
             let pred = match pred {
@@ -233,9 +231,8 @@ impl<'a> Resolver<'a> {
     ) -> Result<ty::Ident, ErrorReported> {
         match subst.get_region(ident.symbol) {
             Some(name) => Ok(ty::Ident {
-                span: ident.span,
-                symbol: ident.symbol,
                 name,
+                source_info: (ident.span, ident.symbol),
             }),
             None => {
                 self.emit_error(

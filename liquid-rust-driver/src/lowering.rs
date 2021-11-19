@@ -99,19 +99,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let substs = substs
                             .iter()
-                            .map(|arg| match arg.unpack() {
-                                GenericArgKind::Type(ty) => self.lower_ty(ty),
-                                GenericArgKind::Lifetime(_) | GenericArgKind::Const(_) => {
-                                    self.tcx.sess.span_err(
-                                        terminator.source_info.span,
-                                        &format!(
-                                            "unsupported terminator kind: {:?}",
-                                            terminator.kind
-                                        ),
-                                    );
-                                    Err(ErrorReported)
-                                }
-                            })
+                            .map(|arg| self.lower_generic_arg(arg))
                             .try_collect()?;
 
                         (*fn_def, substs)
@@ -286,6 +274,21 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
+    fn lower_generic_arg(
+        &self,
+        arg: rustc_middle::ty::subst::GenericArg,
+    ) -> Result<core::ty::Ty, ErrorReported> {
+        match arg.unpack() {
+            GenericArgKind::Type(ty) => self.lower_ty(ty),
+            GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
+                self.tcx
+                    .sess
+                    .err(&format!("unsupported generic argument: `{:?}`", arg));
+                Err(ErrorReported)
+            }
+        }
+    }
+
     fn lower_ty(&self, ty: rustc_middle::ty::Ty) -> Result<core::ty::Ty, ErrorReported> {
         use liquid_rust_core::ty as core;
         match ty.kind() {
@@ -300,6 +303,14 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 index: param.index,
                 name: param.name,
             })),
+            rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
+                let substs = substs
+                    .iter()
+                    .map(|arg| self.lower_generic_arg(arg))
+                    .try_collect()?;
+                let adt = core::BaseTy::Adt(adt_def.did, substs);
+                Ok(core::Ty::Exists(adt, core::Pred::Infer))
+            }
             _ => {
                 self.tcx.sess.err(&format!(
                     "unsupported type `{:?}`, kind: `{:?}`",

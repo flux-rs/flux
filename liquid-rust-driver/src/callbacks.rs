@@ -41,7 +41,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         })
         .try_collect_exhaust()?;
 
-    let global_env = GlobalEnv::new(fn_sigs);
+    let global_env = GlobalEnv::new(tcx, fn_sigs);
     global_env
         .sigs
         .iter()

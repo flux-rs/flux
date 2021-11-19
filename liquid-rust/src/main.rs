@@ -18,6 +18,8 @@ fn main() {
     args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
     // Add release mode to the arguments.
     args.push("-O".into());
+    // We don't support unwinding.
+    args.push("-Cpanic=abort".into());
     // Run the rust compiler with the arguments.
     let exit_code = liquid_rust_driver::run_compiler(args);
     // Exit with the exit code returned by the compiler.

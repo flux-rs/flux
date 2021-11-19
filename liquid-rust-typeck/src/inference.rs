@@ -10,15 +10,16 @@ use liquid_rust_core::{
         self, BasicBlock, Body, Local, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind,
         Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
     },
-    ty::{self as core, BaseTy, FnSig, ParamTy},
+    ty::{self as core, FnSig, ParamTy},
 };
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Interned},
-    ty::{RVid, Region},
+    ty::{IntTy, RVid, Region},
 };
 
 pub type Ty = Interned<TyS>;
@@ -32,9 +33,16 @@ pub enum TyS {
     Param(ParamTy),
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum BaseTy {
+    Int(IntTy),
+    Bool,
+    Adt(DefId, Vec<Ty>),
+}
+
 pub struct InferCtxt<'a, 'tcx> {
     body: &'a Body<'tcx>,
-    global_env: &'a GlobalEnv,
+    global_env: &'a GlobalEnv<'tcx>,
     expr_gen: &'a IndexGen<ExprIdx>,
     visited: BitSet<BasicBlock>,
     bb_envs: FxHashMap<BasicBlock, TypeEnv<'a>>,
@@ -46,10 +54,10 @@ newtype_index! {
     }
 }
 
-impl<'a> InferCtxt<'a, '_> {
+impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     pub fn infer(
-        global_env: &GlobalEnv,
-        body: &Body,
+        global_env: &GlobalEnv<'tcx>,
+        body: &Body<'tcx>,
         fn_sig: &FnSig,
     ) -> FxHashMap<BasicBlock, DisjointSetsMap<RVid, Ty>> {
         let expr_gen = &IndexGen::new();
@@ -203,7 +211,7 @@ impl<'a> InferCtxt<'a, '_> {
         match (bin_op, &*ty1, &*ty2) {
             (ir::BinOp::Add | ir::BinOp::Sub, TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
                 debug_assert_eq!(bty1, bty2);
-                TyS::Refine(*bty1, self.expr_gen.fresh()).intern()
+                TyS::Refine(bty1.clone(), self.expr_gen.fresh()).intern()
             }
             (ir::BinOp::Gt | ir::BinOp::Lt, TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
                 debug_assert_eq!(bty1, bty2);
@@ -222,7 +230,7 @@ impl<'a> InferCtxt<'a, '_> {
                 TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern()
             }
             (ir::UnOp::Neg, TyS::Refine(bty, _)) => {
-                TyS::Refine(*bty, self.expr_gen.fresh()).intern()
+                TyS::Refine(bty.clone(), self.expr_gen.fresh()).intern()
             }
             _ => {
                 unreachable!("unexpected type: `{:?}`", ty);
@@ -385,8 +393,8 @@ impl TyS {
 
     pub fn unpack(&self, gen: &IndexGen<ExprIdx>) -> Ty {
         match self {
-            TyS::Exists(bty) => TyS::Refine(*bty, gen.fresh()).intern(),
-            TyS::Refine(bty, e) => TyS::Refine(*bty, *e).intern(),
+            TyS::Exists(bty) => TyS::Refine(bty.clone(), gen.fresh()).intern(),
+            TyS::Refine(bty, e) => TyS::Refine(bty.clone(), *e).intern(),
             TyS::Uninit => TyS::Uninit.intern(),
             TyS::MutRef(region) => TyS::MutRef(region.clone()).intern(),
             TyS::Param(param) => TyS::Param(*param).intern(),
@@ -397,14 +405,14 @@ impl TyS {
         match (self, other) {
             (TyS::Refine(bty1, e1), TyS::Refine(bty2, e2)) if e1 == e2 => {
                 debug_assert_eq!(bty1, bty2);
-                TyS::Refine(*bty1, *e1).intern()
+                TyS::Refine(bty1.clone(), *e1).intern()
             }
             (
                 TyS::Refine(bty1, _) | TyS::Exists(bty1),
                 TyS::Refine(bty2, _) | TyS::Exists(bty2),
             ) => {
                 debug_assert_eq!(bty1, bty2);
-                TyS::Exists(*bty1).intern()
+                TyS::Exists(bty1.clone()).intern()
             }
             (TyS::MutRef(region1), TyS::MutRef(region2)) => TyS::MutRef(region1 + region2).intern(),
             (TyS::Uninit, _) | (_, TyS::Uninit) => TyS::Uninit.intern(),
@@ -526,14 +534,27 @@ impl Subst {
 
     fn lower_ty(&self, gen: &IndexGen<ExprIdx>, ty: &core::Ty) -> Ty {
         match ty {
-            core::Ty::Refine(bty, _) => TyS::Refine(*bty, gen.fresh()).intern(),
-            core::Ty::Exists(bty, _) => TyS::Exists(*bty).intern(),
+            core::Ty::Refine(bty, _) => {
+                TyS::Refine(self.lower_base_ty(gen, bty), gen.fresh()).intern()
+            }
+            core::Ty::Exists(bty, _) => TyS::Exists(self.lower_base_ty(gen, bty)).intern(),
             core::Ty::MutRef(region) => TyS::MutRef(self.regions[&region.name].clone()).intern(),
             core::Ty::Param(param) => self
                 .types
                 .get(param.index as usize)
                 .cloned()
                 .unwrap_or_else(|| TyS::Param(*param).intern()),
+        }
+    }
+
+    fn lower_base_ty(&self, gen: &IndexGen<ExprIdx>, bty: &core::BaseTy) -> BaseTy {
+        match bty {
+            core::BaseTy::Int(int_ty) => BaseTy::Int(*int_ty),
+            core::BaseTy::Bool => BaseTy::Bool,
+            core::BaseTy::Adt(did, substs) => {
+                let substs = substs.iter().map(|ty| self.lower_ty(gen, ty)).collect();
+                BaseTy::Adt(*did, substs)
+            }
         }
     }
 
@@ -560,6 +581,27 @@ impl Subst {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+impl fmt::Debug for BaseTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(IntTy::I8) => write!(f, "i8"),
+            Self::Int(IntTy::I16) => write!(f, "i16"),
+            Self::Int(IntTy::I32) => write!(f, "i32"),
+            Self::Int(IntTy::I64) => write!(f, "i64"),
+            Self::Int(IntTy::I128) => write!(f, "i128"),
+            Self::Int(IntTy::Isize) => write!(f, "isize"),
+            Self::Bool => write!(f, "bool"),
+            Self::Adt(did, args) => {
+                if args.is_empty() {
+                    write!(f, "{:?}", did)
+                } else {
+                    write!(f, "{:?}<{:?}>", did, args.iter().format(", "))
+                }
+            }
         }
     }
 }

@@ -1,8 +1,10 @@
 use std::fmt;
 
+use itertools::Itertools;
 use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
+use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::IntTy;
 use rustc_span::{Span, Symbol};
 
@@ -29,10 +31,11 @@ pub enum Pred {
     Expr(Expr),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub enum BaseTy {
     Int(IntTy),
     Bool,
+    Adt(DefId, Vec<Ty>),
 }
 
 #[derive(Debug)]
@@ -70,8 +73,7 @@ pub enum Lit {
 #[derive(Debug, Clone, Copy)]
 pub struct Ident {
     pub name: Name,
-    pub symbol: Symbol,
-    pub span: Span,
+    pub source_info: (Span, Symbol),
 }
 
 newtype_index! {
@@ -91,6 +93,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(_, _) => Sort::Int,
         }
     }
 
@@ -120,20 +123,6 @@ impl Lit {
         match self {
             Lit::Int(_) => Sort::Int,
             Lit::Bool(_) => Sort::Bool,
-        }
-    }
-}
-
-impl fmt::Debug for BaseTy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Int(IntTy::I8) => write!(f, "i8"),
-            Self::Int(IntTy::I16) => write!(f, "i16"),
-            Self::Int(IntTy::I32) => write!(f, "i32"),
-            Self::Int(IntTy::I64) => write!(f, "i64"),
-            Self::Int(IntTy::I128) => write!(f, "i128"),
-            Self::Int(IntTy::Isize) => write!(f, "isize"),
-            Self::Bool => write!(f, "bool"),
         }
     }
 }

@@ -140,7 +140,7 @@ impl Subst {
                     },
                 ),
             ) => {
-                debug_assert!(bty1 == bty2);
+                // debug_assert!(bty1 == bty2);
                 match self.exprs.insert(*name, e.clone()) {
                     Some(old_e) if &old_e != e => {
                         todo!("ambiguous instantiation for parameter `{}`", symbol)
@@ -152,8 +152,8 @@ impl Subst {
                 match self.regions.insert(region2.name, region1.clone()) {
                     Some(old_region) if &old_region != region1 => {
                         todo!(
-                            "ambiguous instantiation for region parameter `{}`",
-                            region2.symbol
+                            "ambiguous instantiation for region parameter `{:?}`",
+                            region2.source_info
                         );
                     }
                     _ => {}
@@ -169,13 +169,15 @@ impl Subst {
 
     pub fn lower_ty(&mut self, cursor: &mut Cursor, ty: &core::Ty) -> ty::Ty {
         match ty {
-            core::Ty::Refine(bty, e) => ty::TyKind::Refine(*bty, self.lower_expr(e)).intern(),
+            core::Ty::Refine(bty, e) => {
+                ty::TyKind::Refine(self.lower_base_ty(cursor, bty), self.lower_expr(e)).intern()
+            }
             core::Ty::Exists(bty, pred) => {
                 let pred = match pred {
                     core::Pred::Infer => cursor.fresh_kvar(bty.sort()),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
-                ty::TyKind::Exists(*bty, pred).intern()
+                ty::TyKind::Exists(self.lower_base_ty(cursor, bty), pred).intern()
             }
             core::Ty::MutRef(region) => {
                 ty::TyKind::MutRef(self.regions[&region.name].clone()).intern()
@@ -185,6 +187,17 @@ impl Subst {
                 .get(param.index as usize)
                 .cloned()
                 .unwrap_or_else(|| ty::TyKind::Param(*param).intern()),
+        }
+    }
+
+    pub fn lower_base_ty(&mut self, cursor: &mut Cursor, bty: &core::BaseTy) -> ty::BaseTy {
+        match bty {
+            core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
+            core::BaseTy::Bool => ty::BaseTy::Bool,
+            core::BaseTy::Adt(did, substs) => {
+                let substs = substs.iter().map(|ty| self.lower_ty(cursor, ty)).collect();
+                ty::BaseTy::Adt(*did, substs)
+            }
         }
     }
 

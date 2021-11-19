@@ -169,8 +169,14 @@ impl TyEnv {
             let ty = match &*ty {
                 inference::TyS::Refine(_, _) => self.lookup_region(rvid),
                 inference::TyS::Exists(bty) => {
-                    let pred = cursor.fresh_kvar_at_last_scope(bty.sort());
-                    TyKind::Exists(*bty, pred).intern()
+                    let ty = self.lookup_region(rvid);
+                    match ty.kind() {
+                        TyKind::Refine(bty, _) => {
+                            let pred = cursor.fresh_kvar_at_last_scope(bty.sort());
+                            TyKind::Exists(bty.clone(), pred).intern()
+                        }
+                        _ => unreachable!("unexpected type: `{:?}`", ty),
+                    }
                 }
                 inference::TyS::Uninit => TyKind::Uninit.intern(),
                 inference::TyS::MutRef(region) => TyKind::MutRef(region.clone()).intern(),

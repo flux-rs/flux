@@ -2,9 +2,9 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
-pub use liquid_rust_core::ty::BaseTy;
 use liquid_rust_core::{ir::Local, ty::ParamTy};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Name, Sort, UnOp};
+use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::IntTy;
 
 use crate::intern::{impl_internable, Interned};
@@ -23,6 +23,13 @@ pub enum TyKind {
     Uninit,
     MutRef(Region),
     Param(ParamTy),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum BaseTy {
+    Int(IntTy),
+    Bool,
+    Adt(DefId, Vec<Ty>),
 }
 
 pub type Region = Interned<RegionS>;
@@ -66,6 +73,16 @@ impl TyKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+}
+
+impl BaseTy {
+    pub fn sort(&self) -> Sort {
+        match self {
+            BaseTy::Int(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(_, _) => Sort::Int,
+        }
     }
 }
 
@@ -257,6 +274,27 @@ impl fmt::Debug for TyS {
             TyKind::Uninit => write!(f, "uninit"),
             TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
             TyKind::Param(ParamTy { name, .. }) => write!(f, "{:?}", name),
+        }
+    }
+}
+
+impl fmt::Debug for BaseTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(IntTy::I8) => write!(f, "i8"),
+            Self::Int(IntTy::I16) => write!(f, "i16"),
+            Self::Int(IntTy::I32) => write!(f, "i32"),
+            Self::Int(IntTy::I64) => write!(f, "i64"),
+            Self::Int(IntTy::I128) => write!(f, "i128"),
+            Self::Int(IntTy::Isize) => write!(f, "isize"),
+            Self::Bool => write!(f, "bool"),
+            Self::Adt(did, args) => {
+                if args.is_empty() {
+                    write!(f, "{:?}", did)
+                } else {
+                    write!(f, "{:?}<{:?}>", did, args.iter().format(", "))
+                }
+            }
         }
     }
 }

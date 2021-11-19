@@ -135,13 +135,13 @@ impl Cursor<'_> {
     pub fn subtyping(&mut self, ty1: ty::Ty, ty2: ty::Ty) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
-                debug_assert_eq!(bty1, bty2);
+                // debug_assert_eq!(bty1, bty2);
                 if e1 != e2 {
                     self.push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
                 }
             }
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
-                debug_assert_eq!(bty1, bty2);
+                // debug_assert_eq!(bty1, bty2);
                 self.push_head(p.subst_bound_vars(e.clone()))
             }
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
@@ -171,7 +171,7 @@ impl Cursor<'_> {
                     bty.sort(),
                     p.subst_bound_vars(ExprKind::Var(Var::Free(fresh)).intern()),
                 );
-                TyKind::Refine(*bty, ExprKind::Var(Var::Free(fresh)).intern()).intern()
+                TyKind::Refine(bty.clone(), ExprKind::Var(Var::Free(fresh)).intern()).intern()
             }
             _ => ty,
         }

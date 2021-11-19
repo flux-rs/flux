@@ -55,15 +55,15 @@ pub struct Checker<'a, 'tcx> {
     bb_envs: FxHashMap<BasicBlock, TyEnv>,
     bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<RVid, inference::Ty>>,
     ret_ty: Ty,
-    global_env: &'a GlobalEnv,
+    global_env: &'a GlobalEnv<'tcx>,
     ensures: Vec<(Region, Ty)>,
 }
 
-impl Checker<'_, '_> {
+impl<'tcx> Checker<'_, 'tcx> {
     pub fn check(
-        global_env: &GlobalEnv,
+        global_env: &GlobalEnv<'tcx>,
         sess: &Session,
-        body: &Body,
+        body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
@@ -384,7 +384,7 @@ impl Checker<'_, '_> {
 
     fn report_inference_errors(
         &self,
-        source_info: SourceInfo,
+        call_source_info: SourceInfo,
         errors: Vec<lowering::InferenceError>,
     ) -> Result<(), ErrorReported> {
         for error in errors {
@@ -392,18 +392,16 @@ impl Checker<'_, '_> {
                 lowering::InferenceError::PureParam(ident) => (ident, "pure"),
                 lowering::InferenceError::RegionParam(ident) => (ident, "region"),
             };
-            let mut s = MultiSpan::from_span(source_info.span);
+            let mut s = MultiSpan::from_span(call_source_info.span);
+            let (span, symbol) = ident.source_info;
             s.push_span_label(
-                source_info.span,
+                call_source_info.span,
                 format!(
                     "cannot infer the value of {} parameter `{}` in this function call",
-                    param_kind, ident.symbol
+                    param_kind, symbol
                 ),
             );
-            s.push_span_label(
-                ident.span,
-                format!("parameter `{}` declared here", ident.symbol),
-            );
+            s.push_span_label(span, format!("parameter `{}` declared here", symbol));
             self.sess.span_err(s, "parameter inference failed");
         }
         Err(ErrorReported)
