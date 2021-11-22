@@ -213,7 +213,7 @@ impl<'tcx> Checker<'_, 'tcx> {
 
                 let mut subst = lowering::Subst::new(cursor, substs);
                 if let Err(errors) = subst.infer_from_fn_call(env, &actuals, fn_sig) {
-                    return self.report_inference_errors(terminator.source_info, errors);
+                    return self.report_inference_error(terminator.source_info);
                 };
 
                 for param in &fn_sig.params {
@@ -226,13 +226,13 @@ impl<'tcx> Checker<'_, 'tcx> {
                 }
 
                 for (region, required_ty) in &fn_sig.requires {
-                    let actual_ty = env.lookup_region(subst.lower_region(region.name)[0]);
+                    let actual_ty = env.lookup_region(subst.lower_region(*region)[0]);
                     let required_ty = subst.lower_ty(cursor, required_ty);
                     cursor.snapshot().subtyping(actual_ty, required_ty);
                 }
 
                 for (region, updated_ty) in &fn_sig.ensures {
-                    let region = subst.lower_region(region.name);
+                    let region = subst.lower_region(*region);
                     let updated_ty = subst.lower_ty(cursor, updated_ty);
                     env.update_region(cursor, region[0], updated_ty);
                 }
@@ -382,28 +382,9 @@ impl<'tcx> Checker<'_, 'tcx> {
         }
     }
 
-    fn report_inference_errors(
-        &self,
-        call_source_info: SourceInfo,
-        errors: Vec<lowering::InferenceError>,
-    ) -> Result<(), ErrorReported> {
-        for error in errors {
-            let (ident, param_kind) = match error {
-                lowering::InferenceError::PureParam(ident) => (ident, "pure"),
-                lowering::InferenceError::RegionParam(ident) => (ident, "region"),
-            };
-            let mut s = MultiSpan::from_span(call_source_info.span);
-            let (span, symbol) = ident.source_info;
-            s.push_span_label(
-                call_source_info.span,
-                format!(
-                    "cannot infer the value of {} parameter `{}` in this function call",
-                    param_kind, symbol
-                ),
-            );
-            s.push_span_label(span, format!("parameter `{}` declared here", symbol));
-            self.sess.span_err(s, "parameter inference failed");
-        }
+    fn report_inference_error(&self, call_source_info: SourceInfo) -> Result<(), ErrorReported> {
+        self.sess
+            .span_err(call_source_info.span, "inference error at function call");
         Err(ErrorReported)
     }
 }

@@ -33,12 +33,11 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let annotations = SpecCollector::collect(tcx, sess)?;
 
-    let resolver = Resolver::new(sess);
     let wf = Wf::new(sess);
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
         .map(|(def_id, spec)| {
-            let fn_sig = resolver.resolve(spec.fn_sig)?;
+            let fn_sig = Resolver::resolve(tcx, def_id, spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
             Ok((
                 def_id,
@@ -59,7 +58,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
                 return Ok(());
             }
             println!("#######################################");
-            println!("CHECKING: {}", tcx.item_name(*def_id));
+            println!("CHECKING: {}", tcx.item_name(def_id.to_def_id()));
             println!("#######################################");
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
             Checker::check(&global_env, sess, &body, &spec.fn_sig)

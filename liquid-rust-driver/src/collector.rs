@@ -3,7 +3,8 @@ use liquid_rust_syntax::{ast::FnSig, parse_fn_sig, ParseErrorKind};
 use rustc_ast::{tokenstream::TokenStream, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    def_id::DefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, Item, ItemKind, TraitItem,
+    def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, Item, ItemKind,
+    TraitItem,
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
@@ -11,7 +12,7 @@ use rustc_span::Span;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
-    specs: FxHashMap<DefId, FnSpec>,
+    specs: FxHashMap<LocalDefId, FnSpec>,
     sess: &'a Session,
     error_reported: bool,
 }
@@ -25,7 +26,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(
         tcx: TyCtxt<'tcx>,
         sess: &'a Session,
-    ) -> Result<FxHashMap<DefId, FnSpec>, ErrorReported> {
+    ) -> Result<FxHashMap<LocalDefId, FnSpec>, ErrorReported> {
         let mut collector = Self {
             tcx,
             sess,
@@ -42,7 +43,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_annotations(&mut self, def_id: DefId, attributes: &[Attribute]) {
+    fn parse_annotations(&mut self, def_id: LocalDefId, attributes: &[Attribute]) {
         let mut fn_sig = None;
         let mut assume = false;
         for attribute in attributes {
@@ -104,7 +105,7 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
             let hir_id = item.hir_id();
-            let def_id = self.tcx.hir().local_def_id(hir_id).to_def_id();
+            let def_id = self.tcx.hir().local_def_id(hir_id);
             let attrs = self.tcx.hir().attrs(hir_id);
             self.parse_annotations(def_id, attrs);
         }

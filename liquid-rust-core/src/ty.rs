@@ -2,23 +2,23 @@ use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::ty::IntTy;
+pub use rustc_middle::ty::{IntTy, ParamTy};
 use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
 pub struct FnSig {
     pub params: Vec<Param>,
-    pub requires: Vec<(Ident, Ty)>,
+    pub requires: Vec<(Name, Ty)>,
     pub args: Vec<Ty>,
     pub ret: Ty,
-    pub ensures: Vec<(Ident, Ty)>,
+    pub ensures: Vec<(Name, Ty)>,
 }
 
 #[derive(Debug)]
 pub enum Ty {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
-    MutRef(Ident),
+    MutRef(Name),
     Param(ParamTy),
 }
 
@@ -77,12 +77,6 @@ newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "x{}",
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ParamTy {
-    pub index: u32,
-    pub name: Symbol,
 }
 
 impl BaseTy {

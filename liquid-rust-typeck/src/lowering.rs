@@ -13,10 +13,7 @@ pub struct Subst {
     types: Vec<ty::Ty>,
 }
 
-pub enum InferenceError {
-    PureParam(core::Ident),
-    RegionParam(core::Ident),
-}
+pub struct InferenceError;
 
 pub fn lower_with_fresh_names(
     cursor: &mut Cursor,
@@ -39,7 +36,7 @@ pub fn lower_with_fresh_names(
         let ty = subst.lower_ty(cursor, ty);
         let ty = cursor.unpack(ty);
         let rvid = env_builder.define_abstract_region(ty);
-        subst.regions.insert(name.name, ty::Region::from(rvid));
+        subst.regions.insert(*name, ty::Region::from(rvid));
     }
 
     for (local, ty) in body.args_iter().zip(&fn_sig.args) {
@@ -59,7 +56,7 @@ pub fn lower_with_fresh_names(
         .iter()
         .map(|(name, ty)| {
             let ty = subst.lower_ty(cursor, ty);
-            (subst.regions[&name.name].clone(), ty)
+            (subst.regions[name].clone(), ty)
         })
         .collect();
 
@@ -92,7 +89,7 @@ impl Subst {
         env: &TyEnv,
         actuals: &[ty::Ty],
         fn_sig: &core::FnSig,
-    ) -> Result<(), Vec<InferenceError>> {
+    ) -> Result<(), InferenceError> {
         assert!(actuals.len() == fn_sig.args.len());
 
         for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
@@ -100,32 +97,26 @@ impl Subst {
         }
 
         for (region, required) in &fn_sig.requires {
-            let actual = env.lookup_region(self.lower_region(region.name)[0]);
+            let actual = env.lookup_region(self.lower_region(*region)[0]);
             self.infer_from_tys(actual, required);
         }
 
         self.check_inference(fn_sig)
     }
 
-    fn check_inference(&self, fn_sig: &core::FnSig) -> Result<(), Vec<InferenceError>> {
-        let mut failed = vec![];
+    fn check_inference(&self, fn_sig: &core::FnSig) -> Result<(), InferenceError> {
         for param in &fn_sig.params {
             if !self.exprs.contains_key(&param.name.name) {
-                failed.push(InferenceError::PureParam(param.name))
+                return Err(InferenceError);
             }
         }
 
         for (region, _) in &fn_sig.requires {
-            if !self.regions.contains_key(&region.name) {
-                failed.push(InferenceError::RegionParam(*region))
+            if !self.regions.contains_key(region) {
+                return Err(InferenceError);
             }
         }
-
-        if failed.is_empty() {
-            Ok(())
-        } else {
-            Err(failed)
-        }
+        Ok(())
     }
 
     fn infer_from_tys(&mut self, ty1: ty::Ty, ty2: &core::Ty) {
@@ -149,12 +140,9 @@ impl Subst {
                 }
             }
             (ty::TyKind::MutRef(region1), core::Ty::MutRef(region2)) => {
-                match self.regions.insert(region2.name, region1.clone()) {
+                match self.regions.insert(*region2, region1.clone()) {
                     Some(old_region) if &old_region != region1 => {
-                        todo!(
-                            "ambiguous instantiation for region parameter `{:?}`",
-                            region2.source_info
-                        );
+                        todo!("ambiguous instantiation for region parameter`",);
                     }
                     _ => {}
                 }
@@ -179,9 +167,7 @@ impl Subst {
                 };
                 ty::TyKind::Exists(self.lower_base_ty(cursor, bty), pred).intern()
             }
-            core::Ty::MutRef(region) => {
-                ty::TyKind::MutRef(self.regions[&region.name].clone()).intern()
-            }
+            core::Ty::MutRef(region) => ty::TyKind::MutRef(self.regions[region].clone()).intern(),
             core::Ty::Param(param) => self
                 .types
                 .get(param.index as usize)

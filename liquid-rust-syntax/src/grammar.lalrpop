@@ -10,14 +10,14 @@ grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
 pub FnSig: ast::FnSig = {
     "fn"
-    <params:Params?>
+    <lo:@L> <generics:Generics?> <hi:@R>
     "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
     "->"
     <ret:Ty> <ensures:(";" <Env>)?>=> {
-        let params = params.unwrap_or_else(|| vec![]);
+        let generics = generics.unwrap_or_else(|| ast::Generics::empty(mk_span(lo, hi)));
         let requires = requires.unwrap_or_else(|| vec![]);
         let ensures = ensures.unwrap_or_else(|| vec![]);
-        ast::FnSig { <> }
+        ast::FnSig { generics, requires, args, ret, ensures }
     }
 }
 
@@ -35,16 +35,18 @@ TyKind: ast::TyKind = {
     "ref" "<" <ident:Ident> ">"                      => ast::TyKind::MutRef(<>),
 }
 
-Params: Vec<ast::Param> = {
-    "<" <Comma<Param>> ">"
+Generics: ast::Generics = {
+    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
+        ast::Generics { params, span: mk_span(lo, hi) }
+    }
 }
 
 Env = <Comma<(<Ident> ":" <Ty>)>>;
 
-Param: ast::Param = {
-    <name:Ident> ":" <sort:Ident> "{" <pred:Expr> "}" => ast::Param::Pure { name, sort, pred: Some(pred) },
-    <name:Ident> ":" <sort:Ident>                     => ast::Param::Pure { name, sort, pred: None },
-    <name:Ident>                                      => ast::Param::Type(name)
+GenericParam: ast::GenericParam = {
+    <name:Ident> ":" <sort:Ident> "{" <pred:Expr> "}" => ast::GenericParam::Pure { name, sort, pred: Some(pred) },
+    <name:Ident> ":" <sort:Ident>                     => ast::GenericParam::Pure { name, sort, pred: None },
+    <name:Ident>                                      => ast::GenericParam::Type(name)
 }
 
 Expr = Level<BinOp1, Level2>;
@@ -115,8 +117,8 @@ Lit: ast::Lit = {
 
 
 Ident: ast::Ident = {
-    <lo:@L> <ident:"ident"> <hi:@R> => {
-        ast::Ident { symbol: ident, span: mk_span(lo, hi) }
+    <lo:@L> <name:"ident"> <hi:@R> => {
+        ast::Ident { name, span: mk_span(lo, hi) }
     }
 }
 

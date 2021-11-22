@@ -281,12 +281,7 @@ impl fmt::Debug for TyS {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(IntTy::I8) => write!(f, "i8"),
-            Self::Int(IntTy::I16) => write!(f, "i16"),
-            Self::Int(IntTy::I32) => write!(f, "i32"),
-            Self::Int(IntTy::I64) => write!(f, "i64"),
-            Self::Int(IntTy::I128) => write!(f, "i128"),
-            Self::Int(IntTy::Isize) => write!(f, "isize"),
+            Self::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
             Self::Bool => write!(f, "bool"),
             Self::Adt(did, args) => {
                 if args.is_empty() {

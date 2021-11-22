@@ -3,11 +3,17 @@ use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
 pub struct FnSig {
-    pub params: Vec<Param>,
+    pub generics: Generics,
     pub requires: Vec<(Ident, Ty)>,
     pub args: Vec<Ty>,
     pub ret: Ty,
     pub ensures: Vec<(Ident, Ty)>,
+}
+
+#[derive(Debug)]
+pub struct Generics {
+    pub params: Vec<GenericParam>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -22,11 +28,10 @@ pub enum TyKind {
     RefineTy { bty: Ident, refine: Expr },
     Exists { bind: Ident, bty: Ident, pred: Expr },
     MutRef(Ident),
-    Param(Ident),
 }
 
 #[derive(Debug)]
-pub enum Param {
+pub enum GenericParam {
     Pure {
         name: Ident,
         sort: Ident,
@@ -69,6 +74,15 @@ pub enum BinOp {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ident {
-    pub symbol: Symbol,
+    pub name: Symbol,
     pub span: Span,
+}
+
+impl Generics {
+    pub fn empty(span: Span) -> Generics {
+        Generics {
+            params: vec![],
+            span,
+        }
+    }
 }

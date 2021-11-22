@@ -444,7 +444,7 @@ fn lower(
         .map(|(name, ty)| {
             let rvid = rvid_gen.fresh();
             let ty = subst.lower_ty(gen, ty);
-            subst.regions.insert(name.name, Region::from(rvid));
+            subst.regions.insert(*name, Region::from(rvid));
             ty
         })
         .collect();
@@ -462,7 +462,7 @@ fn lower(
         .iter()
         .map(|(name, ty)| {
             let ty = subst.lower_ty(gen, ty);
-            (subst.lower_region(name.name), ty)
+            (subst.lower_region(*name), ty)
         })
         .collect();
 
@@ -477,7 +477,7 @@ fn lower_with_subst(
     let requires = fn_sig
         .requires
         .iter()
-        .map(|(name, ty)| (subst.lower_region(name.name), subst.lower_ty(gen, ty)))
+        .map(|(name, ty)| (subst.lower_region(*name), subst.lower_ty(gen, ty)))
         .collect();
 
     let args = fn_sig
@@ -491,7 +491,7 @@ fn lower_with_subst(
     let ensures = fn_sig
         .ensures
         .iter()
-        .map(|(name, ty)| (subst.lower_region(name.name), subst.lower_ty(gen, ty)))
+        .map(|(name, ty)| (subst.lower_region(*name), subst.lower_ty(gen, ty)))
         .collect();
 
     (requires, args, ret, ensures)
@@ -538,7 +538,7 @@ impl Subst {
                 TyS::Refine(self.lower_base_ty(gen, bty), gen.fresh()).intern()
             }
             core::Ty::Exists(bty, _) => TyS::Exists(self.lower_base_ty(gen, bty)).intern(),
-            core::Ty::MutRef(region) => TyS::MutRef(self.regions[&region.name].clone()).intern(),
+            core::Ty::MutRef(region) => TyS::MutRef(self.regions[region].clone()).intern(),
             core::Ty::Param(param) => self
                 .types
                 .get(param.index as usize)
@@ -573,7 +573,7 @@ impl Subst {
     fn infer_from_tys(&mut self, ty1: Ty, ty2: &core::Ty) {
         match (&*ty1, ty2) {
             (TyS::MutRef(region1), core::Ty::MutRef(region2)) => {
-                match self.regions.insert(region2.name, region1.clone()) {
+                match self.regions.insert(*region2, region1.clone()) {
                     Some(old_region) if &old_region != region1 => {
                         todo!("report this error");
                     }
@@ -588,12 +588,7 @@ impl Subst {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(IntTy::I8) => write!(f, "i8"),
-            Self::Int(IntTy::I16) => write!(f, "i16"),
-            Self::Int(IntTy::I32) => write!(f, "i32"),
-            Self::Int(IntTy::I64) => write!(f, "i64"),
-            Self::Int(IntTy::I128) => write!(f, "i128"),
-            Self::Int(IntTy::Isize) => write!(f, "isize"),
+            Self::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
             Self::Bool => write!(f, "bool"),
             Self::Adt(did, args) => {
                 if args.is_empty() {
