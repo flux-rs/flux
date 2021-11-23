@@ -29,8 +29,11 @@ pub enum TyKind {
 pub enum BaseTy {
     Int(IntTy),
     Bool,
-    Adt(DefId, Vec<Ty>),
+    Adt(DefId, Substs),
 }
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Substs(Interned<Vec<Ty>>);
 
 pub type Region = Interned<RegionS>;
 
@@ -64,6 +67,12 @@ pub enum Var {
     Free(Name),
 }
 
+newtype_index! {
+    pub struct RVid {
+        DEBUG_FORMAT = "'{}"
+    }
+}
+
 impl TyKind {
     pub fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
@@ -73,6 +82,22 @@ impl TyKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+}
+
+impl Substs {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn iter(&self) -> std::slice::Iter<Ty> {
+        self.0.iter()
+    }
+}
+
+impl FromIterator<Ty> for Substs {
+    fn from_iter<T: IntoIterator<Item = Ty>>(iter: T) -> Self {
+        Substs(Interned::new(iter.into_iter().collect()))
     }
 }
 
@@ -199,19 +224,6 @@ impl fmt::Debug for Var {
     }
 }
 
-newtype_index! {
-    pub struct RVid {
-        DEBUG_FORMAT = "'{}"
-    }
-}
-
-impl_internable!(
-    crate::ty::TyS,
-    crate::ty::ExprS,
-    crate::ty::RegionS,
-    Vec<Expr>
-);
-
 impl RegionS {
     fn intern(self) -> Region {
         Interned::new(self)
@@ -332,3 +344,11 @@ impl From<Var> for Expr {
         ExprKind::Var(var).intern()
     }
 }
+
+impl_internable!(
+    crate::ty::TyS,
+    crate::ty::ExprS,
+    crate::ty::RegionS,
+    Vec<Expr>,
+    Vec<Ty>
+);
