@@ -4,16 +4,18 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::ty::{self, Expr, ExprKind, Pred, Sort, Ty, TyKind, Var};
+use crate::ty::{self, BaseTy, Expr, ExprKind, Pred, Sort, Ty, TyKind, Var};
 use fixpoint::{BinOp, KVar, KVid, Name};
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use liquid_rust_common::{
     format::PadAdapter,
     index::{IndexGen, IndexVec},
 };
 use liquid_rust_fixpoint as fixpoint;
+use rustc_middle::ty::TyCtxt;
 
-pub struct ConstraintBuilder {
+pub struct ConstraintBuilder<'tcx> {
+    tcx: TyCtxt<'tcx>,
     root: Node,
     kvars: IndexVec<KVid, Vec<Sort>>,
     scopes: Vec<usize>,
@@ -21,8 +23,8 @@ pub struct ConstraintBuilder {
     name_gen: IndexGen<Name>,
 }
 
-pub struct Cursor<'a> {
-    builder: &'a mut ConstraintBuilder,
+pub struct Cursor<'a, 'tcx> {
+    builder: &'a mut ConstraintBuilder<'tcx>,
     node: NonNull<Node>,
     nscopes: usize,
     nvars: usize,
@@ -35,9 +37,10 @@ enum Node {
     Head(Pred),
 }
 
-impl ConstraintBuilder {
-    pub fn new() -> Self {
+impl<'tcx> ConstraintBuilder<'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
+            tcx,
             root: Node::Conj(vec![]),
             kvars: IndexVec::new(),
             scopes: vec![],
@@ -46,7 +49,7 @@ impl ConstraintBuilder {
         }
     }
 
-    pub fn as_cursor<'a>(&'a mut self) -> Cursor<'a> {
+    pub fn as_cursor<'a>(&'a mut self) -> Cursor<'a, 'tcx> {
         unsafe {
             Cursor {
                 node: NonNull::new_unchecked(&mut self.root as *mut Node),
@@ -71,8 +74,8 @@ impl ConstraintBuilder {
     }
 }
 
-impl Cursor<'_> {
-    pub fn snapshot(&mut self) -> Cursor {
+impl<'tcx> Cursor<'_, 'tcx> {
+    pub fn snapshot<'a>(&'a mut self) -> Cursor<'a, 'tcx> {
         Cursor {
             builder: &mut self.builder,
             ..*self
@@ -132,17 +135,20 @@ impl Cursor<'_> {
         self.builder.name_gen.fresh()
     }
 
-    pub fn subtyping(&mut self, ty1: ty::Ty, ty2: ty::Ty) {
+    pub fn subtyping(&mut self, ty1: Ty, ty2: Ty) {
+        let mut cursor = self.snapshot();
+        let ty1 = cursor.unpack(ty1);
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
-                // debug_assert_eq!(bty1, bty2);
+                cursor.bty_subtyping(bty1, bty2);
                 if e1 != e2 {
-                    self.push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
+                    cursor
+                        .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
                 }
             }
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
-                // debug_assert_eq!(bty1, bty2);
-                self.push_head(p.subst_bound_vars(e.clone()))
+                cursor.bty_subtyping(bty1, bty2);
+                cursor.push_head(p.subst_bound_vars(e.clone()))
             }
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
                 assert!(r1.subset(r2));
@@ -162,7 +168,41 @@ impl Cursor<'_> {
         }
     }
 
-    pub fn unpack(&mut self, ty: ty::Ty) -> ty::Ty {
+    fn bty_subtyping(&mut self, bty1: &BaseTy, bty2: &BaseTy) {
+        match (bty1, bty2) {
+            (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
+                debug_assert_eq!(int_ty1, int_ty2);
+            }
+            (BaseTy::Bool, BaseTy::Bool) => {}
+            (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
+                debug_assert_eq!(did1, did2);
+                debug_assert_eq!(substs1.len(), substs2.len());
+                let variances = self.builder.tcx.variances_of(*did1);
+                for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
+                    self.polymorphic_subtyping(*variance, ty1.clone(), ty2.clone());
+                }
+            }
+            _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
+        }
+    }
+
+    fn polymorphic_subtyping(&mut self, variance: rustc_middle::ty::Variance, ty1: Ty, ty2: Ty) {
+        match variance {
+            rustc_middle::ty::Variance::Covariant => {
+                self.subtyping(ty1, ty2);
+            }
+            rustc_middle::ty::Variance::Invariant => {
+                self.subtyping(ty1.clone(), ty2.clone());
+                self.subtyping(ty2, ty1);
+            }
+            rustc_middle::ty::Variance::Contravariant => {
+                self.subtyping(ty2, ty1);
+            }
+            rustc_middle::ty::Variance::Bivariant => {}
+        }
+    }
+
+    pub fn unpack(&mut self, ty: Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
                 let fresh = self.fresh_var();
@@ -318,7 +358,7 @@ fn stitch(
     })
 }
 
-impl fmt::Debug for ConstraintBuilder {
+impl fmt::Debug for ConstraintBuilder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Constraint {{")?;
         writeln!(
@@ -378,7 +418,7 @@ fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result 
     }
 }
 
-impl fmt::Debug for Cursor<'_> {
+impl fmt::Debug for Cursor<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

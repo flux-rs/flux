@@ -57,20 +57,20 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 match segments {
                     [second] if &*second.ident.as_str() == "ty" => {
                         if fn_sig.is_some() {
-                            self.emit_error("Duplicated function signature.", attr_item.span());
+                            self.emit_error("duplicated function signature.", attr_item.span());
                             return;
                         }
 
                         if let MacArgs::Delimited(span, _, tokens) = &attr_item.args {
                             fn_sig = self.parse_fn_annot(tokens.clone(), span.entire());
                         } else {
-                            self.emit_error("Invalid liquid annotation.", attr_item.span())
+                            self.emit_error("invalid liquid annotation.", attr_item.span())
                         }
                     }
                     [second] if &*second.ident.as_str() == "assume" => {
                         assume = true;
                     }
-                    _ => self.emit_error("Invalid liquid annotation.", attr_item.span()),
+                    _ => self.emit_error("invalid liquid annotation.", attr_item.span()),
                 }
             }
         }

@@ -62,13 +62,12 @@ pub struct Checker<'a, 'tcx> {
 impl<'tcx> Checker<'_, 'tcx> {
     pub fn check(
         global_env: &GlobalEnv<'tcx>,
-        sess: &Session,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<(), ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
 
-        let mut constraint = ConstraintBuilder::new();
+        let mut constraint = ConstraintBuilder::new(global_env.tcx);
         let mut cursor = constraint.as_cursor();
 
         let (mut env, ensures, ret_ty) = lower_with_fresh_names(&mut cursor, body, fn_sig);
@@ -80,7 +79,7 @@ impl<'tcx> Checker<'_, 'tcx> {
         }
 
         let mut checker = Checker {
-            sess,
+            sess: global_env.tcx.sess,
             global_env,
             body,
             dominates_join_point,
@@ -147,13 +146,11 @@ impl<'tcx> Checker<'_, 'tcx> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor
-                    .snapshot()
-                    .subtyping(ret_place_ty, self.ret_ty.clone());
+                cursor.subtyping(ret_place_ty, self.ret_ty.clone());
 
                 for (region, ensured_ty) in &self.ensures {
                     let actual_ty = env.lookup_region(region[0]);
-                    cursor.snapshot().subtyping(actual_ty, ensured_ty.clone());
+                    cursor.subtyping(actual_ty, ensured_ty.clone());
                 }
             }
             TerminatorKind::Goto { target } => {
@@ -222,13 +219,13 @@ impl<'tcx> Checker<'_, 'tcx> {
 
                 for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
                     let formal = subst.lower_ty(cursor, formal);
-                    cursor.snapshot().subtyping(actual, formal);
+                    cursor.subtyping(actual, formal);
                 }
 
                 for (region, required_ty) in &fn_sig.requires {
                     let actual_ty = env.lookup_region(subst.lower_region(*region)[0]);
                     let required_ty = subst.lower_ty(cursor, required_ty);
-                    cursor.snapshot().subtyping(actual_ty, required_ty);
+                    cursor.subtyping(actual_ty, required_ty);
                 }
 
                 for (region, updated_ty) in &fn_sig.ensures {

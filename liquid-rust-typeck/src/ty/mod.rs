@@ -90,7 +90,11 @@ impl Substs {
         self.0.is_empty()
     }
 
-    fn iter(&self) -> std::slice::Iter<Ty> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<Ty> {
         self.0.iter()
     }
 }
