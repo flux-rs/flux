@@ -1,10 +1,11 @@
+use hir::def_id::DefId;
 use itertools::{Either, Itertools};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_core::ty::{self, Name, ParamTy};
 use liquid_rust_syntax::ast;
 use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, MultiSpan, Span, Symbol};
@@ -20,6 +21,11 @@ struct Symbols {
     int: Symbol,
 }
 
+enum ParamTyOrBaseTy {
+    BaseTy(ty::BaseTy),
+    ParamTy(ty::ParamTy),
+}
+
 struct ErrorEmitter<'tcx> {
     sess: &'tcx Session,
 }
@@ -27,12 +33,12 @@ struct ErrorEmitter<'tcx> {
 struct Subst {
     exprs: ScopeMap<Symbol, ty::Var>,
     regions: FxHashMap<Symbol, Name>,
-    types: FxHashMap<Symbol, ParamTy>,
+    types: FxHashMap<DefId, ParamTy>,
 }
 
 enum Res<'tcx> {
     Unresolved(ast::Ty),
-    Resolved(ty::Ty, &'tcx rustc_hir::Ty<'tcx>),
+    Resolved(ty::Ty, &'tcx hir::Ty<'tcx>),
     Error,
 }
 
@@ -78,13 +84,11 @@ impl<'tcx> Resolver<'tcx> {
             .try_collect_exhaust();
 
         let ret = match hir_fn_sig.decl.output {
-            rustc_hir::FnRetTy::DefaultReturn(span) => resolver.errors.emit_unsupported_signature(
+            hir::FnRetTy::DefaultReturn(span) => resolver.errors.emit_unsupported_signature(
                 span,
                 "default returns are not supported yet".to_string(),
             ),
-            rustc_hir::FnRetTy::Return(hir_ty) => {
-                resolver.resolve_ty(fn_sig.ret, hir_ty, &mut subst)
-            }
+            hir::FnRetTy::Return(hir_ty) => resolver.resolve_ty(fn_sig.ret, hir_ty, &mut subst),
         };
 
         let ensures = resolver.resolve_ensures(fn_sig.ensures, &mut subst);
@@ -133,7 +137,7 @@ impl<'tcx> Resolver<'tcx> {
     fn resolve_generics(
         &self,
         generics: ast::Generics,
-        hir_generics: &rustc_hir::Generics,
+        hir_generics: &hir::Generics,
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
     ) -> Result<Vec<ty::Param>, ErrorReported> {
@@ -146,10 +150,10 @@ impl<'tcx> Resolver<'tcx> {
                 );
             }
             match param.kind {
-                rustc_hir::GenericParamKind::Type { default: None, .. } => {
-                    hir_ty_params.push(param.name.ident());
+                hir::GenericParamKind::Type { default: None, .. } => {
+                    hir_ty_params.push((param.hir_id, param.name.ident()));
                 }
-                rustc_hir::GenericParamKind::Type {
+                hir::GenericParamKind::Type {
                     default: Some(_), ..
                 } => {
                     return self.errors.emit_unsupported_signature(
@@ -157,13 +161,13 @@ impl<'tcx> Resolver<'tcx> {
                         "default type parameters are not supported yet".to_string(),
                     );
                 }
-                rustc_hir::GenericParamKind::Lifetime { .. } => {
+                hir::GenericParamKind::Lifetime { .. } => {
                     return self.errors.emit_unsupported_signature(
                         param.span,
                         "lifetime parameters are not supported yet".to_string(),
                     );
                 }
-                rustc_hir::GenericParamKind::Const { .. } => {
+                hir::GenericParamKind::Const { .. } => {
                     return self.errors.emit_unsupported_signature(
                         param.span,
                         "const parameters are not supported yet".to_string(),
@@ -192,12 +196,14 @@ impl<'tcx> Resolver<'tcx> {
             );
         }
 
-        for (idx, (param, hir_param)) in ty_params.into_iter().zip(hir_ty_params).enumerate() {
+        for (idx, (param, (hir_id, hir_param))) in
+            ty_params.into_iter().zip(hir_ty_params).enumerate()
+        {
             if param.name != hir_param.name {
                 return self.errors.emit_generic_name_mismatch(param, hir_param);
             }
             subst.insert_type(
-                param.name,
+                self.tcx.hir().local_def_id(hir_id).to_def_id(),
                 ty::ParamTy {
                     index: idx as u32,
                     name: param.name,
@@ -248,33 +254,39 @@ impl<'tcx> Resolver<'tcx> {
     fn resolve_ty(
         &mut self,
         ty: ast::Ty,
-        hir_ty: &'tcx rustc_hir::Ty<'tcx>,
+        hir_ty: &'tcx hir::Ty<'tcx>,
         subst: &mut Subst,
     ) -> Result<ty::Ty, ErrorReported> {
         match (ty.kind, &hir_ty.kind) {
-            (ast::TyKind::BaseTy(bty), rustc_hir::TyKind::Path(qpath)) => {
-                if let Some(param_ty) = subst.get_param_ty(bty.name) {
-                    self.resolve_param_ty(ty.span, param_ty, bty, qpath)
-                } else {
-                    let bty = self.resolve_bty(ty.span, bty, qpath)?;
-                    Ok(ty::Ty::Exists(bty, ty::Pred::TRUE))
+            (ast::TyKind::BaseTy(path), hir::TyKind::Path(qpath)) => {
+                match self.resolve_path(ty.span, path, qpath, subst)? {
+                    ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
+                    ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
                 }
             }
-            (ast::TyKind::RefineTy { bty, refine }, rustc_hir::TyKind::Path(qpath)) => {
-                let bty = self.resolve_bty(ty.span, bty, qpath);
-                let refine = self.resolve_expr(refine, subst);
-                Ok(ty::Ty::Refine(bty?, refine?))
+            (ast::TyKind::RefineTy { path, refine }, hir::TyKind::Path(qpath)) => {
+                match self.resolve_path(ty.span, path, qpath, subst)? {
+                    ParamTyOrBaseTy::BaseTy(bty) => {
+                        let refine = self.resolve_expr(refine, subst);
+                        Ok(ty::Ty::Refine(bty, refine?))
+                    }
+                    ParamTyOrBaseTy::ParamTy(_) => self.errors.emit_refined_param_ty(ty.span),
+                }
             }
-            (ast::TyKind::Exists { bind, bty, pred }, rustc_hir::TyKind::Path(qpath)) => {
-                let bty = self.resolve_bty(ty.span, bty, qpath);
-                subst.push_expr_layer();
-                subst.insert_expr(bind.name, ty::Var::Bound);
-                let e = self.resolve_expr(pred, subst);
-                subst.pop_expr_layer();
-                Ok(ty::Ty::Exists(bty?, ty::Pred::Expr(e?)))
+            (ast::TyKind::Exists { bind, path, pred }, hir::TyKind::Path(qpath)) => {
+                match self.resolve_path(ty.span, path, qpath, subst)? {
+                    ParamTyOrBaseTy::BaseTy(bty) => {
+                        subst.push_expr_layer();
+                        subst.insert_expr(bind.name, ty::Var::Bound);
+                        let e = self.resolve_expr(pred, subst);
+                        subst.pop_expr_layer();
+                        Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
+                    }
+                    ParamTyOrBaseTy::ParamTy(_) => self.errors.emit_refined_param_ty(ty.span),
+                }
             }
-            (ast::TyKind::MutRef(region), rustc_hir::TyKind::Rptr(_, mut_ty)) => {
-                if !matches!(mut_ty.mutbl, rustc_hir::Mutability::Mut) {
+            (ast::TyKind::MutRef(region), hir::TyKind::Rptr(_, mut_ty)) => {
+                if !matches!(mut_ty.mutbl, hir::Mutability::Mut) {
                     return self.errors.emit_unsupported_signature(
                         hir_ty.span,
                         "immutable references are not supported yet".to_string(),
@@ -291,12 +303,7 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    fn resolve_region(
-        &mut self,
-        region: Name,
-        hir_ty: &'tcx rustc_hir::Ty<'tcx>,
-        subst: &mut Subst,
-    ) {
+    fn resolve_region(&mut self, region: Name, hir_ty: &'tcx hir::Ty<'tcx>, subst: &mut Subst) {
         match self.requires.remove(&region).unwrap() {
             Res::Unresolved(ty) => {
                 if let Ok(ty) = self.resolve_ty(ty, hir_ty, subst) {
@@ -311,14 +318,14 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    fn resolve_param_ty(
-        &self,
+    fn resolve_path(
+        &mut self,
         ty_span: Span,
-        param_ty: ty::ParamTy,
-        ident: ast::Ident,
-        qpath: &rustc_hir::QPath,
-    ) -> Result<ty::Ty, ErrorReported> {
-        let path = if let rustc_hir::QPath::Resolved(None, path) = qpath {
+        path: ast::Path,
+        qpath: &'tcx hir::QPath<'tcx>,
+        subst: &mut Subst,
+    ) -> Result<ParamTyOrBaseTy, ErrorReported> {
+        let hir_path = if let hir::QPath::Resolved(None, path) = qpath {
             path
         } else {
             return self
@@ -326,76 +333,93 @@ impl<'tcx> Resolver<'tcx> {
                 .emit_unsupported_signature(qpath.span(), "unsupported type".to_string());
         };
 
-        if matches!(path.segments, [segment] if segment.ident.name == ident.name) {
-            Ok(ty::Ty::Param(param_ty))
-        } else {
-            self.errors.emit_invalid_refinement(ty_span, qpath.span())
-        }
-    }
-
-    fn resolve_bty(
-        &self,
-        ty_span: Span,
-        ident: ast::Ident,
-        qpath: &rustc_hir::QPath,
-    ) -> Result<ty::BaseTy, ErrorReported> {
-        let path = if let rustc_hir::QPath::Resolved(None, path) = qpath {
-            path
-        } else {
-            return self
-                .errors
-                .emit_unsupported_signature(qpath.span(), "unsupported type".to_string());
-        };
-
-        match path.segments {
-            [rustc_hir::PathSegment {
+        let (args, hir_args): (Vec<ast::Ty>, &[hir::GenericArg]) = match hir_path.segments {
+            [hir::PathSegment {
                 ident: segment_ident,
-                args: None,
+                args: hir_args,
                 ..
             }] => {
-                if segment_ident.name != ident.name {
+                if path.ident.name != segment_ident.name {
                     return self.errors.emit_invalid_refinement(ty_span, qpath.span());
                 }
-            }
-            [rustc_hir::PathSegment { args: Some(_), .. }] => {
-                todo!("implement paths with arguments");
+                match (path.args, hir_args) {
+                    (Some(args), Some(hir_args)) => {
+                        if args.len() != hir_args.args.len() {
+                            return self.errors.emit_invalid_refinement(ty_span, qpath.span());
+                        }
+                        if !hir_args.bindings.is_empty() {
+                            return self.errors.emit_unsupported_signature(
+                                hir_args.span_ext,
+                                "bindings for associated types are not supported yet".to_string(),
+                            );
+                        }
+                        (args, hir_args.args)
+                    }
+                    (None, None) => (vec![], &[]),
+                    _ => {
+                        return self.errors.emit_invalid_refinement(ty_span, qpath.span());
+                    }
+                }
             }
             _ => {
                 return self.errors.emit_unsupported_signature(
                     qpath.span(),
                     "multi-segment paths are not supported yet".to_string(),
-                )
+                );
             }
-        }
+        };
 
-        match path.res {
-            rustc_hir::def::Res::Def(_, _) => todo!("implement structs"),
-            rustc_hir::def::Res::PrimTy(rustc_hir::PrimTy::Int(int_ty)) => {
-                Ok(ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)))
+        let hir_args: Vec<&'tcx hir::Ty<'tcx>> = hir_args
+            .iter()
+            .map(|arg| {
+                if let hir::GenericArg::Type(ty) = arg {
+                    Ok(ty)
+                } else {
+                    self.errors.emit_unsupported_signature(
+                        arg.span(),
+                        "associated types are not supported yet".to_string(),
+                    )
+                }
+            })
+            .try_collect()?;
+
+        match hir_path.res {
+            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
+                Ok(ParamTyOrBaseTy::ParamTy(subst.get_param_ty(did).unwrap()))
             }
-            rustc_hir::def::Res::PrimTy(rustc_hir::PrimTy::Bool) => Ok(ty::BaseTy::Bool),
-            rustc_hir::def::Res::PrimTy(rustc_hir::PrimTy::Uint(_)) => {
-                self.errors.emit_unsupported_signature(
-                    qpath.span(),
-                    "unsigned ints are not supported yet".to_string(),
-                )
+            hir::def::Res::Def(hir::def::DefKind::Struct, did) => {
+                let args = args
+                    .into_iter()
+                    .zip(hir_args)
+                    .map(|(arg, hir_arg)| self.resolve_ty(arg, hir_arg, subst))
+                    .try_collect()?;
+                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Adt(did, args)))
             }
-            rustc_hir::def::Res::PrimTy(rustc_hir::PrimTy::Float(_)) => {
-                self.errors.emit_unsupported_signature(
-                    qpath.span(),
-                    "floats are not supported yet".to_string(),
-                )
+            hir::def::Res::Def(_, _) => self
+                .errors
+                .emit_unsupported_signature(qpath.span(), "unsupported type".to_string()),
+            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
+                ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
+            )),
+            hir::def::Res::PrimTy(hir::PrimTy::Bool) => {
+                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Bool))
             }
-            rustc_hir::def::Res::PrimTy(rustc_hir::PrimTy::Str) => {
-                self.errors.emit_unsupported_signature(
-                    qpath.span(),
-                    "string slices are not supported yet".to_string(),
-                )
-            }
-            rustc_hir::def::Res::PrimTy(rustc_hir::PrimTy::Char) => self
+            hir::def::Res::PrimTy(hir::PrimTy::Uint(_)) => self.errors.emit_unsupported_signature(
+                qpath.span(),
+                "unsigned ints are not supported yet".to_string(),
+            ),
+            hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => self.errors.emit_unsupported_signature(
+                qpath.span(),
+                "floats are not supported yet".to_string(),
+            ),
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => self.errors.emit_unsupported_signature(
+                qpath.span(),
+                "string slices are not supported yet".to_string(),
+            ),
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => self
                 .errors
                 .emit_unsupported_signature(qpath.span(), "chars are not suported yet".to_string()),
-            rustc_hir::def::Res::SelfTy { .. } => self.errors.emit_unsupported_signature(
+            hir::def::Res::SelfTy { .. } => self.errors.emit_unsupported_signature(
                 qpath.span(),
                 "self types are not supported yet".to_string(),
             ),
@@ -503,8 +527,8 @@ impl Subst {
         self.regions.insert(symb, name)
     }
 
-    fn insert_type(&mut self, symb: Symbol, param_ty: ParamTy) -> Option<ParamTy> {
-        self.types.insert(symb, param_ty)
+    fn insert_type(&mut self, did: DefId, param_ty: ParamTy) -> Option<ParamTy> {
+        self.types.insert(did, param_ty)
     }
 
     fn get_expr(&self, symb: Symbol) -> Option<ty::Var> {
@@ -515,8 +539,8 @@ impl Subst {
         self.regions.get(&symb).copied()
     }
 
-    fn get_param_ty(&self, symb: Symbol) -> Option<ParamTy> {
-        self.types.get(&symb).copied()
+    fn get_param_ty(&self, did: DefId) -> Option<ParamTy> {
+        self.types.get(&did).copied()
     }
 }
 
@@ -589,6 +613,12 @@ impl ErrorEmitter<'_> {
             "type couldn't be matched to any rust type".to_string(),
         );
         self.sess.span_err(s, "unresolved type");
+        Err(ErrorReported)
+    }
+
+    fn emit_refined_param_ty<T>(&self, ty_span: Span) -> Result<T, ErrorReported> {
+        self.sess
+            .span_err(ty_span, "type parameters cannot be refined");
         Err(ErrorReported)
     }
 

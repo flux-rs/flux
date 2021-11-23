@@ -29,10 +29,10 @@ Ty: ast::Ty = {
 }
 
 TyKind: ast::TyKind = {
-    <bty:Ident>                                      => ast::TyKind::BaseTy(<>),
-    <bty:Ident> "@" <refine:Expr>                    => ast::TyKind::RefineTy { <> },
-    <bty:Ident> "{" <bind:Ident> ":" <pred:Expr> "}" => ast::TyKind::Exists { <> },
-    "ref" "<" <ident:Ident> ">"                      => ast::TyKind::MutRef(<>),
+    <path:Path>                                        => ast::TyKind::BaseTy(<>),
+    <path:Path> "@" <refine:Refinement>                => ast::TyKind::RefineTy { <> },
+    <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => ast::TyKind::Exists { <> },
+    "ref" "<" <ident:Ident> ">"                        => ast::TyKind::MutRef(<>),
 }
 
 Generics: ast::Generics = {
@@ -44,12 +44,34 @@ Generics: ast::Generics = {
 Env = <Comma<(<Ident> ":" <Ty>)>>;
 
 GenericParam: ast::GenericParam = {
-    <name:Ident> ":" <sort:Ident> "{" <pred:Expr> "}" => ast::GenericParam::Pure { name, sort, pred: Some(pred) },
-    <name:Ident> ":" <sort:Ident>                     => ast::GenericParam::Pure { name, sort, pred: None },
-    <name:Ident>                                      => ast::GenericParam::Type(name)
+    <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam::Pure { name, sort, pred: Some(pred) },
+    <name:Ident> ":" <sort:Ident>                       => ast::GenericParam::Pure { name, sort, pred: None },
+    <name:Ident>                                        => ast::GenericParam::Type(name)
 }
 
-Expr = Level<BinOp1, Level2>;
+Path: ast::Path = {
+    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => ast::Path { ident, args, span: mk_span(lo, hi) }
+}
+
+GenericArgs: Vec<ast::Ty> = {
+    "<" <Comma<Ty>> ">"
+}
+
+Refinement: ast::Expr = {
+    <lo:@L> <lit:Lit> <hi:@R> => {
+        ast::Expr {
+            kind: ast::ExprKind::Literal(lit),
+            span: mk_span(lo, hi),
+        }
+    },
+    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::Var(var),
+        span: mk_span(lo, hi),
+    },
+    "{" <Level1> "}" => <>
+};
+
+Level1 = Level<BinOp1, Level2>;
 Level2 = Level<BinOp2, Level3>;
 Level3: ast::Expr = {
     <lo:@L> <e1:Level4> <op:BinOp3> <e2:Level4> <hi:@R> => ast::Expr {
@@ -70,7 +92,7 @@ Level5: ast::Expr = {
         kind: ast::ExprKind::Var(var),
         span: mk_span(lo, hi),
     },
-    "(" <expr: Expr> ")" => <>
+    "(" <Level1> ")" => <>
 }
 
 

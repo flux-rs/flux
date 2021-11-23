@@ -24,10 +24,17 @@ pub struct Ty {
 
 #[derive(Debug)]
 pub enum TyKind {
-    BaseTy(Ident),
-    RefineTy { bty: Ident, refine: Expr },
-    Exists { bind: Ident, bty: Ident, pred: Expr },
+    BaseTy(Path),
+    RefineTy { path: Path, refine: Expr },
+    Exists { bind: Ident, path: Path, pred: Expr },
     MutRef(Ident),
+}
+
+#[derive(Debug)]
+pub struct Path {
+    pub ident: Ident,
+    pub args: Option<Vec<Ty>>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
