@@ -8,6 +8,7 @@ pub struct FnSig {
     pub args: Vec<Ty>,
     pub ret: Ty,
     pub ensures: Vec<(Ident, Ty)>,
+    pub span: Span,
 }
 
 #[derive(Debug)]

@@ -9,15 +9,17 @@ use lalrpop_util::ParseError;
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
 pub FnSig: ast::FnSig = {
+    <lo:@L>
     "fn"
-    <lo:@L> <generics:Generics?> <hi:@R>
+    <generics:Generics>
     "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
     "->"
-    <ret:Ty> <ensures:(";" <Env>)?>=> {
-        let generics = generics.unwrap_or_else(|| ast::Generics::empty(mk_span(lo, hi)));
+    <ret:Ty> <ensures:(";" <Env>)?>
+    <hi:@R>
+    => {
         let requires = requires.unwrap_or_else(|| vec![]);
         let ensures = ensures.unwrap_or_else(|| vec![]);
-        ast::FnSig { generics, requires, args, ret, ensures }
+        ast::FnSig { generics, requires, args, ret, ensures, span: mk_span(lo, hi) }
     }
 }
 
@@ -36,9 +38,8 @@ TyKind: ast::TyKind = {
 }
 
 Generics: ast::Generics = {
-    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
-        ast::Generics { params, span: mk_span(lo, hi) }
-    }
+    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => ast::Generics { params, span: mk_span(lo, hi) },
+    <lo:@L> <hi:@R> => ast::Generics::empty(mk_span(lo, hi))
 }
 
 Env = <Comma<(<Ident> ":" <Ty>)>>;

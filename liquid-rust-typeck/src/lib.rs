@@ -242,9 +242,6 @@ impl<'tcx> Checker<'_, 'tcx> {
                     let ret = cursor.unpack(ret);
                     env.write_place(cursor, p, ret);
 
-                    println!("{:?}", terminator);
-                    println!("{:?}\n", env);
-
                     self.check_goto(env, cursor, *bb)?;
                 }
             }

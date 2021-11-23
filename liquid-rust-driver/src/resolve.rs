@@ -39,7 +39,7 @@ struct Subst {
 enum Res<'tcx> {
     Unresolved(ast::Ty),
     Resolved(ty::Ty, &'tcx hir::Ty<'tcx>),
-    Error,
+    Error(&'tcx hir::Ty<'tcx>),
 }
 
 impl<'tcx> Resolver<'tcx> {
@@ -67,13 +67,22 @@ impl<'tcx> Resolver<'tcx> {
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
         let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
-        // The rest of the analysis depends on generics being correctly resolved so we bailed out if there's an error.
+        // The rest of the analysis depends on generics being correctly resolved so we bail out if there's an error.
         let params = resolver.resolve_generics(fn_sig.generics, generics, &name_gen, &mut subst)?;
 
         for (region, ty) in fn_sig.requires {
             let fresh = name_gen.fresh();
             resolver.requires.insert(fresh, Res::Unresolved(ty));
             subst.insert_region(region.name, fresh);
+        }
+
+        if fn_sig.args.len() != hir_fn_sig.decl.inputs.len() {
+            return resolver.errors.emit_args_count_mismatch(
+                fn_sig.span,
+                fn_sig.args.len(),
+                hir_fn_sig.span,
+                hir_fn_sig.decl.inputs.len(),
+            );
         }
 
         let args = fn_sig
@@ -98,8 +107,9 @@ impl<'tcx> Resolver<'tcx> {
             .into_iter()
             .map(|(name, res)| match res {
                 Res::Resolved(ty, _) => Ok((name, ty)),
-                Res::Error => Err(ErrorReported),
                 Res::Unresolved(ty) => resolver.errors.emit_unresolved_region_type(ty),
+                // This error has already been reported.
+                Res::Error(_) => Err(ErrorReported),
             })
             .try_collect_exhaust()?;
 
@@ -122,7 +132,7 @@ impl<'tcx> Resolver<'tcx> {
             .map(|(region, ty)| {
                 if let Some(name) = subst.get_region(region.name) {
                     let hir_ty = match self.requires.get(&name) {
-                        Some(Res::Resolved(_, hir_ty)) => *hir_ty,
+                        Some(Res::Resolved(_, hir_ty) | Res::Error(hir_ty)) => *hir_ty,
                         _ => return self.errors.emit_unresolved_region_type(ty),
                     };
                     let ty = self.resolve_ty(ty, hir_ty, subst)?;
@@ -309,10 +319,10 @@ impl<'tcx> Resolver<'tcx> {
                 if let Ok(ty) = self.resolve_ty(ty, hir_ty, subst) {
                     self.requires.insert(region, Res::Resolved(ty, hir_ty));
                 } else {
-                    self.requires.insert(region, Res::Error);
+                    self.requires.insert(region, Res::Error(hir_ty));
                 }
             }
-            res @ Res::Resolved(..) | res @ Res::Error => {
+            res @ Res::Resolved(..) | res @ Res::Error(_) => {
                 self.requires.insert(region, res);
             }
         }
@@ -553,9 +563,9 @@ impl ErrorEmitter<'_> {
         let mut s = MultiSpan::from_span(refined);
         s.push_span_label(
             refined,
-            "type is not a valid refinement of the corresponding rust type".to_string(),
+            "type is not a valid refinement of the corresponding matched type in the function declaration".to_string(),
         );
-        s.push_span_label(hir, "rust type".to_string());
+        s.push_span_label(hir, "matched type".to_string());
         self.sess.span_err(s, "invalid refinement");
         Err(ErrorReported)
     }
@@ -619,6 +629,23 @@ impl ErrorEmitter<'_> {
     fn emit_refined_param_ty<T>(&self, ty_span: Span) -> Result<T, ErrorReported> {
         self.sess
             .span_err(ty_span, "type parameters cannot be refined");
+        Err(ErrorReported)
+    }
+
+    fn emit_args_count_mismatch<T>(
+        &self,
+        span: Span,
+        found: usize,
+        hir_span: Span,
+        expected: usize,
+    ) -> Result<T, ErrorReported> {
+        let mut s = MultiSpan::from_span(span);
+        s.push_span_label(span, format!("refined signatured has {} arguments", found));
+        s.push_span_label(
+            hir_span,
+            format!("function declared here with {} arguments", expected),
+        );
+        self.sess.span_err(s, "argument count mismatch");
         Err(ErrorReported)
     }
 
