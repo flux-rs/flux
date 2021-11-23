@@ -220,7 +220,7 @@ impl fmt::Debug for Operand {
 impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(n, int_ty) => write!(f, "{}{:?}", n, int_ty),
+            Self::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
             Self::Bool(b) => write!(f, "{}", b),
         }
     }

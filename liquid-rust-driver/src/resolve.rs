@@ -240,7 +240,7 @@ impl<'tcx> Resolver<'tcx> {
             };
             let sort = self.resolve_sort(sort);
             let pred = match pred {
-                Some(expr) => self.resolve_expr(expr, &subst),
+                Some(expr) => self.resolve_expr(expr, subst),
                 None => Ok(ty::Expr::TRUE),
             };
             Ok(ty::Param {
@@ -293,10 +293,10 @@ impl<'tcx> Resolver<'tcx> {
                     );
                 }
                 if let Some(name) = subst.get_region(region.name) {
-                    self.resolve_region(name, &mut_ty.ty, subst);
+                    self.resolve_region(name, mut_ty.ty, subst);
                     Ok(ty::Ty::MutRef(name))
                 } else {
-                    return self.errors.emit_unknown_region(region);
+                    self.errors.emit_unknown_region(region)
                 }
             }
             _ => self.errors.emit_invalid_refinement(ty.span, hir_ty.span),

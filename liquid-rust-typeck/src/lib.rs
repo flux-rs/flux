@@ -240,8 +240,11 @@ impl<'tcx> Checker<'_, 'tcx> {
                 if let Some((p, bb)) = destination {
                     let ret = subst.lower_ty(cursor, &fn_sig.ret);
                     let ret = cursor.unpack(ret);
-
                     env.write_place(cursor, p, ret);
+
+                    println!("{:?}", terminator);
+                    println!("{:?}\n", env);
+
                     self.check_goto(env, cursor, *bb)?;
                 }
             }
