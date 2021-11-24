@@ -299,6 +299,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 core::BaseTy::Int(*int_ty),
                 core::Pred::Infer,
             )),
+            rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(core::Ty::Exists(
+                core::BaseTy::Uint(*uint_ty),
+                core::Pred::Infer,
+            )),
             rustc_middle::ty::TyKind::Param(param) => Ok(core::Ty::Param(core::ParamTy {
                 index: param.index,
                 name: param.name,
