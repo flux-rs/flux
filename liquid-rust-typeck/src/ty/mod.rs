@@ -5,7 +5,7 @@ use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
 use liquid_rust_core::{ir::Local, ty::ParamTy};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Name, Sort, UnOp};
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::ty::IntTy;
+pub use rustc_middle::ty::{IntTy, UintTy};
 
 use crate::intern::{impl_internable, Interned};
 
@@ -28,6 +28,7 @@ pub enum TyKind {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum BaseTy {
     Int(IntTy),
+    Uint(UintTy),
     Bool,
     Adt(DefId, Substs),
 }
@@ -109,6 +110,7 @@ impl BaseTy {
     pub fn sort(&self) -> Sort {
         match self {
             BaseTy::Int(_) => Sort::Int,
+            BaseTy::Uint(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(_, _) => Sort::Int,
         }
@@ -298,6 +300,7 @@ impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
+            Self::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
             Self::Bool => write!(f, "bool"),
             Self::Adt(did, args) => {
                 if args.is_empty() {

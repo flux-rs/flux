@@ -2,7 +2,7 @@ use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::ty::{IntTy, ParamTy};
+pub use rustc_middle::ty::{IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
@@ -31,6 +31,7 @@ pub enum Pred {
 #[derive(Debug)]
 pub enum BaseTy {
     Int(IntTy),
+    Uint(UintTy),
     Bool,
     Adt(DefId, Vec<Ty>),
 }
@@ -83,6 +84,7 @@ impl BaseTy {
     pub fn sort(&self) -> Sort {
         match self {
             BaseTy::Int(_) => Sort::Int,
+            BaseTy::Uint(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(_, _) => Sort::Int,
         }

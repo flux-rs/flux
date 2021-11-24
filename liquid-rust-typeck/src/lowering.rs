@@ -179,6 +179,7 @@ impl Subst {
     pub fn lower_base_ty(&mut self, cursor: &mut Cursor, bty: &core::BaseTy) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
+            core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
                 let substs = substs.iter().map(|ty| self.lower_ty(cursor, ty)).collect();

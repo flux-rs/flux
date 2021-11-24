@@ -19,7 +19,7 @@ use rustc_index::bit_set::BitSet;
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Interned},
-    ty::{IntTy, RVid, Region},
+    ty::{IntTy, RVid, Region, UintTy},
 };
 
 pub type Ty = Interned<TyS>;
@@ -36,6 +36,7 @@ pub enum TyS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum BaseTy {
     Int(IntTy),
+    Uint(UintTy),
     Bool,
     Adt(DefId, Vec<Ty>),
 }
@@ -550,6 +551,7 @@ impl Subst {
     fn lower_base_ty(&self, gen: &IndexGen<ExprIdx>, bty: &core::BaseTy) -> BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => BaseTy::Int(*int_ty),
+            core::BaseTy::Uint(uint_ty) => BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
                 let substs = substs.iter().map(|ty| self.lower_ty(gen, ty)).collect();
@@ -589,6 +591,7 @@ impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
+            Self::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
             Self::Bool => write!(f, "bool"),
             Self::Adt(did, args) => {
                 if args.is_empty() {

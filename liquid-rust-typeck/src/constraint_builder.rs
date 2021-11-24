@@ -173,6 +173,9 @@ impl<'tcx> Cursor<'_, 'tcx> {
             (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
             }
+            (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+            }
             (BaseTy::Bool, BaseTy::Bool) => {}
             (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
                 debug_assert_eq!(did1, did2);

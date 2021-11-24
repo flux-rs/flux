@@ -411,13 +411,12 @@ impl<'tcx> Resolver<'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
                 ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
             )),
+            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
+                ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty)),
+            )),
             hir::def::Res::PrimTy(hir::PrimTy::Bool) => {
                 Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Bool))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(_)) => self.errors.emit_unsupported_signature(
-                qpath.span(),
-                "unsigned ints are not supported yet".to_string(),
-            ),
             hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => self.errors.emit_unsupported_signature(
                 qpath.span(),
                 "floats are not supported yet".to_string(),
