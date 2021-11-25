@@ -57,9 +57,9 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
             if spec.assume {
                 return Ok(());
             }
-            println!("#######################################");
+            println!("\n-------------------------------------------------");
             println!("CHECKING: {}", tcx.item_name(def_id.to_def_id()));
-            println!("#######################################");
+            println!("-------------------------------------------------");
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
             Checker::check(&global_env, &body, &spec.fn_sig)
         })

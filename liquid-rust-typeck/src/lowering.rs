@@ -84,6 +84,10 @@ impl Subst {
         }
     }
 
+    pub fn insert_region(&mut self, name: core::Name, region: impl Into<ty::Region>) {
+        self.regions.insert(name, region.into());
+    }
+
     pub fn infer_from_fn_call(
         &mut self,
         env: &TyEnv,
@@ -97,7 +101,7 @@ impl Subst {
         }
 
         for (region, required) in &fn_sig.requires {
-            let actual = env.lookup_region(self.lower_region(*region)[0]);
+            let actual = env.lookup_region(self.lower_region(*region).unwrap()[0]);
             self.infer_from_tys(actual, required);
         }
 
@@ -151,8 +155,8 @@ impl Subst {
         }
     }
 
-    pub fn lower_region(&self, name: core::Name) -> ty::Region {
-        self.regions[&name].clone()
+    pub fn lower_region(&self, name: core::Name) -> Option<ty::Region> {
+        self.regions.get(&name).cloned()
     }
 
     pub fn lower_ty(&mut self, cursor: &mut Cursor, ty: &core::Ty) -> ty::Ty {

@@ -79,6 +79,10 @@ impl TyEnv {
         }
     }
 
+    pub fn push_region(&mut self, ty: Ty) -> RVid {
+        self.regions.push(RegionKind::Strong(ty))
+    }
+
     pub fn lookup_local(&self, local: Local) -> Ty {
         self.lookup_region(RVid::new(local.as_usize()))
     }

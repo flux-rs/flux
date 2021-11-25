@@ -51,12 +51,13 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         self.parent.len()
     }
 
-    pub fn push(&mut self, elem: T) {
+    pub fn push(&mut self, elem: T) -> I {
         let idx = self.parent.next_index();
         self.map.insert(idx, elem);
         self.parent.push(Cell::new(idx));
         self.size.push(1);
         self.next.push(idx);
+        idx
     }
 
     pub fn same_set(&self, idx1: I, idx2: I) -> bool {

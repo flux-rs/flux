@@ -148,11 +148,16 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
                 let mut subst = Subst::new(self.expr_gen, substs);
                 subst.infer_from_fn_call(&actuals, &fn_sig.args);
+                // TODO: we should check the substitution here
 
                 for (region, updated_ty) in &fn_sig.ensures {
-                    let region = subst.lower_region(*region);
                     let updated_ty = subst.lower_ty(self.expr_gen, updated_ty);
-                    env.update_region(region[0], updated_ty);
+                    if let Some(region) = subst.lower_region(*region) {
+                        env.update_region(region[0], updated_ty);
+                    } else {
+                        let rvid = env.push_region(updated_ty);
+                        subst.insert_region(*region, rvid);
+                    }
                 }
 
                 if let Some((place, target)) = destination {
@@ -275,8 +280,8 @@ impl TypeEnv<'_> {
         }
     }
 
-    pub fn push_region(&mut self, ty: Ty) {
-        self.types.push(ty);
+    pub fn push_region(&mut self, ty: Ty) -> RVid {
+        self.types.push(ty)
     }
 
     pub fn update_region(&mut self, rvid: RVid, ty: Ty) {
@@ -449,7 +454,7 @@ fn lower(
         .map(|(name, ty)| {
             let rvid = rvid_gen.fresh();
             let ty = subst.lower_ty(gen, ty);
-            subst.regions.insert(*name, Region::from(rvid));
+            subst.insert_region(*name, rvid);
             ty
         })
         .collect();
@@ -467,7 +472,7 @@ fn lower(
         .iter()
         .map(|(name, ty)| {
             let ty = subst.lower_ty(gen, ty);
-            (subst.lower_region(*name), ty)
+            (subst.lower_region(*name).unwrap(), ty)
         })
         .collect();
 
@@ -536,8 +541,8 @@ impl Subst {
         }
     }
 
-    fn lower_region(&self, region: core::Name) -> Region {
-        self.regions[&region].clone()
+    fn lower_region(&self, region: core::Name) -> Option<Region> {
+        self.regions.get(&region).cloned()
     }
 
     fn infer_from_fn_call(&mut self, actuals: &[Ty], formals: &[core::Ty]) {
@@ -560,6 +565,10 @@ impl Subst {
             }
             _ => {}
         }
+    }
+
+    fn insert_region(&mut self, region: core::Name, rvid: impl Into<Region>) {
+        self.regions.insert(region, rvid.into());
     }
 }
 
