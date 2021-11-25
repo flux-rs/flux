@@ -372,6 +372,10 @@ impl<'tcx> Checker<'_, 'tcx> {
                 let expr = ExprKind::Constant(ty::Constant::from(*n)).intern();
                 TyKind::Refine(BaseTy::Int(*int_ty), expr).intern()
             }
+            Constant::Uint(n, uint_ty) => {
+                let expr = ExprKind::Constant(ty::Constant::from(*n)).intern();
+                TyKind::Refine(BaseTy::Uint(*uint_ty), expr).intern()
+            }
             Constant::Bool(b) => {
                 let expr = ExprKind::Constant(ty::Constant::from(*b)).intern();
                 TyKind::Refine(BaseTy::Bool, expr).intern()

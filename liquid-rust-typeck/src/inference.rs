@@ -252,6 +252,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             ir::Constant::Int(_, int_ty) => {
                 TyS::Refine(BaseTy::Int(*int_ty), self.expr_gen.fresh()).intern()
             }
+            ir::Constant::Uint(_, uint_ty) => {
+                TyS::Refine(BaseTy::Uint(*uint_ty), self.expr_gen.fresh()).intern()
+            }
             ir::Constant::Bool(_) => TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern(),
         }
     }

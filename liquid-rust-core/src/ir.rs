@@ -7,7 +7,10 @@ use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{
     BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
 };
-use rustc_middle::{mir, ty::IntTy};
+use rustc_middle::{
+    mir,
+    ty::{IntTy, UintTy},
+};
 
 use crate::ty::Ty;
 
@@ -95,6 +98,7 @@ pub enum PlaceElem {
 
 pub enum Constant {
     Int(i128, IntTy),
+    Uint(u128, UintTy),
     Bool(bool),
 }
 
@@ -221,6 +225,7 @@ impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
+            Self::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
             Self::Bool(b) => write!(f, "{}", b),
         }
     }
