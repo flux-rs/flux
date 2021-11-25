@@ -13,14 +13,10 @@ use rustc_span::{sym, symbol::kw, MultiSpan, Span, Symbol};
 pub struct Resolver<'tcx> {
     tcx: TyCtxt<'tcx>,
     diagnostics: Diagnostics<'tcx>,
-    symbols: Symbols,
     resolutions: FxHashMap<Symbol, hir::def::Res>,
     def_id: LocalDefId,
 }
 
-struct Symbols {
-    int: Symbol,
-}
 enum ParamTyOrBaseTy {
     BaseTy(ty::BaseTy),
     ParamTy(ty::ParamTy),
@@ -47,7 +43,6 @@ impl<'tcx> Resolver<'tcx> {
         Ok(Self {
             tcx,
             diagnostics,
-            symbols: Symbols::new(),
             resolutions,
             def_id,
         })
@@ -380,7 +375,7 @@ impl<'tcx> Resolver<'tcx> {
     }
 
     fn resolve_sort(&self, sort: ast::Ident) -> Result<ty::Sort, ErrorReported> {
-        if sort.name == self.symbols.int {
+        if sort.name == SORTS.int {
             Ok(ty::Sort::Int)
         } else if sort.name == sym::bool {
             Ok(ty::Sort::Bool)
@@ -395,14 +390,6 @@ impl<'tcx> Resolver<'tcx> {
     fn emit_error<T>(&self, message: &str, span: Span) -> Result<T, ErrorReported> {
         self.tcx.sess.span_err(span, message);
         Err(ErrorReported)
-    }
-}
-
-impl Symbols {
-    fn new() -> Self {
-        Self {
-            int: Symbol::intern("int"),
-        }
     }
 }
 
@@ -657,3 +644,11 @@ fn collect_res_generic_arg(
         hir::GenericArg::Infer(_) => unreachable!(),
     }
 }
+
+struct Sorts {
+    int: Symbol,
+}
+
+static SORTS: std::lazy::SyncLazy<Sorts> = std::lazy::SyncLazy::new(|| Sorts {
+    int: Symbol::intern("int"),
+});

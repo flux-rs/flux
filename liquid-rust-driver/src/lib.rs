@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns)]
+#![feature(rustc_private, box_patterns, once_cell)]
 
 extern crate rustc_ast;
 extern crate rustc_ast_pretty;
