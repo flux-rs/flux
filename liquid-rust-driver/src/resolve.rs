@@ -7,8 +7,8 @@ use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
-use rustc_session::Session;
-use rustc_span::{sym, symbol::kw, MultiSpan, Span, Symbol};
+use rustc_session::{Session, SessionDiagnostic};
+use rustc_span::{sym, symbol::kw, Symbol};
 
 pub struct Resolver<'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -119,10 +119,10 @@ impl<'tcx> Resolver<'tcx> {
         let mut hir_ty_params = vec![];
         for param in hir_generics.params {
             if !param.bounds.is_empty() {
-                self.diagnostics.emit_unsupported_signature(
-                    param.span,
-                    "generic bounds are not supported yet".to_string(),
-                );
+                self.diagnostics.emit_err(errors::UnsupportedSignature {
+                    span: param.span,
+                    msg: "generic bounds are not supported yet",
+                });
             }
             match param.kind {
                 hir::GenericParamKind::Type { default: None, .. } => {
@@ -131,22 +131,22 @@ impl<'tcx> Resolver<'tcx> {
                 hir::GenericParamKind::Type {
                     default: Some(_), ..
                 } => {
-                    self.diagnostics.emit_unsupported_signature(
-                        param.span,
-                        "default type parameters are not supported yet".to_string(),
-                    );
+                    self.diagnostics.emit_err(errors::UnsupportedSignature {
+                        span: param.span,
+                        msg: "default type parameters are not supported yet",
+                    });
                 }
                 hir::GenericParamKind::Lifetime { .. } => {
-                    self.diagnostics.emit_unsupported_signature(
-                        param.span,
-                        "lifetime parameters are not supported yet".to_string(),
-                    );
+                    self.diagnostics.emit_err(errors::UnsupportedSignature {
+                        span: param.span,
+                        msg: "lifetime parameters are not supported yet",
+                    });
                 }
                 hir::GenericParamKind::Const { .. } => {
-                    self.diagnostics.emit_unsupported_signature(
-                        param.span,
-                        "const parameters are not supported yet".to_string(),
-                    );
+                    self.diagnostics.emit_err(errors::UnsupportedSignature {
+                        span: param.span,
+                        msg: "const parameters are not supported yet",
+                    });
                 }
             }
         }
@@ -166,12 +166,12 @@ impl<'tcx> Resolver<'tcx> {
         if ty_params.len() != hir_ty_params.len() {
             return self
                 .diagnostics
-                .emit_generic_count_mismatch(
+                .emit_err(errors::GenericCountMismatch::new(
                     generics.span,
                     ty_params.len(),
                     hir_generics.span,
                     hir_ty_params.len(),
-                )
+                ))
                 .raise();
         }
 
@@ -180,7 +180,7 @@ impl<'tcx> Resolver<'tcx> {
         {
             if param.name != hir_param.name {
                 self.diagnostics
-                    .emit_generic_name_mismatch(param, hir_param);
+                    .emit_err(errors::GenericNameMismatch::new(param, hir_param));
             } else {
                 subst.insert_type(
                     self.tcx.hir().local_def_id(hir_id).to_def_id(),
@@ -212,7 +212,7 @@ impl<'tcx> Resolver<'tcx> {
         let fresh = name_gen.fresh();
         if subst.insert_expr(name.name, ty::Var::Free(fresh)).is_some() {
             self.diagnostics
-                .emit_duplicate_param_name(name.span)
+                .emit_err(errors::DuplicateGenericParam::new(name))
                 .raise()
         } else {
             let name = ty::Ident {
@@ -243,9 +243,10 @@ impl<'tcx> Resolver<'tcx> {
                     let refine = self.resolve_expr(refine, subst);
                     Ok(ty::Ty::Refine(bty, refine?))
                 }
-                ParamTyOrBaseTy::ParamTy(_) => {
-                    self.diagnostics.emit_refined_param_ty(ty.span).raise()
-                }
+                ParamTyOrBaseTy::ParamTy(_) => self
+                    .diagnostics
+                    .emit_err(errors::RefinedTypeParam { span: ty.span })
+                    .raise(),
             },
             ast::TyKind::Exists { bind, path, pred } => match self.resolve_path(path, subst)? {
                 ParamTyOrBaseTy::BaseTy(bty) => {
@@ -255,15 +256,18 @@ impl<'tcx> Resolver<'tcx> {
                     subst.pop_expr_layer();
                     Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
                 }
-                ParamTyOrBaseTy::ParamTy(_) => {
-                    self.diagnostics.emit_refined_param_ty(ty.span).raise()
-                }
+                ParamTyOrBaseTy::ParamTy(_) => self
+                    .diagnostics
+                    .emit_err(errors::RefinedTypeParam { span: ty.span })
+                    .raise(),
             },
             ast::TyKind::MutRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
                     Ok(ty::Ty::MutRef(name))
                 } else {
-                    self.diagnostics.emit_unknown_region(region).raise()
+                    self.diagnostics
+                        .emit_err(errors::UnresolvedLoc::new(region))
+                        .raise()
                 }
             }
         }
@@ -277,7 +281,10 @@ impl<'tcx> Resolver<'tcx> {
         let res = if let Some(res) = self.resolutions.get(&path.ident.name) {
             *res
         } else {
-            return self.diagnostics.emit_unresolved_path(&path).raise();
+            return self
+                .diagnostics
+                .emit_err(errors::UnresolvedPath::new(&path))
+                .raise();
         };
 
         match res {
@@ -295,7 +302,10 @@ impl<'tcx> Resolver<'tcx> {
             }
             hir::def::Res::Def(_, _) => self
                 .diagnostics
-                .emit_unsupported_signature(path.span, "unsupported type".to_string())
+                .emit_err(errors::UnsupportedSignature {
+                    span: path.span,
+                    msg: "unsupported type",
+                })
                 .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
                 ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
@@ -308,31 +318,37 @@ impl<'tcx> Resolver<'tcx> {
             }
             hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => self
                 .diagnostics
-                .emit_unsupported_signature(path.span, "floats are not supported yet".to_string())
+                .emit_err(errors::UnsupportedSignature {
+                    span: path.span,
+                    msg: "floats are not supported yet",
+                })
                 .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Str) => self
                 .diagnostics
-                .emit_unsupported_signature(
-                    path.span,
-                    "string slices are not supported yet".to_string(),
-                )
+                .emit_err(errors::UnsupportedSignature {
+                    span: path.span,
+                    msg: "string slices are not supported yet",
+                })
                 .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Char) => self
                 .diagnostics
-                .emit_unsupported_signature(path.span, "chars are not suported yet".to_string())
+                .emit_err(errors::UnsupportedSignature {
+                    span: path.span,
+                    msg: "chars are not suported yet",
+                })
                 .raise(),
             hir::def::Res::SelfTy { .. } => self
                 .diagnostics
-                .emit_unsupported_signature(
-                    path.span,
-                    "self types are not supported yet".to_string(),
-                )
+                .emit_err(errors::UnsupportedSignature {
+                    span: path.span,
+                    msg: "self types are not supported yet",
+                })
                 .raise(),
             _ => unreachable!("unexpected type resolution"),
         }
     }
 
-    fn resolve_expr(&self, expr: ast::Expr, subst: &Subst) -> Result<ty::Expr, ErrorReported> {
+    fn resolve_expr(&mut self, expr: ast::Expr, subst: &Subst) -> Result<ty::Expr, ErrorReported> {
         let kind = match expr.kind {
             ast::ExprKind::Var(ident) => {
                 ty::ExprKind::Var(self.resolve_var(ident, subst)?, ident.name, ident.span)
@@ -350,46 +366,43 @@ impl<'tcx> Resolver<'tcx> {
         })
     }
 
-    fn resolve_var(&self, ident: ast::Ident, subst: &Subst) -> Result<ty::Var, ErrorReported> {
-        match subst.get_expr(ident.name) {
+    fn resolve_var(&mut self, var: ast::Ident, subst: &Subst) -> Result<ty::Var, ErrorReported> {
+        match subst.get_expr(var.name) {
             Some(var) => Ok(var),
-            None => self.emit_error(
-                &format!("cannot find value `{}` in this scope", ident.name),
-                ident.span,
-            ),
+            None => self
+                .diagnostics
+                .emit_err(errors::UnresolvedVar::new(var))
+                .raise(),
         }
     }
 
-    fn resolve_lit(&self, lit: ast::Lit) -> Result<ty::Lit, ErrorReported> {
+    fn resolve_lit(&mut self, lit: ast::Lit) -> Result<ty::Lit, ErrorReported> {
         match lit.kind {
             ast::LitKind::Integer => match lit.symbol.as_str().parse::<i128>() {
                 Ok(n) => Ok(ty::Lit::Int(n)),
-                Err(_) => self.emit_error("integer literal is too large", lit.span),
+                Err(_) => self
+                    .diagnostics
+                    .emit_err(errors::IntTooLarge { span: lit.span })
+                    .raise(),
             },
             ast::LitKind::Bool => Ok(ty::Lit::Bool(lit.symbol == kw::True)),
-            _ => {
-                self.tcx.sess.span_err(lit.span, "unexpected literal");
-                Err(ErrorReported)
-            }
+            _ => self
+                .diagnostics
+                .emit_err(errors::UnexpectedLiteral { span: lit.span })
+                .raise(),
         }
     }
 
-    fn resolve_sort(&self, sort: ast::Ident) -> Result<ty::Sort, ErrorReported> {
+    fn resolve_sort(&mut self, sort: ast::Ident) -> Result<ty::Sort, ErrorReported> {
         if sort.name == SORTS.int {
             Ok(ty::Sort::Int)
         } else if sort.name == sym::bool {
             Ok(ty::Sort::Bool)
         } else {
-            self.emit_error(
-                &format!("cannot find sort `{}` in this scope", sort.name),
-                sort.span,
-            )
+            self.diagnostics
+                .emit_err(errors::UnresolvedSort::new(sort))
+                .raise()
         }
-    }
-
-    fn emit_error<T>(&self, message: &str, span: Span) -> Result<T, ErrorReported> {
-        self.tcx.sess.span_err(span, message);
-        Err(ErrorReported)
     }
 }
 
@@ -411,13 +424,12 @@ impl Subst {
     }
 
     fn insert_expr(&mut self, symb: Symbol, name: ty::Var) -> Option<ty::Var> {
-        let old = if self.exprs.contains_key_at_top(&symb) {
+        if self.exprs.contains_key_at_top(&symb) {
             self.exprs.get(&symb).copied()
         } else {
+            self.exprs.define(symb, name);
             None
-        };
-        self.exprs.define(symb, name);
-        old
+        }
     }
 
     fn insert_region(&mut self, symb: Symbol, name: Name) -> Option<Name> {
@@ -461,77 +473,8 @@ impl Diagnostics<'_> {
         }
     }
 
-    fn emit_unresolved_path(&mut self, path: &ast::Path) -> &mut Self {
-        let mut s = MultiSpan::from_span(path.span);
-        s.push_span_label(
-            path.span,
-            format!("could not resolve `{}`", path.ident.name),
-        );
-        self.emit_span_err(s, &format!("failed to resolve `{}`", path.ident.name))
-    }
-
-    fn emit_unsupported_signature(&mut self, span: Span, msg: String) -> &mut Self {
-        let mut s = MultiSpan::from_span(span);
-        s.push_span_label(span, msg);
-        self.emit_span_err(s, "unsupported function signature")
-    }
-
-    fn emit_generic_name_mismatch(
-        &mut self,
-        refined: ast::Ident,
-        hir: rustc_span::symbol::Ident,
-    ) -> &mut Self {
-        let mut s = MultiSpan::from_span(refined.span);
-        s.push_span_label(
-            refined.span,
-            format!("refined signature declares parameter `{}`", refined.name),
-        );
-        s.push_span_label(
-            hir.span,
-            format!("function declares parameter `{}`", hir.name),
-        );
-        self.emit_span_err(s, "type parameter name mismatch")
-    }
-
-    fn emit_generic_count_mismatch(
-        &mut self,
-        generics_span: Span,
-        found: usize,
-        hir_generics_span: Span,
-        expected: usize,
-    ) -> &mut Self {
-        let mut s = MultiSpan::from_span(generics_span);
-        s.push_span_label(
-            generics_span,
-            format!("refined signature has {} type parameters", found),
-        );
-        s.push_span_label(
-            hir_generics_span,
-            format!("function declared here with {} type parameters", expected),
-        );
-        self.emit_span_err(s, "generic count mismatch")
-    }
-
-    fn emit_refined_param_ty(&mut self, ty_span: Span) -> &mut Self {
-        self.emit_span_err(ty_span, "type parameters cannot be refined")
-    }
-
-    fn emit_unknown_region(&mut self, region: ast::Ident) -> &mut Self {
-        self.emit_span_err(
-            region.span,
-            &format!(
-                "cannot find region parameter `{}` in this scope",
-                region.name
-            ),
-        )
-    }
-
-    fn emit_duplicate_param_name(&mut self, span: Span) -> &mut Self {
-        self.emit_span_err(span, "duplicate parameter name")
-    }
-
-    fn emit_span_err(&mut self, span: impl Into<MultiSpan>, msg: &str) -> &mut Self {
-        self.sess.span_err(span, msg);
+    fn emit_err<'a>(&'a mut self, err: impl SessionDiagnostic<'a>) -> &mut Self {
+        self.sess.emit_err(err);
         self.errors += 1;
         self
     }
@@ -558,10 +501,10 @@ fn collect_res(
     match fn_sig.decl.output {
         hir::FnRetTy::DefaultReturn(span) => {
             return diagnostics
-                .emit_unsupported_signature(
+                .emit_err(errors::UnsupportedSignature {
                     span,
-                    "default return types are not supported yet".to_string(),
-                )
+                    msg: "default return types are not supported yet",
+                })
                 .raise();
         }
         hir::FnRetTy::Return(ty) => {
@@ -592,7 +535,10 @@ fn collect_res_ty(
                 path
             } else {
                 return diagnostics
-                    .emit_unsupported_signature(qpath.span(), "unsupported type".to_string())
+                    .emit_err(errors::UnsupportedSignature {
+                        span: qpath.span(),
+                        msg: "unsupported type",
+                    })
                     .raise();
             };
 
@@ -600,10 +546,10 @@ fn collect_res_ty(
                 [hir::PathSegment { ident, args, .. }] => (ident, args),
                 _ => {
                     return diagnostics
-                        .emit_unsupported_signature(
-                            qpath.span(),
-                            "multi-segment paths are not supported yet".to_string(),
-                        )
+                        .emit_err(errors::UnsupportedSignature {
+                            span: qpath.span(),
+                            msg: "multi-segment paths are not supported yet",
+                        })
                         .raise();
                 }
             };
@@ -633,14 +579,18 @@ fn collect_res_generic_arg(
     match arg {
         hir::GenericArg::Type(ty) => collect_res_ty(diagnostics, ty, types),
         hir::GenericArg::Lifetime(_) => diagnostics
-            .emit_unsupported_signature(arg.span(), "lifetimes are not supported yet".to_string())
+            .emit_err(errors::UnsupportedSignature {
+                span: arg.span(),
+                msg: "lifetime parameters are not supported yet",
+            })
             .raise(),
         hir::GenericArg::Const(_) => diagnostics
-            .emit_unsupported_signature(
-                arg.span(),
-                "const generics are not supported yet".to_string(),
-            )
+            .emit_err(errors::UnsupportedSignature {
+                span: arg.span(),
+                msg: "const generics are not supported yet",
+            })
             .raise(),
+
         hir::GenericArg::Infer(_) => unreachable!(),
     }
 }
@@ -652,3 +602,180 @@ struct Sorts {
 static SORTS: std::lazy::SyncLazy<Sorts> = std::lazy::SyncLazy::new(|| Sorts {
     int: Symbol::intern("int"),
 });
+
+mod errors {
+    use liquid_rust_syntax::ast;
+    use rustc_errors::pluralize;
+    use rustc_macros::SessionDiagnostic;
+    use rustc_span::{symbol::Ident, Span};
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnsupportedSignature {
+        #[message = "unsupported function signature"]
+        #[label = "{msg}"]
+        pub span: Span,
+        pub msg: &'static str,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnresolvedPath {
+        #[message = "could not resolve `{path}`"]
+        #[label = "failed to resolve `{path}`"]
+        pub span: Span,
+        pub path: Ident,
+    }
+
+    impl UnresolvedPath {
+        pub fn new(path: &ast::Path) -> Self {
+            Self {
+                span: path.span,
+                path: path.ident,
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct GenericNameMismatch {
+        #[message = "type parameter name mismatch"]
+        #[label = "refined signature declares parameter `{found_name}`"]
+        pub found: Span,
+        pub found_name: Ident,
+        #[label = "function declares parameter `{expected_name}`"]
+        pub expected: Span,
+        pub expected_name: Ident,
+    }
+
+    impl GenericNameMismatch {
+        pub fn new(found: Ident, expected: Ident) -> Self {
+            Self {
+                found: found.span,
+                found_name: found,
+                expected: expected.span,
+                expected_name: expected,
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct GenericCountMismatch {
+        #[message = "function declared with {expected} type parameters{expected_plural} but refined signature has {found}"]
+        #[label = "refined signature has {found} type parameter{found_plural}"]
+        pub found_span: Span,
+        pub found: usize,
+        pub found_plural: &'static str,
+        #[label = "function declared here with {expected} type parameter{expected_plural}"]
+        pub expected_span: Span,
+        pub expected: usize,
+        pub expected_plural: &'static str,
+    }
+
+    impl GenericCountMismatch {
+        pub fn new(found_span: Span, found: usize, expected_span: Span, expected: usize) -> Self {
+            Self {
+                found_span,
+                found,
+                found_plural: pluralize!(found),
+                expected_span,
+                expected,
+                expected_plural: pluralize!(expected),
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnresolvedLoc {
+        #[message = "cannot find location parameter `{loc}` in this scope"]
+        span: Span,
+        loc: Ident,
+    }
+
+    impl UnresolvedLoc {
+        pub fn new(loc: Ident) -> Self {
+            Self {
+                span: loc.span,
+                loc,
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct DuplicateGenericParam {
+        #[message = "the name `{name}` is already used for a generic parameter"]
+        #[label = "already used"]
+        span: Span,
+        name: Ident,
+    }
+
+    impl DuplicateGenericParam {
+        pub fn new(name: Ident) -> Self {
+            Self {
+                span: name.span,
+                name,
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct RefinedTypeParam {
+        #[message = "type parameters cannot be refined"]
+        #[label = "refined type parameter"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnresolvedSort {
+        #[message = "cannot find sort `{sort}` in this scope"]
+        #[label = "not found in this scope"]
+        pub span: Span,
+        pub sort: Ident,
+    }
+
+    impl UnresolvedSort {
+        pub fn new(sort: Ident) -> Self {
+            Self {
+                span: sort.span,
+                sort,
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnresolvedVar {
+        #[message = "cannot find value `{var}` in this scope"]
+        #[label = "not found in this scope"]
+        pub span: Span,
+        pub var: Ident,
+    }
+
+    impl UnresolvedVar {
+        pub fn new(var: Ident) -> Self {
+            Self {
+                span: var.span,
+                var,
+            }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct IntTooLarge {
+        #[message = "integer literal is too large"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnexpectedLiteral {
+        #[message = "unexpected literal"]
+        pub span: Span,
+    }
+}

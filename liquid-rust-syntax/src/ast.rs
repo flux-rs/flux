@@ -1,4 +1,5 @@
 pub use rustc_ast::token::LitKind;
+pub use rustc_span::symbol::Ident;
 use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
@@ -78,12 +79,6 @@ pub enum BinOp {
     Ge,
     Or,
     And,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Ident {
-    pub name: Symbol,
-    pub span: Span,
 }
 
 impl Generics {
