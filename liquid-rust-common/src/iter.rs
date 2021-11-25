@@ -27,7 +27,7 @@ pub trait IterExt: Iterator {
         }
     }
 
-    fn try_foreach_exhaust<T, E, F>(self, mut f: F) -> Result<(), E>
+    fn try_for_each_exhaust<T, E, F>(self, mut f: F) -> Result<(), E>
     where
         Self: Iterator<Item = T> + Sized,
         E: SemiGroup,

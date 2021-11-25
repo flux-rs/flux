@@ -14,22 +14,13 @@ pub struct Resolver<'tcx> {
     tcx: TyCtxt<'tcx>,
     diagnostics: Diagnostics<'tcx>,
     symbols: Symbols,
+    resolutions: FxHashMap<Symbol, hir::def::Res>,
+    def_id: LocalDefId,
 }
 
 struct Symbols {
     int: Symbol,
 }
-struct Matcher<'a> {
-    regions: FxHashMap<Symbol, &'a ast::Ty>,
-}
-
-struct Matching<'tcx> {
-    requires: FxHashMap<Symbol, &'tcx hir::Ty<'tcx>>,
-    args: Vec<&'tcx hir::Ty<'tcx>>,
-    ret: &'tcx hir::Ty<'tcx>,
-    ensures: FxHashMap<Symbol, &'tcx hir::Ty<'tcx>>,
-}
-
 enum ParamTyOrBaseTy {
     BaseTy(ty::BaseTy),
     ParamTy(ty::ParamTy),
@@ -47,34 +38,35 @@ struct Subst {
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
-        Self {
+    pub fn new(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Self, ErrorReported> {
+        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+        let fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
+
+        let mut diagnostics = Diagnostics::new(tcx.sess);
+        let resolutions = collect_res(&mut diagnostics, fn_sig)?;
+        Ok(Self {
             tcx,
-            diagnostics: Diagnostics::new(tcx.sess),
+            diagnostics,
             symbols: Symbols::new(),
-        }
+            resolutions,
+            def_id,
+        })
     }
 
-    pub fn resolve(
-        tcx: TyCtxt<'tcx>,
-        def_id: LocalDefId,
-        fn_sig: ast::FnSig,
-    ) -> Result<ty::FnSig, ErrorReported> {
-        let mut resolver = Self::new(tcx);
-
+    pub fn resolve(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
         let mut subst = Subst::new();
         let name_gen = IndexGen::new();
 
-        let generics = resolver.tcx.hir().get_generics(def_id.to_def_id()).unwrap();
+        let hir_generics = self
+            .tcx
+            .hir()
+            .get_generics(self.def_id.to_def_id())
+            .unwrap();
 
-        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-        let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
-
-        // The rest of the analysis depends on a valid matching and generics being correctly resolved so we bail out if
+        // The rest of the analysis depends on generics being correctly resolved so we bail out if
         // there's an error.
-        let matching = Matcher::match_fn_sigs(&mut resolver.diagnostics, &fn_sig, hir_fn_sig)?;
 
-        let params = resolver.resolve_generics(fn_sig.generics, generics, &name_gen, &mut subst)?;
+        let params = self.resolve_generics(fn_sig.generics, hir_generics, &name_gen, &mut subst)?;
 
         // From here on each step is independent so we check for errors at the end.
 
@@ -84,7 +76,7 @@ impl<'tcx> Resolver<'tcx> {
             .map(|(region, ty)| {
                 let fresh = name_gen.fresh();
                 subst.insert_region(region.name, fresh);
-                let ty = resolver.resolve_ty(ty, matching.requires[&region.name], &mut subst)?;
+                let ty = self.resolve_ty(ty, &mut subst)?;
                 Ok((fresh, ty))
             })
             .try_collect_exhaust();
@@ -92,8 +84,7 @@ impl<'tcx> Resolver<'tcx> {
         let args = fn_sig
             .args
             .into_iter()
-            .zip(matching.args)
-            .map(|(ty, hir_ty)| resolver.resolve_ty(ty, hir_ty, &mut subst))
+            .map(|ty| self.resolve_ty(ty, &mut subst))
             .try_collect_exhaust();
 
         let ensures = fn_sig
@@ -107,12 +98,12 @@ impl<'tcx> Resolver<'tcx> {
                     subst.insert_region(region.name, fresh);
                     fresh
                 };
-                let ty = resolver.resolve_ty(ty, matching.ensures[&region.name], &mut subst)?;
+                let ty = self.resolve_ty(ty, &mut subst)?;
                 Ok((name, ty))
             })
             .try_collect_exhaust();
 
-        let ret = resolver.resolve_ty(fn_sig.ret, matching.ret, &mut subst);
+        let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
         Ok(ty::FnSig {
             params,
@@ -246,166 +237,70 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    fn resolve_ty(
-        &mut self,
-        ty: ast::Ty,
-        hir_ty: &'tcx hir::Ty<'tcx>,
-        subst: &mut Subst,
-    ) -> Result<ty::Ty, ErrorReported> {
-        match (ty.kind, &hir_ty.kind) {
-            (ast::TyKind::BaseTy(path), hir::TyKind::Path(qpath)) => {
-                match self.resolve_path(ty.span, path, qpath, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
-                    ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
+    fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
+        match ty.kind {
+            ast::TyKind::BaseTy(path) => match self.resolve_path(path, subst)? {
+                ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
+                ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
+            },
+            ast::TyKind::RefineTy { path, refine } => match self.resolve_path(path, subst)? {
+                ParamTyOrBaseTy::BaseTy(bty) => {
+                    let refine = self.resolve_expr(refine, subst);
+                    Ok(ty::Ty::Refine(bty, refine?))
                 }
-            }
-            (ast::TyKind::RefineTy { path, refine }, hir::TyKind::Path(qpath)) => {
-                match self.resolve_path(ty.span, path, qpath, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => {
-                        let refine = self.resolve_expr(refine, subst);
-                        Ok(ty::Ty::Refine(bty, refine?))
-                    }
-                    ParamTyOrBaseTy::ParamTy(_) => {
-                        self.diagnostics.emit_refined_param_ty(ty.span).raise()
-                    }
+                ParamTyOrBaseTy::ParamTy(_) => {
+                    self.diagnostics.emit_refined_param_ty(ty.span).raise()
                 }
-            }
-            (ast::TyKind::Exists { bind, path, pred }, hir::TyKind::Path(qpath)) => {
-                match self.resolve_path(ty.span, path, qpath, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => {
-                        subst.push_expr_layer();
-                        subst.insert_expr(bind.name, ty::Var::Bound);
-                        let e = self.resolve_expr(pred, subst);
-                        subst.pop_expr_layer();
-                        Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
-                    }
-                    ParamTyOrBaseTy::ParamTy(_) => {
-                        self.diagnostics.emit_refined_param_ty(ty.span).raise()
-                    }
+            },
+            ast::TyKind::Exists { bind, path, pred } => match self.resolve_path(path, subst)? {
+                ParamTyOrBaseTy::BaseTy(bty) => {
+                    subst.push_expr_layer();
+                    subst.insert_expr(bind.name, ty::Var::Bound);
+                    let e = self.resolve_expr(pred, subst);
+                    subst.pop_expr_layer();
+                    Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
                 }
-            }
-            (ast::TyKind::MutRef(region), hir::TyKind::Rptr(_, mut_ty)) => {
-                if !matches!(mut_ty.mutbl, hir::Mutability::Mut) {
-                    return self
-                        .diagnostics
-                        .emit_unsupported_signature(
-                            hir_ty.span,
-                            "immutable references are not supported yet".to_string(),
-                        )
-                        .raise();
+                ParamTyOrBaseTy::ParamTy(_) => {
+                    self.diagnostics.emit_refined_param_ty(ty.span).raise()
                 }
+            },
+            ast::TyKind::MutRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
                     Ok(ty::Ty::MutRef(name))
                 } else {
                     self.diagnostics.emit_unknown_region(region).raise()
                 }
             }
-            _ => self
-                .diagnostics
-                .emit_invalid_refinement(ty.span, hir_ty.span)
-                .raise(),
         }
     }
 
     fn resolve_path(
         &mut self,
-        ty_span: Span,
         path: ast::Path,
-        qpath: &'tcx hir::QPath<'tcx>,
         subst: &mut Subst,
     ) -> Result<ParamTyOrBaseTy, ErrorReported> {
-        let hir_path = if let hir::QPath::Resolved(None, path) = qpath {
-            path
+        let res = if let Some(res) = self.resolutions.get(&path.ident.name) {
+            *res
         } else {
-            return self
-                .diagnostics
-                .emit_unsupported_signature(qpath.span(), "unsupported type".to_string())
-                .raise();
+            return self.diagnostics.emit_unresolved_path(&path).raise();
         };
 
-        let (args, hir_args): (Vec<ast::Ty>, &[hir::GenericArg]) = match hir_path.segments {
-            [hir::PathSegment {
-                ident: segment_ident,
-                args: hir_args,
-                ..
-            }] => {
-                if path.ident.name != segment_ident.name {
-                    return self
-                        .diagnostics
-                        .emit_invalid_refinement(ty_span, qpath.span())
-                        .raise();
-                }
-                match (path.args, hir_args) {
-                    (Some(args), Some(hir_args)) => {
-                        if args.len() != hir_args.args.len() {
-                            return self
-                                .diagnostics
-                                .emit_invalid_refinement(ty_span, qpath.span())
-                                .raise();
-                        }
-                        if !hir_args.bindings.is_empty() {
-                            return self
-                                .diagnostics
-                                .emit_unsupported_signature(
-                                    hir_args.span_ext,
-                                    "bindings for associated types are not supported yet"
-                                        .to_string(),
-                                )
-                                .raise();
-                        }
-                        (args, hir_args.args)
-                    }
-                    (None, None) => (vec![], &[]),
-                    _ => {
-                        return self
-                            .diagnostics
-                            .emit_invalid_refinement(ty_span, qpath.span())
-                            .raise();
-                    }
-                }
-            }
-            _ => {
-                return self
-                    .diagnostics
-                    .emit_unsupported_signature(
-                        qpath.span(),
-                        "multi-segment paths are not supported yet".to_string(),
-                    )
-                    .raise();
-            }
-        };
-
-        let hir_args: Vec<&'tcx hir::Ty<'tcx>> = hir_args
-            .iter()
-            .map(|arg| {
-                if let hir::GenericArg::Type(ty) = arg {
-                    Ok(ty)
-                } else {
-                    self.diagnostics
-                        .emit_unsupported_signature(
-                            arg.span(),
-                            "associated types are not supported yet".to_string(),
-                        )
-                        .raise()
-                }
-            })
-            .try_collect_exhaust()?;
-
-        match hir_path.res {
+        match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(ParamTyOrBaseTy::ParamTy(subst.get_param_ty(did).unwrap()))
             }
             hir::def::Res::Def(hir::def::DefKind::Struct, did) => {
-                let args = args
+                let args = path
+                    .args
                     .into_iter()
-                    .zip(hir_args)
-                    .map(|(arg, hir_arg)| self.resolve_ty(arg, hir_arg, subst))
-                    .try_collect()?;
+                    .flatten()
+                    .map(|ty| self.resolve_ty(ty, subst))
+                    .try_collect_exhaust()?;
                 Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Adt(did, args)))
             }
             hir::def::Res::Def(_, _) => self
                 .diagnostics
-                .emit_unsupported_signature(qpath.span(), "unsupported type".to_string())
+                .emit_unsupported_signature(path.span, "unsupported type".to_string())
                 .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
                 ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
@@ -418,26 +313,23 @@ impl<'tcx> Resolver<'tcx> {
             }
             hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => self
                 .diagnostics
-                .emit_unsupported_signature(
-                    qpath.span(),
-                    "floats are not supported yet".to_string(),
-                )
+                .emit_unsupported_signature(path.span, "floats are not supported yet".to_string())
                 .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Str) => self
                 .diagnostics
                 .emit_unsupported_signature(
-                    qpath.span(),
+                    path.span,
                     "string slices are not supported yet".to_string(),
                 )
                 .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Char) => self
                 .diagnostics
-                .emit_unsupported_signature(qpath.span(), "chars are not suported yet".to_string())
+                .emit_unsupported_signature(path.span, "chars are not suported yet".to_string())
                 .raise(),
             hir::def::Res::SelfTy { .. } => self
                 .diagnostics
                 .emit_unsupported_signature(
-                    qpath.span(),
+                    path.span,
                     "self types are not supported yet".to_string(),
                 )
                 .raise(),
@@ -582,38 +474,19 @@ impl Diagnostics<'_> {
         }
     }
 
-    fn emit_multiple_matches(&mut self, ty: &ast::Ty, matches: &[&hir::Ty]) -> &mut Self {
-        self.errors += 1;
-        let mut s = MultiSpan::from_span(ty.span);
+    fn emit_unresolved_path(&mut self, path: &ast::Path) -> &mut Self {
+        let mut s = MultiSpan::from_span(path.span);
         s.push_span_label(
-            ty.span,
-            "type may correspond to more than one type in the function signature".to_string(),
+            path.span,
+            format!("could not resolve `{}`", path.ident.name),
         );
-        for hir_ty in matches {
-            s.push_span_label(hir_ty.span, "".to_string());
-        }
-        self.sess.span_err(s, "ambiguous type refinement");
-        self
-    }
-
-    fn emit_invalid_refinement(&mut self, refined: Span, hir: Span) -> &mut Self {
-        let mut s = MultiSpan::from_span(refined);
-        s.push_span_label(
-            refined,
-            "type is not a valid refinement of the corresponding matched type in the function declaration".to_string(),
-        );
-        s.push_span_label(hir, "matched type".to_string());
-        self.sess.span_err(s, "invalid refinement");
-        self.errors += 1;
-        self
+        self.emit_span_err(s, &format!("failed to resolve `{}`", path.ident.name))
     }
 
     fn emit_unsupported_signature(&mut self, span: Span, msg: String) -> &mut Self {
         let mut s = MultiSpan::from_span(span);
         s.push_span_label(span, msg);
-        self.sess.span_err(s, "unsupported function signature");
-        self.errors += 1;
-        self
+        self.emit_span_err(s, "unsupported function signature")
     }
 
     fn emit_generic_name_mismatch(
@@ -630,9 +503,7 @@ impl Diagnostics<'_> {
             hir.span,
             format!("function declares parameter `{}`", hir.name),
         );
-        self.sess.span_err(s, "type parameter name mismatch");
-        self.errors += 1;
-        self
+        self.emit_span_err(s, "type parameter name mismatch")
     }
 
     fn emit_generic_count_mismatch(
@@ -651,64 +522,29 @@ impl Diagnostics<'_> {
             hir_generics_span,
             format!("function declared here with {} type parameters", expected),
         );
-        self.sess.span_err(s, "generic count mismatch");
-        self.errors += 1;
-        self
-    }
-
-    fn emit_unresolved_region_type(&mut self, ty: &ast::Ty) {
-        let mut s = MultiSpan::from_span(ty.span);
-        s.push_span_label(
-            ty.span,
-            "type cannot be matched to any type in the function signature".to_string(),
-        );
-        self.sess.span_err(s, "unresolved type");
-        self.errors += 1;
+        self.emit_span_err(s, "generic count mismatch")
     }
 
     fn emit_refined_param_ty(&mut self, ty_span: Span) -> &mut Self {
-        self.sess
-            .span_err(ty_span, "type parameters cannot be refined");
-        self.errors += 1;
-        self
-    }
-
-    fn emit_args_count_mismatch(
-        &mut self,
-        fn_sig: &ast::FnSig,
-        hir_fn_sig: &hir::FnSig,
-    ) -> &mut Self {
-        let mut s = MultiSpan::from_span(fn_sig.span);
-        s.push_span_label(
-            fn_sig.span,
-            format!("refined signatured has {} arguments", fn_sig.args.len()),
-        );
-        s.push_span_label(
-            hir_fn_sig.span,
-            format!(
-                "function declared here with {} arguments",
-                hir_fn_sig.decl.inputs.len()
-            ),
-        );
-        self.sess.span_err(s, "argument count mismatch");
-        self.errors += 1;
-        self
+        self.emit_span_err(ty_span, "type parameters cannot be refined")
     }
 
     fn emit_unknown_region(&mut self, region: ast::Ident) -> &mut Self {
-        self.sess.span_err(
+        self.emit_span_err(
             region.span,
             &format!(
                 "cannot find region parameter `{}` in this scope",
                 region.name
             ),
-        );
-        self.errors += 1;
-        self
+        )
     }
 
     fn emit_duplicate_param_name(&mut self, span: Span) -> &mut Self {
-        self.sess.span_err(span, "duplicate parameter name");
+        self.emit_span_err(span, "duplicate parameter name")
+    }
+
+    fn emit_span_err(&mut self, span: impl Into<MultiSpan>, msg: &str) -> &mut Self {
+        self.sess.span_err(span, msg);
         self.errors += 1;
         self
     }
@@ -720,108 +556,104 @@ impl Drop for Diagnostics<'_> {
     }
 }
 
-impl Matcher<'_> {
-    fn match_fn_sigs<'tcx>(
-        diagnostics: &mut Diagnostics,
-        fn_sig: &ast::FnSig,
-        hir_fn_sig: &hir::FnSig<'tcx>,
-    ) -> Result<Matching<'tcx>, ErrorReported> {
-        if fn_sig.args.len() != hir_fn_sig.decl.inputs.len() {
+fn collect_res(
+    diagnostics: &mut Diagnostics,
+    fn_sig: &hir::FnSig,
+) -> Result<FxHashMap<Symbol, hir::def::Res>, ErrorReported> {
+    let mut resolutions = FxHashMap::default();
+
+    fn_sig
+        .decl
+        .inputs
+        .iter()
+        .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, &mut resolutions))?;
+
+    match fn_sig.decl.output {
+        hir::FnRetTy::DefaultReturn(span) => {
             return diagnostics
-                .emit_args_count_mismatch(fn_sig, hir_fn_sig)
+                .emit_unsupported_signature(
+                    span,
+                    "default return types are not supported yet".to_string(),
+                )
                 .raise();
         }
-
-        let mut requires = FxHashMap::default();
-        let mut args = vec![];
-        let matcher = Matcher::new(&fn_sig.requires);
-        for (ty, hir_ty) in fn_sig.args.iter().zip(hir_fn_sig.decl.inputs) {
-            args.push(hir_ty);
-            matcher.match_refs_rec(ty, hir_ty, &mut requires);
+        hir::FnRetTy::Return(ty) => {
+            collect_res_ty(diagnostics, ty, &mut resolutions)?;
         }
+    }
 
-        let matcher = Matcher::new(&fn_sig.ensures);
-        let mut ensures = FxHashMap::default();
-        let ret = match hir_fn_sig.decl.output {
-            hir::FnRetTy::DefaultReturn(_) => {
+    Ok(resolutions)
+}
+
+fn collect_res_ty(
+    diagnostics: &mut Diagnostics,
+    ty: &hir::Ty,
+    resolutions: &mut FxHashMap<Symbol, hir::def::Res>,
+) -> Result<(), ErrorReported> {
+    match &ty.kind {
+        hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => {
+            collect_res_ty(diagnostics, ty, resolutions)
+        }
+        hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
+            collect_res_ty(diagnostics, mut_ty.ty, resolutions)
+        }
+        hir::TyKind::Tup(tys) => tys
+            .iter()
+            .try_for_each(|ty| collect_res_ty(diagnostics, ty, resolutions)),
+        hir::TyKind::Path(qpath) => {
+            let path = if let hir::QPath::Resolved(None, path) = qpath {
+                path
+            } else {
                 return diagnostics
-                    .emit_unsupported_signature(
-                        fn_sig.span,
-                        "default return types are not supported yet".to_string(),
-                    )
+                    .emit_unsupported_signature(qpath.span(), "unsupported type".to_string())
                     .raise();
-            }
-            hir::FnRetTy::Return(hir_ty) => {
-                matcher.match_refs_rec(&fn_sig.ret, hir_ty, &mut ensures);
-                hir_ty
-            }
-        };
-        for (region, _) in &fn_sig.ensures {
-            if let Some(matches) = requires.get(&region.name) {
-                ensures
-                    .entry(region.name)
-                    .or_default()
-                    .extend(matches.iter().copied());
-            }
+            };
+
+            let (ident, args) = match path.segments {
+                [hir::PathSegment { ident, args, .. }] => (ident, args),
+                _ => {
+                    return diagnostics
+                        .emit_unsupported_signature(
+                            qpath.span(),
+                            "multi-segment paths are not supported yet".to_string(),
+                        )
+                        .raise();
+                }
+            };
+            resolutions.insert(ident.name, path.res);
+
+            args.map(|args| args.args)
+                .iter()
+                .copied()
+                .flatten()
+                .try_for_each_exhaust(|arg| collect_res_generic_arg(diagnostics, arg, resolutions))
         }
-
-        let requires = check_matches(diagnostics, &fn_sig.requires, requires);
-        let ensures = check_matches(diagnostics, &fn_sig.ensures, ensures);
-
-        Ok(Matching {
-            requires: requires?,
-            args,
-            ret,
-            ensures: ensures?,
-        })
-    }
-
-    fn new(regions: &[(ast::Ident, ast::Ty)]) -> Matcher {
-        Matcher {
-            regions: regions.iter().map(|(ident, ty)| (ident.name, ty)).collect(),
-        }
-    }
-
-    fn match_refs_rec<'tcx>(
-        &self,
-        ty: &ast::Ty,
-        hir_ty: &'tcx hir::Ty<'tcx>,
-        matches: &mut FxHashMap<Symbol, Vec<&'tcx hir::Ty<'tcx>>>,
-    ) {
-        if let (ast::TyKind::MutRef(region), hir::TyKind::Rptr(_, mut_ty)) =
-            (&ty.kind, &hir_ty.kind)
-        {
-            if let Some(ty) = self.regions.get(&region.name) {
-                matches.entry(region.name).or_default().push(mut_ty.ty);
-                self.match_refs_rec(ty, mut_ty.ty, matches);
-            }
-        }
+        hir::TyKind::BareFn(_)
+        | hir::TyKind::Never
+        | hir::TyKind::OpaqueDef(_, _)
+        | hir::TyKind::TraitObject(_, _, _)
+        | hir::TyKind::Typeof(_)
+        | hir::TyKind::Infer
+        | hir::TyKind::Err => Ok(()),
     }
 }
 
-fn check_matches<'tcx>(
+fn collect_res_generic_arg(
     diagnostics: &mut Diagnostics,
-    regions: &[(ast::Ident, ast::Ty)],
-    matches: FxHashMap<Symbol, Vec<&'tcx hir::Ty<'tcx>>>,
-) -> Result<FxHashMap<Symbol, &'tcx hir::Ty<'tcx>>, ErrorReported> {
-    let mut finalized_matches = FxHashMap::default();
-    for (region, ty) in regions {
-        match matches.get(&region.name) {
-            Some(matches) if matches.len() == 1 => {
-                finalized_matches.insert(region.name, matches[0]);
-            }
-            Some(matches) if matches.is_empty() => {
-                diagnostics.emit_unresolved_region_type(ty);
-            }
-            Some(matches) => {
-                diagnostics.emit_multiple_matches(ty, matches);
-            }
-            None => {
-                diagnostics.emit_unresolved_region_type(ty);
-            }
-        }
+    arg: &hir::GenericArg,
+    types: &mut FxHashMap<Symbol, hir::def::Res>,
+) -> Result<(), ErrorReported> {
+    match arg {
+        hir::GenericArg::Type(ty) => collect_res_ty(diagnostics, ty, types),
+        hir::GenericArg::Lifetime(_) => diagnostics
+            .emit_unsupported_signature(arg.span(), "lifetimes are not supported yet".to_string())
+            .raise(),
+        hir::GenericArg::Const(_) => diagnostics
+            .emit_unsupported_signature(
+                arg.span(),
+                "const generics are not supported yet".to_string(),
+            )
+            .raise(),
+        hir::GenericArg::Infer(_) => unreachable!(),
     }
-    diagnostics.raise_if_errors()?;
-
-    Ok(finalized_matches)
 }
