@@ -148,14 +148,15 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
                 let mut subst = Subst::new(self.expr_gen, substs);
                 subst.infer_from_fn_call(&actuals, &fn_sig.args);
-                let (requires, args, ret, ensures) =
-                    lower_with_subst(&fn_sig, self.expr_gen, &subst);
 
-                for (region, updated_ty) in ensures {
+                for (region, updated_ty) in &fn_sig.ensures {
+                    let region = subst.lower_region(*region);
+                    let updated_ty = subst.lower_ty(self.expr_gen, updated_ty);
                     env.update_region(region[0], updated_ty);
                 }
 
                 if let Some((place, target)) = destination {
+                    let ret = subst.lower_ty(self.expr_gen, &fn_sig.ret);
                     env.write_place(place, ret.unpack(self.expr_gen));
                     self.infer_goto(env, *target);
                 }
@@ -468,34 +469,6 @@ fn lower(
             let ty = subst.lower_ty(gen, ty);
             (subst.lower_region(*name), ty)
         })
-        .collect();
-
-    (requires, args, ret, ensures)
-}
-
-fn lower_with_subst(
-    fn_sig: &FnSig,
-    gen: &IndexGen<ExprIdx>,
-    subst: &Subst,
-) -> (Vec<(Region, Ty)>, Vec<Ty>, Ty, Vec<(Region, Ty)>) {
-    let requires = fn_sig
-        .requires
-        .iter()
-        .map(|(name, ty)| (subst.lower_region(*name), subst.lower_ty(gen, ty)))
-        .collect();
-
-    let args = fn_sig
-        .args
-        .iter()
-        .map(|arg| subst.lower_ty(gen, arg))
-        .collect();
-
-    let ret = subst.lower_ty(gen, &fn_sig.ret);
-
-    let ensures = fn_sig
-        .ensures
-        .iter()
-        .map(|(name, ty)| (subst.lower_region(*name), subst.lower_ty(gen, ty)))
         .collect();
 
     (requires, args, ret, ensures)

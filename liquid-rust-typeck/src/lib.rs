@@ -231,6 +231,7 @@ impl<'tcx> Checker<'_, 'tcx> {
                 for (region, updated_ty) in &fn_sig.ensures {
                     let region = subst.lower_region(*region);
                     let updated_ty = subst.lower_ty(cursor, updated_ty);
+                    let updated_ty = cursor.unpack(updated_ty);
                     env.update_region(cursor, region[0], updated_ty);
                 }
 

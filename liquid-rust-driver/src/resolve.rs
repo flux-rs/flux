@@ -762,9 +762,6 @@ impl Matcher<'_> {
                     .entry(region.name)
                     .or_default()
                     .extend(matches.iter().copied());
-                // for hir_ty in matches {
-                //     matcher.match_refs_rec(ty, hir_ty, &mut ensures);
-                // }
             }
         }
 
@@ -781,10 +778,7 @@ impl Matcher<'_> {
 
     fn new(regions: &[(ast::Ident, ast::Ty)]) -> Matcher {
         Matcher {
-            regions: regions
-                .iter()
-                .map(|(ident, ty)| (ident.name, ty.clone()))
-                .collect(),
+            regions: regions.iter().map(|(ident, ty)| (ident.name, ty)).collect(),
         }
     }
 
@@ -794,14 +788,13 @@ impl Matcher<'_> {
         hir_ty: &'tcx hir::Ty<'tcx>,
         matches: &mut FxHashMap<Symbol, Vec<&'tcx hir::Ty<'tcx>>>,
     ) {
-        match (&ty.kind, &hir_ty.kind) {
-            (ast::TyKind::MutRef(region), hir::TyKind::Rptr(_, mut_ty)) => {
-                if let Some(ty) = self.regions.get(&region.name) {
-                    matches.entry(region.name).or_default().push(mut_ty.ty);
-                    self.match_refs_rec(ty, mut_ty.ty, matches);
-                }
+        if let (ast::TyKind::MutRef(region), hir::TyKind::Rptr(_, mut_ty)) =
+            (&ty.kind, &hir_ty.kind)
+        {
+            if let Some(ty) = self.regions.get(&region.name) {
+                matches.entry(region.name).or_default().push(mut_ty.ty);
+                self.match_refs_rec(ty, mut_ty.ty, matches);
             }
-            _ => {}
         }
     }
 }
