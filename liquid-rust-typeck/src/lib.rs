@@ -302,8 +302,8 @@ impl<'tcx> Checker<'_, 'tcx> {
         match bin_op {
             ir::BinOp::Add => self.check_num_op(BinOp::Add, ty1, ty2),
             ir::BinOp::Sub => self.check_num_op(BinOp::Sub, ty1, ty2),
-            ir::BinOp::Gt => self.check_cmp(BinOp::Gt, ty1, ty2),
-            ir::BinOp::Lt => self.check_cmp(BinOp::Lt, ty1, ty2),
+            ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
+            ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
         }
     }
 
@@ -320,17 +320,39 @@ impl<'tcx> Checker<'_, 'tcx> {
                 )
                 .intern()
             }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+                TyKind::Refine(
+                    BaseTy::Uint(*uint_ty1),
+                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         }
     }
 
-    fn check_cmp(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_cmp_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
+                TyKind::Refine(
+                    BaseTy::Bool,
+                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
                 TyKind::Refine(
                     BaseTy::Bool,
                     ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
