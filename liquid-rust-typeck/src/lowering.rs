@@ -15,73 +15,27 @@ pub struct Subst {
 
 pub struct InferenceError;
 
-pub fn lower_with_fresh_names(
-    cursor: &mut Cursor,
-    body: &ir::Body,
-    fn_sig: &core::FnSig,
-) -> (TyEnv, Vec<(ty::Region, ty::Ty)>, ty::Ty) {
-    let mut subst = Subst::empty();
-    let mut env_builder = TyEnvBuilder::new(body.nlocals);
-
-    for param in &fn_sig.params {
-        let fresh = cursor.fresh_var();
-        subst
-            .exprs
-            .insert(param.name.name, ty::Expr::from(ty::Var::Free(fresh)));
-        let expr = subst.lower_expr(&param.pred);
-        cursor.push_forall(fresh, param.sort, ty::Pred::Expr(expr));
-    }
-
-    for (name, ty) in &fn_sig.requires {
-        let ty = subst.lower_ty(cursor, ty);
-        let ty = cursor.unpack(ty);
-        let rvid = env_builder.define_abstract_region(ty);
-        subst.regions.insert(*name, ty::Region::from(rvid));
-    }
-
-    for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-        let ty = subst.lower_ty(cursor, ty);
-        let ty = cursor.unpack(ty);
-        env_builder.define_local(local, ty);
-    }
-
-    for local in body.vars_and_temps_iter() {
-        env_builder.define_local(local, ty::TyKind::Uninit.intern());
-    }
-
-    env_builder.define_local(ir::RETURN_PLACE, ty::TyKind::Uninit.intern());
-
-    let ensures = fn_sig
-        .ensures
-        .iter()
-        .map(|(name, ty)| {
-            let ty = subst.lower_ty(cursor, ty);
-            (subst.regions[name].clone(), ty)
-        })
-        .collect();
-
-    let ret = subst.lower_ty(cursor, &fn_sig.ret);
-
-    (env_builder.build(), ensures, ret)
-}
-
 impl Subst {
-    pub fn new(cursor: &mut Cursor, types: &[core::Ty]) -> Self {
-        let mut empty = Subst::empty();
-        let types = types.iter().map(|ty| empty.lower_ty(cursor, ty)).collect();
-        Self {
-            exprs: FxHashMap::default(),
-            regions: FxHashMap::default(),
-            types,
-        }
-    }
-
-    fn empty() -> Self {
+    pub fn with_empty_type_substs() -> Self {
         Self {
             exprs: FxHashMap::default(),
             regions: FxHashMap::default(),
             types: vec![],
         }
+    }
+
+    pub fn with_type_substs(cursor: &mut Cursor, types: &[core::Ty]) -> Self {
+        let mut subst = Subst::with_empty_type_substs();
+        subst.types.reserve(types.len());
+        for ty in types {
+            let ty = subst.lower_ty(cursor, ty);
+            subst.types.push(ty);
+        }
+        subst
+    }
+
+    pub fn insert_expr(&mut self, name: core::Name, expr: impl Into<ty::Expr>) {
+        self.exprs.insert(name, expr.into());
     }
 
     pub fn insert_region(&mut self, name: core::Name, region: impl Into<ty::Region>) {

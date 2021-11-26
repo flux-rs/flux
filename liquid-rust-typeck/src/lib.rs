@@ -21,7 +21,6 @@ mod tyenv;
 use crate::{
     constraint_builder::{ConstraintBuilder, Cursor},
     inference::InferCtxt,
-    lowering::lower_with_fresh_names,
     ty::{BaseTy, BinOp, Expr, ExprKind, KVid, RVid, Region, Ty, TyKind, Var},
 };
 use global_env::GlobalEnv;
@@ -59,8 +58,8 @@ pub struct Checker<'a, 'tcx> {
     ensures: Vec<(Region, Ty)>,
 }
 
-impl<'tcx> Checker<'_, 'tcx> {
-    pub fn check(
+impl Checker<'_, '_> {
+    pub fn check<'tcx>(
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
@@ -68,17 +67,69 @@ impl<'tcx> Checker<'_, 'tcx> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
 
         let mut constraint = ConstraintBuilder::new(global_env.tcx);
-        let mut cursor = constraint.as_cursor();
+        let cursor = &mut constraint.as_cursor();
 
-        let (mut env, ensures, ret_ty) = lower_with_fresh_names(&mut cursor, body, fn_sig);
+        let mut env = TyEnvBuilder::new(body.nlocals);
+        let mut subst = lowering::Subst::with_empty_type_substs();
 
+        for param in &fn_sig.params {
+            let fresh = cursor.fresh_name();
+            subst.insert_expr(param.name.name, Var::Free(fresh));
+            cursor.push_forall(fresh, param.sort, subst.lower_expr(&param.pred));
+        }
+
+        for (name, ty) in &fn_sig.requires {
+            let ty = subst.lower_ty(cursor, ty);
+            let rvid = env.define_abstract_region(cursor.unpack(ty));
+            subst.insert_region(*name, rvid);
+        }
+
+        for (local, ty) in body.args_iter().zip(&fn_sig.args) {
+            let ty = subst.lower_ty(cursor, ty);
+            env.define_local(local, cursor.unpack(ty));
+        }
+
+        for local in body.vars_and_temps_iter() {
+            env.define_local(local, TyKind::Uninit.intern())
+        }
+
+        env.define_local(RETURN_PLACE, ty::TyKind::Uninit.intern());
+
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|(name, ty)| {
+                let ty = subst.lower_ty(cursor, ty);
+                let region = subst.lower_region(*name).unwrap();
+                (region, ty)
+            })
+            .collect();
+
+        let ret_ty = subst.lower_ty(cursor, &fn_sig.ret);
+
+        Checker::new(global_env, body, bb_env_shapes, ret_ty, ensures)
+            .run(&mut env.build(), cursor)?;
+
+        println!("{:?}", constraint);
+        let constraint = constraint.to_fixpoint();
+        println!("{:?}", Fixpoint::check(&constraint));
+        Ok(())
+    }
+
+    fn new<'a, 'tcx>(
+        global_env: &'a GlobalEnv<'tcx>,
+        body: &'a Body<'tcx>,
+        bb_env_shapes: FxHashMap<BasicBlock, DisjointSetsMap<RVid, inference::Ty>>,
+        ret_ty: Ty,
+        ensures: Vec<(Region, Ty)>,
+    ) -> Checker<'a, 'tcx> {
         let dominators = body.dominators();
         let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
         for bb in body.join_points() {
             dominates_join_point.insert(dominators.immediate_dominator(bb));
         }
 
-        let mut checker = Checker {
+        Checker {
             sess: global_env.tcx.sess,
             global_env,
             body,
@@ -88,19 +139,18 @@ impl<'tcx> Checker<'_, 'tcx> {
             bb_env_shapes,
             ret_ty,
             ensures,
-        };
+        }
+    }
 
-        checker.check_goto(&mut env, &mut cursor, START_BLOCK)?;
-        for bb in body.reverse_postorder() {
-            if !checker.visited.contains(bb) {
-                let mut env = checker.bb_envs.get(&bb).unwrap().clone();
-                env.unpack(&mut cursor);
-                checker.check_basic_block(&mut env, &mut cursor, bb)?;
+    fn run(&mut self, env: &mut TyEnv, cursor: &mut Cursor) -> Result<(), ErrorReported> {
+        self.check_goto(env, cursor, START_BLOCK)?;
+        for bb in self.body.reverse_postorder() {
+            if !self.visited.contains(bb) {
+                let mut env = self.bb_envs.remove(&bb).unwrap();
+                env.unpack(cursor);
+                self.check_basic_block(&mut env, cursor, bb)?;
             }
         }
-        println!("{:?}", constraint);
-        let constraint = constraint.to_fixpoint();
-        println!("{:?}", Fixpoint::check(&constraint));
         Ok(())
     }
 
@@ -208,7 +258,7 @@ impl<'tcx> Checker<'_, 'tcx> {
                     .map(|arg| self.check_operand(env, arg))
                     .collect_vec();
 
-                let mut subst = lowering::Subst::new(cursor, substs);
+                let mut subst = lowering::Subst::with_type_substs(cursor, substs);
                 if let Err(errors) = subst.infer_from_fn_call(env, &actuals, fn_sig) {
                     return self.report_inference_error(terminator.source_info);
                 };

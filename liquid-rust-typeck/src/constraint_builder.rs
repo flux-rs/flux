@@ -131,7 +131,7 @@ impl<'tcx> Cursor<'_, 'tcx> {
         Pred::kvar(kvid, vars)
     }
 
-    pub fn fresh_var(&self) -> Name {
+    pub fn fresh_name(&self) -> Name {
         self.builder.name_gen.fresh()
     }
 
@@ -208,7 +208,7 @@ impl<'tcx> Cursor<'_, 'tcx> {
     pub fn unpack(&mut self, ty: Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let fresh = self.fresh_var();
+                let fresh = self.fresh_name();
                 self.push_forall(
                     fresh,
                     bty.sort(),
