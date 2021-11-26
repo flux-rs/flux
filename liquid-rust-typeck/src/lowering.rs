@@ -51,7 +51,7 @@ pub fn lower_with_fresh_names(
 
     env_builder.define_local(ir::RETURN_PLACE, ty::TyKind::Uninit.intern());
 
-    let mut ensures = fn_sig
+    let ensures = fn_sig
         .ensures
         .iter()
         .map(|(name, ty)| {

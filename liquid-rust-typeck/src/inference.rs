@@ -3,7 +3,7 @@ use std::{collections::hash_map::Entry, fmt};
 use itertools::Itertools;
 use liquid_rust_common::{
     disjoint_sets::DisjointSetsMap,
-    index::{newtype_index, Idx, IndexGen},
+    index::{newtype_index, Idx, IndexGen, IndexVec},
 };
 use liquid_rust_core::{
     ir::{
@@ -62,29 +62,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         fn_sig: &FnSig,
     ) -> FxHashMap<BasicBlock, DisjointSetsMap<RVid, Ty>> {
         let expr_gen = &IndexGen::new();
-        let rvid_gen = &IndexGen::new();
-        rvid_gen.skip(body.nlocals);
 
-        let mut env = TypeEnv::new(expr_gen);
-
-        let (requires, args, ret, ensures) = lower(fn_sig, expr_gen, rvid_gen);
-
-        // Return place
-        env.push_region(TyS::Uninit.intern());
-
-        // Arguments
-        for ty in args {
-            env.push_region(ty.unpack(expr_gen));
-        }
-
-        // Vars and temps
-        for _ in body.vars_and_temps_iter() {
-            env.push_region(TyS::Uninit.intern());
-        }
-
-        for ty in requires {
-            env.push_region(ty);
-        }
+        let (mut env, ensures, ret) = lower(expr_gen, body, fn_sig);
 
         let mut cx = InferCtxt {
             body,
@@ -166,7 +145,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     self.infer_goto(env, *target);
                 }
             }
-            TerminatorKind::SwitchInt { discr: _, targets } => {
+            TerminatorKind::SwitchInt { discr, targets } => {
+                let discr_ty = self.infer_operand(env, discr);
+                debug_assert!(matches!(&*discr_ty, TyS::Refine(BaseTy::Bool, ..)));
                 for (_, target) in targets.iter() {
                     self.infer_goto(&mut env.clone(), target);
                 }
@@ -270,6 +251,33 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 struct TypeEnv<'a> {
     types: DisjointSetsMap<RVid, Ty>,
     expr_gen: &'a IndexGen<ExprIdx>,
+}
+
+struct TypeEnvBuilder {
+    regions: IndexVec<RVid, Option<Ty>>,
+}
+
+impl TypeEnvBuilder {
+    pub fn new(locals: usize) -> Self {
+        TypeEnvBuilder {
+            regions: IndexVec::from_elem_n(None, locals),
+        }
+    }
+
+    pub fn define_local(&mut self, local: ir::Local, ty: Ty) {
+        self.regions[RVid::new(local.as_usize())] = Some(ty);
+    }
+
+    pub fn define_abstract_region(&mut self, ty: Ty) -> RVid {
+        self.regions.push(Some(ty))
+    }
+
+    pub fn build(self, expr_gen: &IndexGen<ExprIdx>) -> TypeEnv {
+        TypeEnv {
+            expr_gen,
+            types: DisjointSetsMap::from_iter(self.regions.into_iter().map(|rkind| rkind.unwrap())),
+        }
+    }
 }
 
 impl TypeEnv<'_> {
@@ -427,7 +435,7 @@ impl TyS {
             (TyS::MutRef(region1), TyS::MutRef(region2)) => TyS::MutRef(region1 + region2).intern(),
             (TyS::Uninit, _) | (_, TyS::Uninit) => TyS::Uninit.intern(),
             _ => {
-                panic!(
+                unreachable!(
                     "join between incompatible types: `{:?}` `{:?}`",
                     self, other
                 )
@@ -441,42 +449,41 @@ struct Subst {
     types: Vec<Ty>,
 }
 
-fn lower(
+fn lower<'a>(
+    expr_gen: &'a IndexGen<ExprIdx>,
+    body: &ir::Body,
     fn_sig: &FnSig,
-    gen: &IndexGen<ExprIdx>,
-    rvid_gen: &IndexGen<RVid>,
-) -> (Vec<Ty>, Vec<Ty>, Ty, Vec<(Region, Ty)>) {
+) -> (TypeEnv<'a>, Vec<(Region, Ty)>, Ty) {
     let mut subst = Subst::empty();
 
-    let requires = fn_sig
-        .requires
-        .iter()
-        .map(|(name, ty)| {
-            let rvid = rvid_gen.fresh();
-            let ty = subst.lower_ty(gen, ty);
-            subst.insert_region(*name, rvid);
-            ty
-        })
-        .collect();
+    let mut builder = TypeEnvBuilder::new(body.nlocals);
+    for (region, ty) in &fn_sig.requires {
+        let rvid = builder.define_abstract_region(subst.lower_ty(expr_gen, ty).unpack(expr_gen));
+        subst.insert_region(*region, rvid);
+    }
 
-    let args = fn_sig
-        .args
-        .iter()
-        .map(|arg| subst.lower_ty(gen, arg))
-        .collect();
+    for (local, ty) in body.args_iter().zip(&fn_sig.args) {
+        builder.define_local(local, subst.lower_ty(expr_gen, ty).unpack(expr_gen));
+    }
 
-    let ret = subst.lower_ty(gen, &fn_sig.ret);
+    for local in body.vars_and_temps_iter() {
+        builder.define_local(local, TyS::Uninit.intern());
+    }
+
+    builder.define_local(RETURN_PLACE, TyS::Uninit.intern());
 
     let ensures = fn_sig
         .ensures
         .iter()
-        .map(|(name, ty)| {
-            let ty = subst.lower_ty(gen, ty);
-            (subst.lower_region(*name).unwrap(), ty)
+        .map(|(region, ty)| {
+            let ty = subst.lower_ty(expr_gen, ty);
+            (subst.lower_region(*region).unwrap(), ty)
         })
         .collect();
 
-    (requires, args, ret, ensures)
+    let ret = subst.lower_ty(expr_gen, &fn_sig.ret);
+
+    (builder.build(expr_gen), ensures, ret)
 }
 
 impl fmt::Debug for TypeEnv<'_> {
