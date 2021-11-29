@@ -61,12 +61,12 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
     }
 
     pub fn same_set(&self, idx1: I, idx2: I) -> bool {
-        self.find(idx1) == self.find(idx2)
+        self.unchecked_find(idx1) == self.unchecked_find(idx2)
     }
 
     pub fn union(&mut self, idx1: I, idx2: I, merge: impl FnOnce(T, T) -> T) {
-        let root1 = self.find(idx1);
-        let root2 = self.find(idx2);
+        let root1 = self.unchecked_find(idx1);
+        let root2 = self.unchecked_find(idx2);
 
         if root1 == root2 {
             return;
@@ -106,24 +106,20 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
     }
 
     pub fn set(&self, idx: I) -> Set<I> {
-        let root = self.find(idx);
+        let root = self.unchecked_find(idx);
         Set::new(&self.next, root, self.size[root])
     }
 
-    pub fn remove(&mut self, idx: I) -> Option<T> {
-        self.map.remove(&self.find(idx))
-    }
-
     pub fn get(&self, idx: I) -> Option<&T> {
-        self.map.get(&self.find(idx))
+        self.map.get(&self.find(idx)?)
     }
 
     pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
-        self.map.get_mut(&self.find(idx))
+        self.map.get_mut(&self.find(idx)?)
     }
 
-    pub fn insert(&mut self, idx: I, elem: T) -> Option<T> {
-        self.map.insert(self.find(idx), elem)
+    pub fn update(&mut self, idx: I, elem: T) -> Option<T> {
+        self.map.insert(self.find(idx)?, elem)
     }
 
     pub fn values(&self) -> impl Iterator<Item = &T> {
@@ -134,10 +130,15 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
         self.map.values_mut()
     }
 
-    fn find(&self, elem: I) -> I {
+    fn find(&self, elem: I) -> Option<I> {
+        let p = self.parent.get(elem)?.get();
+        Some(self.unchecked_find(p))
+    }
+
+    fn unchecked_find(&self, elem: I) -> I {
         let p = self.parent[elem].get();
         if p != elem {
-            self.parent[elem].set(self.find(p));
+            self.parent[elem].set(self.unchecked_find(p));
         }
         self.parent[elem].get()
     }
@@ -175,7 +176,7 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
 impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
     pub fn merge_with(&mut self, other: &Self, merge: impl Fn(T, T) -> T + Copy) {
         for idx in self.parent.indices() {
-            let root = other.find(idx);
+            let root = other.unchecked_find(idx);
             if root == idx {
                 let elem1 = self[idx].clone();
                 let elem2 = other[idx].clone();
@@ -246,11 +247,19 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
-        for (mut set, elem) in self.iter() {
-            if set.len() == 1 {
-                write!(f, "{:?}: ", set.next().unwrap())?;
-            } else {
-                write!(f, "{{{:?}}}: ", set.sorted().format(", "))?;
+        let groups = self
+            .iter()
+            .map(|(set, elem)| (set.sorted().collect_vec(), elem))
+            .sorted_by(|(set1, _), (set2, _)| set1.cmp(set2))
+            .collect_vec();
+        for (set, elem) in groups {
+            match set[..] {
+                [idx] => {
+                    write!(f, "{idx:?}: ")?;
+                }
+                _ => {
+                    write!(f, "{{{:?}}}: ", set.iter().format(", "))?;
+                }
             }
             write!(f, "{:?}, ", elem)?;
         }

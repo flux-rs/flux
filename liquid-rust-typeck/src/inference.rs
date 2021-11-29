@@ -130,7 +130,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 // TODO: we should check the substitution here
 
                 for (region, updated_ty) in &fn_sig.ensures {
-                    let updated_ty = subst.lower_ty(self.expr_gen, updated_ty);
+                    let updated_ty = subst
+                        .lower_ty(self.expr_gen, updated_ty)
+                        .unpack(self.expr_gen);
                     if let Some(region) = subst.lower_region(*region) {
                         env.update_region(region[0], updated_ty);
                     } else {
@@ -196,17 +198,19 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Ty {
         let ty1 = self.infer_operand(env, op1);
         let ty2 = self.infer_operand(env, op2);
-        match (bin_op, &*ty1, &*ty2) {
-            (ir::BinOp::Add | ir::BinOp::Sub, TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
-                debug_assert_eq!(bty1, bty2);
-                TyS::Refine(bty1.clone(), self.expr_gen.fresh()).intern()
-            }
-            (ir::BinOp::Gt | ir::BinOp::Lt, TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
-                debug_assert_eq!(bty1, bty2);
+
+        match bin_op {
+            ir::BinOp::Add | ir::BinOp::Sub => match (&*ty1, &*ty2) {
+                (TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
+                    debug_assert_eq!(bty1, bty2);
+                    TyS::Refine(bty1.clone(), self.expr_gen.fresh()).intern()
+                }
+                _ => {
+                    unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
+                }
+            },
+            ir::BinOp::Gt | ir::BinOp::Lt | ir::BinOp::Le => {
                 TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern()
-            }
-            _ => {
-                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
             }
         }
     }
@@ -293,7 +297,7 @@ impl TypeEnv<'_> {
     }
 
     pub fn update_region(&mut self, rvid: RVid, ty: Ty) {
-        self.types.insert(rvid, ty);
+        self.types.update(rvid, ty);
     }
 
     pub fn write_place(&mut self, place: &Place, new_ty: Ty) {
@@ -301,11 +305,11 @@ impl TypeEnv<'_> {
 
         match &*ty {
             TyS::Refine(..) | TyS::Uninit | TyS::Param(_) => {
-                self.types.insert(rvid, new_ty);
+                self.types.update(rvid, new_ty);
             }
             TyS::MutRef(_) => {
                 let ty = ty.join(&new_ty);
-                self.types.insert(rvid, ty.clone());
+                self.types.update(rvid, ty.clone());
                 self.union_cascade(ty, true);
             }
             TyS::Exists(_) => {

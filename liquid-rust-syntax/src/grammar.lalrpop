@@ -127,7 +127,8 @@ BinOp3: ast::BinOp = {
 }
 
 BinOp4: ast::BinOp = {
-    "+" => ast::BinOp::Add
+    "+" => ast::BinOp::Add,
+    "-" => ast::BinOp::Sub
 }
 
 Lit: ast::Lit = {
@@ -172,6 +173,7 @@ extern {
         "&&" => Token::AndAnd,
         "||" => Token::OrOr,
         "+"  => Token::Plus,
+        "-"  => Token::Minus,
         "|"  => Token::Caret,
         "("  => Token::OpenDelim(DelimToken::Paren),
         ")"  => Token::CloseDelim(DelimToken::Paren),

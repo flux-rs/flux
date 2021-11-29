@@ -55,7 +55,9 @@ impl Subst {
         }
 
         for (region, required) in &fn_sig.requires {
-            let actual = env.lookup_region(self.lower_region(*region).unwrap()[0]);
+            let actual = env
+                .lookup_region(self.lower_region(*region).unwrap()[0])
+                .unwrap();
             self.infer_from_tys(actual, required);
         }
 
@@ -176,6 +178,7 @@ fn lower_bin_op(op: core::BinOp) -> ty::BinOp {
     match op {
         core::BinOp::Eq => ty::BinOp::Eq,
         core::BinOp::Add => ty::BinOp::Add,
+        core::BinOp::Sub => ty::BinOp::Sub,
         core::BinOp::Gt => ty::BinOp::Gt,
         core::BinOp::Ge => ty::BinOp::Ge,
         core::BinOp::Lt => ty::BinOp::Lt,

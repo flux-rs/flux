@@ -146,7 +146,7 @@ impl Checker<'_, '_> {
         self.check_goto(env, cursor, START_BLOCK)?;
         for bb in self.body.reverse_postorder() {
             if !self.visited.contains(bb) {
-                let mut env = self.bb_envs.remove(&bb).unwrap();
+                let mut env = self.bb_envs[&bb].clone();
                 env.unpack(cursor);
                 self.check_basic_block(&mut env, cursor, bb)?;
             }
@@ -199,7 +199,7 @@ impl Checker<'_, '_> {
                 cursor.subtyping(ret_place_ty, self.ret_ty.clone());
 
                 for (region, ensured_ty) in &self.ensures {
-                    let actual_ty = env.lookup_region(region[0]);
+                    let actual_ty = env.lookup_region(region[0]).unwrap();
                     cursor.subtyping(actual_ty, ensured_ty.clone());
                 }
             }
@@ -273,7 +273,9 @@ impl Checker<'_, '_> {
                 }
 
                 for (region, required_ty) in &fn_sig.requires {
-                    let actual_ty = env.lookup_region(subst.lower_region(*region).unwrap()[0]);
+                    let actual_ty = env
+                        .lookup_region(subst.lower_region(*region).unwrap()[0])
+                        .unwrap();
                     let required_ty = subst.lower_ty(cursor, required_ty);
                     cursor.subtyping(actual_ty, required_ty);
                 }
@@ -318,8 +320,11 @@ impl Checker<'_, '_> {
             for (mut region, ty1) in env.iter() {
                 // FIXME: we should check the region in env is a subset of a region in bb_env
                 let local = region.next().unwrap();
-                let ty2 = bb_env.lookup_region(local);
-                cursor.subtyping(ty1, ty2);
+
+                // We allow weakening
+                if let Some(ty2) = bb_env.lookup_region(local) {
+                    cursor.subtyping(ty1, ty2);
+                }
             }
             Ok(())
         } else {
@@ -354,6 +359,7 @@ impl Checker<'_, '_> {
             ir::BinOp::Sub => self.check_num_op(BinOp::Sub, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
+            ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
         }
     }
 

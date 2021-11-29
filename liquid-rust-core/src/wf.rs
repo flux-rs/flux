@@ -94,7 +94,7 @@ impl Wf<'_> {
                 self.check_expr(env, e2, s)?;
                 Ok(Sort::Bool)
             }
-            BinOp::Add => {
+            BinOp::Add | BinOp::Sub => {
                 self.check_expr(env, e1, Sort::Int)?;
                 self.check_expr(env, e2, Sort::Int)?;
                 Ok(Sort::Int)

@@ -12,6 +12,7 @@ pub enum Token {
     AndAnd,
     OrOr,
     Plus,
+    Minus,
     Colon,
     Comma,
     Semi,
@@ -94,6 +95,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,
+            TokenKind::BinOp(BinOpToken::Minus) => Token::Minus,
             _ => Token::Invalid,
         };
         (

@@ -84,11 +84,11 @@ impl TyEnv {
     }
 
     pub fn lookup_local(&self, local: Local) -> Ty {
-        self.lookup_region(RVid::new(local.as_usize()))
+        self.lookup_region(RVid::new(local.as_usize())).unwrap()
     }
 
-    pub fn lookup_region(&self, rvid: RVid) -> Ty {
-        self.regions[rvid].ty()
+    pub fn lookup_region(&self, rvid: RVid) -> Option<Ty> {
+        self.regions.get(rvid).map(|k| k.ty())
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
@@ -112,14 +112,14 @@ impl TyEnv {
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
         let mut rvid = RVid::new(place.local.as_usize());
-        let mut ty = self.lookup_region(rvid);
+        let mut ty = self.lookup_local(place.local);
         self.regions[RVid::new(place.local.as_usize())] =
             RegionKind::Strong(TyKind::Uninit.intern());
         for elem in &place.projection {
             match (elem, ty.kind()) {
                 (ir::PlaceElem::Deref, TyKind::MutRef(region)) => {
                     self.regions[region[0]] = RegionKind::Strong(TyKind::Uninit.intern());
-                    ty = self.lookup_region(region[0]);
+                    ty = self.lookup_region(region[0]).unwrap();
                 }
                 _ => {
                     unreachable!("unexpected type: {:?}", ty);
@@ -146,12 +146,12 @@ impl TyEnv {
 
     fn walk_place(&self, place: &ir::Place) -> (RVid, Ty) {
         let mut rvid = RVid::new(place.local.as_usize());
-        let mut ty = self.lookup_region(rvid);
+        let mut ty = self.lookup_local(place.local);
         for elem in &place.projection {
             match (elem, ty.kind()) {
                 (ir::PlaceElem::Deref, TyKind::MutRef(region)) => {
                     rvid = region[0];
-                    ty = self.lookup_region(rvid);
+                    ty = self.lookup_region(rvid).unwrap();
                 }
                 _ => {
                     unreachable!("unexpected type: {:?}", ty);
@@ -171,9 +171,9 @@ impl TyEnv {
             let region_size = region.len();
             let rvid = region.next().unwrap();
             let ty = match &*ty {
-                inference::TyS::Refine(_, _) => self.lookup_region(rvid),
+                inference::TyS::Refine(_, _) => self.lookup_region(rvid).unwrap(),
                 inference::TyS::Exists(bty) => {
-                    let ty = self.lookup_region(rvid);
+                    let ty = self.lookup_region(rvid).unwrap();
                     match ty.kind() {
                         TyKind::Refine(bty, _) => {
                             let pred = cursor.fresh_kvar_at_last_scope(bty.sort());
