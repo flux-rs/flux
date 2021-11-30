@@ -4,6 +4,7 @@ use std::{
 };
 
 use itertools::{Format, Itertools};
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 
 use crate::{
@@ -77,6 +78,7 @@ macro_rules! impl_debug_with_default_cx {
 pub struct PPrintCx<'tcx> {
     tcx: TyCtxt<'tcx>,
     print_vars_in_scope: bool,
+    fully_qualified_paths: bool,
 }
 
 struct WithCx<'a, 'tcx, T> {
@@ -102,12 +104,20 @@ impl PPrintCx<'_> {
         PPrintCx {
             tcx,
             print_vars_in_scope: true,
+            fully_qualified_paths: false,
         }
     }
 
     fn print_vars_in_scope(self, b: bool) -> Self {
         Self {
             print_vars_in_scope: b,
+            ..self
+        }
+    }
+
+    fn fully_qualified_paths(self, b: bool) -> Self {
+        Self {
+            fully_qualified_paths: b,
             ..self
         }
     }
@@ -237,14 +247,24 @@ impl Pretty for BaseTy {
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
             BaseTy::Bool => w!("bool"),
             BaseTy::Adt(did, args) => {
-                let krate = cx.tcx.crate_name(did.krate);
-                let path = cx.tcx.def_path(*did).to_string_no_crate_verbose();
-                w!("{krate}{path}")?;
+                w!("{:?}", did)?;
                 if !args.is_empty() {
                     w!("<{:?}>", join!(", ", args));
                 }
                 Ok(())
             }
+        }
+    }
+}
+
+impl Pretty for DefId {
+    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let path = cx.tcx.def_path(*self);
+        if cx.fully_qualified_paths {
+            let krate = cx.tcx.crate_name(self.krate);
+            write!(f, "{krate}{}", path.to_string_no_crate_verbose())
+        } else {
+            write!(f, "{}", path.data.last().unwrap())
         }
     }
 }
@@ -262,6 +282,10 @@ impl Pretty for Pred {
             }
             Self::Expr(expr) => w!("{:?}", expr),
         }
+    }
+
+    fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        PPrintCx::default(tcx).fully_qualified_paths(true)
     }
 }
 
