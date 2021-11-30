@@ -180,7 +180,6 @@ impl Checker<'_, '_> {
     fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                println!("{env:?}");
                 let ty = self.check_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
                 env.write_place(cursor, p, ty);
