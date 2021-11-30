@@ -72,17 +72,13 @@ Refinement: ast::Expr = {
     "{" <Level1> "}" => <>
 };
 
-Level1 = Level<BinOp1, Level2>;
-Level2 = Level<BinOp2, Level3>;
-Level3: ast::Expr = {
-    <lo:@L> <e1:Level4> <op:BinOp3> <e2:Level4> <hi:@R> => ast::Expr {
-        kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
-        span: mk_span(lo, hi)
-    },
-    Level4
-}
-Level4 = Level<BinOp4, Level5>;
-Level5: ast::Expr = {
+Level1 = NonAssoc<BinOp1, Level2>;  // <=>
+Level2 = LeftAssoc<BinOp2, Level3>; // =>
+Level3 = LeftAssoc<BinOp3, Level4>; // ||
+Level4 = LeftAssoc<BinOp4, Level5>; // &&
+Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
+Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
+Level7: ast::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
         ast::Expr {
             kind: ast::ExprKind::Literal(lit),
@@ -97,8 +93,15 @@ Level5: ast::Expr = {
 }
 
 
-Level<Op, NextLevel>: ast::Expr = {
-    <lo:@L> <e1:Level<Op, NextLevel>> <op:Op> <e2:NextLevel> <hi:@R> =>
+NonAssoc<Op, NextLevel>: ast::Expr = {
+    <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
+        span: mk_span(lo, hi)
+    },
+    NextLevel
+}
+LeftAssoc<Op, NextLevel>: ast::Expr = {
+    <lo:@L> <e1:LeftAssoc<Op, NextLevel>> <op:Op> <e2:NextLevel> <hi:@R> =>
         ast::Expr {
             kind: ast::ExprKind::BinaryOp(
                 op,
@@ -111,14 +114,22 @@ Level<Op, NextLevel>: ast::Expr = {
 }
 
 BinOp1: ast::BinOp = {
-    "||" => ast::BinOp::Or,
+    "<=>" => ast::BinOp::Iff
 }
 
 BinOp2: ast::BinOp = {
-    "&&" => ast::BinOp::And,
+    "=>" => ast::BinOp::Imp
 }
 
 BinOp3: ast::BinOp = {
+    "||" => ast::BinOp::Or,
+}
+
+BinOp4: ast::BinOp = {
+    "&&" => ast::BinOp::And,
+}
+
+BinOp5: ast::BinOp = {
     "==" => ast::BinOp::Eq,
     ">" => ast::BinOp::Gt,
     ">=" => ast::BinOp::Ge,
@@ -126,7 +137,7 @@ BinOp3: ast::BinOp = {
     "<=" => ast::BinOp::Le,
 }
 
-BinOp4: ast::BinOp = {
+BinOp6: ast::BinOp = {
     "+" => ast::BinOp::Add,
     "-" => ast::BinOp::Sub
 }
@@ -172,6 +183,8 @@ extern {
         "==" => Token::EqEq,
         "&&" => Token::AndAnd,
         "||" => Token::OrOr,
+        "=>" => Token::FatArrow,
+        "<=>" => Token::Iff,
         "+"  => Token::Plus,
         "-"  => Token::Minus,
         "|"  => Token::Caret,

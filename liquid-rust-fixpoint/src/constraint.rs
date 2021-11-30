@@ -31,15 +31,17 @@ pub enum Expr {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
     Eq,
-    Add,
-    Sub,
     Gt,
     Ge,
     Lt,
     Le,
-    Or,
-    And,
+    Add,
+    Sub,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,6 +62,16 @@ pub enum Sign {
     Negative,
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub enum Precedence {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Cmp,
+    AddSub,
+}
+
 newtype_index! {
     pub struct KVid {
         DEBUG_FORMAT = "$k{}",
@@ -77,17 +89,21 @@ impl Constraint {
 }
 
 impl BinOp {
-    pub fn precedence(&self) -> u32 {
+    pub fn precedence(&self) -> Precedence {
         match self {
-            BinOp::Add | BinOp::Sub => 4,
-            BinOp::Eq | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => 3,
-            BinOp::And => 2,
-            BinOp::Or => 1,
+            BinOp::Iff => Precedence::Iff,
+            BinOp::Imp => Precedence::Imp,
+            BinOp::Or => Precedence::Or,
+            BinOp::And => Precedence::And,
+            BinOp::Eq | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => Precedence::Cmp,
+            BinOp::Add | BinOp::Sub => Precedence::AddSub,
         }
     }
+}
 
-    pub fn associative(precedence: u32) -> bool {
-        precedence != 3
+impl Precedence {
+    pub fn is_associative(&self) -> bool {
+        !matches!(self, Precedence::Imp | Precedence::Cmp)
     }
 }
 
@@ -157,7 +173,7 @@ impl fmt::Display for Expr {
             if let Expr::BinaryOp(child_op, ..) = child {
                 child_op.precedence() < op.precedence()
                     || (child_op.precedence() == op.precedence()
-                        && !BinOp::associative(op.precedence()))
+                        && !op.precedence().is_associative())
             } else {
                 false
             }
@@ -194,15 +210,17 @@ impl fmt::Display for Expr {
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            BinOp::Iff => write!(f, "<=>"),
+            BinOp::Imp => write!(f, "=>"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::And => write!(f, "&&"),
             BinOp::Eq => write!(f, "="),
-            BinOp::Add => write!(f, "+"),
-            BinOp::Sub => write!(f, "-"),
             BinOp::Gt => write!(f, ">"),
             BinOp::Ge => write!(f, ">="),
             BinOp::Lt => write!(f, "<"),
             BinOp::Le => write!(f, "<="),
-            BinOp::Or => write!(f, "||"),
-            BinOp::And => write!(f, "&&"),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
         }
     }
 }

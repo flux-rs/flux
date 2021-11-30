@@ -296,7 +296,7 @@ impl Pretty for ExprS {
             if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
                 child_op.precedence() < op.precedence()
                     || (child_op.precedence() == op.precedence()
-                        && !BinOp::associative(op.precedence()))
+                        && !op.precedence().is_associative())
             } else {
                 false
             }

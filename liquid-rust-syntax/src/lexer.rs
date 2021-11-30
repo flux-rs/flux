@@ -1,3 +1,5 @@
+use std::iter::Peekable;
+
 pub use rustc_ast::token::{BinOpToken, DelimToken, Lit, LitKind};
 use rustc_ast::{
     token::{self, TokenKind},
@@ -23,6 +25,8 @@ pub enum Token {
     Ge,
     At,
     Fn,
+    Iff,
+    FatArrow,
     Literal(Lit),
     Ident(Symbol),
     OpenDelim(DelimToken),
@@ -43,7 +47,7 @@ struct Symbols {
 }
 
 struct Frame {
-    cursor: tokenstream::Cursor,
+    cursor: Peekable<tokenstream::Cursor>,
     close: Option<(Location, Token, Location)>,
 }
 
@@ -54,7 +58,7 @@ impl Cursor {
     pub(crate) fn new(stream: TokenStream, offset: BytePos) -> Self {
         Cursor {
             stack: vec![Frame {
-                cursor: stream.into_trees(),
+                cursor: stream.into_trees().peekable(),
                 close: None,
             }],
             offset,
@@ -73,6 +77,7 @@ impl Cursor {
             TokenKind::EqEq => Token::EqEq,
             TokenKind::AndAnd => Token::AndAnd,
             TokenKind::OrOr => Token::OrOr,
+            TokenKind::FatArrow => Token::FatArrow,
             TokenKind::Gt => Token::Gt,
             TokenKind::Ge => Token::Ge,
             TokenKind::At => Token::At,
@@ -113,7 +118,20 @@ impl Iterator for Cursor {
         let top = self.stack.last_mut()?;
 
         match top.cursor.next() {
-            Some(TokenTree::Token(token)) => Some(self.map_token(token)),
+            Some(TokenTree::Token(token)) => {
+                if let Some(TokenTree::Token(next)) = top.cursor.peek() {
+                    match (&token.kind, &next.kind) {
+                        (TokenKind::Le, TokenKind::Gt) if token.span.hi() == next.span.lo() => {
+                            let lo = Location(token.span.lo() - self.offset);
+                            let hi = Location(next.span.hi() - self.offset);
+                            top.cursor.next();
+                            return Some((lo, Token::Iff, hi));
+                        }
+                        _ => {}
+                    }
+                }
+                Some(self.map_token(token))
+            }
             Some(TokenTree::Delimited(span, delim, tokens)) => {
                 let close = (
                     Location(span.close.lo() - self.offset),
@@ -121,13 +139,14 @@ impl Iterator for Cursor {
                     Location(span.close.hi() - self.offset),
                 );
                 self.stack.push(Frame {
-                    cursor: tokens.into_trees(),
+                    cursor: tokens.into_trees().peekable(),
                     close: Some(close),
                 });
-                Some(self.map_token(token::Token {
+                let token = token::Token {
                     kind: TokenKind::OpenDelim(delim),
                     span: span.open,
-                }))
+                };
+                Some(self.map_token(token))
             }
             None => self.stack.pop().unwrap().close,
         }

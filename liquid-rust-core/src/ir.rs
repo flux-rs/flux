@@ -79,6 +79,7 @@ pub enum BinOp {
     Gt,
     Lt,
     Le,
+    Eq,
 }
 
 pub enum Operand {

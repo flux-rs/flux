@@ -71,15 +71,17 @@ pub struct Lit {
 
 #[derive(Debug, Copy, Clone)]
 pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
     Eq,
-    Add,
-    Sub,
     Lt,
     Le,
     Gt,
     Ge,
-    Or,
-    And,
+    Add,
+    Sub,
 }
 
 impl Generics {

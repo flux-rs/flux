@@ -31,11 +31,18 @@ impl Wf<'_> {
             .map(|ty| self.check_type(&mut env, ty))
             .try_collect_exhaust();
 
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|(_, ty)| self.check_type(&mut env, ty))
+            .try_collect_exhaust();
+
         let ret = self.check_type(&mut env, &fn_sig.ret);
 
         args?;
         ret?;
         params?;
+        ensures?;
 
         Ok(())
     }
@@ -58,7 +65,7 @@ impl Wf<'_> {
     fn check_pred(&self, env: &Env, pred: &Pred, sort: Sort) -> Result<(), ErrorReported> {
         match pred {
             Pred::Infer => todo!(
-                "we should report this as an error as inference should be allowed in the syntax"
+                "we should report this as an error as inference should not be allowed in the syntax"
             ),
             Pred::Expr(e) => self.check_expr(env, e, sort),
         }
@@ -89,9 +96,19 @@ impl Wf<'_> {
         e2: &Expr,
     ) -> Result<Sort, ErrorReported> {
         match op {
+            BinOp::Iff | BinOp::Imp => {
+                self.check_expr(env, e1, Sort::Bool)?;
+                self.check_expr(env, e2, Sort::Bool)?;
+                Ok(Sort::Bool)
+            }
             BinOp::Eq => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, s)?;
+                Ok(Sort::Bool)
+            }
+            BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+                self.check_expr(env, e1, Sort::Int)?;
+                self.check_expr(env, e2, Sort::Int)?;
                 Ok(Sort::Bool)
             }
             BinOp::Add | BinOp::Sub => {
@@ -102,11 +119,6 @@ impl Wf<'_> {
             BinOp::Or | BinOp::And => {
                 self.check_expr(env, e1, Sort::Bool)?;
                 self.check_expr(env, e2, Sort::Bool)?;
-                Ok(Sort::Bool)
-            }
-            BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
-                self.check_expr(env, e1, Sort::Int)?;
-                self.check_expr(env, e2, Sort::Int)?;
                 Ok(Sort::Bool)
             }
         }

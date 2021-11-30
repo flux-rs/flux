@@ -176,14 +176,16 @@ impl Subst {
 
 fn lower_bin_op(op: core::BinOp) -> ty::BinOp {
     match op {
+        core::BinOp::Iff => ty::BinOp::Iff,
+        core::BinOp::Imp => ty::BinOp::Imp,
+        core::BinOp::Or => ty::BinOp::Or,
+        core::BinOp::And => ty::BinOp::And,
         core::BinOp::Eq => ty::BinOp::Eq,
-        core::BinOp::Add => ty::BinOp::Add,
-        core::BinOp::Sub => ty::BinOp::Sub,
         core::BinOp::Gt => ty::BinOp::Gt,
         core::BinOp::Ge => ty::BinOp::Ge,
         core::BinOp::Lt => ty::BinOp::Lt,
         core::BinOp::Le => ty::BinOp::Le,
-        core::BinOp::Or => ty::BinOp::Or,
-        core::BinOp::And => ty::BinOp::And,
+        core::BinOp::Add => ty::BinOp::Add,
+        core::BinOp::Sub => ty::BinOp::Sub,
     }
 }

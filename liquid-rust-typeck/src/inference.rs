@@ -209,7 +209,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
                 }
             },
-            ir::BinOp::Gt | ir::BinOp::Lt | ir::BinOp::Le => {
+            ir::BinOp::Gt | ir::BinOp::Lt | ir::BinOp::Le | ir::BinOp::Eq => {
                 TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern()
             }
         }
