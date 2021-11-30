@@ -102,10 +102,16 @@ macro_rules! _impl_debug_with_default_cx {
 }
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 
+pub enum Visibility {
+    Hide,
+    Show,
+    Ellipsis,
+}
 pub struct PPrintCx<'tcx> {
     tcx: TyCtxt<'tcx>,
-    print_vars_in_scope: bool,
+    vars_in_scope: Visibility,
     fully_qualified_paths: bool,
+    nu: Visibility,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -126,23 +132,37 @@ pub trait Pretty {
     }
 }
 
+impl Visibility {
+    /// Returns `true` if the visibility is [`Hide`].
+    ///
+    /// [`Hide`]: Visibility::Hide
+    pub fn is_hide(&self) -> bool {
+        matches!(self, Self::Hide)
+    }
+}
+
 impl PPrintCx<'_> {
-    fn default(tcx: TyCtxt) -> PPrintCx {
+    pub fn default(tcx: TyCtxt) -> PPrintCx {
         PPrintCx {
             tcx,
-            print_vars_in_scope: true,
+            vars_in_scope: Visibility::Show,
+            nu: Visibility::Show,
             fully_qualified_paths: false,
         }
     }
 
-    fn print_vars_in_scope(self, b: bool) -> Self {
+    pub fn vars_in_scope(self, vis: Visibility) -> Self {
         Self {
-            print_vars_in_scope: b,
+            vars_in_scope: vis,
             ..self
         }
     }
 
-    fn fully_qualified_paths(self, b: bool) -> Self {
+    pub fn nu(self, vis: Visibility) -> Self {
+        Self { nu: vis, ..self }
+    }
+
+    pub fn fully_qualified_paths(self, b: bool) -> Self {
         Self {
             fully_qualified_paths: b,
             ..self
@@ -243,7 +263,9 @@ impl Pretty for TyEnv {
     }
 
     fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx).print_vars_in_scope(false)
+        PPrintCx::default(tcx)
+            .vars_in_scope(Visibility::Hide)
+            .nu(Visibility::Hide)
     }
 }
 
@@ -263,6 +285,10 @@ impl Pretty for TyS {
             TyKind::MutRef(region) => w!("ref<{:?}>", region),
             TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
         }
+    }
+
+    fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        PPrintCx::default(tcx).vars_in_scope(Visibility::Ellipsis)
     }
 }
 
@@ -300,12 +326,23 @@ impl Pretty for Pred {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self {
-            Self::KVar(kvid, args) => {
-                if cx.print_vars_in_scope {
-                    w!("{:?}({:?})", ^kvid, join!(", ", args))
-                } else {
-                    w!("{:?}", ^kvid)
+            Self::KVar(kvid, e, args) => {
+                w!("{:?}", ^kvid)?;
+                if !cx.nu.is_hide() || !cx.vars_in_scope.is_hide() {
+                    w!("(")?;
+                    match cx.nu {
+                        Visibility::Show => w!("{:?}", e)?,
+                        Visibility::Ellipsis => w!("…")?,
+                        Visibility::Hide => {}
+                    }
+                    match cx.vars_in_scope {
+                        Visibility::Show => w!(", {:?}", join!(", ", args))?,
+                        Visibility::Ellipsis => w!(", …")?,
+                        Visibility::Hide => {}
+                    }
+                    w!(")")?;
                 }
+                Ok(())
             }
             Self::Expr(expr) => w!("{:?}", expr),
         }
