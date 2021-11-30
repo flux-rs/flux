@@ -287,6 +287,25 @@ impl Node {
     fn is_head(&self) -> bool {
         matches!(self, Self::Head(..))
     }
+
+    fn forall_chain<'a>(&'a self) -> Option<(Vec<(Name, Sort, &'a Pred)>, &'a Vec<Node>)> {
+        fn go<'a>(
+            node: &'a Node,
+            mut vec: Vec<(Name, Sort, &'a Pred)>,
+        ) -> Option<(Vec<(Name, Sort, &'a Pred)>, &'a Vec<Node>)> {
+            match node {
+                Node::ForAll(name, sort, pred, children) => {
+                    vec.push((*name, *sort, pred));
+                    match &children[..] {
+                        [child @ Node::ForAll(..)] => go(child, vec),
+                        _ => Some((vec, children)),
+                    }
+                }
+                _ => None,
+            }
+        }
+        go(self, vec![])
+    }
 }
 
 fn children_to_fixpoint(
@@ -361,76 +380,106 @@ fn stitch(
     })
 }
 
-impl fmt::Debug for ConstraintBuilder<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Constraint {{")?;
-        writeln!(
-            f,
-            "    kvars: [{}]",
-            self.kvars
-                .iter_enumerated()
-                .format_with(", ", |(kvid, sorts), f| f(&format_args!(
-                    "KVar({:?}, {:?})",
-                    kvid, sorts
-                )))
-        )?;
+mod pretty {
+    use super::*;
+    use crate::pretty::*;
 
-        writeln!(f, "    root: {:?}", PadAdapter::wrap(&self.root))?;
-        writeln!(f, "}}")
+    impl Pretty for ConstraintBuilder<'_> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("Constraint {{\n")?;
+            w!(
+                "    kvars: [{}]\n",
+                ^self.kvars
+                    .iter_enumerated()
+                    .format_with(", ", |(kvid, sorts), f| f(&format_args!(
+                        "KVar({:?}, {:?})",
+                        kvid, sorts
+                    )))
+            )?;
+
+            w!("    root: ")?;
+            writeln!(PadAdapter::wrap_fmt(f), "{:?}", with_cx!(&self.root))?;
+            w!("}}")
+        }
     }
-}
 
-impl fmt::Debug for Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self {
-            Node::Conj(children) => {
-                write!(f, "Conj {{")?;
-                debug_children(children, f)?;
-                write!(f, "}}")
-            }
-            Node::ForAll(var, sort, pred, children) => {
-                if pred.is_true() {
-                    write!(f, "ForAll({:?}: {:?}) {{", var, sort)?;
-                } else {
-                    write!(f, "ForAll({:?}: {:?} {{ {:?} }}) {{", var, sort, pred)?;
+    impl Pretty for Node {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match &self {
+                Node::Conj(children) => {
+                    w!("Conj {{{:?}}}", children)
                 }
-                debug_children(children, f)?;
-                write!(f, "}}")
-            }
-            Node::Guard(expr, children) => {
-                write!(f, "Guard({:?}) {{", expr)?;
-                debug_children(children, f)?;
-                write!(f, "}}")
-            }
-            Node::Head(pred) => {
-                write!(f, "{:?}", pred)
+                Node::ForAll(..) => {
+                    let (bindings, children) = self.forall_chain().unwrap();
+                    let bindings =
+                        bindings
+                            .into_iter()
+                            .format_with(", ", |(var, sort, pred), f| {
+                                if pred.is_true() {
+                                    f(&format_args!("{:?}: {:?}", var, sort))
+                                } else {
+                                    f(&format_args_cx!(
+                                        "{:?}: {:?} {{ {:?} }}",
+                                        ^var,
+                                        ^sort,
+                                        pred
+                                    ))
+                                }
+                            });
+                    w!("ForAll({}) {{{:?}}}", ^bindings, children)
+                }
+                Node::Guard(expr, children) => {
+                    w!("Guard({:?}) {{{:?}}}", expr, children)
+                }
+                Node::Head(pred) => {
+                    w!("{:?}", pred)
+                }
             }
         }
     }
-}
 
-fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let mut w = PadAdapter::wrap_fmt(f);
-    for child in children {
-        write!(w, "\n{:?}", child)?;
+    impl Pretty for Vec<Node> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, PadAdapter::wrap_fmt(f));
+            // let mut w = PadAdapter::wrap_fmt(f);
+            for child in self {
+                w!("\n{:?}", child)?;
+            }
+            if self.is_empty() {
+                write!(f, " ")
+            } else {
+                writeln!(f)
+            }
+        }
     }
-    if children.is_empty() {
-        write!(f, " ")
-    } else {
-        writeln!(f)
-    }
-}
 
-impl fmt::Debug for Cursor<'_, '_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{{{}}}",
-            self.vars_in_scope(self.nvars)
-                .format_with(", ", |(var, sort), f| f(&format_args!(
-                    "{:?}: {:?}",
-                    var, sort
-                )))
-        )
+    // fn debug_children(children: &[Node], f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    //     let mut w = PadAdapter::wrap_fmt(f);
+    //     for child in children {
+    //         write!(w, "\n{:?}", child)?;
+    //     }
+    //     if children.is_empty() {
+    //         write!(f, " ")
+    //     } else {
+    //         writeln!(f)
+    //     }
+    // }
+
+    impl fmt::Debug for Cursor<'_, '_> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "{{{}}}",
+                self.vars_in_scope(self.nvars)
+                    .format_with(", ", |(var, sort), f| f(&format_args!(
+                        "{:?}: {:?}",
+                        var, sort
+                    )))
+            )
+        }
     }
+
+    impl_debug_with_default_cx!(ConstraintBuilder<'_>, Node);
 }

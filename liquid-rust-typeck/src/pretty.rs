@@ -13,8 +13,9 @@ use crate::{
     tyenv::{RegionKind, TyEnv},
 };
 
-macro_rules! define_scoped {
-    ($cx:ident, $fmt:ident) => {
+#[macro_export]
+macro_rules! _define_scoped {
+    ($cx:ident, $fmt:expr) => {
         #[allow(unused_macros)]
         macro_rules! scoped_cx {
             () => {
@@ -30,39 +31,64 @@ macro_rules! define_scoped {
         }
     };
 }
+pub use crate::_define_scoped as define_scoped;
 
-macro_rules! w {
+#[macro_export]
+macro_rules! _with_cx {
+    ($e:expr) => {
+        $crate::pretty::WithCx::new(scoped_cx!(), $e)
+    };
+}
+pub use crate::_with_cx as with_cx;
+
+#[macro_export]
+macro_rules! _format_args_cx {
     ($fmt:literal, $($args:tt)*) => {
-        w!(@go ($fmt; $($args)*) -> ())
+        format_args_cx!(@go ($fmt; $($args)*) -> ())
     };
     ($fmt:literal) => {
-        write!(scoped_fmt!(), $fmt)
+        format_args!($fmt)
     };
     (@go ($fmt:literal; ^$head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
-        w!(@go ($fmt; $($tail)*) -> ($($accum)* $head,))
+        format_args_cx!(@go ($fmt; $($tail)*) -> ($($accum)* $head,))
     };
     (@go ($fmt:literal; $head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
-        w!(@go ($fmt; $($tail)*) -> ($($accum)* WithCx::new(scoped_cx!(), $head),))
+        format_args_cx!(@go ($fmt; $($tail)*) -> ($($accum)* $crate::pretty::with_cx!($head),))
     };
     (@go ($fmt:literal; ^$head:expr) -> ($($accum:tt)*)) => {
-        w!(@as_expr write!(scoped_fmt!(), $fmt, $($accum)* $head,))
+        format_args_cx!(@as_expr format_args!($fmt, $($accum)* $head,))
     };
     (@go ($fmt:literal; $head:expr) -> ($($accum:tt)*)) => {
-        w!(@as_expr write!(scoped_fmt!(), $fmt, $($accum)* WithCx::new(scoped_cx!(), $head),))
+        format_args_cx!(@as_expr format_args!($fmt, $($accum)* $crate::pretty::with_cx!($head),))
     };
     (@as_expr $e:expr) => { $e };
 }
+pub use crate::_format_args_cx as format_args_cx;
 
-macro_rules! join {
+#[macro_export]
+macro_rules! _w {
+    ($fmt:literal, $($args:tt)*) => {
+        scoped_fmt!().write_fmt(format_args_cx!($fmt, $($args)*))
+    };
+    ($fmt:literal) => {
+        write!(scoped_fmt!(), $fmt)
+    }
+}
+pub use crate::_w as w;
+
+#[macro_export]
+macro_rules! _join {
     ($sep:expr, $iter:expr) => {
-        Join {
+        $crate::pretty::Join {
             sep: $sep,
-            iter: RefCell::new(Some($iter.into_iter())),
+            iter: std::cell::RefCell::new(Some($iter.into_iter())),
         }
     };
 }
+pub use crate::_join as join;
 
-macro_rules! impl_debug_with_default_cx {
+#[macro_export]
+macro_rules! _impl_debug_with_default_cx {
     ($($ty:ty),* $(,)?) => {$(
         impl fmt::Debug for $ty  {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -74,6 +100,7 @@ macro_rules! impl_debug_with_default_cx {
         }
     )*};
 }
+pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 
 pub struct PPrintCx<'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -81,17 +108,17 @@ pub struct PPrintCx<'tcx> {
     fully_qualified_paths: bool,
 }
 
-struct WithCx<'a, 'tcx, T> {
+pub struct WithCx<'a, 'tcx, T> {
     data: T,
     cx: &'a PPrintCx<'tcx>,
 }
 
-struct Join<'a, I> {
+pub struct Join<'a, I> {
     sep: &'a str,
     iter: RefCell<Option<I>>,
 }
 
-trait Pretty {
+pub trait Pretty {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
     fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -124,12 +151,12 @@ impl PPrintCx<'_> {
 }
 
 impl<'a, 'tcx, T> WithCx<'a, 'tcx, T> {
-    fn new(cx: &'a PPrintCx<'tcx>, data: T) -> Self {
+    pub fn new(cx: &'a PPrintCx<'tcx>, data: T) -> Self {
         Self { data, cx }
     }
 }
 
-impl<T: Pretty> Pretty for &'_ T {
+impl<T: Pretty + ?Sized> Pretty for &'_ T {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <T as Pretty>::fmt(self, cx, f)
     }
