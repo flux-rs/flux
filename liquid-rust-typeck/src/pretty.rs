@@ -76,6 +76,7 @@ macro_rules! impl_debug_with_default_cx {
 
 pub struct PPrintCx<'tcx> {
     tcx: TyCtxt<'tcx>,
+    print_vars_in_scope: bool,
 }
 
 struct WithCx<'a, 'tcx, T> {
@@ -92,7 +93,23 @@ trait Pretty {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
     fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx { tcx }
+        PPrintCx::default(tcx)
+    }
+}
+
+impl PPrintCx<'_> {
+    fn default(tcx: TyCtxt) -> PPrintCx {
+        PPrintCx {
+            tcx,
+            print_vars_in_scope: true,
+        }
+    }
+
+    fn print_vars_in_scope(self, b: bool) -> Self {
+        Self {
+            print_vars_in_scope: b,
+            ..self
+        }
     }
 }
 
@@ -187,6 +204,10 @@ impl Pretty for TyEnv {
         }
         w!("}}")
     }
+
+    fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        PPrintCx::default(tcx).print_vars_in_scope(false)
+    }
 }
 
 impl Pretty for TyS {
@@ -200,7 +221,7 @@ impl Pretty for TyS {
                     w!("{:?}@{{{:?}}}", bty, e)
                 }
             }
-            TyKind::Exists(bty, p) => w!("{:?}{{ν: {:?}}}", bty, p),
+            TyKind::Exists(bty, p) => w!("{:?}{{{:?}}}", bty, p),
             TyKind::Uninit => w!("uninit"),
             TyKind::MutRef(region) => w!("ref<{:?}>", region),
             TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
@@ -232,7 +253,13 @@ impl Pretty for Pred {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self {
-            Self::KVar(kvid, args) => w!("{:?}({:?})", ^kvid, join!(", ", args)),
+            Self::KVar(kvid, args) => {
+                if cx.print_vars_in_scope {
+                    w!("{:?}({:?})", ^kvid, join!(", ", args))
+                } else {
+                    w!("{:?}", ^kvid)
+                }
+            }
             Self::Expr(expr) => w!("{:?}", expr),
         }
     }
