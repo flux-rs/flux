@@ -180,6 +180,7 @@ impl Checker<'_, '_> {
     fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
+                println!("{env:?}");
                 let ty = self.check_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
                 env.write_place(cursor, p, ty);
@@ -315,7 +316,6 @@ impl Checker<'_, '_> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            // println!("{env:?}");
             let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
                 env.infer_bb_env(cursor, self.bb_env_shapes.remove(&target).unwrap())
             });
@@ -325,7 +325,7 @@ impl Checker<'_, '_> {
 
                 // We allow weakening
                 if let Some(ty2) = bb_env.lookup_region(local) {
-                    cursor.subtyping(ty1, ty2);
+                    cursor.subtyping(ty1.ty(), ty2);
                 }
             }
             Ok(())

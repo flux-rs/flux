@@ -85,6 +85,10 @@ impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
     }
+
+    pub fn is_uninit(&self) -> bool {
+        matches!(self.kind(), TyKind::Uninit)
+    }
 }
 
 impl Substs {

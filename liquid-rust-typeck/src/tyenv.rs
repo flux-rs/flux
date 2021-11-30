@@ -51,13 +51,13 @@ impl TyEnvBuilder {
 }
 
 #[derive(Clone)]
-enum RegionKind {
+pub enum RegionKind {
     Strong(Ty),
     Weak { bound: Ty, ty: Ty },
 }
 
 impl RegionKind {
-    fn ty(&self) -> Ty {
+    pub fn ty(&self) -> Ty {
         match self {
             RegionKind::Strong(ty) => ty.clone(),
             RegionKind::Weak { ty, .. } => ty.clone(),
@@ -198,38 +198,13 @@ impl TyEnv {
         TyEnv { regions }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Set<RVid>, Ty)> + '_ {
-        self.regions
-            .iter()
-            .map(|(region, region_kind)| (region, region_kind.ty()))
+    pub fn iter(&self) -> impl Iterator<Item = (Set<RVid>, &RegionKind)> + '_ {
+        self.regions.iter()
     }
 
     pub fn unpack(&mut self, cursor: &mut Cursor) {
         for region_kind in self.regions.values_mut() {
             *region_kind.ty_mut() = cursor.unpack(region_kind.ty());
         }
-    }
-}
-
-impl fmt::Debug for TyEnv {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.regions, f)
-    }
-}
-
-impl fmt::Debug for RegionKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RegionKind::Strong(ty) => write!(f, "{:?}", ty),
-            RegionKind::Weak { bound, ty } => {
-                write!(f, "{:?} <: {:?}", ty, bound)
-            }
-        }
-    }
-}
-
-impl From<DisjointSetsMap<Local, inference::Ty>> for TyEnv {
-    fn from(map: DisjointSetsMap<Local, inference::Ty>) -> Self {
-        todo!()
     }
 }
