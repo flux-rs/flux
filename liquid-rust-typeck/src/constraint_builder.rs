@@ -136,17 +136,29 @@ impl<'tcx> Cursor<'_, 'tcx> {
 
     pub fn subtyping(&mut self, ty1: Ty, ty2: Ty) {
         let mut cursor = self.snapshot();
+
+        // Optimize trivially satisfiable constraints
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
+                cursor.bty_subtyping(bty1, bty2);
+                return;
+            }
+            (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
+                cursor.bty_subtyping(bty1, bty2);
+                return;
+            }
+            _ => {}
+        }
+
         let ty1 = cursor.unpack(ty1);
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 cursor.bty_subtyping(bty1, bty2);
-                if e1 != e2 {
-                    cursor
-                        .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
-                }
+                cursor.push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
             }
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 cursor.bty_subtyping(bty1, bty2);
+                let p = p.subst_bound_vars(e.clone());
                 cursor.push_head(p.subst_bound_vars(e.clone()))
             }
             (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
