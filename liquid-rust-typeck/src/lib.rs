@@ -15,6 +15,7 @@ pub mod global_env;
 mod inference;
 mod intern;
 mod lowering;
+mod pretty;
 pub mod ty;
 mod tyenv;
 
@@ -314,6 +315,7 @@ impl Checker<'_, '_> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
+            // println!("{env:?}");
             let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
                 env.infer_bb_env(cursor, self.bb_env_shapes.remove(&target).unwrap())
             });

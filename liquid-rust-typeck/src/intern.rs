@@ -395,6 +395,19 @@ impl<T: Display + Internable + ?Sized> Display for Interned<T> {
     }
 }
 
+impl<'a, T> IntoIterator for &'a Interned<Vec<T>>
+where
+    Vec<T>: Internable,
+{
+    type Item = &'a T;
+
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 pub struct InternStorage<T: ?Sized> {
     map: SyncOnceCell<InternMap<T>>,
 }

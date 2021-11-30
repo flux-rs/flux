@@ -2,7 +2,8 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::{newtype_index, Idx, IndexGen};
-use liquid_rust_core::{ir::Local, ty::ParamTy};
+use liquid_rust_core::ir::Local;
+pub use liquid_rust_core::ty::ParamTy;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Name, Sort, UnOp};
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::{IntTy, UintTy};
@@ -100,6 +101,16 @@ impl Substs {
     }
 }
 
+impl<'a> IntoIterator for &'a Substs {
+    type Item = &'a Ty;
+
+    type IntoIter = std::slice::Iter<'a, Ty>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl FromIterator<Ty> for Substs {
     fn from_iter<T: IntoIterator<Item = Ty>>(iter: T) -> Self {
         Substs(Interned::new(iter.into_iter().collect()))
@@ -172,67 +183,13 @@ impl From<Expr> for Pred {
     }
 }
 
-impl fmt::Debug for Pred {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::KVar(kvid, args) => write!(f, "{:?}({:?})", kvid, args.iter().format(", ")),
-            Self::Expr(expr) => write!(f, "{:?}", expr),
-        }
-    }
-}
-
-impl fmt::Debug for ExprS {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn should_parenthesize(op: BinOp, child: &Expr) -> bool {
-            if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                child_op.precedence() < op.precedence()
-                    || (child_op.precedence() == op.precedence()
-                        && !BinOp::associative(op.precedence()))
-            } else {
-                false
-            }
-        }
-
-        match self.kind() {
-            ExprKind::Var(x) => write!(f, "{:?}", x),
-            ExprKind::BinaryOp(op, e1, e2) => {
-                if should_parenthesize(*op, e1) {
-                    write!(f, "({:?})", e1)?;
-                } else {
-                    write!(f, "{:?}", e1)?;
-                }
-                write!(f, " {} ", op)?;
-                if should_parenthesize(*op, e2) {
-                    write!(f, "({:?})", e2)?;
-                } else {
-                    write!(f, "{:?}", e2)?;
-                }
-                Ok(())
-            }
-            ExprKind::Constant(c) => write!(f, "{}", c),
-            ExprKind::UnaryOp(op, e) => {
-                if matches!(e.kind(), ExprKind::Var(_) | ExprKind::Constant(_)) {
-                    write!(f, "{}{:?}", op, e)
-                } else {
-                    write!(f, "{}({:?})", op, e)
-                }
-            }
-        }
-    }
-}
-
-impl fmt::Debug for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bound => write!(f, "ν"),
-            Self::Free(var) => write!(f, "{:?}", var),
-        }
-    }
-}
-
 impl RegionS {
     fn intern(self) -> Region {
         Interned::new(self)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     pub fn subset(&self, other: &RegionS) -> bool {
@@ -251,7 +208,7 @@ impl RegionS {
         .intern()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = RVid> + '_ {
+    pub fn iter(&self) -> std::iter::Copied<std::slice::Iter<'_, RVid>> {
         self.0.iter().copied()
     }
 }
@@ -268,7 +225,17 @@ impl FromIterator<RVid> for Region {
     }
 }
 
-impl std::ops::Index<usize> for Region {
+impl<'a> IntoIterator for &'a RegionS {
+    type Item = RVid;
+
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, RVid>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl std::ops::Index<usize> for RegionS {
     type Output = RVid;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -281,45 +248,6 @@ impl std::ops::Add<&'_ Region> for &'_ Region {
 
     fn add(self, rhs: &Region) -> Self::Output {
         self.merge(rhs)
-    }
-}
-
-impl fmt::Debug for TyS {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind() {
-            TyKind::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
-            TyKind::Exists(bty, e) => write!(f, "{:?}{{ν: {:?}}}", bty, e),
-            TyKind::Uninit => write!(f, "uninit"),
-            TyKind::MutRef(region) => write!(f, "ref<{:?}>", region),
-            TyKind::Param(ParamTy { name, .. }) => write!(f, "{:?}", name),
-        }
-    }
-}
-
-impl fmt::Debug for BaseTy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
-            Self::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
-            Self::Bool => write!(f, "bool"),
-            Self::Adt(did, args) => {
-                if args.is_empty() {
-                    write!(f, "{:?}", did)
-                } else {
-                    write!(f, "{:?}<{:?}>", did, args.iter().format(", "))
-                }
-            }
-        }
-    }
-}
-
-impl fmt::Debug for RegionS {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0.len() == 1 {
-            write!(f, "{:?}", self.0[0])
-        } else {
-            write!(f, "{{{:?}}}", self.0.iter().format(","))
-        }
     }
 }
 
