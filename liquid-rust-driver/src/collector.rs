@@ -3,8 +3,8 @@ use liquid_rust_syntax::{ast::FnSig, parse_fn_sig, ParseErrorKind};
 use rustc_ast::{tokenstream::TokenStream, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, Item, ItemKind,
-    TraitItem,
+    def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, ImplItemKind, Item,
+    ItemKind, TraitItem,
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
@@ -105,13 +105,18 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
         if let ItemKind::Fn(..) = item.kind {
             let hir_id = item.hir_id();
-            let def_id = self.tcx.hir().local_def_id(hir_id);
             let attrs = self.tcx.hir().attrs(hir_id);
-            self.parse_annotations(def_id, attrs);
+            self.parse_annotations(item.def_id, attrs);
         }
     }
 
     fn visit_trait_item(&mut self, _trait_item: &'hir TraitItem<'hir>) {}
-    fn visit_impl_item(&mut self, _impl_item: &'hir ImplItem<'hir>) {}
+    fn visit_impl_item(&mut self, item: &'hir ImplItem<'hir>) {
+        if let ImplItemKind::Fn(..) = &item.kind {
+            let hir_id = item.hir_id();
+            let attrs = self.tcx.hir().attrs(hir_id);
+            self.parse_annotations(item.def_id, attrs);
+        }
+    }
     fn visit_foreign_item(&mut self, _foreign_item: &'hir ForeignItem<'hir>) {}
 }

@@ -37,8 +37,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let fn_sigs: FxHashMap<_, _> = annotations
         .into_iter()
         .map(|(def_id, spec)| {
-            let mut resolver = Resolver::new(tcx, def_id)?;
-            let fn_sig = resolver.resolve(spec.fn_sig)?;
+            let fn_sig = Resolver::resolve(tcx, def_id, spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
             Ok((
                 def_id,

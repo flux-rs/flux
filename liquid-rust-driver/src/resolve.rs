@@ -1,5 +1,4 @@
-use hir::def_id::DefId;
-use itertools::{Either, Itertools};
+use hir::{def_id::DefId, Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_core::ty::{self, Name, ParamTy};
 use liquid_rust_syntax::ast;
@@ -10,11 +9,14 @@ use rustc_middle::ty::TyCtxt;
 use rustc_session::{Session, SessionDiagnostic};
 use rustc_span::{sym, symbol::kw, Symbol};
 
+type NameResTable = FxHashMap<Symbol, hir::def::Res>;
+
 pub struct Resolver<'tcx> {
     tcx: TyCtxt<'tcx>,
     diagnostics: Diagnostics<'tcx>,
-    resolutions: FxHashMap<Symbol, hir::def::Res>,
+    name_res_table: NameResTable,
     def_id: LocalDefId,
+    parent: Option<&'tcx Impl<'tcx>>,
 }
 
 enum ParamTyOrBaseTy {
@@ -30,27 +32,53 @@ struct Diagnostics<'tcx> {
 struct Subst {
     exprs: ScopeMap<Symbol, ty::Var>,
     regions: FxHashMap<Symbol, Name>,
-    types: FxHashMap<DefId, ParamTy>,
+    types: ScopeMap<DefId, ParamTy>,
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Self, ErrorReported> {
+    pub fn resolve(
+        tcx: TyCtxt<'tcx>,
+        def_id: LocalDefId,
+        fn_sig: ast::FnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-        let fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
+        let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
         let mut diagnostics = Diagnostics::new(tcx.sess);
-        let resolutions = collect_res(&mut diagnostics, fn_sig)?;
-        Ok(Self {
+
+        let mut name_res_table = FxHashMap::default();
+        let mut parent = None;
+        if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
+            let item_id = ItemId {
+                def_id: impl_did.expect_local(),
+            };
+            let item = tcx.hir().item(item_id);
+            if let ItemKind::Impl(impl_parent) = &item.kind {
+                parent = Some(impl_parent);
+                collect_res_ty(&mut diagnostics, impl_parent.self_ty, &mut name_res_table)?;
+            }
+        }
+        collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
+
+        let mut resolver = Self {
             tcx,
             diagnostics,
-            resolutions,
+            parent,
+            name_res_table,
             def_id,
-        })
+        };
+        resolver.run(fn_sig)
     }
 
-    pub fn resolve(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
+    fn run(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
         let mut subst = Subst::new();
+
         let name_gen = IndexGen::new();
+
+        if let Some(parent) = self.parent {
+            self.insert_generic_types(&parent.generics, &mut subst);
+            subst.push_type_layer();
+        }
 
         let hir_generics = self
             .tcx
@@ -58,10 +86,9 @@ impl<'tcx> Resolver<'tcx> {
             .get_generics(self.def_id.to_def_id())
             .unwrap();
 
-        // The rest of the analysis depends on generics being correctly resolved so we bail out if
-        // there's an error.
+        self.insert_generic_types(hir_generics, &mut subst);
 
-        let params = self.resolve_generics(fn_sig.generics, hir_generics, &name_gen, &mut subst)?;
+        let params = self.resolve_generics(fn_sig.generics, &name_gen, &mut subst);
 
         // From here on each step is independent so we check for errors at the end.
 
@@ -101,7 +128,7 @@ impl<'tcx> Resolver<'tcx> {
         let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
         Ok(ty::FnSig {
-            params,
+            params: params?,
             requires: requires?,
             args: args?,
             ret: ret?,
@@ -109,127 +136,54 @@ impl<'tcx> Resolver<'tcx> {
         })
     }
 
+    fn insert_generic_types(&self, generics: &hir::Generics, subst: &mut Subst) {
+        for param in generics.params.iter() {
+            match param.kind {
+                hir::GenericParamKind::Type { .. } => {
+                    let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
+                    let name = param.name.ident().name;
+                    subst.insert_type(def_id, name);
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn resolve_generics(
         &mut self,
         generics: ast::Generics,
-        hir_generics: &hir::Generics,
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
     ) -> Result<Vec<ty::Param>, ErrorReported> {
-        let mut hir_ty_params = vec![];
-        for param in hir_generics.params {
-            if !param.bounds.is_empty() {
-                self.diagnostics.emit_err(errors::UnsupportedSignature {
-                    span: param.span,
-                    msg: "generic bounds are not supported yet",
-                });
-            }
-            match param.kind {
-                hir::GenericParamKind::Type { default: None, .. } => {
-                    hir_ty_params.push((param.hir_id, param.name.ident()));
-                }
-                hir::GenericParamKind::Type {
-                    default: Some(_), ..
-                } => {
-                    self.diagnostics.emit_err(errors::UnsupportedSignature {
-                        span: param.span,
-                        msg: "default type parameters are not supported yet",
-                    });
-                }
-                hir::GenericParamKind::Lifetime { .. } => {
-                    self.diagnostics.emit_err(errors::UnsupportedSignature {
-                        span: param.span,
-                        msg: "lifetime parameters are not supported yet",
-                    });
-                }
-                hir::GenericParamKind::Const { .. } => {
-                    self.diagnostics.emit_err(errors::UnsupportedSignature {
-                        span: param.span,
-                        msg: "const parameters are not supported yet",
-                    });
-                }
-            }
-        }
-        self.diagnostics.raise_if_errors()?;
-
-        let (pure_params, ty_params): (Vec<_>, Vec<_>) =
-            generics
-                .params
-                .into_iter()
-                .partition_map(|param| match param {
-                    ast::GenericParam::Pure { name, sort, pred } => {
-                        Either::Left((name, sort, pred))
-                    }
-                    ast::GenericParam::Type(param) => Either::Right(param),
-                });
-
-        if ty_params.len() != hir_ty_params.len() {
-            return self
-                .diagnostics
-                .emit_err(errors::GenericCountMismatch::new(
-                    generics.span,
-                    ty_params.len(),
-                    hir_generics.span,
-                    hir_ty_params.len(),
-                ))
-                .raise();
-        }
-
-        for (idx, (param, (hir_id, hir_param))) in
-            ty_params.into_iter().zip(hir_ty_params).enumerate()
-        {
-            if param.name != hir_param.name {
-                self.diagnostics
-                    .emit_err(errors::GenericNameMismatch::new(param, hir_param));
-            } else {
-                subst.insert_type(
-                    self.tcx.hir().local_def_id(hir_id).to_def_id(),
-                    ty::ParamTy {
-                        index: idx as u32,
-                        name: param.name,
-                    },
-                );
-            }
-        }
-        self.diagnostics.raise_if_errors()?;
-
-        let pure_params = pure_params
+        generics
             .into_iter()
-            .map(|(name, sort, pred)| self.resolve_pure_param(name, sort, pred, subst, name_gen))
-            .try_collect_exhaust()?;
-
-        Ok(pure_params)
-    }
-
-    fn resolve_pure_param(
-        &mut self,
-        name: ast::Ident,
-        sort: ast::Ident,
-        pred: Option<ast::Expr>,
-        subst: &mut Subst,
-        name_gen: &IndexGen<Name>,
-    ) -> Result<ty::Param, ErrorReported> {
-        let fresh = name_gen.fresh();
-        if subst.insert_expr(name.name, ty::Var::Free(fresh)).is_some() {
-            self.diagnostics
-                .emit_err(errors::DuplicateGenericParam::new(name))
-                .raise()
-        } else {
-            let name = ty::Ident {
-                name: fresh,
-                source_info: (name.span, name.name),
-            };
-            let sort = self.resolve_sort(sort);
-            let pred = match pred {
-                Some(expr) => self.resolve_expr(expr, subst),
-                None => Ok(ty::Expr::TRUE),
-            };
-            Ok(ty::Param {
-                name,
-                sort: sort?,
-                pred: pred?,
+            .map(|param| {
+                let fresh = name_gen.fresh();
+                if subst
+                    .insert_expr(param.name.name, ty::Var::Free(fresh))
+                    .is_some()
+                {
+                    self.diagnostics
+                        .emit_err(errors::DuplicateGenericParam::new(param.name))
+                        .raise()
+                } else {
+                    let name = ty::Ident {
+                        name: fresh,
+                        source_info: (param.name.span, param.name.name),
+                    };
+                    let sort = self.resolve_sort(param.sort);
+                    let pred = match param.pred {
+                        Some(expr) => self.resolve_expr(expr, subst),
+                        None => Ok(ty::Expr::TRUE),
+                    };
+                    Ok(ty::Param {
+                        name,
+                        sort: sort?,
+                        pred: pred?,
+                    })
+                }
             })
-        }
+            .try_collect_exhaust()
     }
 
     fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
@@ -278,7 +232,7 @@ impl<'tcx> Resolver<'tcx> {
         path: ast::Path,
         subst: &mut Subst,
     ) -> Result<ParamTyOrBaseTy, ErrorReported> {
-        let res = if let Some(res) = self.resolutions.get(&path.ident.name) {
+        let res = if let Some(res) = self.name_res_table.get(&path.ident.name) {
             *res
         } else {
             return self
@@ -300,13 +254,6 @@ impl<'tcx> Resolver<'tcx> {
                     .try_collect_exhaust()?;
                 Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Adt(did, args)))
             }
-            hir::def::Res::Def(_, _) => self
-                .diagnostics
-                .emit_err(errors::UnsupportedSignature {
-                    span: path.span,
-                    msg: "unsupported type",
-                })
-                .raise(),
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
                 ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
             )),
@@ -337,11 +284,11 @@ impl<'tcx> Resolver<'tcx> {
                     msg: "chars are not suported yet",
                 })
                 .raise(),
-            hir::def::Res::SelfTy { .. } => self
+            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy(..) => self
                 .diagnostics
                 .emit_err(errors::UnsupportedSignature {
                     span: path.span,
-                    msg: "self types are not supported yet",
+                    msg: "path resolved to an unsupported type",
                 })
                 .raise(),
             _ => unreachable!("unexpected type resolution"),
@@ -411,7 +358,7 @@ impl Subst {
         Self {
             exprs: ScopeMap::new(),
             regions: FxHashMap::default(),
-            types: FxHashMap::default(),
+            types: ScopeMap::new(),
         }
     }
 
@@ -436,8 +383,15 @@ impl Subst {
         self.regions.insert(symb, name)
     }
 
-    fn insert_type(&mut self, did: DefId, param_ty: ParamTy) -> Option<ParamTy> {
-        self.types.insert(did, param_ty)
+    fn insert_type(&mut self, did: DefId, name: Symbol) {
+        let index = self.types.len() as u32;
+        let param_ty = ty::ParamTy { index, name };
+        assert!(!self.types.contains_key_at_top(&did));
+        self.types.define(did, param_ty);
+    }
+
+    fn push_type_layer(&mut self) {
+        self.types.push_layer();
     }
 
     fn get_expr(&self, symb: Symbol) -> Option<ty::Var> {
@@ -464,14 +418,14 @@ impl Diagnostics<'_> {
         Err(ErrorReported)
     }
 
-    fn raise_if_errors(&mut self) -> Result<(), ErrorReported> {
-        if self.errors > 0 {
-            self.errors = 0;
-            Err(ErrorReported)
-        } else {
-            Ok(())
-        }
-    }
+    // fn raise_if_errors(&mut self) -> Result<(), ErrorReported> {
+    //     if self.errors > 0 {
+    //         self.errors = 0;
+    //         Err(ErrorReported)
+    //     } else {
+    //         Ok(())
+    //     }
+    // }
 
     fn emit_err<'a>(&'a mut self, err: impl SessionDiagnostic<'a>) -> &mut Self {
         self.sess.emit_err(err);
@@ -489,14 +443,13 @@ impl Drop for Diagnostics<'_> {
 fn collect_res(
     diagnostics: &mut Diagnostics,
     fn_sig: &hir::FnSig,
-) -> Result<FxHashMap<Symbol, hir::def::Res>, ErrorReported> {
-    let mut resolutions = FxHashMap::default();
-
+    table: &mut NameResTable,
+) -> Result<(), ErrorReported> {
     fn_sig
         .decl
         .inputs
         .iter()
-        .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, &mut resolutions))?;
+        .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
 
     match fn_sig.decl.output {
         hir::FnRetTy::DefaultReturn(span) => {
@@ -508,28 +461,28 @@ fn collect_res(
                 .raise();
         }
         hir::FnRetTy::Return(ty) => {
-            collect_res_ty(diagnostics, ty, &mut resolutions)?;
+            collect_res_ty(diagnostics, ty, table)?;
         }
     }
 
-    Ok(resolutions)
+    Ok(())
 }
 
 fn collect_res_ty(
     diagnostics: &mut Diagnostics,
     ty: &hir::Ty,
-    resolutions: &mut FxHashMap<Symbol, hir::def::Res>,
+    table: &mut NameResTable,
 ) -> Result<(), ErrorReported> {
     match &ty.kind {
         hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => {
-            collect_res_ty(diagnostics, ty, resolutions)
+            collect_res_ty(diagnostics, ty, table)
         }
         hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
-            collect_res_ty(diagnostics, mut_ty.ty, resolutions)
+            collect_res_ty(diagnostics, mut_ty.ty, table)
         }
         hir::TyKind::Tup(tys) => tys
             .iter()
-            .try_for_each(|ty| collect_res_ty(diagnostics, ty, resolutions)),
+            .try_for_each(|ty| collect_res_ty(diagnostics, ty, table)),
         hir::TyKind::Path(qpath) => {
             let path = if let hir::QPath::Resolved(None, path) = qpath {
                 path
@@ -553,13 +506,13 @@ fn collect_res_ty(
                         .raise();
                 }
             };
-            resolutions.insert(ident.name, path.res);
+            table.insert(ident.name, path.res);
 
             args.map(|args| args.args)
                 .iter()
                 .copied()
                 .flatten()
-                .try_for_each_exhaust(|arg| collect_res_generic_arg(diagnostics, arg, resolutions))
+                .try_for_each_exhaust(|arg| collect_res_generic_arg(diagnostics, arg, table))
         }
         hir::TyKind::BareFn(_)
         | hir::TyKind::Never
@@ -574,10 +527,10 @@ fn collect_res_ty(
 fn collect_res_generic_arg(
     diagnostics: &mut Diagnostics,
     arg: &hir::GenericArg,
-    types: &mut FxHashMap<Symbol, hir::def::Res>,
+    table: &mut NameResTable,
 ) -> Result<(), ErrorReported> {
     match arg {
-        hir::GenericArg::Type(ty) => collect_res_ty(diagnostics, ty, types),
+        hir::GenericArg::Type(ty) => collect_res_ty(diagnostics, ty, table),
         hir::GenericArg::Lifetime(_) => diagnostics
             .emit_err(errors::UnsupportedSignature {
                 span: arg.span(),
@@ -605,7 +558,6 @@ static SORTS: std::lazy::SyncLazy<Sorts> = std::lazy::SyncLazy::new(|| Sorts {
 
 mod errors {
     use liquid_rust_syntax::ast;
-    use rustc_errors::pluralize;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 
@@ -632,56 +584,6 @@ mod errors {
             Self {
                 span: path.span,
                 path: path.ident,
-            }
-        }
-    }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct GenericNameMismatch {
-        #[message = "type parameter name mismatch"]
-        #[label = "refined signature declares parameter `{found_name}`"]
-        pub found: Span,
-        pub found_name: Ident,
-        #[label = "function declares parameter `{expected_name}`"]
-        pub expected: Span,
-        pub expected_name: Ident,
-    }
-
-    impl GenericNameMismatch {
-        pub fn new(found: Ident, expected: Ident) -> Self {
-            Self {
-                found: found.span,
-                found_name: found,
-                expected: expected.span,
-                expected_name: expected,
-            }
-        }
-    }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct GenericCountMismatch {
-        #[message = "function declared with {expected} type parameters{expected_plural} but refined signature has {found}"]
-        #[label = "refined signature has {found} type parameter{found_plural}"]
-        pub found_span: Span,
-        pub found: usize,
-        pub found_plural: &'static str,
-        #[label = "function declared here with {expected} type parameter{expected_plural}"]
-        pub expected_span: Span,
-        pub expected: usize,
-        pub expected_plural: &'static str,
-    }
-
-    impl GenericCountMismatch {
-        pub fn new(found_span: Span, found: usize, expected_span: Span, expected: usize) -> Self {
-            Self {
-                found_span,
-                found,
-                found_plural: pluralize!(found),
-                expected_span,
-                expected,
-                expected_plural: pluralize!(expected),
             }
         }
     }

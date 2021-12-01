@@ -40,13 +40,10 @@ pub struct Path {
 }
 
 #[derive(Debug)]
-pub enum GenericParam {
-    Pure {
-        name: Ident,
-        sort: Ident,
-        pred: Option<Expr>,
-    },
-    Type(Ident),
+pub struct GenericParam {
+    pub name: Ident,
+    pub sort: Ident,
+    pub pred: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -90,5 +87,15 @@ impl Generics {
             params: vec![],
             span,
         }
+    }
+}
+
+impl IntoIterator for Generics {
+    type Item = GenericParam;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.params.into_iter()
     }
 }

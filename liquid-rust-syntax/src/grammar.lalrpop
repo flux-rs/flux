@@ -45,9 +45,8 @@ Generics: ast::Generics = {
 Env = <Comma<(<Ident> ":" <Ty>)>>;
 
 GenericParam: ast::GenericParam = {
-    <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam::Pure { name, sort, pred: Some(pred) },
-    <name:Ident> ":" <sort:Ident>                       => ast::GenericParam::Pure { name, sort, pred: None },
-    <name:Ident>                                        => ast::GenericParam::Type(name)
+    <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam { name, sort, pred: Some(pred) },
+    <name:Ident> ":" <sort:Ident>                       => ast::GenericParam { name, sort, pred: None },
 }
 
 Path: ast::Path = {
