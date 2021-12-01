@@ -49,7 +49,7 @@ where
     fn write_str(&mut self, mut s: &str) -> fmt::Result {
         while !s.is_empty() {
             if self.state.on_newline {
-                self.inner.write_str("    ")?;
+                self.inner.write_str("   ")?;
             }
 
             let split = match s.find('\n') {

@@ -419,22 +419,27 @@ mod pretty {
                 Node::ForAll(..) => {
                     let (bindings, children) = self.forall_chain().unwrap();
 
-                    let bindings =
-                        bindings
-                            .into_iter()
-                            .format_with(", ", |(var, sort, pred), f| {
-                                if pred.is_true() {
-                                    f(&format_args_cx!("{:?}: {:?}", ^var, ^sort))
-                                } else {
-                                    f(&format_args_cx!(
-                                        "{:?}: {:?}{{ {:?} }}",
-                                        ^var,
-                                        ^sort,
-                                        pred
-                                    ))
-                                }
-                            });
-                    w!("∀ {}.{:?}", ^bindings, children)
+                    let vars = bindings.iter().format_with(", ", |(var, sort, _), f| {
+                        f(&format_args_cx!("{:?}: {:?}", ^var, ^sort))
+                    });
+
+                    let preds = bindings
+                        .iter()
+                        .map(|(_, _, pred)| pred)
+                        .filter(|p| !p.is_true())
+                        .collect_vec();
+
+                    w!("∀ {}.", ^vars)?;
+                    if preds.is_empty() {
+                        w!("{:?}", children)
+                    } else {
+                        w!(
+                            PadAdapter::wrap_fmt(f),
+                            "\n{:?} ⇒ {:?}",
+                            join!(" ∧ ", preds),
+                            children
+                        )
+                    }
                 }
                 Node::Guard(expr, children) => {
                     w!("{:?} ⇒{:?}", expr, children)
@@ -449,10 +454,10 @@ mod pretty {
     impl Pretty for Vec<Node> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, PadAdapter::wrap_fmt(f));
-            if self.is_empty() {
-                w!(" true")
-            } else {
-                w!("\n{:?}", join!("\n", self))
+            match &self[..] {
+                [] => w!(" true"),
+                [n] => w!(" {:?}", n),
+                _ => w!("\n{:?}", join!("\n", self)),
             }
         }
     }

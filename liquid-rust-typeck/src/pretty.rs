@@ -70,6 +70,9 @@ macro_rules! _w {
     ($fmt:literal, $($args:tt)*) => {
         scoped_fmt!().write_fmt(format_args_cx!($fmt, $($args)*))
     };
+    ($f:expr, $fmt:literal, $($args:tt)*) => {
+        $f.write_fmt(format_args_cx!($fmt, $($args)*))
+    };
     ($fmt:literal) => {
         write!(scoped_fmt!(), $fmt)
     }
