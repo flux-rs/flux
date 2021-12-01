@@ -401,20 +401,7 @@ mod pretty {
     impl Pretty for ConstraintBuilder<'_> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("Constraint {{\n")?;
-            w!(
-                "    kvars: [{}]\n",
-                ^self.kvars
-                    .iter_enumerated()
-                    .format_with(", ", |(kvid, sorts), f| f(&format_args!(
-                        "KVar({:?}, {:?})",
-                        kvid, sorts
-                    )))
-            )?;
-
-            w!("    root: ")?;
-            writeln!(PadAdapter::wrap_fmt(f), "{:?}", with_cx!(&self.root))?;
-            w!("}}")
+            w!("{:?}", &self.root)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -427,10 +414,11 @@ mod pretty {
             define_scoped!(cx, f);
             match &self {
                 Node::Conj(children) => {
-                    w!("Conj {{{:?}}}", children)
+                    w!("{:?}", join!("\n", children))
                 }
                 Node::ForAll(..) => {
                     let (bindings, children) = self.forall_chain().unwrap();
+
                     let bindings =
                         bindings
                             .into_iter()
@@ -439,17 +427,17 @@ mod pretty {
                                     f(&format_args_cx!("{:?}: {:?}", ^var, ^sort))
                                 } else {
                                     f(&format_args_cx!(
-                                        "{:?}: {:?} {{ {:?} }}",
+                                        "{:?}: {:?}{{ {:?} }}",
                                         ^var,
                                         ^sort,
                                         pred
                                     ))
                                 }
                             });
-                    w!("ForAll({}) {{{:?}}}", ^bindings, children)
+                    w!("∀ {}.{:?}", ^bindings, children)
                 }
                 Node::Guard(expr, children) => {
-                    w!("Guard({:?}) {{{:?}}}", expr, children)
+                    w!("{:?} ⇒{:?}", expr, children)
                 }
                 Node::Head(pred) => {
                     w!("{:?}", pred)
@@ -461,14 +449,10 @@ mod pretty {
     impl Pretty for Vec<Node> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, PadAdapter::wrap_fmt(f));
-            // let mut w = PadAdapter::wrap_fmt(f);
-            for child in self {
-                w!("\n{:?}", child)?;
-            }
             if self.is_empty() {
-                write!(f, " ")
+                w!(" true")
             } else {
-                writeln!(f)
+                w!("\n{:?}", join!("\n", self))
             }
         }
     }

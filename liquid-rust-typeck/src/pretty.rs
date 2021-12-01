@@ -9,7 +9,7 @@ use rustc_middle::ty::TyCtxt;
 
 use crate::{
     intern::{Internable, Interned},
-    ty::{BaseTy, BinOp, ExprKind, ExprS, ParamTy, Pred, RegionS, Ty, TyKind, TyS, Var},
+    ty::{BaseTy, BinOp, ExprKind, ExprS, ParamTy, Pred, RegionS, Ty, TyKind, TyS, UnOp, Var},
     tyenv::{RegionKind, TyEnv},
 };
 
@@ -79,10 +79,7 @@ pub use crate::_w as w;
 #[macro_export]
 macro_rules! _join {
     ($sep:expr, $iter:expr) => {
-        $crate::pretty::Join {
-            sep: $sep,
-            iter: std::cell::RefCell::new(Some($iter.into_iter())),
-        }
+        $crate::pretty::Join::new($sep, $iter.into_iter())
     };
 }
 pub use crate::_join as join;
@@ -129,6 +126,15 @@ pub trait Pretty {
 
     fn default_cx(tcx: TyCtxt) -> PPrintCx {
         PPrintCx::default(tcx)
+    }
+}
+
+impl<'a, I> Join<'a, I> {
+    pub fn new(sep: &'a str, iter: I) -> Self {
+        Self {
+            sep,
+            iter: RefCell::new(Some(iter)),
+        }
     }
 }
 
@@ -374,7 +380,7 @@ impl Pretty for ExprS {
                 } else {
                     w!("{:?}", e1)?;
                 }
-                w!(" {} ", ^op)?;
+                w!(" {:?} ", op)?;
                 if should_parenthesize(*op, e2) {
                     w!("({:?})", e2)?;
                 } else {
@@ -383,13 +389,56 @@ impl Pretty for ExprS {
                 Ok(())
             }
             ExprKind::Constant(c) => w!("{}", ^c),
+            ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
+                ExprKind::UnaryOp(UnOp::Not, e) => w!("{:?}", e),
+                ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
+                    let e = ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone()).intern();
+                    w!("{:?}", e)
+                }
+                ExprKind::Var(_) | ExprKind::Constant(_) => {
+                    w!("{:?}{:?}", UnOp::Not, e)
+                }
+                _ => {
+                    w!("{:?}({:?})", UnOp::Not, e)
+                }
+            },
             ExprKind::UnaryOp(op, e) => {
                 if matches!(e.kind(), ExprKind::Var(_) | ExprKind::Constant(_)) {
-                    w!("{}{:?}", ^op, e)
+                    w!("{:?}{:?}", op, e)
                 } else {
-                    w!("{}({:?})", ^op, e)
+                    w!("{:?}({:?})", op, e)
                 }
             }
+        }
+    }
+}
+
+impl Pretty for BinOp {
+    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        match self {
+            BinOp::Iff => w!("⇔"),
+            BinOp::Imp => w!("⇒"),
+            BinOp::Or => w!("∨"),
+            BinOp::And => w!("∧"),
+            BinOp::Eq => w!("="),
+            BinOp::Ne => w!("≠"),
+            BinOp::Gt => w!(">"),
+            BinOp::Ge => w!("≥"),
+            BinOp::Lt => w!("<"),
+            BinOp::Le => w!("≤"),
+            BinOp::Add => w!("+"),
+            BinOp::Sub => w!("-"),
+        }
+    }
+}
+
+impl Pretty for UnOp {
+    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        match self {
+            UnOp::Not => w!("¬"),
+            UnOp::Neg => w!("-"),
         }
     }
 }

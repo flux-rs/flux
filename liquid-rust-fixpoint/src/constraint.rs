@@ -36,6 +36,7 @@ pub enum BinOp {
     Or,
     And,
     Eq,
+    Ne,
     Gt,
     Ge,
     Lt,
@@ -95,7 +96,9 @@ impl BinOp {
             BinOp::Imp => Precedence::Imp,
             BinOp::Or => Precedence::Or,
             BinOp::And => Precedence::And,
-            BinOp::Eq | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => Precedence::Cmp,
+            BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
+                Precedence::Cmp
+            }
             BinOp::Add | BinOp::Sub => Precedence::AddSub,
         }
     }
@@ -215,6 +218,7 @@ impl fmt::Display for BinOp {
             BinOp::Or => write!(f, "||"),
             BinOp::And => write!(f, "&&"),
             BinOp::Eq => write!(f, "="),
+            BinOp::Ne => write!(f, "/="),
             BinOp::Gt => write!(f, ">"),
             BinOp::Ge => write!(f, ">="),
             BinOp::Lt => write!(f, "<"),

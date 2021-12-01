@@ -80,6 +80,7 @@ pub enum BinOp {
     Lt,
     Le,
     Eq,
+    Ne,
 }
 
 pub enum Operand {

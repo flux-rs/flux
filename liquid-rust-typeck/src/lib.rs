@@ -356,7 +356,8 @@ impl Checker<'_, '_> {
         let ty2 = self.check_operand(env, op2);
 
         match bin_op {
-            ir::BinOp::Eq => self.check_eq(ty1, ty2),
+            ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
+            ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
             ir::BinOp::Add => self.check_num_op(BinOp::Add, ty1, ty2),
             ir::BinOp::Sub => self.check_num_op(BinOp::Sub, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
@@ -421,13 +422,13 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn check_eq(&self, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_eq(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 debug_assert_eq!(bty1, bty2);
                 TyKind::Refine(
                     BaseTy::Bool,
-                    ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern(),
+                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
                 )
                 .intern()
             }
