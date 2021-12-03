@@ -429,23 +429,34 @@ mod pretty {
                         .filter(|p| !p.is_true())
                         .collect_vec();
 
+                    let preds_fmt = preds.iter().format_with(" ∧ ", |pred, f| {
+                        if pred.is_atom() {
+                            f(&format_args_cx!("{:?}", pred))
+                        } else {
+                            f(&format_args_cx!("({:?})", pred))
+                        }
+                    });
+
                     w!("∀ {}.", ^vars)?;
                     if preds.is_empty() {
                         w!("{:?}", children)
                     } else {
-                        w!(
-                            PadAdapter::wrap_fmt(f),
-                            "\n{:?} ⇒ {:?}",
-                            join!(" ∧ ", preds),
-                            children
-                        )
+                        w!(PadAdapter::wrap_fmt(f), "\n{} ⇒{:?}", ^preds_fmt, children)
                     }
                 }
                 Node::Guard(expr, children) => {
-                    w!("{:?} ⇒{:?}", expr, children)
+                    if expr.is_atom() {
+                        w!("{:?} ⇒{:?}", expr, children)
+                    } else {
+                        w!("({:?}) ⇒{:?}", expr, children)
+                    }
                 }
                 Node::Head(pred) => {
-                    w!("{:?}", pred)
+                    if pred.is_atom() {
+                        w!("{:?}", pred)
+                    } else {
+                        w!("({:?})", pred)
+                    }
                 }
             }
         }

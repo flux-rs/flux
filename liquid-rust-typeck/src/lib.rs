@@ -42,6 +42,7 @@ use liquid_rust_fixpoint::Fixpoint;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_index::bit_set::BitSet;
+use rustc_middle::mir;
 use rustc_session::Session;
 use rustc_span::MultiSpan;
 use tyenv::{TyEnv, TyEnvBuilder};
@@ -180,7 +181,7 @@ impl Checker<'_, '_> {
     fn check_statement(&self, env: &mut TyEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                let ty = self.check_rvalue(env, rvalue);
+                let ty = self.check_rvalue(env, cursor, rvalue);
                 // OWNERSHIP SAFETY CHECK
                 env.write_place(cursor, p, ty);
             }
@@ -208,44 +209,7 @@ impl Checker<'_, '_> {
                 self.check_goto(env, cursor, *target)?;
             }
             TerminatorKind::SwitchInt { discr, targets } => {
-                let discr_ty = self.check_operand(env, discr);
-                match discr_ty.kind() {
-                    TyKind::Refine(BaseTy::Bool, discr_expr) => {
-                        for (bits, bb) in targets.iter() {
-                            let cursor = &mut cursor.snapshot();
-                            cursor.push_guard(if bits != 0 {
-                                discr_expr.clone()
-                            } else {
-                                discr_expr.not()
-                            });
-                            self.check_goto(&mut env.clone(), cursor, bb)?;
-                        }
-                        let otherwise = targets
-                            .iter()
-                            .map(|(bits, _)| {
-                                if bits != 0 {
-                                    discr_expr.not()
-                                } else {
-                                    discr_expr.clone()
-                                }
-                            })
-                            .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
-
-                        let cursor = &mut cursor.snapshot();
-                        if let Some(otherwise) = otherwise {
-                            cursor.push_guard(otherwise);
-                        }
-
-                        self.check_goto(env, cursor, targets.otherwise())?;
-                    }
-                    TyKind::Refine(BaseTy::Int(_), _) => {
-                        todo!("switch_int not implemented for integer discriminants")
-                    }
-                    TyKind::Exists(..) => {
-                        unreachable!("unpacked existential `{:?}`", discr_ty);
-                    }
-                    _ => unreachable!("discr with incompatible type `{:?}`", discr_ty),
-                };
+                self.check_switch_int(env, cursor, discr, targets)?;
             }
             TerminatorKind::Call {
                 func,
@@ -308,6 +272,47 @@ impl Checker<'_, '_> {
         Ok(())
     }
 
+    fn check_switch_int(
+        &mut self,
+        env: &mut TyEnv,
+        cursor: &mut Cursor,
+        discr: &Operand,
+        targets: &mir::SwitchTargets,
+    ) -> Result<(), ErrorReported> {
+        let discr_ty = self.check_operand(env, discr);
+        let mk = |bits| match discr_ty.kind() {
+            TyKind::Refine(BaseTy::Bool, expr) => {
+                if bits != 0 {
+                    expr.clone()
+                } else {
+                    expr.not()
+                }
+            }
+            TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), expr) => {
+                ExprKind::BinaryOp(BinOp::Eq, expr.clone(), Expr::from_bits(bty, bits)).intern()
+            }
+            _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
+        };
+
+        for (bits, bb) in targets.iter() {
+            let cursor = &mut cursor.snapshot();
+            cursor.push_guard(mk(bits));
+            self.check_goto(&mut env.clone(), cursor, bb)?;
+        }
+        let otherwise = targets
+            .iter()
+            .map(|(bits, _)| mk(bits).not())
+            .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
+
+        let cursor = &mut cursor.snapshot();
+        if let Some(otherwise) = otherwise {
+            cursor.push_guard(otherwise);
+        }
+
+        self.check_goto(env, cursor, targets.otherwise())?;
+        Ok(())
+    }
+
     fn check_goto(
         &mut self,
         env: &mut TyEnv,
@@ -333,10 +338,12 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn check_rvalue(&self, env: &mut TyEnv, rvalue: &Rvalue) -> Ty {
+    fn check_rvalue(&self, env: &mut TyEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
-            Rvalue::BinaryOp(bin_op, op1, op2) => self.check_binary_op(env, bin_op, op1, op2),
+            Rvalue::BinaryOp(bin_op, op1, op2) => {
+                self.check_binary_op(env, cursor, bin_op, op1, op2)
+            }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
                 TyKind::MutRef(env.get_region(place)).intern()
@@ -348,6 +355,7 @@ impl Checker<'_, '_> {
     fn check_binary_op(
         &self,
         env: &mut TyEnv,
+        cursor: &mut Cursor,
         bin_op: &ir::BinOp,
         op1: &Operand,
         op2: &Operand,
@@ -358,68 +366,59 @@ impl Checker<'_, '_> {
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
             ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
-            ir::BinOp::Add => self.check_num_op(BinOp::Add, ty1, ty2),
-            ir::BinOp::Sub => self.check_num_op(BinOp::Sub, ty1, ty2),
+            ir::BinOp::Add => self.check_arith_op(cursor, BinOp::Add, ty1, ty2),
+            ir::BinOp::Sub => self.check_arith_op(cursor, BinOp::Sub, ty1, ty2),
+            ir::BinOp::Mul => self.check_arith_op(cursor, BinOp::Mul, ty1, ty2),
+            ir::BinOp::Div => self.check_arith_op(cursor, BinOp::Div, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
         }
     }
 
-    fn check_num_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
-        match (ty1.kind(), ty2.kind()) {
+    fn check_arith_op(&self, cursor: &mut Cursor, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+        let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                TyKind::Refine(
-                    BaseTy::Int(*int_ty1),
-                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
-                )
-                .intern()
+                (BaseTy::Int(*int_ty1), e1.clone(), e2.clone())
             }
             (
                 TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
                 TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                TyKind::Refine(
-                    BaseTy::Uint(*uint_ty1),
-                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
-                )
-                .intern()
+                (BaseTy::Uint(*uint_ty1), e1.clone(), e2.clone())
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
+        };
+        if matches!(op, BinOp::Div) {
+            cursor.push_head(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
         }
+        TyKind::Refine(bty, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
 
     fn check_cmp_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
-        match (ty1.kind(), ty2.kind()) {
+        let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                TyKind::Refine(
-                    BaseTy::Bool,
-                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
-                )
-                .intern()
+                (e1.clone(), e2.clone())
             }
             (
                 TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
                 TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                TyKind::Refine(
-                    BaseTy::Bool,
-                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
-                )
-                .intern()
+                (e1.clone(), e2.clone())
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
-        }
+        };
+        TyKind::Refine(BaseTy::Bool, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
 
     fn check_eq(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {

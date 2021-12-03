@@ -175,15 +175,10 @@ impl<I: Idx, T> DisjointSetsMap<I, T> {
 
 impl<I: Idx, T: Clone> DisjointSetsMap<I, T> {
     pub fn merge_with(&mut self, other: &Self, merge: impl Fn(T, T) -> T + Copy) {
-        for idx in self.parent.indices() {
-            let root = other.unchecked_find(idx);
-            if root == idx {
-                let elem1 = self[idx].clone();
-                let elem2 = other[idx].clone();
-                self[idx] = merge(elem1, elem2);
-            } else {
-                self.union(idx, root, merge);
-            }
+        for idx in self.parent.indices().take(other.parent.len()) {
+            let elem1 = self[idx].clone();
+            let elem2 = other[idx].clone();
+            self[idx] = merge(elem1, elem2);
         }
     }
 }

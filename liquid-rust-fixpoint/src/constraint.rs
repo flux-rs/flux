@@ -43,6 +43,8 @@ pub enum BinOp {
     Le,
     Add,
     Sub,
+    Mul,
+    Div,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,6 +73,7 @@ pub enum Precedence {
     And,
     Cmp,
     AddSub,
+    MulDiv,
 }
 
 newtype_index! {
@@ -100,6 +103,7 @@ impl BinOp {
                 Precedence::Cmp
             }
             BinOp::Add | BinOp::Sub => Precedence::AddSub,
+            BinOp::Mul | BinOp::Div => Precedence::MulDiv,
         }
     }
 }
@@ -225,6 +229,8 @@ impl fmt::Display for BinOp {
             BinOp::Le => write!(f, "<="),
             BinOp::Add => write!(f, "+"),
             BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
         }
     }
 }
@@ -246,6 +252,10 @@ impl fmt::Display for Constant {
             Constant::Bool(b) => write!(f, "{}", b),
         }
     }
+}
+
+impl Constant {
+    pub const ZERO: Constant = Constant::Int(Sign::Positive, 0);
 }
 
 impl From<u128> for Constant {

@@ -149,7 +149,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.infer_operand(env, discr);
-                debug_assert!(matches!(&*discr_ty, TyS::Refine(BaseTy::Bool, ..)));
+                debug_assert!(matches!(
+                    &*discr_ty,
+                    TyS::Refine(BaseTy::Bool | BaseTy::Int(_) | BaseTy::Uint(_), ..)
+                ));
                 for (_, target) in targets.iter() {
                     self.infer_goto(&mut env.clone(), target);
                 }
@@ -200,15 +203,17 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let ty2 = self.infer_operand(env, op2);
 
         match bin_op {
-            ir::BinOp::Add | ir::BinOp::Sub => match (&*ty1, &*ty2) {
-                (TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
-                    debug_assert_eq!(bty1, bty2);
-                    TyS::Refine(bty1.clone(), self.expr_gen.fresh()).intern()
+            ir::BinOp::Add | ir::BinOp::Sub | ir::BinOp::Mul | ir::BinOp::Div => {
+                match (&*ty1, &*ty2) {
+                    (TyS::Refine(bty1, _), TyS::Refine(bty2, _)) => {
+                        debug_assert_eq!(bty1, bty2);
+                        TyS::Refine(bty1.clone(), self.expr_gen.fresh()).intern()
+                    }
+                    _ => {
+                        unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
+                    }
                 }
-                _ => {
-                    unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2);
-                }
-            },
+            }
             ir::BinOp::Gt | ir::BinOp::Lt | ir::BinOp::Le | ir::BinOp::Eq | ir::BinOp::Ne => {
                 TyS::Refine(BaseTy::Bool, self.expr_gen.fresh()).intern()
             }

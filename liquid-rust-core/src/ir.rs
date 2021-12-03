@@ -74,13 +74,15 @@ pub enum Rvalue {
 
 #[derive(Debug, Copy, Clone)]
 pub enum BinOp {
-    Add,
-    Sub,
     Gt,
     Lt,
     Le,
     Eq,
     Ne,
+    Add,
+    Sub,
+    Mul,
+    Div,
 }
 
 pub enum Operand {

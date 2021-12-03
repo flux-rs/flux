@@ -383,7 +383,11 @@ impl Pretty for ExprS {
                 } else {
                     w!("{:?}", e1)?;
                 }
-                w!(" {:?} ", op)?;
+                if matches!(op, BinOp::Div) {
+                    w!("{:?}", op)?;
+                } else {
+                    w!(" {:?} ", op)?;
+                }
                 if should_parenthesize(*op, e2) {
                     w!("({:?})", e2)?;
                 } else {
@@ -432,6 +436,8 @@ impl Pretty for BinOp {
             BinOp::Le => w!("≤"),
             BinOp::Add => w!("+"),
             BinOp::Sub => w!("-"),
+            BinOp::Mul => w!("*"),
+            BinOp::Div => w!("/"),
         }
     }
 }

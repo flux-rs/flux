@@ -145,6 +145,28 @@ impl Expr {
             .clone()
     }
 
+    pub fn zero() -> Expr {
+        static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
+        ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
+            .clone()
+    }
+
+    pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
+        // FIXME: We are assuming the higher bits are not set. check this assumption
+        match bty {
+            BaseTy::Int(_) => {
+                let bits = bits as i128;
+                ExprKind::Constant(Constant::from(bits)).intern()
+            }
+            BaseTy::Uint(uint_ty) => {
+                let bits = bits as u128;
+                ExprKind::Constant(Constant::from(bits)).intern()
+            }
+            BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
+            BaseTy::Adt(_, _) => panic!(),
+        }
+    }
+
     pub fn not(&self) -> Expr {
         ExprKind::UnaryOp(UnOp::Not, self.clone()).intern()
     }
@@ -161,6 +183,13 @@ impl ExprS {
 
     pub fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+    }
+
+    pub fn is_atom(&self) -> bool {
+        matches!(
+            self.kind,
+            ExprKind::Var(_) | ExprKind::Constant(_) | ExprKind::UnaryOp(..)
+        )
     }
 
     pub fn subst_bound_vars(&self, to: Expr) -> Expr {
@@ -258,6 +287,10 @@ impl std::ops::Add<&'_ Region> for &'_ Region {
 impl Pred {
     pub fn kvar(kvid: KVid, e: Expr, args: impl IntoIterator<Item = Expr>) -> Self {
         Pred::KVar(kvid, e, Interned::new(args.into_iter().collect()))
+    }
+
+    pub fn is_atom(&self) -> bool {
+        matches!(self, Pred::KVar(_, _, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
     pub fn subst_bound_vars(&self, to: Expr) -> Self {
