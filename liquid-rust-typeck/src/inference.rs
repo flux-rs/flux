@@ -46,7 +46,7 @@ pub struct InferCtxt<'a, 'tcx> {
     global_env: &'a GlobalEnv<'tcx>,
     expr_gen: &'a IndexGen<ExprIdx>,
     visited: BitSet<BasicBlock>,
-    bb_envs: FxHashMap<BasicBlock, TypeEnv<'a>>,
+    bb_envs: FxHashMap<BasicBlock, TypeEnv>,
 }
 
 newtype_index! {
@@ -77,7 +77,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         for bb in body.reverse_postorder() {
             if !cx.visited.contains(bb) {
                 let mut env = cx.bb_envs.get(&bb).unwrap().clone();
-                env.unpack();
+                env.unpack(expr_gen);
                 cx.infer_basic_block(&mut env, bb);
             }
         }
@@ -87,7 +87,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             .collect()
     }
 
-    fn infer_basic_block(&mut self, env: &mut TypeEnv<'a>, bb: BasicBlock) {
+    fn infer_basic_block(&mut self, env: &mut TypeEnv, bb: BasicBlock) {
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
@@ -104,13 +104,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.infer_rvalue(env, rvalue);
                 // OWNERSHIP SAFETY CHECK
-                env.write_place(p, ty);
+                env.write_place(p, ty, self.expr_gen);
             }
             StatementKind::Nop => {}
         }
     }
 
-    fn infer_terminator(&mut self, env: &mut TypeEnv<'a>, terminator: &Terminator) {
+    fn infer_terminator(&mut self, env: &mut TypeEnv, terminator: &Terminator) {
         match &terminator.kind {
             TerminatorKind::Return => {}
             TerminatorKind::Call {
@@ -143,7 +143,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
                 if let Some((place, target)) = destination {
                     let ret = subst.lower_ty(self.expr_gen, &fn_sig.ret);
-                    env.write_place(place, ret.unpack(self.expr_gen));
+                    env.write_place(place, ret.unpack(self.expr_gen), self.expr_gen);
                     self.infer_goto(env, *target);
                 }
             }
@@ -168,11 +168,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn infer_goto(&mut self, env: &mut TypeEnv<'a>, target: BasicBlock) {
+    fn infer_goto(&mut self, env: &mut TypeEnv, target: BasicBlock) {
         if self.body.is_join_point(target) {
             match self.bb_envs.entry(target) {
                 Entry::Occupied(mut entry) => {
-                    entry.get_mut().join_with(env);
+                    entry.get_mut().join_with(env, self.expr_gen);
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(env.clone());
@@ -257,9 +257,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 }
 
 #[derive(Clone)]
-struct TypeEnv<'a> {
+struct TypeEnv {
     types: DisjointSetsMap<RVid, Ty>,
-    expr_gen: &'a IndexGen<ExprIdx>,
 }
 
 struct TypeEnvBuilder {
@@ -281,22 +280,14 @@ impl TypeEnvBuilder {
         self.regions.push(Some(ty))
     }
 
-    pub fn build(self, expr_gen: &IndexGen<ExprIdx>) -> TypeEnv {
+    pub fn build(self) -> TypeEnv {
         TypeEnv {
-            expr_gen,
             types: DisjointSetsMap::from_iter(self.regions.into_iter().map(|rkind| rkind.unwrap())),
         }
     }
 }
 
-impl TypeEnv<'_> {
-    pub fn new(expr_gen: &IndexGen<ExprIdx>) -> TypeEnv {
-        TypeEnv {
-            types: DisjointSetsMap::new(),
-            expr_gen,
-        }
-    }
-
+impl TypeEnv {
     pub fn push_region(&mut self, ty: Ty) -> RVid {
         self.types.push(ty)
     }
@@ -305,7 +296,7 @@ impl TypeEnv<'_> {
         self.types.update(rvid, ty);
     }
 
-    pub fn write_place(&mut self, place: &Place, new_ty: Ty) {
+    pub fn write_place(&mut self, place: &Place, new_ty: Ty, expr_gen: &IndexGen<ExprIdx>) {
         let (rvid, ty) = self.walk_place(place);
 
         match &*ty {
@@ -315,7 +306,7 @@ impl TypeEnv<'_> {
             TyS::MutRef(_) => {
                 let ty = ty.join(&new_ty);
                 self.types.update(rvid, ty.clone());
-                self.union_cascade(ty, true);
+                self.union_cascade(ty, true, expr_gen);
             }
             TyS::Exists(_) => {
                 unreachable!("unpacked existential: `{:?}`", ty);
@@ -323,7 +314,7 @@ impl TypeEnv<'_> {
         }
     }
 
-    pub fn join_with(&mut self, other: &TypeEnv) {
+    pub fn join_with(&mut self, other: &TypeEnv, expr_gen: &IndexGen<ExprIdx>) {
         self.types
             .merge_with(&other.types, |ty1, ty2| ty1.join(&ty2));
 
@@ -343,7 +334,7 @@ impl TypeEnv<'_> {
             .dedup_by(|a, b| self.types.same_set(*a, *b))
             .collect_vec();
         for source in sources {
-            self.union_cascade(self.types[source].clone(), false);
+            self.union_cascade(self.types[source].clone(), false, expr_gen);
         }
     }
 
@@ -389,26 +380,26 @@ impl TypeEnv<'_> {
         (rvid, ty)
     }
 
-    fn union_cascade(&mut self, ty: Ty, unpack: bool) {
+    fn union_cascade(&mut self, ty: Ty, unpack: bool, expr_gen: &IndexGen<ExprIdx>) {
         match &*ty {
             TyS::MutRef(region) => {
                 self.types.multi_union(region.iter(), |ty1, ty2| {
                     if unpack {
-                        ty1.join(&ty2).unpack(self.expr_gen)
+                        ty1.join(&ty2).unpack(expr_gen)
                     } else {
                         ty1.join(&ty2)
                     }
                 });
                 let ty = self.types[region[0]].clone();
-                self.union_cascade(ty, unpack);
+                self.union_cascade(ty, unpack, expr_gen);
             }
             _ => {}
         }
     }
 
-    fn unpack(&mut self) {
+    fn unpack(&mut self, expr_gen: &IndexGen<ExprIdx>) {
         for ty in self.types.values_mut() {
-            *ty = ty.unpack(self.expr_gen);
+            *ty = ty.unpack(expr_gen);
         }
     }
 }
@@ -458,11 +449,11 @@ struct Subst {
     types: Vec<Ty>,
 }
 
-fn lower<'a>(
-    expr_gen: &'a IndexGen<ExprIdx>,
+fn lower(
+    expr_gen: &IndexGen<ExprIdx>,
     body: &ir::Body,
     fn_sig: &FnSig,
-) -> (TypeEnv<'a>, Vec<(Region, Ty)>, Ty) {
+) -> (TypeEnv, Vec<(Region, Ty)>, Ty) {
     let mut subst = Subst::empty();
 
     let mut builder = TypeEnvBuilder::new(body.nlocals);
@@ -492,10 +483,10 @@ fn lower<'a>(
 
     let ret = subst.lower_ty(expr_gen, &fn_sig.ret);
 
-    (builder.build(expr_gen), ensures, ret)
+    (builder.build(), ensures, ret)
 }
 
-impl fmt::Debug for TypeEnv<'_> {
+impl fmt::Debug for TypeEnv {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.types, f)
     }
@@ -505,7 +496,7 @@ impl fmt::Debug for TyS {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Refine(bty, e) => write!(f, "{:?}@{:?}", bty, e),
-            Self::Exists(bty) => write!(f, "{:?}{{v: _}}", bty,),
+            Self::Exists(bty) => write!(f, "{:?}{{ ν: _ }}", bty,),
             Self::Uninit => write!(f, "uninit"),
             Self::MutRef(region) => write!(f, "ref<{:?}>", region),
             Self::Param(ParamTy { name, .. }) => write!(f, "{:?}", name),
