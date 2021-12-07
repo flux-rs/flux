@@ -50,7 +50,9 @@ You could for example check a file as a library instead of a binary like so
 cargo run -- --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment liquid-rust passes some default flags (like `-O` and `-Cpanic=abort`) because otherwise the resulting mir will have features
+Additionally, at the moment liquid-rust passes some 
+default flags (like `-O` and `-Cpanic=abort`) because 
+otherwise the resulting mir will have features
 not yet supported.
 
 ### A tiny example
@@ -62,10 +64,22 @@ We use the nightly feature `register_tool` to register the `lr` tool in order to
 #![feature(register_tool)]
 #![register_tool(lr)]
 
-#[lr::ty("fn<n: int>(i32@n) -> i32{v: v > n}")]
+#[lr::ty(fn<n: int>(i32@n) -> i32{v: v > n})]
 pub fn inc(x: i32) -> i32 {
     x + 1
 }
+```
+
+You can save the above snippet in say `test0.rs` and then run
+
+```
+cargo run -- --crate-type=lib path/to/test0.rs
+```
+
+and you should get some output like
+
+```
+Ok(FixpointResult { tag: Safe })
 ```
 
 ## Limitations
