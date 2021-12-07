@@ -33,7 +33,7 @@ use liquid_rust_common::{
 };
 use liquid_rust_core::{
     ir::{
-        self, BasicBlock, Body, Constant, Local, Operand, Rvalue, SourceInfo, Statement,
+        self, BasicBlock, Body, Constant, Local, Operand, Place, Rvalue, SourceInfo, Statement,
         StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
     },
     ty::{self as core, Name},
@@ -41,6 +41,7 @@ use liquid_rust_core::{
 use liquid_rust_fixpoint::Fixpoint;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::mir;
 use rustc_session::Session;
@@ -217,57 +218,79 @@ impl Checker<'_, '_> {
                 args,
                 destination,
             } => {
-                let fn_sig = self.global_env.lookup_fn_sig(*func);
-                let actuals = args
-                    .iter()
-                    .map(|arg| self.check_operand(env, arg))
-                    .collect_vec();
-
-                let mut subst = lowering::Subst::with_type_substs(cursor, substs);
-                if let Err(errors) = subst.infer_from_fn_call(env, &actuals, fn_sig) {
-                    return self.report_inference_error(terminator.source_info);
-                };
-
-                for param in &fn_sig.params {
-                    cursor.push_head(subst.lower_expr(&param.pred));
-                }
-
-                for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-                    let formal = subst.lower_ty(cursor, formal);
-                    cursor.subtyping(actual, formal);
-                }
-
-                for (region, required_ty) in &fn_sig.requires {
-                    let actual_ty = env
-                        .lookup_region(subst.lower_region(*region).unwrap()[0])
-                        .unwrap();
-                    let required_ty = subst.lower_ty(cursor, required_ty);
-                    cursor.subtyping(actual_ty, required_ty);
-                }
-
-                for (region, updated_ty) in &fn_sig.ensures {
-                    let updated_ty = subst.lower_ty(cursor, updated_ty);
-                    let updated_ty = cursor.unpack(updated_ty);
-                    if let Some(region) = subst.lower_region(*region) {
-                        env.update_region(cursor, region[0], updated_ty);
-                    } else {
-                        let rvid = env.push_region(updated_ty);
-                        subst.insert_region(*region, rvid);
-                    }
-                }
-
-                if let Some((p, bb)) = destination {
-                    let ret = subst.lower_ty(cursor, &fn_sig.ret);
-                    let ret = cursor.unpack(ret);
-                    env.write_place(cursor, p, ret);
-
-                    self.check_goto(env, cursor, *bb)?;
-                }
+                self.check_call(
+                    env,
+                    cursor,
+                    terminator.source_info,
+                    *func,
+                    substs,
+                    args,
+                    destination,
+                )?;
             }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(place);
                 self.check_goto(env, cursor, *target);
             }
+        }
+        Ok(())
+    }
+
+    fn check_call(
+        &mut self,
+        env: &mut TyEnv,
+        cursor: &mut Cursor,
+        source_info: SourceInfo,
+        func: DefId,
+        substs: &[core::Ty],
+        args: &[Operand],
+        destination: &Option<(Place, BasicBlock)>,
+    ) -> Result<(), ErrorReported> {
+        let fn_sig = self.global_env.lookup_fn_sig(func);
+        let actuals = args
+            .iter()
+            .map(|arg| self.check_operand(env, arg))
+            .collect_vec();
+
+        let mut subst = lowering::Subst::with_type_substs(cursor, substs);
+        if let Err(errors) = subst.infer_from_fn_call(env, &actuals, fn_sig) {
+            return self.report_inference_error(source_info);
+        };
+
+        for param in &fn_sig.params {
+            cursor.push_head(subst.lower_expr(&param.pred));
+        }
+
+        for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
+            let formal = subst.lower_ty(cursor, formal);
+            cursor.subtyping(actual, formal);
+        }
+
+        for (region, required_ty) in &fn_sig.requires {
+            let actual_ty = env
+                .lookup_region(subst.lower_region(*region).unwrap()[0])
+                .unwrap();
+            let required_ty = subst.lower_ty(cursor, required_ty);
+            cursor.subtyping(actual_ty, required_ty);
+        }
+
+        for (region, updated_ty) in &fn_sig.ensures {
+            let updated_ty = subst.lower_ty(cursor, updated_ty);
+            let updated_ty = cursor.unpack(updated_ty);
+            if let Some(region) = subst.lower_region(*region) {
+                env.update_region(cursor, region[0], updated_ty);
+            } else {
+                let rvid = env.push_region(updated_ty);
+                subst.insert_region(*region, rvid);
+            }
+        }
+
+        if let Some((p, bb)) = destination {
+            let ret = subst.lower_ty(cursor, &fn_sig.ret);
+            let ret = cursor.unpack(ret);
+            env.write_place(cursor, p, ret);
+
+            self.check_goto(env, cursor, *bb)?;
         }
         Ok(())
     }
