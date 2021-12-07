@@ -36,7 +36,7 @@ cargo build
 
 You can run the liquid-rust binary with `cargo run`.
 The liquid-rust binary is a [rustc driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface) (similar to how clippy works) meaning it uses rustc as a library to "drive" compilation performing aditional analysis along the way.
-In practice this means you could use liquid-rust as you would use rustc.
+In practice this means you can use liquid-rust as you would use rustc.
 For example, the following command checks the file `test.rs` (everythins after the `--` are the arguments to the liquid-rust binary)
 
 ```bash
@@ -47,7 +47,7 @@ The liquid-rust binary accepts the same flags than rustc.
 You could for example check a file as a library instead of a binary like so
 
 ```bash
-cargo run -- --crate-type=lib
+cargo run -- --crate-type=lib path/to/test.rs
 ```
 
 Additionally, at the moment liquid-rust passes some default flags (like `-O` and `-Cpanic=abort`) because otherwise the resulting mir will have features
