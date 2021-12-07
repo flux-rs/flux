@@ -103,15 +103,15 @@ macro_rules! _impl_debug_with_default_cx {
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 
 pub enum Visibility {
-    Hide,
     Show,
-    Ellipsis,
+    Hide,
+    Truncate(usize),
 }
+
 pub struct PPrintCx<'tcx> {
     tcx: TyCtxt<'tcx>,
-    vars_in_scope: Visibility,
+    kvar_args: Visibility,
     fully_qualified_paths: bool,
-    nu: Visibility,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -141,34 +141,17 @@ impl<'a, I> Join<'a, I> {
     }
 }
 
-impl Visibility {
-    /// Returns `true` if the visibility is [`Hide`].
-    ///
-    /// [`Hide`]: Visibility::Hide
-    pub fn is_hide(&self) -> bool {
-        matches!(self, Self::Hide)
-    }
-}
-
 impl PPrintCx<'_> {
     pub fn default(tcx: TyCtxt) -> PPrintCx {
         PPrintCx {
             tcx,
-            vars_in_scope: Visibility::Show,
-            nu: Visibility::Show,
+            kvar_args: Visibility::Show,
             fully_qualified_paths: false,
         }
     }
 
-    pub fn vars_in_scope(self, vis: Visibility) -> Self {
-        Self {
-            vars_in_scope: vis,
-            ..self
-        }
-    }
-
-    pub fn nu(self, vis: Visibility) -> Self {
-        Self { nu: vis, ..self }
+    pub fn kvar_args(self, kvar_args: Visibility) -> Self {
+        Self { kvar_args, ..self }
     }
 
     pub fn fully_qualified_paths(self, b: bool) -> Self {
@@ -272,9 +255,7 @@ impl Pretty for TyEnv {
     }
 
     fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx)
-            .vars_in_scope(Visibility::Hide)
-            .nu(Visibility::Hide)
+        PPrintCx::default(tcx).kvar_args(Visibility::Truncate(0))
     }
 }
 
@@ -297,7 +278,7 @@ impl Pretty for TyS {
     }
 
     fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx).vars_in_scope(Visibility::Ellipsis)
+        PPrintCx::default(tcx).kvar_args(Visibility::Truncate(0))
     }
 }
 
@@ -335,21 +316,12 @@ impl Pretty for Pred {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self {
-            Self::KVar(kvid, e, args) => {
+            Self::KVar(kvid, args) => {
                 w!("{:?}", ^kvid)?;
-                if !cx.nu.is_hide() || !cx.vars_in_scope.is_hide() {
-                    w!("(")?;
-                    match cx.nu {
-                        Visibility::Show => w!("{:?}", e)?,
-                        Visibility::Ellipsis => w!("…")?,
-                        Visibility::Hide => {}
-                    }
-                    match cx.vars_in_scope {
-                        Visibility::Show => w!(", {:?}", join!(", ", args))?,
-                        Visibility::Ellipsis => w!(", …")?,
-                        Visibility::Hide => {}
-                    }
-                    w!(")")?;
+                match cx.kvar_args {
+                    Visibility::Show => w!("({:?})", join!(", ", args))?,
+                    Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
+                    Visibility::Hide => {}
                 }
                 Ok(())
             }

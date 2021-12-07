@@ -44,7 +44,7 @@ pub struct RegionS(Vec<RVid>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    KVar(KVid, Expr, Interned<Vec<Expr>>),
+    KVar(KVid, Interned<Vec<Expr>>),
     Expr(Expr),
 }
 
@@ -285,19 +285,18 @@ impl std::ops::Add<&'_ Region> for &'_ Region {
 }
 
 impl Pred {
-    pub fn kvar(kvid: KVid, e: Expr, args: impl IntoIterator<Item = Expr>) -> Self {
-        Pred::KVar(kvid, e, Interned::new(args.into_iter().collect()))
+    pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
+        Pred::KVar(kvid, Interned::new(args.into_iter().collect()))
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::KVar(_, _, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        matches!(self, Pred::KVar(_, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
     pub fn subst_bound_vars(&self, to: Expr) -> Self {
         match self {
-            Pred::KVar(kvid, e, args) => Pred::kvar(
+            Pred::KVar(kvid, args) => Pred::kvar(
                 *kvid,
-                e.subst_bound_vars(to.clone()),
                 args.iter().map(|arg| arg.subst_bound_vars(to.clone())),
             ),
             Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),

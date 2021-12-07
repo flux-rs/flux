@@ -118,16 +118,17 @@ impl<'tcx> Cursor<'_, 'tcx> {
 
     fn fresh_kvar_at_scope(&mut self, sort: Sort, scope: usize) -> Pred {
         let mut sorts = Vec::with_capacity(self.nvars + 1);
-        let mut vars = Vec::with_capacity(self.nvars);
+        let mut args = Vec::with_capacity(self.nvars);
 
         sorts.push(sort);
+        args.push(Expr::from(Var::Bound));
         for (var, sort) in self.vars_in_scope(scope) {
-            vars.push(Expr::from(Var::Free(var)));
+            args.push(Expr::from(Var::Free(var)));
             sorts.push(sort);
         }
 
         let kvid = self.builder.kvars.push(sorts);
-        Pred::kvar(kvid, Expr::from(Var::Bound), vars)
+        Pred::kvar(kvid, args)
     }
 
     pub fn fresh_name(&self) -> Name {
@@ -343,24 +344,21 @@ fn pred_to_fixpoint(
     let mut bindings = vec![];
     let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(expr)),
-        Pred::KVar(kvid, e, args) => {
-            let args = std::iter::once(&e)
-                .chain(args.iter())
-                .zip(&kvars[kvid])
-                .map(|(arg, sort)| {
-                    if let ExprKind::Var(Var::Free(var)) = arg.kind() {
-                        *var
-                    } else {
-                        let fresh = name_gen.fresh();
-                        let pred = fixpoint::Expr::BinaryOp(
-                            BinOp::Eq,
-                            Box::new(fixpoint::Expr::Var(fresh)),
-                            Box::new(expr_to_fixpoint(arg.clone())),
-                        );
-                        bindings.push((fresh, *sort, pred));
-                        fresh
-                    }
-                });
+        Pred::KVar(kvid, args) => {
+            let args = args.iter().zip(&kvars[kvid]).map(|(arg, sort)| {
+                if let ExprKind::Var(Var::Free(var)) = arg.kind() {
+                    *var
+                } else {
+                    let fresh = name_gen.fresh();
+                    let pred = fixpoint::Expr::BinaryOp(
+                        BinOp::Eq,
+                        Box::new(fixpoint::Expr::Var(fresh)),
+                        Box::new(expr_to_fixpoint(arg.clone())),
+                    );
+                    bindings.push((fresh, *sort, pred));
+                    fresh
+                }
+            });
             fixpoint::Pred::KVar(kvid, args.collect())
         }
     };
@@ -405,7 +403,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).vars_in_scope(Visibility::Ellipsis)
+            PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
         }
     }
 
