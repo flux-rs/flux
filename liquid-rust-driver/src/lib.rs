@@ -21,9 +21,39 @@ mod resolve;
 use callbacks::LiquidCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
 
+/// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
+/// environment variables are not set.
+fn sysroot() -> Option<String> {
+    let home = option_env!("RUSTUP_HOME")?;
+    let toolchain = option_env!("RUSTUP_TOOLCHAIN")?;
+    Some(format!("{}/toolchains/{}", home, toolchain))
+}
+
+pub fn run_compiler_result(mut args: Vec<String>) -> Result<liquid_rust_fixpoint::FixpointResult, rustc_errors::ErrorReported> {
+    println!("Here come the raw args {:?}", args);
+    // Add the sysroot path to the arguments.
+    args.push("--sysroot".into());
+    args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
+    // Add release mode to the arguments.
+    args.push("-O".into());
+    // We don't support unwinding.
+    args.push("-Cpanic=abort".into());
+    // Run the rust compiler with the arguments.
+    let mut callbacks = LiquidCallbacks::default();
+    let res = RunCompiler::new(&args, &mut callbacks).run();
+    println!("RUN COMPILER: args = {:?}, result = {:?}", args, callbacks.result);
+    match res {
+        Ok(_) => Ok(callbacks.result),
+        Err(e) => Err(e),
+    }
+}
+
 /// Run Liquid Rust and return the exit status code.
 pub fn run_compiler(args: Vec<String>) -> i32 {
-    let mut callbacks = LiquidCallbacks::default();
-
-    catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run())
+    catch_with_exit_code(move || match run_compiler_result(args) { 
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    })
 }
+
+

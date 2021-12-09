@@ -295,6 +295,7 @@ dependencies = [
  "itertools",
  "liquid-rust-common",
  "liquid-rust-core",
+ "liquid-rust-fixpoint",
  "liquid-rust-syntax",
  "liquid-rust-typeck",
  "quickscope",

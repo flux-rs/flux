@@ -4,6 +4,7 @@ extern crate rustc_serialize;
 
 mod constraint;
 
+use liquid_rust_common::SemiGroup;
 use std::{
     fmt::{self, Write as FmtWrite},
     io::{self, BufWriter, Write as IOWrite},
@@ -20,17 +21,49 @@ pub struct Fixpoint {
     pub constraint: Constraint,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default, Clone, Copy)]
 pub struct FixpointResult {
     pub tag: Safeness,
 }
 
-#[derive(Deserialize, Eq, PartialEq, Debug)]
+#[derive(Deserialize, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Safeness {
     Safe,
     Unsafe,
     Crash,
 }
+
+impl Default for Safeness {
+    fn default() -> Self {
+        Safeness::Safe
+    }
+}
+
+impl SemiGroup for Safeness {
+    fn append(self, s2: Self) -> Self {
+        match s2 {
+            Safeness::Safe => self,
+            _              => s2,
+        }
+    }
+}
+
+impl SemiGroup for FixpointResult {
+    fn append(self, r2:Self) -> Self {
+        FixpointResult { tag : self.tag.append(r2.tag) }
+    }
+}
+
+impl FromIterator<FixpointResult> for FixpointResult {
+    fn from_iter<I: IntoIterator<Item=FixpointResult>>(iter: I) -> Self {
+        let mut s = Safeness::Safe;
+        for ss in iter {
+            s = s.append(ss.tag);
+        }
+        FixpointResult { tag : s }
+    }
+}
+
 
 #[derive(Debug)]
 pub struct KVar(pub KVid, pub Vec<Sort>);

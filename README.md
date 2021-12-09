@@ -50,7 +50,9 @@ You could for example check a file as a library instead of a binary like so
 cargo run -- --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment liquid-rust passes some default flags (like `-O` and `-Cpanic=abort`) because otherwise the resulting mir will have features
+Additionally, at the moment liquid-rust passes some 
+default flags (like `-O` and `-Cpanic=abort`) because 
+otherwise the resulting mir will have features
 not yet supported.
 
 ### A tiny example
@@ -67,6 +69,27 @@ pub fn inc(x: i32) -> i32 {
     x + 1
 }
 ```
+
+You can save the above snippet in say `test0.rs` and then run
+
+```
+cargo run -- --crate-type=lib path/to/test0.rs
+```
+
+and you should get some output like
+
+```
+Ok(FixpointResult { tag: Safe })
+```
+
+## Test
+
+You can run the various tests in the `tests/pos` and `tests/neg` directory using
+
+```
+$ cargo test -p liquid-rust-driver
+```
+
 
 ## Limitations
 
