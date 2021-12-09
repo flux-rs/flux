@@ -1,6 +1,6 @@
 mod common;
 
-#[test]
-fn test00() {
-    assert!(common::test_safe("../tests/pos/test00.rs"))
+tests! {
+    test00: "../tests/pos/test00.rs" => Safe,
+    test01: "../tests/pos/test01.rs" => Safe,
 }

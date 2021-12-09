@@ -1,6 +1,6 @@
 mod common;
 
-#[test]
-fn test00() {
-    assert!(common::test_unsafe("../tests/neg/test00.rs"))
+tests! {
+    test00: "../tests/neg/test00.rs" => Unsafe,
+    test01: "../tests/neg/test01.rs" => Unsafe
 }
