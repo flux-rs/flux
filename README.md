@@ -82,6 +82,15 @@ and you should get some output like
 Ok(FixpointResult { tag: Safe })
 ```
 
+## Test
+
+You can run the various tests in the `tests/pos` and `tests/neg` directory using
+
+```
+$ cargo test -p liquid-rust-driver
+```
+
+
 ## Limitations
 
 This is a prototype! Use at your own risk. Everything could break and it will break.

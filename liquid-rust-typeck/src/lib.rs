@@ -66,7 +66,7 @@ impl Checker<'_, '_> {
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<liquid_rust_fixpoint::FixpointResult, ErrorReported> {
         let bb_env_shapes = InferCtxt::infer(global_env, body, fn_sig);
 
         let mut constraint = ConstraintBuilder::new(global_env.tcx);
@@ -115,8 +115,12 @@ impl Checker<'_, '_> {
 
         println!("{:?}", constraint);
         let constraint = constraint.to_fixpoint();
-        println!("{:?}", Fixpoint::check(&constraint));
-        Ok(())
+        let fixpoint_res = Fixpoint::check(&constraint);
+        // println!("FIXPOINT {:?}", fixpoint_res); 
+        match fixpoint_res {
+            Ok(r)  => Ok(r),
+            Err(e) => Err(ErrorReported),
+        }
     }
 
     fn new<'a, 'tcx>(
