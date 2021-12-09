@@ -116,7 +116,6 @@ impl Checker<'_, '_> {
         println!("{:?}", constraint);
         let constraint = constraint.to_fixpoint();
         let fixpoint_res = Fixpoint::check(&constraint);
-        // println!("FIXPOINT {:?}", fixpoint_res); 
         match fixpoint_res {
             Ok(r)  => Ok(r),
             Err(e) => Err(ErrorReported),

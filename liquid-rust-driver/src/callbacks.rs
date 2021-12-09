@@ -4,7 +4,7 @@ use liquid_rust_typeck::{
     global_env::{FnSpec, GlobalEnv},
     Checker,
 };
-use liquid_rust_fixpoint::{ FixpointResult, Safeness };
+use liquid_rust_fixpoint::{ FixpointResult };
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
@@ -62,8 +62,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<FixpointResult, ErrorRepor
         .iter()
         .map(|(def_id, spec)| {
             if spec.assume {
-                // return Ok(());
-                return Ok(liquid_rust_fixpoint::FixpointResult { tag: Safeness::Safe });
+                return Ok(Default::default());
             }
             println!("\n-------------------------------------------------");
             println!("CHECKING: {}", tcx.item_name(def_id.to_def_id()));

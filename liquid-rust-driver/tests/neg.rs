@@ -1,6 +1,6 @@
-use liquid_rust_driver::{test_unsafe};
+mod common;
 
 #[test]
 fn test00() {
-    assert!(test_unsafe("../tests/neg/test00.rs"))
+    assert!(common::test_unsafe("../tests/neg/test00.rs"))
 }
