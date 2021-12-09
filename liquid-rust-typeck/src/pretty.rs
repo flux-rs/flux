@@ -1,17 +1,9 @@
-use std::{
-    cell::RefCell,
-    fmt::{self, Write},
-};
+use std::{cell::RefCell, fmt};
 
-use itertools::{Format, Itertools};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 
-use crate::{
-    intern::{Internable, Interned},
-    ty::{BaseTy, BinOp, ExprKind, ExprS, ParamTy, Pred, RegionS, Ty, TyKind, TyS, UnOp, Var},
-    tyenv::{RegionKind, TyEnv},
-};
+use crate::intern::{Internable, Interned};
 
 #[macro_export]
 macro_rules! _define_scoped {
@@ -109,9 +101,9 @@ pub enum Visibility {
 }
 
 pub struct PPrintCx<'tcx> {
-    tcx: TyCtxt<'tcx>,
-    kvar_args: Visibility,
-    fully_qualified_paths: bool,
+    pub tcx: TyCtxt<'tcx>,
+    pub kvar_args: Visibility,
+    pub fully_qualified_paths: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -186,7 +178,7 @@ where
     I: Iterator<Item = T>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut iter = match self.iter.borrow_mut().take() {
+        let iter = match self.iter.borrow_mut().take() {
             Some(t) => t,
             None => panic!("Join: was already formatted once"),
         };
@@ -206,7 +198,7 @@ where
     I: Iterator<Item = T>,
 {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut iter = match self.iter.borrow_mut().take() {
+        let iter = match self.iter.borrow_mut().take() {
             Some(t) => t,
             None => panic!("Join: was already formatted once"),
         };
@@ -226,80 +218,6 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, T> {
     }
 }
 
-impl Pretty for TyEnv {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        let bindings = self
-            .iter()
-            .filter(|(_, binding)| !binding.ty().is_uninit())
-            .map(|(set, elem)| (set.sorted().collect_vec(), elem))
-            .sorted_by(|(set1, _), (set2, _)| set1.cmp(set2))
-            .collect_vec();
-
-        w!("{{");
-        for (i, (set, binding)) in bindings.into_iter().enumerate() {
-            if i > 0 {
-                w!(", ");
-            }
-            match set[..] {
-                [idx] => {
-                    w!("{:?}: ", ^idx)?;
-                }
-                _ => {
-                    w!("{{{:?}}}: ", ^join!(", ", set))?;
-                }
-            }
-            w!("{:?}", binding)?;
-        }
-        w!("}}")
-    }
-
-    fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx).kvar_args(Visibility::Truncate(0))
-    }
-}
-
-impl Pretty for TyS {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self.kind() {
-            TyKind::Refine(bty, e) => {
-                if matches!(e.kind(), ExprKind::Constant(..) | ExprKind::Var(..)) {
-                    w!("{:?}@{:?}", bty, e)
-                } else {
-                    w!("{:?}@{{{:?}}}", bty, e)
-                }
-            }
-            TyKind::Exists(bty, p) => w!("{:?}{{{:?}}}", bty, p),
-            TyKind::Uninit => w!("uninit"),
-            TyKind::MutRef(region) => w!("ref<{:?}>", region),
-            TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
-        }
-    }
-
-    fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx).kvar_args(Visibility::Truncate(0))
-    }
-}
-
-impl Pretty for BaseTy {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self {
-            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
-            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
-            BaseTy::Bool => w!("bool"),
-            BaseTy::Adt(did, args) => {
-                w!("{:?}", did)?;
-                if !args.is_empty() {
-                    w!("<{:?}>", join!(", ", args));
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
 impl Pretty for DefId {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = cx.tcx.def_path(*self);
@@ -311,150 +229,3 @@ impl Pretty for DefId {
         }
     }
 }
-
-impl Pretty for Pred {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self {
-            Self::KVar(kvid, args) => {
-                w!("{:?}", ^kvid)?;
-                match cx.kvar_args {
-                    Visibility::Show => w!("({:?})", join!(", ", args))?,
-                    Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
-                    Visibility::Hide => {}
-                }
-                Ok(())
-            }
-            Self::Expr(expr) => w!("{:?}", expr),
-        }
-    }
-
-    fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx).fully_qualified_paths(true)
-    }
-}
-
-impl Pretty for ExprS {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        fn should_parenthesize(op: BinOp, child: &ExprS) -> bool {
-            if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                child_op.precedence() < op.precedence()
-                    || (child_op.precedence() == op.precedence()
-                        && !op.precedence().is_associative())
-            } else {
-                false
-            }
-        }
-
-        match self.kind() {
-            ExprKind::Var(x) => w!("{:?}", ^x),
-            ExprKind::BinaryOp(op, e1, e2) => {
-                if should_parenthesize(*op, e1) {
-                    w!("({:?})", e1)?;
-                } else {
-                    w!("{:?}", e1)?;
-                }
-                if matches!(op, BinOp::Div) {
-                    w!("{:?}", op)?;
-                } else {
-                    w!(" {:?} ", op)?;
-                }
-                if should_parenthesize(*op, e2) {
-                    w!("({:?})", e2)?;
-                } else {
-                    w!("{:?}", e2)?;
-                }
-                Ok(())
-            }
-            ExprKind::Constant(c) => w!("{}", ^c),
-            ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
-                ExprKind::UnaryOp(UnOp::Not, e) => w!("{:?}", e),
-                ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                    let e = ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone()).intern();
-                    w!("{:?}", e)
-                }
-                ExprKind::Var(_) | ExprKind::Constant(_) => {
-                    w!("{:?}{:?}", UnOp::Not, e)
-                }
-                _ => {
-                    w!("{:?}({:?})", UnOp::Not, e)
-                }
-            },
-            ExprKind::UnaryOp(op, e) => {
-                if matches!(e.kind(), ExprKind::Var(_) | ExprKind::Constant(_)) {
-                    w!("{:?}{:?}", op, e)
-                } else {
-                    w!("{:?}({:?})", op, e)
-                }
-            }
-        }
-    }
-}
-
-impl Pretty for BinOp {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self {
-            BinOp::Iff => w!("⇔"),
-            BinOp::Imp => w!("⇒"),
-            BinOp::Or => w!("∨"),
-            BinOp::And => w!("∧"),
-            BinOp::Eq => w!("="),
-            BinOp::Ne => w!("≠"),
-            BinOp::Gt => w!(">"),
-            BinOp::Ge => w!("≥"),
-            BinOp::Lt => w!("<"),
-            BinOp::Le => w!("≤"),
-            BinOp::Add => w!("+"),
-            BinOp::Sub => w!("-"),
-            BinOp::Mul => w!("*"),
-            BinOp::Div => w!("/"),
-        }
-    }
-}
-
-impl Pretty for UnOp {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self {
-            UnOp::Not => w!("¬"),
-            UnOp::Neg => w!("-"),
-        }
-    }
-}
-
-impl Pretty for Var {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self {
-            Var::Bound => w!("ν"),
-            Var::Free(var) => w!("{:?}", ^var),
-        }
-    }
-}
-
-impl Pretty for RegionS {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        if self.len() == 1 {
-            w!("{:?}", ^self[0])
-        } else {
-            w!("{{{:?}}}", ^join!(",", self))
-        }
-    }
-}
-
-impl Pretty for RegionKind {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        match self {
-            RegionKind::Strong(ty) => w!("{:?}", ty),
-            RegionKind::Weak { bound, ty } => {
-                w!("{:?} <: {:?}", ty, bound)
-            }
-        }
-    }
-}
-
-impl_debug_with_default_cx!(TyEnv, TyS, BaseTy, Pred, ExprS, Var, RegionS, RegionKind);

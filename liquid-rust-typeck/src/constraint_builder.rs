@@ -1,6 +1,5 @@
 use std::{
     fmt::{self, Write},
-    marker::PhantomData,
     ptr::NonNull,
 };
 
@@ -60,10 +59,10 @@ impl<'tcx> ConstraintBuilder<'tcx> {
         }
     }
 
-    pub fn to_fixpoint(self) -> fixpoint::Fixpoint {
+    pub fn into_fixpoint(self) -> fixpoint::Fixpoint {
         let constraint = self
             .root
-            .to_fixpoint(&self.name_gen, &self.kvars)
+            .into_fixpoint(&self.name_gen, &self.kvars)
             .unwrap_or(fixpoint::Constraint::TRUE);
         let kvars = self
             .kvars
@@ -77,7 +76,7 @@ impl<'tcx> ConstraintBuilder<'tcx> {
 impl<'tcx> Cursor<'_, 'tcx> {
     pub fn snapshot<'a>(&'a mut self) -> Cursor<'a, 'tcx> {
         Cursor {
-            builder: &mut self.builder,
+            builder: self.builder,
             ..*self
         }
     }
@@ -162,8 +161,8 @@ impl<'tcx> Cursor<'_, 'tcx> {
                 let p = p.subst_bound_vars(e.clone());
                 cursor.push_head(p.subst_bound_vars(e.clone()))
             }
-            (TyKind::MutRef(r1), TyKind::MutRef(r2)) => {
-                assert!(r1.subset(r2));
+            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
+                assert_eq!(loc1, loc2);
             }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
@@ -263,7 +262,7 @@ impl<'tcx> Cursor<'_, 'tcx> {
 }
 
 impl Node {
-    fn to_fixpoint(
+    fn into_fixpoint(
         self,
         name_gen: &IndexGen<Name>,
         kvars: &IndexVec<KVid, Vec<Sort>>,
@@ -300,7 +299,7 @@ impl Node {
         matches!(self, Self::Head(..))
     }
 
-    fn forall_chain<'a>(&'a self) -> Option<(Vec<(Name, Sort, &'a Pred)>, &'a Vec<Node>)> {
+    fn forall_chain(&self) -> Option<(Vec<(Name, Sort, &Pred)>, &Vec<Node>)> {
         fn go<'a>(
             node: &'a Node,
             mut vec: Vec<(Name, Sort, &'a Pred)>,
@@ -327,7 +326,7 @@ fn children_to_fixpoint(
 ) -> Option<fixpoint::Constraint> {
     let mut children = children
         .into_iter()
-        .filter_map(|node| node.to_fixpoint(name_gen, kvars))
+        .filter_map(|node| node.into_fixpoint(name_gen, kvars))
         .collect_vec();
     match children.len() {
         0 => None,
@@ -404,6 +403,7 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
+            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 

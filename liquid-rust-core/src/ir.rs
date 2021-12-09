@@ -125,7 +125,9 @@ impl Body<'_> {
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
-        self.mir.predecessors()[bb].len() > 1
+        // The entry block is a joint point if it has at least one predecessor because there's
+        // an implicit goto from the environment at the beginning of the function.
+        self.mir.predecessors()[bb].len() > (if bb == START_BLOCK { 0 } else { 1 })
     }
 
     #[inline]
