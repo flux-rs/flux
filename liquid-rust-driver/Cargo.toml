@@ -16,3 +16,6 @@ quickscope = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[dev-dependencies]
+compiletest_rs = "0.7"
