@@ -5,7 +5,7 @@ mod rvec;
 use rvec::RVec;
 
 #[lr::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>) -> i32; vec:RVec<i32>@len)]
-fn heap_sort(vec: &mut RVec<i32>) -> i32 {
+pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     let len = vec.len();
 
     if len <= 0 {
@@ -28,7 +28,7 @@ fn heap_sort(vec: &mut RVec<i32>) -> i32 {
 }
 
 #[lr::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>, usize{v: 0 <= v && v < len}, usize{v: 0 <= v && v < len}) -> i32; vec: RVec<i32>@len)]
-fn shift_down(vec: &mut RVec<i32>, start: usize, end: usize) -> i32 {
+pub fn shift_down(vec: &mut RVec<i32>, start: usize, end: usize) -> i32 {
     let mut root = start;
     loop {
         let mut child = root * 2 + 1;

@@ -1,3 +1,5 @@
+#![feature(register_tool)]
+#![register_tool(lr)]
 #![allow(dead_code)]
 
 pub struct RVec<T> {
