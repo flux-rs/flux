@@ -63,12 +63,17 @@
 // }
 
 pub fn test_file_exec(file: &str, expected: bool) {
-    let mut lr = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    let mut lr = root.clone();
     lr.push("../target/debug/liquid-rust");
+
+    let mut test_path = root.clone();
+    test_path.push(file);
 
     let res = std::process::Command::new(lr)
         .arg("--crate-type=lib")
-        .arg(file)
+        .arg(test_path)
         .status()
         .expect("failed to execute process");
     assert_eq!(res.success(), expected); 
