@@ -44,4 +44,4 @@ jobs:
 
       - name: Run tests
         run: |
-          which fixpoint && cargo test
+          which fixpoint && cargo build && cargo test
