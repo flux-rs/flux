@@ -1,10 +1,10 @@
-use liquid_rust_common::{SemiGroup, errors::ErrorReported, iter::IterExt};
+use liquid_rust_common::{errors::ErrorReported, iter::IterExt, SemiGroup};
 use liquid_rust_core::wf::Wf;
+use liquid_rust_fixpoint::FixpointResult;
 use liquid_rust_typeck::{
+    self as typeck,
     global_env::{FnSpec, GlobalEnv},
-    Checker,
 };
-use liquid_rust_fixpoint::{ FixpointResult };
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
@@ -16,7 +16,7 @@ use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver}
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
 pub(crate) struct LiquidCallbacks {
-    pub result : FixpointResult,
+    pub result: FixpointResult,
 }
 
 impl Callbacks for LiquidCallbacks {
@@ -29,7 +29,7 @@ impl Callbacks for LiquidCallbacks {
             let res = check_crate(tcx, compiler.session());
             match res {
                 Ok(r) => self.result = self.result.append(r),
-                Err(_) => ()
+                Err(_) => (),
             }
         });
 
@@ -64,11 +64,8 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<FixpointResult, ErrorRepor
             if spec.assume {
                 return Ok(Default::default());
             }
-            println!("\n-------------------------------------------------");
-            println!("CHECKING: {}", tcx.item_name(def_id.to_def_id()));
-            println!("-------------------------------------------------");
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            Checker::check(&global_env, &body, &spec.fn_sig)
+            typeck::check(&global_env, &body, &spec.fn_sig)
         })
         .try_collect_exhaust()
 }
