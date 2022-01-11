@@ -1,6 +1,5 @@
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt, SemiGroup};
+use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_core::wf::Wf;
-use liquid_rust_fixpoint::FixpointResult;
 use liquid_rust_typeck::{
     self as typeck,
     global_env::{FnSpec, GlobalEnv},
@@ -15,9 +14,7 @@ use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver}
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
-pub(crate) struct LiquidCallbacks {
-    pub result: FixpointResult,
-}
+pub(crate) struct LiquidCallbacks;
 
 impl Callbacks for LiquidCallbacks {
     fn after_analysis<'tcx>(
@@ -26,18 +23,14 @@ impl Callbacks for LiquidCallbacks {
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let res = check_crate(tcx, compiler.session());
-            match res {
-                Ok(r) => self.result = self.result.append(r),
-                Err(_) => (),
-            }
+            let _ = check_crate(tcx, compiler.session());
         });
 
         Compilation::Stop
     }
 }
 
-fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<FixpointResult, ErrorReported> {
+fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let annotations = SpecCollector::collect(tcx, sess)?;
 
     let wf = Wf::new(sess);
