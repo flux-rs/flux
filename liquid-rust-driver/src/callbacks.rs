@@ -58,7 +58,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
                 return Ok(Default::default());
             }
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            typeck::check(&global_env, &body, &spec.fn_sig)
+            typeck::check(&global_env, def_id.to_def_id(), &body)
         })
         .try_collect_exhaust()
 }
