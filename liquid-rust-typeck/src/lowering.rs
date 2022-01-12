@@ -1,14 +1,9 @@
-use crate::{
-    constraint_builder::{ConstraintBuilder, Cursor},
-    ty::{self, Expr},
-    tyenv::{TyEnv, TyEnvBuilder},
-};
-use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::{ir, ty as core};
+use crate::{constraint_builder::Cursor, ty, type_env::TypeEnv};
+use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
 pub struct Subst {
-    regions: FxHashMap<core::Name, ty::Region>,
+    locations: FxHashMap<core::Name, ty::Loc>,
     exprs: FxHashMap<core::Name, ty::Expr>,
     types: Vec<ty::Ty>,
 }
@@ -19,7 +14,7 @@ impl Subst {
     pub fn with_empty_type_substs() -> Self {
         Self {
             exprs: FxHashMap::default(),
-            regions: FxHashMap::default(),
+            locations: FxHashMap::default(),
             types: vec![],
         }
     }
@@ -38,13 +33,13 @@ impl Subst {
         self.exprs.insert(name, expr.into());
     }
 
-    pub fn insert_region(&mut self, name: core::Name, region: impl Into<ty::Region>) {
-        self.regions.insert(name, region.into());
+    pub fn insert_loc(&mut self, name: core::Name, region: impl Into<ty::Loc>) {
+        self.locations.insert(name, region.into());
     }
 
     pub fn infer_from_fn_call(
         &mut self,
-        env: &TyEnv,
+        env: &TypeEnv,
         actuals: &[ty::Ty],
         fn_sig: &core::FnSig,
     ) -> Result<(), InferenceError> {
@@ -54,10 +49,8 @@ impl Subst {
             self.infer_from_tys(actual.clone(), formal);
         }
 
-        for (region, required) in &fn_sig.requires {
-            let actual = env
-                .lookup_region(self.lower_region(*region).unwrap()[0])
-                .unwrap();
+        for (loc, required) in &fn_sig.requires {
+            let actual = env.lookup_loc(self.lower_loc(*loc).unwrap()).unwrap();
             self.infer_from_tys(actual, required);
         }
 
@@ -72,7 +65,7 @@ impl Subst {
         }
 
         for (region, _) in &fn_sig.requires {
-            if !self.regions.contains_key(region) {
+            if !self.locations.contains_key(region) {
                 return Err(InferenceError);
             }
         }
@@ -82,9 +75,9 @@ impl Subst {
     fn infer_from_tys(&mut self, ty1: ty::Ty, ty2: &core::Ty) {
         match (ty1.kind(), ty2) {
             (
-                ty::TyKind::Refine(bty1, e),
+                ty::TyKind::Refine(_bty1, e),
                 core::Ty::Refine(
-                    bty2,
+                    _bty2,
                     core::Expr {
                         kind: core::ExprKind::Var(core::Var::Free(name), symbol, ..),
                         ..
@@ -99,9 +92,9 @@ impl Subst {
                     _ => {}
                 }
             }
-            (ty::TyKind::MutRef(region1), core::Ty::MutRef(region2)) => {
-                match self.regions.insert(*region2, region1.clone()) {
-                    Some(old_region) if &old_region != region1 => {
+            (ty::TyKind::StrgRef(loc1), core::Ty::MutRef(loc2)) => {
+                match self.locations.insert(*loc2, *loc1) {
+                    Some(old_region) if &old_region != loc1 => {
                         todo!("ambiguous instantiation for region parameter`",);
                     }
                     _ => {}
@@ -111,8 +104,8 @@ impl Subst {
         }
     }
 
-    pub fn lower_region(&self, name: core::Name) -> Option<ty::Region> {
-        self.regions.get(&name).cloned()
+    pub fn lower_loc(&self, name: core::Name) -> Option<ty::Loc> {
+        self.locations.get(&name).cloned()
     }
 
     pub fn lower_ty(&mut self, cursor: &mut Cursor, ty: &core::Ty) -> ty::Ty {
@@ -127,7 +120,7 @@ impl Subst {
                 };
                 ty::TyKind::Exists(self.lower_base_ty(cursor, bty), pred).intern()
             }
-            core::Ty::MutRef(region) => ty::TyKind::MutRef(self.regions[region].clone()).intern(),
+            core::Ty::MutRef(loc) => ty::TyKind::StrgRef(self.locations[loc]).intern(),
             core::Ty::Param(param) => self
                 .types
                 .get(param.index as usize)
