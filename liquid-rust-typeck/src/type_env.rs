@@ -168,16 +168,7 @@ impl<'tcx> TypeEnv<'tcx> {
     }
 
     pub fn transform_into(&mut self, cursor: &mut Cursor, other: &TypeEnv) {
-        self.bindings.retain(|loc, binding| {
-            if other.bindings.contains_key(loc) {
-                if other.lookup_loc(*loc).unwrap().is_uninit() {
-                    *binding = Binding::Strong(TyKind::Uninit.intern());
-                }
-                true
-            } else {
-                false
-            }
-        });
+        self.weakening(other);
 
         let levels = self.levels();
 
@@ -260,8 +251,7 @@ impl<'tcx> TypeEnv<'tcx> {
     }
 
     pub fn join_with(&mut self, other: &TypeEnv, cursor: &mut Cursor) {
-        self.bindings
-            .retain(|loc, _| other.bindings.contains_key(loc));
+        self.weakening(other);
 
         let mut levels = self.levels();
         let levels_other = other.levels();
@@ -277,6 +267,19 @@ impl<'tcx> TypeEnv<'tcx> {
                 self.bindings.insert(loc, Binding::Strong(ty));
             }
         }
+    }
+
+    fn weakening(&mut self, other: &TypeEnv) {
+        self.bindings.retain(|loc, binding| {
+            if other.bindings.contains_key(loc) {
+                if other.lookup_loc(*loc).unwrap().is_uninit() {
+                    *binding = Binding::Strong(TyKind::Uninit.intern());
+                }
+                true
+            } else {
+                false
+            }
+        });
     }
 
     fn strg_ty_join(&mut self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) -> Ty {
