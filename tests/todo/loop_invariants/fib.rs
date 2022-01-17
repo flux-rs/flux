@@ -23,13 +23,10 @@ fn fib(n: i32) -> i32 {
     i
 }
 
-// Getting "unexpected token" at b:
-/*
-#[lr::ty(fn<n: int{0 < n}, m: int{0 <= m}>(a: i32@{n}; ref<a>, b: i32@{m}; ref<b>) -> i32; a: i32@{n+m}, b: i32@{n})]
-fn loop_inv(mut a: i32, mut b: i32) -> i32 {
-    let tmp = a + b;
-    b = a;
-    a = tmp;
+#[lr::ty(fn<n: int{0 < n}, m: int{0 <= m}>(a: i32@{n}, b: i32@{m}; ref<a>, ref<b>) -> i32; a: i32@{n+m}, b: i32@{n})]
+fn loop_inv(a: &mut i32, b: &mut i32) -> i32 {
+    let tmp = *a + *b;
+    *b = *a;
+    *a = tmp;
     0
 }
-*/
