@@ -148,5 +148,6 @@ fn lower_bin_op(op: core::BinOp) -> ty::BinOp {
         core::BinOp::Le => ty::BinOp::Le,
         core::BinOp::Add => ty::BinOp::Add,
         core::BinOp::Sub => ty::BinOp::Sub,
+        core::BinOp::Mod => ty::BinOp::Mod,
     }
 }

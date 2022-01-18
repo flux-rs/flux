@@ -514,9 +514,24 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             ir::BinOp::Sub => self.check_arith_op(cursor, source_info, BinOp::Sub, ty1, ty2),
             ir::BinOp::Mul => self.check_arith_op(cursor, source_info, BinOp::Mul, ty1, ty2),
             ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
+            ir::BinOp::Mod => self.check_arith_op(cursor, source_info, BinOp::Mod, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
+            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, ty1, ty2),
+        }
+    }
+
+    fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
+                TyKind::Refine(
+                    BaseTy::Bool,
+                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
+            _ => unreachable!("non-boolean arguments to bitwise op: `{:?}` `{:?}`", ty1, ty2),
         }
     }
 
@@ -545,7 +560,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
-        if matches!(op, BinOp::Div) {
+        if matches!(op, BinOp::Div) || matches!(op, BinOp::Mod) {
             cursor.push_head(
                 ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
                 Tag::Div(source_info.span),
