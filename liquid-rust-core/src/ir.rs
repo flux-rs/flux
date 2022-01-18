@@ -53,6 +53,11 @@ pub enum TerminatorKind {
         place: Place,
         target: BasicBlock,
     },
+    Assert {
+        cond: Operand,
+        expected: bool,
+        target: BasicBlock,
+    },
 }
 
 pub struct Statement {
@@ -191,6 +196,9 @@ impl fmt::Debug for Terminator {
             }
             TerminatorKind::Drop { place, target } => {
                 write!(f, "drop({:?}) -> {:?}", place, target)
+            }
+            TerminatorKind::Assert { cond, target, expected } => {
+                write!(f, "Assert({:?} is expected to be {:?}) -> {:?}", cond, expected, target)
             }
         }
     }
