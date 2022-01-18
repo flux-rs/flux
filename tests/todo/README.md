@@ -14,9 +14,5 @@ Right now, the loop invariants getting inferred sometimes aren't strong enough t
 
 #### Examples
 * [fib.rs](loop_invariants/fib.rs)
-* [gcd.rs](loop_invariants/gcd.rs)
 
 ## Minor
-
-### Support for modulo
-Low priority, used in [gcd](loop_invariants/gcd.rs), for example.
