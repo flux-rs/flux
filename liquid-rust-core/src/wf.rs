@@ -116,6 +116,11 @@ impl Wf<'_> {
                 self.check_expr(env, e2, Sort::Int)?;
                 Ok(Sort::Int)
             }
+            BinOp::Mod => {
+                self.check_expr(env, e1, Sort::Int)?;
+                self.check_expr(env, e2, Sort::Int)?;
+                Ok(Sort::Int)
+            }
             BinOp::Or | BinOp::And => {
                 self.check_expr(env, e1, Sort::Bool)?;
                 self.check_expr(env, e2, Sort::Bool)?;

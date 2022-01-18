@@ -138,7 +138,8 @@ BinOp5: ast::BinOp = {
 
 BinOp6: ast::BinOp = {
     "+" => ast::BinOp::Add,
-    "-" => ast::BinOp::Sub
+    "-" => ast::BinOp::Sub,
+    "%" => ast::BinOp::Mod,
 }
 
 Lit: ast::Lit = {
@@ -199,5 +200,6 @@ extern {
         ";"  => Token::Semi,
         ","  => Token::Comma,
         "->" => Token::RArrow,
+        "%" => Token::Percent,
     }
 }

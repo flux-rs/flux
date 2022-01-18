@@ -83,6 +83,8 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Mod,
+    BitAnd,
 }
 
 pub enum Operand {

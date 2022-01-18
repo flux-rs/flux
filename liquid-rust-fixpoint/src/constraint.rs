@@ -45,6 +45,7 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Mod,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -103,7 +104,7 @@ impl BinOp {
                 Precedence::Cmp
             }
             BinOp::Add | BinOp::Sub => Precedence::AddSub,
-            BinOp::Mul | BinOp::Div => Precedence::MulDiv,
+            BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
         }
     }
 }
@@ -231,6 +232,7 @@ impl fmt::Display for BinOp {
             BinOp::Sub => write!(f, "-"),
             BinOp::Mul => write!(f, "*"),
             BinOp::Div => write!(f, "/"),
+            BinOp::Mod => write!(f, "mod"),
         }
     }
 }

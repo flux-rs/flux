@@ -447,6 +447,7 @@ mod pretty {
                 BinOp::Sub => w!("-"),
                 BinOp::Mul => w!("*"),
                 BinOp::Div => w!("/"),
+                BinOp::Mod => w!("mod"),
             }
         }
     }
