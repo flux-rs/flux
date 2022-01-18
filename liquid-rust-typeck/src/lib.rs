@@ -17,6 +17,7 @@ pub mod global_env;
 mod intern;
 mod lowering;
 mod pretty;
+mod subst;
 pub mod ty;
 mod type_env;
 
@@ -73,7 +74,7 @@ fn dump_constraint(
 ) -> Result<(), std::io::Error> {
     let dir = CONFIG.log_dir.join("horn");
     fs::create_dir_all(&dir)?;
-    let mut file = fs::File::create(dir.join(format!("{}", tcx.def_path_str(def_id))))?;
+    let mut file = fs::File::create(dir.join(tcx.def_path_str(def_id)))?;
     write!(file, "{:?}", constraint)
 }
 

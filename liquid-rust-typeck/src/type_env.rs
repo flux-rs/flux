@@ -77,6 +77,10 @@ impl<'tcx> TypeEnv<'tcx> {
         ty
     }
 
+    pub fn has_loc(&self, loc: Loc) -> bool {
+        self.bindings.contains_key(&loc)
+    }
+
     pub fn insert_loc(&mut self, loc: Loc, ty: Ty) {
         self.bindings.insert(loc, Binding::Strong(ty));
     }
