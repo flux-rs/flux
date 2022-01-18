@@ -1,149 +1,116 @@
-use crate::{constraint_builder::Cursor, ty, type_env::TypeEnv};
+use crate::{constraint_builder::Cursor, ty};
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
-pub struct Subst {
-    locations: FxHashMap<core::Name, ty::Loc>,
-    exprs: FxHashMap<core::Name, ty::Expr>,
-    types: Vec<ty::Ty>,
+pub struct LoweringCtxt {
+    params: FxHashMap<core::Name, ty::Name>,
+    locs: FxHashMap<core::Name, ty::Name>,
 }
 
-pub struct InferenceError;
-
-impl Subst {
-    pub fn with_empty_type_substs() -> Self {
+impl LoweringCtxt {
+    pub fn empty() -> Self {
         Self {
-            exprs: FxHashMap::default(),
-            locations: FxHashMap::default(),
-            types: vec![],
+            params: FxHashMap::default(),
+            locs: FxHashMap::default(),
         }
     }
 
-    pub fn with_type_substs(cursor: &mut Cursor, types: &[core::Ty]) -> Self {
-        let mut subst = Subst::with_empty_type_substs();
-        subst.types.reserve(types.len());
-        for ty in types {
-            let ty = subst.lower_ty(cursor, ty);
-            subst.types.push(ty);
-        }
-        subst
-    }
+    pub fn lower_fn_sig(fn_sig: &core::FnSig, cursor: &Cursor) -> ty::FnSig {
+        let fresh_kvar = &mut |_| unreachable!("inference predicate in top level function");
 
-    pub fn insert_expr(&mut self, name: core::Name, expr: impl Into<ty::Expr>) {
-        self.exprs.insert(name, expr.into());
-    }
+        let mut cx = LoweringCtxt::empty();
 
-    pub fn insert_loc(&mut self, name: core::Name, region: impl Into<ty::Loc>) {
-        self.locations.insert(name, region.into());
-    }
-
-    pub fn infer_from_fn_call(
-        &mut self,
-        env: &TypeEnv,
-        actuals: &[ty::Ty],
-        fn_sig: &core::FnSig,
-    ) -> Result<(), InferenceError> {
-        assert!(actuals.len() == fn_sig.args.len());
-
-        for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
-            self.infer_from_tys(actual.clone(), formal);
-        }
-
-        for (loc, required) in &fn_sig.requires {
-            let actual = env.lookup_loc(self.lower_loc(*loc).unwrap()).unwrap();
-            self.infer_from_tys(actual, required);
-        }
-
-        self.check_inference(fn_sig)
-    }
-
-    fn check_inference(&self, fn_sig: &core::FnSig) -> Result<(), InferenceError> {
+        let mut params = Vec::new();
         for param in &fn_sig.params {
-            if !self.exprs.contains_key(&param.name.name) {
-                return Err(InferenceError);
-            }
+            let fresh = cursor.fresh_name();
+            cx.params.insert(param.name.name, fresh);
+            params.push(ty::Param {
+                name: fresh,
+                sort: param.sort,
+                pred: cx.lower_expr(&param.pred),
+            });
         }
 
-        for (region, _) in &fn_sig.requires {
-            if !self.locations.contains_key(region) {
-                return Err(InferenceError);
-            }
+        let mut requires = vec![];
+        for (loc, ty) in &fn_sig.requires {
+            let fresh = cursor.fresh_name();
+            requires.push((fresh, cx.lower_ty(ty, fresh_kvar)));
+            cx.locs.insert(*loc, fresh);
         }
-        Ok(())
-    }
 
-    fn infer_from_tys(&mut self, ty1: ty::Ty, ty2: &core::Ty) {
-        match (ty1.kind(), ty2) {
-            (
-                ty::TyKind::Refine(_bty1, e),
-                core::Ty::Refine(
-                    _bty2,
-                    core::Expr {
-                        kind: core::ExprKind::Var(core::Var::Free(name), symbol, ..),
-                        ..
-                    },
-                ),
-            ) => {
-                // debug_assert!(bty1 == bty2);
-                match self.exprs.insert(*name, e.clone()) {
-                    Some(old_e) if &old_e != e => {
-                        todo!("ambiguous instantiation for parameter `{}`", symbol)
-                    }
-                    _ => {}
-                }
-            }
-            (ty::TyKind::StrgRef(loc1), core::Ty::MutRef(loc2)) => {
-                match self.locations.insert(*loc2, *loc1) {
-                    Some(old_region) if &old_region != loc1 => {
-                        todo!("ambiguous instantiation for region parameter`",);
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
+        let mut args = vec![];
+        for ty in &fn_sig.args {
+            args.push(cx.lower_ty(ty, fresh_kvar))
+        }
+
+        let mut ensures = vec![];
+        for (loc, ty) in &fn_sig.ensures {
+            let loc = if let Some(loc) = cx.locs.get(loc) {
+                *loc
+            } else {
+                let fresh = cursor.fresh_name();
+                cx.locs.insert(*loc, fresh);
+                fresh
+            };
+            ensures.push((loc, cx.lower_ty(ty, fresh_kvar)));
+        }
+
+        let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
+
+        ty::FnSig {
+            params,
+            requires,
+            args,
+            ret,
+            ensures,
         }
     }
 
-    pub fn lower_loc(&self, name: core::Name) -> Option<ty::Loc> {
-        self.locations.get(&name).cloned()
-    }
-
-    pub fn lower_ty(&mut self, cursor: &mut Cursor, ty: &core::Ty) -> ty::Ty {
+    pub fn lower_ty(
+        &self,
+        ty: &core::Ty,
+        fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
+    ) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, e) => {
-                ty::TyKind::Refine(self.lower_base_ty(cursor, bty), self.lower_expr(e)).intern()
+                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), self.lower_expr(e)).intern()
             }
             core::Ty::Exists(bty, pred) => {
                 let pred = match pred {
-                    core::Pred::Infer => cursor.fresh_kvar(bty.sort()),
+                    core::Pred::Infer => fresh_kvar(bty.sort()),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
-                ty::TyKind::Exists(self.lower_base_ty(cursor, bty), pred).intern()
+                ty::TyKind::Exists(self.lower_base_ty(bty, fresh_kvar), pred).intern()
             }
-            core::Ty::MutRef(loc) => ty::TyKind::StrgRef(self.locations[loc]).intern(),
-            core::Ty::Param(param) => self
-                .types
-                .get(param.index as usize)
-                .cloned()
-                .unwrap_or_else(|| ty::TyKind::Param(*param).intern()),
+            core::Ty::MutRef(loc) => {
+                ty::TyKind::StrgRef(ty::Loc::Abstract(self.locs[loc])).intern()
+            }
+            core::Ty::Param(param) => ty::TyKind::Param(*param).intern(),
         }
     }
 
-    pub fn lower_base_ty(&mut self, cursor: &mut Cursor, bty: &core::BaseTy) -> ty::BaseTy {
+    fn lower_base_ty(
+        &self,
+        bty: &core::BaseTy,
+        fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
+    ) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| self.lower_ty(cursor, ty)).collect();
+                let substs = substs
+                    .iter()
+                    .map(|ty| self.lower_ty(ty, fresh_kvar))
+                    .collect();
                 ty::BaseTy::Adt(*did, substs)
             }
         }
     }
 
-    pub fn lower_expr(&self, expr: &core::Expr) -> ty::Expr {
+    fn lower_expr(&self, expr: &core::Expr) -> ty::Expr {
         match &expr.kind {
-            core::ExprKind::Var(var, _, _) => self.lower_var(*var),
+            core::ExprKind::Var(var, ..) => ty::ExprKind::Var(self.lower_var(*var)).intern(),
             core::ExprKind::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
             core::ExprKind::BinaryOp(op, e1, e2) => {
                 ty::ExprKind::BinaryOp(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
@@ -152,10 +119,10 @@ impl Subst {
         }
     }
 
-    fn lower_var(&self, var: core::Var) -> ty::Expr {
+    fn lower_var(&self, var: core::Var) -> ty::Var {
         match var {
-            core::Var::Bound => ty::Var::Bound.into(),
-            core::Var::Free(name) => self.exprs[&name].clone(),
+            core::Var::Bound => ty::Var::Bound,
+            core::Var::Free(name) => ty::Var::Free(self.params[&name]),
         }
     }
 
