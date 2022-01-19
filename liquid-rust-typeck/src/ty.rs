@@ -8,6 +8,22 @@ pub use rustc_middle::ty::{IntTy, UintTy};
 
 use crate::intern::{impl_internable, Interned};
 
+#[derive(Debug)]
+pub struct FnSig {
+    pub params: Vec<Param>,
+    pub requires: Vec<(Name, Ty)>,
+    pub args: Vec<Ty>,
+    pub ret: Ty,
+    pub ensures: Vec<(Name, Ty)>,
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: Name,
+    pub sort: Sort,
+    pub pred: Expr,
+}
+
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -276,6 +292,12 @@ impl PartialOrd for Loc {
 impl Ord for Loc {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
+    }
+}
+
+impl From<Name> for Var {
+    fn from(v: Name) -> Self {
+        Self::Free(v)
     }
 }
 
