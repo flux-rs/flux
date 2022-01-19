@@ -138,13 +138,10 @@ impl<'tcx> Resolver<'tcx> {
 
     fn insert_generic_types(&self, generics: &hir::Generics, subst: &mut Subst) {
         for param in generics.params.iter() {
-            match param.kind {
-                hir::GenericParamKind::Type { .. } => {
-                    let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
-                    let name = param.name.ident().name;
-                    subst.insert_type(def_id, name);
-                }
-                _ => {}
+            if let hir::GenericParamKind::Type { .. } = param.kind {
+                let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
+                let name = param.name.ident().name;
+                subst.insert_type(def_id, name);
             }
         }
     }

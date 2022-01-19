@@ -12,8 +12,9 @@ use std::collections::hash_map::Entry;
 use crate::{
     constraint_builder::{ConstraintBuilder, Cursor},
     global_env::GlobalEnv,
-    lowering,
-    ty::{self, BaseTy, BinOp, Expr, ExprKind, Loc, Ty, TyKind, Var},
+    lowering::LoweringCtxt,
+    subst::Subst,
+    ty::{self, BaseTy, BinOp, Expr, ExprKind, Loc, Ty, TyKind},
     type_env::TypeEnv,
 };
 use itertools::Itertools;
@@ -85,26 +86,20 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         let mut constraint = ConstraintBuilder::new(global_env.tcx);
         let cursor = &mut constraint.as_cursor();
 
-        let mut subst = lowering::Subst::with_empty_type_substs();
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
 
         let mut env = TypeEnv::new(global_env.tcx);
 
-        for param in &fn_sig.params {
-            let fresh = cursor.fresh_name();
-            subst.insert_expr(param.name.name, Var::Free(fresh));
-            cursor.push_forall(fresh, param.sort, subst.lower_expr(&param.pred));
+        for param in fn_sig.params {
+            cursor.push_forall(param.name, param.sort, param.pred);
         }
 
-        for (loc, ty) in &fn_sig.requires {
-            let ty = subst.lower_ty(cursor, ty);
-            let fresh = Loc::Abstract(cursor.fresh_name());
-            env.insert_loc(fresh, cursor.unpack(ty));
-            subst.insert_loc(*loc, fresh);
+        for (loc, ty) in fn_sig.requires {
+            env.insert_loc(Loc::Abstract(loc), cursor.unpack(ty));
         }
 
-        for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = subst.lower_ty(cursor, ty);
-            env.insert_loc(Loc::Local(local), cursor.unpack(ty));
+        for (local, ty) in body.args_iter().zip(fn_sig.args) {
+            env.insert_loc(Loc::Local(local), cursor.unpack(ty))
         }
 
         for local in body.vars_and_temps_iter() {
@@ -115,17 +110,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
 
         let ensures = fn_sig
             .ensures
-            .iter()
-            .map(|(name, ty)| {
-                let ty = subst.lower_ty(cursor, ty);
-                let loc = subst.lower_loc(*name).unwrap();
-                (loc, ty)
-            })
+            .into_iter()
+            .map(|(loc, ty)| (Loc::Abstract(loc), cursor.unpack(ty)))
             .collect();
 
-        let ret_ty = subst.lower_ty(cursor, &fn_sig.ret);
-
-        let mut checker = Checker::new(global_env, body, ret_ty, ensures, mode);
+        let mut checker = Checker::new(global_env, body, fn_sig.ret, ensures, mode);
         checker.run(&mut env, cursor)?;
 
         Ok((checker, constraint))
@@ -261,45 +250,53 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<(), ErrorReported> {
         let fn_sig = self.global_env.lookup_fn_sig(func);
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
+
         let actuals = args
             .iter()
             .map(|arg| self.check_operand(env, arg))
             .collect_vec();
 
-        let mut subst = lowering::Subst::with_type_substs(cursor, substs);
-        if subst.infer_from_fn_call(env, &actuals, fn_sig).is_err() {
+        let cx = LoweringCtxt::empty();
+        let mut fresh_kvar = |sort| cursor.fresh_kvar(sort);
+        let substs = substs
+            .iter()
+            .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+            .collect();
+
+        let mut subst = Subst::with_type_substs(substs);
+        if subst.infer_from_fn_call(env, &actuals, &fn_sig).is_err() {
             return self.report_inference_error(source_info);
         };
 
-        for param in &fn_sig.params {
-            cursor.push_head(subst.lower_expr(&param.pred));
+        for param in fn_sig.params {
+            cursor.push_head(subst.subst_expr(&param.pred));
         }
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            let formal = subst.lower_ty(cursor, formal);
-            cursor.subtyping(actual, formal);
+            cursor.subtyping(actual, subst.subst_ty(formal));
         }
 
-        for (loc, required_ty) in &fn_sig.requires {
-            let actual_ty = env.lookup_loc(subst.lower_loc(*loc).unwrap()).unwrap();
-            let required_ty = subst.lower_ty(cursor, required_ty);
+        for (loc, required_ty) in fn_sig.requires {
+            let loc = subst.subst_loc(Loc::Abstract(loc));
+            let actual_ty = env.lookup_loc(loc).unwrap();
+            let required_ty = subst.subst_ty(&required_ty);
             cursor.subtyping(actual_ty, required_ty);
         }
 
-        for (loc, updated_ty) in &fn_sig.ensures {
-            let updated_ty = subst.lower_ty(cursor, updated_ty);
+        for (loc, updated_ty) in fn_sig.ensures {
+            let loc = subst.subst_loc(Loc::Abstract(loc));
+            let updated_ty = subst.subst_ty(&updated_ty);
             let updated_ty = cursor.unpack(updated_ty);
-            if let Some(loc) = subst.lower_loc(*loc) {
+            if env.has_loc(loc) {
                 env.update_loc(cursor, loc, updated_ty);
             } else {
-                let fresh = Loc::Abstract(cursor.fresh_name());
-                env.insert_loc(fresh, updated_ty);
-                subst.insert_loc(*loc, fresh);
+                env.insert_loc(loc, updated_ty);
             }
         }
 
         if let Some((p, bb)) = destination {
-            let ret = subst.lower_ty(cursor, &fn_sig.ret);
+            let ret = subst.subst_ty(&fn_sig.ret);
             let ret = cursor.unpack(ret);
             env.write_place(cursor, p, ret);
 
