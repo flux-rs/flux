@@ -1,6 +1,7 @@
 use crate::{
     constraint_builder::Cursor,
-    ty::{BaseTy, Ty, TyKind},
+    subst::Subst,
+    ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_core::ir::{self, Local};
@@ -17,6 +18,11 @@ pub struct TypeEnv<'tcx> {
 }
 
 pub struct TypeEnvShape(Vec<(Loc, Ty)>);
+
+pub struct BasicBlockEnv {
+    pub params: Vec<Param>,
+    pub bindings: Vec<(Loc, Ty)>,
+}
 
 #[derive(Clone)]
 pub enum Binding {
@@ -191,45 +197,6 @@ impl<'tcx> TypeEnv<'tcx> {
         }
     }
 
-    pub fn infer_bb_env(&self, cursor: &mut Cursor, shape: TypeEnvShape) -> TypeEnv<'tcx> {
-        // Collect all kvars and generate fresh ones in the right scope.
-        let mut kvars = FxHashMap::default();
-        for (_, ty) in &shape {
-            ty.walk(&mut |ty| {
-                if let TyKind::Exists(bty, Pred::KVar(kvid, _)) = ty.kind() {
-                    kvars
-                        .entry(*kvid)
-                        .or_insert_with(|| cursor.fresh_kvar_at_last_scope(bty.sort()));
-                }
-            })
-        }
-
-        let mut locs = FxHashMap::default();
-        for (loc, ty1) in &shape {
-            let ty2 = self.lookup_loc(*loc);
-            if let (TyKind::StrgRef(loc1), Some(TyKind::StrgRef(loc2))) =
-                (ty1.kind(), ty2.as_ref().map(|ty| ty.kind()))
-            {
-                locs.insert(*loc1, *loc2);
-            }
-        }
-
-        let mut env = TypeEnv::new(self.tcx);
-        for (loc, ty1) in shape {
-            let loc = locs.get(&loc).copied().unwrap_or(loc);
-            let ty2 = self.bindings[&loc].ty();
-
-            let ty = match (ty1.kind(), ty2.kind()) {
-                (TyKind::Refine(_, _), TyKind::Refine(_, _))
-                | (TyKind::StrgRef(_), TyKind::StrgRef(_))
-                | (_, TyKind::Uninit) => ty2,
-                _ => replace_kvars(&ty1, &kvars),
-            };
-            env.insert_loc(loc, ty);
-        }
-        env
-    }
-
     fn levels(&self) -> FxHashMap<Loc, u32> {
         fn dfs(
             env: &TypeEnv,
@@ -298,7 +265,7 @@ impl<'tcx> TypeEnv<'tcx> {
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
                 let bty = self.bty_join(cursor, bty1, bty2);
-                let kvar = cursor.fresh_kvar(bty.sort());
+                let kvar = cursor.fresh_kvar(Var::Bound, bty.sort());
                 TyKind::Exists(bty, kvar).intern()
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
@@ -384,6 +351,52 @@ impl<'tcx> TypeEnv<'tcx> {
     }
 }
 
+impl TypeEnvShape {
+    pub fn into_bb_env(self, cursor: &mut Cursor, env: &TypeEnv) -> BasicBlockEnv {
+        // Collect all kvars and generate fresh ones in the right scope.
+        let mut kvars = FxHashMap::default();
+        for (_, ty) in &self {
+            ty.walk(&mut |ty| {
+                if let TyKind::Exists(bty, Pred::KVar(kvid, _)) = ty.kind() {
+                    kvars.entry(*kvid).or_insert_with(|| {
+                        cursor.fresh_kvar_at_last_scope(Var::Bound, bty.sort(), [])
+                    });
+                }
+            })
+        }
+
+        let mut subst = FxHashMap::default();
+        for (loc, ty1) in &self {
+            let ty2 = env.lookup_loc(*loc);
+            if let (TyKind::StrgRef(loc1), Some(TyKind::StrgRef(loc2))) =
+                (ty1.kind(), ty2.as_ref().map(|ty| ty.kind()))
+            {
+                subst.insert(*loc1, *loc2);
+            }
+        }
+
+        let mut bindings = vec![];
+        for (loc, ty1) in self {
+            let loc = subst.get(&loc).copied().unwrap_or(loc);
+            let ty2 = env.bindings[&loc].ty();
+
+            let ty = match (ty1.kind(), ty2.kind()) {
+                (TyKind::Refine(_, _), TyKind::Refine(_, _))
+                | (TyKind::StrgRef(_), TyKind::StrgRef(_))
+                | (_, TyKind::Uninit) => ty2,
+                _ => replace_kvars(&ty1, &kvars),
+            };
+            bindings.push((loc, ty));
+        }
+        let mut bb_env = BasicBlockEnv {
+            params: vec![],
+            bindings,
+        };
+        bb_env.generalize(cursor);
+        bb_env
+    }
+}
+
 impl<'a> IntoIterator for &'a TypeEnvShape {
     type Item = &'a (Loc, Ty);
 
@@ -401,6 +414,71 @@ impl IntoIterator for TypeEnvShape {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl BasicBlockEnv {
+    fn generalize(&mut self, cursor: &mut Cursor) {
+        // HACK: As a simple heuristic we only generalize kvars with only one ocurrence and in a
+        // "top-level" type.
+
+        let mut count: FxHashMap<KVid, i32> = FxHashMap::default();
+        for (_, ty) in &self.bindings {
+            ty.walk(&mut |ty| {
+                if let TyKind::Exists(_, Pred::KVar(kvid, _)) = ty.kind() {
+                    *count.entry(*kvid).or_default() += 1;
+                }
+            })
+        }
+
+        for (_, ty) in &mut self.bindings {
+            match ty.kind() {
+                TyKind::Exists(bty, Pred::KVar(kvid, _)) if count[kvid] == 1 => {
+                    let fresh = cursor.fresh_name();
+                    let param = Param {
+                        name: fresh,
+                        sort: bty.sort(),
+                        pred: cursor.fresh_kvar_at_last_scope(
+                            fresh.into(),
+                            bty.sort(),
+                            self.params
+                                .iter()
+                                .map(|param| (param.name.into(), param.sort)),
+                        ),
+                    };
+                    self.params.push(param);
+                    let e = ExprKind::Var(fresh.into()).intern();
+                    *ty = TyKind::Refine(bty.clone(), e).intern();
+                }
+                _ => {}
+            };
+        }
+    }
+
+    pub fn enter<'tcx>(&self, tcx: TyCtxt<'tcx>, cursor: &mut Cursor) -> TypeEnv<'tcx> {
+        for param in &self.params {
+            cursor.push_forall(param.name, param.sort, param.pred.clone());
+        }
+
+        TypeEnv {
+            tcx,
+            bindings: self
+                .bindings
+                .iter()
+                .map(|(loc, ty)| (*loc, Binding::Strong(ty.clone())))
+                .collect(),
+        }
+    }
+
+    pub fn subst<'tcx>(&self, tcx: TyCtxt<'tcx>, subst: &Subst) -> TypeEnv<'tcx> {
+        TypeEnv {
+            tcx,
+            bindings: self
+                .bindings
+                .iter()
+                .map(|(loc, ty)| (*loc, Binding::Strong(subst.subst_ty(ty))))
+                .collect(),
+        }
     }
 }
 
@@ -482,6 +560,39 @@ mod pretty {
         }
     }
 
+    impl Pretty for BasicBlockEnv {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("∀ ")?;
+            for (i, param) in self.params.iter().enumerate() {
+                if i > 0 {
+                    w!(", ")?;
+                }
+                w!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, &param.pred)?;
+            }
+            w!("\n")?;
+
+            let bindings = self
+                .bindings
+                .iter()
+                .filter(|(_, ty)| !ty.is_uninit())
+                .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
+                .collect_vec();
+            w!("  {{")?;
+            for (i, (loc, binding)) in bindings.into_iter().enumerate() {
+                if i > 0 {
+                    w!(", ")?;
+                }
+                w!("{:?}: {:?}", loc, binding)?;
+            }
+            w!("}}")
+        }
+
+        // fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        //     PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+        // }
+    }
+
     impl Pretty for Binding {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -494,5 +605,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv<'_>, TypeEnvShape);
+    impl_debug_with_default_cx!(TypeEnv<'_>, TypeEnvShape, BasicBlockEnv);
 }

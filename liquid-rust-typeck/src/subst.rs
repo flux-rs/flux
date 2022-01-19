@@ -1,7 +1,11 @@
 use rustc_hash::FxHashMap;
 
-use crate::{ty::*, type_env::TypeEnv};
+use crate::{
+    ty::*,
+    type_env::{BasicBlockEnv, TypeEnv},
+};
 
+#[derive(Debug)]
 pub struct Subst {
     exprs: FxHashMap<Var, Expr>,
     locs: FxHashMap<Loc, Loc>,
@@ -11,6 +15,14 @@ pub struct Subst {
 pub struct InferenceError;
 
 impl Subst {
+    pub fn empty() -> Self {
+        Self {
+            exprs: FxHashMap::default(),
+            locs: FxHashMap::default(),
+            types: vec![],
+        }
+    }
+
     pub fn with_type_substs(types: Vec<Ty>) -> Self {
         Self {
             exprs: FxHashMap::default(),
@@ -34,7 +46,7 @@ impl Subst {
         }
     }
 
-    fn subst_pred(&self, pred: &Pred) -> Pred {
+    pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred {
             Pred::KVar(kvid, args) => {
                 let args = args.iter().map(|arg| self.subst_expr(arg));
@@ -98,17 +110,33 @@ impl Subst {
             self.infer_from_tys(actual, required.clone());
         }
 
-        self.check_inference(fn_sig)
+        self.check_inference(&fn_sig.params, &fn_sig.requires)
     }
 
-    fn check_inference(&self, fn_sig: &FnSig) -> Result<(), InferenceError> {
-        for param in &fn_sig.params {
+    pub fn infer_from_bb_env(
+        &mut self,
+        env: &TypeEnv,
+        bb_env: &BasicBlockEnv,
+    ) -> Result<(), InferenceError> {
+        for (loc, ty2) in &bb_env.bindings {
+            let ty1 = env.lookup_loc(*loc).unwrap();
+            self.infer_from_tys(ty1, ty2.clone());
+        }
+        self.check_inference(&bb_env.params, &[])
+    }
+
+    fn check_inference(
+        &self,
+        params: &[Param],
+        requires: &[(Name, Ty)],
+    ) -> Result<(), InferenceError> {
+        for param in params {
             if !self.exprs.contains_key(&param.name.into()) {
                 return Err(InferenceError);
             }
         }
 
-        for (loc, _) in &fn_sig.requires {
+        for (loc, _) in requires {
             if !self.locs.contains_key(&Loc::Abstract(*loc)) {
                 return Err(InferenceError);
             }

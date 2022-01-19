@@ -106,23 +106,34 @@ impl<'tcx> Cursor<'_, 'tcx> {
         }
     }
 
-    pub fn fresh_kvar(&mut self, sort: Sort) -> Pred {
-        self.fresh_kvar_at_scope(sort, self.nvars)
+    pub fn fresh_kvar(&mut self, var: Var, sort: Sort) -> Pred {
+        self.fresh_kvar_at_scope(var, sort, self.nvars, [])
     }
 
-    pub fn fresh_kvar_at_last_scope(&mut self, sort: Sort) -> Pred {
+    pub fn fresh_kvar_at_last_scope(
+        &mut self,
+        var: Var,
+        sort: Sort,
+        extra_args: impl IntoIterator<Item = (Var, Sort)>,
+    ) -> Pred {
         let scope = self.builder.scopes.last().copied().unwrap_or(0);
-        self.fresh_kvar_at_scope(sort, scope)
+        self.fresh_kvar_at_scope(var, sort, scope, extra_args)
     }
 
-    fn fresh_kvar_at_scope(&mut self, sort: Sort, scope: usize) -> Pred {
+    fn fresh_kvar_at_scope(
+        &mut self,
+        var: Var,
+        sort: Sort,
+        scope: usize,
+        extra_args: impl IntoIterator<Item = (Var, Sort)>,
+    ) -> Pred {
         let mut sorts = Vec::with_capacity(self.nvars + 1);
         let mut args = Vec::with_capacity(self.nvars);
 
         sorts.push(sort);
-        args.push(Expr::from(Var::Bound));
-        for (var, sort) in self.vars_in_scope(scope) {
-            args.push(Expr::from(Var::Free(var)));
+        args.push(Expr::from(var));
+        for (var, sort) in self.vars_in_scope(scope).chain(extra_args) {
+            args.push(Expr::from(var));
             sorts.push(sort);
         }
 
@@ -256,8 +267,10 @@ impl<'tcx> Cursor<'_, 'tcx> {
         self.nvars += 1;
     }
 
-    fn vars_in_scope(&self, scope: usize) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.builder.vars[..scope].iter().cloned()
+    fn vars_in_scope(&self, scope: usize) -> impl Iterator<Item = (Var, Sort)> + '_ {
+        self.builder.vars[..scope]
+            .iter()
+            .map(|(name, sort)| (name.into(), *sort))
     }
 }
 
