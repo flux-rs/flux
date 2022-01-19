@@ -21,7 +21,7 @@ pub struct FnSig {
 pub struct Param {
     pub name: Name,
     pub sort: Sort,
-    pub pred: Expr,
+    pub pred: Pred,
 }
 
 pub type Ty = Interned<TyS>;
@@ -298,6 +298,12 @@ impl Ord for Loc {
 impl From<Name> for Var {
     fn from(v: Name) -> Self {
         Self::Free(v)
+    }
+}
+
+impl<'a> From<&'a Name> for Var {
+    fn from(v: &'a Name) -> Self {
+        Self::Free(*v)
     }
 }
 

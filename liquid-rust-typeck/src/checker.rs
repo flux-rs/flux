@@ -14,8 +14,8 @@ use crate::{
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Expr, ExprKind, Loc, Ty, TyKind},
-    type_env::TypeEnv,
+    ty::{self, BaseTy, BinOp, Expr, ExprKind, Loc, Ty, TyKind, Var},
+    type_env::{BasicBlockEnv, TypeEnv},
 };
 use itertools::Itertools;
 use liquid_rust_common::errors::ErrorReported;
@@ -40,16 +40,18 @@ pub struct Checker<'a, 'tcx> {
     // Whether the block immediately domminates a join point.
     dominates_join_point: BitSet<BasicBlock>,
     visited: BitSet<BasicBlock>,
-    bb_envs: FxHashMap<BasicBlock, TypeEnv<'tcx>>,
     ret_ty: Ty,
     global_env: &'a GlobalEnv<'tcx>,
     ensures: Vec<(Loc, Ty)>,
-    mode: Mode,
+    mode: Mode<'a, 'tcx>,
 }
 
-enum Mode {
-    Inference,
-    Check(FxHashMap<BasicBlock, TypeEnvShape>),
+enum Mode<'a, 'tcx> {
+    Inference(&'a mut FxHashMap<BasicBlock, TypeEnv<'tcx>>),
+    Check(
+        FxHashMap<BasicBlock, TypeEnvShape>,
+        FxHashMap<BasicBlock, BasicBlockEnv>,
+    ),
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx> {
@@ -58,9 +60,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
-        let (checker, _) = Checker::check_or_infer(global_env, body, fn_sig, Mode::Inference)?;
-        Ok(checker
-            .bb_envs
+        let mut bb_envs = FxHashMap::default();
+        let _ = Checker::check_or_infer(global_env, body, fn_sig, Mode::Inference(&mut bb_envs))?;
+        Ok(bb_envs
             .into_iter()
             .map(|(bb, env)| (bb, env.into_shape()))
             .collect())
@@ -72,8 +74,12 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         fn_sig: &core::FnSig,
         bb_env_shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<ConstraintBuilder<'tcx>, ErrorReported> {
-        let (_, constraint) =
-            Checker::check_or_infer(global_env, body, fn_sig, Mode::Check(bb_env_shapes))?;
+        let constraint = Checker::check_or_infer(
+            global_env,
+            body,
+            fn_sig,
+            Mode::Check(bb_env_shapes, FxHashMap::default()),
+        )?;
         Ok(constraint)
     }
 
@@ -81,8 +87,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         global_env: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         fn_sig: &core::FnSig,
-        mode: Mode,
-    ) -> Result<(Checker<'a, 'tcx>, ConstraintBuilder<'tcx>), ErrorReported> {
+        mode: Mode<'a, 'tcx>,
+    ) -> Result<ConstraintBuilder<'tcx>, ErrorReported> {
         let mut constraint = ConstraintBuilder::new(global_env.tcx);
         let cursor = &mut constraint.as_cursor();
 
@@ -117,7 +123,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         let mut checker = Checker::new(global_env, body, fn_sig.ret, ensures, mode);
         checker.run(&mut env, cursor)?;
 
-        Ok((checker, constraint))
+        Ok(constraint)
     }
 
     fn new(
@@ -125,7 +131,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         body: &'a Body<'tcx>,
         ret_ty: Ty,
         ensures: Vec<(Loc, Ty)>,
-        mode: Mode,
+        mode: Mode<'a, 'tcx>,
     ) -> Checker<'a, 'tcx> {
         let dominators = body.dominators();
         let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
@@ -138,7 +144,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             global_env,
             body,
             dominates_join_point,
-            bb_envs: FxHashMap::default(),
             visited: BitSet::new_empty(body.basic_blocks.len()),
             ret_ty,
             ensures,
@@ -150,12 +155,19 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         self.check_goto(env, cursor, START_BLOCK)?;
         for bb in self.body.reverse_postorder() {
             if !self.visited.contains(bb) {
-                let mut env = self.bb_envs[&bb].clone();
+                let mut env = self.enter_basic_block(cursor, bb);
                 env.unpack(cursor);
                 self.check_basic_block(&mut env, cursor, bb)?;
             }
         }
         Ok(())
+    }
+
+    fn enter_basic_block(&self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv<'tcx> {
+        match &self.mode {
+            Mode::Inference(bb_envs) => bb_envs[&bb].clone(),
+            Mode::Check(_, bb_envs) => bb_envs[&bb].enter(self.global_env.tcx, cursor),
+        }
     }
 
     fn check_basic_block(
@@ -255,7 +267,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             .collect_vec();
 
         let cx = LoweringCtxt::empty();
-        let mut fresh_kvar = |sort| cursor.fresh_kvar(sort);
+        let mut fresh_kvar = |sort| cursor.fresh_kvar(Var::Bound, sort);
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
@@ -267,7 +279,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         };
 
         for param in fn_sig.params {
-            cursor.push_head(subst.subst_expr(&param.pred));
+            cursor.push_head(subst.subst_pred(&param.pred));
         }
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
@@ -363,8 +375,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         match &mut self.mode {
-            Mode::Inference => {
-                match self.bb_envs.entry(target) {
+            Mode::Inference(bb_envs) => {
+                match bb_envs.entry(target) {
                     Entry::Occupied(mut entry) => {
                         entry.get_mut().join_with(env, cursor);
                     }
@@ -373,12 +385,20 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                     }
                 };
             }
-            Mode::Check(shapes) => {
-                let bb_env = self
-                    .bb_envs
+            Mode::Check(shapes, bb_envs) => {
+                let bb_env = bb_envs
                     .entry(target)
-                    .or_insert_with(|| env.infer_bb_env(cursor, shapes.remove(&target).unwrap()));
-                env.transform_into(cursor, bb_env);
+                    .or_insert_with(|| shapes.remove(&target).unwrap().into_bb_env(cursor, env));
+
+                let mut subst = Subst::empty();
+                subst
+                    .infer_from_bb_env(env, bb_env)
+                    .unwrap_or_else(|_| panic!("inference failed"));
+
+                for param in &bb_env.params {
+                    cursor.push_head(subst.subst_pred(&param.pred));
+                }
+                env.transform_into(cursor, &bb_env.subst(self.global_env.tcx, &subst));
             }
         };
         Ok(())

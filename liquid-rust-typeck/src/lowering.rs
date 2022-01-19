@@ -27,7 +27,7 @@ impl LoweringCtxt {
             params.push(ty::Param {
                 name: fresh,
                 sort: param.sort,
-                pred: cx.lower_expr(&param.pred),
+                pred: cx.lower_expr(&param.pred).into(),
             });
         }
 
