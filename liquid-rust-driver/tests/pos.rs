@@ -6,4 +6,5 @@ tests! {
     test02: "../tests/pos/test02.rs" => Safe,
     test03: "../tests/pos/test03.rs" => Safe,
     heapsort: "../tests/pos/heapsort.rs" => Safe,
+    assert_terminator: "../tests/pos/assert_terminator.rs" => Safe,
 }

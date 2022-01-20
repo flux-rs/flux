@@ -229,7 +229,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                 )?;
             }
             TerminatorKind::Assert { cond, expected, target } => {
-                self.check_assert(env, cursor, cond, expected, *target)?;
+                self.check_assert(env, cursor, cond, *expected, *target)?;
             }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(place);
@@ -322,7 +322,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
         };
 
-        let assert = if cond { pred } else { pred.not() }
+        let assert = if expected { pred } else { pred.not() };
 
         // Uncomment the below line to allow pre-catching of possible divide-by-zero, underflow, and overflow
         // WARNING: rust is very eager about inserting under/overflow checks, so be warned that uncommenting this will likely break everything
