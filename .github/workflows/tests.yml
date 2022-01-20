@@ -1,4 +1,8 @@
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 name: build
 
@@ -8,14 +12,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      
+      - name: Check formatting
+        run: |
+          cargo fmt --check
 
-      - name: Clone Fixpoint
+      - name: Clone fixpoint
         run: |
           git clone https://github.com/ucsd-progsys/liquid-fixpoint
           echo "fixpoint_hash=$(git -C liquid-fixpoint/ rev-parse HEAD)" >> $GITHUB_ENV
           echo "local_binaries_path=$(pwd)/local-binaries" >> $GITHUB_ENV
 
-      - name: Cache Fixpoint
+      - name: Cache fixpoint
         uses: actions/cache@v2
         id: cache-fixpoint
         with:
@@ -29,7 +37,7 @@ jobs:
           enable-stack: true
           stack-version: 'latest'
 
-      - name: Compile Fixpoint
+      - name: Compile fixpoint
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
         run: |
           cd liquid-fixpoint
@@ -42,6 +50,11 @@ jobs:
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
 
+     # We need to build before running for the binary to be ready
+      - name: Build
+        run: |
+          carbo build
+          
       - name: Run tests
         run: |
-          which fixpoint && cargo build && cargo test
+          which fixpoint && cargo test
