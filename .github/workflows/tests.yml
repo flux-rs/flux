@@ -53,7 +53,7 @@ jobs:
      # We need to build before running for the binary to be ready
       - name: Build
         run: |
-          carbo build
+          cargo build
           
       - name: Run tests
         run: |
