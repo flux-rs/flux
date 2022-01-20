@@ -117,7 +117,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         let ensures = fn_sig
             .ensures
             .into_iter()
-            .map(|(loc, ty)| (Loc::Abstract(loc), cursor.unpack(ty)))
+            .map(|(loc, ty)| (Loc::Abstract(loc), ty))
             .collect();
 
         let mut checker = Checker::new(global_env, body, fn_sig.ret, ensures, mode);
