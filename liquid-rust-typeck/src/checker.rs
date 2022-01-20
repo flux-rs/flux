@@ -196,6 +196,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, cursor, rvalue);
+                let ty = cursor.unpack(ty);
                 env.write_place(cursor, p, ty);
             }
             StatementKind::Nop => {}
