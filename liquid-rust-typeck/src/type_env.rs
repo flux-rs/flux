@@ -588,9 +588,9 @@ mod pretty {
             w!("}}")
         }
 
-        // fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        //     PPrintCx::default(tcx).kvar_args(Visibility::Hide)
-        // }
+        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+        }
     }
 
     impl Pretty for Binding {

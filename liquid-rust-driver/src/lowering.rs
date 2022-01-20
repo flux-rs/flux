@@ -199,6 +199,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::BinOp::Add => Ok(BinOp::Add),
             mir::BinOp::Sub => Ok(BinOp::Sub),
             mir::BinOp::Gt => Ok(BinOp::Gt),
+            mir::BinOp::Ge => Ok(BinOp::Gt),
             mir::BinOp::Lt => Ok(BinOp::Lt),
             mir::BinOp::Le => Ok(BinOp::Le),
             mir::BinOp::Eq => Ok(BinOp::Eq),
@@ -211,7 +212,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::BinOp::BitOr
             | mir::BinOp::Shl
             | mir::BinOp::Shr
-            | mir::BinOp::Ge
             | mir::BinOp::Offset => {
                 self.tcx
                     .sess

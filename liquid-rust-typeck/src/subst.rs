@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -99,15 +101,20 @@ impl Subst {
         fn_sig: &FnSig,
     ) -> Result<(), InferenceError> {
         assert!(actuals.len() == fn_sig.args.len());
+        let params = fn_sig
+            .params
+            .iter()
+            .map(|param| param.name.into())
+            .collect();
 
         for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
-            self.infer_from_tys(actual.clone(), formal.clone());
+            self.infer_from_tys(&params, actual.clone(), formal.clone());
         }
 
         for (loc, required) in &fn_sig.requires {
             let loc = Loc::Abstract(*loc);
             let actual = env.lookup_loc(self.subst_loc(loc)).unwrap();
-            self.infer_from_tys(actual, required.clone());
+            self.infer_from_tys(&params, actual, required.clone());
         }
 
         self.check_inference(&fn_sig.params, &fn_sig.requires)
@@ -118,9 +125,14 @@ impl Subst {
         env: &TypeEnv,
         bb_env: &BasicBlockEnv,
     ) -> Result<(), InferenceError> {
+        let params = bb_env
+            .params
+            .iter()
+            .map(|param| param.name.into())
+            .collect();
         for (loc, ty2) in &bb_env.bindings {
             let ty1 = env.lookup_loc(*loc).unwrap();
-            self.infer_from_tys(ty1, ty2.clone());
+            self.infer_from_tys(&params, ty1, ty2.clone());
         }
         self.check_inference(&bb_env.params, &[])
     }
@@ -144,13 +156,21 @@ impl Subst {
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, ty1: Ty, ty2: Ty) {
+    fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: Ty, ty2: Ty) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
                 if let ExprKind::Var(var) = e2.kind() {
+                    if !params.contains(var) {
+                        return;
+                    }
                     match self.exprs.insert(*var, e1.clone()) {
                         Some(old_e) if &old_e != e1 => {
-                            todo!("ambiguous instantiation for parameter")
+                            todo!(
+                                "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                                *var,
+                                old_e,
+                                e1
+                            )
                         }
                         _ => {}
                     }
