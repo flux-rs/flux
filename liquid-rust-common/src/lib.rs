@@ -5,7 +5,6 @@ extern crate rustc_hash;
 extern crate rustc_index;
 
 pub mod config;
-pub mod disjoint_sets;
 pub mod errors;
 pub mod format;
 pub mod index;
