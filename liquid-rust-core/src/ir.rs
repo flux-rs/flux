@@ -198,7 +198,7 @@ impl fmt::Debug for Terminator {
                 write!(f, "drop({:?}) -> {:?}", place, target)
             }
             TerminatorKind::Assert { cond, target, expected } => {
-                write!(f, "Assert({:?} is expected to be {:?}) -> {:?}", cond, expected, target)
+                write!(f, "assert({:?} is expected to be {:?}) -> {:?}", cond, expected, target)
             }
         }
     }

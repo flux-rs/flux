@@ -310,7 +310,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         env: &mut TypeEnv<'tcx>,
         cursor: &mut Cursor,
         cond: &Operand,
-        expected: &bool,
+        expected: bool,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         let cond_ty = self.check_operand(env, cond);
@@ -322,7 +322,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
         };
 
-        let assert = ExprKind::BinaryOp(BinOp::Eq, pred, ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(*expected)).intern()).intern();
+        let assert = if cond { pred } else { pred.not() }
 
         // Uncomment the below line to allow pre-catching of possible divide-by-zero, underflow, and overflow
         // WARNING: rust is very eager about inserting under/overflow checks, so be warned that uncommenting this will likely break everything
