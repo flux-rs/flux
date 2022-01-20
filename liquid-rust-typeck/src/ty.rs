@@ -237,6 +237,26 @@ impl ExprS {
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
         }
     }
+
+    /// Simplify expression applying some rules like removing double negation. This is used for pretty
+    /// printing.
+    pub fn simplify(&self) -> Expr {
+        match self.kind() {
+            ExprKind::Var(var) => ExprKind::Var(*var).intern(),
+            ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
+            ExprKind::BinaryOp(op, e1, e2) => {
+                ExprKind::BinaryOp(*op, e1.simplify(), e2.simplify()).intern()
+            }
+            ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
+                ExprKind::UnaryOp(UnOp::Not, e) => e.simplify(),
+                ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
+                    ExprKind::BinaryOp(BinOp::Ne, e1.simplify(), e2.simplify()).intern()
+                }
+                _ => ExprKind::UnaryOp(UnOp::Not, e.simplify()).intern(),
+            },
+            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.simplify()).intern(),
+        }
+    }
 }
 
 impl From<Expr> for Pred {
@@ -391,8 +411,12 @@ mod pretty {
                     false
                 }
             }
-
-            match self.kind() {
+            let e = if cx.simplify_exprs {
+                self.simplify()
+            } else {
+                Interned::new(self.clone())
+            };
+            match e.kind() {
                 ExprKind::Var(x) => w!("{:?}", ^x),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(*op, e1) {
@@ -413,21 +437,8 @@ mod pretty {
                     Ok(())
                 }
                 ExprKind::Constant(c) => w!("{}", ^c),
-                ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
-                    ExprKind::UnaryOp(UnOp::Not, e) => w!("{:?}", e),
-                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                        let e = ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone()).intern();
-                        w!("{:?}", e)
-                    }
-                    ExprKind::Var(_) | ExprKind::Constant(_) => {
-                        w!("{:?}{:?}", UnOp::Not, e)
-                    }
-                    _ => {
-                        w!("{:?}({:?})", UnOp::Not, e)
-                    }
-                },
                 ExprKind::UnaryOp(op, e) => {
-                    if matches!(e.kind(), ExprKind::Var(_) | ExprKind::Constant(_)) {
+                    if e.is_atom() {
                         w!("{:?}{:?}", op, e)
                     } else {
                         w!("{:?}({:?})", op, e)

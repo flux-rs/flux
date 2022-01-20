@@ -456,6 +456,11 @@ mod pretty {
                     }
                 }
                 Node::Guard(expr, children) => {
+                    let expr = if cx.simplify_exprs {
+                        expr.simplify()
+                    } else {
+                        expr.clone()
+                    };
                     if expr.is_atom() {
                         w!("{:?} ⇒{:?}", expr, children)
                     } else {
