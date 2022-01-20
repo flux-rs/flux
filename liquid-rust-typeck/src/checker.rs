@@ -37,8 +37,6 @@ use super::type_env::TypeEnvShape;
 pub struct Checker<'a, 'tcx> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
-    // Whether the block immediately domminates a join point.
-    dominates_join_point: BitSet<BasicBlock>,
     visited: BitSet<BasicBlock>,
     ret_ty: Ty,
     global_env: &'a GlobalEnv<'tcx>,
@@ -48,10 +46,12 @@ pub struct Checker<'a, 'tcx> {
 
 enum Mode<'a, 'tcx> {
     Inference(&'a mut FxHashMap<BasicBlock, TypeEnv<'tcx>>),
-    Check(
-        FxHashMap<BasicBlock, TypeEnvShape>,
-        FxHashMap<BasicBlock, BasicBlockEnv>,
-    ),
+    Check {
+        shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+        bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+        // Whether the block immediately domminates a join point.
+        dominates_join_point: BitSet<BasicBlock>,
+    },
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx> {
@@ -72,13 +72,23 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
-        bb_env_shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+        shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<ConstraintBuilder<'tcx>, ErrorReported> {
+        let dominators = body.dominators();
+        let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
+        for bb in body.join_points() {
+            dominates_join_point.insert(dominators.immediate_dominator(bb));
+        }
+
         let constraint = Checker::check_or_infer(
             global_env,
             body,
             fn_sig,
-            Mode::Check(bb_env_shapes, FxHashMap::default()),
+            Mode::Check {
+                shapes,
+                bb_envs: FxHashMap::default(),
+                dominates_join_point,
+            },
         )?;
         Ok(constraint)
     }
@@ -133,17 +143,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         ensures: Vec<(Loc, Ty)>,
         mode: Mode<'a, 'tcx>,
     ) -> Checker<'a, 'tcx> {
-        let dominators = body.dominators();
-        let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
-        for bb in body.join_points() {
-            dominates_join_point.insert(dominators.immediate_dominator(bb));
-        }
-
         Checker {
             sess: global_env.tcx.sess,
             global_env,
             body,
-            dominates_join_point,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             ret_ty,
             ensures,
@@ -166,7 +169,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
     fn enter_basic_block(&self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv<'tcx> {
         match &self.mode {
             Mode::Inference(bb_envs) => bb_envs[&bb].clone(),
-            Mode::Check(_, bb_envs) => bb_envs[&bb].enter(self.global_env.tcx, cursor),
+            Mode::Check { bb_envs, .. } => bb_envs[&bb].enter(self.global_env.tcx, cursor),
         }
     }
 
@@ -178,7 +181,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
     ) -> Result<(), ErrorReported> {
         self.visited.insert(bb);
 
-        if self.dominates_join_point.contains(bb) {
+        if matches!(&self.mode, Mode::Check { dominates_join_point, .. } if dominates_join_point.contains(bb))
+        {
             cursor.push_scope();
         }
 
@@ -386,7 +390,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                     }
                 };
             }
-            Mode::Check(shapes, bb_envs) => {
+            Mode::Check {
+                shapes, bb_envs, ..
+            } => {
                 let bb_env = bb_envs
                     .entry(target)
                     .or_insert_with(|| shapes.remove(&target).unwrap().into_bb_env(cursor, env));
