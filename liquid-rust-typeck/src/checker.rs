@@ -14,7 +14,7 @@ use crate::{
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Expr, ExprKind, Loc, Ty, TyKind, Var},
+    ty::{self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv},
 };
 use itertools::Itertools;
@@ -38,10 +38,9 @@ pub struct Checker<'a, 'tcx> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
-    ret_ty: Ty,
     global_env: &'a GlobalEnv<'tcx>,
-    ensures: Vec<(Loc, Ty)>,
     mode: Mode<'a, 'tcx>,
+    fn_sig: FnSig,
 }
 
 enum Mode<'a, 'tcx> {
@@ -55,13 +54,35 @@ enum Mode<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx> {
+    fn new(
+        global_env: &'a GlobalEnv<'tcx>,
+        body: &'a Body<'tcx>,
+        fn_sig: FnSig,
+        mode: Mode<'a, 'tcx>,
+    ) -> Checker<'a, 'tcx> {
+        Checker {
+            sess: global_env.tcx.sess,
+            global_env,
+            body,
+            visited: BitSet::new_empty(body.basic_blocks.len()),
+            fn_sig,
+            mode,
+        }
+    }
+
     pub fn infer(
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
+        let mut constraint = ConstraintBuilder::new(global_env.tcx);
+        let cursor = &mut constraint.as_cursor();
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
+
         let mut bb_envs = FxHashMap::default();
-        let _ = Checker::check_or_infer(global_env, body, fn_sig, Mode::Inference(&mut bb_envs))?;
+        let mut checker = Checker::new(global_env, body, fn_sig, Mode::Inference(&mut bb_envs));
+        checker.run(cursor)?;
+
         Ok(bb_envs
             .into_iter()
             .map(|(bb, env)| (bb, env.into_shape()))
@@ -74,13 +95,17 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         fn_sig: &core::FnSig,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<ConstraintBuilder<'tcx>, ErrorReported> {
+        let mut constraint = ConstraintBuilder::new(global_env.tcx);
+        let cursor = &mut constraint.as_cursor();
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
+
         let dominators = body.dominators();
         let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
         for bb in body.join_points() {
             dominates_join_point.insert(dominators.immediate_dominator(bb));
         }
 
-        let constraint = Checker::check_or_infer(
+        let mut checker = Checker::new(
             global_env,
             body,
             fn_sig,
@@ -89,73 +114,33 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                 bb_envs: FxHashMap::default(),
                 dominates_join_point,
             },
-        )?;
+        );
+        checker.run(cursor)?;
         Ok(constraint)
     }
 
-    fn check_or_infer(
-        global_env: &'a GlobalEnv<'tcx>,
-        body: &'a Body<'tcx>,
-        fn_sig: &core::FnSig,
-        mode: Mode<'a, 'tcx>,
-    ) -> Result<ConstraintBuilder<'tcx>, ErrorReported> {
-        let mut constraint = ConstraintBuilder::new(global_env.tcx);
-        let cursor = &mut constraint.as_cursor();
+    fn run(&mut self, cursor: &mut Cursor) -> Result<(), ErrorReported> {
+        let mut env = TypeEnv::new(self.global_env.tcx);
 
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
-
-        let mut env = TypeEnv::new(global_env.tcx);
-
-        for param in fn_sig.params {
-            cursor.push_forall(param.name, param.sort, param.pred);
+        for param in &self.fn_sig.params {
+            cursor.push_forall(param.name, param.sort, param.pred.clone());
         }
 
-        for (loc, ty) in fn_sig.requires {
-            env.insert_loc(Loc::Abstract(loc), cursor.unpack(ty));
+        for (loc, ty) in &self.fn_sig.requires {
+            env.insert_loc(Loc::Abstract(*loc), cursor.unpack(ty.clone()));
         }
 
-        for (local, ty) in body.args_iter().zip(fn_sig.args) {
-            env.insert_loc(Loc::Local(local), cursor.unpack(ty))
+        for (local, ty) in self.body.args_iter().zip(&self.fn_sig.args) {
+            env.insert_loc(Loc::Local(local), cursor.unpack(ty.clone()))
         }
 
-        for local in body.vars_and_temps_iter() {
+        for local in self.body.vars_and_temps_iter() {
             env.insert_loc(Loc::Local(local), TyKind::Uninit.intern())
         }
 
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
 
-        let ensures = fn_sig
-            .ensures
-            .into_iter()
-            .map(|(loc, ty)| (Loc::Abstract(loc), ty))
-            .collect();
-
-        let mut checker = Checker::new(global_env, body, fn_sig.ret, ensures, mode);
-        checker.run(&mut env, cursor)?;
-
-        Ok(constraint)
-    }
-
-    fn new(
-        global_env: &'a GlobalEnv<'tcx>,
-        body: &'a Body<'tcx>,
-        ret_ty: Ty,
-        ensures: Vec<(Loc, Ty)>,
-        mode: Mode<'a, 'tcx>,
-    ) -> Checker<'a, 'tcx> {
-        Checker {
-            sess: global_env.tcx.sess,
-            global_env,
-            body,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
-            ret_ty,
-            ensures,
-            mode,
-        }
-    }
-
-    fn run(&mut self, env: &mut TypeEnv<'tcx>, cursor: &mut Cursor) -> Result<(), ErrorReported> {
-        self.check_goto(env, cursor, START_BLOCK)?;
+        self.check_goto(&mut env, cursor, START_BLOCK)?;
         for bb in self.body.reverse_postorder() {
             if !self.visited.contains(bb) {
                 let mut env = self.enter_basic_block(cursor, bb);
@@ -163,6 +148,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                 self.check_basic_block(&mut env, cursor, bb)?;
             }
         }
+
         Ok(())
     }
 
@@ -216,10 +202,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor.subtyping(ret_place_ty, self.ret_ty.clone());
+                cursor.subtyping(ret_place_ty, self.fn_sig.ret.clone());
 
-                for (loc, ensured_ty) in &self.ensures {
-                    let actual_ty = env.lookup_loc(*loc).unwrap();
+                for (loc, ensured_ty) in &self.fn_sig.ensures {
+                    let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
                     cursor.subtyping(actual_ty, ensured_ty.clone());
                 }
             }
