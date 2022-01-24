@@ -5,4 +5,6 @@ tests! {
     test01: "../tests/neg/test01.rs" => Unsafe,
     test02: "../tests/neg/test02.rs" => Unsafe,
     test03: "../tests/neg/test03.rs" => Unsafe,
+    // Note: only fails if line 329 of liquid-rust-typeck/src/checker.rs is uncommented
+    // assert_terminator: "../tests/neg/assert_terminator.rs" => Unsafe,
 }

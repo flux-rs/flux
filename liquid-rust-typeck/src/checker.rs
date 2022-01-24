@@ -231,6 +231,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                     destination,
                 )?;
             }
+            TerminatorKind::Assert { cond, expected, target } => {
+                self.check_assert(env, cursor, cond, *expected, *target)?;
+            }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(place);
                 self.check_goto(env, cursor, *target)?;
@@ -302,6 +305,33 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
 
             self.check_goto(env, cursor, *bb)?;
         }
+        Ok(())
+    }
+
+    fn check_assert(
+        &mut self,
+        env: &mut TypeEnv<'tcx>,
+        cursor: &mut Cursor,
+        cond: &Operand,
+        expected: bool,
+        target: BasicBlock,
+    ) -> Result<(), ErrorReported> {
+        let cond_ty = self.check_operand(env, cond);
+
+        let pred = match cond_ty.kind() {
+            TyKind::Refine(BaseTy::Bool, e) => {
+                e.clone()
+            }
+            _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
+        };
+
+        let assert = if expected { pred } else { pred.not() };
+
+        // Uncomment the below line to allow pre-catching of possible divide-by-zero, underflow, and overflow
+        // WARNING: rust is very eager about inserting under/overflow checks, so be warned that uncommenting this will likely break everything
+        // cursor.push_head(assert.clone());
+        cursor.push_guard(assert);
+        self.check_goto(env, cursor, target)?;
         Ok(())
     }
 
