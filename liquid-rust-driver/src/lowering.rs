@@ -135,12 +135,15 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 place: self.lower_place(place)?,
                 target: *target,
             },
-            mir::TerminatorKind::Assert { cond, target, expected, .. } => {
-                TerminatorKind::Assert {
-                    cond: self.lower_operand(cond)?,
-                    expected: *expected,
-                    target: *target,
-                }
+            mir::TerminatorKind::Assert {
+                cond,
+                target,
+                expected,
+                ..
+            } => TerminatorKind::Assert {
+                cond: self.lower_operand(cond)?,
+                expected: *expected,
+                target: *target,
             },
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort

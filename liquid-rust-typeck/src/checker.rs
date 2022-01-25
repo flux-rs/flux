@@ -231,7 +231,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
                     destination,
                 )?;
             }
-            TerminatorKind::Assert { cond, expected, target } => {
+            TerminatorKind::Assert {
+                cond,
+                expected,
+                target,
+            } => {
                 self.check_assert(env, cursor, cond, *expected, *target)?;
             }
             TerminatorKind::Drop { place, target } => {
@@ -319,9 +323,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         let cond_ty = self.check_operand(env, cond);
 
         let pred = match cond_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, e) => {
-                e.clone()
-            }
+            TyKind::Refine(BaseTy::Bool, e) => e.clone(),
             _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
         };
 
