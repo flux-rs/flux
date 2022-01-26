@@ -2,8 +2,9 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
-pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Name, Sort, UnOp};
+pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp};
 use rustc_hir::def_id::DefId;
+use rustc_index::newtype_index;
 pub use rustc_middle::ty::{IntTy, UintTy};
 
 use crate::intern::{impl_internable, Interned};
@@ -83,6 +84,12 @@ pub enum ExprKind {
 pub enum Var {
     Bound,
     Free(Name),
+}
+
+newtype_index! {
+    pub struct Name {
+        DEBUG_FORMAT = "a{}",
+    }
 }
 
 impl TyKind {
