@@ -529,11 +529,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Refine(BaseTy::Int(int_ty2), _e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                TyKind::Refine(
-                    BaseTy::Int(*int_ty1),
-                    ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(true)).intern(),
-                )
-                .intern()
+TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
             }
             (
                 TyKind::Refine(BaseTy::Uint(uint_ty1), _e1),
