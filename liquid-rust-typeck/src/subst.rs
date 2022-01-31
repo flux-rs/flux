@@ -33,6 +33,14 @@ impl Subst {
         }
     }
 
+    pub fn insert_expr(&mut self, var: Var, expr: impl Into<Expr>) {
+        self.exprs.insert(var, expr.into());
+    }
+
+    pub fn insert_loc(&mut self, from: Loc, to: Loc) {
+        self.locs.insert(from, to);
+    }
+
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Refine(bty, e) => {

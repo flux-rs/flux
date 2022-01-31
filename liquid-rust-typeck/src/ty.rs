@@ -228,7 +228,8 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, to: Expr) -> Expr {
+    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
+        let to = to.into();
         match self.kind() {
             ExprKind::Var(var) => match var {
                 Var::Bound => to,
@@ -281,7 +282,8 @@ impl Pred {
         matches!(self, Pred::KVar(_, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
-    pub fn subst_bound_vars(&self, to: Expr) -> Self {
+    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Self {
+        let to = to.into();
         match self {
             Pred::KVar(kvid, args) => Pred::kvar(
                 *kvid,

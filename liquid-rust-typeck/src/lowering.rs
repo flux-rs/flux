@@ -1,4 +1,5 @@
-use crate::{constraint_builder::Cursor, ty};
+use crate::ty;
+use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
@@ -15,14 +16,15 @@ impl LoweringCtxt {
         }
     }
 
-    pub fn lower_fn_sig(fn_sig: &core::FnSig, cursor: &Cursor) -> ty::FnSig {
+    pub fn lower_fn_sig(fn_sig: &core::FnSig) -> ty::FnSig {
+        let name_gen = IndexGen::new();
         let fresh_kvar = &mut |_| unreachable!("inference predicate in top level function");
 
         let mut cx = LoweringCtxt::empty();
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
-            let fresh = cursor.fresh_name();
+            let fresh = name_gen.fresh();
             cx.params.insert(param.name.name, fresh);
             params.push(ty::Param {
                 name: fresh,
@@ -33,7 +35,7 @@ impl LoweringCtxt {
 
         let mut requires = vec![];
         for (loc, ty) in &fn_sig.requires {
-            let fresh = cursor.fresh_name();
+            let fresh = name_gen.fresh();
             requires.push((fresh, cx.lower_ty(ty, fresh_kvar)));
             cx.locs.insert(*loc, fresh);
         }
@@ -48,7 +50,7 @@ impl LoweringCtxt {
             let loc = if let Some(loc) = cx.locs.get(loc) {
                 *loc
             } else {
-                let fresh = cursor.fresh_name();
+                let fresh = name_gen.fresh();
                 cx.locs.insert(*loc, fresh);
                 fresh
             };

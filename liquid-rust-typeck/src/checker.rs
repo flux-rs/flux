@@ -10,15 +10,15 @@ extern crate rustc_span;
 use std::collections::hash_map::Entry;
 
 use crate::{
-    constraint_builder::{ConstraintBuilder, Cursor},
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
+    pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Ty, TyKind, Var},
+    ty::{self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Param, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv},
 };
 use itertools::Itertools;
-use liquid_rust_common::errors::ErrorReported;
+use liquid_rust_common::{errors::ErrorReported, index::IndexVec};
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -26,6 +26,7 @@ use liquid_rust_core::{
     },
     ty as core,
 };
+use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
@@ -41,6 +42,9 @@ pub struct Checker<'a, 'tcx> {
     global_env: &'a GlobalEnv<'tcx>,
     mode: Mode<'a, 'tcx>,
     fn_sig: FnSig,
+    kvars: KVarStore,
+    snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
+    dominators: Dominators<BasicBlock>,
 }
 
 enum Mode<'a, 'tcx> {
@@ -48,8 +52,6 @@ enum Mode<'a, 'tcx> {
     Check {
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
         bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
-        // Whether the block immediately domminates a join point.
-        dominates_join_point: BitSet<BasicBlock>,
     },
 }
 
@@ -67,6 +69,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             visited: BitSet::new_empty(body.basic_blocks.len()),
             fn_sig,
             mode,
+            kvars: KVarStore::new(),
+            snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
+            dominators: body.dominators(),
         }
     }
 
@@ -75,13 +80,12 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
-        let mut constraint = ConstraintBuilder::new(global_env.tcx);
-        let cursor = &mut constraint.as_cursor();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
+        let mut pure_cx = PureCtxt::new();
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let mut bb_envs = FxHashMap::default();
         let mut checker = Checker::new(global_env, body, fn_sig, Mode::Inference(&mut bb_envs));
-        checker.run(cursor)?;
+        checker.run(&mut pure_cx)?;
 
         Ok(bb_envs
             .into_iter()
@@ -94,16 +98,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
-    ) -> Result<ConstraintBuilder<'tcx>, ErrorReported> {
-        let mut constraint = ConstraintBuilder::new(global_env.tcx);
-        let cursor = &mut constraint.as_cursor();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
-
-        let dominators = body.dominators();
-        let mut dominates_join_point = BitSet::new_empty(body.basic_blocks.len());
-        for bb in body.join_points() {
-            dominates_join_point.insert(dominators.immediate_dominator(bb));
-        }
+    ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
+        let mut pure_cx = PureCtxt::new();
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let mut checker = Checker::new(
             global_env,
@@ -112,26 +109,34 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             Mode::Check {
                 shapes,
                 bb_envs: FxHashMap::default(),
-                dominates_join_point,
             },
         );
-        checker.run(cursor)?;
-        Ok(constraint)
+        checker.run(&mut pure_cx)?;
+        Ok((pure_cx, checker.kvars))
     }
 
-    fn run(&mut self, cursor: &mut Cursor) -> Result<(), ErrorReported> {
+    fn run(&mut self, pure_cx: &mut PureCtxt) -> Result<(), ErrorReported> {
+        let cursor = &mut pure_cx.cursor_at_root();
         let mut env = TypeEnv::new(self.global_env.tcx);
+        let mut subst = Subst::empty();
 
         for param in &self.fn_sig.params {
-            cursor.push_forall(param.name, param.sort, param.pred.clone());
+            cursor.push_binding(param.sort, |fresh| {
+                subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
+                subst.subst_pred(&param.pred)
+            });
         }
 
         for (loc, ty) in &self.fn_sig.requires {
-            env.insert_loc(Loc::Abstract(*loc), cursor.unpack(ty.clone()));
+            let fresh = cursor.push_loc();
+            let ty = env.unpack(cursor, subst.subst_ty(ty));
+            env.insert_loc(fresh, ty);
+            subst.insert_loc(Loc::Abstract(*loc), fresh);
         }
 
         for (local, ty) in self.body.args_iter().zip(&self.fn_sig.args) {
-            env.insert_loc(Loc::Local(local), cursor.unpack(ty.clone()))
+            let ty = env.unpack(cursor, subst.subst_ty(ty));
+            env.insert_loc(Loc::Local(local), ty);
         }
 
         for local in self.body.vars_and_temps_iter() {
@@ -144,7 +149,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         for bb in self.body.reverse_postorder() {
             if !self.visited.contains(bb) {
                 let mut env = self.enter_basic_block(cursor, bb);
-                env.unpack(cursor);
+                env.unpack_all(cursor);
                 self.check_basic_block(&mut env, cursor, bb)?;
             }
         }
@@ -167,10 +172,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
     ) -> Result<(), ErrorReported> {
         self.visited.insert(bb);
 
-        if matches!(&self.mode, Mode::Check { dominates_join_point, .. } if dominates_join_point.contains(bb))
-        {
-            cursor.push_scope();
-        }
+        self.snapshots[bb] = Some(cursor.snapshot());
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
@@ -186,7 +188,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, cursor, rvalue);
-                let ty = cursor.unpack(ty);
+                let ty = env.unpack(cursor, ty);
                 env.write_place(cursor, p, ty);
             }
             StatementKind::Nop => {}
@@ -202,11 +204,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor.subtyping(ret_place_ty, self.fn_sig.ret.clone());
+                cursor.subtyping(self.global_env.tcx, ret_place_ty, self.fn_sig.ret.clone());
 
                 for (loc, ensured_ty) in &self.fn_sig.ensures {
                     let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
-                    cursor.subtyping(actual_ty, ensured_ty.clone());
+                    cursor.subtyping(self.global_env.tcx, actual_ty, ensured_ty.clone());
                 }
             }
             TerminatorKind::Goto { target } => {
@@ -257,7 +259,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<(), ErrorReported> {
         let fn_sig = self.global_env.lookup_fn_sig(func);
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig, cursor);
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let actuals = args
             .iter()
@@ -265,10 +267,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             .collect_vec();
 
         let cx = LoweringCtxt::empty();
-        let mut fresh_kvar = |sort| cursor.fresh_kvar(Var::Bound, sort);
+        let scope = cursor.scope();
+        let fresh_kvar = &mut |sort| self.kvars.fresh(Var::Bound, sort, scope.iter().copied());
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+            .map(|ty| cx.lower_ty(ty, fresh_kvar))
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);
@@ -281,20 +284,20 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         }
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            cursor.subtyping(actual, subst.subst_ty(formal));
+            cursor.subtyping(self.global_env.tcx, actual, subst.subst_ty(formal));
         }
 
         for (loc, required_ty) in fn_sig.requires {
             let loc = subst.subst_loc(Loc::Abstract(loc));
             let actual_ty = env.lookup_loc(loc).unwrap();
             let required_ty = subst.subst_ty(&required_ty);
-            cursor.subtyping(actual_ty, required_ty);
+            cursor.subtyping(self.global_env.tcx, actual_ty, required_ty);
         }
 
         for (loc, updated_ty) in fn_sig.ensures {
             let loc = subst.subst_loc(Loc::Abstract(loc));
             let updated_ty = subst.subst_ty(&updated_ty);
-            let updated_ty = cursor.unpack(updated_ty);
+            let updated_ty = env.unpack(cursor, updated_ty);
             if env.has_loc(loc) {
                 env.update_loc(cursor, loc, updated_ty);
             } else {
@@ -304,7 +307,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
 
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
-            let ret = cursor.unpack(ret);
+            let ret = env.unpack(cursor, ret);
             env.write_place(cursor, p, ret);
 
             self.check_goto(env, cursor, *bb)?;
@@ -332,7 +335,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         // Uncomment the below line to allow pre-catching of possible divide-by-zero, underflow, and overflow
         // WARNING: rust is very eager about inserting under/overflow checks, so be warned that uncommenting this will likely break everything
         // cursor.push_head(assert.clone());
-        cursor.push_guard(assert);
+        cursor.push_pred(assert);
         self.check_goto(env, cursor, target)?;
         Ok(())
     }
@@ -360,8 +363,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         };
 
         for (bits, bb) in targets.iter() {
-            let cursor = &mut cursor.snapshot();
-            cursor.push_guard(mk(bits));
+            let cursor = &mut cursor.breadcrumb();
+            cursor.push_pred(mk(bits));
             self.check_goto(&mut env.clone(), cursor, bb)?;
         }
         let otherwise = targets
@@ -369,9 +372,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
 
-        let cursor = &mut cursor.snapshot();
+        let cursor = &mut cursor.breadcrumb();
         if let Some(otherwise) = otherwise {
-            cursor.push_guard(otherwise);
+            cursor.push_pred(otherwise);
         }
 
         self.check_goto(env, cursor, targets.otherwise())?;
@@ -397,11 +400,18 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         cursor: &mut Cursor,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        let dominator = self.dominators.immediate_dominator(target);
+        let scope = cursor
+            .scope_at(self.snapshots[dominator].as_ref().unwrap())
+            .unwrap();
+
         match &mut self.mode {
             Mode::Inference(bb_envs) => {
                 match bb_envs.entry(target) {
                     Entry::Occupied(mut entry) => {
-                        entry.get_mut().join_with(env, cursor);
+                        let fresh_kvar =
+                            &mut |sort| self.kvars.fresh(Var::Bound, sort, scope.iter().copied());
+                        entry.get_mut().join_with(env, cursor, fresh_kvar);
                     }
                     Entry::Vacant(entry) => {
                         entry.insert(env.clone());
@@ -411,9 +421,23 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             Mode::Check {
                 shapes, bb_envs, ..
             } => {
-                let bb_env = bb_envs
-                    .entry(target)
-                    .or_insert_with(|| shapes.remove(&target).unwrap().into_bb_env(cursor, env));
+                let fresh_kvar = &mut |var, sort, params: &[Param]| {
+                    self.kvars.fresh(
+                        var,
+                        sort,
+                        scope.iter().copied().chain(
+                            params
+                                .iter()
+                                .map(|param| (Var::Free(param.name), param.sort)),
+                        ),
+                    )
+                };
+                let bb_env = bb_envs.entry(target).or_insert_with(|| {
+                    shapes
+                        .remove(&target)
+                        .unwrap()
+                        .into_bb_env(&cursor.name_gen(), fresh_kvar, env)
+                });
 
                 let mut subst = Subst::empty();
                 subst
