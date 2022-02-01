@@ -67,19 +67,19 @@ impl PureCtxt {
         PureCtxt { root }
     }
 
-    pub fn cursor_at_root<'a>(&'a mut self) -> Cursor<'a> {
+    pub fn cursor_at_root(&mut self) -> Cursor {
         Cursor {
             node: Rc::clone(&self.root),
             cx: self,
         }
     }
 
-    pub fn into_fixpoint(&self, kvars: KVarStore) -> fixpoint::Fixpoint {
+    pub fn into_fixpoint(self, kvars: KVarStore) -> fixpoint::Fixpoint {
         let mut cx = FixpointCtxt::new(&kvars);
         let constraint = self
             .root
             .borrow()
-            .into_fixpoint(&mut cx)
+            .to_fixpoint(&mut cx)
             .unwrap_or(fixpoint::Constraint::TRUE);
         let kvars = kvars
             .kvars
@@ -133,7 +133,7 @@ impl Cursor<'_> {
         gen
     }
 
-    pub fn breadcrumb<'a>(&'a mut self) -> Cursor<'a> {
+    pub fn breadcrumb(&mut self) -> Cursor {
         Cursor {
             cx: self.cx,
             node: Rc::clone(&self.node),
@@ -307,7 +307,7 @@ impl Cursor<'_> {
 }
 
 impl Node {
-    fn into_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint> {
+    fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint> {
         match &self.kind {
             NodeKind::Conj | NodeKind::Loc(_) => children_to_fixpoint(cx, &self.children),
             NodeKind::Binding(name, sort, pred) => {
@@ -366,8 +366,8 @@ fn children_to_fixpoint(
     children: &[NodePtr],
 ) -> Option<fixpoint::Constraint> {
     let mut children = children
-        .into_iter()
-        .filter_map(|node| node.borrow().into_fixpoint(cx))
+        .iter()
+        .filter_map(|node| node.borrow().to_fixpoint(cx))
         .collect_vec();
     match children.len() {
         0 => None,

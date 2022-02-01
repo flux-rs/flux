@@ -12,7 +12,7 @@ use rustc_middle::ty::TyCtxt;
 
 use super::ty::{Loc, Name, Pred, Sort, TyS};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TypeEnv {
     bindings: FxHashMap<Loc, Binding>,
 }
