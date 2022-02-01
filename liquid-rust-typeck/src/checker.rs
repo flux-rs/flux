@@ -14,7 +14,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Param, Ty, TyKind, Var},
+    ty::{self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv},
 };
 use itertools::Itertools;
@@ -41,8 +41,9 @@ pub struct Checker<'a, 'tcx> {
     visited: BitSet<BasicBlock>,
     global_env: &'a GlobalEnv<'tcx>,
     mode: Mode<'a, 'tcx>,
-    fn_sig: FnSig,
+    ret: Ty,
     kvars: KVarStore,
+    ensures: Vec<(Name, Ty)>,
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
     dominators: Dominators<BasicBlock>,
 }
@@ -59,7 +60,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
     fn new(
         global_env: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
-        fn_sig: FnSig,
+        ret: Ty,
+        ensures: Vec<(Name, Ty)>,
         mode: Mode<'a, 'tcx>,
     ) -> Checker<'a, 'tcx> {
         Checker {
@@ -67,7 +69,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             global_env,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
-            fn_sig,
+            ret,
+            ensures,
             mode,
             kvars: KVarStore::new(),
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
@@ -84,8 +87,13 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let mut bb_envs = FxHashMap::default();
-        let mut checker = Checker::new(global_env, body, fn_sig, Mode::Inference(&mut bb_envs));
-        checker.run(&mut pure_cx)?;
+        let _ = Checker::run(
+            global_env,
+            &mut pure_cx,
+            body,
+            &fn_sig,
+            Mode::Inference(&mut bb_envs),
+        )?;
 
         Ok(bb_envs
             .into_iter()
@@ -102,59 +110,74 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         let mut pure_cx = PureCtxt::new();
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
-        let mut checker = Checker::new(
+        let kvars = Checker::run(
             global_env,
+            &mut pure_cx,
             body,
-            fn_sig,
+            &fn_sig,
             Mode::Check {
                 shapes,
                 bb_envs: FxHashMap::default(),
             },
-        );
-        checker.run(&mut pure_cx)?;
-        Ok((pure_cx, checker.kvars))
+        )?;
+        Ok((pure_cx, kvars))
     }
 
-    fn run(&mut self, pure_cx: &mut PureCtxt) -> Result<(), ErrorReported> {
+    fn run(
+        global_env: &GlobalEnv<'tcx>,
+        pure_cx: &mut PureCtxt,
+        body: &Body<'tcx>,
+        fn_sig: &FnSig,
+        mode: Mode<'_, 'tcx>,
+    ) -> Result<KVarStore, ErrorReported> {
         let cursor = &mut pure_cx.cursor_at_root();
-        let mut env = TypeEnv::new(self.global_env.tcx);
+        let mut env = TypeEnv::new(global_env.tcx);
         let mut subst = Subst::empty();
 
-        for param in &self.fn_sig.params {
+        for param in &fn_sig.params {
             cursor.push_binding(param.sort, |fresh| {
                 subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
                 subst.subst_pred(&param.pred)
             });
         }
 
-        for (loc, ty) in &self.fn_sig.requires {
+        for (loc, ty) in &fn_sig.requires {
             let fresh = cursor.push_loc();
             let ty = env.unpack(cursor, subst.subst_ty(ty));
             env.insert_loc(fresh, ty);
             subst.insert_loc(Loc::Abstract(*loc), fresh);
         }
 
-        for (local, ty) in self.body.args_iter().zip(&self.fn_sig.args) {
+        for (local, ty) in body.args_iter().zip(&fn_sig.args) {
             let ty = env.unpack(cursor, subst.subst_ty(ty));
             env.insert_loc(Loc::Local(local), ty);
         }
 
-        for local in self.body.vars_and_temps_iter() {
+        for local in body.vars_and_temps_iter() {
             env.insert_loc(Loc::Local(local), TyKind::Uninit.intern())
         }
 
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
 
-        self.check_goto(&mut env, cursor, START_BLOCK)?;
-        for bb in self.body.reverse_postorder() {
-            if !self.visited.contains(bb) {
-                let mut env = self.enter_basic_block(cursor, bb);
+        let ret = subst.subst_ty(&fn_sig.ret);
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
+            .collect();
+
+        let mut checker = Checker::new(global_env, body, ret, ensures, mode);
+
+        checker.check_goto(&mut env, cursor, START_BLOCK)?;
+        for bb in body.reverse_postorder() {
+            if !checker.visited.contains(bb) {
+                let mut env = checker.enter_basic_block(cursor, bb);
                 env.unpack_all(cursor);
-                self.check_basic_block(&mut env, cursor, bb)?;
+                checker.check_basic_block(&mut env, cursor, bb)?;
             }
         }
 
-        Ok(())
+        Ok(checker.kvars)
     }
 
     fn enter_basic_block(&self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv<'tcx> {
@@ -171,8 +194,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
         self.visited.insert(bb);
-
-        self.snapshots[bb] = Some(cursor.snapshot());
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
@@ -204,9 +225,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor.subtyping(self.global_env.tcx, ret_place_ty, self.fn_sig.ret.clone());
+                cursor.subtyping(self.global_env.tcx, ret_place_ty, self.ret.clone());
 
-                for (loc, ensured_ty) in &self.fn_sig.ensures {
+                for (loc, ensured_ty) in &self.ensures {
                     let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
                     cursor.subtyping(self.global_env.tcx, actual_ty, ensured_ty.clone());
                 }
@@ -301,7 +322,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             if env.has_loc(loc) {
                 env.update_loc(cursor, loc, updated_ty);
             } else {
-                env.insert_loc(loc, updated_ty);
+                let fresh = cursor.push_loc();
+                subst.insert_loc(loc, fresh);
+                env.insert_loc(fresh, updated_ty);
             }
         }
 
@@ -387,6 +410,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         cursor: &mut Cursor,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        self.snapshots[target] = Some(cursor.snapshot());
+
         if self.body.is_join_point(target) {
             self.check_goto_join_point(env, cursor, target)
         } else {
