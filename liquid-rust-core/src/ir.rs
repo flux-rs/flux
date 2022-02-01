@@ -188,8 +188,16 @@ impl fmt::Debug for Terminator {
                     )
                 }
             }
-            TerminatorKind::SwitchInt { discr, .. } => {
-                write!(f, "switchInt({:?}) -> [todo]", discr,)
+            TerminatorKind::SwitchInt { discr, targets } => {
+                write!(
+                    f,
+                    "switchInt({:?}) -> [{}, otherwise: {:?}]",
+                    discr,
+                    targets
+                        .iter()
+                        .format_with(", ", |(val, bb), f| f(&format_args!("{:?}: {:?}", val, bb))),
+                    targets.otherwise()
+                )
             }
             TerminatorKind::Goto { target } => {
                 write!(f, "goto -> {:?}", *target)
