@@ -50,26 +50,21 @@ pub struct Checker<'a, 'tcx, M> {
     dominators: Dominators<BasicBlock>,
 }
 
-pub trait Mode<'tcx> {
-    fn enter_basic_block(
-        &mut self,
-        tcx: TyCtxt<'tcx>,
-        cursor: &mut Cursor,
-        bb: BasicBlock,
-    ) -> TypeEnv<'tcx>;
+pub trait Mode {
+    fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
         &mut self,
-        tcx: TyCtxt<'tcx>,
+        tcx: TyCtxt,
         cursor: &mut Cursor,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         target: BasicBlock,
     );
 }
 
-pub struct Inference<'a, 'tcx> {
-    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnv<'tcx>>,
+pub struct Inference<'a> {
+    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnv>,
 }
 
 pub struct Check {
@@ -100,7 +95,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     }
 }
 
-impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_, 'tcx>> {
+impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
@@ -151,7 +146,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
     }
 }
 
-impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
+impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
         global_env: &GlobalEnv<'tcx>,
         pure_cx: &mut PureCtxt,
@@ -160,7 +155,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
         mode: M,
     ) -> Result<KVarStore, ErrorReported> {
         let cursor = &mut pure_cx.cursor_at_root();
-        let mut env = TypeEnv::new(global_env.tcx);
+        let mut env = TypeEnv::new();
         let mut subst = Subst::empty();
 
         for param in &fn_sig.params {
@@ -200,9 +195,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
         checker.check_goto(&mut env, cursor, START_BLOCK)?;
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
-                let mut env = checker
-                    .mode
-                    .enter_basic_block(checker.global_env.tcx, cursor, bb);
+                let mut env = checker.mode.enter_basic_block(cursor, bb);
                 env.unpack_all(cursor);
                 checker.check_basic_block(&mut env, cursor, bb)?;
             }
@@ -213,7 +206,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
 
     fn check_basic_block(
         &mut self,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         cursor: &mut Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
@@ -229,12 +222,12 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn check_statement(&self, env: &mut TypeEnv<'tcx>, cursor: &mut Cursor, stmt: &Statement) {
+    fn check_statement(&self, env: &mut TypeEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, cursor, rvalue);
                 let ty = env.unpack(cursor, ty);
-                env.write_place(cursor, p, ty);
+                env.write_place(self.global_env.tcx, cursor, p, ty);
             }
             StatementKind::Nop => {}
         }
@@ -242,7 +235,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
 
     fn check_terminator(
         &mut self,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         cursor: &mut Cursor,
         terminator: &Terminator,
     ) -> Result<(), ErrorReported> {
@@ -295,7 +288,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
 
     fn check_call(
         &mut self,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         cursor: &mut Cursor,
         source_info: SourceInfo,
         func: DefId,
@@ -344,7 +337,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
             let updated_ty = subst.subst_ty(&updated_ty);
             let updated_ty = env.unpack(cursor, updated_ty);
             if env.has_loc(loc) {
-                env.update_loc(cursor, loc, updated_ty);
+                env.update_loc(self.global_env.tcx, cursor, loc, updated_ty);
             } else {
                 let fresh = cursor.push_loc();
                 subst.insert_loc(loc, fresh);
@@ -355,7 +348,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
             let ret = env.unpack(cursor, ret);
-            env.write_place(cursor, p, ret);
+            env.write_place(self.global_env.tcx, cursor, p, ret);
 
             self.check_goto(env, cursor, *bb)?;
         }
@@ -364,7 +357,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
 
     fn check_assert(
         &mut self,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         cursor: &mut Cursor,
         cond: &Operand,
         expected: bool,
@@ -389,7 +382,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
 
     fn check_switch_int(
         &mut self,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         cursor: &mut Cursor,
         discr: &Operand,
         targets: &mir::SwitchTargets,
@@ -430,7 +423,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
 
     fn check_goto(
         &mut self,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         cursor: &mut Cursor,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
@@ -460,7 +453,7 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_rvalue(&self, env: &mut TypeEnv<'tcx>, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
+    fn check_rvalue(&self, env: &mut TypeEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
@@ -611,29 +604,24 @@ impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
     }
 }
 
-impl<'tcx> Mode<'tcx> for Inference<'_, 'tcx> {
-    fn enter_basic_block(
-        &mut self,
-        _tcx: TyCtxt<'tcx>,
-        _cursor: &mut Cursor,
-        bb: BasicBlock,
-    ) -> TypeEnv<'tcx> {
+impl Mode for Inference<'_> {
+    fn enter_basic_block(&mut self, _cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv {
         self.bb_envs[&bb].clone()
     }
 
     fn check_goto_join_point(
         &mut self,
-        _tcx: TyCtxt<'tcx>,
+        tcx: TyCtxt,
         cursor: &mut Cursor,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         target: BasicBlock,
     ) {
         match self.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => {
-                entry
-                    .get_mut()
-                    .join_with(env, cursor, &mut |sort| fresh_kvar(Var::Bound, sort, &[]));
+                entry.get_mut().join_with(tcx, env, cursor, &mut |sort| {
+                    fresh_kvar(Var::Bound, sort, &[])
+                });
             }
             Entry::Vacant(entry) => {
                 entry.insert(env.clone());
@@ -642,21 +630,16 @@ impl<'tcx> Mode<'tcx> for Inference<'_, 'tcx> {
     }
 }
 
-impl<'tcx> Mode<'tcx> for Check {
-    fn enter_basic_block(
-        &mut self,
-        tcx: TyCtxt<'tcx>,
-        cursor: &mut Cursor,
-        bb: BasicBlock,
-    ) -> TypeEnv<'tcx> {
-        self.bb_envs[&bb].enter(tcx, cursor)
+impl Mode for Check {
+    fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter(cursor)
     }
 
     fn check_goto_join_point(
         &mut self,
-        tcx: TyCtxt<'tcx>,
+        tcx: TyCtxt,
         cursor: &mut Cursor,
-        env: &mut TypeEnv<'tcx>,
+        env: &mut TypeEnv,
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         target: BasicBlock,
     ) {
@@ -675,6 +658,6 @@ impl<'tcx> Mode<'tcx> for Check {
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred));
         }
-        env.transform_into(cursor, &bb_env.subst(tcx, &subst));
+        env.transform_into(tcx, cursor, &bb_env.subst(&subst));
     }
 }
