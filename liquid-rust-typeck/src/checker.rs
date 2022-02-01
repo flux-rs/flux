@@ -14,7 +14,9 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Ty, TyKind, Var},
+    ty::{
+        self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
+    },
     type_env::{BasicBlockEnv, TypeEnv},
 };
 use itertools::Itertools;
@@ -30,17 +32,17 @@ use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::mir;
+use rustc_middle::{mir, ty::TyCtxt};
 use rustc_session::Session;
 
 use super::type_env::TypeEnvShape;
 
-pub struct Checker<'a, 'tcx> {
+pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     global_env: &'a GlobalEnv<'tcx>,
-    mode: Mode<'a, 'tcx>,
+    mode: M,
     ret: Ty,
     kvars: KVarStore,
     ensures: Vec<(Name, Ty)>,
@@ -48,22 +50,41 @@ pub struct Checker<'a, 'tcx> {
     dominators: Dominators<BasicBlock>,
 }
 
-enum Mode<'a, 'tcx> {
-    Inference(&'a mut FxHashMap<BasicBlock, TypeEnv<'tcx>>),
-    Check {
-        shapes: FxHashMap<BasicBlock, TypeEnvShape>,
-        bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
-    },
+pub trait Mode<'tcx> {
+    fn enter_basic_block(
+        &mut self,
+        tcx: TyCtxt<'tcx>,
+        cursor: &mut Cursor,
+        bb: BasicBlock,
+    ) -> TypeEnv<'tcx>;
+
+    fn check_goto_join_point(
+        &mut self,
+        tcx: TyCtxt<'tcx>,
+        cursor: &mut Cursor,
+        env: &mut TypeEnv<'tcx>,
+        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        target: BasicBlock,
+    );
 }
 
-impl<'a, 'tcx> Checker<'a, 'tcx> {
+pub struct Inference<'a, 'tcx> {
+    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnv<'tcx>>,
+}
+
+pub struct Check {
+    shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+}
+
+impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
         global_env: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
         ensures: Vec<(Name, Ty)>,
-        mode: Mode<'a, 'tcx>,
-    ) -> Checker<'a, 'tcx> {
+        mode: M,
+    ) -> Self {
         Checker {
             sess: global_env.tcx.sess,
             global_env,
@@ -77,7 +98,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             dominators: body.dominators(),
         }
     }
+}
 
+impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_, 'tcx>> {
     pub fn infer(
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
@@ -92,7 +115,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             &mut pure_cx,
             body,
             &fn_sig,
-            Mode::Inference(&mut bb_envs),
+            Inference {
+                bb_envs: &mut bb_envs,
+            },
         )?;
 
         Ok(bb_envs
@@ -100,7 +125,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             .map(|(bb, env)| (bb, env.into_shape()))
             .collect())
     }
+}
 
+impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
     pub fn check(
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
@@ -115,20 +142,22 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
             &mut pure_cx,
             body,
             &fn_sig,
-            Mode::Check {
+            Check {
                 shapes,
                 bb_envs: FxHashMap::default(),
             },
         )?;
         Ok((pure_cx, kvars))
     }
+}
 
+impl<'a, 'tcx, M: Mode<'tcx>> Checker<'a, 'tcx, M> {
     fn run(
         global_env: &GlobalEnv<'tcx>,
         pure_cx: &mut PureCtxt,
         body: &Body<'tcx>,
         fn_sig: &FnSig,
-        mode: Mode<'_, 'tcx>,
+        mode: M,
     ) -> Result<KVarStore, ErrorReported> {
         let cursor = &mut pure_cx.cursor_at_root();
         let mut env = TypeEnv::new(global_env.tcx);
@@ -171,20 +200,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         checker.check_goto(&mut env, cursor, START_BLOCK)?;
         for bb in body.reverse_postorder() {
             if !checker.visited.contains(bb) {
-                let mut env = checker.enter_basic_block(cursor, bb);
+                let mut env = checker
+                    .mode
+                    .enter_basic_block(checker.global_env.tcx, cursor, bb);
                 env.unpack_all(cursor);
                 checker.check_basic_block(&mut env, cursor, bb)?;
             }
         }
 
         Ok(checker.kvars)
-    }
-
-    fn enter_basic_block(&self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv<'tcx> {
-        match &self.mode {
-            Mode::Inference(bb_envs) => bb_envs[&bb].clone(),
-            Mode::Check { bb_envs, .. } => bb_envs[&bb].enter(self.global_env.tcx, cursor),
-        }
     }
 
     fn check_basic_block(
@@ -413,69 +437,27 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         self.snapshots[target] = Some(cursor.snapshot());
 
         if self.body.is_join_point(target) {
-            self.check_goto_join_point(env, cursor, target)
+            let dominator = self.dominators.immediate_dominator(target);
+            let scope = cursor
+                .scope_at(self.snapshots[dominator].as_ref().unwrap())
+                .unwrap();
+            let fresh_kvar = &mut |var, sort, params: &[Param]| {
+                self.kvars.fresh(
+                    var,
+                    sort,
+                    scope.iter().copied().chain(
+                        params
+                            .iter()
+                            .map(|param| (Var::Free(param.name), param.sort)),
+                    ),
+                )
+            };
+            self.mode
+                .check_goto_join_point(self.global_env.tcx, cursor, env, fresh_kvar, target);
+            Ok(())
         } else {
             self.check_basic_block(env, cursor, target)
         }
-    }
-
-    fn check_goto_join_point(
-        &mut self,
-        env: &mut TypeEnv<'tcx>,
-        cursor: &mut Cursor,
-        target: BasicBlock,
-    ) -> Result<(), ErrorReported> {
-        let dominator = self.dominators.immediate_dominator(target);
-        let scope = cursor
-            .scope_at(self.snapshots[dominator].as_ref().unwrap())
-            .unwrap();
-
-        match &mut self.mode {
-            Mode::Inference(bb_envs) => {
-                match bb_envs.entry(target) {
-                    Entry::Occupied(mut entry) => {
-                        let fresh_kvar =
-                            &mut |sort| self.kvars.fresh(Var::Bound, sort, scope.iter().copied());
-                        entry.get_mut().join_with(env, cursor, fresh_kvar);
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(env.clone());
-                    }
-                };
-            }
-            Mode::Check {
-                shapes, bb_envs, ..
-            } => {
-                let fresh_kvar = &mut |var, sort, params: &[Param]| {
-                    self.kvars.fresh(
-                        var,
-                        sort,
-                        scope.iter().copied().chain(
-                            params
-                                .iter()
-                                .map(|param| (Var::Free(param.name), param.sort)),
-                        ),
-                    )
-                };
-                let bb_env = bb_envs.entry(target).or_insert_with(|| {
-                    shapes
-                        .remove(&target)
-                        .unwrap()
-                        .into_bb_env(&cursor.name_gen(), fresh_kvar, env)
-                });
-
-                let mut subst = Subst::empty();
-                subst
-                    .infer_from_bb_env(env, bb_env)
-                    .unwrap_or_else(|_| panic!("inference failed"));
-
-                for param in &bb_env.params {
-                    cursor.push_head(subst.subst_pred(&param.pred));
-                }
-                env.transform_into(cursor, &bb_env.subst(self.global_env.tcx, &subst));
-            }
-        };
-        Ok(())
     }
 
     fn check_rvalue(&self, env: &mut TypeEnv<'tcx>, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
@@ -626,5 +608,73 @@ impl<'a, 'tcx> Checker<'a, 'tcx> {
         self.sess
             .span_err(call_source_info.span, "inference error at function call");
         Err(ErrorReported)
+    }
+}
+
+impl<'tcx> Mode<'tcx> for Inference<'_, 'tcx> {
+    fn enter_basic_block(
+        &mut self,
+        _tcx: TyCtxt<'tcx>,
+        _cursor: &mut Cursor,
+        bb: BasicBlock,
+    ) -> TypeEnv<'tcx> {
+        self.bb_envs[&bb].clone()
+    }
+
+    fn check_goto_join_point(
+        &mut self,
+        _tcx: TyCtxt<'tcx>,
+        cursor: &mut Cursor,
+        env: &mut TypeEnv<'tcx>,
+        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        target: BasicBlock,
+    ) {
+        match self.bb_envs.entry(target) {
+            Entry::Occupied(mut entry) => {
+                entry
+                    .get_mut()
+                    .join_with(env, cursor, &mut |sort| fresh_kvar(Var::Bound, sort, &[]));
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(env.clone());
+            }
+        }
+    }
+}
+
+impl<'tcx> Mode<'tcx> for Check {
+    fn enter_basic_block(
+        &mut self,
+        tcx: TyCtxt<'tcx>,
+        cursor: &mut Cursor,
+        bb: BasicBlock,
+    ) -> TypeEnv<'tcx> {
+        self.bb_envs[&bb].enter(tcx, cursor)
+    }
+
+    fn check_goto_join_point(
+        &mut self,
+        tcx: TyCtxt<'tcx>,
+        cursor: &mut Cursor,
+        env: &mut TypeEnv<'tcx>,
+        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        target: BasicBlock,
+    ) {
+        let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
+            self.shapes
+                .remove(&target)
+                .unwrap()
+                .into_bb_env(&cursor.name_gen(), fresh_kvar, env)
+        });
+
+        let mut subst = Subst::empty();
+        subst
+            .infer_from_bb_env(env, bb_env)
+            .unwrap_or_else(|_| panic!("inference failed"));
+
+        for param in &bb_env.params {
+            cursor.push_head(subst.subst_pred(&param.pred));
+        }
+        env.transform_into(cursor, &bb_env.subst(tcx, &subst));
     }
 }
