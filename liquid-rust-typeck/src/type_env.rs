@@ -4,7 +4,7 @@ use crate::{
     ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
-use liquid_rust_common::index::IndexGen;
+use liquid_rust_common::index::{Idx, IndexGen};
 use liquid_rust_core::ir::{self, Local};
 use liquid_rust_fixpoint::KVid;
 use rustc_hash::FxHashMap;
@@ -235,13 +235,7 @@ impl TypeEnv {
         levels
     }
 
-    pub fn join_with(
-        &mut self,
-        tcx: TyCtxt,
-        other: &TypeEnv,
-        cursor: &mut Cursor,
-        fresh_kvar: &mut impl FnMut(Sort) -> Pred,
-    ) {
+    pub fn join(&mut self, tcx: TyCtxt, other: &TypeEnv) {
         let levels = self
             .levels()
             .into_iter()
@@ -254,67 +248,49 @@ impl TypeEnv {
             }
             let ty1 = self.bindings[&loc].assert_strong();
             let ty2 = other.bindings[&loc].assert_strong();
-            let ty = self.strg_ty_join(tcx, cursor, fresh_kvar, ty1, ty2);
+            let ty = self.join_ty(tcx, ty1, ty2);
             self.bindings.insert(loc, Binding::Strong(ty));
         }
     }
 
-    fn strg_ty_join(
-        &mut self,
-        tcx: TyCtxt,
-        cursor: &mut Cursor,
-        fresh_kvar: &mut impl FnMut(Sort) -> Pred,
-        ty1: Ty,
-        ty2: Ty,
-    ) -> Ty {
+    fn join_ty(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (_, _) if ty1 == ty2 => ty1,
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => TyKind::Uninit.intern(),
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => TyKind::Refine(
-                self.bty_join(tcx, cursor, fresh_kvar, bty1, bty2),
-                e1.clone(),
-            )
-            .intern(),
+            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
+                TyKind::Refine(self.join_bty(tcx, bty1, bty2), e1.clone()).intern()
+            }
             (
                 TyKind::Refine(bty1, ..) | TyKind::Exists(bty1, Pred::Expr(..)),
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
-                let bty = self.bty_join(tcx, cursor, fresh_kvar, bty1, bty2);
-                let kvar = fresh_kvar(bty.sort());
-                TyKind::Exists(bty, kvar).intern()
+                let bty = self.join_bty(tcx, bty1, bty2);
+                TyKind::Exists(bty, Pred::kvar(KVid::new(0), [])).intern()
             }
             (
                 TyKind::Exists(bty1, p @ Pred::KVar(..)),
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
-                let bty = self.bty_join(tcx, cursor, fresh_kvar, bty1, bty2);
+                let bty = self.join_bty(tcx, bty1, bty2);
                 TyKind::Exists(bty, p.clone()).intern()
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-                let ty = self.bindings[loc1].assert_strong();
-                let ty = self.weaken_ty(fresh_kvar, ty);
+                let ty = self.weaken_ty(self.bindings[loc1].assert_strong());
                 self.bindings.insert(*loc1, Binding::Strong(ty.clone()));
                 if self.bindings.contains_key(loc2) {
-                    self.ref_weak(tcx, cursor, *loc2, ty.clone());
+                    let ty = self.weaken_ty(self.bindings[loc2].assert_strong());
+                    self.bindings.insert(*loc2, Binding::Strong(ty));
                 }
                 TyKind::Ref(ty).intern()
             }
-            (TyKind::Ref(ty), TyKind::StrgRef(loc)) | (TyKind::StrgRef(loc), TyKind::Ref(ty)) => {
-                self.ref_weak(tcx, cursor, *loc, ty.clone());
-                ty.clone()
+            (TyKind::Ref(ty), TyKind::StrgRef(_)) | (TyKind::StrgRef(_), TyKind::Ref(ty)) => {
+                TyKind::Ref(ty.clone()).intern()
             }
             _ => todo!("{:?} {:?}", ty1, ty2),
         }
     }
 
-    fn bty_join(
-        &mut self,
-        tcx: TyCtxt,
-        cursor: &mut Cursor,
-        fresh_kvar: &mut impl FnMut(Sort) -> Pred,
-        bty1: &BaseTy,
-        bty2: &BaseTy,
-    ) -> BaseTy {
+    fn join_bty(&mut self, tcx: TyCtxt, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
                 debug_assert_eq!(did1, did2);
@@ -322,7 +298,7 @@ impl TypeEnv {
                 let substs =
                     izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
                         assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                        self.strg_ty_join(tcx, cursor, fresh_kvar, ty1.clone(), ty2.clone())
+                        self.join_ty(tcx, ty1.clone(), ty2.clone())
                     });
                 BaseTy::adt(*did1, substs)
             }
@@ -333,17 +309,16 @@ impl TypeEnv {
         }
     }
 
-    fn weaken_ty(&mut self, fresh_kvar: &mut impl FnMut(Sort) -> Pred, ty: Ty) -> Ty {
+    fn weaken_ty(&mut self, ty: Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(.., Pred::KVar(..)) | TyKind::Param(_) => ty,
             TyKind::Exists(bty, Pred::Expr(..)) | TyKind::Refine(bty, _) => {
-                let sort = bty.sort();
-                let bty = self.weaken_bty(fresh_kvar, bty);
-                TyKind::Exists(bty, fresh_kvar(sort)).intern()
+                let bty = self.weaken_bty(bty);
+                TyKind::Exists(bty, Pred::kvar(KVid::new(0), [])).intern()
             }
             TyKind::StrgRef(loc) => {
                 let ty = self.bindings[loc].assert_strong();
-                let ty = self.weaken_ty(fresh_kvar, ty);
+                let ty = self.weaken_ty(ty);
                 self.bindings.insert(*loc, Binding::Strong(ty.clone()));
                 TyKind::Ref(ty).intern()
             }
@@ -353,12 +328,10 @@ impl TypeEnv {
         }
     }
 
-    fn weaken_bty(&mut self, fresh_kvar: &mut impl FnMut(Sort) -> Pred, bty: &BaseTy) -> BaseTy {
+    fn weaken_bty(&mut self, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(did, substs) => {
-                let substs = substs
-                    .iter()
-                    .map(|ty| self.weaken_ty(fresh_kvar, ty.clone()));
+                let substs = substs.iter().map(|ty| self.weaken_ty(ty.clone()));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -392,16 +365,16 @@ impl TypeEnvShape {
         env: &TypeEnv,
     ) -> BasicBlockEnv {
         // Collect all kvars and generate fresh ones in the right scope.
-        let mut kvars = FxHashMap::default();
-        for (_, ty) in &self {
-            ty.walk(&mut |ty| {
-                if let TyKind::Exists(bty, Pred::KVar(kvid, _)) = ty.kind() {
-                    kvars
-                        .entry(*kvid)
-                        .or_insert_with(|| fresh_kvar(Var::Bound, bty.sort(), &[]));
-                }
-            })
-        }
+        // let mut kvars = FxHashMap::default();
+        // for (_, ty) in &self {
+        //     ty.walk(&mut |ty| {
+        //         if let TyKind::Exists(bty, Pred::KVar(kvid, _)) = ty.kind() {
+        //             kvars
+        //                 .entry(*kvid)
+        //                 .or_insert_with(|| fresh_kvar(Var::Bound, bty.sort(), &[]));
+        //         }
+        //     })
+        // }
 
         let mut subst = FxHashMap::default();
         for (loc, ty1) in &self {
@@ -422,7 +395,7 @@ impl TypeEnvShape {
                 (TyKind::Refine(_, _), TyKind::Refine(_, _))
                 | (TyKind::StrgRef(_), TyKind::StrgRef(_))
                 | (_, TyKind::Uninit) => ty2,
-                _ => replace_kvars(&ty1, &kvars),
+                _ => replace_kvars(&ty1, fresh_kvar),
             };
             bindings.push((loc, ty));
         }
@@ -464,31 +437,31 @@ impl BasicBlockEnv {
         // HACK: As a simple heuristic we only generalize kvars with only one ocurrence and in a
         // "top-level" type.
 
-        let mut count: FxHashMap<KVid, i32> = FxHashMap::default();
-        for (_, ty) in &self.bindings {
-            ty.walk(&mut |ty| {
-                if let TyKind::Exists(_, Pred::KVar(kvid, _)) = ty.kind() {
-                    *count.entry(*kvid).or_default() += 1;
-                }
-            })
-        }
+        // let mut count: FxHashMap<KVid, i32> = FxHashMap::default();
+        // for (_, ty) in &self.bindings {
+        //     ty.walk(&mut |ty| {
+        //         if let TyKind::Exists(_, Pred::KVar(kvid, _)) = ty.kind() {
+        //             *count.entry(*kvid).or_default() += 1;
+        //         }
+        //     })
+        // }
 
-        for (_, ty) in &mut self.bindings {
-            match ty.kind() {
-                TyKind::Exists(bty, Pred::KVar(kvid, _)) if count[kvid] == 1 => {
-                    let fresh = name_gen.fresh();
-                    let param = Param {
-                        name: fresh,
-                        sort: bty.sort(),
-                        pred: fresh_kvar(fresh.into(), bty.sort(), &self.params),
-                    };
-                    self.params.push(param);
-                    let e = ExprKind::Var(fresh.into()).intern();
-                    *ty = TyKind::Refine(bty.clone(), e).intern();
-                }
-                _ => {}
-            };
-        }
+        // for (_, ty) in &mut self.bindings {
+        //     match ty.kind() {
+        //         TyKind::Exists(bty, Pred::KVar(kvid, _)) if count[kvid] == 1 => {
+        //             let fresh = name_gen.fresh();
+        //             let param = Param {
+        //                 name: fresh,
+        //                 sort: bty.sort(),
+        //                 pred: fresh_kvar(fresh.into(), bty.sort(), &self.params),
+        //             };
+        //             self.params.push(param);
+        //             let e = ExprKind::Var(fresh.into()).intern();
+        //             *ty = TyKind::Refine(bty.clone(), e).intern();
+        //         }
+        //         _ => {}
+        //     };
+        // }
     }
 
     pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
@@ -520,24 +493,28 @@ impl BasicBlockEnv {
     }
 }
 
-fn replace_kvars(ty: &TyS, kvars: &FxHashMap<KVid, Pred>) -> Ty {
+fn replace_kvars(ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred) -> Ty {
     match ty.kind() {
         TyKind::Refine(bty, e) => TyKind::Refine(bty.clone(), e.clone()).intern(),
-        TyKind::Exists(bty, Pred::KVar(kvid, _)) => {
-            TyKind::Exists(replace_kvars_bty(bty, kvars), kvars[kvid].clone()).intern()
+        TyKind::Exists(bty, Pred::KVar(_, _)) => {
+            let p = fresh_kvar(Var::Bound, bty.sort(), &[]);
+            TyKind::Exists(replace_kvars_bty(bty, fresh_kvar), p).intern()
         }
         TyKind::Exists(bty, p) => TyKind::Exists(bty.clone(), p.clone()).intern(),
         TyKind::Uninit => TyKind::Uninit.intern(),
         TyKind::StrgRef(loc) => TyKind::StrgRef(*loc).intern(),
-        TyKind::Ref(ty) => TyKind::Ref(replace_kvars(ty, kvars)).intern(),
+        TyKind::Ref(ty) => TyKind::Ref(replace_kvars(ty, fresh_kvar)).intern(),
         TyKind::Param(param_ty) => TyKind::Param(*param_ty).intern(),
     }
 }
 
-fn replace_kvars_bty(bty: &BaseTy, kvars: &FxHashMap<KVid, Pred>) -> BaseTy {
+fn replace_kvars_bty(
+    bty: &BaseTy,
+    fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
-            let substs = substs.iter().map(|ty| replace_kvars(ty, kvars));
+            let substs = substs.iter().map(|ty| replace_kvars(ty, fresh_kvar));
             BaseTy::adt(*did, substs)
         }
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),

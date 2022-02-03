@@ -612,16 +612,14 @@ impl Mode for Inference<'_> {
     fn check_goto_join_point(
         &mut self,
         tcx: TyCtxt,
-        cursor: &mut Cursor,
+        _cursor: &mut Cursor,
         env: &mut TypeEnv,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        _fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         target: BasicBlock,
     ) {
         match self.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => {
-                entry.get_mut().join_with(tcx, env, cursor, &mut |sort| {
-                    fresh_kvar(Var::Bound, sort, &[])
-                });
+                entry.get_mut().join(tcx, env);
             }
             Entry::Vacant(entry) => {
                 entry.insert(env.clone());
