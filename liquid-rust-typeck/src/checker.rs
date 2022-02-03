@@ -461,7 +461,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                TyKind::StrgRef(env.get_loc(place)).intern()
+                env.borrow(place)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, *un_op, op),
         }

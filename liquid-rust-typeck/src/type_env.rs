@@ -7,7 +7,7 @@ use itertools::{izip, Itertools};
 use liquid_rust_common::index::{Idx, IndexGen};
 use liquid_rust_core::ir::{self, Local};
 use liquid_rust_fixpoint::KVid;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
 use super::ty::{Loc, Name, Pred, Sort, TyS};
@@ -15,13 +15,15 @@ use super::ty::{Loc, Name, Pred, Sort, TyS};
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct TypeEnv {
     bindings: FxHashMap<Loc, Binding>,
+    borrowed: FxHashSet<Loc>,
 }
 
-pub struct TypeEnvShape(Vec<(Loc, Ty)>);
+pub struct TypeEnvShape(Vec<(Loc, Ty)>, FxHashSet<Loc>);
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
     pub bindings: Vec<(Loc, Ty)>,
+    pub borrowed: FxHashSet<Loc>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -58,6 +60,7 @@ impl TypeEnv {
     pub fn new() -> TypeEnv {
         TypeEnv {
             bindings: FxHashMap::default(),
+            borrowed: FxHashSet::default(),
         }
     }
 
@@ -67,6 +70,7 @@ impl TypeEnv {
                 .into_iter()
                 .map(|(loc, binding)| (loc, binding.ty()))
                 .collect(),
+            self.borrowed,
         )
     }
 
@@ -101,9 +105,10 @@ impl TypeEnv {
         }
     }
 
-    pub fn get_loc(&self, place: &ir::Place) -> Loc {
+    pub fn borrow(&mut self, place: &ir::Place) -> Ty {
         let (loc, _) = self.walk_place(place);
-        loc
+        self.borrowed.insert(loc);
+        TyKind::StrgRef(loc).intern()
     }
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
@@ -208,6 +213,7 @@ impl TypeEnv {
             };
             self.insert_loc(loc, ty2.clone());
         }
+        self.borrowed.extend(&other.borrowed);
         debug_assert_eq!(self, other);
     }
 
@@ -251,6 +257,7 @@ impl TypeEnv {
             let ty = self.join_ty(tcx, ty1, ty2);
             self.bindings.insert(loc, Binding::Strong(ty));
         }
+        self.borrowed.extend(&other.borrowed);
     }
 
     fn join_ty(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) -> Ty {
@@ -364,18 +371,6 @@ impl TypeEnvShape {
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
-        // Collect all kvars and generate fresh ones in the right scope.
-        // let mut kvars = FxHashMap::default();
-        // for (_, ty) in &self {
-        //     ty.walk(&mut |ty| {
-        //         if let TyKind::Exists(bty, Pred::KVar(kvid, _)) = ty.kind() {
-        //             kvars
-        //                 .entry(*kvid)
-        //                 .or_insert_with(|| fresh_kvar(Var::Bound, bty.sort(), &[]));
-        //         }
-        //     })
-        // }
-
         let mut subst = FxHashMap::default();
         for (loc, ty1) in &self {
             let ty2 = env.lookup_loc(*loc);
@@ -387,7 +382,7 @@ impl TypeEnvShape {
         }
 
         let mut bindings = vec![];
-        for (loc, ty1) in self {
+        for (loc, ty1) in self.0 {
             let loc = subst.get(&loc).copied().unwrap_or(loc);
             let ty2 = env.bindings[&loc].ty();
 
@@ -402,6 +397,7 @@ impl TypeEnvShape {
         let mut bb_env = BasicBlockEnv {
             params: vec![],
             bindings,
+            borrowed: self.1,
         };
         bb_env.generalize(name_gen, fresh_kvar);
         bb_env
@@ -446,22 +442,22 @@ impl BasicBlockEnv {
         //     })
         // }
 
-        // for (_, ty) in &mut self.bindings {
-        //     match ty.kind() {
-        //         TyKind::Exists(bty, Pred::KVar(kvid, _)) if count[kvid] == 1 => {
-        //             let fresh = name_gen.fresh();
-        //             let param = Param {
-        //                 name: fresh,
-        //                 sort: bty.sort(),
-        //                 pred: fresh_kvar(fresh.into(), bty.sort(), &self.params),
-        //             };
-        //             self.params.push(param);
-        //             let e = ExprKind::Var(fresh.into()).intern();
-        //             *ty = TyKind::Refine(bty.clone(), e).intern();
-        //         }
-        //         _ => {}
-        //     };
-        // }
+        for (loc, ty) in &mut self.bindings {
+            match ty.kind() {
+                TyKind::Exists(bty, Pred::KVar(..)) if !self.borrowed.contains(loc) => {
+                    let fresh = name_gen.fresh();
+                    let param = Param {
+                        name: fresh,
+                        sort: bty.sort(),
+                        pred: fresh_kvar(fresh.into(), bty.sort(), &self.params),
+                    };
+                    self.params.push(param);
+                    let e = ExprKind::Var(fresh.into()).intern();
+                    *ty = TyKind::Refine(bty.clone(), e).intern();
+                }
+                _ => {}
+            };
+        }
     }
 
     pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
@@ -479,6 +475,7 @@ impl BasicBlockEnv {
                 .iter()
                 .map(|(loc, ty)| (*loc, Binding::Strong(subst.subst_ty(ty))))
                 .collect(),
+            borrowed: self.borrowed.clone(),
         }
     }
 
@@ -489,6 +486,7 @@ impl BasicBlockEnv {
                 .iter()
                 .map(|(loc, ty)| (*loc, Binding::Strong(subst.subst_ty(ty))))
                 .collect(),
+            borrowed: self.borrowed.clone(),
         }
     }
 }
