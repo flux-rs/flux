@@ -7,4 +7,5 @@ tests! {
     test03: "../tests/neg/test03.rs" => Unsafe,
     // Note: only fails if line 329 of liquid-rust-typeck/src/checker.rs is uncommented
     // assert_terminator: "../tests/neg/assert_terminator.rs" => Unsafe,
+    fib_loop: "../tests/neg/fib_loop.rs" => Unsafe,
 }
