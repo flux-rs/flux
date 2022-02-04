@@ -320,10 +320,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);
-        if subst
-            .infer_from_fn_call(&mut env, &actuals, &fn_sig)
-            .is_err()
-        {
+        if subst.infer_from_fn_call(&env, &actuals, &fn_sig).is_err() {
             return self.report_inference_error(source_info);
         };
 

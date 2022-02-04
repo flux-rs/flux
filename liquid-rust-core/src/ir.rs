@@ -171,7 +171,7 @@ impl fmt::Debug for Terminator {
             } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
-                    format!("{}", path.data.iter().join("::"))
+                    path.data.iter().join("::")
                 });
                 if let Some((place, target)) = destination {
                     write!(

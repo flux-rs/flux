@@ -335,11 +335,11 @@ impl TypeEnv {
     fn weaken_ref_join(&mut self, loc: Loc) -> Ty {
         match self.bindings[&loc].clone() {
             Binding::Strong(ty) => {
-                let ty = self.weaken_ty(ty.clone());
+                let ty = self.weaken_ty(ty);
                 self.bindings.insert(loc, Binding::Strong(ty.clone()));
                 TyKind::Ref(ty).intern()
             }
-            Binding::Weak { bound, .. } => TyKind::Ref(bound.clone()).intern(),
+            Binding::Weak { bound, .. } => TyKind::Ref(bound).intern(),
         }
     }
 
