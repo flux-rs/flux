@@ -29,7 +29,8 @@ pub enum TyKind {
     BaseTy(Path),
     RefineTy { path: Path, refine: Expr },
     Exists { bind: Ident, path: Path, pred: Expr },
-    MutRef(Ident),
+    StrgRef(Ident),
+    Ref(Box<Ty>),
 }
 
 #[derive(Debug)]

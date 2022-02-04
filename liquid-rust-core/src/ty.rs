@@ -18,7 +18,8 @@ pub struct FnSig {
 pub enum Ty {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
-    MutRef(Name),
+    StrgRef(Name),
+    Ref(Box<Ty>),
     Param(ParamTy),
 }
 

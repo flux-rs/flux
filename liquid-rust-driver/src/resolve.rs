@@ -208,14 +208,18 @@ impl<'tcx> Resolver<'tcx> {
                     .emit_err(errors::RefinedTypeParam { span: ty.span })
                     .raise(),
             },
-            ast::TyKind::MutRef(region) => {
+            ast::TyKind::StrgRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
-                    Ok(ty::Ty::MutRef(name))
+                    Ok(ty::Ty::StrgRef(name))
                 } else {
                     self.diagnostics
                         .emit_err(errors::UnresolvedLoc::new(region))
                         .raise()
                 }
+            }
+            ast::TyKind::Ref(ty) => {
+                let ty = self.resolve_ty(*ty, subst)?;
+                Ok(ty::Ty::Ref(Box::new(ty)))
             }
         }
     }
