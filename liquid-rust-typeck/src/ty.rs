@@ -1,5 +1,6 @@
 use std::{fmt, lazy::SyncOnceCell};
 
+use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp};
@@ -276,6 +277,10 @@ impl From<Expr> for Pred {
 impl Pred {
     pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
         Pred::KVar(kvid, Interned::new(args.into_iter().collect()))
+    }
+
+    pub fn dummy_kvar() -> Pred {
+        Pred::kvar(KVid::new(0), [])
     }
 
     pub fn is_atom(&self) -> bool {

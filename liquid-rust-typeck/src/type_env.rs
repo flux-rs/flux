@@ -4,9 +4,8 @@ use crate::{
     ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
-use liquid_rust_common::index::{Idx, IndexGen};
+use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ir::{self, Local};
-use liquid_rust_fixpoint::KVid;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
@@ -291,7 +290,7 @@ impl TypeEnv {
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
                 let bty = self.join_bty(tcx, other, bty1, bty2);
-                TyKind::Exists(bty, Pred::kvar(KVid::new(0), [])).intern()
+                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             (
                 TyKind::Exists(bty1, p @ Pred::KVar(..)),
@@ -348,7 +347,7 @@ impl TypeEnv {
             TyKind::Exists(.., Pred::KVar(..)) | TyKind::Param(_) => ty,
             TyKind::Exists(bty, Pred::Expr(..)) | TyKind::Refine(bty, _) => {
                 let bty = self.weaken_bty(bty);
-                TyKind::Exists(bty, Pred::kvar(KVid::new(0), [])).intern()
+                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             TyKind::StrgRef(loc) => {
                 let ty = self.bindings[loc].assert_strong();

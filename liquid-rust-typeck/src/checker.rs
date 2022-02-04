@@ -44,7 +44,6 @@ pub struct Checker<'a, 'tcx, M> {
     global_env: &'a GlobalEnv<'tcx>,
     mode: M,
     ret: Ty,
-    kvars: KVarStore,
     ensures: Vec<(Name, Ty)>,
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
     dominators: Dominators<BasicBlock>,
@@ -52,6 +51,10 @@ pub struct Checker<'a, 'tcx, M> {
 }
 
 pub trait Mode {
+    fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
+    where
+        I: IntoIterator<Item = (Var, Sort)>;
+
     fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
@@ -59,7 +62,7 @@ pub trait Mode {
         tcx: TyCtxt,
         cursor: Cursor,
         env: TypeEnv,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        scope: &[(Var, Sort)],
         target: BasicBlock,
     ) -> bool;
 }
@@ -68,9 +71,10 @@ pub struct Inference<'a> {
     bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnv>,
 }
 
-pub struct Check {
+pub struct Check<'a> {
     shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+    kvars: &'a mut KVarStore,
 }
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
@@ -89,7 +93,6 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
             ret,
             ensures,
             mode,
-            kvars: KVarStore::new(),
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators: body.dominators(),
             queue: WorkQueue::with_none(body.basic_blocks.len()),
@@ -124,7 +127,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     }
 }
 
-impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
+impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     pub fn check(
         global_env: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
@@ -133,8 +136,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
     ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
         let mut pure_cx = PureCtxt::new();
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let mut kvars = KVarStore::new();
 
-        let kvars = Checker::run(
+        Checker::run(
             global_env,
             &mut pure_cx,
             body,
@@ -142,6 +146,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
             Check {
                 shapes,
                 bb_envs: FxHashMap::default(),
+                kvars: &mut kvars,
             },
         )?;
         Ok((pure_cx, kvars))
@@ -155,7 +160,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         body: &Body<'tcx>,
         fn_sig: &FnSig,
         mode: M,
-    ) -> Result<KVarStore, ErrorReported> {
+    ) -> Result<(), ErrorReported> {
         let mut cursor = pure_cx.cursor_at_root();
         let mut env = TypeEnv::new();
         let mut subst = Subst::empty();
@@ -196,15 +201,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         checker.check_goto(env, cursor, START_BLOCK)?;
         while let Some(bb) = checker.queue.pop() {
-            let dominator = checker.dominators.immediate_dominator(bb);
-            let snapshot = checker.snapshots[dominator].as_ref().unwrap();
+            let snapshot = checker.snapshot_at_dominator(bb);
             let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
             let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
             env.unpack_all(&mut cursor);
             checker.check_basic_block(env, cursor, bb)?;
         }
 
-        Ok(checker.kvars)
+        Ok(())
     }
 
     fn check_basic_block(
@@ -313,7 +317,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let cx = LoweringCtxt::empty();
         let scope = cursor.scope();
-        let fresh_kvar = &mut |sort| self.kvars.fresh(Var::Bound, sort, scope.iter().copied());
+        // let fresh_kvar = &mut |sort| self.kvars.fresh(Var::Bound, sort, scope.iter().copied());
+        let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter().copied());
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, fresh_kvar))
@@ -435,24 +440,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            let dominator = self.dominators.immediate_dominator(target);
-            let scope = cursor
-                .scope_at(self.snapshots[dominator].as_ref().unwrap())
-                .unwrap();
-            let fresh_kvar = &mut |var, sort, params: &[Param]| {
-                self.kvars.fresh(
-                    var,
-                    sort,
-                    scope.iter().copied().chain(
-                        params
-                            .iter()
-                            .map(|param| (Var::Free(param.name), param.sort)),
-                    ),
-                )
-            };
+            let scope = cursor.scope_at(self.snapshot_at_dominator(target)).unwrap();
             if self
                 .mode
-                .check_goto_join_point(self.global_env.tcx, cursor, env, fresh_kvar, target)
+                .check_goto_join_point(self.global_env.tcx, cursor, env, &scope, target)
             {
                 self.queue.insert(target);
                 self.visited.remove(target);
@@ -612,6 +603,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .span_err(call_source_info.span, "inference error at function call");
         Err(ErrorReported)
     }
+
+    #[track_caller]
+    fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
+        let dominator = self.dominators.immediate_dominator(bb);
+        self.snapshots[dominator].as_ref().unwrap()
+    }
 }
 
 impl Mode for Inference<'_> {
@@ -624,7 +621,7 @@ impl Mode for Inference<'_> {
         tcx: TyCtxt,
         _cursor: Cursor,
         mut env: TypeEnv,
-        _fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        _scope: &[(Var, Sort)],
         target: BasicBlock,
     ) -> bool {
         match self.bb_envs.entry(target) {
@@ -635,9 +632,16 @@ impl Mode for Inference<'_> {
             }
         }
     }
+
+    fn fresh_kvar<I>(&mut self, _sort: Sort, _scope: I) -> Pred
+    where
+        I: IntoIterator<Item = (Var, Sort)>,
+    {
+        Pred::dummy_kvar()
+    }
 }
 
-impl Mode for Check {
+impl Mode for Check<'_> {
     fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv {
         self.bb_envs[&bb].enter(cursor)
     }
@@ -647,9 +651,20 @@ impl Mode for Check {
         tcx: TyCtxt,
         mut cursor: Cursor,
         mut env: TypeEnv,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        scope: &[(Var, Sort)],
         target: BasicBlock,
     ) -> bool {
+        let fresh_kvar = &mut |var, sort, params: &[Param]| {
+            self.kvars.fresh(
+                var,
+                sort,
+                scope.iter().copied().chain(
+                    params
+                        .iter()
+                        .map(|param| (Var::Free(param.name), param.sort)),
+                ),
+            )
+        };
         let mut first = false;
         let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
             first = true;
@@ -670,5 +685,12 @@ impl Mode for Check {
         env.transform_into(tcx, &mut cursor, &bb_env.subst(&subst));
 
         first
+    }
+
+    fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
+    where
+        I: IntoIterator<Item = (Var, Sort)>,
+    {
+        self.kvars.fresh(Var::Bound, sort, scope)
     }
 }
