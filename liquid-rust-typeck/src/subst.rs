@@ -95,6 +95,10 @@ impl Subst {
         self.locs.get(&loc).cloned().unwrap_or(loc)
     }
 
+    pub fn has_loc(&self, loc: Loc) -> bool {
+        self.locs.contains_key(&loc)
+    }
+
     fn subst_ty_param(&self, param: ParamTy) -> Ty {
         self.types
             .get(param.index as usize)

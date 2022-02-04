@@ -169,20 +169,24 @@ impl fmt::Debug for Terminator {
                 args,
                 destination,
             } => {
+                let fname = rustc_middle::ty::tls::with(|tcx| {
+                    let path = tcx.def_path(*func);
+                    format!("{}", path.data.iter().join("::"))
+                });
                 if let Some((place, target)) = destination {
                     write!(
                         f,
-                        "{:?} = call {:?}({:?}) -> {:?}",
+                        "{:?} = call {}({:?}) -> {:?}",
                         place,
-                        func,
+                        fname,
                         args.iter().format(", "),
                         target
                     )
                 } else {
                     write!(
                         f,
-                        "call {:?}<{:?}>({:?})",
-                        func,
+                        "call {}<{:?}>({:?})",
+                        fname,
                         ty_subst.iter().format(", "),
                         args.iter().format(", ")
                     )

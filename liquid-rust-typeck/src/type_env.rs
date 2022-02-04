@@ -241,63 +241,79 @@ impl TypeEnv {
         levels
     }
 
-    pub fn join(&mut self, tcx: TyCtxt, other: &TypeEnv) {
+    pub fn join(&mut self, tcx: TyCtxt, other: &mut TypeEnv) -> bool {
         let levels = self
             .levels()
             .into_iter()
             .sorted_by_key(|(_, level)| *level)
             .rev();
 
+        let mut modified = false;
         for (loc, _) in levels {
             if !other.bindings.contains_key(&loc) {
+                self.bindings.remove(&loc);
+                modified = true;
                 continue;
             }
             let ty1 = self.bindings[&loc].assert_strong();
             let ty2 = other.bindings[&loc].assert_strong();
-            let ty = self.join_ty(tcx, ty1, ty2);
+            let ty = self.join_ty(tcx, other, ty1.clone(), ty2);
+            modified |= ty1 != ty;
             self.bindings.insert(loc, Binding::Strong(ty));
         }
+        let n = self.borrowed.len();
         self.borrowed.extend(&other.borrowed);
+        modified |= n != self.borrowed.len();
+
+        modified
     }
 
-    fn join_ty(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) -> Ty {
+    fn join_ty(&mut self, tcx: TyCtxt, other: &mut TypeEnv, mut ty1: Ty, mut ty2: Ty) -> Ty {
+        if ty1 == ty2 {
+            return ty1;
+        }
+
+        if let TyKind::StrgRef(loc) = ty1.kind() {
+            ty1 = self.weaken_ref_join(*loc);
+        }
+
+        if let TyKind::StrgRef(loc) = ty2.kind() {
+            ty2 = other.weaken_ref_join(*loc);
+        }
+
         match (ty1.kind(), ty2.kind()) {
-            (_, _) if ty1 == ty2 => ty1,
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => TyKind::Uninit.intern(),
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
-                TyKind::Refine(self.join_bty(tcx, bty1, bty2), e1.clone()).intern()
+                TyKind::Refine(self.join_bty(tcx, other, bty1, bty2), e1.clone()).intern()
             }
             (
                 TyKind::Refine(bty1, ..) | TyKind::Exists(bty1, Pred::Expr(..)),
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
-                let bty = self.join_bty(tcx, bty1, bty2);
+                let bty = self.join_bty(tcx, other, bty1, bty2);
                 TyKind::Exists(bty, Pred::kvar(KVid::new(0), [])).intern()
             }
             (
                 TyKind::Exists(bty1, p @ Pred::KVar(..)),
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
-                let bty = self.join_bty(tcx, bty1, bty2);
+                let bty = self.join_bty(tcx, other, bty1, bty2);
                 TyKind::Exists(bty, p.clone()).intern()
             }
-            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-                let ty = self.weaken_ty(self.bindings[loc1].assert_strong());
-                self.bindings.insert(*loc1, Binding::Strong(ty.clone()));
-                if self.bindings.contains_key(loc2) {
-                    let ty = self.weaken_ty(self.bindings[loc2].assert_strong());
-                    self.bindings.insert(*loc2, Binding::Strong(ty));
-                }
-                TyKind::Ref(ty).intern()
-            }
-            (TyKind::Ref(ty), TyKind::StrgRef(_)) | (TyKind::StrgRef(_), TyKind::Ref(ty)) => {
-                TyKind::Ref(ty.clone()).intern()
+            (TyKind::Ref(ty1), TyKind::Ref(ty2)) => {
+                TyKind::Ref(self.join_ty(tcx, other, ty1.clone(), ty2.clone())).intern()
             }
             _ => todo!("{:?} {:?}", ty1, ty2),
         }
     }
 
-    fn join_bty(&mut self, tcx: TyCtxt, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
+    fn join_bty(
+        &mut self,
+        tcx: TyCtxt,
+        other: &mut TypeEnv,
+        bty1: &BaseTy,
+        bty2: &BaseTy,
+    ) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
                 debug_assert_eq!(did1, did2);
@@ -305,7 +321,7 @@ impl TypeEnv {
                 let substs =
                     izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
                         assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                        self.join_ty(tcx, ty1.clone(), ty2.clone())
+                        self.join_ty(tcx, other, ty1.clone(), ty2.clone())
                     });
                 BaseTy::adt(*did1, substs)
             }
@@ -313,6 +329,17 @@ impl TypeEnv {
                 debug_assert_eq!(bty1, bty2);
                 bty1.clone()
             }
+        }
+    }
+
+    fn weaken_ref_join(&mut self, loc: Loc) -> Ty {
+        match self.bindings[&loc].clone() {
+            Binding::Strong(ty) => {
+                let ty = self.weaken_ty(ty.clone());
+                self.bindings.insert(loc, Binding::Strong(ty.clone()));
+                TyKind::Ref(ty).intern()
+            }
+            Binding::Weak { bound, .. } => TyKind::Ref(bound.clone()).intern(),
         }
     }
 

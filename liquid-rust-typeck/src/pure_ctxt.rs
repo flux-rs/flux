@@ -74,6 +74,13 @@ impl PureCtxt {
         }
     }
 
+    pub fn cursor_at(&mut self, snapshot: &Snapshot) -> Option<Cursor> {
+        Some(Cursor {
+            node: snapshot.node.upgrade()?,
+            cx: self,
+        })
+    }
+
     pub fn into_fixpoint(self, kvars: KVarStore) -> fixpoint::Fixpoint {
         let mut cx = FixpointCtxt::new(&kvars);
         let constraint = self
@@ -144,6 +151,10 @@ impl Cursor<'_> {
         Snapshot {
             node: Rc::downgrade(&self.node),
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.node.borrow_mut().children.clear();
     }
 
     pub fn scope(&self) -> Vec<(Var, Sort)> {
@@ -585,7 +596,7 @@ mod pretty {
                     .rev()
                     .filter(|n| matches!(
                         &n.borrow().kind,
-                        NodeKind::Binding(..) | NodeKind::Loc(..)
+                        NodeKind::Binding(..) | NodeKind::Loc(..) | NodeKind::Pred(..)
                     ))
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
@@ -594,7 +605,8 @@ mod pretty {
                                 f(&format_args!("{:?}: {:?}", name, sort))
                             }
                             NodeKind::Loc(loc) => f(&format_args!("{:?}: loc", loc)),
-                            NodeKind::Conj | NodeKind::Pred(_) | NodeKind::Head(_) => {
+                            NodeKind::Pred(e) => f(&format_args!("{:?}", e)),
+                            NodeKind::Conj | NodeKind::Head(_) => {
                                 unreachable!()
                             }
                         }
