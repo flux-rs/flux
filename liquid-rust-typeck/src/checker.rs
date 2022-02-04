@@ -53,7 +53,7 @@ pub struct Checker<'a, 'tcx, M> {
 pub trait Mode {
     fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
     where
-        I: IntoIterator<Item = (Var, Sort)>;
+        I: IntoIterator<Item = (Name, Sort)>;
 
     fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv;
 
@@ -62,7 +62,7 @@ pub trait Mode {
         tcx: TyCtxt,
         cursor: Cursor,
         env: TypeEnv,
-        scope: &[(Var, Sort)],
+        scope: &[(Name, Sort)],
         target: BasicBlock,
     ) -> bool;
 }
@@ -317,7 +317,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let cx = LoweringCtxt::empty();
         let scope = cursor.scope();
-        // let fresh_kvar = &mut |sort| self.kvars.fresh(Var::Bound, sort, scope.iter().copied());
         let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter().copied());
         let substs = substs
             .iter()
@@ -621,7 +620,7 @@ impl Mode for Inference<'_> {
         tcx: TyCtxt,
         _cursor: Cursor,
         mut env: TypeEnv,
-        _scope: &[(Var, Sort)],
+        _scope: &[(Name, Sort)],
         target: BasicBlock,
     ) -> bool {
         match self.bb_envs.entry(target) {
@@ -635,7 +634,7 @@ impl Mode for Inference<'_> {
 
     fn fresh_kvar<I>(&mut self, _sort: Sort, _scope: I) -> Pred
     where
-        I: IntoIterator<Item = (Var, Sort)>,
+        I: IntoIterator<Item = (Name, Sort)>,
     {
         Pred::dummy_kvar()
     }
@@ -651,18 +650,17 @@ impl Mode for Check<'_> {
         tcx: TyCtxt,
         mut cursor: Cursor,
         mut env: TypeEnv,
-        scope: &[(Var, Sort)],
+        scope: &[(Name, Sort)],
         target: BasicBlock,
     ) -> bool {
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
             self.kvars.fresh(
                 var,
                 sort,
-                scope.iter().copied().chain(
-                    params
-                        .iter()
-                        .map(|param| (Var::Free(param.name), param.sort)),
-                ),
+                scope
+                    .iter()
+                    .copied()
+                    .chain(params.iter().map(|param| (param.name, param.sort))),
             )
         };
         let mut first = false;
@@ -689,7 +687,7 @@ impl Mode for Check<'_> {
 
     fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
     where
-        I: IntoIterator<Item = (Var, Sort)>,
+        I: IntoIterator<Item = (Name, Sort)>,
     {
         self.kvars.fresh(Var::Bound, sort, scope)
     }

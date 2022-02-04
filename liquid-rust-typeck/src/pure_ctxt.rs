@@ -106,7 +106,7 @@ impl KVarStore {
     #[track_caller]
     pub fn fresh<S>(&mut self, var: Var, sort: Sort, scope: S) -> Pred
     where
-        S: IntoIterator<Item = (Var, Sort)>,
+        S: IntoIterator<Item = (Name, Sort)>,
     {
         let scope = scope.into_iter();
 
@@ -116,7 +116,7 @@ impl KVarStore {
         sorts.push(sort_to_fixpoint(sort).expect("kvars cannot have locs as arguments"));
         args.push(Expr::from(var));
         for (var, sort) in scope.filter_map(|(var, sort)| Some((var, sort_to_fixpoint(sort)?))) {
-            args.push(Expr::from(var));
+            args.push(Var::Free(var).into());
             sorts.push(sort);
         }
 
@@ -157,16 +157,16 @@ impl Cursor<'_> {
         self.node.borrow_mut().children.clear();
     }
 
-    pub fn scope(&self) -> Vec<(Var, Sort)> {
+    pub fn scope(&self) -> Vec<(Name, Sort)> {
         self.scope_at(&self.snapshot()).unwrap()
     }
 
-    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Vec<(Var, Sort)>> {
+    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Vec<(Name, Sort)>> {
         let parents = ParentsIter::new(snapshot.node.upgrade()?);
         let scope = parents
             .filter_map(|node| {
                 if let NodeKind::Binding(name, sort, _) = node.borrow().kind {
-                    Some((Var::Free(name), sort))
+                    Some((name, sort))
                 } else {
                     None
                 }
