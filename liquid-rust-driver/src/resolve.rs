@@ -80,11 +80,7 @@ impl<'tcx> Resolver<'tcx> {
             subst.push_type_layer();
         }
 
-        let hir_generics = self
-            .tcx
-            .hir()
-            .get_generics(self.def_id.to_def_id())
-            .unwrap();
+        let hir_generics = self.tcx.hir().get_generics(self.def_id).unwrap();
 
         self.insert_generic_types(hir_generics, &mut subst);
 

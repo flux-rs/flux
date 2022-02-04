@@ -69,7 +69,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
             mir::StatementKind::FakeRead(_)
             | mir::StatementKind::SetDiscriminant { .. }
-            | mir::StatementKind::LlvmInlineAsm(_)
             | mir::StatementKind::Retag(_, _)
             | mir::StatementKind::AscribeUserType(_, _)
             | mir::StatementKind::Coverage(_)
