@@ -457,18 +457,6 @@ impl BasicBlockEnv {
         name_gen: &IndexGen<Name>,
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
     ) {
-        // HACK: As a simple heuristic we only generalize kvars with only one ocurrence and in a
-        // "top-level" type.
-
-        // let mut count: FxHashMap<KVid, i32> = FxHashMap::default();
-        // for (_, ty) in &self.bindings {
-        //     ty.walk(&mut |ty| {
-        //         if let TyKind::Exists(_, Pred::KVar(kvid, _)) = ty.kind() {
-        //             *count.entry(*kvid).or_default() += 1;
-        //         }
-        //     })
-        // }
-
         for (loc, ty) in &mut self.bindings {
             match ty.kind() {
                 TyKind::Exists(bty, Pred::KVar(..)) if !self.borrowed.contains(loc) => {
