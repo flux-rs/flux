@@ -8,4 +8,5 @@ tests! {
     generalized_join: "../tests/pos/generalized_join.rs" => Safe,
     heapsort: "../tests/pos/heapsort.rs" => Safe,
     assert_terminator: "../tests/pos/assert_terminator.rs" => Safe,
+    fib_loop: "../tests/pos/fib_loop.rs" => Safe,
 }
