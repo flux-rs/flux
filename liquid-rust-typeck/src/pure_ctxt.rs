@@ -27,7 +27,7 @@ pub struct Snapshot {
 }
 
 pub struct KVarStore {
-    kvars: IndexVec<KVid, Vec<Sort>>,
+    kvars: IndexVec<KVid, Vec<fixpoint::Sort>>,
 }
 
 struct Node {
@@ -44,7 +44,6 @@ type WeakNodePtr = Weak<RefCell<Node>>;
 enum NodeKind {
     Conj,
     Binding(Name, Sort, Pred),
-    Loc(Name),
     Pred(Expr),
     Head(Pred),
 }
@@ -104,6 +103,7 @@ impl KVarStore {
         }
     }
 
+    #[track_caller]
     pub fn fresh<S>(&mut self, var: Var, sort: Sort, scope: S) -> Pred
     where
         S: IntoIterator<Item = (Var, Sort)>,
@@ -113,9 +113,9 @@ impl KVarStore {
         let mut sorts = Vec::with_capacity(scope.size_hint().0 + 1);
         let mut args = Vec::with_capacity(scope.size_hint().0);
 
-        sorts.push(sort);
+        sorts.push(sort_to_fixpoint(sort).expect("kvars cannot have locs as arguments"));
         args.push(Expr::from(var));
-        for (var, sort) in scope {
+        for (var, sort) in scope.filter_map(|(var, sort)| Some((var, sort_to_fixpoint(sort)?))) {
             args.push(Expr::from(var));
             sorts.push(sort);
         }
@@ -126,7 +126,7 @@ impl KVarStore {
 }
 
 impl std::ops::Index<KVid> for KVarStore {
-    type Output = Vec<Sort>;
+    type Output = Vec<fixpoint::Sort>;
 
     fn index(&self, index: KVid) -> &Self::Output {
         &self.kvars[index]
@@ -288,7 +288,7 @@ impl Cursor<'_> {
 
     pub fn push_loc(&mut self) -> Loc {
         let fresh = Name::new(self.next_name_idx());
-        self.node = self.push_node(NodeKind::Loc(fresh));
+        self.node = self.push_node(NodeKind::Binding(fresh, Sort::Loc, Pred::tt()));
         Loc::Abstract(fresh)
     }
 
@@ -320,7 +320,9 @@ impl Cursor<'_> {
 impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint> {
         match &self.kind {
-            NodeKind::Conj | NodeKind::Loc(_) => children_to_fixpoint(cx, &self.children),
+            NodeKind::Conj | NodeKind::Binding(_, Sort::Loc, _) => {
+                children_to_fixpoint(cx, &self.children)
+            }
             NodeKind::Binding(name, sort, pred) => {
                 let fresh = cx.fresh_name();
                 // The name is no longer in scope after we return from `pred_to_fixpoint`
@@ -332,7 +334,7 @@ impl Node {
                     bindings,
                     fixpoint::Constraint::ForAll(
                         fresh,
-                        *sort,
+                        sort_to_fixpoint(*sort).unwrap(),
                         pred,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ),
@@ -349,12 +351,11 @@ impl Node {
         }
     }
 
-    /// Returns `true` if the node kind is [`Binding`] or [`Loc`].
+    /// Returns `true` if the node kind is [`Binding`].
     ///
     /// [`Binding`]: NodeKind::Binding
-    /// [`Loc`]: NodeKind::Loc
     fn is_binding(&self) -> bool {
-        matches!(self.kind, NodeKind::Binding(..) | NodeKind::Loc(_))
+        matches!(self.kind, NodeKind::Binding(..))
     }
 }
 
@@ -390,7 +391,10 @@ fn children_to_fixpoint(
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
     refine: &Pred,
-) -> (Vec<(fixpoint::Name, Sort, fixpoint::Expr)>, fixpoint::Pred) {
+) -> (
+    Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    fixpoint::Pred,
+) {
     let mut bindings = vec![];
     let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
@@ -415,6 +419,14 @@ fn pred_to_fixpoint(
     (bindings, pred)
 }
 
+fn sort_to_fixpoint(sort: Sort) -> Option<fixpoint::Sort> {
+    match sort {
+        Sort::Int => Some(fixpoint::Sort::Int),
+        Sort::Bool => Some(fixpoint::Sort::Bool),
+        Sort::Loc => None,
+    }
+}
+
 fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
         ExprKind::Var(Var::Free(name)) => fixpoint::Expr::Var(cx.name_map[name]),
@@ -432,7 +444,7 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
 }
 
 fn stitch(
-    bindings: Vec<(fixpoint::Name, Sort, fixpoint::Expr)>,
+    bindings: Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     c: fixpoint::Constraint,
 ) -> fixpoint::Constraint {
     bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
@@ -513,9 +525,6 @@ mod pretty {
                 NodeKind::Conj => {
                     w!("{:?}", join!("\n", &node.children))
                 }
-                NodeKind::Loc(loc) => {
-                    w!("∀ {:?}: loc.{:?}", ^loc, &node.children)
-                }
                 NodeKind::Binding(name, sort, pred) => {
                     if pred.is_true() {
                         w!("∀ {:?}: {:?}.{:?}", ^name, ^sort, &node.children)
@@ -585,8 +594,9 @@ mod pretty {
         }
     }
 
-    impl fmt::Debug for Cursor<'_> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    impl Pretty for Cursor<'_> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
             let parents = ParentsIter::new(Rc::clone(&self.node)).collect_vec();
             write!(
                 f,
@@ -595,25 +605,31 @@ mod pretty {
                     .into_iter()
                     .rev()
                     .filter(|n| matches!(
-                        &n.borrow().kind,
-                        NodeKind::Binding(..) | NodeKind::Loc(..) | NodeKind::Pred(..)
+                        n.borrow().kind,
+                        NodeKind::Binding(..) | NodeKind::Pred(..)
                     ))
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {
-                            NodeKind::Binding(name, sort, _) => {
-                                f(&format_args!("{:?}: {:?}", name, sort))
+                            NodeKind::Binding(name, sort, pred) => {
+                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
+                                if !pred.is_true() {
+                                    f(&format_args_cx!(", {:?}", pred))?;
+                                }
+                                Ok(())
                             }
-                            NodeKind::Loc(loc) => f(&format_args!("{:?}: loc", loc)),
                             NodeKind::Pred(e) => f(&format_args!("{:?}", e)),
-                            NodeKind::Conj | NodeKind::Head(_) => {
-                                unreachable!()
-                            }
+                            NodeKind::Conj | NodeKind::Head(_) => unreachable!(),
                         }
                     })
             )
         }
+
+        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+            PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
+            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
+        }
     }
 
-    impl_debug_with_default_cx!(PureCtxt);
+    impl_debug_with_default_cx!(PureCtxt, Cursor<'_>);
 }

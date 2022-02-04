@@ -3,7 +3,7 @@ use std::{fmt, lazy::SyncOnceCell};
 use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
-pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Sort, UnOp};
+pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{IntTy, UintTy};
@@ -64,6 +64,13 @@ pub struct Substs(Interned<Vec<Ty>>);
 pub enum Pred {
     KVar(KVid, Interned<Vec<Expr>>),
     Expr(Expr),
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum Sort {
+    Int,
+    Bool,
+    Loc,
 }
 
 pub type Expr = Interned<ExprS>;
@@ -298,6 +305,10 @@ impl Pred {
         }
     }
 
+    pub fn tt() -> Pred {
+        Pred::Expr(Expr::tt())
+    }
+
     pub fn is_true(&self) -> bool {
         match self {
             Pred::KVar(..) => false,
@@ -482,6 +493,17 @@ mod pretty {
         }
     }
 
+    impl Pretty for Sort {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                Sort::Int => w!("int"),
+                Sort::Bool => w!("bool"),
+                Sort::Loc => w!("loc"),
+            }
+        }
+    }
+
     impl Pretty for BinOp {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -514,5 +536,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TyS, BaseTy, Pred, ExprS, Var, Loc);
+    impl_debug_with_default_cx!(TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
 }

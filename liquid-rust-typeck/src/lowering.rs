@@ -28,7 +28,7 @@ impl LoweringCtxt {
             cx.params.insert(param.name.name, fresh);
             params.push(ty::Param {
                 name: fresh,
-                sort: param.sort,
+                sort: lower_sort(param.sort),
                 pred: cx.lower_expr(&param.pred).into(),
             });
         }
@@ -79,7 +79,7 @@ impl LoweringCtxt {
             }
             core::Ty::Exists(bty, pred) => {
                 let pred = match pred {
-                    core::Pred::Infer => fresh_kvar(bty.sort()),
+                    core::Pred::Infer => fresh_kvar(lower_sort(bty.sort())),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
                 ty::TyKind::Exists(self.lower_base_ty(bty, fresh_kvar), pred).intern()
@@ -134,6 +134,13 @@ impl LoweringCtxt {
             core::Lit::Int(n) => ty::Constant::from(n),
             core::Lit::Bool(b) => ty::Constant::from(b),
         }
+    }
+}
+
+fn lower_sort(sort: core::Sort) -> ty::Sort {
+    match sort {
+        core::Sort::Int => ty::Sort::Int,
+        core::Sort::Bool => ty::Sort::Bool,
     }
 }
 
