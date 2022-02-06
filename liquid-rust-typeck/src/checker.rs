@@ -12,7 +12,7 @@ use std::collections::hash_map::Entry;
 use crate::{
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
-    pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
+    pure_ctxt::{Cursor, KVarStore, PureCtxt, Scope, Snapshot},
     subst::Subst,
     ty::{
         self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
@@ -62,7 +62,7 @@ pub trait Mode {
         tcx: TyCtxt,
         cursor: Cursor,
         env: TypeEnv,
-        scope: &[(Name, Sort)],
+        scope: &Scope,
         target: BasicBlock,
     ) -> bool;
 }
@@ -317,7 +317,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let cx = LoweringCtxt::empty();
         let scope = cursor.scope();
-        let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter().copied());
+        let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter());
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, fresh_kvar))
@@ -620,7 +620,7 @@ impl Mode for Inference<'_> {
         tcx: TyCtxt,
         _cursor: Cursor,
         mut env: TypeEnv,
-        _scope: &[(Name, Sort)],
+        _scope: &Scope,
         target: BasicBlock,
     ) -> bool {
         match self.bb_envs.entry(target) {
@@ -650,7 +650,7 @@ impl Mode for Check<'_> {
         tcx: TyCtxt,
         mut cursor: Cursor,
         mut env: TypeEnv,
-        scope: &[(Name, Sort)],
+        scope: &Scope,
         target: BasicBlock,
     ) -> bool {
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
@@ -659,7 +659,6 @@ impl Mode for Check<'_> {
                 sort,
                 scope
                     .iter()
-                    .copied()
                     .chain(params.iter().map(|param| (param.name, param.sort))),
             )
         };

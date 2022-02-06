@@ -30,6 +30,10 @@ pub struct KVarStore {
     kvars: IndexVec<KVid, Vec<fixpoint::Sort>>,
 }
 
+pub struct Scope {
+    bindings: IndexVec<Name, Sort>,
+}
+
 struct Node {
     kind: NodeKind,
     /// Number of binding nodes between the root and this node's parent
@@ -157,22 +161,25 @@ impl Cursor<'_> {
         self.node.borrow_mut().children.clear();
     }
 
-    pub fn scope(&self) -> Vec<(Name, Sort)> {
+    pub fn scope(&self) -> Scope {
         self.scope_at(&self.snapshot()).unwrap()
     }
 
-    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Vec<(Name, Sort)>> {
+    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Scope> {
         let parents = ParentsIter::new(snapshot.node.upgrade()?);
-        let scope = parents
+        let bindings = parents
             .filter_map(|node| {
-                if let NodeKind::Binding(name, sort, _) = node.borrow().kind {
-                    Some((name, sort))
+                if let NodeKind::Binding(_, sort, _) = node.borrow().kind {
+                    Some(sort)
                 } else {
                     None
                 }
             })
+            .collect_vec()
+            .into_iter()
+            .rev()
             .collect();
-        Some(scope)
+        Some(Scope { bindings })
     }
 
     pub fn subtyping(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) {
@@ -314,6 +321,14 @@ impl Cursor<'_> {
         let node = Rc::new(RefCell::new(node));
         self.node.borrow_mut().children.push(Rc::clone(&node));
         node
+    }
+}
+
+impl Scope {
+    pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
+        self.bindings
+            .iter_enumerated()
+            .map(|(name, sort)| (name, *sort))
     }
 }
 
