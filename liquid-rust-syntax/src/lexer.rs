@@ -33,6 +33,7 @@ pub enum Token {
     CloseDelim(DelimToken),
     Invalid,
     Ref,
+    And,
 }
 
 pub(crate) struct Cursor {
@@ -101,6 +102,7 @@ impl Cursor {
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,
             TokenKind::BinOp(BinOpToken::Minus) => Token::Minus,
+            TokenKind::BinOp(BinOpToken::And) => Token::And,
             _ => Token::Invalid,
         };
         (

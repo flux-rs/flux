@@ -81,7 +81,7 @@ impl fmt::Display for Fixpoint {
         writeln!(f, "(qualif Lt ((a int) (b int)) (a < b))")?;
         writeln!(f, "(qualif Ge ((a int) (b int)) (a >= b))")?;
         writeln!(f, "(qualif Le ((a int) (b int)) (a <= b))")?;
-        writeln!(f, "(qualif Le ((a int) (b int)) (a < b - 1))")?;
+        writeln!(f, "(qualif Le1 ((a int) (b int)) (a < b - 1))")?;
         // writeln!(f, "(qualif Foo ((a int) (b int)) (a <= b/2))")?;
 
         for kvar in &self.kvars {

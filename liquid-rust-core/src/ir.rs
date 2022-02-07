@@ -53,6 +53,11 @@ pub enum TerminatorKind {
         place: Place,
         target: BasicBlock,
     },
+    Assert {
+        cond: Operand,
+        expected: bool,
+        target: BasicBlock,
+    },
 }
 
 pub struct Statement {
@@ -164,33 +169,56 @@ impl fmt::Debug for Terminator {
                 args,
                 destination,
             } => {
+                let fname = rustc_middle::ty::tls::with(|tcx| {
+                    let path = tcx.def_path(*func);
+                    path.data.iter().join("::")
+                });
                 if let Some((place, target)) = destination {
                     write!(
                         f,
-                        "{:?} = call {:?}({:?}) -> {:?}",
+                        "{:?} = call {}({:?}) -> {:?}",
                         place,
-                        func,
+                        fname,
                         args.iter().format(", "),
                         target
                     )
                 } else {
                     write!(
                         f,
-                        "call {:?}<{:?}>({:?})",
-                        func,
+                        "call {}<{:?}>({:?})",
+                        fname,
                         ty_subst.iter().format(", "),
                         args.iter().format(", ")
                     )
                 }
             }
-            TerminatorKind::SwitchInt { discr, .. } => {
-                write!(f, "switchInt({:?}) -> [todo]", discr,)
+            TerminatorKind::SwitchInt { discr, targets } => {
+                write!(
+                    f,
+                    "switchInt({:?}) -> [{}, otherwise: {:?}]",
+                    discr,
+                    targets
+                        .iter()
+                        .format_with(", ", |(val, bb), f| f(&format_args!("{:?}: {:?}", val, bb))),
+                    targets.otherwise()
+                )
             }
             TerminatorKind::Goto { target } => {
                 write!(f, "goto -> {:?}", *target)
             }
             TerminatorKind::Drop { place, target } => {
                 write!(f, "drop({:?}) -> {:?}", place, target)
+            }
+            TerminatorKind::Assert {
+                cond,
+                target,
+                expected,
+            } => {
+                write!(
+                    f,
+                    "assert({:?} is expected to be {:?}) -> {:?}",
+                    cond, expected, target
+                )
             }
         }
     }

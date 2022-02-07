@@ -104,6 +104,7 @@ pub struct PPrintCx<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub kvar_args: Visibility,
     pub fully_qualified_paths: bool,
+    pub simplify_exprs: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -139,6 +140,7 @@ impl PPrintCx<'_> {
             tcx,
             kvar_args: Visibility::Show,
             fully_qualified_paths: false,
+            simplify_exprs: true,
         }
     }
 

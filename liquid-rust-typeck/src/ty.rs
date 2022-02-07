@@ -1,12 +1,30 @@
 use std::{fmt, lazy::SyncOnceCell};
 
+use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
-pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, Name, Sort, UnOp};
+pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
+use rustc_index::newtype_index;
 pub use rustc_middle::ty::{IntTy, UintTy};
 
 use crate::intern::{impl_internable, Interned};
+
+#[derive(Debug)]
+pub struct FnSig {
+    pub params: Vec<Param>,
+    pub requires: Vec<(Name, Ty)>,
+    pub args: Vec<Ty>,
+    pub ret: Ty,
+    pub ensures: Vec<(Name, Ty)>,
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: Name,
+    pub sort: Sort,
+    pub pred: Pred,
+}
 
 pub type Ty = Interned<TyS>;
 
@@ -48,6 +66,13 @@ pub enum Pred {
     Expr(Expr),
 }
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum Sort {
+    Int,
+    Bool,
+    Loc,
+}
+
 pub type Expr = Interned<ExprS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -67,6 +92,12 @@ pub enum ExprKind {
 pub enum Var {
     Bound,
     Free(Name),
+}
+
+newtype_index! {
+    pub struct Name {
+        DEBUG_FORMAT = "a{}",
+    }
 }
 
 impl TyKind {
@@ -205,7 +236,8 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, to: Expr) -> Expr {
+    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
+        let to = to.into();
         match self.kind() {
             ExprKind::Var(var) => match var {
                 Var::Bound => to,
@@ -221,6 +253,26 @@ impl ExprS {
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
         }
     }
+
+    /// Simplify expression applying some rules like removing double negation. This is used for pretty
+    /// printing.
+    pub fn simplify(&self) -> Expr {
+        match self.kind() {
+            ExprKind::Var(var) => ExprKind::Var(*var).intern(),
+            ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
+            ExprKind::BinaryOp(op, e1, e2) => {
+                ExprKind::BinaryOp(*op, e1.simplify(), e2.simplify()).intern()
+            }
+            ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
+                ExprKind::UnaryOp(UnOp::Not, e) => e.simplify(),
+                ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
+                    ExprKind::BinaryOp(BinOp::Ne, e1.simplify(), e2.simplify()).intern()
+                }
+                _ => ExprKind::UnaryOp(UnOp::Not, e.simplify()).intern(),
+            },
+            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.simplify()).intern(),
+        }
+    }
 }
 
 impl From<Expr> for Pred {
@@ -234,11 +286,16 @@ impl Pred {
         Pred::KVar(kvid, Interned::new(args.into_iter().collect()))
     }
 
+    pub fn dummy_kvar() -> Pred {
+        Pred::kvar(KVid::new(0), [])
+    }
+
     pub fn is_atom(&self) -> bool {
         matches!(self, Pred::KVar(_, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
-    pub fn subst_bound_vars(&self, to: Expr) -> Self {
+    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Self {
+        let to = to.into();
         match self {
             Pred::KVar(kvid, args) => Pred::kvar(
                 *kvid,
@@ -246,6 +303,10 @@ impl Pred {
             ),
             Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
         }
+    }
+
+    pub fn tt() -> Pred {
+        Pred::Expr(Expr::tt())
     }
 
     pub fn is_true(&self) -> bool {
@@ -276,6 +337,18 @@ impl PartialOrd for Loc {
 impl Ord for Loc {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
+    }
+}
+
+impl From<Name> for Var {
+    fn from(v: Name) -> Self {
+        Self::Free(v)
+    }
+}
+
+impl<'a> From<&'a Name> for Var {
+    fn from(v: &'a Name) -> Self {
+        Self::Free(*v)
     }
 }
 
@@ -363,8 +436,12 @@ mod pretty {
                     false
                 }
             }
-
-            match self.kind() {
+            let e = if cx.simplify_exprs {
+                self.simplify()
+            } else {
+                Interned::new(self.clone())
+            };
+            match e.kind() {
                 ExprKind::Var(x) => w!("{:?}", ^x),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(*op, e1) {
@@ -385,21 +462,8 @@ mod pretty {
                     Ok(())
                 }
                 ExprKind::Constant(c) => w!("{}", ^c),
-                ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
-                    ExprKind::UnaryOp(UnOp::Not, e) => w!("{:?}", e),
-                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                        let e = ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone()).intern();
-                        w!("{:?}", e)
-                    }
-                    ExprKind::Var(_) | ExprKind::Constant(_) => {
-                        w!("{:?}{:?}", UnOp::Not, e)
-                    }
-                    _ => {
-                        w!("{:?}({:?})", UnOp::Not, e)
-                    }
-                },
                 ExprKind::UnaryOp(op, e) => {
-                    if matches!(e.kind(), ExprKind::Var(_) | ExprKind::Constant(_)) {
+                    if e.is_atom() {
                         w!("{:?}{:?}", op, e)
                     } else {
                         w!("{:?}({:?})", op, e)
@@ -425,6 +489,17 @@ mod pretty {
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
                 Loc::Abstract(name) => w!("{:?}", ^name),
+            }
+        }
+    }
+
+    impl Pretty for Sort {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                Sort::Int => w!("int"),
+                Sort::Bool => w!("bool"),
+                Sort::Loc => w!("loc"),
             }
         }
     }
@@ -461,5 +536,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TyS, BaseTy, Pred, ExprS, Var, Loc);
+    impl_debug_with_default_cx!(TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
 }

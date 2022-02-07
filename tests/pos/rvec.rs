@@ -12,7 +12,7 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    #[lr::ty(fn<n: int>(self: RVec<T>@n; ref<self>, T) -> i32; self: RVec<T> @ {n + 1})]
+    #[lr::ty(fn<n: int>(self: RVec<T>@n; ref<self>, T) -> i32@0; self: RVec<T> @ {n + 1})]
     pub fn push(&mut self, item: T) -> i32 {
         self.inner.push(item);
         0
@@ -49,7 +49,7 @@ impl<T> RVec<T> {
         fn<len: int>
         (self: RVec<T>@len; ref<self>, usize{v : 0 <= v && v < len}, usize{v : 0 <= v && v < len})
         ->
-        i32; self: RVec<T>@len
+        i32@0; self: RVec<T>@len
     )]
     pub fn swap(&mut self, a: usize, b: usize) -> i32 {
         self.inner.swap(a, b);

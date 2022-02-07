@@ -54,10 +54,11 @@ impl Wf<'_> {
                 env.insert(Var::Bound, bty.sort());
                 self.check_pred(env, pred, Sort::Bool)
             }
-            Ty::MutRef(_) => {
+            Ty::StrgRef(_) => {
                 // TODO: check identifier is actually a region
                 Ok(())
             }
+            Ty::Ref(ty) => self.check_type(env, ty),
             Ty::Param(_) => Ok(()),
         }
     }

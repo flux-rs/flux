@@ -80,11 +80,7 @@ impl<'tcx> Resolver<'tcx> {
             subst.push_type_layer();
         }
 
-        let hir_generics = self
-            .tcx
-            .hir()
-            .get_generics(self.def_id.to_def_id())
-            .unwrap();
+        let hir_generics = self.tcx.hir().get_generics(self.def_id).unwrap();
 
         self.insert_generic_types(hir_generics, &mut subst);
 
@@ -138,13 +134,10 @@ impl<'tcx> Resolver<'tcx> {
 
     fn insert_generic_types(&self, generics: &hir::Generics, subst: &mut Subst) {
         for param in generics.params.iter() {
-            match param.kind {
-                hir::GenericParamKind::Type { .. } => {
-                    let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
-                    let name = param.name.ident().name;
-                    subst.insert_type(def_id, name);
-                }
-                _ => {}
+            if let hir::GenericParamKind::Type { .. } = param.kind {
+                let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
+                let name = param.name.ident().name;
+                subst.insert_type(def_id, name);
             }
         }
     }
@@ -215,14 +208,18 @@ impl<'tcx> Resolver<'tcx> {
                     .emit_err(errors::RefinedTypeParam { span: ty.span })
                     .raise(),
             },
-            ast::TyKind::MutRef(region) => {
+            ast::TyKind::StrgRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
-                    Ok(ty::Ty::MutRef(name))
+                    Ok(ty::Ty::StrgRef(name))
                 } else {
                     self.diagnostics
                         .emit_err(errors::UnresolvedLoc::new(region))
                         .raise()
                 }
+            }
+            ast::TyKind::Ref(ty) => {
+                let ty = self.resolve_ty(*ty, subst)?;
+                Ok(ty::Ty::Ref(Box::new(ty)))
             }
         }
     }
