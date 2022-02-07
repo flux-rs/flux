@@ -6,6 +6,7 @@ extern crate rustc_span;
 
 pub mod ast;
 pub mod lexer;
+pub mod surface;
 
 use ast::FnSig;
 use lalrpop_util::lalrpop_mod;

@@ -55,6 +55,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 };
 
                 match segments {
+                    [second] if &*second.ident.as_str() == "sig" => {
+                        // RJ-SURFACE: parse the tokens and dump out
+                        self.emit_error("aha, do some work!", attr_item.span())
+                    }
+
                     [second] if &*second.ident.as_str() == "ty" => {
                         if fn_sig.is_some() {
                             self.emit_error("duplicated function signature.", attr_item.span());
