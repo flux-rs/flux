@@ -221,6 +221,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn clear(&mut self, root: BasicBlock) {
+        // FIXME: there should be a better way to iterate over all dominated blocks.
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.is_dominated_by(bb, root) {
