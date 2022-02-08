@@ -438,8 +438,33 @@ impl TypeEnvShape {
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
-        let mut bindings = vec![];
+        let mut params = vec![];
+        let mut bindings = FxHashMap::default();
+        for (loc, binding) in &self.0.bindings {
+            if let Binding::Strong(ty) = binding {
+                match ty.kind() {
+                    TyKind::Exists(bty, Pred::KVar(..)) if !self.0.borrowed.contains(loc) => {
+                        let fresh = name_gen.fresh();
+                        let param = Param {
+                            name: fresh,
+                            sort: bty.sort(),
+                            pred: fresh_kvar(fresh.into(), bty.sort(), &params),
+                        };
+                        params.push(param);
+                        let e = ExprKind::Var(fresh.into()).intern();
+                        let ty = TyKind::Refine(bty.clone(), e).intern();
+                        bindings.insert(*loc, Binding::Strong(ty));
+                    }
+                    _ => {}
+                };
+            }
+        }
+
+        let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
         for (loc, binding1) in self.0.bindings {
+            if bindings.contains_key(&loc) {
+                continue;
+            }
             let binding2 = &env.bindings[&loc];
             let binding = match (binding1, binding2) {
                 (Binding::Strong(ty1), Binding::Strong(_)) => {
@@ -453,49 +478,19 @@ impl TypeEnvShape {
                     todo!()
                 }
             };
-            bindings.push((loc, binding));
+            bindings.insert(loc, binding);
         }
-        let mut bb_env = BasicBlockEnv {
-            params: vec![],
+        BasicBlockEnv {
+            params,
             env: TypeEnv {
                 bindings: bindings.into_iter().collect(),
                 borrowed: self.0.borrowed,
             },
-        };
-        bb_env.generalize(name_gen, fresh_kvar);
-        bb_env
+        }
     }
 }
 
 impl BasicBlockEnv {
-    fn generalize(
-        &mut self,
-        name_gen: &IndexGen<Name>,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
-    ) {
-        for (loc, binding) in &mut self.env.bindings {
-            let ty = if let Binding::Strong(ty) = binding {
-                ty
-            } else {
-                continue;
-            };
-            match ty.kind() {
-                TyKind::Exists(bty, Pred::KVar(..)) if !self.env.borrowed.contains(loc) => {
-                    let fresh = name_gen.fresh();
-                    let param = Param {
-                        name: fresh,
-                        sort: bty.sort(),
-                        pred: fresh_kvar(fresh.into(), bty.sort(), &self.params),
-                    };
-                    self.params.push(param);
-                    let e = ExprKind::Var(fresh.into()).intern();
-                    *ty = TyKind::Refine(bty.clone(), e).intern();
-                }
-                _ => {}
-            };
-        }
-    }
-
     pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
         let mut subst = Subst::empty();
         for param in &self.params {
@@ -539,13 +534,13 @@ fn subst_binding(binding: &Binding, subst: &Subst) -> Binding {
     }
 }
 
-fn replace_kvars(ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred) -> Ty {
+fn replace_kvars(ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
     match ty.kind() {
         TyKind::Refine(bty, e) => {
             TyKind::Refine(replace_kvars_bty(bty, fresh_kvar), e.clone()).intern()
         }
         TyKind::Exists(bty, Pred::KVar(_, _)) => {
-            let p = fresh_kvar(Var::Bound, bty.sort(), &[]);
+            let p = fresh_kvar(Var::Bound, bty.sort());
             TyKind::Exists(replace_kvars_bty(bty, fresh_kvar), p).intern()
         }
         TyKind::Exists(bty, p) => TyKind::Exists(bty.clone(), p.clone()).intern(),
@@ -556,10 +551,7 @@ fn replace_kvars(ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> P
     }
 }
 
-fn replace_kvars_bty(
-    bty: &BaseTy,
-    fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
-) -> BaseTy {
+fn replace_kvars_bty(bty: &BaseTy, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
             let substs = substs.iter().map(|ty| replace_kvars(ty, fresh_kvar));

@@ -55,4 +55,19 @@ impl<T> RVec<T> {
         self.inner.swap(a, b);
         0
     }
+
+    #[lr::assume]
+    #[lr::ty(fn<len: int>(T, usize @ len) -> RVec<T>@len)]
+    pub fn from_elem_n(elem: T, n: usize) -> Self
+    where
+        T: Copy,
+    {
+        let mut vec = Self::new();
+        let mut i = 0;
+        while i < n {
+            vec.push(elem);
+            i += 1;
+        }
+        vec
+    }
 }

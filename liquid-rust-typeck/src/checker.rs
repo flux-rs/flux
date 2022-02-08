@@ -140,8 +140,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
         let mut kvars = KVarStore::new();
 
-        println!("----------------------------------");
-
         Checker::run(
             global_env,
             &mut pure_cx,
@@ -238,7 +236,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut cursor: Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        println!("\n{bb:?}\n  {cursor:?}\n  {env:?}");
         self.snapshots[bb] = Some(cursor.snapshot());
         self.visited.insert(bb);
 
@@ -247,7 +244,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_statement(&mut env, &mut cursor, stmt);
         }
         if let Some(terminator) = &data.terminator {
-            println!("{terminator:?}");
             self.check_terminator(env, cursor, terminator)?;
         }
         Ok(())
@@ -256,11 +252,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, env: &mut TypeEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                println!("{stmt:?}");
                 let ty = self.check_rvalue(env, cursor, rvalue);
                 let ty = env.unpack(cursor, ty);
                 env.write_place(self.global_env.tcx, cursor, p, ty);
-                println!("  {cursor:?}\n  {env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -701,10 +695,6 @@ impl Mode for Check<'_> {
         subst
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
-        println!("\ngoto{target:?}");
-        println!("{:?}", env);
-        println!("{:?}", bb_env);
-        println!("{:?}", bb_env.subst(&subst));
 
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred));

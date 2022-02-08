@@ -9,4 +9,5 @@ tests! {
     heapsort: "../tests/pos/heapsort.rs" => Safe,
     assert_terminator: "../tests/pos/assert_terminator.rs" => Safe,
     fib_loop: "../tests/pos/fib_loop.rs" => Safe,
+    kmp: "../tests/pos/kmp.rs" => Safe,
 }
