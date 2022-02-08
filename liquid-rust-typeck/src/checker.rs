@@ -14,7 +14,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{Cursor, KVarStore, PureCtxt, Scope, Snapshot},
     subst::Subst,
-    subtyping::Sub,
+    subtyping::{Sub, Tag},
     ty::{
         self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
     },
@@ -254,9 +254,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, env: &mut TypeEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                let ty = self.check_rvalue(env, cursor, rvalue);
+                let ty = self.check_rvalue(env, cursor, stmt.source_info, rvalue);
                 let ty = env.unpack(cursor, ty);
-                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+                let sub = &mut Sub::new(
+                    self.global_env.tcx,
+                    cursor.breadcrumb(),
+                    Tag::Assign(stmt.source_info.span),
+                );
                 env.write_place(sub, p, ty);
             }
             StatementKind::Nop => {}
@@ -272,7 +276,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+                let sub = &mut Sub::new(
+                    self.global_env.tcx,
+                    cursor.breadcrumb(),
+                    Tag::Ret(terminator.source_info.span),
+                );
 
                 sub.subtyping(ret_place_ty, self.ret.clone());
 
@@ -350,11 +358,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
 
         for param in fn_sig.params {
-            cursor.push_head(subst.subst_pred(&param.pred));
+            cursor.push_head(subst.subst_pred(&param.pred), Tag::Call(source_info.span));
         }
 
+        let sub = &mut Sub::new(
+            self.global_env.tcx,
+            cursor.breadcrumb(),
+            Tag::Call(source_info.span),
+        );
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
             sub.subtyping(actual, subst.subst_ty(formal));
         }
 
@@ -362,7 +374,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let loc = subst.subst_loc(Loc::Abstract(loc));
             let actual_ty = env.lookup_loc(loc).unwrap();
             let required_ty = subst.subst_ty(&required_ty);
-            let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
             sub.subtyping(actual_ty, required_ty);
         }
 
@@ -372,7 +383,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let updated_ty = env.unpack(&mut cursor, updated_ty);
             if subst.has_loc(loc) {
                 let loc = subst.subst_loc(loc);
-                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+                let sub = &mut Sub::new(
+                    self.global_env.tcx,
+                    cursor.breadcrumb(),
+                    Tag::Call(source_info.span),
+                );
                 env.update_loc(sub, loc, updated_ty);
             } else {
                 let fresh = cursor.push_loc();
@@ -384,7 +399,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
             let ret = env.unpack(&mut cursor, ret);
-            let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+            let sub = &mut Sub::new(
+                self.global_env.tcx,
+                cursor.breadcrumb(),
+                Tag::Call(source_info.span),
+            );
             env.write_place(sub, p, ret);
             self.check_goto(env, cursor, *bb)?;
         }
@@ -476,11 +495,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_rvalue(&self, env: &mut TypeEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
+    fn check_rvalue(
+        &self,
+        env: &mut TypeEnv,
+        cursor: &mut Cursor,
+        source_info: SourceInfo,
+        rvalue: &Rvalue,
+    ) -> Ty {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(env, cursor, bin_op, op1, op2)
+                self.check_binary_op(env, cursor, source_info, bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
@@ -494,6 +519,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &self,
         env: &mut TypeEnv,
         cursor: &mut Cursor,
+        source_info: SourceInfo,
         bin_op: &ir::BinOp,
         op1: &Operand,
         op2: &Operand,
@@ -504,17 +530,24 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
             ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
-            ir::BinOp::Add => self.check_arith_op(cursor, BinOp::Add, ty1, ty2),
-            ir::BinOp::Sub => self.check_arith_op(cursor, BinOp::Sub, ty1, ty2),
-            ir::BinOp::Mul => self.check_arith_op(cursor, BinOp::Mul, ty1, ty2),
-            ir::BinOp::Div => self.check_arith_op(cursor, BinOp::Div, ty1, ty2),
+            ir::BinOp::Add => self.check_arith_op(cursor, source_info, BinOp::Add, ty1, ty2),
+            ir::BinOp::Sub => self.check_arith_op(cursor, source_info, BinOp::Sub, ty1, ty2),
+            ir::BinOp::Mul => self.check_arith_op(cursor, source_info, BinOp::Mul, ty1, ty2),
+            ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
         }
     }
 
-    fn check_arith_op(&self, cursor: &mut Cursor, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_arith_op(
+        &self,
+        cursor: &mut Cursor,
+        source_info: SourceInfo,
+        op: BinOp,
+        ty1: Ty,
+        ty2: Ty,
+    ) -> Ty {
         let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
@@ -533,7 +566,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
-            cursor.push_head(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+            cursor.push_head(
+                ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                Tag::Div(source_info.span),
+            );
         }
         TyKind::Refine(bty, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
@@ -706,9 +742,9 @@ impl Mode for Check<'_> {
             .unwrap_or_else(|_| panic!("inference failed"));
 
         for param in &bb_env.params {
-            cursor.push_head(subst.subst_pred(&param.pred));
+            cursor.push_head(subst.subst_pred(&param.pred), Tag::Other);
         }
-        let sub = &mut Sub::new(tcx, cursor.breadcrumb());
+        let sub = &mut Sub::new(tcx, cursor.breadcrumb(), Tag::Other);
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first

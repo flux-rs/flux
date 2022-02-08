@@ -62,6 +62,7 @@ pub enum TerminatorKind {
 
 pub struct Statement {
     pub kind: StatementKind,
+    pub source_info: SourceInfo,
 }
 
 #[derive(Debug)]

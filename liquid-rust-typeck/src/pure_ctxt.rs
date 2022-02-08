@@ -3,14 +3,14 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 use rustc_hash::FxHashMap;
-use rustc_middle::ty::TyCtxt;
 
-use crate::ty::{
-    BaseTy, BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, Ty, TyKind, Var,
+use crate::{
+    subtyping::Tag,
+    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, Var},
 };
 
 pub struct PureCtxt {
@@ -49,7 +49,7 @@ enum NodeKind {
     Conj,
     Binding(Name, Sort, Pred),
     Pred(Expr),
-    Head(Pred),
+    Head(Pred, Tag),
 }
 
 struct FixpointCtxt<'a> {
@@ -301,10 +301,10 @@ impl Cursor<'_> {
         Loc::Abstract(fresh)
     }
 
-    pub fn push_head(&mut self, pred: impl Into<Pred>) {
+    pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_true() {
-            self.push_node(NodeKind::Head(pred));
+            self.push_node(NodeKind::Head(pred, tag));
         }
     }
 
@@ -313,7 +313,7 @@ impl Cursor<'_> {
     }
 
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
-        debug_assert!(!matches!(self.node.borrow().kind, NodeKind::Head(_)));
+        debug_assert!(!matches!(self.node.borrow().kind, NodeKind::Head(..)));
         let node = Node {
             kind,
             nbindings: self.next_name_idx(),
@@ -373,7 +373,7 @@ impl Node {
                 expr_to_fixpoint(cx, expr),
                 Box::new(children_to_fixpoint(cx, &self.children)?),
             )),
-            NodeKind::Head(pred) => {
+            NodeKind::Head(pred, _) => {
                 let (bindings, pred) = pred_to_fixpoint(cx, pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred)))
             }
@@ -542,6 +542,7 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
+            // .tags(true)
             // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
@@ -601,12 +602,16 @@ mod pretty {
                         w!("({:?}) ⇒{:?}", expr, &node.children)
                     }
                 }
-                NodeKind::Head(pred) => {
+                NodeKind::Head(pred, tag) => {
                     if pred.is_atom() {
-                        w!("{:?}", pred)
+                        w!("{:?}", pred)?;
                     } else {
-                        w!("({:?})", pred)
+                        w!("({:?})", pred)?;
                     }
+                    if cx.tags {
+                        w!(" [{:?}]", tag)?;
+                    }
+                    Ok(())
                 }
             }
         }
@@ -648,7 +653,7 @@ mod pretty {
                                 Ok(())
                             }
                             NodeKind::Pred(e) => f(&format_args!("{:?}", e)),
-                            NodeKind::Conj | NodeKind::Head(_) => unreachable!(),
+                            NodeKind::Conj | NodeKind::Head(..) => unreachable!(),
                         }
                     })
             )

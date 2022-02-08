@@ -79,7 +79,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 return Err(ErrorReported);
             }
         };
-        Ok(Statement { kind })
+        Ok(Statement {
+            kind,
+            source_info: stmt.source_info,
+        })
     }
 
     fn lower_terminator(

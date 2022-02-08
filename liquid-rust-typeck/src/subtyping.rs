@@ -1,5 +1,6 @@
 use itertools::izip;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Span;
 
 use crate::{
     pure_ctxt::Cursor,
@@ -9,15 +10,32 @@ use crate::{
 pub struct Sub<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     cursor: Cursor<'a>,
+    tag: Tag,
 }
 
-impl Sub<'_, '_> {
-    pub fn new<'a, 'tcx>(tcx: TyCtxt<'tcx>, cursor: Cursor<'a>) -> Sub<'a, 'tcx> {
-        Sub { tcx, cursor }
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum Tag {
+    Call(Span),
+    Assign(Span),
+    Ret(Span),
+    Div(Span),
+    Other,
+}
+
+impl<'a, 'tcx> Sub<'a, 'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>, cursor: Cursor<'a>, tag: Tag) -> Self {
+        Sub { tcx, cursor, tag }
+    }
+
+    fn breadcrumb(&mut self) -> Sub<'_, 'tcx> {
+        Sub {
+            cursor: self.cursor.breadcrumb(),
+            ..*self
+        }
     }
 
     pub fn subtyping(&mut self, ty1: Ty, ty2: Ty) {
-        let sub = &mut Sub::new(self.tcx, self.cursor.breadcrumb());
+        let mut sub = self.breadcrumb();
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
                 sub.bty_subtyping(bty1, bty2);
@@ -41,13 +59,15 @@ impl Sub<'_, '_> {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 sub.bty_subtyping(bty1, bty2);
-                sub.cursor
-                    .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
+                sub.cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern(),
+                    sub.tag,
+                );
             }
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 sub.bty_subtyping(bty1, bty2);
                 let p = p.subst_bound_vars(e.clone());
-                sub.cursor.push_head(p.subst_bound_vars(e.clone()))
+                sub.cursor.push_head(p.subst_bound_vars(e.clone()), sub.tag)
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);
@@ -105,6 +125,26 @@ impl Sub<'_, '_> {
                 self.subtyping(ty2, ty1);
             }
             rustc_middle::ty::Variance::Bivariant => {}
+        }
+    }
+}
+
+mod pretty {
+    use std::fmt;
+
+    use super::*;
+    use crate::pretty::*;
+
+    impl Pretty for Tag {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                Tag::Call(span) => w!("Call({:?})", ^span),
+                Tag::Assign(span) => w!("Assign({:?})", ^span),
+                Tag::Ret(span) => w!("Ret({:?})", ^span),
+                Tag::Div(span) => w!("Div({:?})", ^span),
+                Tag::Other => w!("Other"),
+            }
         }
     }
 }

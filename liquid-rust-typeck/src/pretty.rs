@@ -105,6 +105,7 @@ pub struct PPrintCx<'tcx> {
     pub kvar_args: Visibility,
     pub fully_qualified_paths: bool,
     pub simplify_exprs: bool,
+    pub tags: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -141,6 +142,7 @@ impl PPrintCx<'_> {
             kvar_args: Visibility::Show,
             fully_qualified_paths: false,
             simplify_exprs: true,
+            tags: false,
         }
     }
 
@@ -153,6 +155,10 @@ impl PPrintCx<'_> {
             fully_qualified_paths: b,
             ..self
         }
+    }
+
+    pub fn tags(self, tags: bool) -> Self {
+        Self { tags, ..self }
     }
 }
 
