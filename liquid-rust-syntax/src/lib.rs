@@ -28,7 +28,7 @@ lalrpop_mod!(
 );
 
 fn desugar_sig(ssig: surface::FnSig) -> ast::FnSig {
-    panic!("fixme")
+    panic!("RJ:HEREHEREHEREHERE")
 }
 
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
@@ -39,7 +39,7 @@ pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSi
     surface_grammar::FnSigParser::new()
         .parse(&mk_span, Cursor::new(tokens, span.lo()))
         .map_err(|err| map_err(err, offset, ctx, parent))
-        .map(|sig| desugar_sig(sig))
+        .map(|sig| desugar_sig(sig)) // panic!("RJ:HEREHEREHEREHERE")
 }
 
 pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
