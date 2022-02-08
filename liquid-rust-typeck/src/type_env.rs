@@ -296,8 +296,6 @@ impl TypeEnv {
                 }
                 _ => todo!(),
             };
-            // let ty1 = self.bindings[&loc].assert_strong();
-            // let ty2 = other.bindings[&loc].assert_strong();
             let ty = self.join_ty(tcx, other, ty1.clone(), ty2);
             modified |= ty1 != ty;
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty.clone();
@@ -617,8 +615,8 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            // PPrintCx::default(tcx).kvar_args(Visibility::Hide)
-            PPrintCx::default(tcx).kvar_args(Visibility::Show)
+            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 

@@ -184,10 +184,6 @@ impl Cursor<'_> {
 
     pub fn subtyping(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) {
         let mut cursor = self.breadcrumb();
-        // if ty1 == ty2 {
-        //     return;
-        // }
-        // println!("{ty1:?} <: {ty2:?}");
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
