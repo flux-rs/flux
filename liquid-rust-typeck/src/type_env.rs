@@ -1,6 +1,7 @@
 use crate::{
     pure_ctxt::{Cursor, Scope},
     subst::Subst,
+    subtyping::Sub,
     ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
@@ -83,12 +84,12 @@ impl TypeEnv {
         self.bindings.insert(loc, Binding::Strong(ty));
     }
 
-    pub fn update_loc(&mut self, tcx: TyCtxt, cursor: &mut Cursor, loc: Loc, new_ty: Ty) {
+    pub fn update_loc(&mut self, sub: &mut Sub, loc: Loc, new_ty: Ty) {
         let binding = self.bindings.get_mut(&loc).unwrap();
         match binding {
             Binding::Strong(_) => *binding = Binding::Strong(new_ty),
             Binding::Weak { bound, .. } => {
-                cursor.subtyping(tcx, new_ty, bound.clone());
+                sub.subtyping(new_ty, bound.clone());
             }
         }
     }
@@ -108,13 +109,13 @@ impl TypeEnv {
         ty
     }
 
-    pub fn write_place(&mut self, tcx: TyCtxt, cursor: &mut Cursor, place: &ir::Place, new_ty: Ty) {
+    pub fn write_place(&mut self, sub: &mut Sub, place: &ir::Place, new_ty: Ty) {
         let (loc, ty) = self.walk_place(place);
 
         match ty.kind() {
             TyKind::Uninit | TyKind::Refine(..) | TyKind::Param(_) | TyKind::StrgRef(_) => {
                 // TODO: debug check new_ty has the same "shape" as ty
-                self.update_loc(tcx, cursor, loc, new_ty);
+                self.update_loc(sub, loc, new_ty);
             }
             TyKind::Ref(_) => {
                 todo!("implement updates of references inside references")
@@ -203,7 +204,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn transform_into(&mut self, tcx: TyCtxt, cursor: &mut Cursor, other: &TypeEnv) {
+    pub fn transform_into(&mut self, sub: &mut Sub, other: &TypeEnv) {
         let levels = self
             .levels()
             .into_iter()
@@ -234,10 +235,10 @@ impl TypeEnv {
             };
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::StrgRef(loc), TyKind::Ref(bound)) => {
-                    self.weaken_ref(tcx, cursor, *loc, bound.clone());
+                    self.weaken_ref(sub, *loc, bound.clone());
                 }
                 _ => {
-                    cursor.subtyping(tcx, ty1, ty2.clone());
+                    sub.subtyping(ty1, ty2.clone());
                 }
             };
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty2;
@@ -411,17 +412,17 @@ impl TypeEnv {
         }
     }
 
-    fn weaken_ref(&mut self, tcx: TyCtxt, cursor: &mut Cursor, loc: Loc, bound: Ty) {
+    fn weaken_ref(&mut self, sub: &mut Sub, loc: Loc, bound: Ty) {
         let ty = match &self.bindings[&loc] {
             Binding::Weak { bound: bound2, ty } => {
-                cursor.subtyping(tcx, bound.clone(), bound2.clone());
+                sub.subtyping(bound.clone(), bound2.clone());
                 ty.clone()
             }
             Binding::Strong(ty) => ty.clone(),
         };
         match (ty.kind(), bound.kind()) {
             (_, TyKind::Exists(..)) => {
-                cursor.subtyping(tcx, ty, bound.clone());
+                sub.subtyping(ty, bound.clone());
                 *self.bindings.get_mut(&loc).unwrap().ty_mut() = bound;
             }
             _ => todo!(),

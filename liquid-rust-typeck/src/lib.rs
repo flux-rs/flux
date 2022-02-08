@@ -18,6 +18,7 @@ mod lowering;
 mod pretty;
 mod pure_ctxt;
 mod subst;
+mod subtyping;
 pub mod ty;
 mod type_env;
 

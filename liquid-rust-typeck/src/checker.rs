@@ -14,6 +14,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{Cursor, KVarStore, PureCtxt, Scope, Snapshot},
     subst::Subst,
+    subtyping::Sub,
     ty::{
         self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
     },
@@ -255,7 +256,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(env, cursor, rvalue);
                 let ty = env.unpack(cursor, ty);
-                env.write_place(self.global_env.tcx, cursor, p, ty);
+                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+                env.write_place(sub, p, ty);
             }
             StatementKind::Nop => {}
         }
@@ -270,11 +272,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor.subtyping(self.global_env.tcx, ret_place_ty, self.ret.clone());
+                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+
+                sub.subtyping(ret_place_ty, self.ret.clone());
 
                 for (loc, ensured_ty) in &self.ensures {
                     let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
-                    cursor.subtyping(self.global_env.tcx, actual_ty, ensured_ty.clone());
+                    sub.subtyping(actual_ty, ensured_ty.clone());
                 }
             }
             TerminatorKind::Goto { target } => {
@@ -350,14 +354,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            cursor.subtyping(self.global_env.tcx, actual, subst.subst_ty(formal));
+            let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+            sub.subtyping(actual, subst.subst_ty(formal));
         }
 
         for (loc, required_ty) in fn_sig.requires {
             let loc = subst.subst_loc(Loc::Abstract(loc));
             let actual_ty = env.lookup_loc(loc).unwrap();
             let required_ty = subst.subst_ty(&required_ty);
-            cursor.subtyping(self.global_env.tcx, actual_ty, required_ty);
+            let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+            sub.subtyping(actual_ty, required_ty);
         }
 
         for (loc, updated_ty) in fn_sig.ensures {
@@ -366,7 +372,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let updated_ty = env.unpack(&mut cursor, updated_ty);
             if subst.has_loc(loc) {
                 let loc = subst.subst_loc(loc);
-                env.update_loc(self.global_env.tcx, &mut cursor, loc, updated_ty);
+                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+                env.update_loc(sub, loc, updated_ty);
             } else {
                 let fresh = cursor.push_loc();
                 subst.insert_loc(loc, fresh);
@@ -377,7 +384,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
             let ret = env.unpack(&mut cursor, ret);
-            env.write_place(self.global_env.tcx, &mut cursor, p, ret);
+            let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb());
+            env.write_place(sub, p, ret);
             self.check_goto(env, cursor, *bb)?;
         }
         Ok(())
@@ -700,7 +708,8 @@ impl Mode for Check<'_> {
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred));
         }
-        env.transform_into(tcx, &mut cursor, &bb_env.subst(&subst));
+        let sub = &mut Sub::new(tcx, cursor.breadcrumb());
+        env.transform_into(sub, &bb_env.subst(&subst));
 
         first
     }
