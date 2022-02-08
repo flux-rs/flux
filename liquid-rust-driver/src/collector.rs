@@ -1,5 +1,5 @@
 use liquid_rust_common::errors::ErrorReported;
-use liquid_rust_syntax::{ast::FnSig, parse_fn_sig, ParseErrorKind};
+use liquid_rust_syntax::{ast::FnSig, parse_fn_sig, ParseErrorKind, parse_fn_surface_sig};
 use rustc_ast::{tokenstream::TokenStream, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
 use rustc_hir::{
@@ -57,7 +57,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 match segments {
                     [second] if &*second.ident.as_str() == "sig" => {
                         // RJ-SURFACE: parse the tokens and dump out
-                        self.emit_error("aha, do some work!", attr_item.span())
+                        
+                        if fn_sig.is_some() {
+                            self.emit_error("duplicated function signature.", attr_item.span());
+                            return;
+                        }
+
+                        if let MacArgs::Delimited(span, _, tokens) = &attr_item.args {
+                            fn_sig = self.parse_fn_annot_sig(tokens.clone(), span.entire());
+                        } else {
+                            self.emit_error("invalid liquid signature.", attr_item.span())
+                        }
                     }
 
                     [second] if &*second.ident.as_str() == "ty" => {
@@ -81,6 +91,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
         if let Some(fn_sig) = fn_sig {
             self.specs.insert(def_id, FnSpec { fn_sig, assume });
+        }
+    }
+
+    fn parse_fn_annot_sig(&mut self, tokens: TokenStream, input_span: Span) -> Option<FnSig> {
+        match parse_fn_surface_sig(tokens, input_span) {
+            Ok(fn_sig) => Some(fn_sig),
+            Err(err) => {
+                let msg = match err.kind {
+                    ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
+                    ParseErrorKind::UnexpectedToken => "unexpected token",
+                    ParseErrorKind::IntTooLarge => "integer literal is too large",
+                };
+                self.emit_error(msg, err.span);
+                None
+            }
         }
     }
 
