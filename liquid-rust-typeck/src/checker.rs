@@ -65,6 +65,8 @@ pub trait Mode {
         scope: &Scope,
         target: BasicBlock,
     ) -> bool;
+
+    fn clear(&mut self, bb: BasicBlock);
 }
 
 pub struct Inference<'a> {
@@ -138,6 +140,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
         let mut kvars = KVarStore::new();
 
+        println!("----------------------------------");
+
         Checker::run(
             global_env,
             &mut pure_cx,
@@ -149,6 +153,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
                 kvars: &mut kvars,
             },
         )?;
+
         Ok((pure_cx, kvars))
     }
 }
@@ -203,6 +208,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         while let Some(bb) = checker.queue.pop() {
             let snapshot = checker.snapshot_at_dominator(bb);
             let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
+
+            if checker.visited.contains(bb) {
+                cursor.clear();
+                checker.clear(bb);
+            }
+
             let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
             env.unpack_all(&mut cursor);
             checker.check_basic_block(env, cursor, bb)?;
@@ -211,23 +222,32 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
+    fn clear(&mut self, root: BasicBlock) {
+        self.visited.remove(root);
+        for bb in self.body.basic_blocks.indices() {
+            if bb != root && self.dominators.is_dominated_by(bb, root) {
+                self.mode.clear(bb);
+                self.visited.remove(bb);
+            }
+        }
+    }
+
     fn check_basic_block(
         &mut self,
         mut env: TypeEnv,
         mut cursor: Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        println!("\n{bb:?}\n  {cursor:?}\n  {env:?}");
         self.snapshots[bb] = Some(cursor.snapshot());
-
-        if !self.visited.insert(bb) {
-            cursor.clear();
-        }
+        self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
             self.check_statement(&mut env, &mut cursor, stmt);
         }
         if let Some(terminator) = &data.terminator {
+            println!("{terminator:?}");
             self.check_terminator(env, cursor, terminator)?;
         }
         Ok(())
@@ -236,9 +256,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, env: &mut TypeEnv, cursor: &mut Cursor, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
+                println!("{stmt:?}");
                 let ty = self.check_rvalue(env, cursor, rvalue);
                 let ty = env.unpack(cursor, ty);
                 env.write_place(self.global_env.tcx, cursor, p, ty);
+                println!("  {cursor:?}\n  {env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -361,7 +383,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let ret = subst.subst_ty(&fn_sig.ret);
             let ret = env.unpack(&mut cursor, ret);
             env.write_place(self.global_env.tcx, &mut cursor, p, ret);
-
             self.check_goto(env, cursor, *bb)?;
         }
         Ok(())
@@ -445,7 +466,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 .check_goto_join_point(self.global_env.tcx, cursor, env, &scope, target)
             {
                 self.queue.insert(target);
-                self.visited.remove(target);
             }
             Ok(())
         } else {
@@ -620,9 +640,10 @@ impl Mode for Inference<'_> {
         tcx: TyCtxt,
         _cursor: Cursor,
         mut env: TypeEnv,
-        _scope: &Scope,
+        scope: &Scope,
         target: BasicBlock,
     ) -> bool {
+        env.pack_refs(scope);
         match self.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(tcx, &mut env),
             Entry::Vacant(entry) => {
@@ -637,6 +658,10 @@ impl Mode for Inference<'_> {
         I: IntoIterator<Item = (Name, Sort)>,
     {
         Pred::dummy_kvar()
+    }
+
+    fn clear(&mut self, bb: BasicBlock) {
+        self.bb_envs.remove(&bb);
     }
 }
 
@@ -653,6 +678,7 @@ impl Mode for Check<'_> {
         scope: &Scope,
         target: BasicBlock,
     ) -> bool {
+        env.pack_refs(scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
             self.kvars.fresh(
                 var,
@@ -675,6 +701,10 @@ impl Mode for Check<'_> {
         subst
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
+        println!("\ngoto{target:?}");
+        println!("{:?}", env);
+        println!("{:?}", bb_env);
+        println!("{:?}", bb_env.subst(&subst));
 
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred));
@@ -689,5 +719,9 @@ impl Mode for Check<'_> {
         I: IntoIterator<Item = (Name, Sort)>,
     {
         self.kvars.fresh(Var::Bound, sort, scope)
+    }
+
+    fn clear(&mut self, _bb: BasicBlock) {
+        unreachable!()
     }
 }

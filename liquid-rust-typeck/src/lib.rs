@@ -48,6 +48,10 @@ pub fn check<'tcx>(
 
     let constraint = pure_cx.into_fixpoint(kvars);
 
+    if CONFIG.dump_constraint {
+        dump_fixpoint(global_env.tcx, def_id, &constraint).unwrap();
+    }
+
     match Fixpoint::check(&constraint) {
         Ok(FixpointResult {
             tag: Safeness::Safe,
@@ -72,6 +76,13 @@ fn dump_constraint(tcx: TyCtxt, def_id: DefId, cx: &PureCtxt) -> Result<(), std:
     fs::create_dir_all(&dir)?;
     let mut file = fs::File::create(dir.join(tcx.def_path_str(def_id)))?;
     write!(file, "{:?}", cx)
+}
+
+fn dump_fixpoint(tcx: TyCtxt, def_id: DefId, fixpoint: &Fixpoint) -> Result<(), std::io::Error> {
+    let dir = CONFIG.log_dir.join("horn");
+    fs::create_dir_all(&dir)?;
+    let mut file = fs::File::create(dir.join(format!("{}.smt2", tcx.def_path_str(def_id))))?;
+    write!(file, "{}", fixpoint)
 }
 
 mod errors {

@@ -184,6 +184,10 @@ impl Cursor<'_> {
 
     pub fn subtyping(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) {
         let mut cursor = self.breadcrumb();
+        // if ty1 == ty2 {
+        //     return;
+        // }
+        // println!("{ty1:?} <: {ty2:?}");
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
@@ -201,9 +205,6 @@ impl Cursor<'_> {
                 cursor.subtyping(tcx, ty1, ty2);
                 return;
             }
-            (TyKind::Ref(..), _) => {
-                todo!()
-            }
             _ => {}
         }
 
@@ -219,6 +220,10 @@ impl Cursor<'_> {
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);
+            }
+            (TyKind::Ref(ty1), TyKind::Ref(ty2)) => {
+                cursor.subtyping(tcx, ty1.clone(), ty2.clone());
+                cursor.subtyping(tcx, ty2.clone(), ty1.clone());
             }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
@@ -329,6 +334,18 @@ impl Scope {
         self.bindings
             .iter_enumerated()
             .map(|(name, sort)| (name, *sort))
+    }
+
+    pub fn contains(&self, name: Name) -> bool {
+        name.index() < self.bindings.len()
+    }
+}
+
+impl std::ops::Index<Name> for Scope {
+    type Output = Sort;
+
+    fn index(&self, name: Name) -> &Self::Output {
+        &self.bindings[name]
     }
 }
 
@@ -646,5 +663,20 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(PureCtxt, Cursor<'_>);
+    impl Pretty for Scope {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            write!(
+                f,
+                "[{}]",
+                self.bindings
+                    .iter_enumerated()
+                    .format_with(", ", |(name, sort), f| {
+                        f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                    })
+            )
+        }
+    }
+
+    impl_debug_with_default_cx!(PureCtxt, Cursor<'_>, Scope);
 }
