@@ -118,6 +118,7 @@ impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Constraint::Pred(pred) => write!(f, "({})", pred),
+            // Constraint::Pred(pred) => write!(f, "(tag {} \"{pred}\")", pred),
             Constraint::Conj(preds) => {
                 write!(f, "(and")?;
                 let mut w = PadAdapter::wrap_fmt(f);

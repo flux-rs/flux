@@ -142,9 +142,9 @@ impl Subst {
             .iter()
             .map(|param| param.name.into())
             .collect();
-        for (loc, ty2) in &bb_env.bindings {
+        for (loc, binding2) in bb_env.env.iter() {
             let ty1 = env.lookup_loc(*loc).unwrap();
-            self.infer_from_tys(&params, ty1, ty2.clone());
+            self.infer_from_tys(&params, ty1, binding2.ty());
         }
         self.check_inference(&bb_env.params, &[])
     }

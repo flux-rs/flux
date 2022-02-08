@@ -32,7 +32,7 @@ impl<T> RVec<T> {
 
     #[lr::assume]
     #[lr::ty(
-    fn<len:int>(self: RVec<T>@len; ref<self>, usize{v: 0 <= v && v < len}) -> ref<l>; self: RVec<T>@len, l: T)
+    fn<len:int>(self: RVec<T>@len; ref<self>, usize{v: 0 <= v && v < len}) -> &T; self: RVec<T>@len)
     ]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]
@@ -54,5 +54,20 @@ impl<T> RVec<T> {
     pub fn swap(&mut self, a: usize, b: usize) -> i32 {
         self.inner.swap(a, b);
         0
+    }
+
+    #[lr::assume]
+    #[lr::ty(fn<len: int>(T, usize @ len) -> RVec<T>@len)]
+    pub fn from_elem_n(elem: T, n: usize) -> Self
+    where
+        T: Copy,
+    {
+        let mut vec = Self::new();
+        let mut i = 0;
+        while i < n {
+            vec.push(elem);
+            i += 1;
+        }
+        vec
     }
 }
