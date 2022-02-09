@@ -17,9 +17,9 @@ pub struct Sub<'a, 'tcx> {
 pub enum Tag {
     Call(Span),
     Assign(Span),
-    Ret(Span),
+    Ret,
     Div(Span),
-    Other,
+    Goto,
 }
 
 impl<'a, 'tcx> Sub<'a, 'tcx> {
@@ -141,9 +141,9 @@ mod pretty {
             match self {
                 Tag::Call(span) => w!("Call({:?})", ^span),
                 Tag::Assign(span) => w!("Assign({:?})", ^span),
-                Tag::Ret(span) => w!("Ret({:?})", ^span),
+                Tag::Ret => w!("Ret"),
                 Tag::Div(span) => w!("Div({:?})", ^span),
-                Tag::Other => w!("Other"),
+                Tag::Goto => w!("Other"),
             }
         }
     }

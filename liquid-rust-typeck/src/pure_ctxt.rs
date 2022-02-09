@@ -26,6 +26,7 @@ pub struct Snapshot {
     node: WeakNodePtr,
 }
 
+#[derive(Default)]
 pub struct KVarStore {
     kvars: IndexVec<KVid, Vec<fixpoint::Sort>>,
 }

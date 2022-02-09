@@ -276,11 +276,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                let sub = &mut Sub::new(
-                    self.global_env.tcx,
-                    cursor.breadcrumb(),
-                    Tag::Ret(terminator.source_info.span),
-                );
+                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb(), Tag::Ret);
 
                 sub.subtyping(ret_place_ty, self.ret.clone());
 
@@ -742,9 +738,9 @@ impl Mode for Check<'_> {
             .unwrap_or_else(|_| panic!("inference failed"));
 
         for param in &bb_env.params {
-            cursor.push_head(subst.subst_pred(&param.pred), Tag::Other);
+            cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto);
         }
-        let sub = &mut Sub::new(tcx, cursor.breadcrumb(), Tag::Other);
+        let sub = &mut Sub::new(tcx, cursor.breadcrumb(), Tag::Goto);
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first
