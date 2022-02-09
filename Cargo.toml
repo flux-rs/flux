@@ -8,4 +8,5 @@ members = [
     "liquid-rust-fixpoint",
     "liquid-rust-syntax",
     "liquid-rust-typeck",
+    "liquid-rust-tests",
 ]
