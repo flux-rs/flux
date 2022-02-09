@@ -6,11 +6,11 @@ use std::{
 use itertools::Itertools;
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use rustc_hash::FxHashMap;
 
 use crate::{
     subtyping::Tag,
     ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, Var},
+    FixpointCtxt, TagIdx,
 };
 
 pub struct PureCtxt {
@@ -52,12 +52,6 @@ enum NodeKind {
     Head(Pred, Tag),
 }
 
-struct FixpointCtxt<'a> {
-    kvars: &'a KVarStore,
-    name_gen: IndexGen<fixpoint::Name>,
-    name_map: FxHashMap<Name, fixpoint::Name>,
-}
-
 impl PureCtxt {
     pub fn new() -> PureCtxt {
         let root = Node {
@@ -84,19 +78,11 @@ impl PureCtxt {
         })
     }
 
-    pub fn into_fixpoint(self, kvars: KVarStore) -> fixpoint::Fixpoint {
-        let mut cx = FixpointCtxt::new(&kvars);
-        let constraint = self
-            .root
+    pub fn into_fixpoint(self, cx: &mut FixpointCtxt) -> fixpoint::Constraint<TagIdx> {
+        self.root
             .borrow()
-            .to_fixpoint(&mut cx)
-            .unwrap_or(fixpoint::Constraint::TRUE);
-        let kvars = kvars
-            .kvars
-            .into_iter_enumerated()
-            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
-            .collect();
-        fixpoint::Fixpoint::new(kvars, constraint)
+            .to_fixpoint(cx)
+            .unwrap_or(fixpoint::Constraint::TRUE)
     }
 }
 
@@ -126,6 +112,13 @@ impl KVarStore {
 
         let kvid = self.kvars.push(sorts);
         Pred::kvar(kvid, args)
+    }
+
+    pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
+        self.kvars
+            .into_iter_enumerated()
+            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+            .collect()
     }
 }
 
@@ -181,104 +174,6 @@ impl Cursor<'_> {
             .collect();
         Some(Scope { bindings })
     }
-
-    // pub fn subtyping(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) {
-    //     self.breadcrumb(|mut cursor| {
-    //         match (ty1.kind(), ty2.kind()) {
-    //             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
-    //                 cursor.bty_subtyping(tcx, bty1, bty2);
-    //                 return;
-    //             }
-    //             (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
-    //                 cursor.bty_subtyping(tcx, bty1, bty2);
-    //                 return;
-    //             }
-    //             (TyKind::Exists(bty, p), _) => {
-    //                 let fresh = cursor
-    //                     .push_binding(bty.sort(), |fresh| p.subst_bound_vars(Var::Free(fresh)));
-    //                 let ty1 = TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern();
-    //                 cursor.subtyping(tcx, ty1, ty2);
-    //                 return;
-    //             }
-    //             _ => {}
-    //         }
-
-    //         match (ty1.kind(), ty2.kind()) {
-    //             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
-    //                 cursor.bty_subtyping(tcx, bty1, bty2);
-    //                 cursor
-    //                     .push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
-    //             }
-    //             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
-    //                 cursor.bty_subtyping(tcx, bty1, bty2);
-    //                 let p = p.subst_bound_vars(e.clone());
-    //                 cursor.push_head(p.subst_bound_vars(e.clone()))
-    //             }
-    //             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-    //                 assert_eq!(loc1, loc2);
-    //             }
-    //             (TyKind::Ref(ty1), TyKind::Ref(ty2)) => {
-    //                 cursor.subtyping(tcx, ty1.clone(), ty2.clone());
-    //                 cursor.subtyping(tcx, ty2.clone(), ty1.clone());
-    //             }
-    //             (_, TyKind::Uninit) => {
-    //                 // FIXME: we should rethink in which situation this is sound.
-    //             }
-    //             (TyKind::Param(param1), TyKind::Param(param2)) => {
-    //                 debug_assert_eq!(param1, param2)
-    //             }
-    //             (TyKind::Exists(..), _) => {
-    //                 unreachable!("subtyping with unpacked existential")
-    //             }
-    //             _ => {
-    //                 unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2)
-    //             }
-    //         }
-    //     });
-    // }
-
-    // fn bty_subtyping(&mut self, tcx: TyCtxt, bty1: &BaseTy, bty2: &BaseTy) {
-    //     match (bty1, bty2) {
-    //         (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
-    //             debug_assert_eq!(int_ty1, int_ty2);
-    //         }
-    //         (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
-    //             debug_assert_eq!(uint_ty1, uint_ty2);
-    //         }
-    //         (BaseTy::Bool, BaseTy::Bool) => {}
-    //         (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
-    //             debug_assert_eq!(did1, did2);
-    //             debug_assert_eq!(substs1.len(), substs2.len());
-    //             let variances = tcx.variances_of(*did1);
-    //             for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-    //                 self.polymorphic_subtyping(tcx, *variance, ty1.clone(), ty2.clone());
-    //             }
-    //         }
-    //         _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
-    //     }
-    // }
-
-    // fn polymorphic_subtyping(
-    //     &mut self,
-    //     tcx: TyCtxt,
-    //     variance: rustc_middle::ty::Variance,
-    //     ty1: Ty,
-    //     ty2: Ty,
-    // ) {
-    //     match variance {
-    //         rustc_middle::ty::Variance::Covariant => {
-    //             self.subtyping(tcx, ty1, ty2);
-    //         }
-    //         rustc_middle::ty::Variance::Invariant => {
-    //             self.subtyping(tcx, ty1.clone(), ty2.clone());
-    //             self.subtyping(tcx, ty2, ty1);
-    //         }
-    //         rustc_middle::ty::Variance::Contravariant => {
-    //             self.subtyping(tcx, ty2, ty1);
-    //         }
-    //         rustc_middle::ty::Variance::Bivariant => {}
-    //     }
-    // }
 
     pub fn push_binding<F, P>(&mut self, sort: Sort, f: F) -> Name
     where
@@ -347,7 +242,7 @@ impl std::ops::Index<Name> for Scope {
 }
 
 impl Node {
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint> {
+    fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
             NodeKind::Conj | NodeKind::Binding(_, Sort::Loc, _) => {
                 children_to_fixpoint(cx, &self.children)
@@ -373,9 +268,12 @@ impl Node {
                 expr_to_fixpoint(cx, expr),
                 Box::new(children_to_fixpoint(cx, &self.children)?),
             )),
-            NodeKind::Head(pred, _) => {
+            NodeKind::Head(pred, tag) => {
                 let (bindings, pred) = pred_to_fixpoint(cx, pred);
-                Some(stitch(bindings, fixpoint::Constraint::Pred(pred)))
+                Some(stitch(
+                    bindings,
+                    fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag))),
+                ))
             }
         }
     }
@@ -388,24 +286,10 @@ impl Node {
     }
 }
 
-impl<'a> FixpointCtxt<'a> {
-    fn new(kvars: &'a KVarStore) -> Self {
-        Self {
-            kvars,
-            name_gen: IndexGen::new(),
-            name_map: FxHashMap::default(),
-        }
-    }
-
-    fn fresh_name(&self) -> fixpoint::Name {
-        self.name_gen.fresh()
-    }
-}
-
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt,
     children: &[NodePtr],
-) -> Option<fixpoint::Constraint> {
+) -> Option<fixpoint::Constraint<TagIdx>> {
     let mut children = children
         .iter()
         .filter_map(|node| node.borrow().to_fixpoint(cx))
@@ -474,8 +358,8 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
 
 fn stitch(
     bindings: Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    c: fixpoint::Constraint,
-) -> fixpoint::Constraint {
+    c: fixpoint::Constraint<TagIdx>,
+) -> fixpoint::Constraint<TagIdx> {
     bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
         fixpoint::Constraint::ForAll(name, sort, fixpoint::Pred::Expr(e), Box::new(c))
     })

@@ -3,8 +3,8 @@ use std::fmt::{self, Write};
 
 use liquid_rust_common::{format::PadAdapter, index::newtype_index};
 
-pub enum Constraint {
-    Pred(Pred),
+pub enum Constraint<Tag> {
+    Pred(Pred, Option<Tag>),
     Conj(Vec<Self>),
     Guard(Expr, Box<Self>),
     ForAll(Name, Sort, Pred, Box<Self>),
@@ -88,8 +88,8 @@ newtype_index! {
     }
 }
 
-impl Constraint {
-    pub const TRUE: Self = Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))));
+impl<Tag> Constraint<Tag> {
+    pub const TRUE: Self = Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))), None);
 }
 
 impl BinOp {
@@ -114,11 +114,11 @@ impl Precedence {
     }
 }
 
-impl fmt::Display for Constraint {
+impl<Tag: fmt::Display> fmt::Display for Constraint<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Pred(pred) => write!(f, "({})", pred),
-            // Constraint::Pred(pred) => write!(f, "(tag {} \"{pred}\")", pred),
+            Constraint::Pred(pred, Some(tag)) => write!(f, "(tag {} \"{}\")", pred, tag),
+            Constraint::Pred(pred, None) => write!(f, "({})", pred),
             Constraint::Conj(preds) => {
                 write!(f, "(and")?;
                 let mut w = PadAdapter::wrap_fmt(f);

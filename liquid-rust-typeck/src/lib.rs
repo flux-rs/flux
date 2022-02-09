@@ -22,16 +22,41 @@ mod subtyping;
 pub mod ty;
 mod type_env;
 
-use std::{fs, io::Write};
+use std::{
+    fs,
+    io::{self, Write},
+};
 
 use checker::Checker;
 use global_env::GlobalEnv;
-use liquid_rust_common::{config::CONFIG, errors::ErrorReported};
+use liquid_rust_common::{
+    config::CONFIG,
+    errors::ErrorReported,
+    index::{IndexGen, IndexVec},
+};
 use liquid_rust_core::ir::Body;
-use liquid_rust_fixpoint::{Fixpoint, FixpointResult, Safeness};
-use pure_ctxt::PureCtxt;
+use liquid_rust_fixpoint::{self as fixpoint, FixpointResult, Safeness};
+use pure_ctxt::{KVarStore, PureCtxt};
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use subtyping::Tag;
+use ty::Name;
+
+pub struct FixpointCtxt {
+    kvars: KVarStore,
+    name_gen: IndexGen<fixpoint::Name>,
+    name_map: FxHashMap<Name, fixpoint::Name>,
+    tags: IndexVec<TagIdx, Tag>,
+    tags_inv: FxHashMap<Tag, TagIdx>,
+}
+
+newtype_index! {
+    pub struct TagIdx {
+        DEBUG_FORMAT = "TagIdx({})"
+    }
+}
 
 pub fn check<'tcx>(
     global_env: &GlobalEnv<'tcx>,
@@ -47,13 +72,11 @@ pub fn check<'tcx>(
         dump_constraint(global_env.tcx, def_id, &pure_cx).unwrap();
     }
 
-    let constraint = pure_cx.into_fixpoint(kvars);
+    let mut fcx = FixpointCtxt::new(kvars);
 
-    if CONFIG.dump_constraint {
-        dump_fixpoint(global_env.tcx, def_id, &constraint).unwrap();
-    }
+    let constraint = pure_cx.into_fixpoint(&mut fcx);
 
-    match Fixpoint::check(&constraint) {
+    match fcx.check(constraint) {
         Ok(FixpointResult {
             tag: Safeness::Safe,
         }) => Ok(()),
@@ -72,6 +95,35 @@ pub fn check<'tcx>(
     }
 }
 
+impl FixpointCtxt {
+    pub fn new(kvars: KVarStore) -> Self {
+        Self {
+            kvars,
+            name_gen: IndexGen::new(),
+            name_map: FxHashMap::default(),
+            tags: IndexVec::new(),
+            tags_inv: FxHashMap::default(),
+        }
+    }
+
+    fn fresh_name(&self) -> fixpoint::Name {
+        self.name_gen.fresh()
+    }
+
+    fn check(self, constraint: fixpoint::Constraint<TagIdx>) -> io::Result<FixpointResult> {
+        let kvars = self.kvars.into_fixpoint();
+        let task = fixpoint::Task::new(kvars, constraint);
+        task.check()
+    }
+
+    fn tag_idx(&mut self, tag: Tag) -> TagIdx {
+        *self
+            .tags_inv
+            .entry(tag)
+            .or_insert_with(|| self.tags.push(tag))
+    }
+}
+
 fn dump_constraint(tcx: TyCtxt, def_id: DefId, cx: &PureCtxt) -> Result<(), std::io::Error> {
     let dir = CONFIG.log_dir.join("horn");
     fs::create_dir_all(&dir)?;
@@ -79,11 +131,10 @@ fn dump_constraint(tcx: TyCtxt, def_id: DefId, cx: &PureCtxt) -> Result<(), std:
     write!(file, "{:?}", cx)
 }
 
-fn dump_fixpoint(tcx: TyCtxt, def_id: DefId, fixpoint: &Fixpoint) -> Result<(), std::io::Error> {
-    let dir = CONFIG.log_dir.join("horn");
-    fs::create_dir_all(&dir)?;
-    let mut file = fs::File::create(dir.join(format!("{}.smt2", tcx.def_path_str(def_id))))?;
-    write!(file, "{}", fixpoint)
+impl std::fmt::Display for TagIdx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_u32())
+    }
 }
 
 mod errors {

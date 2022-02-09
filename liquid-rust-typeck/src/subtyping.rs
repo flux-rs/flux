@@ -13,7 +13,7 @@ pub struct Sub<'a, 'tcx> {
     tag: Tag,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Tag {
     Call(Span),
     Assign(Span),

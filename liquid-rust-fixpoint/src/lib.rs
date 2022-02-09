@@ -15,9 +15,9 @@ use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use serde::Deserialize;
 
-pub struct Fixpoint {
+pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
-    pub constraint: Constraint,
+    pub constraint: Constraint<Tag>,
 }
 
 #[derive(Deserialize, Debug, Clone, Copy)]
@@ -35,9 +35,9 @@ pub enum Safeness {
 #[derive(Debug)]
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
-impl Fixpoint {
-    pub fn new(kvars: Vec<KVar>, constraint: Constraint) -> Self {
-        Fixpoint { kvars, constraint }
+impl<Tag: fmt::Display> Task<Tag> {
+    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>) -> Self {
+        Task { kvars, constraint }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult> {
@@ -66,7 +66,7 @@ impl Fixpoint {
     }
 }
 
-impl fmt::Display for Fixpoint {
+impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Unary
         writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;

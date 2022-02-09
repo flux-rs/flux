@@ -157,9 +157,9 @@ impl PPrintCx<'_> {
         }
     }
 
-    pub fn tags(self, tags: bool) -> Self {
-        Self { tags, ..self }
-    }
+    // pub fn tags(self, tags: bool) -> Self {
+    //     Self { tags, ..self }
+    // }
 }
 
 impl<'a, 'tcx, T> WithCx<'a, 'tcx, T> {
