@@ -296,7 +296,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     destination,
                 )?;
             }
-            TerminatorKind::Assert { cond, expected, target } => {
+            TerminatorKind::Assert {
+                cond,
+                expected,
+                target,
+            } => {
                 self.check_assert(env, cursor, cond, *expected, *target)?;
             }
             TerminatorKind::Drop { place, target } => {
