@@ -377,9 +377,7 @@ impl<T: Internable + ?Sized> Deref for Interned<T> {
 
 impl<T: Internable + ?Sized> Clone for Interned<T> {
     fn clone(&self) -> Self {
-        Self {
-            arc: self.arc.clone(),
-        }
+        Self { arc: self.arc.clone() }
     }
 }
 
@@ -414,9 +412,7 @@ pub struct InternStorage<T: ?Sized> {
 
 impl<T: ?Sized> InternStorage<T> {
     pub const fn new() -> Self {
-        Self {
-            map: SyncOnceCell::new(),
-        }
+        Self { map: SyncOnceCell::new() }
     }
 }
 

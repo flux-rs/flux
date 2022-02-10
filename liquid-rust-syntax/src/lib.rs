@@ -59,10 +59,7 @@ impl ParseErrorKind {
         ctx: SyntaxContext,
         parent: Option<LocalDefId>,
     ) -> ParseError {
-        ParseError {
-            kind: self,
-            span: Span::new(lo.0 + offset, hi.0 + offset, ctx, parent),
-        }
+        ParseError { kind: self, span: Span::new(lo.0 + offset, hi.0 + offset, ctx, parent) }
     }
 }
 
@@ -74,19 +71,17 @@ fn map_err(
 ) -> ParseError {
     match err {
         LalrpopError::InvalidToken { .. } => unreachable!(),
-        LalrpopError::User {
-            error: UserParseError::UnsupportedLiteral(lo, hi),
-        } => ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent),
-        LalrpopError::UnrecognizedEOF {
-            location,
-            expected: _,
-        } => ParseErrorKind::UnexpectedEOF.into_error(offset, location, location, ctx, parent),
-        LalrpopError::UnrecognizedToken {
-            token: (start, _, end),
-            expected: _,
-        } => ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent),
-        LalrpopError::ExtraToken {
-            token: (start, _, end),
-        } => ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent),
+        LalrpopError::User { error: UserParseError::UnsupportedLiteral(lo, hi) } => {
+            ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent)
+        }
+        LalrpopError::UnrecognizedEOF { location, expected: _ } => {
+            ParseErrorKind::UnexpectedEOF.into_error(offset, location, location, ctx, parent)
+        }
+        LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ } => {
+            ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent)
+        }
+        LalrpopError::ExtraToken { token: (start, _, end) } => {
+            ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent)
+        }
     }
 }

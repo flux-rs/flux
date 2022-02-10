@@ -118,9 +118,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
             &mut pure_cx,
             body,
             &fn_sig,
-            Inference {
-                bb_envs: &mut bb_envs,
-            },
+            Inference { bb_envs: &mut bb_envs },
         )?;
 
         Ok(bb_envs
@@ -146,11 +144,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
             &mut pure_cx,
             body,
             &fn_sig,
-            Check {
-                shapes,
-                bb_envs: FxHashMap::default(),
-                kvars: &mut kvars,
-            },
+            Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
         )?;
 
         Ok((pure_cx, kvars))
@@ -291,12 +285,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::SwitchInt { discr, targets } => {
                 self.check_switch_int(env, cursor, discr, targets)?;
             }
-            TerminatorKind::Call {
-                func,
-                substs,
-                args,
-                destination,
-            } => {
+            TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(
                     env,
                     cursor,
@@ -307,11 +296,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     destination,
                 )?;
             }
-            TerminatorKind::Assert {
-                cond,
-                expected,
-                target,
-            } => {
+            TerminatorKind::Assert { cond, expected, target } => {
                 self.check_assert(env, cursor, cond, *expected, *target)?;
             }
             TerminatorKind::Drop { place, target } => {
@@ -357,11 +342,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             cursor.push_head(subst.subst_pred(&param.pred), Tag::Call(source_info.span));
         }
 
-        let sub = &mut Sub::new(
-            self.global_env.tcx,
-            cursor.breadcrumb(),
-            Tag::Call(source_info.span),
-        );
+        let sub =
+            &mut Sub::new(self.global_env.tcx, cursor.breadcrumb(), Tag::Call(source_info.span));
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
             sub.subtyping(actual, subst.subst_ty(formal));
         }
@@ -439,18 +421,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         targets: &mir::SwitchTargets,
     ) -> Result<(), ErrorReported> {
         let discr_ty = self.check_operand(&mut env, discr);
-        let mk = |bits| match discr_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, e) => {
-                if bits != 0 {
-                    e.clone()
-                } else {
-                    e.not()
+        let mk = |bits| {
+            match discr_ty.kind() {
+                TyKind::Refine(BaseTy::Bool, e) => {
+                    if bits != 0 {
+                        e.clone()
+                    } else {
+                        e.not()
+                    }
                 }
+                TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
+                    ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
+                }
+                _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
-            TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
-                ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
-            }
-            _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
         };
 
         for (bits, bb) in targets.iter() {
@@ -608,16 +592,22 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_unary_op(&self, env: &mut TypeEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
         let ty = self.check_operand(env, op);
         match un_op {
-            ir::UnOp::Not => match ty.kind() {
-                TyKind::Refine(BaseTy::Bool, e) => TyKind::Refine(BaseTy::Bool, e.not()).intern(),
-                _ => unreachable!("incompatible type: `{:?}`", ty),
-            },
-            ir::UnOp::Neg => match ty.kind() {
-                TyKind::Refine(BaseTy::Int(int_ty), e) => {
-                    TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+            ir::UnOp::Not => {
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Bool, e) => {
+                        TyKind::Refine(BaseTy::Bool, e.not()).intern()
+                    }
+                    _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
-                _ => unreachable!("incompatible type: `{:?}`", ty),
-            },
+            }
+            ir::UnOp::Neg => {
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Int(int_ty), e) => {
+                        TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+                    }
+                    _ => unreachable!("incompatible type: `{:?}`", ty),
+                }
+            }
         }
     }
 

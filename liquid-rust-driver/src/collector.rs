@@ -27,12 +27,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         tcx: TyCtxt<'tcx>,
         sess: &'a Session,
     ) -> Result<FxHashMap<LocalDefId, FnSpec>, ErrorReported> {
-        let mut collector = Self {
-            tcx,
-            sess,
-            specs: FxHashMap::default(),
-            error_reported: false,
-        };
+        let mut collector = Self { tcx, sess, specs: FxHashMap::default(), error_reported: false };
 
         tcx.hir().visit_all_item_likes(&mut collector);
 

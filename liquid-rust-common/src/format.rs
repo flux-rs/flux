@@ -16,17 +16,11 @@ impl<T> PadAdapter<T> {
     }
 
     pub fn wrap(inner: T) -> Self {
-        PadAdapter {
-            inner,
-            state: PadAdapterState { on_newline: false },
-        }
+        PadAdapter { inner, state: PadAdapterState { on_newline: false } }
     }
 
     pub fn wrap_on_newline(inner: T) -> Self {
-        PadAdapter {
-            inner,
-            state: PadAdapterState { on_newline: true },
-        }
+        PadAdapter { inner, state: PadAdapterState { on_newline: true } }
     }
 }
 
@@ -35,10 +29,7 @@ impl<'a, W> PadAdapter<&'a mut W> {
     where
         W: fmt::Write,
     {
-        PadAdapter {
-            inner,
-            state: PadAdapterState { on_newline: false },
-        }
+        PadAdapter { inner, state: PadAdapterState { on_newline: false } }
     }
 }
 

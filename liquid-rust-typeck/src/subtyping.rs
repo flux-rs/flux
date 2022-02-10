@@ -28,10 +28,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
     }
 
     fn breadcrumb(&mut self) -> Sub<'_, 'tcx> {
-        Sub {
-            cursor: self.cursor.breadcrumb(),
-            ..*self
-        }
+        Sub { cursor: self.cursor.breadcrumb(), ..*self }
     }
 
     pub fn subtyping(&mut self, ty1: Ty, ty2: Ty) {

@@ -18,19 +18,11 @@ pub struct InferenceError;
 
 impl Subst {
     pub fn empty() -> Self {
-        Self {
-            exprs: FxHashMap::default(),
-            locs: FxHashMap::default(),
-            types: vec![],
-        }
+        Self { exprs: FxHashMap::default(), locs: FxHashMap::default(), types: vec![] }
     }
 
     pub fn with_type_substs(types: Vec<Ty>) -> Self {
-        Self {
-            exprs: FxHashMap::default(),
-            locs: FxHashMap::default(),
-            types,
-        }
+        Self { exprs: FxHashMap::default(), locs: FxHashMap::default(), types }
     }
 
     pub fn insert_expr(&mut self, var: Var, expr: impl Into<Expr>) {

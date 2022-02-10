@@ -128,10 +128,7 @@ pub trait Pretty {
 
 impl<'a, I> Join<'a, I> {
     pub fn new(sep: &'a str, iter: I) -> Self {
-        Self {
-            sep,
-            iter: RefCell::new(Some(iter)),
-        }
+        Self { sep, iter: RefCell::new(Some(iter)) }
     }
 }
 
@@ -151,10 +148,7 @@ impl PPrintCx<'_> {
     }
 
     pub fn fully_qualified_paths(self, b: bool) -> Self {
-        Self {
-            fully_qualified_paths: b,
-            ..self
-        }
+        Self { fully_qualified_paths: b, ..self }
     }
 
     // pub fn tags(self, tags: bool) -> Self {

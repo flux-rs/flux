@@ -100,10 +100,7 @@ impl BaseTy {
 }
 
 impl Expr {
-    pub const TRUE: Expr = Expr {
-        kind: ExprKind::Literal(Lit::TRUE),
-        span: None,
-    };
+    pub const TRUE: Expr = Expr { kind: ExprKind::Literal(Lit::TRUE), span: None };
 }
 
 impl Pred {

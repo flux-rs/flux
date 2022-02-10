@@ -57,10 +57,7 @@ impl Binding {
 
 impl TypeEnv {
     pub fn new() -> TypeEnv {
-        TypeEnv {
-            bindings: FxHashMap::default(),
-            borrowed: FxHashSet::default(),
-        }
+        TypeEnv { bindings: FxHashMap::default(), borrowed: FxHashSet::default() }
     }
 
     pub fn into_shape(self) -> TypeEnvShape {
@@ -158,13 +155,8 @@ impl TypeEnv {
             TyKind::Ref(ty) => {
                 let fresh = cursor.push_loc();
                 let unpacked = self.unpack(cursor, ty.clone());
-                self.bindings.insert(
-                    fresh,
-                    Binding::Weak {
-                        bound: ty.clone(),
-                        ty: unpacked,
-                    },
-                );
+                self.bindings
+                    .insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
                 TyKind::StrgRef(fresh).intern()
             }
             _ => ty,
@@ -182,11 +174,13 @@ impl TypeEnv {
         let references = self
             .bindings
             .iter()
-            .filter_map(|(loc, ty)| match ty.ty().kind() {
-                TyKind::StrgRef(ref_loc @ Loc::Abstract(name)) if !scope.contains(*name) => {
-                    Some((*ref_loc, *loc))
+            .filter_map(|(loc, ty)| {
+                match ty.ty().kind() {
+                    TyKind::StrgRef(ref_loc @ Loc::Abstract(name)) if !scope.contains(*name) => {
+                        Some((*ref_loc, *loc))
+                    }
+                    _ => None,
                 }
-                _ => None,
             })
             .into_group_map();
 
@@ -219,14 +213,8 @@ impl TypeEnv {
             let (ty1, ty2) = match (self.bindings[&loc].clone(), other.bindings[&loc].clone()) {
                 (Binding::Strong(ty1), Binding::Strong(ty2)) => (ty1, ty2),
                 (
-                    Binding::Weak {
-                        bound: bound1,
-                        ty: ty1,
-                    },
-                    Binding::Weak {
-                        bound: bound2,
-                        ty: ty2,
-                    },
+                    Binding::Weak { bound: bound1, ty: ty1 },
+                    Binding::Weak { bound: bound2, ty: ty2 },
                 ) => {
                     assert_eq!(bound1, bound2);
                     (ty1, ty2)
@@ -283,14 +271,8 @@ impl TypeEnv {
             let (ty1, ty2) = match (self.bindings[&loc].clone(), other.bindings[&loc].clone()) {
                 (Binding::Strong(ty1), Binding::Strong(ty2)) => (ty1, ty2),
                 (
-                    Binding::Weak {
-                        bound: bound1,
-                        ty: ty1,
-                    },
-                    Binding::Weak {
-                        bound: bound2,
-                        ty: ty2,
-                    },
+                    Binding::Weak { bound: bound1, ty: ty1 },
+                    Binding::Weak { bound: bound2, ty: ty2 },
                 ) => {
                     assert_eq!(bound1, bound2);
                     (ty1, ty2)
@@ -469,10 +451,9 @@ impl TypeEnvShape {
                 (Binding::Strong(ty1), Binding::Strong(_)) => {
                     Binding::Strong(replace_kvars(&ty1, fresh_kvar))
                 }
-                (Binding::Weak { ty, .. }, Binding::Weak { bound, .. }) => Binding::Weak {
-                    ty: replace_kvars(&ty, fresh_kvar),
-                    bound: bound.clone(),
-                },
+                (Binding::Weak { ty, .. }, Binding::Weak { bound, .. }) => {
+                    Binding::Weak { ty: replace_kvars(&ty, fresh_kvar), bound: bound.clone() }
+                }
                 _ => {
                     todo!()
                 }
@@ -481,10 +462,7 @@ impl TypeEnvShape {
         }
         BasicBlockEnv {
             params,
-            env: TypeEnv {
-                bindings: bindings.into_iter().collect(),
-                borrowed: self.0.borrowed,
-            },
+            env: TypeEnv { bindings: bindings.into_iter().collect(), borrowed: self.0.borrowed },
         }
     }
 }
@@ -525,10 +503,9 @@ impl BasicBlockEnv {
 
 fn subst_binding(binding: &Binding, subst: &Subst) -> Binding {
     match binding {
-        Binding::Weak { bound, ty } => Binding::Weak {
-            bound: subst.subst_ty(bound),
-            ty: subst.subst_ty(ty),
-        },
+        Binding::Weak { bound, ty } => {
+            Binding::Weak { bound: subst.subst_ty(bound), ty: subst.subst_ty(ty) }
+        }
         Binding::Strong(ty) => Binding::Strong(subst.subst_ty(ty)),
     }
 }

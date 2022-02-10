@@ -164,12 +164,7 @@ impl fmt::Debug for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
-            TerminatorKind::Call {
-                func,
-                substs: ty_subst,
-                args,
-                destination,
-            } => {
+            TerminatorKind::Call { func, substs: ty_subst, args, destination } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
@@ -210,16 +205,8 @@ impl fmt::Debug for Terminator {
             TerminatorKind::Drop { place, target } => {
                 write!(f, "drop({:?}) -> {:?}", place, target)
             }
-            TerminatorKind::Assert {
-                cond,
-                target,
-                expected,
-            } => {
-                write!(
-                    f,
-                    "assert({:?} is expected to be {:?}) -> {:?}",
-                    cond, expected, target
-                )
+            TerminatorKind::Assert { cond, target, expected } => {
+                write!(f, "assert({:?} is expected to be {:?}) -> {:?}", cond, expected, target)
             }
         }
     }

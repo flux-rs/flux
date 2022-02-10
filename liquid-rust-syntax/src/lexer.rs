@@ -58,15 +58,9 @@ pub struct Location(pub(crate) BytePos);
 impl Cursor {
     pub(crate) fn new(stream: TokenStream, offset: BytePos) -> Self {
         Cursor {
-            stack: vec![Frame {
-                cursor: stream.into_trees().peekable(),
-                close: None,
-            }],
+            stack: vec![Frame { cursor: stream.into_trees().peekable(), close: None }],
             offset,
-            symbs: Symbols {
-                fn_: Symbol::intern("fn"),
-                ref_: Symbol::intern("ref"),
-            },
+            symbs: Symbols { fn_: Symbol::intern("fn"), ref_: Symbol::intern("ref") },
         }
     }
 
@@ -90,11 +84,7 @@ impl Cursor {
             TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
             TokenKind::Literal(lit) if lit.suffix.is_none() => Token::Literal(lit),
             TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
-                Token::Literal(Lit {
-                    kind: LitKind::Bool,
-                    symbol: symb,
-                    suffix: None,
-                })
+                Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }
             TokenKind::Ident(symb, _) if symb == self.symbs.ref_ => Token::Ref,
             TokenKind::Ident(symb, _) if symb == self.symbs.fn_ => Token::Fn,
@@ -105,11 +95,7 @@ impl Cursor {
             TokenKind::BinOp(BinOpToken::And) => Token::And,
             _ => Token::Invalid,
         };
-        (
-            Location(span.lo() - self.offset),
-            token,
-            Location(span.hi() - self.offset),
-        )
+        (Location(span.lo() - self.offset), token, Location(span.hi() - self.offset))
     }
 }
 
@@ -140,14 +126,9 @@ impl Iterator for Cursor {
                     Token::CloseDelim(delim),
                     Location(span.close.hi() - self.offset),
                 );
-                self.stack.push(Frame {
-                    cursor: tokens.into_trees().peekable(),
-                    close: Some(close),
-                });
-                let token = token::Token {
-                    kind: TokenKind::OpenDelim(delim),
-                    span: span.open,
-                };
+                self.stack
+                    .push(Frame { cursor: tokens.into_trees().peekable(), close: Some(close) });
+                let token = token::Token { kind: TokenKind::OpenDelim(delim), span: span.open };
                 Some(self.map_token(token))
             }
             None => self.stack.pop().unwrap().close,

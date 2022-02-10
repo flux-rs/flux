@@ -39,13 +39,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .map(|(def_id, spec)| {
             let fn_sig = Resolver::resolve(tcx, def_id, spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
-            Ok((
-                def_id,
-                FnSpec {
-                    fn_sig,
-                    assume: spec.assume,
-                },
-            ))
+            Ok((def_id, FnSpec { fn_sig, assume: spec.assume }))
         })
         .try_collect_exhaust()?;
 
