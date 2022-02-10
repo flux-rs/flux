@@ -8,10 +8,12 @@ pub fn input_must_be_odd(a: usize) -> usize {
     a % 2
 }
 
-pub fn test_mod() {
+#[lr::ty(fn() -> i32)]
+pub fn test_mod() -> i32 {
     input_must_be_odd(3);
     input_must_be_odd(5);
     input_must_be_odd(27);
+    0
 }
 
 #[lr::ty(fn(bool{x: x == true}) -> bool{y: y == true})]
@@ -19,9 +21,11 @@ pub fn must_be_true(a: bool) -> bool {
     a && true
 }
 
-pub fn test_and() {
+#[lr::ty(fn() -> i32)]
+pub fn test_and() -> i32 {
     must_be_true(true);
     must_be_true(5 == 5);
+    0
 }
 
 #[lr::ty(fn<a: int{a >= 0}, b: int{b >= 0}>(i32{x: x == a}, i32{y: y == b}) -> i32{z: z == a % b})]

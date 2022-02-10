@@ -296,11 +296,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     destination,
                 )?;
             }
-            TerminatorKind::Assert {
-                cond,
-                expected,
-                target,
-            } => {
+            TerminatorKind::Assert { cond, expected, target } => {
                 self.check_assert(env, cursor, cond, *expected, *target)?;
             }
             TerminatorKind::Drop { place, target } => {
@@ -518,7 +514,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             ir::BinOp::Sub => self.check_arith_op(cursor, BinOp::Sub, ty1, ty2),
             ir::BinOp::Mul => self.check_arith_op(cursor, BinOp::Mul, ty1, ty2),
             ir::BinOp::Div => self.check_arith_op(cursor, BinOp::Div, ty1, ty2),
-            ir::BinOp::Mod => self.check_mod(cursor, ty1, ty2),
+            ir::BinOp::Rem => self.check_rem(cursor, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
@@ -528,6 +524,28 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
+            (
+                TyKind::Refine(BaseTy::Int(int_ty1), _e1),
+                TyKind::Refine(BaseTy::Int(int_ty2), _e2),
+            ) => {
+                debug_assert_eq!(int_ty1, int_ty2);
+                TyKind::Refine(
+                    BaseTy::Int(*int_ty1),
+                    ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(true)).intern(),
+                )
+                .intern()
+            }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), _e1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), _e2),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+                TyKind::Refine(
+                    BaseTy::Uint(*uint_ty1),
+                    ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(true)).intern(),
+                )
+                .intern()
+            }
             (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
                 TyKind::Refine(
                     BaseTy::Bool,
@@ -539,8 +557,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    // Mod is a special case due to differing semantics with negative numbers
-    fn check_mod(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) -> Ty {
+    // Rem is a special case due to differing semantics with negative numbers
+    fn check_rem(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) -> Ty {
         let ty = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
