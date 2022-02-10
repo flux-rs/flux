@@ -9,13 +9,15 @@ use itertools::Itertools;
 fn find_liquid_rust_path() -> PathBuf {
     let target_directory = if cfg!(debug_assertions) { "debug" } else { "release" };
     let executable_name = if cfg!(windows) { "liquid-rust.exe" } else { "liquid-rust" };
-    let local_prusti_rustc_path: PathBuf =
-        ["target", target_directory, executable_name].iter().collect();
+    let local_prusti_rustc_path: PathBuf = ["target", target_directory, executable_name]
+        .iter()
+        .collect();
     if local_prusti_rustc_path.exists() {
         return local_prusti_rustc_path;
     }
-    let workspace_prusti_rustc_path: PathBuf =
-        ["..", "target", target_directory, executable_name].iter().collect();
+    let workspace_prusti_rustc_path: PathBuf = ["..", "target", target_directory, executable_name]
+        .iter()
+        .collect();
     if workspace_prusti_rustc_path.exists() {
         return workspace_prusti_rustc_path;
     }

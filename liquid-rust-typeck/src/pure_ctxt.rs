@@ -69,7 +69,10 @@ impl PureCtxt {
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt) -> fixpoint::Constraint<TagIdx> {
-        self.root.borrow().to_fixpoint(cx).unwrap_or(fixpoint::Constraint::TRUE)
+        self.root
+            .borrow()
+            .to_fixpoint(cx)
+            .unwrap_or(fixpoint::Constraint::TRUE)
     }
 }
 
@@ -100,7 +103,10 @@ impl KVarStore {
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
-        self.kvars.into_iter_enumerated().map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts)).collect()
+        self.kvars
+            .into_iter_enumerated()
+            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+            .collect()
     }
 }
 
@@ -200,7 +206,9 @@ impl Cursor<'_> {
 
 impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.bindings.iter_enumerated().map(|(name, sort)| (name, *sort))
+        self.bindings
+            .iter_enumerated()
+            .map(|(name, sort)| (name, *sort))
     }
 
     pub fn contains(&self, name: Name) -> bool {
@@ -262,8 +270,10 @@ fn children_to_fixpoint(
     cx: &mut FixpointCtxt,
     children: &[NodePtr],
 ) -> Option<fixpoint::Constraint<TagIdx>> {
-    let mut children =
-        children.iter().filter_map(|node| node.borrow().to_fixpoint(cx)).collect_vec();
+    let mut children = children
+        .iter()
+        .filter_map(|node| node.borrow().to_fixpoint(cx))
+        .collect_vec();
     match children.len() {
         0 => None,
         1 => children.pop(),
@@ -518,9 +528,11 @@ mod pretty {
             write!(
                 f,
                 "[{}]",
-                self.bindings.iter_enumerated().format_with(", ", |(name, sort), f| {
-                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))
-                })
+                self.bindings
+                    .iter_enumerated()
+                    .format_with(", ", |(name, sort), f| {
+                        f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                    })
             )
         }
     }

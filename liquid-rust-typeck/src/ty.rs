@@ -185,12 +185,14 @@ impl ExprKind {
 impl Expr {
     pub fn tt() -> Expr {
         static TRUE: SyncOnceCell<Expr> = SyncOnceCell::new();
-        TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern()).clone()
+        TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
+            .clone()
     }
 
     pub fn zero() -> Expr {
         static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
-        ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern()).clone()
+        ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
+            .clone()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {

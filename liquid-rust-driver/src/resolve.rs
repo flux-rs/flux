@@ -91,8 +91,11 @@ impl<'tcx> Resolver<'tcx> {
             })
             .try_collect_exhaust();
 
-        let args =
-            fn_sig.args.into_iter().map(|ty| self.resolve_ty(ty, &mut subst)).try_collect_exhaust();
+        let args = fn_sig
+            .args
+            .into_iter()
+            .map(|ty| self.resolve_ty(ty, &mut subst))
+            .try_collect_exhaust();
 
         let ensures = fn_sig
             .ensures
@@ -141,7 +144,10 @@ impl<'tcx> Resolver<'tcx> {
             .into_iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
-                if subst.insert_expr(param.name.name, ty::Var::Free(fresh)).is_some() {
+                if subst
+                    .insert_expr(param.name.name, ty::Var::Free(fresh))
+                    .is_some()
+                {
                     self.diagnostics
                         .emit_err(errors::DuplicateGenericParam::new(param.name))
                         .raise()
@@ -170,9 +176,10 @@ impl<'tcx> Resolver<'tcx> {
                     let refine = self.resolve_expr(refine, subst);
                     Ok(ty::Ty::Refine(bty, refine?))
                 }
-                ParamTyOrBaseTy::ParamTy(_) => {
-                    self.diagnostics.emit_err(errors::RefinedTypeParam { span: ty.span }).raise()
-                }
+                ParamTyOrBaseTy::ParamTy(_) => self
+                    .diagnostics
+                    .emit_err(errors::RefinedTypeParam { span: ty.span })
+                    .raise(),
             },
             ast::TyKind::Exists { bind, path, pred } => match self.resolve_path(path, subst)? {
                 ParamTyOrBaseTy::BaseTy(bty) => {
@@ -182,15 +189,18 @@ impl<'tcx> Resolver<'tcx> {
                     subst.pop_expr_layer();
                     Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
                 }
-                ParamTyOrBaseTy::ParamTy(_) => {
-                    self.diagnostics.emit_err(errors::RefinedTypeParam { span: ty.span }).raise()
-                }
+                ParamTyOrBaseTy::ParamTy(_) => self
+                    .diagnostics
+                    .emit_err(errors::RefinedTypeParam { span: ty.span })
+                    .raise(),
             },
             ast::TyKind::StrgRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
                     Ok(ty::Ty::StrgRef(name))
                 } else {
-                    self.diagnostics.emit_err(errors::UnresolvedLoc::new(region)).raise()
+                    self.diagnostics
+                        .emit_err(errors::UnresolvedLoc::new(region))
+                        .raise()
                 }
             }
             ast::TyKind::Ref(ty) => {
@@ -208,7 +218,10 @@ impl<'tcx> Resolver<'tcx> {
         let res = if let Some(res) = self.name_res_table.get(&path.ident.name) {
             *res
         } else {
-            return self.diagnostics.emit_err(errors::UnresolvedPath::new(&path)).raise();
+            return self
+                .diagnostics
+                .emit_err(errors::UnresolvedPath::new(&path))
+                .raise();
         };
 
         match res {
@@ -283,7 +296,10 @@ impl<'tcx> Resolver<'tcx> {
     fn resolve_var(&mut self, var: ast::Ident, subst: &Subst) -> Result<ty::Var, ErrorReported> {
         match subst.get_expr(var.name) {
             Some(var) => Ok(var),
-            None => self.diagnostics.emit_err(errors::UnresolvedVar::new(var)).raise(),
+            None => self
+                .diagnostics
+                .emit_err(errors::UnresolvedVar::new(var))
+                .raise(),
         }
     }
 
@@ -291,10 +307,16 @@ impl<'tcx> Resolver<'tcx> {
         match lit.kind {
             ast::LitKind::Integer => match lit.symbol.as_str().parse::<i128>() {
                 Ok(n) => Ok(ty::Lit::Int(n)),
-                Err(_) => self.diagnostics.emit_err(errors::IntTooLarge { span: lit.span }).raise(),
+                Err(_) => self
+                    .diagnostics
+                    .emit_err(errors::IntTooLarge { span: lit.span })
+                    .raise(),
             },
             ast::LitKind::Bool => Ok(ty::Lit::Bool(lit.symbol == kw::True)),
-            _ => self.diagnostics.emit_err(errors::UnexpectedLiteral { span: lit.span }).raise(),
+            _ => self
+                .diagnostics
+                .emit_err(errors::UnexpectedLiteral { span: lit.span })
+                .raise(),
         }
     }
 
@@ -304,7 +326,9 @@ impl<'tcx> Resolver<'tcx> {
         } else if sort.name == sym::bool {
             Ok(ty::Sort::Bool)
         } else {
-            self.diagnostics.emit_err(errors::UnresolvedSort::new(sort)).raise()
+            self.diagnostics
+                .emit_err(errors::UnresolvedSort::new(sort))
+                .raise()
         }
     }
 }
@@ -397,7 +421,11 @@ fn collect_res(
     fn_sig: &hir::FnSig,
     table: &mut NameResTable,
 ) -> Result<(), ErrorReported> {
-    fn_sig.decl.inputs.iter().try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
+    fn_sig
+        .decl
+        .inputs
+        .iter()
+        .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
 
     match fn_sig.decl.output {
         hir::FnRetTy::DefaultReturn(span) => {
@@ -428,9 +456,9 @@ fn collect_res_ty(
         hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
             collect_res_ty(diagnostics, mut_ty.ty, table)
         }
-        hir::TyKind::Tup(tys) => {
-            tys.iter().try_for_each(|ty| collect_res_ty(diagnostics, ty, table))
-        }
+        hir::TyKind::Tup(tys) => tys
+            .iter()
+            .try_for_each(|ty| collect_res_ty(diagnostics, ty, table)),
         hir::TyKind::Path(qpath) => {
             let path = if let hir::QPath::Resolved(None, path) = qpath {
                 path

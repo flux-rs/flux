@@ -105,7 +105,11 @@ impl Subst {
         fn_sig: &FnSig,
     ) -> Result<(), InferenceError> {
         assert!(actuals.len() == fn_sig.args.len());
-        let params = fn_sig.params.iter().map(|param| param.name.into()).collect();
+        let params = fn_sig
+            .params
+            .iter()
+            .map(|param| param.name.into())
+            .collect();
 
         for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
             self.infer_from_tys(&params, actual.clone(), formal.clone());
@@ -125,7 +129,11 @@ impl Subst {
         env: &TypeEnv,
         bb_env: &BasicBlockEnv,
     ) -> Result<(), InferenceError> {
-        let params = bb_env.params.iter().map(|param| param.name.into()).collect();
+        let params = bb_env
+            .params
+            .iter()
+            .map(|param| param.name.into())
+            .collect();
         for (loc, binding2) in bb_env.env.iter() {
             let ty1 = env.lookup_loc(*loc).unwrap();
             self.infer_from_tys(&params, ty1, binding2.ty());

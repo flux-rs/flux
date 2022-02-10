@@ -101,7 +101,8 @@ impl TypeEnv {
         assert!(place.projection.is_empty());
         let loc = Loc::Local(place.local);
         let ty = self.lookup_loc(loc).unwrap();
-        self.bindings.insert(loc, Binding::Strong(TyKind::Uninit.intern()));
+        self.bindings
+            .insert(loc, Binding::Strong(TyKind::Uninit.intern()));
         ty
     }
 
@@ -154,7 +155,8 @@ impl TypeEnv {
             TyKind::Ref(ty) => {
                 let fresh = cursor.push_loc();
                 let unpacked = self.unpack(cursor, ty.clone());
-                self.bindings.insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
+                self.bindings
+                    .insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
                 TyKind::StrgRef(fresh).intern()
             }
             _ => ty,
@@ -195,7 +197,11 @@ impl TypeEnv {
     }
 
     pub fn transform_into(&mut self, sub: &mut Sub, other: &TypeEnv) {
-        let levels = self.levels().into_iter().sorted_by_key(|(_, level)| *level).rev();
+        let levels = self
+            .levels()
+            .into_iter()
+            .sorted_by_key(|(_, level)| *level)
+            .rev();
 
         for (loc, _) in levels {
             if !other.bindings.contains_key(&loc) {
@@ -252,7 +258,11 @@ impl TypeEnv {
     }
 
     pub fn join(&mut self, tcx: TyCtxt, other: &mut TypeEnv) -> bool {
-        let levels = self.levels().into_iter().sorted_by_key(|(_, level)| *level).rev();
+        let levels = self
+            .levels()
+            .into_iter()
+            .sorted_by_key(|(_, level)| *level)
+            .rev();
 
         let mut modified = false;
         for (loc, _) in levels {

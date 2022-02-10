@@ -121,7 +121,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
             Inference { bb_envs: &mut bb_envs },
         )?;
 
-        Ok(bb_envs.into_iter().map(|(bb, env)| (bb, env.into_shape())).collect())
+        Ok(bb_envs
+            .into_iter()
+            .map(|(bb, env)| (bb, env.into_shape()))
+            .collect())
     }
 }
 
@@ -186,7 +189,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
 
         let ret = subst.subst_ty(&fn_sig.ret);
-        let ensures = fn_sig.ensures.iter().map(|(loc, ty)| (*loc, subst.subst_ty(ty))).collect();
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
+            .collect();
 
         let mut checker = Checker::new(global_env, body, ret, ensures, mode);
 
@@ -313,12 +320,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let fn_sig = self.global_env.lookup_fn_sig(func);
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
-        let actuals = args.iter().map(|arg| self.check_operand(&mut env, arg)).collect_vec();
+        let actuals = args
+            .iter()
+            .map(|arg| self.check_operand(&mut env, arg))
+            .collect_vec();
 
         let cx = LoweringCtxt::empty();
         let scope = cursor.scope();
         let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter());
-        let substs = substs.iter().map(|ty| cx.lower_ty(ty, fresh_kvar)).collect();
+        let substs = substs
+            .iter()
+            .map(|ty| cx.lower_ty(ty, fresh_kvar))
+            .collect();
 
         let mut subst = Subst::with_type_substs(substs);
         if subst.infer_from_fn_call(&env, &actuals, &fn_sig).is_err() {
@@ -448,7 +461,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
             let scope = cursor.scope_at(self.snapshot_at_dominator(target)).unwrap();
-            if self.mode.check_goto_join_point(self.global_env.tcx, cursor, env, &scope, target) {
+            if self
+                .mode
+                .check_goto_join_point(self.global_env.tcx, cursor, env, &scope, target)
+            {
                 self.queue.insert(target);
             }
             Ok(())
@@ -619,7 +635,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn report_inference_error(&self, call_source_info: SourceInfo) -> Result<(), ErrorReported> {
-        self.sess.span_err(call_source_info.span, "inference error at function call");
+        self.sess
+            .span_err(call_source_info.span, "inference error at function call");
         Err(ErrorReported)
     }
 
@@ -683,17 +700,24 @@ impl Mode for Check<'_> {
             self.kvars.fresh(
                 var,
                 sort,
-                scope.iter().chain(params.iter().map(|param| (param.name, param.sort))),
+                scope
+                    .iter()
+                    .chain(params.iter().map(|param| (param.name, param.sort))),
             )
         };
         let mut first = false;
         let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            self.shapes.remove(&target).unwrap().into_bb_env(&cursor.name_gen(), fresh_kvar, &env)
+            self.shapes
+                .remove(&target)
+                .unwrap()
+                .into_bb_env(&cursor.name_gen(), fresh_kvar, &env)
         });
 
         let mut subst = Subst::empty();
-        subst.infer_from_bb_env(&env, bb_env).unwrap_or_else(|_| panic!("inference failed"));
+        subst
+            .infer_from_bb_env(&env, bb_env)
+            .unwrap_or_else(|_| panic!("inference failed"));
 
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto);

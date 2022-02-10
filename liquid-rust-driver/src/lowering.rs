@@ -73,7 +73,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::StatementKind::AscribeUserType(_, _)
             | mir::StatementKind::Coverage(_)
             | mir::StatementKind::CopyNonOverlapping(_) => {
-                self.tcx.sess.span_err(stmt.source_info.span, "unsupported statement kind");
+                self.tcx
+                    .sess
+                    .span_err(stmt.source_info.span, "unsupported statement kind");
                 return Err(ErrorReported);
             }
         };
@@ -89,8 +91,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::TerminatorKind::Call { func, args, destination, .. } => {
                 let (func, substs) = match func.ty(self.body, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        let substs =
-                            substs.iter().map(|arg| self.lower_generic_arg(arg)).try_collect()?;
+                        let substs = substs
+                            .iter()
+                            .map(|arg| self.lower_generic_arg(arg))
+                            .try_collect()?;
 
                         (*fn_def, substs)
                     }
@@ -110,7 +114,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     func,
                     substs,
                     destination,
-                    args: args.iter().map(|arg| self.lower_operand(arg)).try_collect()?,
+                    args: args
+                        .iter()
+                        .map(|arg| self.lower_operand(arg))
+                        .try_collect()?,
                 }
             }
             mir::TerminatorKind::SwitchInt { discr, targets, .. } => TerminatorKind::SwitchInt {
@@ -199,7 +206,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::BinOp::Shl
             | mir::BinOp::Shr
             | mir::BinOp::Offset => {
-                self.tcx.sess.err(&format!("unsupported binary operation: `{:?}`", bin_op));
+                self.tcx
+                    .sess
+                    .err(&format!("unsupported binary operation: `{:?}`", bin_op));
                 Err(ErrorReported)
             }
         }
@@ -261,7 +270,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
         match arg.unpack() {
             GenericArgKind::Type(ty) => self.lower_ty(ty),
             GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-                self.tcx.sess.err(&format!("unsupported generic argument: `{:?}`", arg));
+                self.tcx
+                    .sess
+                    .err(&format!("unsupported generic argument: `{:?}`", arg));
                 Err(ErrorReported)
             }
         }
@@ -283,12 +294,17 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(core::Ty::Param(core::ParamTy { index: param.index, name: param.name }))
             }
             rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
-                let substs = substs.iter().map(|arg| self.lower_generic_arg(arg)).try_collect()?;
+                let substs = substs
+                    .iter()
+                    .map(|arg| self.lower_generic_arg(arg))
+                    .try_collect()?;
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
                 Ok(core::Ty::Exists(adt, core::Pred::Infer))
             }
             _ => {
-                self.tcx.sess.err(&format!("unsupported type `{:?}`, kind: `{:?}`", ty, ty.kind()));
+                self.tcx
+                    .sess
+                    .err(&format!("unsupported type `{:?}`, kind: `{:?}`", ty, ty.kind()));
                 Err(ErrorReported)
             }
         }
@@ -300,7 +316,9 @@ fn scalar_to_bits<'tcx>(
     scalar: mir::interpret::Scalar,
     ty: rustc_middle::ty::Ty<'tcx>,
 ) -> Option<u128> {
-    let size =
-        tcx.layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty)).unwrap().size;
+    let size = tcx
+        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
+        .unwrap()
+        .size;
     scalar.to_bits(size).ok()
 }

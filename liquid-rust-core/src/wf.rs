@@ -25,7 +25,11 @@ impl Wf<'_> {
             })
             .try_collect_exhaust();
 
-        let args = fn_sig.args.iter().map(|ty| self.check_type(&mut env, ty)).try_collect_exhaust();
+        let args = fn_sig
+            .args
+            .iter()
+            .map(|ty| self.check_type(&mut env, ty))
+            .try_collect_exhaust();
 
         let ensures = fn_sig
             .ensures
@@ -132,7 +136,8 @@ impl Wf<'_> {
             s.push_span_label(span, format!("expected `{}`, found `{}`", expected, found));
             self.sess.span_err(s, "mismatched sorts");
         } else {
-            self.sess.err(&format!("mismatched sorts expected `{}`, found `{}`", expected, found));
+            self.sess
+                .err(&format!("mismatched sorts expected `{}`, found `{}`", expected, found));
         }
 
         Err(ErrorReported)

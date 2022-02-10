@@ -143,7 +143,9 @@ impl Body<'_> {
 
     #[inline]
     pub fn join_points(&self) -> impl Iterator<Item = BasicBlock> + '_ {
-        self.basic_blocks.indices().filter(|bb| self.is_join_point(*bb))
+        self.basic_blocks
+            .indices()
+            .filter(|bb| self.is_join_point(*bb))
     }
 }
 

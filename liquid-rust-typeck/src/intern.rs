@@ -322,7 +322,9 @@ impl<T: Internable + ?Sized> Interned<T> {
         let mut shard = shard.write();
 
         // FIXME: avoid double lookup
-        let (arc, _) = shard.get_key_value(&self.arc).expect("interned value removed prematurely");
+        let (arc, _) = shard
+            .get_key_value(&self.arc)
+            .expect("interned value removed prematurely");
 
         if Arc::strong_count(arc) != 2 {
             // Another thread has interned another copy
