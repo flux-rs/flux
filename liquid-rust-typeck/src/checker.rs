@@ -510,11 +510,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
             ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
-            ir::BinOp::Add => self.check_arith_op(cursor, BinOp::Add, ty1, ty2),
-            ir::BinOp::Sub => self.check_arith_op(cursor, BinOp::Sub, ty1, ty2),
-            ir::BinOp::Mul => self.check_arith_op(cursor, BinOp::Mul, ty1, ty2),
-            ir::BinOp::Div => self.check_arith_op(cursor, BinOp::Div, ty1, ty2),
-            ir::BinOp::Rem => self.check_rem(cursor, ty1, ty2),
+            ir::BinOp::Add => self.check_arith_op(cursor, source_info, BinOp::Add, ty1, ty2),
+            ir::BinOp::Sub => self.check_arith_op(cursor, source_info, BinOp::Sub, ty1, ty2),
+            ir::BinOp::Mul => self.check_arith_op(cursor, source_info, BinOp::Mul, ty1, ty2),
+            ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
+            ir::BinOp::Rem => self.check_rem(cursor, source_info, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
@@ -529,7 +529,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Refine(BaseTy::Int(int_ty2), _e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
+                TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
             }
             (
                 TyKind::Refine(BaseTy::Uint(uint_ty1), _e1),
@@ -554,14 +554,17 @@ TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
     }
 
     // Rem is a special case due to differing semantics with negative numbers
-    fn check_rem(&self, cursor: &mut Cursor, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_rem(&self, cursor: &mut Cursor, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
         let ty = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                cursor.push_head(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+                cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                    Tag::Rem(source_info.span),
+                );
 
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = ExprKind::BinaryOp(
@@ -585,7 +588,10 @@ TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
                 TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                cursor.push_head(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+                cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                    Tag::Rem(source_info.span),
+                );
 
                 TyKind::Refine(
                     BaseTy::Uint(*uint_ty1),

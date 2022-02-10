@@ -129,7 +129,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
-<<<<<<< HEAD
             mir::TerminatorKind::Drop { place, target, .. } => {
                 TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
             }
@@ -140,22 +139,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     target: *target,
                 }
             }
-=======
-            mir::TerminatorKind::Drop { place, target, .. } => TerminatorKind::Drop {
-                place: self.lower_place(place)?,
-                target: *target,
-            },
-            mir::TerminatorKind::Assert {
-                cond,
-                target,
-                expected,
-                ..
-            } => TerminatorKind::Assert {
-                cond: self.lower_operand(cond)?,
-                expected: *expected,
-                target: *target,
-            },
->>>>>>> addb661 (Fix formatting issues)
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable

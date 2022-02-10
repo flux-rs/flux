@@ -19,6 +19,7 @@ pub enum Tag {
     Assign(Span),
     Ret,
     Div(Span),
+    Rem(Span),
     Goto,
 }
 
@@ -140,6 +141,7 @@ mod pretty {
                 Tag::Assign(span) => w!("Assign({:?})", ^span),
                 Tag::Ret => w!("Ret"),
                 Tag::Div(span) => w!("Div({:?})", ^span),
+                Tag::Rem(span) => w!("Rem({:?})", ^span),
                 Tag::Goto => w!("Other"),
             }
         }
