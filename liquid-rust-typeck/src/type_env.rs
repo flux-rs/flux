@@ -73,8 +73,13 @@ impl TypeEnv {
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        let (_, ty) = self.walk_place(place);
-        ty
+        let ty = self.lookup_loc(Loc::Local(place.local())).unwrap();
+        match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => ty,
+            (ir::Place::Deref(_), TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => ty.clone(),
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => self.lookup_loc(*loc).unwrap(),
+            _ => unreachable!(""),
+        }
     }
 
     pub fn insert_loc(&mut self, loc: Loc, ty: Ty) {
@@ -91,54 +96,70 @@ impl TypeEnv {
         }
     }
 
-    pub fn borrow(&mut self, place: &ir::Place) -> Ty {
-        let (loc, _) = self.walk_place(place);
+    pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
+        let loc = Loc::Local(place.local());
+        let ty = self.lookup_loc(loc).unwrap();
+        let loc = match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => loc,
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("mutable borrow with unpacked weak ref")
+            }
+            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+                unreachable!("cannot borrow mutably from a shared ref")
+            }
+            _ => unreachable!("unxepected place `{place:?}`"),
+        };
         self.borrowed.insert(loc);
         TyKind::StrgRef(loc).intern()
     }
 
-    pub fn move_place(&mut self, place: &ir::Place) -> Ty {
-        assert!(place.projection.is_empty());
-        let loc = Loc::Local(place.local);
+    pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
+        let loc = Loc::Local(place.local());
         let ty = self.lookup_loc(loc).unwrap();
-        self.bindings
-            .insert(loc, Binding::Strong(TyKind::Uninit.intern()));
-        ty
+        let (loc, ty) = match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => (loc, ty),
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => (*loc, self.lookup_loc(*loc).unwrap()),
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("mutable borrow with unpacked weak ref")
+            }
+            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+                unreachable!("cannot borrow mutably from a shared ref")
+            }
+            _ => unreachable!("unxepected place `{place:?}`"),
+        };
+        self.borrowed.insert(loc);
+        TyKind::ShrRef(ty).intern()
+    }
+
+    pub fn move_place(&mut self, place: &ir::Place) -> Ty {
+        match place {
+            ir::Place::Local(local) => {
+                let loc = Loc::Local(*local);
+                let ty = self.lookup_loc(loc).unwrap();
+                self.bindings
+                    .insert(loc, Binding::Strong(TyKind::Uninit.intern()));
+                ty
+            }
+            ir::Place::Deref(_) => unreachable!("cannot move out from a dereference"),
+        }
     }
 
     pub fn write_place(&mut self, sub: &mut Sub, place: &ir::Place, new_ty: Ty) {
-        let (loc, ty) = self.walk_place(place);
-
-        match ty.kind() {
-            TyKind::Uninit | TyKind::Refine(..) | TyKind::Param(_) | TyKind::StrgRef(_) => {
-                // TODO: debug check new_ty has the same "shape" as ty
-                self.update_loc(sub, loc, new_ty);
+        let loc = Loc::Local(place.local());
+        let ty = self.lookup_loc(loc).unwrap();
+        let loc = match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => loc,
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("update through unpacked weak ref")
             }
-            TyKind::Ref(_) => {
-                todo!("implement updates of references inside references")
+            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+                unreachable!("cannot update through a shared ref")
             }
-            TyKind::Exists(..) => unreachable!("unpacked existential: `{:?}`", ty),
-        }
-    }
-
-    fn walk_place(&self, place: &ir::Place) -> (Loc, Ty) {
-        let mut loc = Loc::Local(place.local);
-        let mut ty = self.lookup_loc(loc).unwrap();
-        for elem in &place.projection {
-            match (elem, ty.kind()) {
-                (ir::PlaceElem::Deref, TyKind::StrgRef(referee)) => {
-                    loc = *referee;
-                    ty = self.lookup_loc(loc).unwrap();
-                }
-                (ir::PlaceElem::Deref, TyKind::Ref(_)) => {
-                    todo!()
-                }
-                _ => {
-                    unreachable!("unexpected type: {:?}", ty);
-                }
-            }
-        }
-        (loc, ty)
+            _ => unreachable!("unexpected place `{place:?}`"),
+        };
+        self.update_loc(sub, loc, new_ty);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&Loc, &Binding)> + '_ {
@@ -152,12 +173,16 @@ impl TypeEnv {
                     cursor.push_binding(bty.sort(), |fresh| p.subst_bound_vars(Var::Free(fresh)));
                 TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern()
             }
-            TyKind::Ref(ty) => {
+            TyKind::WeakRef(ty) => {
                 let fresh = cursor.push_loc();
                 let unpacked = self.unpack(cursor, ty.clone());
                 self.bindings
                     .insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
                 TyKind::StrgRef(fresh).intern()
+            }
+            TyKind::ShrRef(ty) => {
+                let ty = self.unpack(cursor, ty.clone());
+                TyKind::ShrRef(ty).intern()
             }
             _ => ty,
         }
@@ -191,7 +216,7 @@ impl TypeEnv {
                 unreachable!("non-weak out-of-scope location")
             };
             for loc in locs {
-                let ty = TyKind::Ref(bound.clone()).intern();
+                let ty = TyKind::WeakRef(bound.clone()).intern();
                 *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty;
             }
             self.bindings.remove(&ref_loc);
@@ -222,7 +247,7 @@ impl TypeEnv {
                 (binding1, binding2) => todo!("{loc:?}: `{binding1:?}` `{binding2:?}`"),
             };
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(loc), TyKind::Ref(bound)) => {
+                (TyKind::StrgRef(loc), TyKind::WeakRef(bound)) => {
                     self.weaken_ref(sub, *loc, bound.clone());
                 }
                 _ => {
@@ -322,10 +347,13 @@ impl TypeEnv {
                 let bty = self.join_bty(tcx, other, bty1, bty2);
                 TyKind::Exists(bty, p.clone()).intern()
             }
-            (TyKind::Ref(ty1), TyKind::Ref(ty2)) => {
-                TyKind::Ref(self.join_ty(tcx, other, ty1.clone(), ty2.clone())).intern()
+            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+                TyKind::WeakRef(self.join_ty(tcx, other, ty1.clone(), ty2.clone())).intern()
             }
-            _ => todo!("{:?} {:?}", ty1, ty2),
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                TyKind::ShrRef(self.join_ty(tcx, other, ty1.clone(), ty2.clone())).intern()
+            }
+            _ => todo!("`{ty1:?}` `{ty2:?}`"),
         }
     }
 
@@ -359,9 +387,9 @@ impl TypeEnv {
             Binding::Strong(ty) => {
                 let ty = self.weaken_ty(ty);
                 self.bindings.insert(loc, Binding::Strong(ty.clone()));
-                TyKind::Ref(ty).intern()
+                TyKind::WeakRef(ty).intern()
             }
-            Binding::Weak { bound, .. } => TyKind::Ref(bound).intern(),
+            Binding::Weak { bound, .. } => TyKind::WeakRef(bound).intern(),
         }
     }
 
@@ -376,9 +404,10 @@ impl TypeEnv {
                 let ty = self.bindings[loc].assert_strong();
                 let ty = self.weaken_ty(ty);
                 self.bindings.insert(*loc, Binding::Strong(ty.clone()));
-                TyKind::Ref(ty).intern()
+                TyKind::WeakRef(ty).intern()
             }
-            TyKind::Ref(_) | TyKind::Uninit => {
+            TyKind::ShrRef(_) | TyKind::WeakRef(_) => todo!(),
+            TyKind::Uninit => {
                 unreachable!()
             }
         }
@@ -522,7 +551,8 @@ fn replace_kvars(ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty
         TyKind::Exists(bty, p) => TyKind::Exists(bty.clone(), p.clone()).intern(),
         TyKind::Uninit => TyKind::Uninit.intern(),
         TyKind::StrgRef(loc) => TyKind::StrgRef(*loc).intern(),
-        TyKind::Ref(ty) => TyKind::Ref(replace_kvars(ty, fresh_kvar)).intern(),
+        TyKind::WeakRef(ty) => TyKind::WeakRef(replace_kvars(ty, fresh_kvar)).intern(),
+        TyKind::ShrRef(ty) => TyKind::ShrRef(replace_kvars(ty, fresh_kvar)).intern(),
         TyKind::Param(param_ty) => TyKind::Param(*param_ty).intern(),
     }
 }

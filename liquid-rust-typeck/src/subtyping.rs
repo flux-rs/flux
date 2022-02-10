@@ -70,9 +70,12 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);
             }
-            (TyKind::Ref(ty1), TyKind::Ref(ty2)) => {
+            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
                 sub.subtyping(ty1.clone(), ty2.clone());
                 sub.subtyping(ty2.clone(), ty1.clone());
+            }
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                sub.subtyping(ty1.clone(), ty2.clone());
             }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
@@ -84,7 +87,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
                 unreachable!("subtyping with unpacked existential")
             }
             _ => {
-                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2)
+                todo!("`{ty1:?}` `{ty2:?}`")
             }
         }
     }

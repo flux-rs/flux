@@ -43,7 +43,8 @@ impl Subst {
             }
             TyKind::StrgRef(loc) => TyKind::StrgRef(self.subst_loc(*loc)).intern(),
             TyKind::Param(param) => self.subst_ty_param(*param),
-            TyKind::Ref(ty) => TyKind::Ref(self.subst_ty(ty)).intern(),
+            TyKind::WeakRef(ty) => TyKind::WeakRef(self.subst_ty(ty)).intern(),
+            TyKind::ShrRef(ty) => TyKind::ShrRef(self.subst_ty(ty)).intern(),
             TyKind::Uninit => ty.clone(),
         }
     }
