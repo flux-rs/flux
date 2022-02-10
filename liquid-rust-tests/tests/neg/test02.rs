@@ -1,6 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(lr)]
 
+#[path = "../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
