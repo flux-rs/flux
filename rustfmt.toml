@@ -3,3 +3,4 @@ imports_granularity = "Crate"
 use_small_heuristics = "Max"
 chain_width = 60
 force_multiline_blocks = true
+use_field_init_shorthand = true
