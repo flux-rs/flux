@@ -418,6 +418,7 @@ name = "liquid-rust-tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
+ "itertools",
 ]
 
 [[package]]

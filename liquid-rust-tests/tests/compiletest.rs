@@ -1,8 +1,10 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
+
 use std::{env, path::PathBuf};
 
 use compiletest_rs::{common::Mode, Config};
+use itertools::Itertools;
 
 fn find_liquid_rust_path() -> PathBuf {
     let target_directory = if cfg!(debug_assertions) {
@@ -36,9 +38,19 @@ fn find_liquid_rust_path() -> PathBuf {
 
 fn config() -> Config {
     let bless = env::args().any(|arg| arg == "--bless");
+    let filters = env::args()
+        .tuple_windows()
+        .filter_map(|(arg, val)| {
+            if arg == "--test-args" {
+                Some(val)
+            } else {
+                None
+            }
+        })
+        .collect_vec();
     Config {
         rustc_path: find_liquid_rust_path(),
-        mode: Mode::Ui,
+        filters,
         bless,
         ..Config::default()
     }
@@ -47,22 +59,20 @@ fn config() -> Config {
 fn test_runner(_: &[&()]) {
     let mut config = config();
 
-    // // Filter the tests to run
-    // if let Some(filter) = filter {
-    //     config.filters.push(filter.clone());
-    // }
-
-    config.target_rustcflags = Some("--color=never --crate-type=rlib".to_string());
+    config.target_rustcflags = Some("--crate-type=rlib".to_string());
 
     let path: PathBuf = ["tests", "pos"].iter().collect();
     if path.exists() {
+        config.mode = Mode::Ui;
         config.src_base = path;
         compiletest_rs::run_tests(&config);
     }
 
-    let path: PathBuf = ["tests", "fail"].iter().collect();
+    let path: PathBuf = ["tests", "neg"].iter().collect();
     if path.exists() {
+        config.mode = Mode::CompileFail;
         config.src_base = path;
         compiletest_rs::run_tests(&config);
     }
+    config.clean_rmeta();
 }
