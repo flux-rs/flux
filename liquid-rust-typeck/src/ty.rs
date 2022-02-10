@@ -185,14 +185,12 @@ impl ExprKind {
 impl Expr {
     pub fn tt() -> Expr {
         static TRUE: SyncOnceCell<Expr> = SyncOnceCell::new();
-        TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
-            .clone()
+        TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern()).clone()
     }
 
     pub fn zero() -> Expr {
         static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
-        ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
-            .clone()
+        ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern()).clone()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -230,10 +228,7 @@ impl ExprS {
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(
-            self.kind,
-            ExprKind::Var(_) | ExprKind::Constant(_) | ExprKind::UnaryOp(..)
-        )
+        matches!(self.kind, ExprKind::Var(_) | ExprKind::Constant(_) | ExprKind::UnaryOp(..))
     }
 
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
@@ -244,12 +239,10 @@ impl ExprS {
                 Var::Free(_) => ExprKind::Var(*var).intern(),
             },
             ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
-            ExprKind::BinaryOp(op, e1, e2) => ExprKind::BinaryOp(
-                *op,
-                e1.subst_bound_vars(to.clone()),
-                e2.subst_bound_vars(to),
-            )
-            .intern(),
+            ExprKind::BinaryOp(op, e1, e2) => {
+                ExprKind::BinaryOp(*op, e1.subst_bound_vars(to.clone()), e2.subst_bound_vars(to))
+                    .intern()
+            }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
         }
     }
@@ -297,10 +290,9 @@ impl Pred {
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Self {
         let to = to.into();
         match self {
-            Pred::KVar(kvid, args) => Pred::kvar(
-                *kvid,
-                args.iter().map(|arg| arg.subst_bound_vars(to.clone())),
-            ),
+            Pred::KVar(kvid, args) => {
+                Pred::kvar(*kvid, args.iter().map(|arg| arg.subst_bound_vars(to.clone())))
+            }
             Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
         }
     }
@@ -436,11 +428,7 @@ mod pretty {
                     false
                 }
             }
-            let e = if cx.simplify_exprs {
-                self.simplify()
-            } else {
-                Interned::new(self.clone())
-            };
+            let e = if cx.simplify_exprs { self.simplify() } else { Interned::new(self.clone()) };
             match e.kind() {
                 ExprKind::Var(x) => w!("{:?}", ^x),
                 ExprKind::BinaryOp(op, e1, e2) => {

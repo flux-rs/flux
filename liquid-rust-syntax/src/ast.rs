@@ -84,10 +84,7 @@ pub enum BinOp {
 
 impl Generics {
     pub fn empty(span: Span) -> Generics {
-        Generics {
-            params: vec![],
-            span,
-        }
+        Generics { params: vec![], span }
     }
 }
 

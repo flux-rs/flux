@@ -17,10 +17,7 @@ pub struct IndexGen<I> {
 
 impl<I: Idx> IndexGen<I> {
     pub fn new() -> Self {
-        Self {
-            count: AtomicUsize::new(0),
-            _marker: PhantomData,
-        }
+        Self { count: AtomicUsize::new(0), _marker: PhantomData }
     }
 
     /// Generate a fresh index of type `I`.
@@ -41,16 +38,13 @@ impl<I: Idx> IndexGen<I> {
     /// assert_ne!(idx1, idx2);
     /// ```
     pub fn fresh(&self) -> I {
-        let index = self
-            .count
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let index = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         I::new(index)
     }
 
     /// Skip `n` indices
     pub fn skip(&self, n: usize) {
-        self.count
-            .fetch_add(n, std::sync::atomic::Ordering::Relaxed);
+        self.count.fetch_add(n, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

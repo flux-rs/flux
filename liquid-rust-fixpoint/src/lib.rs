@@ -115,9 +115,7 @@ impl fmt::Display for KVar {
             f,
             "(var {:?} ({}))",
             self.0,
-            self.1
-                .iter()
-                .format_with(" ", |sort, f| f(&format_args!("({})", sort)))
+            self.1.iter().format_with(" ", |sort, f| f(&format_args!("({})", sort)))
         )
     }
 }

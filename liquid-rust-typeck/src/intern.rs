@@ -322,9 +322,7 @@ impl<T: Internable + ?Sized> Interned<T> {
         let mut shard = shard.write();
 
         // FIXME: avoid double lookup
-        let (arc, _) = shard
-            .get_key_value(&self.arc)
-            .expect("interned value removed prematurely");
+        let (arc, _) = shard.get_key_value(&self.arc).expect("interned value removed prematurely");
 
         if Arc::strong_count(arc) != 2 {
             // Another thread has interned another copy
@@ -377,9 +375,7 @@ impl<T: Internable + ?Sized> Deref for Interned<T> {
 
 impl<T: Internable + ?Sized> Clone for Interned<T> {
     fn clone(&self) -> Self {
-        Self {
-            arc: self.arc.clone(),
-        }
+        Self { arc: self.arc.clone() }
     }
 }
 
@@ -414,9 +410,7 @@ pub struct InternStorage<T: ?Sized> {
 
 impl<T: ?Sized> InternStorage<T> {
     pub const fn new() -> Self {
-        Self {
-            map: SyncOnceCell::new(),
-        }
+        Self { map: SyncOnceCell::new() }
     }
 }
 

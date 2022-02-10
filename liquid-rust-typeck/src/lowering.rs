@@ -10,10 +10,7 @@ pub struct LoweringCtxt {
 
 impl LoweringCtxt {
     pub fn empty() -> Self {
-        Self {
-            params: FxHashMap::default(),
-            locs: FxHashMap::default(),
-        }
+        Self { params: FxHashMap::default(), locs: FxHashMap::default() }
     }
 
     pub fn lower_fn_sig(fn_sig: &core::FnSig) -> ty::FnSig {
@@ -59,13 +56,7 @@ impl LoweringCtxt {
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        ty::FnSig {
-            params,
-            requires,
-            args,
-            ret,
-            ensures,
-        }
+        ty::FnSig { params, requires, args, ret, ensures }
     }
 
     pub fn lower_ty(
@@ -102,10 +93,7 @@ impl LoweringCtxt {
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
-                let substs = substs
-                    .iter()
-                    .map(|ty| self.lower_ty(ty, fresh_kvar))
-                    .collect();
+                let substs = substs.iter().map(|ty| self.lower_ty(ty, fresh_kvar)).collect();
                 ty::BaseTy::Adt(*did, substs)
             }
         }

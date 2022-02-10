@@ -55,43 +55,27 @@ enum NodeKind {
 
 impl PureCtxt {
     pub fn new() -> PureCtxt {
-        let root = Node {
-            kind: NodeKind::Conj,
-            nbindings: 0,
-            parent: None,
-            children: vec![],
-        };
+        let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = Rc::new(RefCell::new(root));
         PureCtxt { root }
     }
 
     pub fn cursor_at_root(&mut self) -> Cursor {
-        Cursor {
-            node: Rc::clone(&self.root),
-            cx: self,
-        }
+        Cursor { node: Rc::clone(&self.root), cx: self }
     }
 
     pub fn cursor_at(&mut self, snapshot: &Snapshot) -> Option<Cursor> {
-        Some(Cursor {
-            node: snapshot.node.upgrade()?,
-            cx: self,
-        })
+        Some(Cursor { node: snapshot.node.upgrade()?, cx: self })
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt) -> fixpoint::Constraint<TagIdx> {
-        self.root
-            .borrow()
-            .to_fixpoint(cx)
-            .unwrap_or(fixpoint::Constraint::TRUE)
+        self.root.borrow().to_fixpoint(cx).unwrap_or(fixpoint::Constraint::TRUE)
     }
 }
 
 impl KVarStore {
     pub fn new() -> Self {
-        Self {
-            kvars: IndexVec::new(),
-        }
+        Self { kvars: IndexVec::new() }
     }
 
     #[track_caller]
@@ -116,10 +100,7 @@ impl KVarStore {
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
-        self.kvars
-            .into_iter_enumerated()
-            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
-            .collect()
+        self.kvars.into_iter_enumerated().map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts)).collect()
     }
 }
 
@@ -139,16 +120,11 @@ impl Cursor<'_> {
     }
 
     pub fn breadcrumb(&mut self) -> Cursor {
-        Cursor {
-            cx: self.cx,
-            node: Rc::clone(&self.node),
-        }
+        Cursor { cx: self.cx, node: Rc::clone(&self.node) }
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        Snapshot {
-            node: Rc::downgrade(&self.node),
-        }
+        Snapshot { node: Rc::downgrade(&self.node) }
     }
 
     pub fn clear(&mut self) {
@@ -224,9 +200,7 @@ impl Cursor<'_> {
 
 impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.bindings
-            .iter_enumerated()
-            .map(|(name, sort)| (name, *sort))
+        self.bindings.iter_enumerated().map(|(name, sort)| (name, *sort))
     }
 
     pub fn contains(&self, name: Name) -> bool {
@@ -271,10 +245,7 @@ impl Node {
             )),
             NodeKind::Head(pred, tag) => {
                 let (bindings, pred) = pred_to_fixpoint(cx, pred);
-                Some(stitch(
-                    bindings,
-                    fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag))),
-                ))
+                Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
         }
     }
@@ -291,10 +262,8 @@ fn children_to_fixpoint(
     cx: &mut FixpointCtxt,
     children: &[NodePtr],
 ) -> Option<fixpoint::Constraint<TagIdx>> {
-    let mut children = children
-        .iter()
-        .filter_map(|node| node.borrow().to_fixpoint(cx))
-        .collect_vec();
+    let mut children =
+        children.iter().filter_map(|node| node.borrow().to_fixpoint(cx)).collect_vec();
     match children.len() {
         0 => None,
         1 => children.pop(),
@@ -305,10 +274,7 @@ fn children_to_fixpoint(
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
     refine: &Pred,
-) -> (
-    Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    fixpoint::Pred,
-) {
+) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
     let mut bindings = vec![];
     let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
@@ -476,11 +442,7 @@ mod pretty {
                 //     }
                 // }
                 NodeKind::Pred(expr) => {
-                    let expr = if cx.simplify_exprs {
-                        expr.simplify()
-                    } else {
-                        expr.clone()
-                    };
+                    let expr = if cx.simplify_exprs { expr.simplify() } else { expr.clone() };
                     if expr.is_atom() {
                         w!("{:?} ⇒{:?}", expr, &node.children)
                     } else {
@@ -556,11 +518,9 @@ mod pretty {
             write!(
                 f,
                 "[{}]",
-                self.bindings
-                    .iter_enumerated()
-                    .format_with(", ", |(name, sort), f| {
-                        f(&format_args_cx!("{:?}: {:?}", ^name, sort))
-                    })
+                self.bindings.iter_enumerated().format_with(", ", |(name, sort), f| {
+                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                })
             )
         }
     }

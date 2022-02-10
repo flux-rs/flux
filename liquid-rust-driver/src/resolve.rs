@@ -49,9 +49,7 @@ impl<'tcx> Resolver<'tcx> {
         let mut name_res_table = FxHashMap::default();
         let mut parent = None;
         if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
-            let item_id = ItemId {
-                def_id: impl_did.expect_local(),
-            };
+            let item_id = ItemId { def_id: impl_did.expect_local() };
             let item = tcx.hir().item(item_id);
             if let ItemKind::Impl(impl_parent) = &item.kind {
                 parent = Some(impl_parent);
@@ -60,13 +58,7 @@ impl<'tcx> Resolver<'tcx> {
         }
         collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
 
-        let mut resolver = Self {
-            tcx,
-            diagnostics,
-            parent,
-            name_res_table,
-            def_id,
-        };
+        let mut resolver = Self { tcx, diagnostics, parent, name_res_table, def_id };
         resolver.run(fn_sig)
     }
 
@@ -99,11 +91,8 @@ impl<'tcx> Resolver<'tcx> {
             })
             .try_collect_exhaust();
 
-        let args = fn_sig
-            .args
-            .into_iter()
-            .map(|ty| self.resolve_ty(ty, &mut subst))
-            .try_collect_exhaust();
+        let args =
+            fn_sig.args.into_iter().map(|ty| self.resolve_ty(ty, &mut subst)).try_collect_exhaust();
 
         let ensures = fn_sig
             .ensures
@@ -152,28 +141,19 @@ impl<'tcx> Resolver<'tcx> {
             .into_iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
-                if subst
-                    .insert_expr(param.name.name, ty::Var::Free(fresh))
-                    .is_some()
-                {
+                if subst.insert_expr(param.name.name, ty::Var::Free(fresh)).is_some() {
                     self.diagnostics
                         .emit_err(errors::DuplicateGenericParam::new(param.name))
                         .raise()
                 } else {
-                    let name = ty::Ident {
-                        name: fresh,
-                        source_info: (param.name.span, param.name.name),
-                    };
+                    let name =
+                        ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
                     let sort = self.resolve_sort(param.sort);
                     let pred = match param.pred {
                         Some(expr) => self.resolve_expr(expr, subst),
                         None => Ok(ty::Expr::TRUE),
                     };
-                    Ok(ty::Param {
-                        name,
-                        sort: sort?,
-                        pred: pred?,
-                    })
+                    Ok(ty::Param { name, sort: sort?, pred: pred? })
                 }
             })
             .try_collect_exhaust()
@@ -190,10 +170,9 @@ impl<'tcx> Resolver<'tcx> {
                     let refine = self.resolve_expr(refine, subst);
                     Ok(ty::Ty::Refine(bty, refine?))
                 }
-                ParamTyOrBaseTy::ParamTy(_) => self
-                    .diagnostics
-                    .emit_err(errors::RefinedTypeParam { span: ty.span })
-                    .raise(),
+                ParamTyOrBaseTy::ParamTy(_) => {
+                    self.diagnostics.emit_err(errors::RefinedTypeParam { span: ty.span }).raise()
+                }
             },
             ast::TyKind::Exists { bind, path, pred } => match self.resolve_path(path, subst)? {
                 ParamTyOrBaseTy::BaseTy(bty) => {
@@ -203,18 +182,15 @@ impl<'tcx> Resolver<'tcx> {
                     subst.pop_expr_layer();
                     Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
                 }
-                ParamTyOrBaseTy::ParamTy(_) => self
-                    .diagnostics
-                    .emit_err(errors::RefinedTypeParam { span: ty.span })
-                    .raise(),
+                ParamTyOrBaseTy::ParamTy(_) => {
+                    self.diagnostics.emit_err(errors::RefinedTypeParam { span: ty.span }).raise()
+                }
             },
             ast::TyKind::StrgRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
                     Ok(ty::Ty::StrgRef(name))
                 } else {
-                    self.diagnostics
-                        .emit_err(errors::UnresolvedLoc::new(region))
-                        .raise()
+                    self.diagnostics.emit_err(errors::UnresolvedLoc::new(region)).raise()
                 }
             }
             ast::TyKind::Ref(ty) => {
@@ -232,10 +208,7 @@ impl<'tcx> Resolver<'tcx> {
         let res = if let Some(res) = self.name_res_table.get(&path.ident.name) {
             *res
         } else {
-            return self
-                .diagnostics
-                .emit_err(errors::UnresolvedPath::new(&path))
-                .raise();
+            return self.diagnostics.emit_err(errors::UnresolvedPath::new(&path)).raise();
         };
 
         match res {
@@ -251,12 +224,12 @@ impl<'tcx> Resolver<'tcx> {
                     .try_collect_exhaust()?;
                 Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Adt(did, args)))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
-                ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
-            )),
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => Ok(ParamTyOrBaseTy::BaseTy(
-                ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty)),
-            )),
+            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
+                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))))
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
+                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))))
+            }
             hir::def::Res::PrimTy(hir::PrimTy::Bool) => {
                 Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Bool))
             }
@@ -304,19 +277,13 @@ impl<'tcx> Resolver<'tcx> {
                 ty::ExprKind::BinaryOp(op, Box::new(e1?), Box::new(e2?))
             }
         };
-        Ok(ty::Expr {
-            kind,
-            span: Some(expr.span),
-        })
+        Ok(ty::Expr { kind, span: Some(expr.span) })
     }
 
     fn resolve_var(&mut self, var: ast::Ident, subst: &Subst) -> Result<ty::Var, ErrorReported> {
         match subst.get_expr(var.name) {
             Some(var) => Ok(var),
-            None => self
-                .diagnostics
-                .emit_err(errors::UnresolvedVar::new(var))
-                .raise(),
+            None => self.diagnostics.emit_err(errors::UnresolvedVar::new(var)).raise(),
         }
     }
 
@@ -324,16 +291,10 @@ impl<'tcx> Resolver<'tcx> {
         match lit.kind {
             ast::LitKind::Integer => match lit.symbol.as_str().parse::<i128>() {
                 Ok(n) => Ok(ty::Lit::Int(n)),
-                Err(_) => self
-                    .diagnostics
-                    .emit_err(errors::IntTooLarge { span: lit.span })
-                    .raise(),
+                Err(_) => self.diagnostics.emit_err(errors::IntTooLarge { span: lit.span }).raise(),
             },
             ast::LitKind::Bool => Ok(ty::Lit::Bool(lit.symbol == kw::True)),
-            _ => self
-                .diagnostics
-                .emit_err(errors::UnexpectedLiteral { span: lit.span })
-                .raise(),
+            _ => self.diagnostics.emit_err(errors::UnexpectedLiteral { span: lit.span }).raise(),
         }
     }
 
@@ -343,20 +304,14 @@ impl<'tcx> Resolver<'tcx> {
         } else if sort.name == sym::bool {
             Ok(ty::Sort::Bool)
         } else {
-            self.diagnostics
-                .emit_err(errors::UnresolvedSort::new(sort))
-                .raise()
+            self.diagnostics.emit_err(errors::UnresolvedSort::new(sort)).raise()
         }
     }
 }
 
 impl Subst {
     fn new() -> Self {
-        Self {
-            exprs: ScopeMap::new(),
-            regions: FxHashMap::default(),
-            types: ScopeMap::new(),
-        }
+        Self { exprs: ScopeMap::new(), regions: FxHashMap::default(), types: ScopeMap::new() }
     }
 
     fn push_expr_layer(&mut self) {
@@ -442,11 +397,7 @@ fn collect_res(
     fn_sig: &hir::FnSig,
     table: &mut NameResTable,
 ) -> Result<(), ErrorReported> {
-    fn_sig
-        .decl
-        .inputs
-        .iter()
-        .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
+    fn_sig.decl.inputs.iter().try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
 
     match fn_sig.decl.output {
         hir::FnRetTy::DefaultReturn(span) => {
@@ -477,9 +428,9 @@ fn collect_res_ty(
         hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
             collect_res_ty(diagnostics, mut_ty.ty, table)
         }
-        hir::TyKind::Tup(tys) => tys
-            .iter()
-            .try_for_each(|ty| collect_res_ty(diagnostics, ty, table)),
+        hir::TyKind::Tup(tys) => {
+            tys.iter().try_for_each(|ty| collect_res_ty(diagnostics, ty, table))
+        }
         hir::TyKind::Path(qpath) => {
             let path = if let hir::QPath::Resolved(None, path) = qpath {
                 path
@@ -549,9 +500,8 @@ struct Sorts {
     int: Symbol,
 }
 
-static SORTS: std::lazy::SyncLazy<Sorts> = std::lazy::SyncLazy::new(|| Sorts {
-    int: Symbol::intern("int"),
-});
+static SORTS: std::lazy::SyncLazy<Sorts> =
+    std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
     use liquid_rust_syntax::ast;
@@ -578,10 +528,7 @@ mod errors {
 
     impl UnresolvedPath {
         pub fn new(path: &ast::Path) -> Self {
-            Self {
-                span: path.span,
-                path: path.ident,
-            }
+            Self { span: path.span, path: path.ident }
         }
     }
 
@@ -595,10 +542,7 @@ mod errors {
 
     impl UnresolvedLoc {
         pub fn new(loc: Ident) -> Self {
-            Self {
-                span: loc.span,
-                loc,
-            }
+            Self { span: loc.span, loc }
         }
     }
 
@@ -613,10 +557,7 @@ mod errors {
 
     impl DuplicateGenericParam {
         pub fn new(name: Ident) -> Self {
-            Self {
-                span: name.span,
-                name,
-            }
+            Self { span: name.span, name }
         }
     }
 
@@ -639,10 +580,7 @@ mod errors {
 
     impl UnresolvedSort {
         pub fn new(sort: Ident) -> Self {
-            Self {
-                span: sort.span,
-                sort,
-            }
+            Self { span: sort.span, sort }
         }
     }
 
@@ -657,10 +595,7 @@ mod errors {
 
     impl UnresolvedVar {
         pub fn new(var: Ident) -> Self {
-            Self {
-                span: var.span,
-                var,
-            }
+            Self { span: var.span, var }
         }
     }
 

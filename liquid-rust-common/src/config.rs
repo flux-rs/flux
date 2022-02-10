@@ -15,9 +15,7 @@ pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
     config.set_default("dump_constraint", false).unwrap();
 
     // 2. Merge with env variables (prefixed with LR_)
-    config
-        .merge(Environment::with_prefix("LR").ignore_empty(true))
-        .unwrap();
+    config.merge(Environment::with_prefix("LR").ignore_empty(true)).unwrap();
 
     config.try_into().unwrap()
 });

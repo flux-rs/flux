@@ -109,11 +109,8 @@ impl FixpointCtxt {
         match task.check() {
             Ok(FixpointResult::Safe(_)) => Ok(()),
             Ok(FixpointResult::Unsafe(_, errors)) => {
-                let errors = errors
-                    .into_iter()
-                    .map(|err| self.tags[err.tag])
-                    .unique()
-                    .collect_vec();
+                let errors =
+                    errors.into_iter().map(|err| self.tags[err.tag]).unique().collect_vec();
 
                 report_errors(tcx, body_span, errors)
             }
@@ -123,10 +120,7 @@ impl FixpointCtxt {
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx {
-        *self
-            .tags_inv
-            .entry(tag)
-            .or_insert_with(|| self.tags.push(tag))
+        *self.tags_inv.entry(tag).or_insert_with(|| self.tags.push(tag))
     }
 }
 
