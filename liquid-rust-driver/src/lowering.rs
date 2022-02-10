@@ -3,8 +3,8 @@ use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, Operand, Place, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind,
     },
 };
 use rustc_const_eval::interpret::ConstValue;
@@ -175,6 +175,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::Rvalue::Ref(_, mir::BorrowKind::Mut { .. }, p) => {
                 Ok(Rvalue::MutRef(self.lower_place(p)?))
             }
+            mir::Rvalue::Ref(_, mir::BorrowKind::Shared, p) => {
+                Ok(Rvalue::ShrRef(self.lower_place(p)?))
+            }
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
@@ -200,7 +203,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::BinOp::Add => Ok(BinOp::Add),
             mir::BinOp::Sub => Ok(BinOp::Sub),
             mir::BinOp::Gt => Ok(BinOp::Gt),
-            mir::BinOp::Ge => Ok(BinOp::Gt),
+            mir::BinOp::Ge => Ok(BinOp::Ge),
             mir::BinOp::Lt => Ok(BinOp::Lt),
             mir::BinOp::Le => Ok(BinOp::Le),
             mir::BinOp::Eq => Ok(BinOp::Eq),
@@ -231,17 +234,25 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_place(&self, place: &mir::Place<'tcx>) -> Result<Place, ErrorReported> {
-        let mut projection = vec![];
-        for elem in place.projection {
-            match elem {
-                mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
-                _ => {
-                    self.tcx.sess.err("place not supported");
-                    return Err(ErrorReported);
-                }
+        // let mut projection = vec![];
+        // for elem in place.projection {
+        //     match elem {
+        //         mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+        //         _ => {
+        //             self.tcx.sess.err("place not supported");
+        //             return Err(ErrorReported);
+        //         }
+        //     }
+        // }
+        // Ok(Place { local: place.local, projection })
+        match &place.projection[..] {
+            [] => Ok(Place::Local(place.local)),
+            [mir::PlaceElem::Deref] => Ok(Place::Deref(place.local)),
+            _ => {
+                self.tcx.sess.err("place not supported");
+                return Err(ErrorReported);
             }
         }
-        Ok(Place { local: place.local, projection })
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {

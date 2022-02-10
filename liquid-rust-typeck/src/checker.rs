@@ -498,7 +498,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow(place)
+                env.borrow_mut(place)
+            }
+            Rvalue::ShrRef(place) => {
+                // OWNERSHIP SAFETY CHECK
+                env.borrow_shr(place)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, *un_op, op),
         }
@@ -525,6 +529,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
             ir::BinOp::Rem => self.check_rem(cursor, source_info, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
+            ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
             ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, ty1, ty2),

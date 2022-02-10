@@ -39,7 +39,8 @@ pub enum TyKind {
     Exists(BaseTy, Pred),
     Uninit,
     StrgRef(Loc),
-    Ref(Ty),
+    WeakRef(Ty),
+    ShrRef(Ty),
     Param(ParamTy),
 }
 
@@ -118,7 +119,7 @@ impl TyS {
     pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
         f(self);
         match self.kind() {
-            TyKind::Ref(ty) => ty.walk(f),
+            TyKind::WeakRef(ty) => ty.walk(f),
             TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.walk(f),
             _ => {}
         }
@@ -372,7 +373,8 @@ mod pretty {
                 TyKind::Exists(bty, p) => w!("{:?}{{{:?}}}", bty, p),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
-                TyKind::Ref(region) => w!("&mut {:?}", region),
+                TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
+                TyKind::ShrRef(ty) => w!("&{:?}", ty),
                 TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
             }
         }

@@ -78,7 +78,7 @@ impl LoweringCtxt {
             core::Ty::StrgRef(loc) => {
                 ty::TyKind::StrgRef(ty::Loc::Abstract(self.locs[loc])).intern()
             }
-            core::Ty::Ref(ty) => ty::TyKind::Ref(self.lower_ty(ty, fresh_kvar)).intern(),
+            core::Ty::Ref(ty) => ty::TyKind::WeakRef(self.lower_ty(ty, fresh_kvar)).intern(),
             core::Ty::Param(param) => ty::TyKind::Param(*param).intern(),
         }
     }
