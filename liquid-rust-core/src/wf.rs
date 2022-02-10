@@ -58,7 +58,7 @@ impl Wf<'_> {
                 // TODO: check identifier is actually a region
                 Ok(())
             }
-            Ty::Ref(ty) => self.check_type(env, ty),
+            Ty::WeakRef(ty) | Ty::ShrRef(ty) => self.check_type(env, ty),
             Ty::Param(_) => Ok(()),
         }
     }

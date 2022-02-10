@@ -35,6 +35,7 @@ pub enum Token {
     Ref,
     And,
     Percent,
+    Weak,
 }
 
 pub(crate) struct Cursor {
@@ -46,6 +47,7 @@ pub(crate) struct Cursor {
 struct Symbols {
     fn_: Symbol,
     ref_: Symbol,
+    weak: Symbol,
 }
 
 struct Frame {
@@ -61,7 +63,11 @@ impl Cursor {
         Cursor {
             stack: vec![Frame { cursor: stream.into_trees().peekable(), close: None }],
             offset,
-            symbs: Symbols { fn_: Symbol::intern("fn"), ref_: Symbol::intern("ref") },
+            symbs: Symbols {
+                fn_: Symbol::intern("fn"),
+                ref_: Symbol::intern("ref"),
+                weak: Symbol::intern("weak"),
+            },
         }
     }
 
@@ -89,6 +95,7 @@ impl Cursor {
             }
             TokenKind::Ident(symb, _) if symb == self.symbs.ref_ => Token::Ref,
             TokenKind::Ident(symb, _) if symb == self.symbs.fn_ => Token::Fn,
+            TokenKind::Ident(symb, _) if symb == self.symbs.weak => Token::Weak,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,

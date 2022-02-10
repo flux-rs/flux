@@ -211,9 +211,13 @@ impl<'tcx> Resolver<'tcx> {
                         .raise()
                 }
             }
-            ast::TyKind::Ref(ty) => {
+            ast::TyKind::WeakRef(ty) => {
                 let ty = self.resolve_ty(*ty, subst)?;
-                Ok(ty::Ty::Ref(Box::new(ty)))
+                Ok(ty::Ty::WeakRef(Box::new(ty)))
+            }
+            ast::TyKind::ShrRef(ty) => {
+                let ty = self.resolve_ty(*ty, subst)?;
+                Ok(ty::Ty::ShrRef(Box::new(ty)))
             }
         }
     }
