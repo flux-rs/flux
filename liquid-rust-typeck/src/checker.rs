@@ -46,6 +46,8 @@ pub struct Checker<'a, 'tcx, M> {
     mode: M,
     ret: Ty,
     ensures: Vec<(Name, Ty)>,
+    /// A snapshot of the pure context at the end of the basic block after applying the effects
+    /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
     dominators: Dominators<BasicBlock>,
     queue: WorkQueue<BasicBlock>,
@@ -232,7 +234,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut cursor: Cursor,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        self.snapshots[bb] = Some(cursor.snapshot());
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
@@ -240,7 +241,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_statement(&mut env, &mut cursor, stmt);
         }
         if let Some(terminator) = &data.terminator {
-            self.check_terminator(env, cursor, terminator)?;
+            let successors = self.check_terminator(&mut env, &mut cursor, terminator)?;
+            self.snapshots[bb] = Some(cursor.snapshot());
+            self.check_successors(cursor, env, successors)?;
         }
         Ok(())
     }
@@ -263,10 +266,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_terminator(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        env: &mut TypeEnv,
+        cursor: &mut Cursor,
         terminator: &Terminator,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
@@ -278,12 +281,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
                     sub.subtyping(actual_ty, ensured_ty.clone());
                 }
+                Ok(vec![])
             }
-            TerminatorKind::Goto { target } => {
-                self.check_goto(env, cursor, *target)?;
-            }
+            TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.check_switch_int(env, cursor, discr, targets)?;
+                self.check_switch_int(env, discr, targets)
             }
             TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(
@@ -294,35 +296,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     substs,
                     args,
                     destination,
-                )?;
+                )
             }
             TerminatorKind::Assert { cond, expected, target } => {
-                self.check_assert(env, cursor, cond, *expected, *target)?;
+                self.check_assert(env, cond, *expected, *target)
             }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(place);
-                self.check_goto(env, cursor, *target)?;
+                Ok(vec![(*target, None)])
             }
         }
-        Ok(())
     }
 
     fn check_call(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        env: &mut TypeEnv,
+        cursor: &mut Cursor,
         source_info: SourceInfo,
         func: DefId,
         substs: &[core::Ty],
         args: &[Operand],
         destination: &Option<(Place, BasicBlock)>,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         let fn_sig = self.global_env.lookup_fn_sig(func);
         let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let actuals = args
             .iter()
-            .map(|arg| self.check_operand(&mut env, arg))
+            .map(|arg| self.check_operand(env, arg))
             .collect_vec();
 
         let cx = LoweringCtxt::empty();
@@ -358,7 +359,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for (loc, updated_ty) in fn_sig.ensures {
             let loc = Loc::Abstract(loc);
             let updated_ty = subst.subst_ty(&updated_ty);
-            let updated_ty = env.unpack(&mut cursor, updated_ty);
+            let updated_ty = env.unpack(cursor, updated_ty);
             if subst.has_loc(loc) {
                 let loc = subst.subst_loc(loc);
                 let sub = &mut Sub::new(
@@ -374,29 +375,29 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
 
+        let mut successors = vec![];
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
-            let ret = env.unpack(&mut cursor, ret);
+            let ret = env.unpack(cursor, ret);
             let sub = &mut Sub::new(
                 self.global_env.tcx,
                 cursor.breadcrumb(),
                 Tag::Call(source_info.span),
             );
             env.write_place(sub, p, ret);
-            self.check_goto(env, cursor, *bb)?;
+            successors.push((*bb, None));
         }
-        Ok(())
+        Ok(successors)
     }
 
     fn check_assert(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        env: &mut TypeEnv,
         cond: &Operand,
         expected: bool,
         target: BasicBlock,
-    ) -> Result<(), ErrorReported> {
-        let cond_ty = self.check_operand(&mut env, cond);
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+        let cond_ty = self.check_operand(env, cond);
 
         let pred = match cond_ty.kind() {
             TyKind::Refine(BaseTy::Bool, e) => e.clone(),
@@ -405,22 +406,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let assert = if expected { pred } else { pred.not() };
 
-        // Uncomment the below line to allow pre-catching of possible divide-by-zero, underflow, and overflow
-        // WARNING: rust is very eager about inserting under/overflow checks, so be warned that uncommenting this will likely break everything
-        // cursor.push_head(assert.clone());
-        cursor.push_pred(assert);
-        self.check_goto(env, cursor, target)?;
-        Ok(())
+        Ok(vec![(target, Some(assert))])
     }
 
     fn check_switch_int(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        env: &mut TypeEnv,
         discr: &Operand,
         targets: &mir::SwitchTargets,
-    ) -> Result<(), ErrorReported> {
-        let discr_ty = self.check_operand(&mut env, discr);
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+        let discr_ty = self.check_operand(env, discr);
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Refine(BaseTy::Bool, e) => {
@@ -437,21 +432,35 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         };
 
+        let mut successors = vec![];
+
         for (bits, bb) in targets.iter() {
-            let mut cursor = cursor.breadcrumb();
-            cursor.push_pred(mk(bits));
-            self.check_goto(env.clone(), cursor, bb)?;
+            successors.push((bb, Some(mk(bits))));
         }
         let otherwise = targets
             .iter()
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
 
-        if let Some(otherwise) = otherwise {
-            cursor.push_pred(otherwise);
-        }
+        successors.push((targets.otherwise(), otherwise));
 
-        self.check_goto(env, cursor, targets.otherwise())?;
+        Ok(successors)
+    }
+
+    fn check_successors(
+        &mut self,
+        mut cursor: Cursor,
+        env: TypeEnv,
+        successors: Vec<(BasicBlock, Option<Expr>)>,
+    ) -> Result<(), ErrorReported> {
+        for (target, guard) in successors {
+            let mut cursor = cursor.breadcrumb();
+            let env = env.clone();
+            if let Some(guard) = guard {
+                cursor.push_pred(guard);
+            }
+            self.check_goto(env, cursor, target)?;
+        }
         Ok(())
     }
 
@@ -727,7 +736,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn report_inference_error(&self, call_source_info: SourceInfo) -> Result<(), ErrorReported> {
+    fn report_inference_error<T>(&self, call_source_info: SourceInfo) -> Result<T, ErrorReported> {
         self.sess
             .span_err(call_source_info.span, "inference error at function call");
         Err(ErrorReported)
