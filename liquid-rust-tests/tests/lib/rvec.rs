@@ -32,7 +32,7 @@ impl<T> RVec<T> {
 
     #[lr::assume]
     #[lr::ty(
-    fn<len:int>(self: RVec<T>@len; ref<self>, usize{v: 0 <= v && v < len}) -> &T; self: RVec<T>@len)
+    fn<len:int>(self: RVec<T>@len; ref<self>, usize{v: 0 <= v && v < len}) -> &weak T; self: RVec<T>@len)
     ]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]

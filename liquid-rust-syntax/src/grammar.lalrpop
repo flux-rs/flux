@@ -35,7 +35,8 @@ TyKind: ast::TyKind = {
     <path:Path> "@" <refine:Refinement>                => ast::TyKind::RefineTy { <> },
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => ast::TyKind::Exists { <> },
     "ref" "<" <ident:Ident> ">"                        => ast::TyKind::StrgRef(<>),
-    "&" <Ty>                                           => ast::TyKind::Ref(Box::new(<>)),
+    "&" "weak" <Ty>                                    => ast::TyKind::WeakRef(Box::new(<>)),
+    "&" <Ty>                                           => ast::TyKind::ShrRef(Box::new(<>)),
 }
 
 Generics: ast::Generics = {
@@ -203,5 +204,6 @@ extern {
         "->" => Token::RArrow,
         "&"  => Token::And,
         "%" => Token::Percent,
+        "weak" => Token::Weak,
     }
 }

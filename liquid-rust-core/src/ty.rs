@@ -19,7 +19,8 @@ pub enum Ty {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
     StrgRef(Name),
-    Ref(Box<Ty>),
+    WeakRef(Box<Ty>),
+    ShrRef(Box<Ty>),
     Param(ParamTy),
 }
 
