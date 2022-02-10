@@ -23,3 +23,8 @@ pub fn test_and() {
     must_be_true(true);
     must_be_true(5 == 5);
 }
+
+#[lr::ty(fn<a: int{a >= 0}, b: int{b >= 0}>(i32{x: x == a}, i32{y: y == b}) -> i32{z: z == a % b})]
+pub fn mod_signed_pos(a: i32, b: i32) -> i32 {
+    a % b
+}

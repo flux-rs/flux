@@ -27,3 +27,9 @@ pub fn test_and() -> usize {
     must_be_true(5 == 6);
     0
 }
+
+// Unsafe because a and b may be < 0
+#[lr::ty(fn<a: int, b: int>(i32{x: x == a}, i32{y: y == b}) -> i32{z: z == a % b})]
+pub fn mod_signed(a: i32, b: i32) -> i32 {
+    a % b
+}
