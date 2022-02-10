@@ -514,10 +514,95 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             ir::BinOp::Sub => self.check_arith_op(cursor, source_info, BinOp::Sub, ty1, ty2),
             ir::BinOp::Mul => self.check_arith_op(cursor, source_info, BinOp::Mul, ty1, ty2),
             ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
+            ir::BinOp::Rem => self.check_rem(cursor, source_info, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
+            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, ty1, ty2),
         }
+    }
+
+    fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+        match (ty1.kind(), ty2.kind()) {
+            (
+                TyKind::Refine(BaseTy::Int(int_ty1), _e1),
+                TyKind::Refine(BaseTy::Int(int_ty2), _e2),
+            ) => {
+                debug_assert_eq!(int_ty1, int_ty2);
+                TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
+            }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), _e1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), _e2),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+                TyKind::Refine(
+                    BaseTy::Uint(*uint_ty1),
+                    ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(true)).intern(),
+                )
+                .intern()
+            }
+            (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
+                TyKind::Refine(
+                    BaseTy::Bool,
+                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
+            _ => unreachable!("non-boolean arguments to bitwise op: `{:?}` `{:?}`", ty1, ty2),
+        }
+    }
+
+    // Rem is a special case due to differing semantics with negative numbers
+    fn check_rem(&self, cursor: &mut Cursor, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
+        let ty = match (ty1.kind(), ty2.kind()) {
+            (
+                TyKind::Refine(BaseTy::Int(int_ty1), e1),
+                TyKind::Refine(BaseTy::Int(int_ty2), e2),
+            ) => {
+                debug_assert_eq!(int_ty1, int_ty2);
+                cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                    Tag::Rem(source_info.span),
+                );
+
+                let bty = BaseTy::Int(*int_ty1);
+                let binding = ExprKind::BinaryOp(
+                    BinOp::Eq,
+                    ExprKind::Var(Var::Bound).intern(),
+                    ExprKind::BinaryOp(BinOp::Mod, e1.clone(), e2.clone()).intern(),
+                )
+                .intern();
+                let guard = ExprKind::BinaryOp(
+                    BinOp::And,
+                    ExprKind::BinaryOp(BinOp::Ge, e1.clone(), Expr::zero()).intern(),
+                    ExprKind::BinaryOp(BinOp::Ge, e2.clone(), Expr::zero()).intern(),
+                )
+                .intern();
+                let pred = ty::Pred::Expr(ExprKind::BinaryOp(BinOp::Imp, guard, binding).intern());
+
+                TyKind::Exists(bty, pred).intern()
+            }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+                cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                    Tag::Rem(source_info.span),
+                );
+
+                TyKind::Refine(
+                    BaseTy::Uint(*uint_ty1),
+                    ExprKind::BinaryOp(BinOp::Mod, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
+            _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
+        };
+
+        ty
     }
 
     fn check_arith_op(

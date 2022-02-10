@@ -137,6 +137,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Assign(span) => tcx.sess.emit_err(errors::AssignError { span }),
             Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
+            Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
             Tag::Goto => tcx.sess.emit_err(errors::GotoError { span: body_span }),
         }
     }
@@ -211,6 +212,14 @@ mod errors {
     pub struct DivError {
         #[message = "possible division by zero"]
         #[label = "denominator might not be zero"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct RemError {
+        #[message = "possible reminder with a divisor of zero"]
+        #[label = "divisor might not be zero"]
         pub span: Span,
     }
 }

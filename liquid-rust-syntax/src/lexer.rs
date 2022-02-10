@@ -34,6 +34,7 @@ pub enum Token {
     Invalid,
     Ref,
     And,
+    Percent,
 }
 
 pub(crate) struct Cursor {
@@ -93,6 +94,7 @@ impl Cursor {
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,
             TokenKind::BinOp(BinOpToken::Minus) => Token::Minus,
             TokenKind::BinOp(BinOpToken::And) => Token::And,
+            TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
             _ => Token::Invalid,
         };
         (Location(span.lo() - self.offset), token, Location(span.hi() - self.offset))
