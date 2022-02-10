@@ -421,18 +421,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         targets: &mir::SwitchTargets,
     ) -> Result<(), ErrorReported> {
         let discr_ty = self.check_operand(&mut env, discr);
-        let mk = |bits| match discr_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, e) => {
-                if bits != 0 {
-                    e.clone()
-                } else {
-                    e.not()
+        let mk = |bits| {
+            match discr_ty.kind() {
+                TyKind::Refine(BaseTy::Bool, e) => {
+                    if bits != 0 {
+                        e.clone()
+                    } else {
+                        e.not()
+                    }
                 }
+                TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
+                    ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
+                }
+                _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
-            TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
-                ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
-            }
-            _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
         };
 
         for (bits, bb) in targets.iter() {
@@ -590,16 +592,22 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_unary_op(&self, env: &mut TypeEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
         let ty = self.check_operand(env, op);
         match un_op {
-            ir::UnOp::Not => match ty.kind() {
-                TyKind::Refine(BaseTy::Bool, e) => TyKind::Refine(BaseTy::Bool, e.not()).intern(),
-                _ => unreachable!("incompatible type: `{:?}`", ty),
-            },
-            ir::UnOp::Neg => match ty.kind() {
-                TyKind::Refine(BaseTy::Int(int_ty), e) => {
-                    TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+            ir::UnOp::Not => {
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Bool, e) => {
+                        TyKind::Refine(BaseTy::Bool, e.not()).intern()
+                    }
+                    _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
-                _ => unreachable!("incompatible type: `{:?}`", ty),
-            },
+            }
+            ir::UnOp::Neg => {
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Int(int_ty), e) => {
+                        TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+                    }
+                    _ => unreachable!("incompatible type: `{:?}`", ty),
+                }
+            }
         }
     }
 

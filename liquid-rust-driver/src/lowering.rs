@@ -60,10 +60,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_statement(&self, stmt: &mir::Statement<'tcx>) -> Result<Statement, ErrorReported> {
         let kind = match &stmt.kind {
-            mir::StatementKind::Assign(box (place, rvalue)) => StatementKind::Assign(
-                self.lower_place(place)?,
-                self.lower_rvalue(rvalue, stmt.source_info)?,
-            ),
+            mir::StatementKind::Assign(box (place, rvalue)) => {
+                StatementKind::Assign(
+                    self.lower_place(place)?,
+                    self.lower_rvalue(rvalue, stmt.source_info)?,
+                )
+            }
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
@@ -120,19 +122,23 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .try_collect()?,
                 }
             }
-            mir::TerminatorKind::SwitchInt { discr, targets, .. } => TerminatorKind::SwitchInt {
-                discr: self.lower_operand(discr)?,
-                targets: targets.clone(),
-            },
+            mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
+                TerminatorKind::SwitchInt {
+                    discr: self.lower_operand(discr)?,
+                    targets: targets.clone(),
+                }
+            }
             mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
             mir::TerminatorKind::Drop { place, target, .. } => {
                 TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
             }
-            mir::TerminatorKind::Assert { cond, target, expected, .. } => TerminatorKind::Assert {
-                cond: self.lower_operand(cond)?,
-                expected: *expected,
-                target: *target,
-            },
+            mir::TerminatorKind::Assert { cond, target, expected, .. } => {
+                TerminatorKind::Assert {
+                    cond: self.lower_operand(cond)?,
+                    expected: *expected,
+                    target: *target,
+                }
+            }
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
@@ -159,11 +165,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<Rvalue, ErrorReported> {
         match rvalue {
             mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
-            mir::Rvalue::BinaryOp(bin_op, operands) => Ok(Rvalue::BinaryOp(
-                self.lower_bin_op(*bin_op)?,
-                self.lower_operand(&operands.0)?,
-                self.lower_operand(&operands.1)?,
-            )),
+            mir::Rvalue::BinaryOp(bin_op, operands) => {
+                Ok(Rvalue::BinaryOp(
+                    self.lower_bin_op(*bin_op)?,
+                    self.lower_operand(&operands.0)?,
+                    self.lower_operand(&operands.1)?,
+                ))
+            }
             mir::Rvalue::Ref(_, mir::BorrowKind::Mut { .. }, p) => {
                 Ok(Rvalue::MutRef(self.lower_place(p)?))
             }
@@ -243,17 +251,20 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::ConstantKind::Ty(&Const {
                 ty,
                 val: ConstKind::Value(ConstValue::Scalar(scalar)),
-            }) => match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
-                (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
-                (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
-                (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
-                _ => {
-                    self.tcx
-                        .sess
-                        .span_err(c.span, &format!("constant not supported: `{:?}`", c.literal));
-                    Err(ErrorReported)
+            }) => {
+                match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
+                    (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
+                    (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
+                    (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
+                    _ => {
+                        self.tcx.sess.span_err(
+                            c.span,
+                            &format!("constant not supported: `{:?}`", c.literal),
+                        );
+                        Err(ErrorReported)
+                    }
                 }
-            },
+            }
             _ => {
                 self.tcx
                     .sess

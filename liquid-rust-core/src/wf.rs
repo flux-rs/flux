@@ -65,9 +65,11 @@ impl Wf<'_> {
 
     fn check_pred(&self, env: &Env, pred: &Pred, sort: Sort) -> Result<(), ErrorReported> {
         match pred {
-            Pred::Infer => todo!(
+            Pred::Infer => {
+                todo!(
                 "we should report this as an error as inference should not be allowed in the syntax"
-            ),
+            )
+            }
             Pred::Expr(e) => self.check_expr(env, e, sort),
         }
     }

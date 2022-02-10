@@ -247,10 +247,12 @@ impl Node {
                     ),
                 ))
             }
-            NodeKind::Pred(expr) => Some(fixpoint::Constraint::Guard(
-                expr_to_fixpoint(cx, expr),
-                Box::new(children_to_fixpoint(cx, &self.children)?),
-            )),
+            NodeKind::Pred(expr) => {
+                Some(fixpoint::Constraint::Guard(
+                    expr_to_fixpoint(cx, expr),
+                    Box::new(children_to_fixpoint(cx, &self.children)?),
+                ))
+            }
             NodeKind::Head(pred, tag) => {
                 let (bindings, pred) = pred_to_fixpoint(cx, pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
@@ -321,11 +323,13 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
         ExprKind::Var(Var::Free(name)) => fixpoint::Expr::Var(cx.name_map[name]),
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
-        ExprKind::BinaryOp(op, e1, e2) => fixpoint::Expr::BinaryOp(
-            *op,
-            Box::new(expr_to_fixpoint(cx, e1)),
-            Box::new(expr_to_fixpoint(cx, e2)),
-        ),
+        ExprKind::BinaryOp(op, e1, e2) => {
+            fixpoint::Expr::BinaryOp(
+                *op,
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
+            )
+        }
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
         ExprKind::Var(Var::Bound) => {
             unreachable!("unexpected bound variable")
@@ -495,10 +499,9 @@ mod pretty {
                 parents
                     .into_iter()
                     .rev()
-                    .filter(|n| matches!(
-                        n.borrow().kind,
-                        NodeKind::Binding(..) | NodeKind::Pred(..)
-                    ))
+                    .filter(|n| {
+                        matches!(n.borrow().kind, NodeKind::Binding(..) | NodeKind::Pred(..))
+                    })
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {

@@ -236,10 +236,12 @@ impl ExprS {
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
         let to = to.into();
         match self.kind() {
-            ExprKind::Var(var) => match var {
-                Var::Bound => to,
-                Var::Free(_) => ExprKind::Var(*var).intern(),
-            },
+            ExprKind::Var(var) => {
+                match var {
+                    Var::Bound => to,
+                    Var::Free(_) => ExprKind::Var(*var).intern(),
+                }
+            }
             ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
             ExprKind::BinaryOp(op, e1, e2) => {
                 ExprKind::BinaryOp(*op, e1.subst_bound_vars(to.clone()), e2.subst_bound_vars(to))
@@ -258,13 +260,15 @@ impl ExprS {
             ExprKind::BinaryOp(op, e1, e2) => {
                 ExprKind::BinaryOp(*op, e1.simplify(), e2.simplify()).intern()
             }
-            ExprKind::UnaryOp(UnOp::Not, e) => match e.kind() {
-                ExprKind::UnaryOp(UnOp::Not, e) => e.simplify(),
-                ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                    ExprKind::BinaryOp(BinOp::Ne, e1.simplify(), e2.simplify()).intern()
+            ExprKind::UnaryOp(UnOp::Not, e) => {
+                match e.kind() {
+                    ExprKind::UnaryOp(UnOp::Not, e) => e.simplify(),
+                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
+                        ExprKind::BinaryOp(BinOp::Ne, e1.simplify(), e2.simplify()).intern()
+                    }
+                    _ => ExprKind::UnaryOp(UnOp::Not, e.simplify()).intern(),
                 }
-                _ => ExprKind::UnaryOp(UnOp::Not, e.simplify()).intern(),
-            },
+            }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.simplify()).intern(),
         }
     }

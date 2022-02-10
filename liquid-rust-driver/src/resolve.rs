@@ -167,33 +167,41 @@ impl<'tcx> Resolver<'tcx> {
 
     fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
         match ty.kind {
-            ast::TyKind::BaseTy(path) => match self.resolve_path(path, subst)? {
-                ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
-                ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
-            },
-            ast::TyKind::RefineTy { path, refine } => match self.resolve_path(path, subst)? {
-                ParamTyOrBaseTy::BaseTy(bty) => {
-                    let refine = self.resolve_expr(refine, subst);
-                    Ok(ty::Ty::Refine(bty, refine?))
+            ast::TyKind::BaseTy(path) => {
+                match self.resolve_path(path, subst)? {
+                    ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
+                    ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
                 }
-                ParamTyOrBaseTy::ParamTy(_) => self
-                    .diagnostics
-                    .emit_err(errors::RefinedTypeParam { span: ty.span })
-                    .raise(),
-            },
-            ast::TyKind::Exists { bind, path, pred } => match self.resolve_path(path, subst)? {
-                ParamTyOrBaseTy::BaseTy(bty) => {
-                    subst.push_expr_layer();
-                    subst.insert_expr(bind.name, ty::Var::Bound);
-                    let e = self.resolve_expr(pred, subst);
-                    subst.pop_expr_layer();
-                    Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
+            }
+            ast::TyKind::RefineTy { path, refine } => {
+                match self.resolve_path(path, subst)? {
+                    ParamTyOrBaseTy::BaseTy(bty) => {
+                        let refine = self.resolve_expr(refine, subst);
+                        Ok(ty::Ty::Refine(bty, refine?))
+                    }
+                    ParamTyOrBaseTy::ParamTy(_) => {
+                        self.diagnostics
+                            .emit_err(errors::RefinedTypeParam { span: ty.span })
+                            .raise()
+                    }
                 }
-                ParamTyOrBaseTy::ParamTy(_) => self
-                    .diagnostics
-                    .emit_err(errors::RefinedTypeParam { span: ty.span })
-                    .raise(),
-            },
+            }
+            ast::TyKind::Exists { bind, path, pred } => {
+                match self.resolve_path(path, subst)? {
+                    ParamTyOrBaseTy::BaseTy(bty) => {
+                        subst.push_expr_layer();
+                        subst.insert_expr(bind.name, ty::Var::Bound);
+                        let e = self.resolve_expr(pred, subst);
+                        subst.pop_expr_layer();
+                        Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
+                    }
+                    ParamTyOrBaseTy::ParamTy(_) => {
+                        self.diagnostics
+                            .emit_err(errors::RefinedTypeParam { span: ty.span })
+                            .raise()
+                    }
+                }
+            }
             ast::TyKind::StrgRef(region) => {
                 if let Some(name) = subst.get_region(region.name) {
                     Ok(ty::Ty::StrgRef(name))
@@ -246,34 +254,38 @@ impl<'tcx> Resolver<'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Bool) => {
                 Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Bool))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => self
-                .diagnostics
-                .emit_err(errors::UnsupportedSignature {
-                    span: path.span,
-                    msg: "floats are not supported yet",
-                })
-                .raise(),
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => self
-                .diagnostics
-                .emit_err(errors::UnsupportedSignature {
-                    span: path.span,
-                    msg: "string slices are not supported yet",
-                })
-                .raise(),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => self
-                .diagnostics
-                .emit_err(errors::UnsupportedSignature {
-                    span: path.span,
-                    msg: "chars are not suported yet",
-                })
-                .raise(),
-            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy(..) => self
-                .diagnostics
-                .emit_err(errors::UnsupportedSignature {
-                    span: path.span,
-                    msg: "path resolved to an unsupported type",
-                })
-                .raise(),
+            hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => {
+                self.diagnostics
+                    .emit_err(errors::UnsupportedSignature {
+                        span: path.span,
+                        msg: "floats are not supported yet",
+                    })
+                    .raise()
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => {
+                self.diagnostics
+                    .emit_err(errors::UnsupportedSignature {
+                        span: path.span,
+                        msg: "string slices are not supported yet",
+                    })
+                    .raise()
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => {
+                self.diagnostics
+                    .emit_err(errors::UnsupportedSignature {
+                        span: path.span,
+                        msg: "chars are not suported yet",
+                    })
+                    .raise()
+            }
+            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy(..) => {
+                self.diagnostics
+                    .emit_err(errors::UnsupportedSignature {
+                        span: path.span,
+                        msg: "path resolved to an unsupported type",
+                    })
+                    .raise()
+            }
             _ => unreachable!("unexpected type resolution"),
         }
     }
@@ -296,27 +308,32 @@ impl<'tcx> Resolver<'tcx> {
     fn resolve_var(&mut self, var: ast::Ident, subst: &Subst) -> Result<ty::Var, ErrorReported> {
         match subst.get_expr(var.name) {
             Some(var) => Ok(var),
-            None => self
-                .diagnostics
-                .emit_err(errors::UnresolvedVar::new(var))
-                .raise(),
+            None => {
+                self.diagnostics
+                    .emit_err(errors::UnresolvedVar::new(var))
+                    .raise()
+            }
         }
     }
 
     fn resolve_lit(&mut self, lit: ast::Lit) -> Result<ty::Lit, ErrorReported> {
         match lit.kind {
-            ast::LitKind::Integer => match lit.symbol.as_str().parse::<i128>() {
-                Ok(n) => Ok(ty::Lit::Int(n)),
-                Err(_) => self
-                    .diagnostics
-                    .emit_err(errors::IntTooLarge { span: lit.span })
-                    .raise(),
-            },
+            ast::LitKind::Integer => {
+                match lit.symbol.as_str().parse::<i128>() {
+                    Ok(n) => Ok(ty::Lit::Int(n)),
+                    Err(_) => {
+                        self.diagnostics
+                            .emit_err(errors::IntTooLarge { span: lit.span })
+                            .raise()
+                    }
+                }
+            }
             ast::LitKind::Bool => Ok(ty::Lit::Bool(lit.symbol == kw::True)),
-            _ => self
-                .diagnostics
-                .emit_err(errors::UnexpectedLiteral { span: lit.span })
-                .raise(),
+            _ => {
+                self.diagnostics
+                    .emit_err(errors::UnexpectedLiteral { span: lit.span })
+                    .raise()
+            }
         }
     }
 
@@ -456,9 +473,10 @@ fn collect_res_ty(
         hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
             collect_res_ty(diagnostics, mut_ty.ty, table)
         }
-        hir::TyKind::Tup(tys) => tys
-            .iter()
-            .try_for_each(|ty| collect_res_ty(diagnostics, ty, table)),
+        hir::TyKind::Tup(tys) => {
+            tys.iter()
+                .try_for_each(|ty| collect_res_ty(diagnostics, ty, table))
+        }
         hir::TyKind::Path(qpath) => {
             let path = if let hir::QPath::Resolved(None, path) = qpath {
                 path
@@ -507,18 +525,22 @@ fn collect_res_generic_arg(
 ) -> Result<(), ErrorReported> {
     match arg {
         hir::GenericArg::Type(ty) => collect_res_ty(diagnostics, ty, table),
-        hir::GenericArg::Lifetime(_) => diagnostics
-            .emit_err(errors::UnsupportedSignature {
-                span: arg.span(),
-                msg: "lifetime parameters are not supported yet",
-            })
-            .raise(),
-        hir::GenericArg::Const(_) => diagnostics
-            .emit_err(errors::UnsupportedSignature {
-                span: arg.span(),
-                msg: "const generics are not supported yet",
-            })
-            .raise(),
+        hir::GenericArg::Lifetime(_) => {
+            diagnostics
+                .emit_err(errors::UnsupportedSignature {
+                    span: arg.span(),
+                    msg: "lifetime parameters are not supported yet",
+                })
+                .raise()
+        }
+        hir::GenericArg::Const(_) => {
+            diagnostics
+                .emit_err(errors::UnsupportedSignature {
+                    span: arg.span(),
+                    msg: "const generics are not supported yet",
+                })
+                .raise()
+        }
 
         hir::GenericArg::Infer(_) => unreachable!(),
     }

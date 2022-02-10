@@ -174,11 +174,13 @@ impl TypeEnv {
         let references = self
             .bindings
             .iter()
-            .filter_map(|(loc, ty)| match ty.ty().kind() {
-                TyKind::StrgRef(ref_loc @ Loc::Abstract(name)) if !scope.contains(*name) => {
-                    Some((*ref_loc, *loc))
+            .filter_map(|(loc, ty)| {
+                match ty.ty().kind() {
+                    TyKind::StrgRef(ref_loc @ Loc::Abstract(name)) if !scope.contains(*name) => {
+                        Some((*ref_loc, *loc))
+                    }
+                    _ => None,
                 }
-                _ => None,
             })
             .into_group_map();
 
