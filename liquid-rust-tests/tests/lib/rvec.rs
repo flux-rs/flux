@@ -19,15 +19,21 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    #[lr::ty(fn<n: int>(self: RVec<T>@n; ref<self>) -> usize@n; self: RVec<T>@n)]
-    pub fn len(&mut self) -> usize {
+    #[lr::ty(fn<len: int>(&RVec<T>@len) -> usize@len)]
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     #[lr::assume]
-    #[lr::ty(fn<len: int>(self: RVec<T>@len; ref<self>) -> bool@{len == 0}; self: RVec<T>@len)]
-    pub fn is_empty(&mut self) -> bool {
+    #[lr::ty(fn<len: int>(&RVec<T>@len) -> bool@{len == 0})]
+    pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    #[lr::assume]
+    #[lr::ty(fn<len:int>(&RVec<T>@len, usize{v: 0 <= v && v < len}) -> &T)]
+    pub fn get(&self, i: usize) -> &T {
+        &self.inner[i]
     }
 
     #[lr::assume]

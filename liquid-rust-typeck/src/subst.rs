@@ -113,13 +113,13 @@ impl Subst {
             .collect();
 
         for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
-            self.infer_from_tys(&params, actual.clone(), formal.clone());
+            self.infer_from_tys(&params, actual, formal);
         }
 
         for (loc, required) in &fn_sig.requires {
             let loc = Loc::Abstract(*loc);
             let actual = env.lookup_loc(self.subst_loc(loc)).unwrap();
-            self.infer_from_tys(&params, actual, required.clone());
+            self.infer_from_tys(&params, &actual, required);
         }
 
         self.check_inference(&fn_sig.params, &fn_sig.requires)
@@ -137,7 +137,7 @@ impl Subst {
             .collect();
         for (loc, binding2) in bb_env.env.iter() {
             let ty1 = env.lookup_loc(*loc).unwrap();
-            self.infer_from_tys(&params, ty1, binding2.ty());
+            self.infer_from_tys(&params, &ty1, &binding2.ty());
         }
         self.check_inference(&bb_env.params, &[])
     }
@@ -161,7 +161,7 @@ impl Subst {
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: Ty, ty2: Ty) {
+    fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
                 if let ExprKind::Var(var) = e2.kind() {
@@ -188,6 +188,9 @@ impl Subst {
                     }
                     _ => {}
                 }
+            }
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                self.infer_from_tys(params, ty1, ty2);
             }
             _ => {}
         }

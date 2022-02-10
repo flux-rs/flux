@@ -13,8 +13,8 @@ fn kmp_table(p: &mut RVec<u8>) -> RVec<usize> {
     let mut i = 1;
     let mut j = 0;
     while i < m {
-        let a = *p.get_mut(i);
-        let b = *p.get_mut(j);
+        let a = *p.get(i);
+        let b = *p.get(j);
         if a == b {
             *t.get_mut(i) = j + 1;
             i = i + 1;
@@ -23,7 +23,7 @@ fn kmp_table(p: &mut RVec<u8>) -> RVec<usize> {
             *t.get_mut(i) = 0;
             i = i + 1;
         } else {
-            j = *t.get_mut(j - 1);
+            j = *t.get(j - 1);
         }
     }
     t
@@ -35,10 +35,10 @@ pub fn kmp_search(mut pat: RVec<u8>, target: &mut RVec<u8>) -> usize {
     let mut p_i = 0;
     let mut result_idx = 0;
 
-    let mut t = kmp_table(&mut pat);
+    let t = kmp_table(&mut pat);
 
     while t_i < target.len() && p_i < pat.len() {
-        if *target.get_mut(t_i) == *pat.get_mut(p_i) {
+        if *target.get(t_i) == *pat.get(p_i) {
             if result_idx == 0 {
                 result_idx = t_i;
             }
@@ -51,7 +51,7 @@ pub fn kmp_search(mut pat: RVec<u8>, target: &mut RVec<u8>) -> usize {
             if p_i == 0 {
                 p_i = 0;
             } else {
-                p_i = *t.get_mut(p_i - 1);
+                p_i = *t.get(p_i - 1);
             }
             t_i = t_i + 1;
             result_idx = 0;
