@@ -127,15 +127,6 @@ impl TyS {
 }
 
 impl BaseTy {
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) => Sort::Int,
-            BaseTy::Uint(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(_, _) => Sort::Int,
-        }
-    }
-
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(def_id, Substs::from_iter(substs))
     }

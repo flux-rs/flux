@@ -33,7 +33,7 @@ use rustc_data_structures::{graph::dominators::Dominators, work_queue::WorkQueue
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::{mir, ty::TyCtxt};
+use rustc_middle::mir;
 use rustc_session::Session;
 
 use super::type_env::TypeEnvShape;
@@ -42,7 +42,7 @@ pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
-    global_env: &'a GlobalEnv<'tcx>,
+    genv: &'a GlobalEnv<'tcx>,
     mode: M,
     ret: Ty,
     ensures: Vec<(Name, Ty)>,
@@ -62,7 +62,7 @@ pub trait Mode {
 
     fn check_goto_join_point(
         &mut self,
-        tcx: TyCtxt,
+        genv: &GlobalEnv,
         cursor: Cursor,
         env: TypeEnv,
         scope: &Scope,
@@ -92,7 +92,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     ) -> Self {
         Checker {
             sess: global_env.tcx.sess,
-            global_env,
+            genv: global_env,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             ret,
@@ -107,21 +107,16 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
-        global_env: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
 
         let mut bb_envs = FxHashMap::default();
-        let _ = Checker::run(
-            global_env,
-            &mut pure_cx,
-            body,
-            &fn_sig,
-            Inference { bb_envs: &mut bb_envs },
-        )?;
+        let _ =
+            Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -132,17 +127,17 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     pub fn check(
-        global_env: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
         let mut kvars = KVarStore::new();
 
         Checker::run(
-            global_env,
+            genv,
             &mut pure_cx,
             body,
             &fn_sig,
@@ -174,13 +169,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (loc, ty) in &fn_sig.requires {
             let fresh = cursor.push_loc();
-            let ty = env.unpack(&mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(global_env, &mut cursor, subst.subst_ty(ty));
             env.insert_loc(fresh, ty);
             subst.insert_loc(Loc::Abstract(*loc), fresh);
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(&mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(global_env, &mut cursor, subst.subst_ty(ty));
             env.insert_loc(Loc::Local(local), ty);
         }
 
@@ -210,7 +205,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
 
             let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
-            env.unpack_all(&mut cursor);
+            env.unpack_all(global_env, &mut cursor);
             checker.check_basic_block(cursor, env, bb)?;
         }
 
@@ -252,9 +247,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
-                let ty = env.unpack(cursor, ty);
+                let ty = env.unpack(self.genv, cursor, ty);
                 let sub = &mut Sub::new(
-                    self.global_env.tcx,
+                    self.genv,
                     cursor.breadcrumb(),
                     Tag::Assign(stmt.source_info.span),
                 );
@@ -273,7 +268,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                let sub = &mut Sub::new(self.global_env.tcx, cursor.breadcrumb(), Tag::Ret);
+                let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Ret);
 
                 sub.subtyping(ret_place_ty, self.ret.clone());
 
@@ -318,15 +313,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let fn_sig = self.global_env.lookup_fn_sig(func);
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let fn_sig = self.genv.lookup_fn_sig(func);
+        let fn_sig = LoweringCtxt::lower_fn_sig(self.genv, fn_sig);
 
         let actuals = args
             .iter()
             .map(|arg| self.check_operand(env, arg))
             .collect_vec();
 
-        let cx = LoweringCtxt::empty();
+        let cx = LoweringCtxt::empty(self.genv);
         let scope = cursor.scope();
         let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter());
         let substs = substs
@@ -345,8 +340,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             cursor.push_head(subst.subst_pred(&param.pred), Tag::Call(source_info.span));
         }
 
-        let sub =
-            &mut Sub::new(self.global_env.tcx, cursor.breadcrumb(), Tag::Call(source_info.span));
+        let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
             sub.subtyping(actual, subst.subst_ty(formal));
         }
@@ -361,14 +355,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for (loc, updated_ty) in fn_sig.ensures {
             let loc = Loc::Abstract(loc);
             let updated_ty = subst.subst_ty(&updated_ty);
-            let updated_ty = env.unpack(cursor, updated_ty);
+            let updated_ty = env.unpack(self.genv, cursor, updated_ty);
             if subst.has_loc(loc) {
                 let loc = subst.subst_loc(loc);
-                let sub = &mut Sub::new(
-                    self.global_env.tcx,
-                    cursor.breadcrumb(),
-                    Tag::Call(source_info.span),
-                );
+                let sub =
+                    &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
                 env.update_loc(sub, loc, updated_ty);
             } else {
                 let fresh = cursor.push_loc();
@@ -380,12 +371,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
-            let ret = env.unpack(cursor, ret);
-            let sub = &mut Sub::new(
-                self.global_env.tcx,
-                cursor.breadcrumb(),
-                Tag::Call(source_info.span),
-            );
+            let ret = env.unpack(self.genv, cursor, ret);
+            let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
             env.write_place(sub, p, ret);
             successors.push((*bb, None));
         }
@@ -476,7 +463,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let scope = cursor.scope_at(self.snapshot_at_dominator(target)).unwrap();
             if self
                 .mode
-                .check_goto_join_point(self.global_env.tcx, cursor, env, &scope, target)
+                .check_goto_join_point(self.genv, cursor, env, &scope, target)
             {
                 self.queue.insert(target);
             }
@@ -757,7 +744,7 @@ impl Mode for Inference<'_> {
 
     fn check_goto_join_point(
         &mut self,
-        tcx: TyCtxt,
+        genv: &GlobalEnv,
         _cursor: Cursor,
         mut env: TypeEnv,
         scope: &Scope,
@@ -765,7 +752,7 @@ impl Mode for Inference<'_> {
     ) -> bool {
         env.pack_refs(scope);
         match self.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(tcx, &mut env),
+            Entry::Occupied(mut entry) => entry.get_mut().join(genv, &mut env),
             Entry::Vacant(entry) => {
                 entry.insert(env.clone());
                 true
@@ -792,7 +779,7 @@ impl Mode for Check<'_> {
 
     fn check_goto_join_point(
         &mut self,
-        tcx: TyCtxt,
+        genv: &GlobalEnv,
         mut cursor: Cursor,
         mut env: TypeEnv,
         scope: &Scope,
@@ -811,10 +798,12 @@ impl Mode for Check<'_> {
         let mut first = false;
         let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            self.shapes
-                .remove(&target)
-                .unwrap()
-                .into_bb_env(&cursor.name_gen(), fresh_kvar, &env)
+            self.shapes.remove(&target).unwrap().into_bb_env(
+                genv,
+                &cursor.name_gen(),
+                fresh_kvar,
+                &env,
+            )
         });
 
         let mut subst = Subst::empty();
@@ -825,7 +814,7 @@ impl Mode for Check<'_> {
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto);
         }
-        let sub = &mut Sub::new(tcx, cursor.breadcrumb(), Tag::Goto);
+        let sub = &mut Sub::new(genv, cursor.breadcrumb(), Tag::Goto);
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first

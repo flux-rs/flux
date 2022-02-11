@@ -2,6 +2,9 @@ use liquid_rust_core::ty::FnSig;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::TyCtxt;
+pub use rustc_middle::ty::Variance;
+
+use crate::ty::{BaseTy, Sort};
 
 pub struct FnSpec {
     pub fn_sig: FnSig,
@@ -20,5 +23,18 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn lookup_fn_sig(&self, did: DefId) -> &FnSig {
         &self.specs[&did.as_local().unwrap()].fn_sig
+    }
+
+    pub fn variances_of(&self, did: DefId) -> &[Variance] {
+        self.tcx.variances_of(did)
+    }
+
+    pub fn sort(&self, bty: &BaseTy) -> Sort {
+        match bty {
+            BaseTy::Int(_) => Sort::Int,
+            BaseTy::Uint(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(_, _) => Sort::Int,
+        }
     }
 }
