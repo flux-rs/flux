@@ -29,6 +29,12 @@ pub enum Expr {
     UnaryOp(UnOp, Box<Self>),
 }
 
+pub struct Qualifier {
+    expr: Expr,
+    free_vars: Vec<(Name, Sort)>,
+    name: String,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
     Iff,
@@ -213,6 +219,69 @@ impl fmt::Display for Expr {
                 }
             }
         }
+    }
+}
+
+impl Qualifier {
+    pub fn get_defaults() -> Vec<Self> {
+        let name1: Name = Name::from(0 as usize);
+        let name2: Name = Name::from(1 as usize);
+        let un_op_names = vec!((name1, Sort::Int));
+        let bin_op_names = vec!((name1, Sort::Int), (name2, Sort::Int));
+        // writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
+        let eqzero = Qualifier {
+            free_vars: un_op_names,
+            expr: Expr::BinaryOp(
+                BinOp::Eq,
+                Box::new(Expr::Var(name1)),
+                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0)))
+            ),
+            name: String::from("EqZero"),
+        };
+
+        // writeln!(f, "(qualif Le1 ((a int) (b int)) (a < b - 1))")?;
+        let le1 = Qualifier {
+            free_vars: bin_op_names,
+            expr: Expr::BinaryOp(
+                BinOp::Le,
+                Box::new(Expr::Var(name1)),
+                Box::new(Expr::BinaryOp(
+                    BinOp::Sub,
+                    Box::new(Expr::Var(name2)),
+                    Box::new(Expr::Constant(Constant::Int(Sign::Positive, 1)))
+                )),
+            ),
+            name: String::from("Le1"),
+        };
+
+        // Todo: write up the rest of these, the above two are only there as tests/examples
+        /*
+        writeln!(f, "(qualif GtZero ((v int)) (v > 0))")?;
+        writeln!(f, "(qualif GeZero ((v int)) (v >= 0))")?;
+        writeln!(f, "(qualif LtZero ((v int)) (v < 0))")?;
+        writeln!(f, "(qualif LeZero ((v int)) (v <= 0))")?;
+
+        // Binary
+        writeln!(f, "(qualif Eq ((a int) (b int)) (a == b))")?;
+        writeln!(f, "(qualif Gt ((a int) (b int)) (a > b))")?;
+        writeln!(f, "(qualif Lt ((a int) (b int)) (a < b))")?;
+        writeln!(f, "(qualif Ge ((a int) (b int)) (a >= b))")?;
+        writeln!(f, "(qualif Le ((a int) (b int)) (a <= b))")?;
+        */
+
+        vec!(eqzero, le1)
+    }
+}
+
+impl fmt::Display for Qualifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        //writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
+
+        let name_list = self.free_vars.iter().map(|(name, sort)| {
+            format!("({:?} {})", name, sort)
+        }).join(&String::from(" "));
+
+        write!(f, "(qualif {} ({}) ({}))", self.name, name_list, self.expr)
     }
 }
 
