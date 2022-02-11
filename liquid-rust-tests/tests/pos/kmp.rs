@@ -5,8 +5,8 @@
 mod rvec;
 use rvec::RVec;
 
-#[lr::ty(fn<len: int{len > 0}>(vec: RVec<u8>@len; ref<vec>) -> RVec<usize{v: v >=0 && v <= len}>@len)]
-fn kmp_table(p: &mut RVec<u8>) -> RVec<usize> {
+#[lr::ty(fn<len: int{len > 0}>(&RVec<u8>@len) -> RVec<usize{v: v >=0 && v <= len}>@len)]
+fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     let m = p.len();
     let mut t = RVec::from_elem_n(0, m);
 

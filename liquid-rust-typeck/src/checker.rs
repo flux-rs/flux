@@ -199,7 +199,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut checker = Checker::new(global_env, body, ret, ensures, mode);
 
-        checker.check_goto(env, cursor, START_BLOCK)?;
+        checker.check_goto(cursor, env, START_BLOCK)?;
         while let Some(bb) = checker.queue.pop() {
             let snapshot = checker.snapshot_at_dominator(bb);
             let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
@@ -211,7 +211,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
             let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
             env.unpack_all(&mut cursor);
-            checker.check_basic_block(env, cursor, bb)?;
+            checker.check_basic_block(cursor, env, bb)?;
         }
 
         Ok(())
@@ -230,28 +230,28 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_basic_block(
         &mut self,
-        mut env: TypeEnv,
         mut cursor: Cursor,
+        mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            self.check_statement(&mut env, &mut cursor, stmt);
+            self.check_statement(&mut cursor, &mut env, stmt);
         }
         if let Some(terminator) = &data.terminator {
-            let successors = self.check_terminator(&mut env, &mut cursor, terminator)?;
+            let successors = self.check_terminator(&mut cursor, &mut env, terminator)?;
             self.snapshots[bb] = Some(cursor.snapshot());
             self.check_successors(cursor, env, successors)?;
         }
         Ok(())
     }
 
-    fn check_statement(&self, env: &mut TypeEnv, cursor: &mut Cursor, stmt: &Statement) {
+    fn check_statement(&self, cursor: &mut Cursor, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                let ty = self.check_rvalue(env, cursor, stmt.source_info, rvalue);
+                let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
                 let ty = env.unpack(cursor, ty);
                 let sub = &mut Sub::new(
                     self.global_env.tcx,
@@ -266,8 +266,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_terminator(
         &mut self,
-        env: &mut TypeEnv,
         cursor: &mut Cursor,
+        env: &mut TypeEnv,
         terminator: &Terminator,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         match &terminator.kind {
@@ -278,7 +278,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 sub.subtyping(ret_place_ty, self.ret.clone());
 
                 for (loc, ensured_ty) in &self.ensures {
-                    let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
+                    let actual_ty = env.lookup_loc(Loc::Abstract(*loc));
                     sub.subtyping(actual_ty, ensured_ty.clone());
                 }
                 Ok(vec![])
@@ -289,8 +289,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(
-                    env,
                     cursor,
+                    env,
                     terminator.source_info,
                     *func,
                     substs,
@@ -310,8 +310,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_call(
         &mut self,
-        env: &mut TypeEnv,
         cursor: &mut Cursor,
+        env: &mut TypeEnv,
         source_info: SourceInfo,
         func: DefId,
         substs: &[core::Ty],
@@ -335,7 +335,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);
-        if subst.infer_from_fn_call(&env, &actuals, &fn_sig).is_err() {
+        if subst.infer_from_fn_call(env, &actuals, &fn_sig).is_err() {
             return self.report_inference_error(source_info);
         };
 
@@ -351,7 +351,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (loc, required_ty) in fn_sig.requires {
             let loc = subst.subst_loc(Loc::Abstract(loc));
-            let actual_ty = env.lookup_loc(loc).unwrap();
+            let actual_ty = env.lookup_loc(loc);
             let required_ty = subst.subst_ty(&required_ty);
             sub.subtyping(actual_ty, required_ty);
         }
@@ -459,15 +459,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             if let Some(guard) = guard {
                 cursor.push_pred(guard);
             }
-            self.check_goto(env, cursor, target)?;
+            self.check_goto(cursor, env, target)?;
         }
         Ok(())
     }
 
     fn check_goto(
         &mut self,
-        env: TypeEnv,
         cursor: Cursor,
+        env: TypeEnv,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
@@ -480,21 +480,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Ok(())
         } else {
-            self.check_basic_block(env, cursor, target)
+            self.check_basic_block(cursor, env, target)
         }
     }
 
     fn check_rvalue(
         &self,
-        env: &mut TypeEnv,
         cursor: &mut Cursor,
+        env: &mut TypeEnv,
         source_info: SourceInfo,
         rvalue: &Rvalue,
     ) -> Ty {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(env, cursor, source_info, bin_op, op1, op2)
+                self.check_binary_op(cursor, env, source_info, bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
@@ -510,8 +510,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_binary_op(
         &self,
-        env: &mut TypeEnv,
         cursor: &mut Cursor,
+        env: &mut TypeEnv,
         source_info: SourceInfo,
         bin_op: &ir::BinOp,
         op1: &Operand,

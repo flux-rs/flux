@@ -65,19 +65,19 @@ impl TypeEnv {
     }
 
     pub fn lookup_local(&self, local: Local) -> Ty {
-        self.lookup_loc(Loc::Local(local)).unwrap()
+        self.lookup_loc(Loc::Local(local))
     }
 
-    pub fn lookup_loc(&self, loc: Loc) -> Option<Ty> {
-        self.bindings.get(&loc).map(|k| k.ty())
+    pub fn lookup_loc(&self, loc: Loc) -> Ty {
+        self.bindings.get(&loc).unwrap().ty()
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        let ty = self.lookup_loc(Loc::Local(place.local())).unwrap();
+        let ty = self.lookup_loc(Loc::Local(place.local()));
         match (place, ty.kind()) {
             (ir::Place::Local(_), _) => ty,
             (ir::Place::Deref(_), TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => ty.clone(),
-            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => self.lookup_loc(*loc).unwrap(),
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => self.lookup_loc(*loc),
             _ => unreachable!(""),
         }
     }
@@ -98,7 +98,7 @@ impl TypeEnv {
 
     pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local());
-        let ty = self.lookup_loc(loc).unwrap();
+        let ty = self.lookup_loc(loc);
         let loc = match (place, ty.kind()) {
             (ir::Place::Local(_), _) => loc,
             (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
@@ -116,27 +116,30 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local());
-        let ty = self.lookup_loc(loc).unwrap();
-        let (loc, ty) = match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => (loc, ty),
-            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => (*loc, self.lookup_loc(*loc).unwrap()),
-            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
-                unreachable!("mutable borrow with unpacked weak ref")
+        let ty = self.lookup_loc(loc);
+        match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => {
+                self.borrowed.insert(loc);
+                TyKind::ShrRef(ty).intern()
             }
-            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
-                unreachable!("cannot borrow mutably from a shared ref")
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => {
+                self.borrowed.insert(*loc);
+                let ty = self.lookup_loc(*loc);
+                TyKind::ShrRef(ty).intern()
+            }
+            (ir::Place::Deref(_), TyKind::ShrRef(ty)) => TyKind::ShrRef(ty.clone()).intern(),
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("shared borrow with unpacked weak ref")
             }
             _ => unreachable!("unxepected place `{place:?}`"),
-        };
-        self.borrowed.insert(loc);
-        TyKind::ShrRef(ty).intern()
+        }
     }
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
         match place {
             ir::Place::Local(local) => {
                 let loc = Loc::Local(*local);
-                let ty = self.lookup_loc(loc).unwrap();
+                let ty = self.lookup_loc(loc);
                 self.bindings
                     .insert(loc, Binding::Strong(TyKind::Uninit.intern()));
                 ty
@@ -147,7 +150,7 @@ impl TypeEnv {
 
     pub fn write_place(&mut self, sub: &mut Sub, place: &ir::Place, new_ty: Ty) {
         let loc = Loc::Local(place.local());
-        let ty = self.lookup_loc(loc).unwrap();
+        let ty = self.lookup_loc(loc);
         let loc = match (place, ty.kind()) {
             (ir::Place::Local(_), _) => loc,
             (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,

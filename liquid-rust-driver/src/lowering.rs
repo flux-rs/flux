@@ -250,7 +250,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             [mir::PlaceElem::Deref] => Ok(Place::Deref(place.local)),
             _ => {
                 self.tcx.sess.err("place not supported");
-                return Err(ErrorReported);
+                Err(ErrorReported)
             }
         }
     }

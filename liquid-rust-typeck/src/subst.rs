@@ -118,7 +118,7 @@ impl Subst {
 
         for (loc, required) in &fn_sig.requires {
             let loc = Loc::Abstract(*loc);
-            let actual = env.lookup_loc(self.subst_loc(loc)).unwrap();
+            let actual = env.lookup_loc(self.subst_loc(loc));
             self.infer_from_tys(&params, &actual, required);
         }
 
@@ -136,7 +136,7 @@ impl Subst {
             .map(|param| param.name.into())
             .collect();
         for (loc, binding2) in bb_env.env.iter() {
-            let ty1 = env.lookup_loc(*loc).unwrap();
+            let ty1 = env.lookup_loc(*loc);
             self.infer_from_tys(&params, &ty1, &binding2.ty());
         }
         self.check_inference(&bb_env.params, &[])
