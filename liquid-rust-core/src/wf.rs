@@ -1,7 +1,6 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use rustc_hash::FxHashMap;
-use rustc_session::Session;
-use rustc_span::{MultiSpan, Span};
+use rustc_session::{Session, SessionDiagnostic};
 
 use crate::ty::{BinOp, Expr, ExprKind, FnSig, Pred, Sort, Ty, Var};
 
@@ -65,15 +64,15 @@ impl Wf<'_> {
 
     fn check_pred(&self, env: &Env, pred: &Pred, sort: Sort) -> Result<(), ErrorReported> {
         match pred {
-            Pred::Infer => todo!("we should report this as an error as inference should not be allowed in the syntax"),
+            Pred::Infer => Ok(()),
             Pred::Expr(e) => self.check_expr(env, e, sort),
         }
     }
 
     fn check_expr(&self, env: &Env, e: &Expr, expected: Sort) -> Result<(), ErrorReported> {
-        let s = self.synth_expr(env, e)?;
-        if s != expected {
-            self.report_mismatch(expected, s, e.span)
+        let found = self.synth_expr(env, e)?;
+        if found != expected {
+            self.emit_err(errors::SortMismatch::new(e.span, expected, found))
         } else {
             Ok(())
         }
@@ -128,23 +127,32 @@ impl Wf<'_> {
         }
     }
 
-    fn report_mismatch(
-        &self,
-        expected: Sort,
-        found: Sort,
-        span: Option<Span>,
-    ) -> Result<(), ErrorReported> {
-        if let Some(span) = span {
-            let mut s = MultiSpan::from_span(span);
-            s.push_span_label(span, format!("expected `{}`, found `{}`", expected, found));
-            self.sess.span_err(s, "mismatched sorts");
-        } else {
-            self.sess
-                .err(&format!("mismatched sorts expected `{}`, found `{}`", expected, found));
-        }
-
+    fn emit_err<'a, T>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorReported> {
+        self.sess.emit_err(err);
         Err(ErrorReported)
     }
 }
 
 type Env = FxHashMap<Var, Sort>;
+
+mod errors {
+    use crate::ty;
+    use rustc_macros::SessionDiagnostic;
+    use rustc_span::Span;
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct SortMismatch {
+        #[message = "mismatched sorts"]
+        #[label = "expected `{expected}`, found `{found}`"]
+        pub span: Option<Span>,
+        pub expected: ty::Sort,
+        pub found: ty::Sort,
+    }
+
+    impl SortMismatch {
+        pub fn new(span: Option<Span>, expected: ty::Sort, found: ty::Sort) -> Self {
+            Self { span, expected, found }
+        }
+    }
+}
