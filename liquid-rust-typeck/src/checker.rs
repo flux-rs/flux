@@ -336,7 +336,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut subst = Subst::with_type_substs(substs);
         if subst.infer_from_fn_call(env, &actuals, &fn_sig).is_err() {
-            return self.report_inference_error(source_info);
+            self.sess
+                .emit_err(errors::ParamInferenceError { span: source_info.span });
+            return Err(ErrorReported);
         };
 
         for param in fn_sig.params {
@@ -741,12 +743,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn report_inference_error<T>(&self, call_source_info: SourceInfo) -> Result<T, ErrorReported> {
-        self.sess
-            .span_err(call_source_info.span, "inference error at function call");
-        Err(ErrorReported)
-    }
-
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
         let dominator = self.dominators.immediate_dominator(bb);
@@ -844,5 +840,17 @@ impl Mode for Check<'_> {
 
     fn clear(&mut self, _bb: BasicBlock) {
         unreachable!()
+    }
+}
+
+mod errors {
+    use rustc_macros::SessionDiagnostic;
+    use rustc_span::Span;
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct ParamInferenceError {
+        #[message = "parameter inference error at function call"]
+        pub span: Span,
     }
 }
