@@ -8,6 +8,10 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
+pub RefinedBy: Vec<ast::RefinedByParam> = <Comma<RefinedByParam>>;
+
+RefinedByParam: ast::RefinedByParam = <name: Ident> ":" <sort: Ident> => ast::RefinedByParam { <> };
+
 pub FnSig: ast::FnSig = {
     <lo:@L>
     "fn"

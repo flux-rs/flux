@@ -7,7 +7,7 @@ extern crate rustc_span;
 pub mod ast;
 pub mod lexer;
 
-use ast::FnSig;
+use ast::{FnSig, RefinedByParam};
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
@@ -20,14 +20,25 @@ lalrpop_mod!(
     grammar
 );
 
+macro_rules! parse {
+    ($parser:ident, $tokens:expr, $span:expr) => {{
+        let offset = $span.lo();
+        let ctx = $span.ctxt();
+        let parent = $span.parent();
+        let mk_span =
+            |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
+        grammar::$parser::new()
+            .parse(&mk_span, Cursor::new($tokens, $span.lo()))
+            .map_err(|err| map_err(err, offset, ctx, parent))
+    }};
+}
+
 pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
-    let offset = span.lo();
-    let ctx = span.ctxt();
-    let parent = span.parent();
-    let mk_span = |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
-    grammar::FnSigParser::new()
-        .parse(&mk_span, Cursor::new(tokens, span.lo()))
-        .map_err(|err| map_err(err, offset, ctx, parent))
+    parse!(FnSigParser, tokens, span)
+}
+
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<RefinedByParam>> {
+    parse!(RefinedByParser, tokens, span)
 }
 
 pub enum UserParseError {

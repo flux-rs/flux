@@ -31,10 +31,11 @@ impl Callbacks for LiquidCallbacks {
 }
 
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
-    let annotations = SpecCollector::collect(tcx, sess)?;
+    let specs = SpecCollector::collect(tcx, sess)?;
 
     let wf = Wf::new(sess);
-    let fn_sigs: FxHashMap<_, _> = annotations
+    let fn_sigs: FxHashMap<_, _> = specs
+        .fns
         .into_iter()
         .map(|(def_id, spec)| {
             let fn_sig = Resolver::resolve(tcx, def_id, spec.fn_sig)?;
