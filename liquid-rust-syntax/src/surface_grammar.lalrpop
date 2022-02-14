@@ -1,6 +1,7 @@
 use crate::{
     UserParseError,
     ast,
+    surface,
     lexer::{Lit, Location, Token, DelimToken, BinOpToken}
 };
 use rustc_span::{Span, Symbol};
@@ -8,54 +9,61 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub FnSig: ast::FnSig = {
+pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
-    <generics:Generics>
-    "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
+    "(" <requires:Env> ")"
     "->"
-    <ret:Ty> <ensures:(";" <Env>)?>
+    <returns:Ty> <ensures:(";" Env)?>
     <hi:@R>
     => {
-        let requires = requires.unwrap_or_else(|| vec![]);
-        let ensures = ensures.unwrap_or_else(|| vec![]);
-        ast::FnSig { generics, requires, args, ret, ensures, span: mk_span(lo, hi) }
+        let ensures = match ensures { 
+            Some(tup) => tup.1,
+            None => vec![],
+        };
+        surface::FnSig { requires, returns, ensures, span: mk_span(lo, hi) }
     }
 }
 
-Ty: ast::Ty = {
-    <lo:@L> <kind:TyKind> <hi:@L> => ast::Ty {
+Env  = <Comma<(<Ident> ":" <NamedTy>)>>;
+
+Ty: surface::Ty = {
+    <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
         span: mk_span(lo, hi)
     }
 }
 
-TyKind: ast::TyKind = {
-    <path:Path>                                        => ast::TyKind::BaseTy(<>),
-    <path:Path> "@" <refine:Refinement>                => ast::TyKind::RefineTy { <> },
-    <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => ast::TyKind::Exists { <> },
-    "ref" "<" <ident:Ident> ">"                        => ast::TyKind::StrgRef(<>),
-    "&" <Ty>                                           => ast::TyKind::Ref(Box::new(<>)),
+TyKind: surface::TyKind = {
+    <path:Path>                                        => surface::TyKind::BaseTy(<>),
+    // <path:Path> "@" <refine:Refinement>                => ast::TyKind::RefineTy { <> },
+    <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
+    // "ref" "<" <ident:Ident> ">"                        => ast::TyKind::StrgRef(<>),
+    // "&" <Ty>                                           => ast::TyKind::Ref(Box::new(<>)),
 }
 
-Generics: ast::Generics = {
-    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => ast::Generics { params, span: mk_span(lo, hi) },
-    <lo:@L> <hi:@R> => ast::Generics::empty(mk_span(lo, hi))
+NamedTy: surface::NamedTy = { 
+    <lo:@L> <kind:NamedTyKind> <hi:@L> => surface::NamedTy {
+        kind,
+        span: mk_span(lo, hi)
+    }
 }
 
-Env = <Comma<(<Ident> ":" <Ty>)>>;
-
-GenericParam: ast::GenericParam = {
-    <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam { name, sort, pred: Some(pred) },
-    <name:Ident> ":" <sort:Ident>                       => ast::GenericParam { name, sort, pred: None },
+NamedTyKind: surface::NamedTyKind = {
+    <ident:Ident> "@" <ty:Ty> => surface::NamedTyKind::NamedBase(ident, ty), 
+                      <ty:Ty> => surface::NamedTyKind::AnonBase(ty), 
+    "&" "mut"   <nty:NamedTy> => surface::NamedTyKind::Ref(surface::RefKind::Mut, Box::new(nty)),
+    "&"         <nty:NamedTy> => surface::NamedTyKind::Ref(surface::RefKind::Immut, Box::new(nty)),
 }
 
-Path: ast::Path = {
-    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => ast::Path { ident, args, span: mk_span(lo, hi) }
-}
-
-GenericArgs: Vec<ast::Ty> = {
+GenericArgs: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">"
+}
+
+// The code below is duplicated from grammar.lalrpop ---------------------------------
+
+Path: surface::Path = {
+    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args, span: mk_span(lo, hi) }
 }
 
 Refinement: ast::Expr = {
@@ -167,7 +175,9 @@ Sep<S, T>: Vec<T> = {
         }
     }
 }
+
 Comma<T> = Sep<",", T>;
+
 Binding<A, B>: (A, B) = <A> ":" <B>;
 
 extern {
@@ -178,6 +188,7 @@ extern {
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
+        "mut" => Token::Mut,
         "ref" => Token::Ref,
         "@"  => Token::At,
         "==" => Token::EqEq,

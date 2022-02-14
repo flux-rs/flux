@@ -11,7 +11,7 @@ pub struct FnSig {
     /// example `i32{v:v >= 0}`
     pub returns: Ty,
     /// example: `*x: i32{v:v = n+1}`
-    pub ensures: Vec<(Ident, Ty)>,
+    pub ensures: Vec<(Ident, NamedTy)>,
     /// source span
     pub span: Span,
 }
@@ -24,13 +24,17 @@ pub struct Ty {
 
 #[derive(Debug)]
 pub enum TyKind {
+    /// ty
     BaseTy(Path),
+    /// ty{b:e} 
     Exists { bind: Ident, path: Path, pred: Expr },
 }
 
 #[derive(Debug)]
 pub struct Path {
+    /// vec
     pub ident: Ident,
+    /// <nat>
     pub args: Option<Vec<Ty>>,
     pub span: Span,
 }
@@ -43,7 +47,13 @@ pub struct NamedTy {
 
 #[derive(Debug)]
 pub enum NamedTyKind {
+    /// For inputs
     NamedBase(Ident, Ty),
+
+    /// For outputs
+    AnonBase(Ty),               
+
+    /// For inputs and outputs
     Ref(RefKind, Box<NamedTy>),
 }
 
