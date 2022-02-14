@@ -1,5 +1,6 @@
+use std::fmt;
+
 use liquid_rust_common::index::newtype_index;
-pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::{IntTy, ParamTy, UintTy};
@@ -43,6 +44,12 @@ pub struct Param {
     pub name: Ident,
     pub sort: Sort,
     pub pred: Expr,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Sort {
+    Bool,
+    Int,
 }
 
 #[derive(Debug)]
@@ -115,6 +122,15 @@ impl Lit {
         match self {
             Lit::Int(_) => Sort::Int,
             Lit::Bool(_) => Sort::Bool,
+        }
+    }
+}
+
+impl fmt::Display for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Sort::Bool => write!(f, "bool"),
+            Sort::Int => write!(f, "int"),
         }
     }
 }
