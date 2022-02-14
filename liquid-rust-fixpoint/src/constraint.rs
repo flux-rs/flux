@@ -10,10 +10,12 @@ pub enum Constraint<Tag> {
     ForAll(Name, Sort, Pred, Box<Self>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Sort {
     Int,
     Bool,
+    Unit,
+    Pair(Box<Sort>, Box<Sort>),
 }
 
 pub enum Pred {
@@ -156,6 +158,8 @@ impl fmt::Display for Sort {
         match self {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
+            Sort::Unit => write!(f, "Unit"),
+            Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
         }
     }
 }

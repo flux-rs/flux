@@ -301,7 +301,7 @@ fn pred_to_fixpoint(
                         Box::new(fixpoint::Expr::Var(fresh)),
                         Box::new(expr_to_fixpoint(cx, arg)),
                     );
-                    bindings.push((fresh, *sort, pred));
+                    bindings.push((fresh, sort.clone(), pred));
                     fresh
                 }
             });
