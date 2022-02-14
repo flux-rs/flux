@@ -1,5 +1,6 @@
 use std::{fmt, lazy::SyncOnceCell};
 
+use itertools::Itertools;
 use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
@@ -87,6 +88,8 @@ pub enum ExprKind {
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
     UnaryOp(UnOp, Expr),
+    Proj(Expr, u32),
+    Tuple(Vec<Expr>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -187,6 +190,12 @@ impl Expr {
             .clone()
     }
 
+    pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
+        let exprs = exprs.into_iter().collect_vec();
+        debug_assert_ne!(exprs.len(), 1);
+        ExprKind::Tuple(exprs).intern()
+    }
+
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
         // FIXME: We are assuming the higher bits are not set. check this assumption
         match bty {
@@ -222,7 +231,10 @@ impl ExprS {
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self.kind, ExprKind::Var(_) | ExprKind::Constant(_) | ExprKind::UnaryOp(..))
+        matches!(
+            self.kind,
+            ExprKind::Var(_) | ExprKind::Constant(_) | ExprKind::UnaryOp(..) | ExprKind::Tuple(..)
+        )
     }
 
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
@@ -240,6 +252,12 @@ impl ExprS {
                     .intern()
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
+            ExprKind::Proj(e, field) => {
+                ExprKind::Proj(e.subst_bound_vars(to.clone()), *field).intern()
+            }
+            ExprKind::Tuple(exprs) => {
+                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(to.clone())))
+            }
         }
     }
 
@@ -262,6 +280,8 @@ impl ExprS {
                 }
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.simplify()).intern(),
+            ExprKind::Proj(e, field) => ExprKind::Proj(e.simplify(), *field).intern(),
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify())),
         }
     }
 }
@@ -455,6 +475,16 @@ mod pretty {
                     } else {
                         w!("{:?}({:?})", op, e)
                     }
+                }
+                ExprKind::Proj(e, field) => {
+                    if e.is_atom() {
+                        w!("{:?}.{:?}", e, ^field)
+                    } else {
+                        w!("({:?}).{:?}", e, ^field)
+                    }
+                }
+                ExprKind::Tuple(exprs) => {
+                    w!("({:?})", join!(", ", exprs))
                 }
             }
         }

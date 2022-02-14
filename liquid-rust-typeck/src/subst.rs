@@ -77,6 +77,8 @@ impl Subst {
                 ExprKind::BinaryOp(*op, self.subst_expr(e1), self.subst_expr(e2)).intern()
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, self.subst_expr(e)).intern(),
+            ExprKind::Proj(e, field) => ExprKind::Proj(self.subst_expr(e), *field).intern(),
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
         }
     }
 

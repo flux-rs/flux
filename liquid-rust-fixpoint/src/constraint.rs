@@ -27,6 +27,15 @@ pub enum Expr {
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
     UnaryOp(UnOp, Box<Self>),
+    Pair(Box<Expr>, Box<Expr>),
+    Proj(Box<Expr>, Proj),
+    Unit,
+}
+
+#[derive(Clone, Copy)]
+pub enum Proj {
+    Fst,
+    Snd,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -212,6 +221,10 @@ impl fmt::Display for Expr {
                     write!(f, "{}({})", op, e)
                 }
             }
+            Expr::Pair(e1, e2) => write!(f, "(Pair {e1} {e2})"),
+            Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
+            Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
+            Expr::Unit => write!(f, "Unit"),
         }
     }
 }

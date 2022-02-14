@@ -3,7 +3,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::Itertools;
+use itertools::{repeat_n, Itertools};
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 
@@ -333,6 +333,31 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
         ExprKind::Var(Var::Bound) => {
             unreachable!("unexpected bound variable")
+        }
+        ExprKind::Proj(e, field) => {
+            repeat_n(fixpoint::Proj::Snd, *field as usize)
+                .chain([fixpoint::Proj::Fst])
+                .fold(expr_to_fixpoint(cx, e), |e, proj| fixpoint::Expr::Proj(Box::new(e), proj))
+        }
+        ExprKind::Tuple(exprs) => tuple_to_fixpoint(cx, exprs),
+    }
+}
+
+fn tuple_to_fixpoint(cx: &FixpointCtxt, exprs: &[Expr]) -> fixpoint::Expr {
+    match exprs {
+        [] => fixpoint::Expr::Unit,
+        [_] => unreachable!("1-tuple"),
+        [e1, e2] => {
+            fixpoint::Expr::Pair(
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
+            )
+        }
+        [e, exprs @ ..] => {
+            fixpoint::Expr::Pair(
+                Box::new(expr_to_fixpoint(cx, e)),
+                Box::new(tuple_to_fixpoint(cx, exprs)),
+            )
         }
     }
 }
