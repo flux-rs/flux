@@ -228,7 +228,7 @@ impl Qualifier {
         let name2: Name = Name::from(1 as usize);
 
         // Unary
-        let un_op_names = vec!((name1, Sort::Int));
+        let un_op_names = vec![(name1, Sort::Int)];
 
         // writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
         let eqzero = Qualifier {
@@ -236,7 +236,7 @@ impl Qualifier {
             expr: Expr::BinaryOp(
                 BinOp::Eq,
                 Box::new(Expr::Var(name1)),
-                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0)))
+                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0))),
             ),
             name: String::from("EqZero"),
         };
@@ -247,7 +247,7 @@ impl Qualifier {
             expr: Expr::BinaryOp(
                 BinOp::Gt,
                 Box::new(Expr::Var(name1)),
-                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0)))
+                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0))),
             ),
             name: String::from("GtZero"),
         };
@@ -258,7 +258,7 @@ impl Qualifier {
             expr: Expr::BinaryOp(
                 BinOp::Ge,
                 Box::new(Expr::Var(name1)),
-                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0)))
+                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0))),
             ),
             name: String::from("GeZero"),
         };
@@ -269,7 +269,7 @@ impl Qualifier {
             expr: Expr::BinaryOp(
                 BinOp::Lt,
                 Box::new(Expr::Var(name1)),
-                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0)))
+                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0))),
             ),
             name: String::from("LtZero"),
         };
@@ -280,66 +280,46 @@ impl Qualifier {
             expr: Expr::BinaryOp(
                 BinOp::Le,
                 Box::new(Expr::Var(name1)),
-                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0)))
+                Box::new(Expr::Constant(Constant::Int(Sign::Positive, 0))),
             ),
             name: String::from("LeZero"),
         };
 
         // Binary
-        let bin_op_names = vec!((name1, Sort::Int), (name2, Sort::Int));
+        let bin_op_names = vec![(name1, Sort::Int), (name2, Sort::Int)];
 
         // writeln!(f, "(qualif Eq ((a int) (b int)) (a == b))")?;
         let eq = Qualifier {
             args: bin_op_names.clone(),
-            expr: Expr::BinaryOp(
-                BinOp::Eq,
-                Box::new(Expr::Var(name1)),
-                Box::new(Expr::Var(name2)),
-            ),
+            expr: Expr::BinaryOp(BinOp::Eq, Box::new(Expr::Var(name1)), Box::new(Expr::Var(name2))),
             name: String::from("Eq"),
         };
 
         // writeln!(f, "(qualif Gt ((a int) (b int)) (a > b))")?;
         let gt = Qualifier {
             args: bin_op_names.clone(),
-            expr: Expr::BinaryOp(
-                BinOp::Gt,
-                Box::new(Expr::Var(name1)),
-                Box::new(Expr::Var(name2)),
-            ),
+            expr: Expr::BinaryOp(BinOp::Gt, Box::new(Expr::Var(name1)), Box::new(Expr::Var(name2))),
             name: String::from("Gt"),
         };
 
         // writeln!(f, "(qualif Lt ((a int) (b int)) (a < b))")?;
         let ge = Qualifier {
             args: bin_op_names.clone(),
-            expr: Expr::BinaryOp(
-                BinOp::Ge,
-                Box::new(Expr::Var(name1)),
-                Box::new(Expr::Var(name2)),
-            ),
+            expr: Expr::BinaryOp(BinOp::Ge, Box::new(Expr::Var(name1)), Box::new(Expr::Var(name2))),
             name: String::from("Ge"),
         };
 
         // writeln!(f, "(qualif Ge ((a int) (b int)) (a >= b))")?;
         let lt = Qualifier {
             args: bin_op_names.clone(),
-            expr: Expr::BinaryOp(
-                BinOp::Lt,
-                Box::new(Expr::Var(name1)),
-                Box::new(Expr::Var(name2)),
-            ),
+            expr: Expr::BinaryOp(BinOp::Lt, Box::new(Expr::Var(name1)), Box::new(Expr::Var(name2))),
             name: String::from("Lt"),
         };
 
         // writeln!(f, "(qualif Le ((a int) (b int)) (a <= b))")?;
         let le = Qualifier {
             args: bin_op_names.clone(),
-            expr: Expr::BinaryOp(
-                BinOp::Le,
-                Box::new(Expr::Var(name1)),
-                Box::new(Expr::Var(name2)),
-            ),
+            expr: Expr::BinaryOp(BinOp::Le, Box::new(Expr::Var(name1)), Box::new(Expr::Var(name2))),
             name: String::from("Le"),
         };
 
@@ -352,13 +332,13 @@ impl Qualifier {
                 Box::new(Expr::BinaryOp(
                     BinOp::Sub,
                     Box::new(Expr::Var(name2)),
-                    Box::new(Expr::Constant(Constant::Int(Sign::Positive, 1)))
+                    Box::new(Expr::Constant(Constant::Int(Sign::Positive, 1))),
                 )),
             ),
             name: String::from("Le1"),
         };
 
-        vec!(eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1)
+        vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
     }
 }
 
@@ -366,9 +346,11 @@ impl fmt::Display for Qualifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         //writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
 
-        let name_list = self.args.iter().map(|(name, sort)| {
-            format!("({:?} {})", name, sort)
-        }).join(&String::from(" "));
+        let name_list = self
+            .args
+            .iter()
+            .map(|(name, sort)| format!("({:?} {})", name, sort))
+            .join(&String::from(" "));
 
         write!(f, "(qualif {} ({}) ({}))", self.name, name_list, self.expr)
     }
