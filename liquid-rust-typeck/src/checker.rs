@@ -7,7 +7,7 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::collections::hash_map::Entry;
+use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{
     global_env::GlobalEnv,
@@ -29,7 +29,7 @@ use liquid_rust_core::{
     },
     ty as core,
 };
-use rustc_data_structures::{graph::dominators::Dominators, work_queue::WorkQueue};
+use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
@@ -49,8 +49,8 @@ pub struct Checker<'a, 'tcx, M> {
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
-    dominators: Dominators<BasicBlock>,
-    queue: WorkQueue<BasicBlock>,
+    dominators: &'a Dominators<BasicBlock>,
+    queue: WorkQueue<'a>,
 }
 
 pub trait Mode {
@@ -88,6 +88,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         body: &'a Body<'tcx>,
         ret: Ty,
         ensures: Vec<(Name, Ty)>,
+        dominators: &'a Dominators<BasicBlock>,
         mode: M,
     ) -> Self {
         Checker {
@@ -99,8 +100,8 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
             ensures,
             mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            dominators: body.dominators(),
-            queue: WorkQueue::with_none(body.basic_blocks.len()),
+            dominators,
+            queue: WorkQueue::with_none(body.basic_blocks.len(), dominators),
         }
     }
 }
@@ -192,7 +193,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
             .collect();
 
-        let mut checker = Checker::new(genv, body, ret, ensures, mode);
+        let dominators = body.dominators();
+        let mut checker = Checker::new(genv, body, ret, ensures, &dominators, mode);
 
         checker.check_goto(cursor, env, START_BLOCK)?;
         while let Some(bb) = checker.queue.pop() {
@@ -829,6 +831,60 @@ impl Mode for Check<'_> {
 
     fn clear(&mut self, _bb: BasicBlock) {
         unreachable!()
+    }
+}
+
+struct Item<'a> {
+    bb: BasicBlock,
+    dominators: &'a Dominators<BasicBlock>,
+}
+
+struct WorkQueue<'a> {
+    heap: BinaryHeap<Item<'a>>,
+    set: BitSet<BasicBlock>,
+    dominators: &'a Dominators<BasicBlock>,
+}
+
+impl<'a> WorkQueue<'a> {
+    fn with_none(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
+        Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
+    }
+
+    fn insert(&mut self, bb: BasicBlock) -> bool {
+        if self.set.insert(bb) {
+            self.heap.push(Item { bb, dominators: self.dominators });
+            true
+        } else {
+            false
+        }
+    }
+
+    fn pop(&mut self) -> Option<BasicBlock> {
+        if let Some(Item { bb, .. }) = self.heap.pop() {
+            self.set.remove(bb);
+            Some(bb)
+        } else {
+            None
+        }
+    }
+}
+
+impl PartialEq for Item<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bb == other.bb
+    }
+}
+
+impl PartialOrd for Item<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.dominators.rank_partial_cmp(self.bb, other.bb)
+    }
+}
+impl Eq for Item<'_> {}
+
+impl Ord for Item<'_> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
