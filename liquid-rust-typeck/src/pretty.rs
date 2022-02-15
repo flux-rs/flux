@@ -74,7 +74,7 @@ pub use crate::_w as w;
 #[macro_export]
 macro_rules! _join {
     ($sep:expr, $iter:expr) => {
-        $crate::pretty::Join::new($sep, $iter.into_iter())
+        $crate::pretty::Join::new($sep, $iter)
     };
 }
 pub use crate::_join as join;
@@ -127,8 +127,8 @@ pub trait Pretty {
 }
 
 impl<'a, I> Join<'a, I> {
-    pub fn new(sep: &'a str, iter: I) -> Self {
-        Self { sep, iter: RefCell::new(Some(iter)) }
+    pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
+        Self { sep, iter: RefCell::new(Some(iter.into_iter())) }
     }
 }
 
