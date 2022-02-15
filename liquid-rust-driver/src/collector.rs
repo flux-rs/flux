@@ -13,7 +13,7 @@ use rustc_hir::{
     ItemKind, TraitItem,
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_session::Session;
+use rustc_session::{Session, SessionDiagnostic};
 use rustc_span::Span;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
@@ -102,7 +102,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_liquid_attr(&mut self, attr_item: &AttrItem) -> Result<LiquidAttr, ErrorReported> {
         let segment = match &attr_item.path.segments[..] {
             [_, segment] => segment,
-            _ => return self.emit_error("invalid liquid attribute", attr_item.span()),
+            _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
@@ -115,7 +115,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 LiquidAttrKind::RefinedBy(refined_by)
             }
             ("assume", MacArgs::Empty) => LiquidAttrKind::Assume,
-            _ => return self.emit_error("invalid liquid attribute", attr_item.span()),
+            _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
         };
         Ok(LiquidAttr { kind, span: attr_item.span() })
     }
@@ -135,33 +135,31 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     ParseErrorKind::IntTooLarge => "integer literal is too large",
                 };
 
-                self.emit_error(msg, err.span)
+                self.emit_err(errors::SyntaxErr { span: err.span, msg })
             }
         }
     }
 
     fn report_dups(&mut self, attrs: &LiquidAttrs) -> Result<(), ErrorReported> {
-        let mut error_reported = false;
+        let mut has_dups = false;
         for (name, dups) in attrs.dups() {
+            has_dups = true;
             for attr in dups {
-                if self
-                    .emit_error::<()>(&format!("duplicated {name:?} attribute"), attr.span)
-                    .is_err()
-                {
-                    error_reported = true;
-                }
+                self.sess
+                    .emit_err(errors::DuplicatedAttr { span: attr.span, name });
             }
         }
-        if error_reported {
+        if has_dups {
+            self.error_reported = true;
             Err(ErrorReported)
         } else {
             Ok(())
         }
     }
 
-    fn emit_error<T>(&mut self, message: &str, span: Span) -> Result<T, ErrorReported> {
+    fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorReported> {
         self.error_reported = true;
-        self.sess.span_err(span, message);
+        self.sess.emit_err(err);
         Err(ErrorReported)
     }
 }
@@ -263,5 +261,33 @@ impl LiquidAttrKind {
             Self::FnSig(_) => "fn_sig",
             Self::RefinedBy(_) => "refined_by",
         }
+    }
+}
+
+mod errors {
+    use rustc_macros::SessionDiagnostic;
+    use rustc_span::Span;
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct DuplicatedAttr {
+        #[message = "duplicated attribute `{name}`"]
+        pub span: Span,
+        pub name: &'static str,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct InvalidAttr {
+        #[message = "invalid liquid attribute"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct SyntaxErr {
+        #[message = "Syntax Error: {msg}"]
+        pub span: Span,
+        pub msg: &'static str,
     }
 }
