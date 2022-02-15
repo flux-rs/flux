@@ -44,9 +44,15 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         })
         .try_collect_exhaust()?;
 
-    let global_env = GlobalEnv::new(tcx, fn_sigs);
+    let adt_defs: Vec<_> = specs
+        .adts
+        .into_iter()
+        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_def(tcx, spec.refined_by)?)))
+        .try_collect_exhaust()?;
+
+    let global_env = GlobalEnv::new(tcx, fn_sigs, adt_defs);
     global_env
-        .specs
+        .fn_specs
         .iter()
         .map(|(def_id, spec)| {
             if spec.assume {

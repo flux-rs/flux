@@ -1,5 +1,5 @@
 use crate::{global_env::GlobalEnv, ty};
-use liquid_rust_common::index::IndexGen;
+use liquid_rust_common::index::{Idx, IndexGen};
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
@@ -131,11 +131,25 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     }
 }
 
-fn lower_sort(sort: core::Sort) -> ty::Sort {
+pub fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
         core::Sort::Int => ty::Sort::int(),
         core::Sort::Bool => ty::Sort::bool(),
     }
+}
+
+pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
+    let refined_by = adt_def
+        .refined_by
+        .into_iter()
+        .enumerate()
+        .map(|(idx, (_, sort))| {
+            let name = ty::Name::new(idx);
+            (name, lower_sort(sort))
+        })
+        .collect();
+
+    ty::AdtDef { refined_by }
 }
 
 fn lower_bin_op(op: core::BinOp) -> ty::BinOp {

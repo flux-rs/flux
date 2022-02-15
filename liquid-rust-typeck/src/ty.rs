@@ -11,6 +11,10 @@ pub use rustc_middle::ty::{IntTy, UintTy};
 
 use crate::intern::{impl_internable, Interned};
 
+pub struct AdtDef {
+    pub refined_by: Vec<(Name, Sort)>,
+}
+
 #[derive(Debug)]
 pub struct FnSig {
     pub params: Vec<Param>,
@@ -190,6 +194,19 @@ impl Sort {
 
     pub fn loc() -> Self {
         Interned::new(SortS { kind: SortKind::Loc })
+    }
+
+    pub fn tuple(sorts: impl IntoIterator<Item = Sort>) -> Self {
+        let mut sorts = sorts.into_iter().collect_vec();
+        if sorts.len() == 1 {
+            sorts.remove(0)
+        } else {
+            Interned::new(SortS { kind: SortKind::Tuple(sorts.into_iter().collect()) })
+        }
+    }
+
+    pub fn unit() -> Self {
+        Interned::new(SortS { kind: SortKind::Tuple(vec![]) })
     }
 }
 
