@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization)]
+#![feature(rustc_private, min_specialization, once_cell)]
 
 extern crate rustc_serialize;
 
@@ -15,6 +15,8 @@ pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Qualif
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use serde::{de, Deserialize};
+
+use crate::constraint::DEFAULT_QUALIFIERS;
 
 pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
@@ -83,13 +85,12 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
 
 impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // writeln!(f, "(qualif Foo ((a int) (b int)) (a <= b/2))")?;
-        for qualif in Qualifier::get_defaults() {
-            writeln!(f, "{}", qualif)?;
+        for qualif in DEFAULT_QUALIFIERS.iter() {
+            writeln!(f, "{qualif}")?;
         }
 
         for kvar in &self.kvars {
-            writeln!(f, "{}", kvar)?;
+            writeln!(f, "{kvar}")?;
         }
         writeln!(f)?;
         write!(f, "(constraint")?;
