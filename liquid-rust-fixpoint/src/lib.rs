@@ -11,7 +11,7 @@ use std::{
     str::FromStr,
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Sort, UnOp};
+pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Qualifier, Sort, UnOp};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use serde::{de, Deserialize};
@@ -83,21 +83,10 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
 
 impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Unary
-        writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
-        writeln!(f, "(qualif GtZero ((v int)) (v > 0))")?;
-        writeln!(f, "(qualif GeZero ((v int)) (v >= 0))")?;
-        writeln!(f, "(qualif LtZero ((v int)) (v < 0))")?;
-        writeln!(f, "(qualif LeZero ((v int)) (v <= 0))")?;
-
-        // Binary
-        writeln!(f, "(qualif Eq ((a int) (b int)) (a == b))")?;
-        writeln!(f, "(qualif Gt ((a int) (b int)) (a > b))")?;
-        writeln!(f, "(qualif Lt ((a int) (b int)) (a < b))")?;
-        writeln!(f, "(qualif Ge ((a int) (b int)) (a >= b))")?;
-        writeln!(f, "(qualif Le ((a int) (b int)) (a <= b))")?;
-        writeln!(f, "(qualif Le1 ((a int) (b int)) (a < b - 1))")?;
         // writeln!(f, "(qualif Foo ((a int) (b int)) (a <= b/2))")?;
+        for qualif in Qualifier::get_defaults() {
+            writeln!(f, "{}", qualif)?;
+        }
 
         for kvar in &self.kvars {
             writeln!(f, "{}", kvar)?;
