@@ -10,7 +10,7 @@ pub enum Constraint<Tag> {
     ForAll(Name, Sort, Pred, Box<Self>),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub enum Sort {
     Int,
     Bool,

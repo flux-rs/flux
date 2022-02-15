@@ -1,5 +1,3 @@
-use std::fmt;
-
 use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hir::def_id::DefId;
@@ -112,13 +110,4 @@ impl Pred {
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
-}
-
-impl fmt::Display for Sort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Sort::Bool => write!(f, "bool"),
-            Sort::Int => write!(f, "int"),
-        }
-    }
 }
