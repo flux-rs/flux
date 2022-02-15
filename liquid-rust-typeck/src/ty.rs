@@ -599,4 +599,10 @@ mod pretty {
     }
 
     impl_debug_with_default_cx!(TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
+
+    impl fmt::Display for Sort {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt::Debug::fmt(self, f)
+        }
+    }
 }

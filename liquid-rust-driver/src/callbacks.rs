@@ -1,14 +1,15 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_core::wf::Wf;
 use liquid_rust_typeck::{
     self as typeck,
     global_env::{FnSpec, GlobalEnv},
+    wf::Wf,
 };
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
+use typeck::global_env::AdtDefs;
 
 use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
 
@@ -33,7 +34,13 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
 
-    let wf = Wf::new(sess);
+    let adt_defs: AdtDefs = specs
+        .adts
+        .into_iter()
+        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_def(tcx, spec.refined_by)?)))
+        .try_collect_exhaust()?;
+
+    let wf = Wf::new(sess, &adt_defs);
     let fn_sigs: FxHashMap<_, _> = specs
         .fns
         .into_iter()
@@ -42,12 +49,6 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
             wf.check_fn_sig(&fn_sig)?;
             Ok((def_id, FnSpec { fn_sig, assume: spec.assume }))
         })
-        .try_collect_exhaust()?;
-
-    let adt_defs: Vec<_> = specs
-        .adts
-        .into_iter()
-        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_def(tcx, spec.refined_by)?)))
         .try_collect_exhaust()?;
 
     let global_env = GlobalEnv::new(tcx, fn_sigs, adt_defs);

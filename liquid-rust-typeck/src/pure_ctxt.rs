@@ -81,7 +81,6 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    #[track_caller]
     pub fn fresh<S>(&mut self, var: Var, sort: Sort, scope: S) -> Pred
     where
         S: IntoIterator<Item = (Name, Sort)>,
@@ -316,7 +315,6 @@ fn pred_to_fixpoint(
     (bindings, pred)
 }
 
-#[track_caller]
 fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
     match sort.kind() {
         SortKind::Int => fixpoint::Sort::Int,
@@ -324,7 +322,7 @@ fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
         SortKind::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,
-                [_] => panic!("1-tuple"),
+                [_] => unreachable!("1-tuple"),
                 [sorts @ .., s1, s2] => {
                     let s1 = Box::new(sort_to_fixpoint(s1));
                     let s2 = Box::new(sort_to_fixpoint(s2));

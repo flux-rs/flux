@@ -21,6 +21,7 @@ mod subst;
 mod subtyping;
 pub mod ty;
 mod type_env;
+pub mod wf;
 
 use std::{fs, io::Write, str::FromStr};
 

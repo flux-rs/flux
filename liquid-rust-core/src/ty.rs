@@ -94,15 +94,6 @@ newtype_index! {
 }
 
 impl BaseTy {
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) => Sort::Int,
-            BaseTy::Uint(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(_, _) => Sort::Int,
-        }
-    }
-
     /// Returns `true` if the base ty is [`Bool`].
     ///
     /// [`Bool`]: BaseTy::Bool
@@ -121,13 +112,6 @@ impl Pred {
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
-
-    pub fn sort(&self) -> Sort {
-        match self {
-            Lit::Int(_) => Sort::Int,
-            Lit::Bool(_) => Sort::Bool,
-        }
-    }
 }
 
 impl fmt::Display for Sort {

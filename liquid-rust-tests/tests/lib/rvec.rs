@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+#[lr::refined_by(len: int)]
 pub struct RVec<T> {
     inner: Vec<T>,
 }
