@@ -1,9 +1,12 @@
 use liquid_rust_common::index::newtype_index;
-pub use liquid_rust_fixpoint::Sort;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::{IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
+
+pub struct AdtDef {
+    pub refined_by: Vec<(Name, Sort)>,
+}
 
 #[derive(Debug)]
 pub struct FnSig {
@@ -16,12 +19,18 @@ pub struct FnSig {
 
 #[derive(Debug)]
 pub enum Ty {
-    Refine(BaseTy, Expr),
+    Refine(BaseTy, Refine),
     Exists(BaseTy, Pred),
     StrgRef(Name),
     WeakRef(Box<Ty>),
     ShrRef(Box<Ty>),
     Param(ParamTy),
+}
+
+#[derive(Debug)]
+pub struct Refine {
+    pub exprs: Vec<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -43,6 +52,12 @@ pub struct Param {
     pub name: Ident,
     pub sort: Sort,
     pub pred: Expr,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Sort {
+    Bool,
+    Int,
 }
 
 #[derive(Debug)]
@@ -83,15 +98,6 @@ newtype_index! {
 }
 
 impl BaseTy {
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) => Sort::Int,
-            BaseTy::Uint(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(_, _) => Sort::Int,
-        }
-    }
-
     /// Returns `true` if the base ty is [`Bool`].
     ///
     /// [`Bool`]: BaseTy::Bool
@@ -110,11 +116,4 @@ impl Pred {
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
-
-    pub fn sort(&self) -> Sort {
-        match self {
-            Lit::Int(_) => Sort::Int,
-            Lit::Bool(_) => Sort::Bool,
-        }
-    }
 }

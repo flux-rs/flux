@@ -13,10 +13,12 @@ pub enum Constraint<Tag> {
     ForAll(Name, Sort, Pred, Box<Self>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub enum Sort {
     Int,
     Bool,
+    Unit,
+    Pair(Box<Sort>, Box<Sort>),
 }
 
 pub enum Pred {
@@ -30,6 +32,15 @@ pub enum Expr {
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
     UnaryOp(UnOp, Box<Self>),
+    Pair(Box<Expr>, Box<Expr>),
+    Proj(Box<Expr>, Proj),
+    Unit,
+}
+
+#[derive(Clone, Copy)]
+pub enum Proj {
+    Fst,
+    Snd,
 }
 
 pub struct Qualifier {
@@ -158,6 +169,8 @@ impl fmt::Display for Sort {
         match self {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
+            Sort::Unit => write!(f, "Unit"),
+            Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
         }
     }
 }
@@ -228,6 +241,10 @@ impl fmt::Display for Expr {
                     write!(f, "{}({})", op, e)
                 }
             }
+            Expr::Pair(e1, e2) => write!(f, "(Pair {e1} {e2})"),
+            Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
+            Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
+            Expr::Unit => write!(f, "Unit"),
         }
     }
 }

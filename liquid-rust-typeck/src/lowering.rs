@@ -1,23 +1,24 @@
-use crate::ty;
-use liquid_rust_common::index::IndexGen;
+use crate::{global_env::GlobalEnv, ty};
+use liquid_rust_common::index::{Idx, IndexGen};
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
-pub struct LoweringCtxt {
+pub struct LoweringCtxt<'a, 'tcx> {
+    genv: &'a GlobalEnv<'tcx>,
     params: FxHashMap<core::Name, ty::Name>,
     locs: FxHashMap<core::Name, ty::Name>,
 }
 
-impl LoweringCtxt {
-    pub fn empty() -> Self {
-        Self { params: FxHashMap::default(), locs: FxHashMap::default() }
+impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
+    pub fn empty(genv: &'a GlobalEnv<'tcx>) -> Self {
+        Self { genv, params: FxHashMap::default(), locs: FxHashMap::default() }
     }
 
-    pub fn lower_fn_sig(fn_sig: &core::FnSig) -> ty::FnSig {
+    pub fn lower_fn_sig(genv: &'a GlobalEnv<'tcx>, fn_sig: &core::FnSig) -> ty::FnSig {
         let name_gen = IndexGen::new();
         let fresh_kvar = &mut |_| unreachable!("inference predicate in top level function");
 
-        let mut cx = LoweringCtxt::empty();
+        let mut cx = LoweringCtxt::empty(genv);
 
         let mut params = Vec::new();
         for param in &fn_sig.params {
@@ -25,7 +26,7 @@ impl LoweringCtxt {
             cx.params.insert(param.name.name, fresh);
             params.push(ty::Param {
                 name: fresh,
-                sort: lower_sort(param.sort),
+                sort: lower_sort(&param.sort),
                 pred: cx.lower_expr(&param.pred).into(),
             });
         }
@@ -65,15 +66,17 @@ impl LoweringCtxt {
         fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
     ) -> ty::Ty {
         match ty {
-            core::Ty::Refine(bty, e) => {
-                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), self.lower_expr(e)).intern()
+            core::Ty::Refine(bty, refine) => {
+                let refine = ty::Expr::tuple(refine.exprs.iter().map(|e| self.lower_expr(e)));
+                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), refine).intern()
             }
             core::Ty::Exists(bty, pred) => {
+                let bty = self.lower_base_ty(bty, fresh_kvar);
                 let pred = match pred {
-                    core::Pred::Infer => fresh_kvar(lower_sort(bty.sort())),
+                    core::Pred::Infer => fresh_kvar(self.genv.sort(&bty)),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
-                ty::TyKind::Exists(self.lower_base_ty(bty, fresh_kvar), pred).intern()
+                ty::TyKind::Exists(bty, pred).intern()
             }
             core::Ty::StrgRef(loc) => {
                 ty::TyKind::StrgRef(ty::Loc::Abstract(self.locs[loc])).intern()
@@ -129,11 +132,25 @@ impl LoweringCtxt {
     }
 }
 
-fn lower_sort(sort: core::Sort) -> ty::Sort {
+pub fn lower_sort(sort: &core::Sort) -> ty::Sort {
     match sort {
-        core::Sort::Int => ty::Sort::Int,
-        core::Sort::Bool => ty::Sort::Bool,
+        core::Sort::Int => ty::Sort::int(),
+        core::Sort::Bool => ty::Sort::bool(),
     }
+}
+
+pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
+    let refined_by = adt_def
+        .refined_by
+        .into_iter()
+        .enumerate()
+        .map(|(idx, (_, sort))| {
+            let name = ty::Name::new(idx);
+            (name, lower_sort(&sort))
+        })
+        .collect();
+
+    ty::AdtDef { refined_by }
 }
 
 fn lower_bin_op(op: core::BinOp) -> ty::BinOp {

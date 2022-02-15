@@ -11,7 +11,9 @@ use std::{
     str::FromStr,
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Qualifier, Sort, UnOp};
+pub use constraint::{
+    BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UnOp,
+};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use serde::{de, Deserialize};
@@ -88,6 +90,9 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         for qualif in DEFAULT_QUALIFIERS.iter() {
             writeln!(f, "{qualif}")?;
         }
+
+        writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
+        writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for kvar in &self.kvars {
             writeln!(f, "{kvar}")?;
