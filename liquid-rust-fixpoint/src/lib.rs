@@ -11,7 +11,9 @@ use std::{
     str::FromStr,
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UnOp};
+pub use constraint::{
+    BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UnOp,
+};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 use serde::{de, Deserialize};
