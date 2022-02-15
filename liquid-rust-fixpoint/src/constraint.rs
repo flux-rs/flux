@@ -236,55 +236,35 @@ impl Qualifier {
         // (qualif EqZero ((v int)) (v == 0))
         let eqzero = Qualifier {
             args: vec![(NAME0, Sort::Int)],
-            expr: Expr::BinaryOp(
-                BinOp::Eq,
-                Box::new(Expr::Var(NAME0)),
-                Box::new(Expr::ZERO),
-            ),
+            expr: Expr::BinaryOp(BinOp::Eq, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
             name: String::from("EqZero"),
         };
 
         // (qualif GtZero ((v int)) (v > 0))
         let gtzero = Qualifier {
             args: vec![(NAME0, Sort::Int)],
-            expr: Expr::BinaryOp(
-                BinOp::Gt,
-                Box::new(Expr::Var(NAME0)),
-                Box::new(Expr::ZERO),
-            ),
+            expr: Expr::BinaryOp(BinOp::Gt, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
             name: String::from("GtZero"),
         };
 
         // (qualif GeZero ((v int)) (v >= 0))
         let gezero = Qualifier {
             args: vec![(NAME0, Sort::Int)],
-            expr: Expr::BinaryOp(
-                BinOp::Ge,
-                Box::new(Expr::Var(NAME0)),
-                Box::new(Expr::ZERO),
-            ),
+            expr: Expr::BinaryOp(BinOp::Ge, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
             name: String::from("GeZero"),
         };
 
         // (qualif LtZero ((v int)) (v < 0))
         let ltzero = Qualifier {
             args: vec![(NAME0, Sort::Int)],
-            expr: Expr::BinaryOp(
-                BinOp::Lt,
-                Box::new(Expr::Var(NAME0)),
-                Box::new(Expr::ZERO),
-            ),
+            expr: Expr::BinaryOp(BinOp::Lt, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
             name: String::from("LtZero"),
         };
 
         // (qualif LeZero ((v int)) (v <= 0))
         let lezero = Qualifier {
             args: vec![(NAME0, Sort::Int)],
-            expr: Expr::BinaryOp(
-                BinOp::Le,
-                Box::new(Expr::Var(NAME0)),
-                Box::new(Expr::ZERO),
-            ),
+            expr: Expr::BinaryOp(BinOp::Le, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
             name: String::from("LeZero"),
         };
 
