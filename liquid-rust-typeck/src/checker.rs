@@ -84,15 +84,15 @@ pub struct Check<'a> {
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
-        global_env: &'a GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
         ensures: Vec<(Name, Ty)>,
         mode: M,
     ) -> Self {
         Checker {
-            sess: global_env.tcx.sess,
-            genv: global_env,
+            sess: genv.tcx.sess,
+            genv,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             ret,
@@ -150,7 +150,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
 
 impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
-        global_env: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'tcx>,
         pure_cx: &mut PureCtxt,
         body: &Body<'tcx>,
         fn_sig: &FnSig,
@@ -169,13 +169,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (loc, ty) in &fn_sig.requires {
             let fresh = cursor.push_loc();
-            let ty = env.unpack(global_env, &mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(genv, &mut cursor, subst.subst_ty(ty));
             env.insert_loc(fresh, ty);
             subst.insert_loc(Loc::Abstract(*loc), fresh);
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(global_env, &mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(genv, &mut cursor, subst.subst_ty(ty));
             env.insert_loc(Loc::Local(local), ty);
         }
 
@@ -192,7 +192,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
             .collect();
 
-        let mut checker = Checker::new(global_env, body, ret, ensures, mode);
+        let mut checker = Checker::new(genv, body, ret, ensures, mode);
 
         checker.check_goto(cursor, env, START_BLOCK)?;
         while let Some(bb) = checker.queue.pop() {
@@ -205,7 +205,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
 
             let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
-            env.unpack_all(global_env, &mut cursor);
+            env.unpack_all(genv, &mut cursor);
             checker.check_basic_block(cursor, env, bb)?;
         }
 

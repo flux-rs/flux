@@ -51,16 +51,15 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         })
         .try_collect_exhaust()?;
 
-    let global_env = GlobalEnv::new(tcx, fn_sigs, adt_defs);
-    global_env
-        .fn_specs
+    let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
+    genv.fn_specs
         .iter()
         .map(|(def_id, spec)| {
             if spec.assume {
                 return Ok(());
             }
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            typeck::check(&global_env, def_id.to_def_id(), &body)
+            typeck::check(&genv, def_id.to_def_id(), &body)
         })
         .try_collect_exhaust()
 }
