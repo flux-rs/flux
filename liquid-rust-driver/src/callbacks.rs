@@ -23,6 +23,10 @@ impl Callbacks for LiquidCallbacks {
         compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
+        if compiler.session().has_errors() {
+            return Compilation::Stop;
+        }
+
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             let _ = check_crate(tcx, compiler.session());
         });

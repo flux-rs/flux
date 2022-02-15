@@ -63,18 +63,25 @@ GenericArgs: Vec<ast::Ty> = {
     "<" <Comma<Ty>> ">"
 }
 
-Refinement: ast::Expr = {
+Refinement: ast::Refine = {
     <lo:@L> <lit:Lit> <hi:@R> => {
-        ast::Expr {
-            kind: ast::ExprKind::Literal(lit),
+        ast::Refine {
+            exprs: vec![ast::Expr { kind: ast::ExprKind::Literal(lit), span: mk_span(lo, hi) }],
             span: mk_span(lo, hi),
         }
     },
-    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
-        kind: ast::ExprKind::Var(var),
-        span: mk_span(lo, hi),
+    <lo:@L> <var:Ident> <hi:@R> => {
+        ast::Refine {
+            exprs: vec![ast::Expr { kind: ast::ExprKind::Var(var), span: mk_span(lo, hi) }],
+            span: mk_span(lo, hi),
+        }
     },
-    "{" <Level1> "}" => <>
+    <lo:@L> "{" <exprs: Comma<<Level1>>> "}" <hi:@R> => {
+        ast::Refine {
+            exprs,
+            span: mk_span(lo, hi),
+        }
+    }
 };
 
 Level1 = NonAssoc<BinOp1, Level2>;  // <=>

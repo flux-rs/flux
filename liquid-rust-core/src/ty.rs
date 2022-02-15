@@ -19,12 +19,18 @@ pub struct FnSig {
 
 #[derive(Debug)]
 pub enum Ty {
-    Refine(BaseTy, Expr),
+    Refine(BaseTy, Refine),
     Exists(BaseTy, Pred),
     StrgRef(Name),
     WeakRef(Box<Ty>),
     ShrRef(Box<Ty>),
     Param(ParamTy),
+}
+
+#[derive(Debug)]
+pub struct Refine {
+    pub exprs: Vec<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug)]

@@ -236,9 +236,12 @@ impl Expr {
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
-        let exprs = exprs.into_iter().collect_vec();
-        debug_assert_ne!(exprs.len(), 1);
-        ExprKind::Tuple(exprs).intern()
+        let mut exprs = exprs.into_iter().collect_vec();
+        if exprs.len() == 1 {
+            exprs.remove(0)
+        } else {
+            ExprKind::Tuple(exprs).intern()
+        }
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {

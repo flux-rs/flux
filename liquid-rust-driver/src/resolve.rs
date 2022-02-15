@@ -193,8 +193,12 @@ impl<'tcx> Resolver<'tcx> {
             ast::TyKind::RefineTy { path, refine } => {
                 match self.resolve_path(path, subst)? {
                     ParamTyOrBaseTy::BaseTy(bty) => {
-                        let refine = self.resolve_expr(refine, subst);
-                        Ok(ty::Ty::Refine(bty, refine?))
+                        let exprs = refine
+                            .exprs
+                            .into_iter()
+                            .map(|e| self.resolve_expr(e, subst))
+                            .try_collect_exhaust()?;
+                        Ok(ty::Ty::Refine(bty, ty::Refine { exprs, span: refine.span }))
                     }
                     ParamTyOrBaseTy::ParamTy(_) => {
                         self.diagnostics

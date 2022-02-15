@@ -52,7 +52,7 @@ impl Wf<'_> {
 
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
-            core::Ty::Refine(bty, e) => self.check_expr(env, e, self.sort(bty)),
+            core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sort(bty)),
             core::Ty::Exists(bty, pred) => {
                 env.insert(core::Var::Bound, self.sort(bty));
                 self.check_pred(env, pred, ty::Sort::bool())
@@ -63,6 +63,20 @@ impl Wf<'_> {
             }
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
             core::Ty::Param(_) => Ok(()),
+        }
+    }
+
+    fn check_refine(
+        &self,
+        env: &mut Env,
+        refine: &core::Refine,
+        expected: ty::Sort,
+    ) -> Result<(), ErrorReported> {
+        let found = self.synth_refine(env, refine)?;
+        if found != expected {
+            self.emit_err(errors::SortMismatch::new(Some(refine.span), found, expected))
+        } else {
+            Ok(())
         }
     }
 
@@ -90,6 +104,15 @@ impl Wf<'_> {
         } else {
             Ok(())
         }
+    }
+
+    fn synth_refine(&self, env: &Env, refine: &core::Refine) -> Result<ty::Sort, ErrorReported> {
+        let sorts: Vec<ty::Sort> = refine
+            .exprs
+            .iter()
+            .map(|e| self.synth_expr(env, e))
+            .try_collect_exhaust()?;
+        Ok(ty::Sort::tuple(sorts))
     }
 
     fn synth_expr(&self, env: &Env, e: &core::Expr) -> Result<ty::Sort, ErrorReported> {

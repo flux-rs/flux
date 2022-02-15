@@ -66,8 +66,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
     ) -> ty::Ty {
         match ty {
-            core::Ty::Refine(bty, e) => {
-                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), self.lower_expr(e)).intern()
+            core::Ty::Refine(bty, refine) => {
+                let refine = ty::Expr::tuple(refine.exprs.iter().map(|e| self.lower_expr(e)));
+                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), refine).intern()
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty, fresh_kvar);

@@ -33,11 +33,17 @@ pub struct Ty {
 #[derive(Debug)]
 pub enum TyKind {
     BaseTy(Path),
-    RefineTy { path: Path, refine: Expr },
+    RefineTy { path: Path, refine: Refine },
     Exists { bind: Ident, path: Path, pred: Expr },
     StrgRef(Ident),
     WeakRef(Box<Ty>),
     ShrRef(Box<Ty>),
+}
+
+#[derive(Debug)]
+pub struct Refine {
+    pub exprs: Vec<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
