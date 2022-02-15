@@ -31,10 +31,10 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn sort(&self, bty: &BaseTy) -> Sort {
         match bty {
-            BaseTy::Int(_) => Sort::Int,
-            BaseTy::Uint(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(_, _) => Sort::Int,
+            BaseTy::Int(_) => Sort::int(),
+            BaseTy::Uint(_) => Sort::int(),
+            BaseTy::Bool => Sort::bool(),
+            BaseTy::Adt(_, _) => Sort::int(),
         }
     }
 }

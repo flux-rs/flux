@@ -133,8 +133,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
 fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
-        core::Sort::Int => ty::Sort::Int,
-        core::Sort::Bool => ty::Sort::Bool,
+        core::Sort::Int => ty::Sort::int(),
+        core::Sort::Bool => ty::Sort::bool(),
     }
 }
 

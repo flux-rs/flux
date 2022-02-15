@@ -9,7 +9,7 @@ use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     subtyping::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, Var},
+    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -91,12 +91,15 @@ impl KVarStore {
         let mut sorts = Vec::with_capacity(scope.size_hint().0 + 1);
         let mut args = Vec::with_capacity(scope.size_hint().0);
 
-        sorts.push(sort_to_fixpoint(sort).expect("kvars cannot have locs as arguments"));
+        sorts.push(sort_to_fixpoint(&sort));
         args.push(Expr::from(var));
-        for (var, sort) in scope.filter_map(|(var, sort)| Some((var, sort_to_fixpoint(sort)?))) {
-            args.push(Var::Free(var).into());
-            sorts.push(sort);
-        }
+        scope
+            .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
+            .map(|(var, sort)| (var, sort_to_fixpoint(&sort)))
+            .for_each(|(var, sort)| {
+                sorts.push(sort);
+                args.push(Var::Free(var).into());
+            });
 
         let kvid = self.kvars.push(sorts);
         Pred::kvar(kvid, args)
@@ -145,8 +148,9 @@ impl Cursor<'_> {
         let parents = ParentsIter::new(snapshot.node.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
-                if let NodeKind::Binding(_, sort, _) = node.borrow().kind {
-                    Some(sort)
+                let node = node.borrow();
+                if let NodeKind::Binding(_, sort, _) = &node.kind {
+                    Some(sort.clone())
                 } else {
                     None
                 }
@@ -175,7 +179,7 @@ impl Cursor<'_> {
 
     pub fn push_loc(&mut self) -> Loc {
         let fresh = Name::new(self.next_name_idx());
-        self.node = self.push_node(NodeKind::Binding(fresh, Sort::Loc, Pred::tt()));
+        self.node = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
         Loc::Abstract(fresh)
     }
 
@@ -208,7 +212,7 @@ impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
-            .map(|(name, sort)| (name, *sort))
+            .map(|(name, sort)| (name, sort.clone()))
     }
 
     pub fn contains(&self, name: Name) -> bool {
@@ -227,7 +231,8 @@ impl std::ops::Index<Name> for Scope {
 impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
-            NodeKind::Conj | NodeKind::Binding(_, Sort::Loc, _) => {
+            NodeKind::Conj => children_to_fixpoint(cx, &self.children),
+            NodeKind::Binding(_, sort, _) if matches!(sort.kind(), SortKind::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::Binding(name, sort, pred) => {
@@ -241,7 +246,7 @@ impl Node {
                     bindings,
                     fixpoint::Constraint::ForAll(
                         fresh,
-                        sort_to_fixpoint(*sort).unwrap(),
+                        sort_to_fixpoint(sort),
                         pred,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ),
@@ -311,11 +316,29 @@ fn pred_to_fixpoint(
     (bindings, pred)
 }
 
-fn sort_to_fixpoint(sort: Sort) -> Option<fixpoint::Sort> {
-    match sort {
-        Sort::Int => Some(fixpoint::Sort::Int),
-        Sort::Bool => Some(fixpoint::Sort::Bool),
-        Sort::Loc => None,
+#[track_caller]
+fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
+    match sort.kind() {
+        SortKind::Int => fixpoint::Sort::Int,
+        SortKind::Bool => fixpoint::Sort::Bool,
+        SortKind::Tuple(sorts) => {
+            match &sorts[..] {
+                [] => fixpoint::Sort::Unit,
+                [_] => panic!("1-tuple"),
+                [sorts @ .., s1, s2] => {
+                    let s1 = Box::new(sort_to_fixpoint(s1));
+                    let s2 = Box::new(sort_to_fixpoint(s2));
+                    sorts
+                        .iter()
+                        .map(sort_to_fixpoint)
+                        .map(Box::new)
+                        .fold(fixpoint::Sort::Pair(s1, s2), |s1, s2| {
+                            fixpoint::Sort::Pair(Box::new(s1), s2)
+                        })
+                }
+            }
+        }
+        SortKind::Loc => fixpoint::Sort::Int,
     }
 }
 

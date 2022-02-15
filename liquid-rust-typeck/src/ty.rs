@@ -68,11 +68,19 @@ pub enum Pred {
     Expr(Expr),
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum Sort {
+pub type Sort = Interned<SortS>;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct SortS {
+    kind: SortKind,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum SortKind {
     Int,
     Bool,
     Loc,
+    Tuple(Vec<Sort>),
 }
 
 pub type Expr = Interned<ExprS>;
@@ -171,6 +179,26 @@ impl FromIterator<Ty> for Substs {
     }
 }
 
+impl Sort {
+    pub fn int() -> Self {
+        Interned::new(SortS { kind: SortKind::Int })
+    }
+
+    pub fn bool() -> Self {
+        Interned::new(SortS { kind: SortKind::Bool })
+    }
+
+    pub fn loc() -> Self {
+        Interned::new(SortS { kind: SortKind::Loc })
+    }
+}
+
+impl SortS {
+    pub fn kind(&self) -> &SortKind {
+        &self.kind
+    }
+}
+
 impl ExprKind {
     pub fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
@@ -252,9 +280,7 @@ impl ExprS {
                     .intern()
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
-            ExprKind::Proj(e, field) => {
-                ExprKind::Proj(e.subst_bound_vars(to.clone()), *field).intern()
-            }
+            ExprKind::Proj(e, field) => ExprKind::Proj(e.subst_bound_vars(to), *field).intern(),
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(to.clone())))
             }
@@ -362,7 +388,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>);
+impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, SortS);
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
@@ -513,10 +539,11 @@ mod pretty {
     impl Pretty for Sort {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(_cx, f);
-            match self {
-                Sort::Int => w!("int"),
-                Sort::Bool => w!("bool"),
-                Sort::Loc => w!("loc"),
+            match self.kind() {
+                SortKind::Int => w!("int"),
+                SortKind::Bool => w!("bool"),
+                SortKind::Loc => w!("loc"),
+                SortKind::Tuple(sorts) => w!("({:?})", join!(", ", sorts)),
             }
         }
     }

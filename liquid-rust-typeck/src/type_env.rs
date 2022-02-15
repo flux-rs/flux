@@ -463,7 +463,7 @@ impl TypeEnvShape {
                         let sort = genv.sort(bty);
                         let param = Param {
                             name: fresh,
-                            sort,
+                            sort: sort.clone(),
                             pred: fresh_kvar(fresh.into(), sort, &params),
                         };
                         params.push(param);
@@ -506,7 +506,7 @@ impl BasicBlockEnv {
     pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
         let mut subst = Subst::empty();
         for param in &self.params {
-            cursor.push_binding(param.sort, |fresh| {
+            cursor.push_binding(param.sort.clone(), |fresh| {
                 subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
                 subst.subst_pred(&param.pred)
             });

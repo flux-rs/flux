@@ -161,7 +161,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut subst = Subst::empty();
 
         for param in &fn_sig.params {
-            cursor.push_binding(param.sort, |fresh| {
+            cursor.push_binding(param.sort.clone(), |fresh| {
                 subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
                 subst.subst_pred(&param.pred)
             });
@@ -792,7 +792,7 @@ impl Mode for Check<'_> {
                 sort,
                 scope
                     .iter()
-                    .chain(params.iter().map(|param| (param.name, param.sort))),
+                    .chain(params.iter().map(|param| (param.name, param.sort.clone()))),
             )
         };
         let mut first = false;
