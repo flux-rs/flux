@@ -23,7 +23,7 @@ impl Wf<'_> {
             .params
             .iter()
             .map(|param| {
-                env.insert(core::Var::Free(param.name.name), lower_sort(&param.sort));
+                env.insert(core::Var::Free(param.name.name), lower_sort(param.sort));
                 self.check_expr(&env, &param.pred, ty::Sort::bool())
             })
             .try_collect_exhaust();
@@ -73,10 +73,10 @@ impl Wf<'_> {
         expected: ty::Sort,
     ) -> Result<(), ErrorReported> {
         let found = self.synth_refine(env, refine)?;
-        if found != expected {
-            self.emit_err(errors::SortMismatch::new(Some(refine.span), found, expected))
-        } else {
+        if found == expected {
             Ok(())
+        } else {
+            self.emit_err(errors::SortMismatch::new(Some(refine.span), found, expected))
         }
     }
 
@@ -99,10 +99,10 @@ impl Wf<'_> {
         expected: ty::Sort,
     ) -> Result<(), ErrorReported> {
         let found = self.synth_expr(env, e)?;
-        if found != expected {
-            self.emit_err(errors::SortMismatch::new(e.span, expected, found))
-        } else {
+        if found == expected {
             Ok(())
+        } else {
+            self.emit_err(errors::SortMismatch::new(e.span, expected, found))
         }
     }
 
@@ -131,7 +131,7 @@ impl Wf<'_> {
         e2: &core::Expr,
     ) -> Result<ty::Sort, ErrorReported> {
         match op {
-            core::BinOp::Iff | core::BinOp::Imp => {
+            core::BinOp::Or | core::BinOp::And | core::BinOp::Iff | core::BinOp::Imp => {
                 self.check_expr(env, e1, ty::Sort::bool())?;
                 self.check_expr(env, e2, ty::Sort::bool())?;
                 Ok(ty::Sort::bool())
@@ -146,20 +146,10 @@ impl Wf<'_> {
                 self.check_expr(env, e2, ty::Sort::int())?;
                 Ok(ty::Sort::bool())
             }
-            core::BinOp::Add | core::BinOp::Sub => {
+            core::BinOp::Add | core::BinOp::Sub | core::BinOp::Mod => {
                 self.check_expr(env, e1, ty::Sort::int())?;
                 self.check_expr(env, e2, ty::Sort::int())?;
                 Ok(ty::Sort::int())
-            }
-            core::BinOp::Mod => {
-                self.check_expr(env, e1, ty::Sort::int())?;
-                self.check_expr(env, e2, ty::Sort::int())?;
-                Ok(ty::Sort::int())
-            }
-            core::BinOp::Or | core::BinOp::And => {
-                self.check_expr(env, e1, ty::Sort::bool())?;
-                self.check_expr(env, e2, ty::Sort::bool())?;
-                Ok(ty::Sort::bool())
             }
         }
     }

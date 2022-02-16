@@ -116,8 +116,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
 
         let mut bb_envs = FxHashMap::default();
-        let _ =
-            Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
+        Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -136,6 +135,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let mut pure_cx = PureCtxt::new();
         let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
         let mut kvars = KVarStore::new();
+
+        // println!("\n---------------------------------------");
 
         Checker::run(
             genv,
@@ -181,7 +182,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern())
+            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern());
         }
 
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
@@ -231,6 +232,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        // println!("\n{bb:?}\n{cursor:?}\n{env:?}");
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
@@ -238,6 +240,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_statement(&mut cursor, &mut env, stmt);
         }
         if let Some(terminator) = &data.terminator {
+            // println!("{terminator:?}");
             let successors = self.check_terminator(&mut cursor, &mut env, terminator)?;
             self.snapshots[bb] = Some(cursor.snapshot());
             self.check_successors(cursor, env, successors)?;
@@ -248,6 +251,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, cursor: &mut Cursor, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
+                // println!("{stmt:?}");
                 let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
                 let ty = env.unpack(self.genv, cursor, ty);
                 let sub = &mut Sub::new(
@@ -256,6 +260,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     Tag::Assign(stmt.source_info.span),
                 );
                 env.write_place(sub, p, ty);
+                // println!("{cursor:?}\n{env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -410,10 +415,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Refine(BaseTy::Bool, e) => {
-                    if bits != 0 {
-                        e.clone()
-                    } else {
+                    if bits == 0 {
                         e.not()
+                    } else {
+                        e.clone()
                     }
                 }
                 TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
@@ -485,7 +490,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(cursor, env, source_info, bin_op, op1, op2)
+                self.check_binary_op(cursor, env, source_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
@@ -504,7 +509,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         cursor: &mut Cursor,
         env: &mut TypeEnv,
         source_info: SourceInfo,
-        bin_op: &ir::BinOp,
+        bin_op: ir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
@@ -529,23 +534,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (
-                TyKind::Refine(BaseTy::Int(int_ty1), _e1),
-                TyKind::Refine(BaseTy::Int(int_ty2), _e2),
-            ) => {
+            (TyKind::Refine(BaseTy::Int(int_ty1), _), TyKind::Refine(BaseTy::Int(int_ty2), _)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
                 TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
             }
             (
-                TyKind::Refine(BaseTy::Uint(uint_ty1), _e1),
-                TyKind::Refine(BaseTy::Uint(uint_ty2), _e2),
+                TyKind::Refine(BaseTy::Uint(uint_ty1), _),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), _),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                TyKind::Refine(
-                    BaseTy::Uint(*uint_ty1),
-                    ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(true)).intern(),
-                )
-                .intern()
+                TyKind::Exists(BaseTy::Uint(*uint_ty1), Expr::tt().into()).intern()
             }
             (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
                 TyKind::Refine(
@@ -830,7 +828,7 @@ impl Mode for Check<'_> {
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
-        unreachable!()
+        unreachable!();
     }
 }
 

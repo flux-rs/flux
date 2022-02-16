@@ -557,8 +557,8 @@ mod pretty {
     }
 
     impl Pretty for Sort {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
             match self.kind() {
                 SortKind::Int => w!("int"),
                 SortKind::Bool => w!("bool"),

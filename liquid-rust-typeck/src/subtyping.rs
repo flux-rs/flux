@@ -65,7 +65,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 sub.bty_subtyping(bty1, bty2);
                 let p = p.subst_bound_vars(e.clone());
-                sub.cursor.push_head(p.subst_bound_vars(e.clone()), sub.tag)
+                sub.cursor.push_head(p.subst_bound_vars(e.clone()), sub.tag);
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);
@@ -81,14 +81,10 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
                 // FIXME: we should rethink in which situation this is sound.
             }
             (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2)
+                debug_assert_eq!(param1, param2);
             }
-            (TyKind::Exists(..), _) => {
-                unreachable!("subtyping with unpacked existential")
-            }
-            _ => {
-                todo!("`{ty1:?}` `{ty2:?}`")
-            }
+            (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
+            _ => todo!("`{ty1:?}` `{ty2:?}`"),
         }
     }
 

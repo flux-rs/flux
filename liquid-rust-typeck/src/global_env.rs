@@ -36,7 +36,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         fn_specs: FxHashMap<LocalDefId, FnSpec>,
         adt_defs: AdtDefs,
     ) -> Self {
-        GlobalEnv { tcx, fn_specs, adt_defs }
+        GlobalEnv { fn_specs, adt_defs, tcx }
     }
 
     pub fn lookup_fn_sig(&self, did: DefId) -> &core::FnSig {
@@ -49,8 +49,7 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn sort(&self, bty: &BaseTy) -> Sort {
         match bty {
-            BaseTy::Int(_) => Sort::int(),
-            BaseTy::Uint(_) => Sort::int(),
+            BaseTy::Int(_) | BaseTy::Uint(_) => Sort::int(),
             BaseTy::Bool => Sort::bool(),
             BaseTy::Adt(def_id, _) => {
                 if let Some(def) = self.adt_defs.get(*def_id) {

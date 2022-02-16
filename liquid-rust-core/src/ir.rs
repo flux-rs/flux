@@ -163,8 +163,7 @@ impl Body<'_> {
 impl Place {
     pub fn local(&self) -> Local {
         match self {
-            Place::Local(local) => *local,
-            Place::Deref(local) => *local,
+            Place::Local(local) | Place::Deref(local) => *local,
         }
     }
 }

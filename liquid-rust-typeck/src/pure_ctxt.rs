@@ -190,7 +190,7 @@ impl Cursor<'_> {
     }
 
     fn next_name_idx(&self) -> usize {
-        self.node.borrow().nbindings + self.node.borrow().is_binding() as usize
+        self.node.borrow().nbindings + usize::from(self.node.borrow().is_binding())
     }
 
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
@@ -317,7 +317,7 @@ fn pred_to_fixpoint(
 
 fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
     match sort.kind() {
-        SortKind::Int => fixpoint::Sort::Int,
+        SortKind::Int | SortKind::Loc => fixpoint::Sort::Int,
         SortKind::Bool => fixpoint::Sort::Bool,
         SortKind::Tuple(sorts) => {
             match &sorts[..] {
@@ -336,7 +336,6 @@ fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
                 }
             }
         }
-        SortKind::Loc => fixpoint::Sort::Int,
     }
 }
 
@@ -407,7 +406,7 @@ impl Iterator for ParentsIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(node) = self.node.take() {
-            self.node = node.borrow().parent.as_ref().and_then(|n| n.upgrade());
+            self.node = node.borrow().parent.as_ref().and_then(WeakNodePtr::upgrade);
             Some(node)
         } else {
             None
