@@ -64,6 +64,7 @@ pub trait Mode: Sized {
         ck: &mut Checker<Self>,
         cursor: Cursor,
         env: TypeEnv,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool;
 
@@ -195,7 +196,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let dominators = body.dominators();
         let mut ck = Checker::new(genv, body, ret, ensures, &dominators, mode);
 
-        ck.check_goto(cursor, env, START_BLOCK)?;
+        ck.check_goto(cursor, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
@@ -241,7 +242,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             // println!("{terminator:?}");
             let successors = self.check_terminator(&mut cursor, &mut env, terminator)?;
             self.snapshots[bb] = Some(cursor.snapshot());
-            self.check_successors(cursor, env, successors)?;
+            self.check_successors(cursor, env, terminator.source_info, successors)?;
         }
         Ok(())
     }
@@ -445,6 +446,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         mut cursor: Cursor,
         env: TypeEnv,
+        src_info: SourceInfo,
         successors: Vec<(BasicBlock, Option<Expr>)>,
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
@@ -453,7 +455,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             if let Some(guard) = guard {
                 cursor.push_pred(guard);
             }
-            self.check_goto(cursor, env, target)?;
+            self.check_goto(cursor, env, Some(src_info), target)?;
         }
         Ok(())
     }
@@ -462,10 +464,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         cursor: Cursor,
         env: TypeEnv,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            if M::check_goto_join_point(self, cursor, env, target) {
+            if M::check_goto_join_point(self, cursor, env, src_info, target) {
                 self.queue.insert(target);
             }
             Ok(())
@@ -740,6 +743,7 @@ impl Mode for Inference<'_> {
         ck: &mut Checker<Inference>,
         _cursor: Cursor,
         mut env: TypeEnv,
+        _src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
@@ -774,6 +778,7 @@ impl Mode for Check<'_> {
         ck: &mut Checker<Check>,
         mut cursor: Cursor,
         mut env: TypeEnv,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
@@ -806,9 +811,9 @@ impl Mode for Check<'_> {
         // println!("\ngoto {target:?}\n{cursor:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
 
         for param in &bb_env.params {
-            cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto);
+            cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto(src_info.map(|s| s.span)));
         }
-        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), Tag::Goto);
+        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), Tag::Goto(src_info.map(|s| s.span)));
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first

@@ -139,7 +139,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto => tcx.sess.emit_err(errors::GotoError { span: body_span }),
+            Tag::Goto(span) => tcx.sess.emit_err(errors::GotoError { span }),
         }
     }
 
@@ -180,8 +180,7 @@ mod errors {
     #[error = "LIQUID"]
     pub struct GotoError {
         #[message = "error jumping to join point"]
-        #[label = "the is an error in one of the join points of this function"]
-        pub span: Span,
+        pub span: Option<Span>,
     }
 
     #[derive(SessionDiagnostic)]

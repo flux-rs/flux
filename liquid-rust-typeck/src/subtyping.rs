@@ -20,7 +20,7 @@ pub enum Tag {
     Ret,
     Div(Span),
     Rem(Span),
-    Goto,
+    Goto(Option<Span>),
 }
 
 impl<'a, 'tcx> Sub<'a, 'tcx> {
@@ -141,7 +141,7 @@ mod pretty {
                 Tag::Ret => w!("Ret"),
                 Tag::Div(span) => w!("Div({:?})", ^span),
                 Tag::Rem(span) => w!("Rem({:?})", ^span),
-                Tag::Goto => w!("Other"),
+                Tag::Goto(span) => w!("Goto({:?}", ^span),
             }
         }
     }
