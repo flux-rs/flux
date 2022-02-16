@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
-    ast::{FnSig, RefinedByParam},
-    parse_fn_sig, parse_refined_by, ParseErrorKind, ParseResult,
+    ast::{FnSig, Qualifier, RefinedByParam},
+    parse_fn_sig, parse_qualifier, parse_refined_by, ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
@@ -26,6 +26,7 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 pub struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
     pub adts: FxHashMap<LocalDefId, AdtSpec>,
+    pub qualifs: Vec<Qualifier>,
 }
 
 pub struct FnSpec {
@@ -42,6 +43,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_reported: false };
 
         tcx.hir().visit_all_item_likes(&mut collector);
+
+        collector.parse_crate_spec(tcx.hir().krate_attrs())?;
 
         if collector.error_reported {
             Err(ErrorReported)
@@ -80,6 +83,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
+    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut qualifiers = attrs.qualifiers();
+        self.specs.qualifs.append(&mut qualifiers);
+        Ok(())
+    }
+
     fn parse_liquid_attrs(&mut self, attrs: &[Attribute]) -> Result<LiquidAttrs, ErrorReported> {
         let attrs: Vec<_> = attrs
             .iter()
@@ -109,6 +119,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("ty", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_sig)?;
                 LiquidAttrKind::FnSig(fn_sig)
+            }
+            ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
+                let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
+                LiquidAttrKind::Qualifier(qualifer)
             }
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
                 let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
@@ -177,6 +191,9 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
                 let attrs = self.tcx.hir().attrs(hir_id);
                 let _ = self.parse_adt_spec(item.def_id, attrs);
             }
+            ItemKind::Mod(..) => {
+                // TODO: Parse mod level attributes
+            }
             _ => (),
         }
     }
@@ -194,7 +211,7 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
 
 impl Specs {
     fn new() -> Specs {
-        Specs { fns: FxHashMap::default(), adts: FxHashMap::default() }
+        Specs { fns: FxHashMap::default(), adts: FxHashMap::default(), qualifs: Vec::default() }
     }
 }
 
@@ -214,6 +231,7 @@ enum LiquidAttrKind {
     Assume,
     FnSig(FnSig),
     RefinedBy(Vec<RefinedByParam>),
+    Qualifier(Qualifier),
 }
 
 macro_rules! read_attr {
@@ -226,6 +244,21 @@ macro_rules! read_attr {
             .find_map(
                 |attr| if let LiquidAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
             )
+    };
+}
+
+// like read_attr, but returns all valid attributes
+macro_rules! read_all_attrs {
+    ($self:expr, $name:literal, $kind:ident) => {
+        $self
+            .map
+            .remove($name)
+            .unwrap_or_else(|| vec![])
+            .into_iter()
+            .filter_map(
+                |attr| if let LiquidAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
+            )
+            .collect()
     };
 }
 
@@ -249,6 +282,10 @@ impl LiquidAttrs {
         read_attr!(self, "fn_sig", FnSig)
     }
 
+    fn qualifiers(&mut self) -> Vec<Qualifier> {
+        read_all_attrs!(self, "qualifier", Qualifier)
+    }
+
     fn refined_by(&mut self) -> Option<Vec<RefinedByParam>> {
         read_attr!(self, "refined_by", RefinedBy)
     }
@@ -259,6 +296,7 @@ impl LiquidAttrKind {
         match self {
             Self::Assume => "assume",
             Self::FnSig(_) => "fn_sig",
+            Self::Qualifier(_) => "qualifier",
             Self::RefinedBy(_) => "refined_by",
         }
     }

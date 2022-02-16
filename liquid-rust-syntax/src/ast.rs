@@ -19,6 +19,14 @@ pub struct FnSig {
 }
 
 #[derive(Debug)]
+pub struct Qualifier {
+    pub name: Ident,
+    pub args: Vec<(Ident, Ident)>,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
     pub span: Span,
