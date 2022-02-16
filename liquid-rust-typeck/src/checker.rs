@@ -136,6 +136,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
         let mut kvars = KVarStore::new();
 
+        // println!("\n---------------------------------------");
+
         Checker::run(
             genv,
             &mut pure_cx,
@@ -230,6 +232,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        // println!("\n{bb:?}\n{cursor:?}\n{env:?}");
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
@@ -237,6 +240,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_statement(&mut cursor, &mut env, stmt);
         }
         if let Some(terminator) = &data.terminator {
+            // println!("{terminator:?}");
             let successors = self.check_terminator(&mut cursor, &mut env, terminator)?;
             self.snapshots[bb] = Some(cursor.snapshot());
             self.check_successors(cursor, env, successors)?;
@@ -247,6 +251,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, cursor: &mut Cursor, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
+                // println!("{stmt:?}");
                 let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
                 let ty = env.unpack(self.genv, cursor, ty);
                 let sub = &mut Sub::new(
@@ -255,6 +260,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     Tag::Assign(stmt.source_info.span),
                 );
                 env.write_place(sub, p, ty);
+                // println!("{cursor:?}\n{env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -822,7 +828,7 @@ impl Mode for Check<'_> {
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
-        unreachable!()
+        unreachable!();
     }
 }
 
