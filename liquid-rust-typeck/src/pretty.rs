@@ -151,9 +151,10 @@ impl PPrintCx<'_> {
         Self { fully_qualified_paths: b, ..self }
     }
 
-    // pub fn tags(self, tags: bool) -> Self {
-    //     Self { tags, ..self }
-    // }
+    #[allow(unused)]
+    pub fn tags(self, tags: bool) -> Self {
+        Self { tags, ..self }
+    }
 }
 
 impl<'a, 'tcx, T> WithCx<'a, 'tcx, T> {

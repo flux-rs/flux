@@ -139,7 +139,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto(span) => tcx.sess.emit_err(errors::GotoError { span }),
+            Tag::Goto(span, bb) => tcx.sess.emit_err(errors::GotoError { span, bb }),
         }
     }
 
@@ -173,14 +173,16 @@ impl FromStr for TagIdx {
 }
 
 mod errors {
+    use liquid_rust_core::ir::BasicBlock;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
     pub struct GotoError {
-        #[message = "error jumping to join point"]
+        #[message = "error jumping to join point: `{bb:?}`"]
         pub span: Option<Span>,
+        pub bb: BasicBlock,
     }
 
     #[derive(SessionDiagnostic)]

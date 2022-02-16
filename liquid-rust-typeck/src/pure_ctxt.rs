@@ -454,8 +454,9 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
-            // .tags(true)
-            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
+            // PPrintCx::default(tcx)
+            //     .kvar_args(Visibility::Show)
+            //     .tags(true)
         }
     }
 

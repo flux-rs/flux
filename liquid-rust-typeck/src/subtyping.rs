@@ -1,4 +1,5 @@
 use itertools::izip;
+use liquid_rust_core::ir::BasicBlock;
 use rustc_span::Span;
 
 use crate::{
@@ -20,7 +21,7 @@ pub enum Tag {
     Ret,
     Div(Span),
     Rem(Span),
-    Goto(Option<Span>),
+    Goto(Option<Span>, BasicBlock),
 }
 
 impl<'a, 'tcx> Sub<'a, 'tcx> {
@@ -141,7 +142,7 @@ mod pretty {
                 Tag::Ret => w!("Ret"),
                 Tag::Div(span) => w!("Div({:?})", ^span),
                 Tag::Rem(span) => w!("Rem({:?})", ^span),
-                Tag::Goto(span) => w!("Goto({:?}", ^span),
+                Tag::Goto(span, bb) => w!("Goto({:?}, {:?})", ^span, ^bb),
             }
         }
     }

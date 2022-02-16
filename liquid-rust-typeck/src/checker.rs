@@ -810,10 +810,11 @@ impl Mode for Check<'_> {
 
         // println!("\ngoto {target:?}\n{cursor:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
 
+        let tag = Tag::Goto(src_info.map(|s| s.span), target);
         for param in &bb_env.params {
-            cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto(src_info.map(|s| s.span)));
+            cursor.push_head(subst.subst_pred(&param.pred), tag);
         }
-        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), Tag::Goto(src_info.map(|s| s.span)));
+        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), tag);
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first
