@@ -26,7 +26,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             cx.params.insert(param.name.name, fresh);
             params.push(ty::Param {
                 name: fresh,
-                sort: lower_sort(&param.sort),
+                sort: lower_sort(param.sort),
                 pred: cx.lower_expr(&param.pred).into(),
             });
         }
@@ -40,7 +40,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
         let mut args = vec![];
         for ty in &fn_sig.args {
-            args.push(cx.lower_ty(ty, fresh_kvar))
+            args.push(cx.lower_ty(ty, fresh_kvar));
         }
 
         let mut ensures = vec![];
@@ -132,7 +132,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     }
 }
 
-pub fn lower_sort(sort: &core::Sort) -> ty::Sort {
+pub fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
         core::Sort::Int => ty::Sort::int(),
         core::Sort::Bool => ty::Sort::bool(),
@@ -146,7 +146,7 @@ pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
         .enumerate()
         .map(|(idx, (_, sort))| {
             let name = ty::Name::new(idx);
-            (name, lower_sort(&sort))
+            (name, lower_sort(sort))
         })
         .collect();
 

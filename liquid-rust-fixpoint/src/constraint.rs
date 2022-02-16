@@ -406,11 +406,8 @@ impl From<u128> for Constant {
 
 impl From<i128> for Constant {
     fn from(c: i128) -> Self {
-        if c < 0 {
-            Constant::Int(Sign::Negative, -c as u128)
-        } else {
-            Constant::Int(Sign::Positive, c as u128)
-        }
+        let sign = if c < 0 { Sign::Negative } else { Sign::Positive };
+        Constant::Int(sign, c.unsigned_abs())
     }
 }
 

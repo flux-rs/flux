@@ -87,7 +87,7 @@ impl Subst {
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
-        self.locs.get(&loc).cloned().unwrap_or(loc)
+        self.locs.get(&loc).copied().unwrap_or(loc)
     }
 
     pub fn has_loc(&self, loc: Loc) -> bool {

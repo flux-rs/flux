@@ -43,15 +43,12 @@ where
                 self.inner.write_str("  ")?;
             }
 
-            let split = match s.find('\n') {
-                Some(pos) => {
-                    self.state.on_newline = true;
-                    pos + 1
-                }
-                None => {
-                    self.state.on_newline = false;
-                    s.len()
-                }
+            let split = if let Some(pos) = s.find('\n') {
+                self.state.on_newline = true;
+                pos + 1
+            } else {
+                self.state.on_newline = false;
+                s.len()
             };
             self.inner.write_str(&s[..split])?;
             s = &s[split..];

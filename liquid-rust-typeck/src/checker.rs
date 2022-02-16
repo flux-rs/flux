@@ -116,8 +116,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
 
         let mut bb_envs = FxHashMap::default();
-        let _ =
-            Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
+        Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -181,7 +180,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern())
+            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern());
         }
 
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
@@ -410,10 +409,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Refine(BaseTy::Bool, e) => {
-                    if bits != 0 {
-                        e.clone()
-                    } else {
+                    if bits == 0 {
                         e.not()
+                    } else {
+                        e.clone()
                     }
                 }
                 TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
@@ -485,7 +484,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(cursor, env, source_info, bin_op, op1, op2)
+                self.check_binary_op(cursor, env, source_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
@@ -504,7 +503,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         cursor: &mut Cursor,
         env: &mut TypeEnv,
         source_info: SourceInfo,
-        bin_op: &ir::BinOp,
+        bin_op: ir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
@@ -529,23 +528,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (
-                TyKind::Refine(BaseTy::Int(int_ty1), _e1),
-                TyKind::Refine(BaseTy::Int(int_ty2), _e2),
-            ) => {
+            (TyKind::Refine(BaseTy::Int(int_ty1), _), TyKind::Refine(BaseTy::Int(int_ty2), _)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
                 TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
             }
             (
-                TyKind::Refine(BaseTy::Uint(uint_ty1), _e1),
-                TyKind::Refine(BaseTy::Uint(uint_ty2), _e2),
+                TyKind::Refine(BaseTy::Uint(uint_ty1), _),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), _),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                TyKind::Refine(
-                    BaseTy::Uint(*uint_ty1),
-                    ExprKind::Constant(liquid_rust_fixpoint::Constant::Bool(true)).intern(),
-                )
-                .intern()
+                TyKind::Exists(BaseTy::Uint(*uint_ty1), Expr::tt().into()).intern()
             }
             (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
                 TyKind::Refine(

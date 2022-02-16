@@ -88,10 +88,8 @@ fn map_err(
         LalrpopError::UnrecognizedEOF { location, expected: _ } => {
             ParseErrorKind::UnexpectedEOF.into_error(offset, location, location, ctx, parent)
         }
-        LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ } => {
-            ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent)
-        }
-        LalrpopError::ExtraToken { token: (start, _, end) } => {
+        LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ }
+        | LalrpopError::ExtraToken { token: (start, _, end) } => {
             ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent)
         }
     }

@@ -35,8 +35,7 @@ pub enum Binding {
 impl Binding {
     pub fn ty(&self) -> Ty {
         match self {
-            Binding::Strong(ty) => ty.clone(),
-            Binding::Weak { ty, .. } => ty.clone(),
+            Binding::Strong(ty) | Binding::Weak { ty, .. } => ty.clone(),
         }
     }
 
@@ -368,21 +367,18 @@ impl TypeEnv {
         bty1: &BaseTy,
         bty2: &BaseTy,
     ) -> BaseTy {
-        match (bty1, bty2) {
-            (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
-                debug_assert_eq!(did1, did2);
-                let variances = genv.variances_of(*did1);
-                let substs =
-                    izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
-                        assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                        self.join_ty(genv, other, ty1.clone(), ty2.clone())
-                    });
-                BaseTy::adt(*did1, substs)
-            }
-            _ => {
-                debug_assert_eq!(bty1, bty2);
-                bty1.clone()
-            }
+        if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
+            debug_assert_eq!(did1, did2);
+            let variances = genv.variances_of(*did1);
+            let substs =
+                izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
+                    assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
+                    self.join_ty(genv, other, ty1.clone(), ty2.clone())
+                });
+            BaseTy::adt(*did1, substs)
+        } else {
+            debug_assert_eq!(bty1, bty2);
+            bty1.clone()
         }
     }
 
