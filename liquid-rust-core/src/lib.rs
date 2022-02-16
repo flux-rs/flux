@@ -14,4 +14,3 @@ extern crate rustc_span;
 
 pub mod ir;
 pub mod ty;
-pub mod wf;

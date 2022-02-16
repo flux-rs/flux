@@ -21,6 +21,7 @@ mod subst;
 mod subtyping;
 pub mod ty;
 mod type_env;
+pub mod wf;
 
 use std::{fs, io::Write, str::FromStr};
 
@@ -58,24 +59,24 @@ newtype_index! {
 }
 
 pub fn check<'tcx>(
-    global_env: &GlobalEnv<'tcx>,
+    genv: &GlobalEnv<'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
 ) -> Result<(), ErrorReported> {
-    let fn_sig = global_env.lookup_fn_sig(def_id);
+    let fn_sig = genv.lookup_fn_sig(def_id);
 
-    let bb_envs = Checker::infer(global_env, body, fn_sig)?;
-    let (pure_cx, kvars) = Checker::check(global_env, body, fn_sig, bb_envs)?;
+    let bb_envs = Checker::infer(genv, body, fn_sig)?;
+    let (pure_cx, kvars) = Checker::check(genv, body, fn_sig, bb_envs)?;
 
     if CONFIG.dump_constraint {
-        dump_constraint(global_env.tcx, def_id, &pure_cx, "").unwrap();
+        dump_constraint(genv.tcx, def_id, &pure_cx, "").unwrap();
     }
 
     let mut fcx = FixpointCtxt::new(kvars);
 
     let constraint = pure_cx.into_fixpoint(&mut fcx);
 
-    fcx.check(global_env.tcx, def_id, body.mir.span, constraint)
+    fcx.check(genv.tcx, def_id, body.mir.span, constraint)
 }
 
 impl FixpointCtxt {
@@ -138,7 +139,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto => tcx.sess.emit_err(errors::GotoError { span: body_span }),
+            Tag::Goto(span) => tcx.sess.emit_err(errors::GotoError { span }),
         }
     }
 
@@ -179,8 +180,7 @@ mod errors {
     #[error = "LIQUID"]
     pub struct GotoError {
         #[message = "error jumping to join point"]
-        #[label = "the is an error in one of the join points of this function"]
-        pub span: Span,
+        pub span: Option<Span>,
     }
 
     #[derive(SessionDiagnostic)]

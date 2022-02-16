@@ -77,6 +77,8 @@ impl Subst {
                 ExprKind::BinaryOp(*op, self.subst_expr(e1), self.subst_expr(e2)).intern()
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, self.subst_expr(e)).intern(),
+            ExprKind::Proj(e, field) => ExprKind::Proj(self.subst_expr(e), *field).intern(),
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
         }
     }
 
@@ -85,7 +87,7 @@ impl Subst {
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
-        self.locs.get(&loc).cloned().unwrap_or(loc)
+        self.locs.get(&loc).copied().unwrap_or(loc)
     }
 
     pub fn has_loc(&self, loc: Loc) -> bool {
@@ -164,22 +166,7 @@ impl Subst {
     fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
-                if let ExprKind::Var(var) = e2.kind() {
-                    if !params.contains(var) {
-                        return;
-                    }
-                    match self.exprs.insert(*var, e1.clone()) {
-                        Some(old_e) if &old_e != e1 => {
-                            todo!(
-                                "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                                *var,
-                                old_e,
-                                e1
-                            )
-                        }
-                        _ => {}
-                    }
-                }
+                self.infer_from_exprs(params, e1, e2);
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 match self.locs.insert(*loc2, *loc1) {
@@ -191,6 +178,34 @@ impl Subst {
             }
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
                 self.infer_from_tys(params, ty1, ty2);
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_exprs(&mut self, params: &HashSet<Var>, e1: &Expr, e2: &Expr) {
+        match (e1.kind(), e2.kind()) {
+            (_, ExprKind::Var(var)) => {
+                if !params.contains(var) {
+                    return;
+                }
+                match self.exprs.insert(*var, e1.clone()) {
+                    Some(old_e) if &old_e != e1 => {
+                        todo!(
+                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                            *var,
+                            old_e,
+                            e1
+                        )
+                    }
+                    _ => {}
+                }
+            }
+            (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
+                debug_assert_eq!(exprs1.len(), exprs2.len());
+                for (e1, e2) in exprs1.iter().zip(exprs2) {
+                    self.infer_from_exprs(params, e1, e2);
+                }
             }
             _ => {}
         }

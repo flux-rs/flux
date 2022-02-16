@@ -1,14 +1,14 @@
 use itertools::izip;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 use crate::{
+    global_env::{GlobalEnv, Variance},
     pure_ctxt::Cursor,
     ty::{BaseTy, BinOp, ExprKind, Ty, TyKind, Var},
 };
 
 pub struct Sub<'a, 'tcx> {
-    tcx: TyCtxt<'tcx>,
+    genv: &'a GlobalEnv<'tcx>,
     cursor: Cursor<'a>,
     tag: Tag,
 }
@@ -20,12 +20,12 @@ pub enum Tag {
     Ret,
     Div(Span),
     Rem(Span),
-    Goto,
+    Goto(Option<Span>),
 }
 
 impl<'a, 'tcx> Sub<'a, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, cursor: Cursor<'a>, tag: Tag) -> Self {
-        Sub { tcx, cursor, tag }
+    pub fn new(genv: &'a GlobalEnv<'tcx>, cursor: Cursor<'a>, tag: Tag) -> Self {
+        Sub { genv, cursor, tag }
     }
 
     fn breadcrumb(&mut self) -> Sub<'_, 'tcx> {
@@ -46,7 +46,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             (TyKind::Exists(bty, p), _) => {
                 let fresh = sub
                     .cursor
-                    .push_binding(bty.sort(), |fresh| p.subst_bound_vars(Var::Free(fresh)));
+                    .push_binding(sub.genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
                 let ty1 = TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern();
                 sub.subtyping(ty1, ty2);
                 return;
@@ -65,7 +65,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 sub.bty_subtyping(bty1, bty2);
                 let p = p.subst_bound_vars(e.clone());
-                sub.cursor.push_head(p.subst_bound_vars(e.clone()), sub.tag)
+                sub.cursor.push_head(p.subst_bound_vars(e.clone()), sub.tag);
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);
@@ -81,14 +81,10 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
                 // FIXME: we should rethink in which situation this is sound.
             }
             (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2)
+                debug_assert_eq!(param1, param2);
             }
-            (TyKind::Exists(..), _) => {
-                unreachable!("subtyping with unpacked existential")
-            }
-            _ => {
-                todo!("`{ty1:?}` `{ty2:?}`")
-            }
+            (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
+            _ => todo!("`{ty1:?}` `{ty2:?}`"),
         }
     }
 
@@ -104,7 +100,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
                 debug_assert_eq!(did1, did2);
                 debug_assert_eq!(substs1.len(), substs2.len());
-                let variances = self.tcx.variances_of(*did1);
+                let variances = self.genv.variances_of(*did1);
                 for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
                     self.polymorphic_subtyping(*variance, ty1.clone(), ty2.clone());
                 }
@@ -113,7 +109,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
         }
     }
 
-    fn polymorphic_subtyping(&mut self, variance: rustc_middle::ty::Variance, ty1: Ty, ty2: Ty) {
+    fn polymorphic_subtyping(&mut self, variance: Variance, ty1: Ty, ty2: Ty) {
         match variance {
             rustc_middle::ty::Variance::Covariant => {
                 self.subtyping(ty1, ty2);
@@ -145,7 +141,7 @@ mod pretty {
                 Tag::Ret => w!("Ret"),
                 Tag::Div(span) => w!("Div({:?})", ^span),
                 Tag::Rem(span) => w!("Rem({:?})", ^span),
-                Tag::Goto => w!("Other"),
+                Tag::Goto(span) => w!("Goto({:?}", ^span),
             }
         }
     }

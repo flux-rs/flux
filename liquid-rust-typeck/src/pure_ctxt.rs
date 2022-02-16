@@ -3,13 +3,13 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::Itertools;
+use itertools::{repeat_n, Itertools};
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     subtyping::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, Var},
+    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -81,7 +81,6 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    #[track_caller]
     pub fn fresh<S>(&mut self, var: Var, sort: Sort, scope: S) -> Pred
     where
         S: IntoIterator<Item = (Name, Sort)>,
@@ -91,12 +90,15 @@ impl KVarStore {
         let mut sorts = Vec::with_capacity(scope.size_hint().0 + 1);
         let mut args = Vec::with_capacity(scope.size_hint().0);
 
-        sorts.push(sort_to_fixpoint(sort).expect("kvars cannot have locs as arguments"));
+        sorts.push(sort_to_fixpoint(&sort));
         args.push(Expr::from(var));
-        for (var, sort) in scope.filter_map(|(var, sort)| Some((var, sort_to_fixpoint(sort)?))) {
-            args.push(Var::Free(var).into());
-            sorts.push(sort);
-        }
+        scope
+            .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
+            .map(|(var, sort)| (var, sort_to_fixpoint(&sort)))
+            .for_each(|(var, sort)| {
+                sorts.push(sort);
+                args.push(Var::Free(var).into());
+            });
 
         let kvid = self.kvars.push(sorts);
         Pred::kvar(kvid, args)
@@ -138,24 +140,7 @@ impl Cursor<'_> {
     }
 
     pub fn scope(&self) -> Scope {
-        self.scope_at(&self.snapshot()).unwrap()
-    }
-
-    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Scope> {
-        let parents = ParentsIter::new(snapshot.node.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                if let NodeKind::Binding(_, sort, _) = node.borrow().kind {
-                    Some(sort)
-                } else {
-                    None
-                }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings })
+        self.snapshot().scope().unwrap()
     }
 
     pub fn push_binding<F, P>(&mut self, sort: Sort, f: F) -> Name
@@ -175,7 +160,7 @@ impl Cursor<'_> {
 
     pub fn push_loc(&mut self) -> Loc {
         let fresh = Name::new(self.next_name_idx());
-        self.node = self.push_node(NodeKind::Binding(fresh, Sort::Loc, Pred::tt()));
+        self.node = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
         Loc::Abstract(fresh)
     }
 
@@ -187,7 +172,7 @@ impl Cursor<'_> {
     }
 
     fn next_name_idx(&self) -> usize {
-        self.node.borrow().nbindings + self.node.borrow().is_binding() as usize
+        self.node.borrow().nbindings + usize::from(self.node.borrow().is_binding())
     }
 
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
@@ -204,11 +189,31 @@ impl Cursor<'_> {
     }
 }
 
+impl Snapshot {
+    pub fn scope(&self) -> Option<Scope> {
+        let parents = ParentsIter::new(self.node.upgrade()?);
+        let bindings = parents
+            .filter_map(|node| {
+                let node = node.borrow();
+                if let NodeKind::Binding(_, sort, _) = &node.kind {
+                    Some(sort.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        Some(Scope { bindings })
+    }
+}
+
 impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
-            .map(|(name, sort)| (name, *sort))
+            .map(|(name, sort)| (name, sort.clone()))
     }
 
     pub fn contains(&self, name: Name) -> bool {
@@ -227,7 +232,8 @@ impl std::ops::Index<Name> for Scope {
 impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
-            NodeKind::Conj | NodeKind::Binding(_, Sort::Loc, _) => {
+            NodeKind::Conj => children_to_fixpoint(cx, &self.children),
+            NodeKind::Binding(_, sort, _) if matches!(sort.kind(), SortKind::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::Binding(name, sort, pred) => {
@@ -241,7 +247,7 @@ impl Node {
                     bindings,
                     fixpoint::Constraint::ForAll(
                         fresh,
-                        sort_to_fixpoint(*sort).unwrap(),
+                        sort_to_fixpoint(sort),
                         pred,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ),
@@ -301,7 +307,7 @@ fn pred_to_fixpoint(
                         Box::new(fixpoint::Expr::Var(fresh)),
                         Box::new(expr_to_fixpoint(cx, arg)),
                     );
-                    bindings.push((fresh, *sort, pred));
+                    bindings.push((fresh, sort.clone(), pred));
                     fresh
                 }
             });
@@ -311,11 +317,27 @@ fn pred_to_fixpoint(
     (bindings, pred)
 }
 
-fn sort_to_fixpoint(sort: Sort) -> Option<fixpoint::Sort> {
-    match sort {
-        Sort::Int => Some(fixpoint::Sort::Int),
-        Sort::Bool => Some(fixpoint::Sort::Bool),
-        Sort::Loc => None,
+fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
+    match sort.kind() {
+        SortKind::Int | SortKind::Loc => fixpoint::Sort::Int,
+        SortKind::Bool => fixpoint::Sort::Bool,
+        SortKind::Tuple(sorts) => {
+            match &sorts[..] {
+                [] => fixpoint::Sort::Unit,
+                [_] => unreachable!("1-tuple"),
+                [sorts @ .., s1, s2] => {
+                    let s1 = Box::new(sort_to_fixpoint(s1));
+                    let s2 = Box::new(sort_to_fixpoint(s2));
+                    sorts
+                        .iter()
+                        .map(sort_to_fixpoint)
+                        .map(Box::new)
+                        .fold(fixpoint::Sort::Pair(s1, s2), |s1, s2| {
+                            fixpoint::Sort::Pair(Box::new(s1), s2)
+                        })
+                }
+            }
+        }
     }
 }
 
@@ -333,6 +355,31 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
         ExprKind::Var(Var::Bound) => {
             unreachable!("unexpected bound variable")
+        }
+        ExprKind::Proj(e, field) => {
+            repeat_n(fixpoint::Proj::Snd, *field as usize)
+                .chain([fixpoint::Proj::Fst])
+                .fold(expr_to_fixpoint(cx, e), |e, proj| fixpoint::Expr::Proj(Box::new(e), proj))
+        }
+        ExprKind::Tuple(exprs) => tuple_to_fixpoint(cx, exprs),
+    }
+}
+
+fn tuple_to_fixpoint(cx: &FixpointCtxt, exprs: &[Expr]) -> fixpoint::Expr {
+    match exprs {
+        [] => fixpoint::Expr::Unit,
+        [_] => unreachable!("1-tuple"),
+        [e1, e2] => {
+            fixpoint::Expr::Pair(
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
+            )
+        }
+        [e, exprs @ ..] => {
+            fixpoint::Expr::Pair(
+                Box::new(expr_to_fixpoint(cx, e)),
+                Box::new(tuple_to_fixpoint(cx, exprs)),
+            )
         }
     }
 }
@@ -361,7 +408,7 @@ impl Iterator for ParentsIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(node) = self.node.take() {
-            self.node = node.borrow().parent.as_ref().and_then(|n| n.upgrade());
+            self.node = node.borrow().parent.as_ref().and_then(WeakNodePtr::upgrade);
             Some(node)
         } else {
             None

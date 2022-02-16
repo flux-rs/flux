@@ -1,5 +1,9 @@
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
-use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
+use liquid_rust_common::{
+    errors::ErrorReported,
+    index::{Idx, IndexGen},
+    iter::IterExt,
+};
 use liquid_rust_core::ty::{self, Name, ParamTy};
 use liquid_rust_syntax::ast;
 use quickscope::ScopeMap;
@@ -60,6 +64,19 @@ impl<'tcx> Resolver<'tcx> {
 
         let mut resolver = Self { tcx, diagnostics, parent, name_res_table, def_id };
         resolver.run(fn_sig)
+    }
+
+    pub fn resolve_adt_def(
+        tcx: TyCtxt<'tcx>,
+        refined_by: Vec<ast::RefinedByParam>,
+    ) -> Result<ty::AdtDef, ErrorReported> {
+        let mut diagnostics = Diagnostics::new(tcx.sess);
+        let refined_by = refined_by
+            .into_iter()
+            .enumerate()
+            .map(|(idx, param)| Ok((Name::new(idx), resolve_sort(&mut diagnostics, param.sort)?)))
+            .try_collect_exhaust()?;
+        Ok(ty::AdtDef { refined_by })
     }
 
     fn run(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
@@ -154,7 +171,7 @@ impl<'tcx> Resolver<'tcx> {
                 } else {
                     let name =
                         ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-                    let sort = self.resolve_sort(param.sort);
+                    let sort = resolve_sort(&mut self.diagnostics, param.sort);
                     let pred = match param.pred {
                         Some(expr) => self.resolve_expr(expr, subst),
                         None => Ok(ty::Expr::TRUE),
@@ -176,8 +193,12 @@ impl<'tcx> Resolver<'tcx> {
             ast::TyKind::RefineTy { path, refine } => {
                 match self.resolve_path(path, subst)? {
                     ParamTyOrBaseTy::BaseTy(bty) => {
-                        let refine = self.resolve_expr(refine, subst);
-                        Ok(ty::Ty::Refine(bty, refine?))
+                        let exprs = refine
+                            .exprs
+                            .into_iter()
+                            .map(|e| self.resolve_expr(e, subst))
+                            .try_collect_exhaust()?;
+                        Ok(ty::Ty::Refine(bty, ty::Refine { exprs, span: refine.span }))
                     }
                     ParamTyOrBaseTy::ParamTy(_) => {
                         self.diagnostics
@@ -340,18 +361,6 @@ impl<'tcx> Resolver<'tcx> {
             }
         }
     }
-
-    fn resolve_sort(&mut self, sort: ast::Ident) -> Result<ty::Sort, ErrorReported> {
-        if sort.name == SORTS.int {
-            Ok(ty::Sort::Int)
-        } else if sort.name == sym::bool {
-            Ok(ty::Sort::Bool)
-        } else {
-            self.diagnostics
-                .emit_err(errors::UnresolvedSort::new(sort))
-                .raise()
-        }
-    }
 }
 
 impl Subst {
@@ -434,6 +443,21 @@ impl Diagnostics<'_> {
 impl Drop for Diagnostics<'_> {
     fn drop(&mut self) {
         assert!(self.errors == 0);
+    }
+}
+
+fn resolve_sort(
+    diagnostics: &mut Diagnostics,
+    sort: ast::Ident,
+) -> Result<ty::Sort, ErrorReported> {
+    if sort.name == SORTS.int {
+        Ok(ty::Sort::Int)
+    } else if sort.name == sym::bool {
+        Ok(ty::Sort::Bool)
+    } else {
+        diagnostics
+            .emit_err(errors::UnresolvedSort::new(sort))
+            .raise()
     }
 }
 

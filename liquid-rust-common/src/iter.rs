@@ -61,8 +61,7 @@ struct ReportResiduals<I, F> {
 impl<I, T, E, F, R> Iterator for ReportResiduals<I, F>
 where
     I: Iterator<Item = R>,
-    R: Try<Output = T, Residual = E>,
-    R: FromResidual<E>,
+    R: Try<Output = T, Residual = E> + FromResidual<E>,
     F: FnMut(E),
 {
     type Item = T;
