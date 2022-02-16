@@ -53,7 +53,7 @@ pub struct Checker<'a, 'tcx, M> {
     queue: WorkQueue<'a>,
 }
 
-pub trait Mode {
+pub trait Mode: Sized {
     fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>;
@@ -61,8 +61,7 @@ pub trait Mode {
     fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
-        &mut self,
-        genv: &GlobalEnv,
+        ck: &mut Checker<Self>,
         cursor: Cursor,
         env: TypeEnv,
         scope: &Scope,
@@ -195,21 +194,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect();
 
         let dominators = body.dominators();
-        let mut checker = Checker::new(genv, body, ret, ensures, &dominators, mode);
+        let mut ck = Checker::new(genv, body, ret, ensures, &dominators, mode);
 
-        checker.check_goto(cursor, env, START_BLOCK)?;
-        while let Some(bb) = checker.queue.pop() {
-            let snapshot = checker.snapshot_at_dominator(bb);
+        ck.check_goto(cursor, env, START_BLOCK)?;
+        while let Some(bb) = ck.queue.pop() {
+            let snapshot = ck.snapshot_at_dominator(bb);
             let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
 
-            if checker.visited.contains(bb) {
+            if ck.visited.contains(bb) {
                 cursor.clear();
-                checker.clear(bb);
+                ck.clear(bb);
             }
 
-            let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
+            let mut env = ck.mode.enter_basic_block(&mut cursor, bb);
             env.unpack_all(genv, &mut cursor);
-            checker.check_basic_block(cursor, env, bb)?;
+            ck.check_basic_block(cursor, env, bb)?;
         }
 
         Ok(())
@@ -468,10 +467,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
             let scope = cursor.scope_at(self.snapshot_at_dominator(target)).unwrap();
-            if self
-                .mode
-                .check_goto_join_point(self.genv, cursor, env, &scope, target)
-            {
+            if M::check_goto_join_point(self, cursor, env, &scope, target) {
                 self.queue.insert(target);
             }
             Ok(())
@@ -743,16 +739,15 @@ impl Mode for Inference<'_> {
     }
 
     fn check_goto_join_point(
-        &mut self,
-        genv: &GlobalEnv,
+        ck: &mut Checker<Inference>,
         _cursor: Cursor,
         mut env: TypeEnv,
         scope: &Scope,
         target: BasicBlock,
     ) -> bool {
         env.pack_refs(scope);
-        match self.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(genv, &mut env),
+        match ck.mode.bb_envs.entry(target) {
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut env),
             Entry::Vacant(entry) => {
                 entry.insert(env.clone());
                 true
@@ -778,8 +773,7 @@ impl Mode for Check<'_> {
     }
 
     fn check_goto_join_point(
-        &mut self,
-        genv: &GlobalEnv,
+        ck: &mut Checker<Check>,
         mut cursor: Cursor,
         mut env: TypeEnv,
         scope: &Scope,
@@ -787,7 +781,7 @@ impl Mode for Check<'_> {
     ) -> bool {
         env.pack_refs(scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
-            self.kvars.fresh(
+            ck.mode.kvars.fresh(
                 var,
                 sort,
                 scope
@@ -796,10 +790,10 @@ impl Mode for Check<'_> {
             )
         };
         let mut first = false;
-        let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
+        let bb_env = ck.mode.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            self.shapes.remove(&target).unwrap().into_bb_env(
-                genv,
+            ck.mode.shapes.remove(&target).unwrap().into_bb_env(
+                ck.genv,
                 &cursor.name_gen(),
                 fresh_kvar,
                 &env,
@@ -811,10 +805,12 @@ impl Mode for Check<'_> {
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
 
+        // println!("\ngoto {target:?}\n{cursor:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
+
         for param in &bb_env.params {
             cursor.push_head(subst.subst_pred(&param.pred), Tag::Goto);
         }
-        let sub = &mut Sub::new(genv, cursor.breadcrumb(), Tag::Goto);
+        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), Tag::Goto);
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first

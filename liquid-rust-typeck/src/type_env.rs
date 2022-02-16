@@ -600,6 +600,7 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 
