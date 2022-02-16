@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
-use typeck::global_env::AdtDefs;
+use typeck::global_env::{AdtDefs, Qualifiers};
 
 use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
 
@@ -37,6 +37,14 @@ impl Callbacks for LiquidCallbacks {
 
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
+
+    let qualifiers: Qualifiers = Qualifiers::new(
+        specs
+            .qualifs
+            .into_iter()
+            .map(|qualifier| Ok(Resolver::resolve_qualifier(tcx, qualifier)?))
+            .try_collect_exhaust()?,
+    );
 
     let adt_defs: AdtDefs = specs
         .adts

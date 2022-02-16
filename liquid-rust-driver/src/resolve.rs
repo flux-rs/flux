@@ -66,6 +66,45 @@ impl<'tcx> Resolver<'tcx> {
         resolver.run(fn_sig)
     }
 
+    pub fn resolve_qualifier(
+        tcx: TyCtxt<'tcx>,
+        qualifier: ast::Qualifier,
+    ) -> Result<ty::Qualifier, ErrorReported> {
+        let name_gen = IndexGen::new();
+        let mut subst = Subst::new();
+        let mut diagnostics = Diagnostics::new(tcx.sess);
+
+        let name_res_table = FxHashMap::default();
+        let parent = None;
+        let def_id = hir::def_id::CRATE_DEF_ID;
+
+        let args = qualifier
+            .args
+            .into_iter()
+            .map(|(region, sort)| {
+                let fresh = name_gen.fresh();
+                if subst
+                    .insert_expr(region.name, ty::Var::Free(fresh))
+                    .is_some()
+                {
+                    diagnostics
+                        .emit_err(errors::DuplicateGenericParam::new(region))
+                        .raise()?;
+                }
+                let sort = resolve_sort(&mut diagnostics, sort)?;
+                Ok((fresh, sort))
+            })
+            .try_collect_exhaust();
+
+        let mut resolver = Self { tcx, diagnostics, parent, name_res_table, def_id };
+
+        let expr = resolver.resolve_expr(qualifier.expr, &subst)?;
+
+        let name = qualifier.name.name.to_ident_string();
+
+        Ok(ty::Qualifier { name, args: args?, expr })
+    }
+
     pub fn resolve_adt_def(
         tcx: TyCtxt<'tcx>,
         refined_by: Vec<ast::RefinedByParam>,
