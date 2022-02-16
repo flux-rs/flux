@@ -140,25 +140,7 @@ impl Cursor<'_> {
     }
 
     pub fn scope(&self) -> Scope {
-        self.scope_at(&self.snapshot()).unwrap()
-    }
-
-    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Scope> {
-        let parents = ParentsIter::new(snapshot.node.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                let node = node.borrow();
-                if let NodeKind::Binding(_, sort, _) = &node.kind {
-                    Some(sort.clone())
-                } else {
-                    None
-                }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings })
+        self.snapshot().scope().unwrap()
     }
 
     pub fn push_binding<F, P>(&mut self, sort: Sort, f: F) -> Name
@@ -204,6 +186,26 @@ impl Cursor<'_> {
         let node = Rc::new(RefCell::new(node));
         self.node.borrow_mut().children.push(Rc::clone(&node));
         node
+    }
+}
+
+impl Snapshot {
+    pub fn scope(&self) -> Option<Scope> {
+        let parents = ParentsIter::new(self.node.upgrade()?);
+        let bindings = parents
+            .filter_map(|node| {
+                let node = node.borrow();
+                if let NodeKind::Binding(_, sort, _) = &node.kind {
+                    Some(sort.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        Some(Scope { bindings })
     }
 }
 

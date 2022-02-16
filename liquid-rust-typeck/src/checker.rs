@@ -12,7 +12,7 @@ use std::collections::{hash_map::Entry, BinaryHeap};
 use crate::{
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
-    pure_ctxt::{Cursor, KVarStore, PureCtxt, Scope, Snapshot},
+    pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
     subtyping::{Sub, Tag},
     ty::{
@@ -64,7 +64,6 @@ pub trait Mode: Sized {
         ck: &mut Checker<Self>,
         cursor: Cursor,
         env: TypeEnv,
-        scope: &Scope,
         target: BasicBlock,
     ) -> bool;
 
@@ -466,8 +465,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            let scope = cursor.scope_at(self.snapshot_at_dominator(target)).unwrap();
-            if M::check_goto_join_point(self, cursor, env, &scope, target) {
+            if M::check_goto_join_point(self, cursor, env, target) {
                 self.queue.insert(target);
             }
             Ok(())
@@ -742,10 +740,10 @@ impl Mode for Inference<'_> {
         ck: &mut Checker<Inference>,
         _cursor: Cursor,
         mut env: TypeEnv,
-        scope: &Scope,
         target: BasicBlock,
     ) -> bool {
-        env.pack_refs(scope);
+        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
+        env.pack_refs(&scope);
         match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut env),
             Entry::Vacant(entry) => {
@@ -776,10 +774,10 @@ impl Mode for Check<'_> {
         ck: &mut Checker<Check>,
         mut cursor: Cursor,
         mut env: TypeEnv,
-        scope: &Scope,
         target: BasicBlock,
     ) -> bool {
-        env.pack_refs(scope);
+        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
+        env.pack_refs(&scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
             ck.mode.kvars.fresh(
                 var,
