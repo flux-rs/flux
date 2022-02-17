@@ -27,10 +27,6 @@ lalrpop_mod!(
     surface_grammar
 );
 
-fn desugar_sig(ssig: surface::FnSig) -> ast::FnSig {
-    panic!("desugar_sig: {:?}", ssig) 
-}
-
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
     let offset = span.lo();
     let ctx = span.ctxt();
@@ -39,7 +35,7 @@ pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast:
     surface_grammar::FnSigParser::new()
         .parse(&mk_span, Cursor::new(tokens, span.lo()))
         .map_err(|err| map_err(err, offset, ctx, parent))
-        .map(|sig| desugar_sig(sig))
+        .map(|sig| surface::desugar(sig))
 }
 
 pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
