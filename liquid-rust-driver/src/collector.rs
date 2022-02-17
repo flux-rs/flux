@@ -1,18 +1,12 @@
-<<<<<<< HEAD
-use liquid_rust_common::errors::ErrorReported;
-use liquid_rust_syntax::{ast::FnSig, parse_fn_sig, ParseErrorKind, parse_fn_surface_sig};
-use rustc_ast::{tokenstream::TokenStream, AttrKind, Attribute, MacArgs};
-=======
 use std::collections::HashMap;
 
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
     ast::{FnSig, RefinedByParam},
-    parse_fn_sig, parse_refined_by, ParseErrorKind, ParseResult,
+    parse_fn_sig, parse_fn_surface_sig, parse_refined_by, ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
->>>>>>> 2e23046244baf36a9cb06da5269b49739392cef2
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, ImplItemKind, Item,
@@ -64,38 +58,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
 
-<<<<<<< HEAD
-                match segments {
-                    [second] if &*second.ident.as_str() == "sig" => {
-                        // RJ-SURFACE: parse the tokens and dump out
-                        
-                        if fn_sig.is_some() {
-                            self.emit_error("duplicated function signature.", attr_item.span());
-                            return;
-                        }
-
-                        if let MacArgs::Delimited(span, _, tokens) = &attr_item.args {
-                            fn_sig = self.parse_fn_annot_sig(tokens.clone(), span.entire());
-                        } else {
-                            self.emit_error("invalid liquid signature.", attr_item.span())
-                        }
-                    }
-
-                    [second] if &*second.ident.as_str() == "ty" => {
-                        if fn_sig.is_some() {
-                            self.emit_error("duplicated function signature.", attr_item.span());
-                            return;
-                        }
-
-                        if let MacArgs::Delimited(span, _, tokens) = &attr_item.args {
-                            fn_sig = self.parse_fn_annot(tokens.clone(), span.entire());
-                        } else {
-                            self.emit_error("invalid liquid annotation.", attr_item.span())
-                        }
-                    }
-                    [second] if &*second.ident.as_str() == "assume" => {
-                        assume = true;
-=======
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
 
@@ -126,7 +88,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     match &attr_item.path.segments[..] {
                         [first, ..] if first.ident.as_str() == "lr" => Some(attr_item),
                         _ => None,
->>>>>>> 2e23046244baf36a9cb06da5269b49739392cef2
                     }
                 } else {
                     None
@@ -145,6 +106,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
+            ("sig", MacArgs::Delimited(span, _, tokens)) => {
+                // let fn_sig = self.parse_fn_annot_sig(tokens.clone(), span.entire())?;
+                let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_annot_sig)?;
+                LiquidAttrKind::FnSig(fn_sig)
+            }
             ("ty", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_sig)?;
                 LiquidAttrKind::FnSig(fn_sig)
@@ -159,7 +125,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(LiquidAttr { kind, span: attr_item.span() })
     }
 
-<<<<<<< HEAD
+    // RJ: FIXME
     fn parse_fn_annot_sig(&mut self, tokens: TokenStream, input_span: Span) -> Option<FnSig> {
         match parse_fn_surface_sig(tokens, input_span) {
             Ok(fn_sig) => Some(fn_sig),
@@ -175,10 +141,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_fn_annot(&mut self, tokens: TokenStream, input_span: Span) -> Option<FnSig> {
-        match parse_fn_sig(tokens, input_span) {
-            Ok(fn_sig) => Some(fn_sig),
-=======
     fn parse<T>(
         &mut self,
         tokens: TokenStream,
@@ -187,7 +149,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<T, ErrorReported> {
         match parser(tokens, input_span) {
             Ok(result) => Ok(result),
->>>>>>> 2e23046244baf36a9cb06da5269b49739392cef2
             Err(err) => {
                 let msg = match err.kind {
                     ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
