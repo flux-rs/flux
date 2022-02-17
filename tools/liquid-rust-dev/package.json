@@ -1,0 +1,26 @@
+{
+    "name": "liquid-rust-dev",
+    "displayName": "liquid-rust-dev",
+    "description": "",
+    "version": "0.0.1",
+    "repository": "https://github.com/liquid-rust/liquid-rust",
+    "engines": {
+        "vscode": "^1.64.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "lrc",
+            "aliases": ["Liquid Rust Constraint", "lrc"],
+            "extensions": [".lrc"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "lrc",
+            "scopeName": "lrc",
+            "path": "./syntaxes/lrc.tmLanguage.json"
+        }]
+    }
+}

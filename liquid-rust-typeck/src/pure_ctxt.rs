@@ -272,6 +272,13 @@ impl Node {
     fn is_binding(&self) -> bool {
         matches!(self.kind, NodeKind::Binding(..))
     }
+
+    /// Returns `true` if the node kind is [`Head`].
+    ///
+    /// [`Head`]: NodeKind::Head
+    fn is_head(&self) -> bool {
+        matches!(self.kind, NodeKind::Head(..))
+    }
 }
 
 fn children_to_fixpoint(
@@ -521,7 +528,14 @@ mod pretty {
             define_scoped!(cx, PadAdapter::wrap_fmt(f));
             match &self[..] {
                 [] => w!(" true"),
-                // [n] => w!("{:?}", Rc::clone(n)),
+                [n] => {
+                    if n.borrow().is_head() {
+                        w!(" ")?;
+                    } else {
+                        w!("\n")?;
+                    }
+                    w!("{:?}", Rc::clone(n))
+                }
                 _ => w!("\n{:?}", join!("\n", self.iter().map(Rc::clone))),
             }
         }

@@ -69,7 +69,7 @@ pub fn check<'tcx>(
     let (pure_cx, kvars) = Checker::check(genv, body, fn_sig, bb_envs)?;
 
     if CONFIG.dump_constraint {
-        dump_constraint(genv.tcx, def_id, &pure_cx, "").unwrap();
+        dump_constraint(genv.tcx, def_id, &pure_cx, ".lrc").unwrap();
     }
 
     let mut fcx = FixpointCtxt::new(kvars);
