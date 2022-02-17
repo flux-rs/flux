@@ -15,9 +15,11 @@ pub trait IterExt: Iterator {
         let mut acc: Option<E> = None;
         let v = ReportResiduals {
             iter: self,
-            f: |residual: Result<Infallible, E>| match acc.take() {
-                Some(curr) => acc = Some(curr.append(residual.unwrap_err())),
-                None => acc = Some(residual.unwrap_err()),
+            f: |residual: Result<Infallible, E>| {
+                match acc.take() {
+                    Some(curr) => acc = Some(curr.append(residual.unwrap_err())),
+                    None => acc = Some(residual.unwrap_err()),
+                }
             },
         }
         .collect();
@@ -59,8 +61,7 @@ struct ReportResiduals<I, F> {
 impl<I, T, E, F, R> Iterator for ReportResiduals<I, F>
 where
     I: Iterator<Item = R>,
-    R: Try<Output = T, Residual = E>,
-    R: FromResidual<E>,
+    R: Try<Output = T, Residual = E> + FromResidual<E>,
     F: FnMut(E),
 {
     type Item = T;
@@ -74,11 +75,13 @@ where
         F2: FnMut(B, Self::Item) -> R2,
         R2: Try<Output = B>,
     {
-        self.iter.try_fold(init, |acc, x| match x.branch() {
-            ControlFlow::Continue(x) => f(acc, x),
-            ControlFlow::Break(e) => {
-                (self.f)(e);
-                try { acc }
+        self.iter.try_fold(init, |acc, x| {
+            match x.branch() {
+                ControlFlow::Continue(x) => f(acc, x),
+                ControlFlow::Break(e) => {
+                    (self.f)(e);
+                    try { acc }
+                }
             }
         })
     }

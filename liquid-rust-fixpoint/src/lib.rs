@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization)]
+#![feature(rustc_private, min_specialization, once_cell)]
 
 extern crate rustc_serialize;
 
@@ -8,39 +8,58 @@ use std::{
     fmt::{self, Write as FmtWrite},
     io::{self, BufWriter, Write as IOWrite},
     process::{Command, Stdio},
+    str::FromStr,
 };
 
-pub use constraint::{BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Sort, UnOp};
+pub use constraint::{
+    BinOp, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UnOp,
+};
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
-use serde::Deserialize;
+use serde::{de, Deserialize};
 
-pub struct Fixpoint {
+use crate::constraint::DEFAULT_QUALIFIERS;
+
+pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
-    pub constraint: Constraint,
+    pub constraint: Constraint<Tag>,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
-pub struct FixpointResult {
-    pub tag: Safeness,
+#[derive(Deserialize, Debug)]
+#[serde(tag = "tag", content = "contents", bound(deserialize = "Tag: FromStr"))]
+pub enum FixpointResult<Tag> {
+    Safe(Stats),
+    Unsafe(Stats, Vec<Error<Tag>>),
+    Crash(CrashInfo),
 }
 
-#[derive(Deserialize, Eq, PartialEq, Debug, Clone, Copy)]
-pub enum Safeness {
-    Safe,
-    Unsafe,
-    Crash,
+#[derive(Debug)]
+pub struct Error<Tag> {
+    pub id: i32,
+    pub tag: Tag,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Stats {
+    pub num_cstr: i32,
+    pub num_iter: i32,
+    pub num_chck: i32,
+    pub num_vald: i32,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CrashInfo(Vec<serde_json::Value>);
 
 #[derive(Debug)]
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
-impl Fixpoint {
-    pub fn new(kvars: Vec<KVar>, constraint: Constraint) -> Self {
-        Fixpoint { kvars, constraint }
+impl<Tag: fmt::Display + FromStr> Task<Tag> {
+    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>) -> Self {
+        Task { kvars, constraint }
     }
 
-    pub fn check(&self) -> io::Result<FixpointResult> {
+    pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -66,26 +85,17 @@ impl Fixpoint {
     }
 }
 
-impl fmt::Display for Fixpoint {
+impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Unary
-        writeln!(f, "(qualif EqZero ((v int)) (v == 0))")?;
-        writeln!(f, "(qualif GtZero ((v int)) (v > 0))")?;
-        writeln!(f, "(qualif GeZero ((v int)) (v >= 0))")?;
-        writeln!(f, "(qualif LtZero ((v int)) (v < 0))")?;
-        writeln!(f, "(qualif LeZero ((v int)) (v <= 0))")?;
+        for qualif in DEFAULT_QUALIFIERS.iter() {
+            writeln!(f, "{qualif}")?;
+        }
 
-        // Binary
-        writeln!(f, "(qualif Eq ((a int) (b int)) (a == b))")?;
-        writeln!(f, "(qualif Gt ((a int) (b int)) (a > b))")?;
-        writeln!(f, "(qualif Lt ((a int) (b int)) (a < b))")?;
-        writeln!(f, "(qualif Ge ((a int) (b int)) (a >= b))")?;
-        writeln!(f, "(qualif Le ((a int) (b int)) (a <= b))")?;
-        writeln!(f, "(qualif Le1 ((a int) (b int)) (a < b - 1))")?;
-        // writeln!(f, "(qualif Foo ((a int) (b int)) (a <= b/2))")?;
+        writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
+        writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for kvar in &self.kvars {
-            writeln!(f, "{}", kvar)?;
+            writeln!(f, "{kvar}")?;
         }
         writeln!(f)?;
         write!(f, "(constraint")?;
@@ -104,5 +114,27 @@ impl fmt::Display for KVar {
                 .iter()
                 .format_with(" ", |sort, f| f(&format_args!("({})", sort)))
         )
+    }
+}
+
+impl<Tag: fmt::Display> fmt::Debug for Task<Tag> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct ErrorInner<'a>(i32, &'a str);
+
+        let ErrorInner(id, tag) = Deserialize::deserialize(deserializer)?;
+        let tag = tag
+            .parse()
+            .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(tag), &"valid tag"))?;
+        Ok(Error { id, tag })
     }
 }

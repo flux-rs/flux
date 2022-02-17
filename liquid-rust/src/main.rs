@@ -1,6 +1,6 @@
 use std::{env::args, process::exit};
 
-const CMD_PREFIX: &str = "-L";
+const CMD_PREFIX: &str = "-lr";
 
 fn main() {
     // Get the arguments from the command line.

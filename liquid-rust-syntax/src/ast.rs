@@ -19,6 +19,12 @@ use rustc_span::{Span, Symbol};
 */
 
 #[derive(Debug)]
+pub struct RefinedByParam {
+    pub name: Ident,
+    pub sort: Ident,
+}
+
+#[derive(Debug)]
 pub struct FnSig {
 
     /// example: `<n: int>`
@@ -54,10 +60,17 @@ pub struct Ty {
 #[derive(Debug)]
 pub enum TyKind {
     BaseTy(Path),
-    RefineTy { path: Path, refine: Expr },
+    RefineTy { path: Path, refine: Refine },
     Exists { bind: Ident, path: Path, pred: Expr },
     StrgRef(Ident),
-    Ref(Box<Ty>),
+    WeakRef(Box<Ty>),
+    ShrRef(Box<Ty>),
+}
+
+#[derive(Debug)]
+pub struct Refine {
+    pub exprs: Vec<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -109,14 +122,12 @@ pub enum BinOp {
     Ge,
     Add,
     Sub,
+    Mod,
 }
 
 impl Generics {
     pub fn empty(span: Span) -> Generics {
-        Generics {
-            params: vec![],
-            span,
-        }
+        Generics { params: vec![], span }
     }
 }
 

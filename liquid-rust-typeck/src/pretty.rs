@@ -74,7 +74,7 @@ pub use crate::_w as w;
 #[macro_export]
 macro_rules! _join {
     ($sep:expr, $iter:expr) => {
-        $crate::pretty::Join::new($sep, $iter.into_iter())
+        $crate::pretty::Join::new($sep, $iter)
     };
 }
 pub use crate::_join as join;
@@ -105,6 +105,8 @@ pub struct PPrintCx<'tcx> {
     pub kvar_args: Visibility,
     pub fully_qualified_paths: bool,
     pub simplify_exprs: bool,
+    pub tags: bool,
+    pub bindings_chain: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -126,11 +128,8 @@ pub trait Pretty {
 }
 
 impl<'a, I> Join<'a, I> {
-    pub fn new(sep: &'a str, iter: I) -> Self {
-        Self {
-            sep,
-            iter: RefCell::new(Some(iter)),
-        }
+    pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
+        Self { sep, iter: RefCell::new(Some(iter.into_iter())) }
     }
 }
 
@@ -141,6 +140,8 @@ impl PPrintCx<'_> {
             kvar_args: Visibility::Show,
             fully_qualified_paths: false,
             simplify_exprs: true,
+            tags: false,
+            bindings_chain: true,
         }
     }
 
@@ -149,10 +150,17 @@ impl PPrintCx<'_> {
     }
 
     pub fn fully_qualified_paths(self, b: bool) -> Self {
-        Self {
-            fully_qualified_paths: b,
-            ..self
-        }
+        Self { fully_qualified_paths: b, ..self }
+    }
+
+    #[allow(unused)]
+    pub fn tags(self, tags: bool) -> Self {
+        Self { tags, ..self }
+    }
+
+    #[allow(unused)]
+    pub fn bindings_chain(self, bindings_chain: bool) -> Self {
+        Self { bindings_chain, ..self }
     }
 }
 

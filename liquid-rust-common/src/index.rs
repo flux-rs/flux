@@ -17,10 +17,7 @@ pub struct IndexGen<I> {
 
 impl<I: Idx> IndexGen<I> {
     pub fn new() -> Self {
-        Self {
-            count: AtomicUsize::new(0),
-            _marker: PhantomData,
-        }
+        Self { count: AtomicUsize::new(0), _marker: PhantomData }
     }
 
     /// Generate a fresh index of type `I`.

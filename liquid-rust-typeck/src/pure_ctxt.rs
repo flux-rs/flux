@@ -3,14 +3,14 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::{izip, Itertools};
+use itertools::{repeat_n, Itertools};
 use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use rustc_hash::FxHashMap;
-use rustc_middle::ty::TyCtxt;
 
-use crate::ty::{
-    BaseTy, BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, Ty, TyKind, Var,
+use crate::{
+    subtyping::Tag,
+    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
+    FixpointCtxt, TagIdx,
 };
 
 pub struct PureCtxt {
@@ -26,6 +26,7 @@ pub struct Snapshot {
     node: WeakNodePtr,
 }
 
+#[derive(Default)]
 pub struct KVarStore {
     kvars: IndexVec<KVid, Vec<fixpoint::Sort>>,
 }
@@ -49,65 +50,37 @@ enum NodeKind {
     Conj,
     Binding(Name, Sort, Pred),
     Pred(Expr),
-    Head(Pred),
-}
-
-struct FixpointCtxt<'a> {
-    kvars: &'a KVarStore,
-    name_gen: IndexGen<fixpoint::Name>,
-    name_map: FxHashMap<Name, fixpoint::Name>,
+    Head(Pred, Tag),
 }
 
 impl PureCtxt {
     pub fn new() -> PureCtxt {
-        let root = Node {
-            kind: NodeKind::Conj,
-            nbindings: 0,
-            parent: None,
-            children: vec![],
-        };
+        let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = Rc::new(RefCell::new(root));
         PureCtxt { root }
     }
 
     pub fn cursor_at_root(&mut self) -> Cursor {
-        Cursor {
-            node: Rc::clone(&self.root),
-            cx: self,
-        }
+        Cursor { node: Rc::clone(&self.root), cx: self }
     }
 
     pub fn cursor_at(&mut self, snapshot: &Snapshot) -> Option<Cursor> {
-        Some(Cursor {
-            node: snapshot.node.upgrade()?,
-            cx: self,
-        })
+        Some(Cursor { node: snapshot.node.upgrade()?, cx: self })
     }
 
-    pub fn into_fixpoint(self, kvars: KVarStore) -> fixpoint::Fixpoint {
-        let mut cx = FixpointCtxt::new(&kvars);
-        let constraint = self
-            .root
+    pub fn into_fixpoint(self, cx: &mut FixpointCtxt) -> fixpoint::Constraint<TagIdx> {
+        self.root
             .borrow()
-            .to_fixpoint(&mut cx)
-            .unwrap_or(fixpoint::Constraint::TRUE);
-        let kvars = kvars
-            .kvars
-            .into_iter_enumerated()
-            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
-            .collect();
-        fixpoint::Fixpoint::new(kvars, constraint)
+            .to_fixpoint(cx)
+            .unwrap_or(fixpoint::Constraint::TRUE)
     }
 }
 
 impl KVarStore {
     pub fn new() -> Self {
-        Self {
-            kvars: IndexVec::new(),
-        }
+        Self { kvars: IndexVec::new() }
     }
 
-    #[track_caller]
     pub fn fresh<S>(&mut self, var: Var, sort: Sort, scope: S) -> Pred
     where
         S: IntoIterator<Item = (Name, Sort)>,
@@ -117,15 +90,25 @@ impl KVarStore {
         let mut sorts = Vec::with_capacity(scope.size_hint().0 + 1);
         let mut args = Vec::with_capacity(scope.size_hint().0);
 
-        sorts.push(sort_to_fixpoint(sort).expect("kvars cannot have locs as arguments"));
+        sorts.push(sort_to_fixpoint(&sort));
         args.push(Expr::from(var));
-        for (var, sort) in scope.filter_map(|(var, sort)| Some((var, sort_to_fixpoint(sort)?))) {
-            args.push(Var::Free(var).into());
-            sorts.push(sort);
-        }
+        scope
+            .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
+            .map(|(var, sort)| (var, sort_to_fixpoint(&sort)))
+            .for_each(|(var, sort)| {
+                sorts.push(sort);
+                args.push(Var::Free(var).into());
+            });
 
         let kvid = self.kvars.push(sorts);
         Pred::kvar(kvid, args)
+    }
+
+    pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
+        self.kvars
+            .into_iter_enumerated()
+            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+            .collect()
     }
 }
 
@@ -145,16 +128,11 @@ impl Cursor<'_> {
     }
 
     pub fn breadcrumb(&mut self) -> Cursor {
-        Cursor {
-            cx: self.cx,
-            node: Rc::clone(&self.node),
-        }
+        Cursor { cx: self.cx, node: Rc::clone(&self.node) }
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        Snapshot {
-            node: Rc::downgrade(&self.node),
-        }
+        Snapshot { node: Rc::downgrade(&self.node) }
     }
 
     pub fn clear(&mut self) {
@@ -162,120 +140,7 @@ impl Cursor<'_> {
     }
 
     pub fn scope(&self) -> Scope {
-        self.scope_at(&self.snapshot()).unwrap()
-    }
-
-    pub fn scope_at(&self, snapshot: &Snapshot) -> Option<Scope> {
-        let parents = ParentsIter::new(snapshot.node.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                if let NodeKind::Binding(_, sort, _) = node.borrow().kind {
-                    Some(sort)
-                } else {
-                    None
-                }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings })
-    }
-
-    pub fn subtyping(&mut self, tcx: TyCtxt, ty1: Ty, ty2: Ty) {
-        let mut cursor = self.breadcrumb();
-
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
-                cursor.bty_subtyping(tcx, bty1, bty2);
-                return;
-            }
-            (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
-                cursor.bty_subtyping(tcx, bty1, bty2);
-                return;
-            }
-            (TyKind::Exists(bty, p), _) => {
-                let fresh =
-                    cursor.push_binding(bty.sort(), |fresh| p.subst_bound_vars(Var::Free(fresh)));
-                let ty1 = TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern();
-                cursor.subtyping(tcx, ty1, ty2);
-                return;
-            }
-            (TyKind::Ref(..), _) => {
-                todo!()
-            }
-            _ => {}
-        }
-
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
-                cursor.bty_subtyping(tcx, bty1, bty2);
-                cursor.push_head(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
-            }
-            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
-                cursor.bty_subtyping(tcx, bty1, bty2);
-                let p = p.subst_bound_vars(e.clone());
-                cursor.push_head(p.subst_bound_vars(e.clone()))
-            }
-            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-                assert_eq!(loc1, loc2);
-            }
-            (_, TyKind::Uninit) => {
-                // FIXME: we should rethink in which situation this is sound.
-            }
-            (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2)
-            }
-            (TyKind::Exists(..), _) => {
-                unreachable!("subtyping with unpacked existential")
-            }
-            _ => {
-                unreachable!("unexpected types: `{:?}` `{:?}`", ty1, ty2)
-            }
-        }
-    }
-
-    fn bty_subtyping(&mut self, tcx: TyCtxt, bty1: &BaseTy, bty2: &BaseTy) {
-        match (bty1, bty2) {
-            (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
-                debug_assert_eq!(int_ty1, int_ty2);
-            }
-            (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
-                debug_assert_eq!(uint_ty1, uint_ty2);
-            }
-            (BaseTy::Bool, BaseTy::Bool) => {}
-            (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
-                debug_assert_eq!(did1, did2);
-                debug_assert_eq!(substs1.len(), substs2.len());
-                let variances = tcx.variances_of(*did1);
-                for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-                    self.polymorphic_subtyping(tcx, *variance, ty1.clone(), ty2.clone());
-                }
-            }
-            _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
-        }
-    }
-
-    fn polymorphic_subtyping(
-        &mut self,
-        tcx: TyCtxt,
-        variance: rustc_middle::ty::Variance,
-        ty1: Ty,
-        ty2: Ty,
-    ) {
-        match variance {
-            rustc_middle::ty::Variance::Covariant => {
-                self.subtyping(tcx, ty1, ty2);
-            }
-            rustc_middle::ty::Variance::Invariant => {
-                self.subtyping(tcx, ty1.clone(), ty2.clone());
-                self.subtyping(tcx, ty2, ty1);
-            }
-            rustc_middle::ty::Variance::Contravariant => {
-                self.subtyping(tcx, ty2, ty1);
-            }
-            rustc_middle::ty::Variance::Bivariant => {}
-        }
+        self.snapshot().scope().unwrap()
     }
 
     pub fn push_binding<F, P>(&mut self, sort: Sort, f: F) -> Name
@@ -295,23 +160,23 @@ impl Cursor<'_> {
 
     pub fn push_loc(&mut self) -> Loc {
         let fresh = Name::new(self.next_name_idx());
-        self.node = self.push_node(NodeKind::Binding(fresh, Sort::Loc, Pred::tt()));
+        self.node = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
         Loc::Abstract(fresh)
     }
 
-    pub fn push_head(&mut self, pred: impl Into<Pred>) {
+    pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_true() {
-            self.push_node(NodeKind::Head(pred));
+            self.push_node(NodeKind::Head(pred, tag));
         }
     }
 
     fn next_name_idx(&self) -> usize {
-        self.node.borrow().nbindings + self.node.borrow().is_binding() as usize
+        self.node.borrow().nbindings + usize::from(self.node.borrow().is_binding())
     }
 
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
-        debug_assert!(!matches!(self.node.borrow().kind, NodeKind::Head(_)));
+        debug_assert!(!matches!(self.node.borrow().kind, NodeKind::Head(..)));
         let node = Node {
             kind,
             nbindings: self.next_name_idx(),
@@ -324,18 +189,51 @@ impl Cursor<'_> {
     }
 }
 
+impl Snapshot {
+    pub fn scope(&self) -> Option<Scope> {
+        let parents = ParentsIter::new(self.node.upgrade()?);
+        let bindings = parents
+            .filter_map(|node| {
+                let node = node.borrow();
+                if let NodeKind::Binding(_, sort, _) = &node.kind {
+                    Some(sort.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        Some(Scope { bindings })
+    }
+}
+
 impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
-            .map(|(name, sort)| (name, *sort))
+            .map(|(name, sort)| (name, sort.clone()))
+    }
+
+    pub fn contains(&self, name: Name) -> bool {
+        name.index() < self.bindings.len()
+    }
+}
+
+impl std::ops::Index<Name> for Scope {
+    type Output = Sort;
+
+    fn index(&self, name: Name) -> &Self::Output {
+        &self.bindings[name]
     }
 }
 
 impl Node {
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint> {
+    fn to_fixpoint(&self, cx: &mut FixpointCtxt) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
-            NodeKind::Conj | NodeKind::Binding(_, Sort::Loc, _) => {
+            NodeKind::Conj => children_to_fixpoint(cx, &self.children),
+            NodeKind::Binding(_, sort, _) if matches!(sort.kind(), SortKind::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::Binding(name, sort, pred) => {
@@ -349,19 +247,21 @@ impl Node {
                     bindings,
                     fixpoint::Constraint::ForAll(
                         fresh,
-                        sort_to_fixpoint(*sort).unwrap(),
+                        sort_to_fixpoint(sort),
                         pred,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ),
                 ))
             }
-            NodeKind::Pred(expr) => Some(fixpoint::Constraint::Guard(
-                expr_to_fixpoint(cx, expr),
-                Box::new(children_to_fixpoint(cx, &self.children)?),
-            )),
-            NodeKind::Head(pred) => {
+            NodeKind::Pred(expr) => {
+                Some(fixpoint::Constraint::Guard(
+                    expr_to_fixpoint(cx, expr),
+                    Box::new(children_to_fixpoint(cx, &self.children)?),
+                ))
+            }
+            NodeKind::Head(pred, tag) => {
                 let (bindings, pred) = pred_to_fixpoint(cx, pred);
-                Some(stitch(bindings, fixpoint::Constraint::Pred(pred)))
+                Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
         }
     }
@@ -372,26 +272,19 @@ impl Node {
     fn is_binding(&self) -> bool {
         matches!(self.kind, NodeKind::Binding(..))
     }
-}
 
-impl<'a> FixpointCtxt<'a> {
-    fn new(kvars: &'a KVarStore) -> Self {
-        Self {
-            kvars,
-            name_gen: IndexGen::new(),
-            name_map: FxHashMap::default(),
-        }
-    }
-
-    fn fresh_name(&self) -> fixpoint::Name {
-        self.name_gen.fresh()
+    /// Returns `true` if the node kind is [`Head`].
+    ///
+    /// [`Head`]: NodeKind::Head
+    fn is_head(&self) -> bool {
+        matches!(self.kind, NodeKind::Head(..))
     }
 }
 
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt,
     children: &[NodePtr],
-) -> Option<fixpoint::Constraint> {
+) -> Option<fixpoint::Constraint<TagIdx>> {
     let mut children = children
         .iter()
         .filter_map(|node| node.borrow().to_fixpoint(cx))
@@ -406,10 +299,7 @@ fn children_to_fixpoint(
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
     refine: &Pred,
-) -> (
-    Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    fixpoint::Pred,
-) {
+) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
     let mut bindings = vec![];
     let pred = match refine {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
@@ -424,7 +314,7 @@ fn pred_to_fixpoint(
                         Box::new(fixpoint::Expr::Var(fresh)),
                         Box::new(expr_to_fixpoint(cx, arg)),
                     );
-                    bindings.push((fresh, *sort, pred));
+                    bindings.push((fresh, sort.clone(), pred));
                     fresh
                 }
             });
@@ -434,11 +324,27 @@ fn pred_to_fixpoint(
     (bindings, pred)
 }
 
-fn sort_to_fixpoint(sort: Sort) -> Option<fixpoint::Sort> {
-    match sort {
-        Sort::Int => Some(fixpoint::Sort::Int),
-        Sort::Bool => Some(fixpoint::Sort::Bool),
-        Sort::Loc => None,
+fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
+    match sort.kind() {
+        SortKind::Int | SortKind::Loc => fixpoint::Sort::Int,
+        SortKind::Bool => fixpoint::Sort::Bool,
+        SortKind::Tuple(sorts) => {
+            match &sorts[..] {
+                [] => fixpoint::Sort::Unit,
+                [_] => unreachable!("1-tuple"),
+                [sorts @ .., s1, s2] => {
+                    let s1 = Box::new(sort_to_fixpoint(s1));
+                    let s2 = Box::new(sort_to_fixpoint(s2));
+                    sorts
+                        .iter()
+                        .map(sort_to_fixpoint)
+                        .map(Box::new)
+                        .fold(fixpoint::Sort::Pair(s1, s2), |s1, s2| {
+                            fixpoint::Sort::Pair(Box::new(s1), s2)
+                        })
+                }
+            }
+        }
     }
 }
 
@@ -446,22 +352,49 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
         ExprKind::Var(Var::Free(name)) => fixpoint::Expr::Var(cx.name_map[name]),
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
-        ExprKind::BinaryOp(op, e1, e2) => fixpoint::Expr::BinaryOp(
-            *op,
-            Box::new(expr_to_fixpoint(cx, e1)),
-            Box::new(expr_to_fixpoint(cx, e2)),
-        ),
+        ExprKind::BinaryOp(op, e1, e2) => {
+            fixpoint::Expr::BinaryOp(
+                *op,
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
+            )
+        }
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
         ExprKind::Var(Var::Bound) => {
             unreachable!("unexpected bound variable")
+        }
+        ExprKind::Proj(e, field) => {
+            repeat_n(fixpoint::Proj::Snd, *field as usize)
+                .chain([fixpoint::Proj::Fst])
+                .fold(expr_to_fixpoint(cx, e), |e, proj| fixpoint::Expr::Proj(Box::new(e), proj))
+        }
+        ExprKind::Tuple(exprs) => tuple_to_fixpoint(cx, exprs),
+    }
+}
+
+fn tuple_to_fixpoint(cx: &FixpointCtxt, exprs: &[Expr]) -> fixpoint::Expr {
+    match exprs {
+        [] => fixpoint::Expr::Unit,
+        [_] => unreachable!("1-tuple"),
+        [e1, e2] => {
+            fixpoint::Expr::Pair(
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
+            )
+        }
+        [e, exprs @ ..] => {
+            fixpoint::Expr::Pair(
+                Box::new(expr_to_fixpoint(cx, e)),
+                Box::new(tuple_to_fixpoint(cx, exprs)),
+            )
         }
     }
 }
 
 fn stitch(
     bindings: Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    c: fixpoint::Constraint,
-) -> fixpoint::Constraint {
+    c: fixpoint::Constraint<TagIdx>,
+) -> fixpoint::Constraint<TagIdx> {
     bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
         fixpoint::Constraint::ForAll(name, sort, fixpoint::Pred::Expr(e), Box::new(c))
     })
@@ -482,7 +415,7 @@ impl Iterator for ParentsIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(node) = self.node.take() {
-            self.node = node.borrow().parent.as_ref().and_then(|n| n.upgrade());
+            self.node = node.borrow().parent.as_ref().and_then(WeakNodePtr::upgrade);
             Some(node)
         } else {
             None
@@ -500,25 +433,25 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    // fn bindings_chain(node: NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-    //     fn go(
-    //         ptr: NodePtr,
-    //         mut bindings: Vec<(Name, Sort, Pred)>,
-    //     ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-    //         let node = ptr.borrow();
-    //         if let NodeKind::Binding(name, sort, pred) = &node.kind {
-    //             bindings.push((*name, *sort, pred.clone()));
-    //             if let [child] = &node.children[..] {
-    //                 go(Rc::clone(child), bindings)
-    //             } else {
-    //                 (bindings, node.children.clone())
-    //             }
-    //         } else {
-    //             (bindings, vec![Rc::clone(&ptr)])
-    //         }
-    //     }
-    //     go(node, vec![])
-    // }
+    fn bindings_chain(node: NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+        fn go(
+            ptr: NodePtr,
+            mut bindings: Vec<(Name, Sort, Pred)>,
+        ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+            let node = ptr.borrow();
+            if let NodeKind::Binding(name, sort, pred) = &node.kind {
+                bindings.push((*name, sort.clone(), pred.clone()));
+                if let [child] = &node.children[..] {
+                    go(Rc::clone(child), bindings)
+                } else {
+                    (bindings, node.children.clone())
+                }
+            } else {
+                (bindings, vec![Rc::clone(&ptr)])
+            }
+        }
+        go(node, vec![])
+    }
 
     impl Pretty for PureCtxt {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -528,7 +461,9 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
-            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
+            // PPrintCx::default(tcx)
+            //     .kvar_args(Visibility::Show)
+            //     .tags(true)
         }
     }
 
@@ -541,58 +476,48 @@ mod pretty {
                     w!("{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Binding(name, sort, pred) => {
-                    if pred.is_true() {
-                        w!("∀ {:?}: {:?}.{:?}", ^name, ^sort, &node.children)
+                    let (bindings, children) = if cx.bindings_chain {
+                        bindings_chain(Rc::clone(self))
                     } else {
-                        w!("∀ {:?}: {:?}{{{:?}}}.{:?}", ^name, ^sort, pred, &node.children)
-                    }
-                }
-                // NodeKind::Binding(..) => {
-                //     let (bindings, children) = bindings_chain(Rc::clone(self));
-
-                //     let vars = bindings.iter().format_with(", ", |(var, sort, _), f| {
-                //         f(&format_args_cx!("{:?}: {:?}", ^var, ^sort))
-                //     });
-
-                //     let preds = bindings
-                //         .iter()
-                //         .map(|(_, _, pred)| pred)
-                //         .filter(|p| !p.is_true())
-                //         .collect_vec();
-
-                //     let preds_fmt = preds.iter().format_with(" ∧ ", |pred, f| {
-                //         if pred.is_atom() {
-                //             f(&format_args_cx!("{:?}", pred))
-                //         } else {
-                //             f(&format_args_cx!("({:?})", pred))
-                //         }
-                //     });
-
-                //     w!("∀ {}.", ^vars)?;
-                //     if preds.is_empty() {
-                //         w!("{:?}", &children)
-                //     } else {
-                //         w!(PadAdapter::wrap_fmt(f), "\n{} ⇒{:?}", ^preds_fmt, &children)
-                //     }
-                // }
-                NodeKind::Pred(expr) => {
-                    let expr = if cx.simplify_exprs {
-                        expr.simplify()
-                    } else {
-                        expr.clone()
+                        (vec![(*name, sort.clone(), pred.clone())], node.children.clone())
                     };
+
+                    w!(
+                        "∀ {}.{:?}",
+                        ^bindings
+                            .iter()
+                            .format_with(", ", |(name, sort, pred), f| {
+                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
+                                if pred.is_true() {
+                                    return Ok(())
+                                }
+                                if pred.is_atom() {
+                                    f(&format_args_cx!(", {:?}", pred))
+                                } else {
+                                    f(&format_args_cx!(", ({:?})", pred))
+                                }
+                            }),
+                        children
+                    )
+                }
+                NodeKind::Pred(expr) => {
+                    let expr = if cx.simplify_exprs { expr.simplify() } else { expr.clone() };
                     if expr.is_atom() {
                         w!("{:?} ⇒{:?}", expr, &node.children)
                     } else {
                         w!("({:?}) ⇒{:?}", expr, &node.children)
                     }
                 }
-                NodeKind::Head(pred) => {
+                NodeKind::Head(pred, tag) => {
                     if pred.is_atom() {
-                        w!("{:?}", pred)
+                        w!("{:?}", pred)?;
                     } else {
-                        w!("({:?})", pred)
+                        w!("({:?})", pred)?;
                     }
+                    if cx.tags {
+                        w!(" [{:?}]", tag)?;
+                    }
+                    Ok(())
                 }
             }
         }
@@ -603,7 +528,14 @@ mod pretty {
             define_scoped!(cx, PadAdapter::wrap_fmt(f));
             match &self[..] {
                 [] => w!(" true"),
-                // [n] => w!("{:?}", Rc::clone(n)),
+                [n] => {
+                    if n.borrow().is_head() {
+                        w!(" ")?;
+                    } else {
+                        w!("\n")?;
+                    }
+                    w!("{:?}", Rc::clone(n))
+                }
                 _ => w!("\n{:?}", join!("\n", self.iter().map(Rc::clone))),
             }
         }
@@ -619,10 +551,9 @@ mod pretty {
                 parents
                     .into_iter()
                     .rev()
-                    .filter(|n| matches!(
-                        n.borrow().kind,
-                        NodeKind::Binding(..) | NodeKind::Pred(..)
-                    ))
+                    .filter(|n| {
+                        matches!(n.borrow().kind, NodeKind::Binding(..) | NodeKind::Pred(..))
+                    })
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {
@@ -634,7 +565,7 @@ mod pretty {
                                 Ok(())
                             }
                             NodeKind::Pred(e) => f(&format_args!("{:?}", e)),
-                            NodeKind::Conj | NodeKind::Head(_) => unreachable!(),
+                            NodeKind::Conj | NodeKind::Head(..) => unreachable!(),
                         }
                     })
             )
@@ -646,5 +577,20 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(PureCtxt, Cursor<'_>);
+    impl Pretty for Scope {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            write!(
+                f,
+                "[{}]",
+                self.bindings
+                    .iter_enumerated()
+                    .format_with(", ", |(name, sort), f| {
+                        f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                    })
+            )
+        }
+    }
+
+    impl_debug_with_default_cx!(PureCtxt, Cursor<'_>, Scope);
 }

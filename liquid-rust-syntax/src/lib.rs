@@ -8,7 +8,7 @@ pub mod ast;
 pub mod lexer;
 pub mod surface;
 
-use ast::FnSig;
+use ast::{FnSig, RefinedByParam};
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
@@ -38,16 +38,26 @@ pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast:
         .map(|sig| surface::desugar(sig))
 }
 
-pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
-    let offset = span.lo();
-    let ctx = span.ctxt();
-    let parent = span.parent();
-    let mk_span = |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
-    grammar::FnSigParser::new()
-        .parse(&mk_span, Cursor::new(tokens, span.lo()))
-        .map_err(|err| map_err(err, offset, ctx, parent))
+macro_rules! parse {
+    ($parser:ident, $tokens:expr, $span:expr) => {{
+        let offset = $span.lo();
+        let ctx = $span.ctxt();
+        let parent = $span.parent();
+        let mk_span =
+            |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
+        grammar::$parser::new()
+            .parse(&mk_span, Cursor::new($tokens, $span.lo()))
+            .map_err(|err| map_err(err, offset, ctx, parent))
+    }};
 }
 
+pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
+    parse!(FnSigParser, tokens, span)
+}
+
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<RefinedByParam>> {
+    parse!(RefinedByParser, tokens, span)
+}
 
 pub enum UserParseError {
     UnsupportedLiteral(Location, Location),
@@ -78,10 +88,7 @@ impl ParseErrorKind {
         ctx: SyntaxContext,
         parent: Option<LocalDefId>,
     ) -> ParseError {
-        ParseError {
-            kind: self,
-            span: Span::new(lo.0 + offset, hi.0 + offset, ctx, parent),
-        }
+        ParseError { kind: self, span: Span::new(lo.0 + offset, hi.0 + offset, ctx, parent) }
     }
 }
 
@@ -93,19 +100,15 @@ fn map_err(
 ) -> ParseError {
     match err {
         LalrpopError::InvalidToken { .. } => unreachable!(),
-        LalrpopError::User {
-            error: UserParseError::UnsupportedLiteral(lo, hi),
-        } => ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent),
-        LalrpopError::UnrecognizedEOF {
-            location,
-            expected: _,
-        } => ParseErrorKind::UnexpectedEOF.into_error(offset, location, location, ctx, parent),
-        LalrpopError::UnrecognizedToken {
-            token: (start, _, end),
-            expected: _,
-        } => ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent),
-        LalrpopError::ExtraToken {
-            token: (start, _, end),
-        } => ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent),
+        LalrpopError::User { error: UserParseError::UnsupportedLiteral(lo, hi) } => {
+            ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent)
+        }
+        LalrpopError::UnrecognizedEOF { location, expected: _ } => {
+            ParseErrorKind::UnexpectedEOF.into_error(offset, location, location, ctx, parent)
+        }
+        LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ }
+        | LalrpopError::ExtraToken { token: (start, _, end) } => {
+            ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent)
+        }
     }
 }

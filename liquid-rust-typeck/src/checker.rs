@@ -7,13 +7,14 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::collections::hash_map::Entry;
+use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
-    pure_ctxt::{Cursor, KVarStore, PureCtxt, Scope, Snapshot},
+    pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
+    subtyping::{Sub, Tag},
     ty::{
         self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
     },
@@ -28,11 +29,11 @@ use liquid_rust_core::{
     },
     ty as core,
 };
-use rustc_data_structures::{graph::dominators::Dominators, work_queue::WorkQueue};
+use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::{mir, ty::TyCtxt};
+use rustc_middle::mir;
 use rustc_session::Session;
 
 use super::type_env::TypeEnvShape;
@@ -41,16 +42,18 @@ pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
-    global_env: &'a GlobalEnv<'tcx>,
+    genv: &'a GlobalEnv<'tcx>,
     mode: M,
     ret: Ty,
     ensures: Vec<(Name, Ty)>,
+    /// A snapshot of the pure context at the end of the basic block after applying the effects
+    /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
-    dominators: Dominators<BasicBlock>,
-    queue: WorkQueue<BasicBlock>,
+    dominators: &'a Dominators<BasicBlock>,
+    queue: WorkQueue<'a>,
 }
 
-pub trait Mode {
+pub trait Mode: Sized {
     fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>;
@@ -58,13 +61,14 @@ pub trait Mode {
     fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
-        &mut self,
-        tcx: TyCtxt,
+        ck: &mut Checker<Self>,
         cursor: Cursor,
         env: TypeEnv,
-        scope: &Scope,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool;
+
+    fn clear(&mut self, bb: BasicBlock);
 }
 
 pub struct Inference<'a> {
@@ -79,46 +83,39 @@ pub struct Check<'a> {
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
-        global_env: &'a GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
         ensures: Vec<(Name, Ty)>,
+        dominators: &'a Dominators<BasicBlock>,
         mode: M,
     ) -> Self {
         Checker {
-            sess: global_env.tcx.sess,
-            global_env,
+            sess: genv.tcx.sess,
+            genv,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             ret,
             ensures,
             mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            dominators: body.dominators(),
-            queue: WorkQueue::with_none(body.basic_blocks.len()),
+            dominators,
+            queue: WorkQueue::with_none(body.basic_blocks.len(), dominators),
         }
     }
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
-        global_env: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
 
         let mut bb_envs = FxHashMap::default();
-        let _ = Checker::run(
-            global_env,
-            &mut pure_cx,
-            body,
-            &fn_sig,
-            Inference {
-                bb_envs: &mut bb_envs,
-            },
-        )?;
+        Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -129,33 +126,32 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     pub fn check(
-        global_env: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         fn_sig: &core::FnSig,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
         let mut kvars = KVarStore::new();
 
+        // println!("\n---------------------------------------\n{shapes:#?}\n");
+
         Checker::run(
-            global_env,
+            genv,
             &mut pure_cx,
             body,
             &fn_sig,
-            Check {
-                shapes,
-                bb_envs: FxHashMap::default(),
-                kvars: &mut kvars,
-            },
+            Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
         )?;
+
         Ok((pure_cx, kvars))
     }
 }
 
 impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
-        global_env: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'tcx>,
         pure_cx: &mut PureCtxt,
         body: &Body<'tcx>,
         fn_sig: &FnSig,
@@ -166,7 +162,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut subst = Subst::empty();
 
         for param in &fn_sig.params {
-            cursor.push_binding(param.sort, |fresh| {
+            cursor.push_binding(param.sort.clone(), |fresh| {
                 subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
                 subst.subst_pred(&param.pred)
             });
@@ -174,18 +170,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (loc, ty) in &fn_sig.requires {
             let fresh = cursor.push_loc();
-            let ty = env.unpack(&mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(genv, &mut cursor, subst.subst_ty(ty));
             env.insert_loc(fresh, ty);
             subst.insert_loc(Loc::Abstract(*loc), fresh);
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(&mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(genv, &mut cursor, subst.subst_ty(ty));
             env.insert_loc(Loc::Local(local), ty);
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern())
+            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern());
         }
 
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
@@ -197,48 +193,73 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
             .collect();
 
-        let mut checker = Checker::new(global_env, body, ret, ensures, mode);
+        let dominators = body.dominators();
+        let mut ck = Checker::new(genv, body, ret, ensures, &dominators, mode);
 
-        checker.check_goto(env, cursor, START_BLOCK)?;
-        while let Some(bb) = checker.queue.pop() {
-            let snapshot = checker.snapshot_at_dominator(bb);
+        ck.check_goto(cursor, env, None, START_BLOCK)?;
+        while let Some(bb) = ck.queue.pop() {
+            let snapshot = ck.snapshot_at_dominator(bb);
             let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
-            let mut env = checker.mode.enter_basic_block(&mut cursor, bb);
-            env.unpack_all(&mut cursor);
-            checker.check_basic_block(env, cursor, bb)?;
+
+            if ck.visited.contains(bb) {
+                cursor.clear();
+                ck.clear(bb);
+            }
+
+            let mut env = ck.mode.enter_basic_block(&mut cursor, bb);
+            env.unpack_all(genv, &mut cursor);
+            ck.check_basic_block(cursor, env, bb)?;
         }
 
         Ok(())
+    }
+
+    fn clear(&mut self, root: BasicBlock) {
+        // FIXME: there should be a better way to iterate over all dominated blocks.
+        self.visited.remove(root);
+        for bb in self.body.basic_blocks.indices() {
+            if bb != root && self.dominators.is_dominated_by(bb, root) {
+                self.mode.clear(bb);
+                self.visited.remove(bb);
+            }
+        }
     }
 
     fn check_basic_block(
         &mut self,
-        mut env: TypeEnv,
         mut cursor: Cursor,
+        mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        self.snapshots[bb] = Some(cursor.snapshot());
-
-        if !self.visited.insert(bb) {
-            cursor.clear();
-        }
+        // println!("\n{bb:?}\n{cursor:?}\n{env:?}");
+        self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            self.check_statement(&mut env, &mut cursor, stmt);
+            self.check_statement(&mut cursor, &mut env, stmt);
         }
         if let Some(terminator) = &data.terminator {
-            self.check_terminator(env, cursor, terminator)?;
+            // println!("{terminator:?}");
+            let successors = self.check_terminator(&mut cursor, &mut env, terminator)?;
+            self.snapshots[bb] = Some(cursor.snapshot());
+            self.check_successors(cursor, env, terminator.source_info, successors)?;
         }
         Ok(())
     }
 
-    fn check_statement(&self, env: &mut TypeEnv, cursor: &mut Cursor, stmt: &Statement) {
+    fn check_statement(&self, cursor: &mut Cursor, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                let ty = self.check_rvalue(env, cursor, rvalue);
-                let ty = env.unpack(cursor, ty);
-                env.write_place(self.global_env.tcx, cursor, p, ty);
+                // println!("{stmt:?}");
+                let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
+                let ty = env.unpack(self.genv, cursor, ty);
+                let sub = &mut Sub::new(
+                    self.genv,
+                    cursor.breadcrumb(),
+                    Tag::Assign(stmt.source_info.span),
+                );
+                env.write_place(sub, p, ty);
+                // println!("{cursor:?}\n{env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -246,76 +267,67 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_terminator(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        cursor: &mut Cursor,
+        env: &mut TypeEnv,
         terminator: &Terminator,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                cursor.subtyping(self.global_env.tcx, ret_place_ty, self.ret.clone());
+                let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Ret);
+
+                sub.subtyping(ret_place_ty, self.ret.clone());
 
                 for (loc, ensured_ty) in &self.ensures {
-                    let actual_ty = env.lookup_loc(Loc::Abstract(*loc)).unwrap();
-                    cursor.subtyping(self.global_env.tcx, actual_ty, ensured_ty.clone());
+                    let actual_ty = env.lookup_loc(Loc::Abstract(*loc));
+                    sub.subtyping(actual_ty, ensured_ty.clone());
                 }
+                Ok(vec![])
             }
-            TerminatorKind::Goto { target } => {
-                self.check_goto(env, cursor, *target)?;
-            }
+            TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.check_switch_int(env, cursor, discr, targets)?;
+                self.check_switch_int(env, discr, targets)
             }
-            TerminatorKind::Call {
-                func,
-                substs,
-                args,
-                destination,
-            } => {
+            TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(
-                    env,
                     cursor,
+                    env,
                     terminator.source_info,
                     *func,
                     substs,
                     args,
                     destination,
-                )?;
+                )
             }
-            TerminatorKind::Assert {
-                cond,
-                expected,
-                target,
-            } => {
-                self.check_assert(env, cursor, cond, *expected, *target)?;
+            TerminatorKind::Assert { cond, expected, target } => {
+                self.check_assert(env, cond, *expected, *target)
             }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(place);
-                self.check_goto(env, cursor, *target)?;
+                Ok(vec![(*target, None)])
             }
         }
-        Ok(())
     }
 
     fn check_call(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        cursor: &mut Cursor,
+        env: &mut TypeEnv,
         source_info: SourceInfo,
         func: DefId,
         substs: &[core::Ty],
         args: &[Operand],
         destination: &Option<(Place, BasicBlock)>,
-    ) -> Result<(), ErrorReported> {
-        let fn_sig = self.global_env.lookup_fn_sig(func);
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+        let fn_sig = self.genv.lookup_fn_sig(func);
+        let fn_sig = LoweringCtxt::lower_fn_sig(self.genv, fn_sig);
 
         let actuals = args
             .iter()
-            .map(|arg| self.check_operand(&mut env, arg))
+            .map(|arg| self.check_operand(env, arg))
             .collect_vec();
 
-        let cx = LoweringCtxt::empty();
+        let cx = LoweringCtxt::empty(self.genv);
         let scope = cursor.scope();
         let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter());
         let substs = substs
@@ -324,32 +336,37 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);
-        if subst.infer_from_fn_call(&env, &actuals, &fn_sig).is_err() {
-            return self.report_inference_error(source_info);
+        if subst.infer_from_fn_call(env, &actuals, &fn_sig).is_err() {
+            self.sess
+                .emit_err(errors::ParamInferenceError { span: source_info.span });
+            return Err(ErrorReported);
         };
 
         for param in fn_sig.params {
-            cursor.push_head(subst.subst_pred(&param.pred));
+            cursor.push_head(subst.subst_pred(&param.pred), Tag::Call(source_info.span));
         }
 
+        let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            cursor.subtyping(self.global_env.tcx, actual, subst.subst_ty(formal));
+            sub.subtyping(actual, subst.subst_ty(formal));
         }
 
         for (loc, required_ty) in fn_sig.requires {
             let loc = subst.subst_loc(Loc::Abstract(loc));
-            let actual_ty = env.lookup_loc(loc).unwrap();
+            let actual_ty = env.lookup_loc(loc);
             let required_ty = subst.subst_ty(&required_ty);
-            cursor.subtyping(self.global_env.tcx, actual_ty, required_ty);
+            sub.subtyping(actual_ty, required_ty);
         }
 
         for (loc, updated_ty) in fn_sig.ensures {
             let loc = Loc::Abstract(loc);
             let updated_ty = subst.subst_ty(&updated_ty);
-            let updated_ty = env.unpack(&mut cursor, updated_ty);
+            let updated_ty = env.unpack(self.genv, cursor, updated_ty);
             if subst.has_loc(loc) {
                 let loc = subst.subst_loc(loc);
-                env.update_loc(self.global_env.tcx, &mut cursor, loc, updated_ty);
+                let sub =
+                    &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+                env.update_loc(sub, loc, updated_ty);
             } else {
                 let fresh = cursor.push_loc();
                 subst.insert_loc(loc, fresh);
@@ -357,25 +374,25 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
 
+        let mut successors = vec![];
         if let Some((p, bb)) = destination {
             let ret = subst.subst_ty(&fn_sig.ret);
-            let ret = env.unpack(&mut cursor, ret);
-            env.write_place(self.global_env.tcx, &mut cursor, p, ret);
-
-            self.check_goto(env, cursor, *bb)?;
+            let ret = env.unpack(self.genv, cursor, ret);
+            let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+            env.write_place(sub, p, ret);
+            successors.push((*bb, None));
         }
-        Ok(())
+        Ok(successors)
     }
 
     fn check_assert(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        env: &mut TypeEnv,
         cond: &Operand,
         expected: bool,
         target: BasicBlock,
-    ) -> Result<(), ErrorReported> {
-        let cond_ty = self.check_operand(&mut env, cond);
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+        let cond_ty = self.check_operand(env, cond);
 
         let pred = match cond_ty.kind() {
             TyKind::Refine(BaseTy::Bool, e) => e.clone(),
@@ -384,84 +401,101 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let assert = if expected { pred } else { pred.not() };
 
-        // Uncomment the below line to allow pre-catching of possible divide-by-zero, underflow, and overflow
-        // WARNING: rust is very eager about inserting under/overflow checks, so be warned that uncommenting this will likely break everything
-        // cursor.push_head(assert.clone());
-        cursor.push_pred(assert);
-        self.check_goto(env, cursor, target)?;
-        Ok(())
+        Ok(vec![(target, Some(assert))])
     }
 
     fn check_switch_int(
         &mut self,
-        mut env: TypeEnv,
-        mut cursor: Cursor,
+        env: &mut TypeEnv,
         discr: &Operand,
         targets: &mir::SwitchTargets,
-    ) -> Result<(), ErrorReported> {
-        let discr_ty = self.check_operand(&mut env, discr);
-        let mk = |bits| match discr_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, e) => {
-                if bits != 0 {
-                    e.clone()
-                } else {
-                    e.not()
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+        let discr_ty = self.check_operand(env, discr);
+        let mk = |bits| {
+            match discr_ty.kind() {
+                TyKind::Refine(BaseTy::Bool, e) => {
+                    if bits == 0 {
+                        e.not()
+                    } else {
+                        e.clone()
+                    }
                 }
+                TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
+                    ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
+                }
+                _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
-            TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
-                ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
-            }
-            _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
         };
 
+        let mut successors = vec![];
+
         for (bits, bb) in targets.iter() {
-            let mut cursor = cursor.breadcrumb();
-            cursor.push_pred(mk(bits));
-            self.check_goto(env.clone(), cursor, bb)?;
+            successors.push((bb, Some(mk(bits))));
         }
         let otherwise = targets
             .iter()
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
 
-        if let Some(otherwise) = otherwise {
-            cursor.push_pred(otherwise);
-        }
+        successors.push((targets.otherwise(), otherwise));
 
-        self.check_goto(env, cursor, targets.otherwise())?;
+        Ok(successors)
+    }
+
+    fn check_successors(
+        &mut self,
+        mut cursor: Cursor,
+        env: TypeEnv,
+        src_info: SourceInfo,
+        successors: Vec<(BasicBlock, Option<Expr>)>,
+    ) -> Result<(), ErrorReported> {
+        for (target, guard) in successors {
+            let mut cursor = cursor.breadcrumb();
+            let env = env.clone();
+            if let Some(guard) = guard {
+                cursor.push_pred(guard);
+            }
+            self.check_goto(cursor, env, Some(src_info), target)?;
+        }
         Ok(())
     }
 
     fn check_goto(
         &mut self,
-        env: TypeEnv,
         cursor: Cursor,
+        env: TypeEnv,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            let scope = cursor.scope_at(self.snapshot_at_dominator(target)).unwrap();
-            if self
-                .mode
-                .check_goto_join_point(self.global_env.tcx, cursor, env, &scope, target)
-            {
+            if M::check_goto_join_point(self, cursor, env, src_info, target) {
                 self.queue.insert(target);
-                self.visited.remove(target);
             }
             Ok(())
         } else {
-            self.check_basic_block(env, cursor, target)
+            self.check_basic_block(cursor, env, target)
         }
     }
 
-    fn check_rvalue(&self, env: &mut TypeEnv, cursor: &mut Cursor, rvalue: &Rvalue) -> Ty {
+    fn check_rvalue(
+        &self,
+        cursor: &mut Cursor,
+        env: &mut TypeEnv,
+        source_info: SourceInfo,
+        rvalue: &Rvalue,
+    ) -> Ty {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(env, cursor, bin_op, op1, op2)
+                self.check_binary_op(cursor, env, source_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow(place)
+                env.borrow_mut(place)
+            }
+            Rvalue::ShrRef(place) => {
+                // OWNERSHIP SAFETY CHECK
+                env.borrow_shr(place)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, *un_op, op),
         }
@@ -469,9 +503,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_binary_op(
         &self,
-        env: &mut TypeEnv,
         cursor: &mut Cursor,
-        bin_op: &ir::BinOp,
+        env: &mut TypeEnv,
+        source_info: SourceInfo,
+        bin_op: ir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
@@ -481,17 +516,103 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
             ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
-            ir::BinOp::Add => self.check_arith_op(cursor, BinOp::Add, ty1, ty2),
-            ir::BinOp::Sub => self.check_arith_op(cursor, BinOp::Sub, ty1, ty2),
-            ir::BinOp::Mul => self.check_arith_op(cursor, BinOp::Mul, ty1, ty2),
-            ir::BinOp::Div => self.check_arith_op(cursor, BinOp::Div, ty1, ty2),
+            ir::BinOp::Add => self.check_arith_op(cursor, source_info, BinOp::Add, ty1, ty2),
+            ir::BinOp::Sub => self.check_arith_op(cursor, source_info, BinOp::Sub, ty1, ty2),
+            ir::BinOp::Mul => self.check_arith_op(cursor, source_info, BinOp::Mul, ty1, ty2),
+            ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
+            ir::BinOp::Rem => self.check_rem(cursor, source_info, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
+            ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
             ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
+            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, ty1, ty2),
         }
     }
 
-    fn check_arith_op(&self, cursor: &mut Cursor, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(BaseTy::Int(int_ty1), _), TyKind::Refine(BaseTy::Int(int_ty2), _)) => {
+                debug_assert_eq!(int_ty1, int_ty2);
+                TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
+            }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), _),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), _),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+                TyKind::Exists(BaseTy::Uint(*uint_ty1), Expr::tt().into()).intern()
+            }
+            (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
+                TyKind::Refine(
+                    BaseTy::Bool,
+                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
+            _ => unreachable!("non-boolean arguments to bitwise op: `{:?}` `{:?}`", ty1, ty2),
+        }
+    }
+
+    // Rem is a special case due to differing semantics with negative numbers
+    fn check_rem(&self, cursor: &mut Cursor, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
+        let ty = match (ty1.kind(), ty2.kind()) {
+            (
+                TyKind::Refine(BaseTy::Int(int_ty1), e1),
+                TyKind::Refine(BaseTy::Int(int_ty2), e2),
+            ) => {
+                debug_assert_eq!(int_ty1, int_ty2);
+                cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                    Tag::Rem(source_info.span),
+                );
+
+                let bty = BaseTy::Int(*int_ty1);
+                let binding = ExprKind::BinaryOp(
+                    BinOp::Eq,
+                    ExprKind::Var(Var::Bound).intern(),
+                    ExprKind::BinaryOp(BinOp::Mod, e1.clone(), e2.clone()).intern(),
+                )
+                .intern();
+                let guard = ExprKind::BinaryOp(
+                    BinOp::And,
+                    ExprKind::BinaryOp(BinOp::Ge, e1.clone(), Expr::zero()).intern(),
+                    ExprKind::BinaryOp(BinOp::Ge, e2.clone(), Expr::zero()).intern(),
+                )
+                .intern();
+                let pred = ty::Pred::Expr(ExprKind::BinaryOp(BinOp::Imp, guard, binding).intern());
+
+                TyKind::Exists(bty, pred).intern()
+            }
+            (
+                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+            ) => {
+                debug_assert_eq!(uint_ty1, uint_ty2);
+                cursor.push_head(
+                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                    Tag::Rem(source_info.span),
+                );
+
+                TyKind::Refine(
+                    BaseTy::Uint(*uint_ty1),
+                    ExprKind::BinaryOp(BinOp::Mod, e1.clone(), e2.clone()).intern(),
+                )
+                .intern()
+            }
+            _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
+        };
+
+        ty
+    }
+
+    fn check_arith_op(
+        &self,
+        cursor: &mut Cursor,
+        source_info: SourceInfo,
+        op: BinOp,
+        ty1: Ty,
+        ty2: Ty,
+    ) -> Ty {
         let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
@@ -510,7 +631,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
-            cursor.push_head(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+            cursor.push_head(
+                ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
+                Tag::Div(source_info.span),
+            );
         }
         TyKind::Refine(bty, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
@@ -553,16 +677,22 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_unary_op(&self, env: &mut TypeEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
         let ty = self.check_operand(env, op);
         match un_op {
-            ir::UnOp::Not => match ty.kind() {
-                TyKind::Refine(BaseTy::Bool, e) => TyKind::Refine(BaseTy::Bool, e.not()).intern(),
-                _ => unreachable!("incompatible type: `{:?}`", ty),
-            },
-            ir::UnOp::Neg => match ty.kind() {
-                TyKind::Refine(BaseTy::Int(int_ty), e) => {
-                    TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+            ir::UnOp::Not => {
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Bool, e) => {
+                        TyKind::Refine(BaseTy::Bool, e.not()).intern()
+                    }
+                    _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
-                _ => unreachable!("incompatible type: `{:?}`", ty),
-            },
+            }
+            ir::UnOp::Neg => {
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Int(int_ty), e) => {
+                        TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+                    }
+                    _ => unreachable!("incompatible type: `{:?}`", ty),
+                }
+            }
         }
     }
 
@@ -597,12 +727,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn report_inference_error(&self, call_source_info: SourceInfo) -> Result<(), ErrorReported> {
-        self.sess
-            .span_err(call_source_info.span, "inference error at function call");
-        Err(ErrorReported)
-    }
-
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
         let dominator = self.dominators.immediate_dominator(bb);
@@ -616,15 +740,16 @@ impl Mode for Inference<'_> {
     }
 
     fn check_goto_join_point(
-        &mut self,
-        tcx: TyCtxt,
+        ck: &mut Checker<Inference>,
         _cursor: Cursor,
         mut env: TypeEnv,
-        _scope: &Scope,
+        _src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
-        match self.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(tcx, &mut env),
+        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
+        env.pack_refs(&scope);
+        match ck.mode.bb_envs.entry(target) {
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut env),
             Entry::Vacant(entry) => {
                 entry.insert(env.clone());
                 true
@@ -638,6 +763,10 @@ impl Mode for Inference<'_> {
     {
         Pred::dummy_kvar()
     }
+
+    fn clear(&mut self, bb: BasicBlock) {
+        self.bb_envs.remove(&bb);
+    }
 }
 
 impl Mode for Check<'_> {
@@ -646,29 +775,32 @@ impl Mode for Check<'_> {
     }
 
     fn check_goto_join_point(
-        &mut self,
-        tcx: TyCtxt,
+        ck: &mut Checker<Check>,
         mut cursor: Cursor,
         mut env: TypeEnv,
-        scope: &Scope,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
+        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
+        env.pack_refs(&scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
-            self.kvars.fresh(
+            ck.mode.kvars.fresh(
                 var,
                 sort,
                 scope
                     .iter()
-                    .chain(params.iter().map(|param| (param.name, param.sort))),
+                    .chain(params.iter().map(|param| (param.name, param.sort.clone()))),
             )
         };
         let mut first = false;
-        let bb_env = self.bb_envs.entry(target).or_insert_with(|| {
+        let bb_env = ck.mode.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            self.shapes
-                .remove(&target)
-                .unwrap()
-                .into_bb_env(&cursor.name_gen(), fresh_kvar, &env)
+            ck.mode.shapes.remove(&target).unwrap().into_bb_env(
+                ck.genv,
+                &cursor.name_gen(),
+                fresh_kvar,
+                &env,
+            )
         });
 
         let mut subst = Subst::empty();
@@ -676,10 +808,14 @@ impl Mode for Check<'_> {
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
 
+        // println!("\ngoto {target:?}\n{cursor:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
+
+        let tag = Tag::Goto(src_info.map(|s| s.span), target);
         for param in &bb_env.params {
-            cursor.push_head(subst.subst_pred(&param.pred));
+            cursor.push_head(subst.subst_pred(&param.pred), tag);
         }
-        env.transform_into(tcx, &mut cursor, &bb_env.subst(&subst));
+        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), tag);
+        env.transform_into(sub, &bb_env.subst(&subst));
 
         first
     }
@@ -689,5 +825,75 @@ impl Mode for Check<'_> {
         I: IntoIterator<Item = (Name, Sort)>,
     {
         self.kvars.fresh(Var::Bound, sort, scope)
+    }
+
+    fn clear(&mut self, _bb: BasicBlock) {
+        unreachable!();
+    }
+}
+
+struct Item<'a> {
+    bb: BasicBlock,
+    dominators: &'a Dominators<BasicBlock>,
+}
+
+struct WorkQueue<'a> {
+    heap: BinaryHeap<Item<'a>>,
+    set: BitSet<BasicBlock>,
+    dominators: &'a Dominators<BasicBlock>,
+}
+
+impl<'a> WorkQueue<'a> {
+    fn with_none(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
+        Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
+    }
+
+    fn insert(&mut self, bb: BasicBlock) -> bool {
+        if self.set.insert(bb) {
+            self.heap.push(Item { bb, dominators: self.dominators });
+            true
+        } else {
+            false
+        }
+    }
+
+    fn pop(&mut self) -> Option<BasicBlock> {
+        if let Some(Item { bb, .. }) = self.heap.pop() {
+            self.set.remove(bb);
+            Some(bb)
+        } else {
+            None
+        }
+    }
+}
+
+impl PartialEq for Item<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bb == other.bb
+    }
+}
+
+impl PartialOrd for Item<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.dominators.rank_partial_cmp(self.bb, other.bb)
+    }
+}
+impl Eq for Item<'_> {}
+
+impl Ord for Item<'_> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+mod errors {
+    use rustc_macros::SessionDiagnostic;
+    use rustc_span::Span;
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct ParamInferenceError {
+        #[message = "parameter inference error at function call"]
+        pub span: Span,
     }
 }

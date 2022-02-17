@@ -16,17 +16,11 @@ impl<T> PadAdapter<T> {
     }
 
     pub fn wrap(inner: T) -> Self {
-        PadAdapter {
-            inner,
-            state: PadAdapterState { on_newline: false },
-        }
+        PadAdapter { inner, state: PadAdapterState { on_newline: false } }
     }
 
     pub fn wrap_on_newline(inner: T) -> Self {
-        PadAdapter {
-            inner,
-            state: PadAdapterState { on_newline: true },
-        }
+        PadAdapter { inner, state: PadAdapterState { on_newline: true } }
     }
 }
 
@@ -35,10 +29,7 @@ impl<'a, W> PadAdapter<&'a mut W> {
     where
         W: fmt::Write,
     {
-        PadAdapter {
-            inner,
-            state: PadAdapterState { on_newline: false },
-        }
+        PadAdapter { inner, state: PadAdapterState { on_newline: false } }
     }
 }
 
@@ -52,15 +43,12 @@ where
                 self.inner.write_str("  ")?;
             }
 
-            let split = match s.find('\n') {
-                Some(pos) => {
-                    self.state.on_newline = true;
-                    pos + 1
-                }
-                None => {
-                    self.state.on_newline = false;
-                    s.len()
-                }
+            let split = if let Some(pos) = s.find('\n') {
+                self.state.on_newline = true;
+                pos + 1
+            } else {
+                self.state.on_newline = false;
+                s.len()
             };
             self.inner.write_str(&s[..split])?;
             s = &s[split..];

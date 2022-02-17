@@ -62,6 +62,7 @@ pub enum TerminatorKind {
 
 pub struct Statement {
     pub kind: StatementKind,
+    pub source_info: SourceInfo,
 }
 
 #[derive(Debug)]
@@ -73,6 +74,7 @@ pub enum StatementKind {
 pub enum Rvalue {
     Use(Operand),
     MutRef(Place),
+    ShrRef(Place),
     BinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
 }
@@ -80,6 +82,7 @@ pub enum Rvalue {
 #[derive(Debug, Copy, Clone)]
 pub enum BinOp {
     Gt,
+    Ge,
     Lt,
     Le,
     Eq,
@@ -88,6 +91,8 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Rem,
+    BitAnd,
 }
 
 pub enum Operand {
@@ -96,15 +101,22 @@ pub enum Operand {
     Constant(Constant),
 }
 
-pub struct Place {
-    pub local: Local,
-    pub projection: Vec<PlaceElem>,
+pub enum Place {
+    /// x
+    Local(Local),
+    /// *x
+    Deref(Local),
 }
 
-#[derive(Debug)]
-pub enum PlaceElem {
-    Deref,
-}
+// pub struct Place {
+//     pub local: Local,
+//     pub projection: Vec<PlaceElem>,
+// }
+
+// #[derive(Debug)]
+// pub enum PlaceElem {
+//     Deref,
+// }
 
 pub enum Constant {
     Int(i128, IntTy),
@@ -148,6 +160,14 @@ impl Body<'_> {
     }
 }
 
+impl Place {
+    pub fn local(&self) -> Local {
+        match self {
+            Place::Local(local) | Place::Deref(local) => *local,
+        }
+    }
+}
+
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
@@ -163,12 +183,7 @@ impl fmt::Debug for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
-            TerminatorKind::Call {
-                func,
-                substs: ty_subst,
-                args,
-                destination,
-            } => {
+            TerminatorKind::Call { func, substs: ty_subst, args, destination } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
@@ -195,8 +210,7 @@ impl fmt::Debug for Terminator {
             TerminatorKind::SwitchInt { discr, targets } => {
                 write!(
                     f,
-                    "switchInt({:?}) -> [{}, otherwise: {:?}]",
-                    discr,
+                    "switchInt({discr:?}) -> [{}, otherwise: {:?}]",
                     targets
                         .iter()
                         .format_with(", ", |(val, bb), f| f(&format_args!("{:?}: {:?}", val, bb))),
@@ -204,21 +218,13 @@ impl fmt::Debug for Terminator {
                 )
             }
             TerminatorKind::Goto { target } => {
-                write!(f, "goto -> {:?}", *target)
+                write!(f, "goto -> {target:?}")
             }
             TerminatorKind::Drop { place, target } => {
-                write!(f, "drop({:?}) -> {:?}", place, target)
+                write!(f, "drop({place:?}) -> {target:?}")
             }
-            TerminatorKind::Assert {
-                cond,
-                target,
-                expected,
-            } => {
-                write!(
-                    f,
-                    "assert({:?} is expected to be {:?}) -> {:?}",
-                    cond, expected, target
-                )
+            TerminatorKind::Assert { cond, target, expected } => {
+                write!(f, "assert({cond:?} is expected to be {expected:?}) -> {target:?}")
             }
         }
     }
@@ -226,12 +232,16 @@ impl fmt::Debug for Terminator {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for elem in &self.projection {
-            match elem {
-                PlaceElem::Deref => write!(f, "*")?,
-            }
+        match self {
+            Place::Local(local) => write!(f, "{local:?}"),
+            Place::Deref(local) => write!(f, "*{local:?}"),
         }
-        write!(f, "{:?}", self.local)
+        // for elem in &self.projection {
+        //     match elem {
+        //         PlaceElem::Deref => write!(f, "*")?,
+        //     }
+        // }
+        // write!(f, "{:?}", self.local)
     }
 }
 
@@ -239,7 +249,8 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Use(op) => write!(f, "{:?}", op),
-            Self::MutRef(local) => write!(f, "&mut {:?}", local),
+            Self::MutRef(place) => write!(f, "&mut {:?}", place),
+            Self::ShrRef(place) => write!(f, "& {:?}", place),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
             Self::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
         }

@@ -18,19 +18,11 @@ pub struct InferenceError;
 
 impl Subst {
     pub fn empty() -> Self {
-        Self {
-            exprs: FxHashMap::default(),
-            locs: FxHashMap::default(),
-            types: vec![],
-        }
+        Self { exprs: FxHashMap::default(), locs: FxHashMap::default(), types: vec![] }
     }
 
     pub fn with_type_substs(types: Vec<Ty>) -> Self {
-        Self {
-            exprs: FxHashMap::default(),
-            locs: FxHashMap::default(),
-            types,
-        }
+        Self { exprs: FxHashMap::default(), locs: FxHashMap::default(), types }
     }
 
     pub fn insert_expr(&mut self, var: Var, expr: impl Into<Expr>) {
@@ -51,7 +43,8 @@ impl Subst {
             }
             TyKind::StrgRef(loc) => TyKind::StrgRef(self.subst_loc(*loc)).intern(),
             TyKind::Param(param) => self.subst_ty_param(*param),
-            TyKind::Ref(ty) => TyKind::Ref(self.subst_ty(ty)).intern(),
+            TyKind::WeakRef(ty) => TyKind::WeakRef(self.subst_ty(ty)).intern(),
+            TyKind::ShrRef(ty) => TyKind::ShrRef(self.subst_ty(ty)).intern(),
             TyKind::Uninit => ty.clone(),
         }
     }
@@ -84,6 +77,8 @@ impl Subst {
                 ExprKind::BinaryOp(*op, self.subst_expr(e1), self.subst_expr(e2)).intern()
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, self.subst_expr(e)).intern(),
+            ExprKind::Proj(e, field) => ExprKind::Proj(self.subst_expr(e), *field).intern(),
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
         }
     }
 
@@ -92,7 +87,7 @@ impl Subst {
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
-        self.locs.get(&loc).cloned().unwrap_or(loc)
+        self.locs.get(&loc).copied().unwrap_or(loc)
     }
 
     pub fn has_loc(&self, loc: Loc) -> bool {
@@ -120,13 +115,13 @@ impl Subst {
             .collect();
 
         for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
-            self.infer_from_tys(&params, actual.clone(), formal.clone());
+            self.infer_from_tys(&params, actual, formal);
         }
 
         for (loc, required) in &fn_sig.requires {
             let loc = Loc::Abstract(*loc);
-            let actual = env.lookup_loc(self.subst_loc(loc)).unwrap();
-            self.infer_from_tys(&params, actual, required.clone());
+            let actual = env.lookup_loc(self.subst_loc(loc));
+            self.infer_from_tys(&params, &actual, required);
         }
 
         self.check_inference(&fn_sig.params, &fn_sig.requires)
@@ -142,9 +137,9 @@ impl Subst {
             .iter()
             .map(|param| param.name.into())
             .collect();
-        for (loc, ty2) in &bb_env.bindings {
-            let ty1 = env.lookup_loc(*loc).unwrap();
-            self.infer_from_tys(&params, ty1, ty2.clone());
+        for (loc, binding2) in bb_env.env.iter() {
+            let ty1 = env.lookup_loc(*loc);
+            self.infer_from_tys(&params, &ty1, &binding2.ty());
         }
         self.check_inference(&bb_env.params, &[])
     }
@@ -168,25 +163,10 @@ impl Subst {
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: Ty, ty2: Ty) {
+    fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
-                if let ExprKind::Var(var) = e2.kind() {
-                    if !params.contains(var) {
-                        return;
-                    }
-                    match self.exprs.insert(*var, e1.clone()) {
-                        Some(old_e) if &old_e != e1 => {
-                            todo!(
-                                "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                                *var,
-                                old_e,
-                                e1
-                            )
-                        }
-                        _ => {}
-                    }
-                }
+                self.infer_from_exprs(params, e1, e2);
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 match self.locs.insert(*loc2, *loc1) {
@@ -194,6 +174,34 @@ impl Subst {
                         todo!("ambiguous instantiation for location parameter`",);
                     }
                     _ => {}
+                }
+            }
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                self.infer_from_tys(params, ty1, ty2);
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_exprs(&mut self, params: &HashSet<Var>, e1: &Expr, e2: &Expr) {
+        match (e1.kind(), e2.kind()) {
+            (_, ExprKind::Var(var)) if params.contains(var) => {
+                match self.exprs.insert(*var, e1.clone()) {
+                    Some(old_e) if &old_e != e1 => {
+                        todo!(
+                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                            *var,
+                            old_e,
+                            e1
+                        )
+                    }
+                    _ => {}
+                }
+            }
+            (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
+                debug_assert_eq!(exprs1.len(), exprs2.len());
+                for (e1, e2) in exprs1.iter().zip(exprs2) {
+                    self.infer_from_exprs(params, e1, e2);
                 }
             }
             _ => {}

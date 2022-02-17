@@ -1,6 +1,8 @@
 use crate::{
-    pure_ctxt::Cursor,
+    global_env::GlobalEnv,
+    pure_ctxt::{Cursor, Scope},
     subst::Subst,
+    subtyping::Sub,
     ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
@@ -17,12 +19,11 @@ pub struct TypeEnv {
     borrowed: FxHashSet<Loc>,
 }
 
-pub struct TypeEnvShape(Vec<(Loc, Ty)>, FxHashSet<Loc>);
+pub struct TypeEnvShape(TypeEnv);
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
-    pub bindings: Vec<(Loc, Ty)>,
-    pub borrowed: FxHashSet<Loc>,
+    pub env: TypeEnv,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -34,8 +35,7 @@ pub enum Binding {
 impl Binding {
     pub fn ty(&self) -> Ty {
         match self {
-            Binding::Strong(ty) => ty.clone(),
-            Binding::Weak { ty, .. } => ty.clone(),
+            Binding::Strong(ty) | Binding::Weak { ty, .. } => ty.clone(),
         }
     }
 
@@ -57,138 +57,176 @@ impl Binding {
 
 impl TypeEnv {
     pub fn new() -> TypeEnv {
-        TypeEnv {
-            bindings: FxHashMap::default(),
-            borrowed: FxHashSet::default(),
-        }
+        TypeEnv { bindings: FxHashMap::default(), borrowed: FxHashSet::default() }
     }
 
     pub fn into_shape(self) -> TypeEnvShape {
-        TypeEnvShape(
-            self.bindings
-                .into_iter()
-                .map(|(loc, binding)| (loc, binding.ty()))
-                .collect(),
-            self.borrowed,
-        )
+        TypeEnvShape(self)
     }
 
     pub fn lookup_local(&self, local: Local) -> Ty {
-        self.lookup_loc(Loc::Local(local)).unwrap()
+        self.lookup_loc(Loc::Local(local))
     }
 
-    pub fn lookup_loc(&self, loc: Loc) -> Option<Ty> {
-        self.bindings.get(&loc).map(|k| k.ty())
+    pub fn lookup_loc(&self, loc: Loc) -> Ty {
+        self.bindings.get(&loc).unwrap().ty()
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        let (_, ty) = self.walk_place(place);
-        ty
-    }
-
-    pub fn has_loc(&self, loc: Loc) -> bool {
-        self.bindings.contains_key(&loc)
+        let ty = self.lookup_loc(Loc::Local(place.local()));
+        match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => ty,
+            (ir::Place::Deref(_), TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => ty.clone(),
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => self.lookup_loc(*loc),
+            _ => unreachable!(""),
+        }
     }
 
     pub fn insert_loc(&mut self, loc: Loc, ty: Ty) {
         self.bindings.insert(loc, Binding::Strong(ty));
     }
 
-    pub fn update_loc(&mut self, tcx: TyCtxt, cursor: &mut Cursor, loc: Loc, new_ty: Ty) {
+    pub fn update_loc(&mut self, sub: &mut Sub, loc: Loc, new_ty: Ty) {
         let binding = self.bindings.get_mut(&loc).unwrap();
         match binding {
             Binding::Strong(_) => *binding = Binding::Strong(new_ty),
             Binding::Weak { bound, .. } => {
-                cursor.subtyping(tcx, new_ty, bound.clone());
+                sub.subtyping(new_ty, bound.clone());
             }
         }
     }
 
-    pub fn borrow(&mut self, place: &ir::Place) -> Ty {
-        let (loc, _) = self.walk_place(place);
+    pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
+        let loc = Loc::Local(place.local());
+        let ty = self.lookup_loc(loc);
+        let loc = match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => loc,
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("mutable borrow with unpacked weak ref")
+            }
+            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+                unreachable!("cannot borrow mutably from a shared ref")
+            }
+            _ => unreachable!("unxepected place `{place:?}`"),
+        };
         self.borrowed.insert(loc);
         TyKind::StrgRef(loc).intern()
     }
 
+    pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
+        let loc = Loc::Local(place.local());
+        let ty = self.lookup_loc(loc);
+        match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => {
+                self.borrowed.insert(loc);
+                TyKind::ShrRef(ty).intern()
+            }
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => {
+                self.borrowed.insert(*loc);
+                let ty = self.lookup_loc(*loc);
+                TyKind::ShrRef(ty).intern()
+            }
+            (ir::Place::Deref(_), TyKind::ShrRef(ty)) => TyKind::ShrRef(ty.clone()).intern(),
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("shared borrow with unpacked weak ref")
+            }
+            _ => unreachable!("unxepected place `{place:?}`"),
+        }
+    }
+
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
-        assert!(place.projection.is_empty());
-        let loc = Loc::Local(place.local);
-        let ty = self.lookup_loc(loc).unwrap();
-        self.bindings
-            .insert(loc, Binding::Strong(TyKind::Uninit.intern()));
-        ty
-    }
-
-    pub fn write_place(&mut self, tcx: TyCtxt, cursor: &mut Cursor, place: &ir::Place, new_ty: Ty) {
-        let (loc, ty) = self.walk_place(place);
-
-        match ty.kind() {
-            TyKind::Uninit | TyKind::Refine(..) | TyKind::Param(_) | TyKind::StrgRef(_) => {
-                // TODO: debug check new_ty has the same "shape" as ty
-                self.update_loc(tcx, cursor, loc, new_ty);
+        match place {
+            ir::Place::Local(local) => {
+                let loc = Loc::Local(*local);
+                let ty = self.lookup_loc(loc);
+                self.bindings
+                    .insert(loc, Binding::Strong(TyKind::Uninit.intern()));
+                ty
             }
-            TyKind::Ref(_) => {
-                todo!("implement updates of references inside references")
-            }
-            TyKind::Exists(..) => unreachable!("unpacked existential: `{:?}`", ty),
+            ir::Place::Deref(_) => unreachable!("cannot move out from a dereference"),
         }
     }
 
-    fn walk_place(&self, place: &ir::Place) -> (Loc, Ty) {
-        let mut loc = Loc::Local(place.local);
-        let mut ty = self.lookup_loc(loc).unwrap();
-        for elem in &place.projection {
-            match (elem, ty.kind()) {
-                (ir::PlaceElem::Deref, TyKind::StrgRef(referee)) => {
-                    loc = *referee;
-                    ty = self.lookup_loc(loc).unwrap();
-                }
-                (ir::PlaceElem::Deref, TyKind::Ref(_)) => {
-                    todo!()
-                }
-                _ => {
-                    unreachable!("unexpected type: {:?}", ty);
-                }
+    pub fn write_place(&mut self, sub: &mut Sub, place: &ir::Place, new_ty: Ty) {
+        let loc = Loc::Local(place.local());
+        let ty = self.lookup_loc(loc);
+        let loc = match (place, ty.kind()) {
+            (ir::Place::Local(_), _) => loc,
+            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
+            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+                unreachable!("update through unpacked weak ref")
             }
-        }
-        (loc, ty)
+            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+                unreachable!("cannot update through a shared ref")
+            }
+            _ => unreachable!("unexpected place `{place:?}`"),
+        };
+        self.update_loc(sub, loc, new_ty);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&Loc, &Binding)> + '_ {
         self.bindings.iter()
     }
 
-    pub fn unpack(&mut self, cursor: &mut Cursor, ty: Ty) -> Ty {
+    pub fn unpack(&mut self, genv: &GlobalEnv, cursor: &mut Cursor, ty: Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let fresh =
-                    cursor.push_binding(bty.sort(), |fresh| p.subst_bound_vars(Var::Free(fresh)));
+                let fresh = cursor
+                    .push_binding(genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
                 TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern()
             }
-            TyKind::Ref(ty) => {
+            TyKind::WeakRef(ty) => {
                 let fresh = cursor.push_loc();
-                let unpacked = self.unpack(cursor, ty.clone());
-                self.bindings.insert(
-                    fresh,
-                    Binding::Weak {
-                        bound: ty.clone(),
-                        ty: unpacked,
-                    },
-                );
+                let unpacked = self.unpack(genv, cursor, ty.clone());
+                self.bindings
+                    .insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
                 TyKind::StrgRef(fresh).intern()
+            }
+            TyKind::ShrRef(ty) => {
+                let ty = self.unpack(genv, cursor, ty.clone());
+                TyKind::ShrRef(ty).intern()
             }
             _ => ty,
         }
     }
 
-    pub fn unpack_all(&mut self, cursor: &mut Cursor) {
+    pub fn unpack_all(&mut self, genv: &GlobalEnv, cursor: &mut Cursor) {
         for loc in self.bindings.iter().map(|(loc, _)| *loc).collect_vec() {
-            let ty = self.unpack(cursor, self.bindings[&loc].ty().clone());
+            let ty = self.unpack(genv, cursor, self.bindings[&loc].ty().clone());
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty;
         }
     }
 
-    pub fn transform_into(&mut self, tcx: TyCtxt, cursor: &mut Cursor, other: &TypeEnv) {
+    pub fn pack_refs(&mut self, scope: &Scope) {
+        let references = self
+            .bindings
+            .iter()
+            .filter_map(|(loc, ty)| {
+                match ty.ty().kind() {
+                    TyKind::StrgRef(ref_loc @ Loc::Abstract(name)) if !scope.contains(*name) => {
+                        Some((*ref_loc, *loc))
+                    }
+                    _ => None,
+                }
+            })
+            .into_group_map();
+
+        for (ref_loc, locs) in references {
+            let bound = if let Binding::Weak { bound, .. } = &self.bindings[&ref_loc] {
+                bound.clone()
+            } else {
+                unreachable!("non-weak out-of-scope location")
+            };
+            for loc in locs {
+                let ty = TyKind::WeakRef(bound.clone()).intern();
+                *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty;
+            }
+            self.bindings.remove(&ref_loc);
+        }
+    }
+
+    pub fn transform_into(&mut self, sub: &mut Sub, other: &TypeEnv) {
         let levels = self
             .levels()
             .into_iter()
@@ -200,17 +238,26 @@ impl TypeEnv {
                 self.bindings.remove(&loc);
                 continue;
             }
-            let ty1 = self.bindings[&loc].assert_strong();
-            let ty2 = other.bindings[&loc].assert_strong();
+            let (ty1, ty2) = match (self.bindings[&loc].clone(), other.bindings[&loc].clone()) {
+                (Binding::Strong(ty1), Binding::Strong(ty2)) => (ty1, ty2),
+                (
+                    Binding::Weak { bound: bound1, ty: ty1 },
+                    Binding::Weak { bound: bound2, ty: ty2 },
+                ) => {
+                    assert_eq!(bound1, bound2);
+                    (ty1, ty2)
+                }
+                (binding1, binding2) => todo!("{loc:?}: `{binding1:?}` `{binding2:?}`"),
+            };
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(loc), TyKind::Ref(bound)) => {
-                    self.ref_weak(tcx, cursor, *loc, bound.clone());
+                (TyKind::StrgRef(loc), TyKind::WeakRef(bound)) => {
+                    self.weaken_ref(sub, *loc, bound.clone());
                 }
                 _ => {
-                    cursor.subtyping(tcx, ty1, ty2.clone());
+                    sub.subtyping(ty1, ty2.clone());
                 }
             };
-            self.insert_loc(loc, ty2.clone());
+            *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty2;
         }
         self.borrowed.extend(&other.borrowed);
         debug_assert_eq!(self, other);
@@ -240,7 +287,7 @@ impl TypeEnv {
         levels
     }
 
-    pub fn join(&mut self, tcx: TyCtxt, other: &mut TypeEnv) -> bool {
+    pub fn join(&mut self, genv: &GlobalEnv, other: &mut TypeEnv) -> bool {
         let levels = self
             .levels()
             .into_iter()
@@ -249,16 +296,20 @@ impl TypeEnv {
 
         let mut modified = false;
         for (loc, _) in levels {
-            if !other.bindings.contains_key(&loc) {
-                self.bindings.remove(&loc);
-                modified = true;
-                continue;
-            }
-            let ty1 = self.bindings[&loc].assert_strong();
-            let ty2 = other.bindings[&loc].assert_strong();
-            let ty = self.join_ty(tcx, other, ty1.clone(), ty2);
+            let (ty1, ty2) = match (self.bindings[&loc].clone(), other.bindings[&loc].clone()) {
+                (Binding::Strong(ty1), Binding::Strong(ty2)) => (ty1, ty2),
+                (
+                    Binding::Weak { bound: bound1, ty: ty1 },
+                    Binding::Weak { bound: bound2, ty: ty2 },
+                ) => {
+                    assert_eq!(bound1, bound2);
+                    (ty1, ty2)
+                }
+                _ => todo!(),
+            };
+            let ty = self.join_ty(genv, other, ty1.clone(), ty2);
             modified |= ty1 != ty;
-            self.bindings.insert(loc, Binding::Strong(ty));
+            *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty.clone();
         }
         let n = self.borrowed.len();
         self.borrowed.extend(&other.borrowed);
@@ -267,7 +318,7 @@ impl TypeEnv {
         modified
     }
 
-    fn join_ty(&mut self, tcx: TyCtxt, other: &mut TypeEnv, mut ty1: Ty, mut ty2: Ty) -> Ty {
+    fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnv, mut ty1: Ty, mut ty2: Ty) -> Ty {
         if ty1 == ty2 {
             return ty1;
         }
@@ -283,51 +334,51 @@ impl TypeEnv {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => TyKind::Uninit.intern(),
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
-                TyKind::Refine(self.join_bty(tcx, other, bty1, bty2), e1.clone()).intern()
+                TyKind::Refine(self.join_bty(genv, other, bty1, bty2), e1.clone()).intern()
             }
             (
                 TyKind::Refine(bty1, ..) | TyKind::Exists(bty1, Pred::Expr(..)),
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
-                let bty = self.join_bty(tcx, other, bty1, bty2);
+                let bty = self.join_bty(genv, other, bty1, bty2);
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             (
                 TyKind::Exists(bty1, p @ Pred::KVar(..)),
                 TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
             ) => {
-                let bty = self.join_bty(tcx, other, bty1, bty2);
+                let bty = self.join_bty(genv, other, bty1, bty2);
                 TyKind::Exists(bty, p.clone()).intern()
             }
-            (TyKind::Ref(ty1), TyKind::Ref(ty2)) => {
-                TyKind::Ref(self.join_ty(tcx, other, ty1.clone(), ty2.clone())).intern()
+            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+                TyKind::WeakRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
             }
-            _ => todo!("{:?} {:?}", ty1, ty2),
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                TyKind::ShrRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
+            }
+            _ => todo!("`{ty1:?}` `{ty2:?}`"),
         }
     }
 
     fn join_bty(
         &mut self,
-        tcx: TyCtxt,
+        genv: &GlobalEnv,
         other: &mut TypeEnv,
         bty1: &BaseTy,
         bty2: &BaseTy,
     ) -> BaseTy {
-        match (bty1, bty2) {
-            (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
-                debug_assert_eq!(did1, did2);
-                let variances = tcx.variances_of(*did1);
-                let substs =
-                    izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
-                        assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                        self.join_ty(tcx, other, ty1.clone(), ty2.clone())
-                    });
-                BaseTy::adt(*did1, substs)
-            }
-            _ => {
-                debug_assert_eq!(bty1, bty2);
-                bty1.clone()
-            }
+        if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
+            debug_assert_eq!(did1, did2);
+            let variances = genv.variances_of(*did1);
+            let substs =
+                izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
+                    assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
+                    self.join_ty(genv, other, ty1.clone(), ty2.clone())
+                });
+            BaseTy::adt(*did1, substs)
+        } else {
+            debug_assert_eq!(bty1, bty2);
+            bty1.clone()
         }
     }
 
@@ -336,9 +387,9 @@ impl TypeEnv {
             Binding::Strong(ty) => {
                 let ty = self.weaken_ty(ty);
                 self.bindings.insert(loc, Binding::Strong(ty.clone()));
-                TyKind::Ref(ty).intern()
+                TyKind::WeakRef(ty).intern()
             }
-            Binding::Weak { bound, .. } => TyKind::Ref(bound).intern(),
+            Binding::Weak { bound, .. } => TyKind::WeakRef(bound).intern(),
         }
     }
 
@@ -353,9 +404,10 @@ impl TypeEnv {
                 let ty = self.bindings[loc].assert_strong();
                 let ty = self.weaken_ty(ty);
                 self.bindings.insert(*loc, Binding::Strong(ty.clone()));
-                TyKind::Ref(ty).intern()
+                TyKind::WeakRef(ty).intern()
             }
-            TyKind::Ref(_) | TyKind::Uninit => {
+            TyKind::ShrRef(_) | TyKind::WeakRef(_) => todo!(),
+            TyKind::Uninit => {
                 unreachable!()
             }
         }
@@ -371,19 +423,18 @@ impl TypeEnv {
         }
     }
 
-    fn ref_weak(&mut self, tcx: TyCtxt, cursor: &mut Cursor, loc: Loc, bound: Ty) {
-        let ty = self.bindings[&loc].ty();
+    fn weaken_ref(&mut self, sub: &mut Sub, loc: Loc, bound: Ty) {
+        let ty = match &self.bindings[&loc] {
+            Binding::Weak { bound: bound2, ty } => {
+                sub.subtyping(bound.clone(), bound2.clone());
+                ty.clone()
+            }
+            Binding::Strong(ty) => ty.clone(),
+        };
         match (ty.kind(), bound.kind()) {
             (_, TyKind::Exists(..)) => {
-                cursor.subtyping(tcx, ty, bound.clone());
-                self.bindings.insert(loc, Binding::Strong(bound));
-            }
-            (TyKind::StrgRef(loc2), TyKind::Ref(bound2)) => {
-                self.ref_weak(tcx, cursor, *loc2, bound2.clone());
-                self.bindings.insert(loc, Binding::Strong(bound));
-            }
-            (TyKind::Ref(bound2), TyKind::Ref(bound3)) => {
-                assert!(bound2 == bound3);
+                sub.subtyping(ty, bound.clone());
+                *self.bindings.get_mut(&loc).unwrap().ty_mut() = bound;
             }
             _ => todo!(),
         }
@@ -393,91 +444,83 @@ impl TypeEnv {
 impl TypeEnvShape {
     pub fn into_bb_env(
         self,
+        genv: &GlobalEnv,
         name_gen: &IndexGen<Name>,
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
-        let mut subst = FxHashMap::default();
-        for (loc, ty1) in &self {
-            let ty2 = env.lookup_loc(*loc);
-            if let (TyKind::StrgRef(loc1), Some(TyKind::StrgRef(loc2))) =
-                (ty1.kind(), ty2.as_ref().map(|ty| ty.kind()))
-            {
-                subst.insert(*loc1, *loc2);
+        let mut params = vec![];
+        let mut bindings = FxHashMap::default();
+        for (loc, binding) in &self.0.bindings {
+            if let Binding::Strong(ty) = binding {
+                match ty.kind() {
+                    TyKind::Exists(bty, Pred::KVar(..)) if !self.0.borrowed.contains(loc) => {
+                        let fresh = name_gen.fresh();
+                        let sort = genv.sort(bty);
+                        let param = Param {
+                            name: fresh,
+                            sort: sort.clone(),
+                            pred: fresh_kvar(fresh.into(), sort, &params),
+                        };
+                        params.push(param);
+                        let e = ExprKind::Var(fresh.into()).intern();
+                        let ty = TyKind::Refine(bty.clone(), e).intern();
+                        bindings.insert(*loc, Binding::Strong(ty));
+                    }
+                    _ => {}
+                };
             }
         }
 
-        let mut bindings = vec![];
-        for (loc, ty1) in self.0 {
-            let loc = subst.get(&loc).copied().unwrap_or(loc);
-            let ty2 = env.bindings[&loc].ty();
-
-            let ty = match (ty1.kind(), ty2.kind()) {
-                (TyKind::Refine(_, _), TyKind::Refine(_, _))
-                | (TyKind::StrgRef(_), TyKind::StrgRef(_))
-                | (_, TyKind::Uninit) => ty2,
-                _ => replace_kvars(&ty1, fresh_kvar),
+        let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
+        for (loc, binding1) in self.0.bindings {
+            if bindings.contains_key(&loc) {
+                continue;
+            }
+            let binding2 = &env.bindings[&loc];
+            let binding = match (binding1, binding2) {
+                (Binding::Strong(ty1), Binding::Strong(ty2)) => {
+                    let ty = replace_kvars(genv, &ty1, fresh_kvar);
+                    Binding::Strong(TypeEnvShape::fix_ty(&ty, ty2))
+                }
+                (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
+                    // HACK(nilehmann): The current inference algorithm cannot distinguish when a bound
+                    // in a weak binding is preserved through a join point. To avoid generating extra kvars
+                    // we keep the bound of the first environment jumping to the block. This could lose precision in
+                    // cases where the bound does need to be strengthened.
+                    let ty = replace_kvars(genv, &ty1, fresh_kvar);
+                    Binding::Weak { ty: TypeEnvShape::fix_ty(&ty, ty2), bound: bound.clone() }
+                }
+                _ => {
+                    todo!()
+                }
             };
-            bindings.push((loc, ty));
+            bindings.insert(loc, binding);
         }
-        let mut bb_env = BasicBlockEnv {
-            params: vec![],
-            bindings,
-            borrowed: self.1,
-        };
-        bb_env.generalize(name_gen, fresh_kvar);
-        bb_env
+        BasicBlockEnv {
+            params,
+            env: TypeEnv { bindings: bindings.into_iter().collect(), borrowed: self.0.borrowed },
+        }
     }
-}
 
-impl<'a> IntoIterator for &'a TypeEnvShape {
-    type Item = &'a (Loc, Ty);
-
-    type IntoIter = std::slice::Iter<'a, (Loc, Ty)>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-impl IntoIterator for TypeEnvShape {
-    type Item = (Loc, Ty);
-
-    type IntoIter = std::vec::IntoIter<(Loc, Ty)>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+    fn fix_ty(ty1: &Ty, ty2: &Ty) -> Ty {
+        // HACK(nilehmann): there could be a mismatch between the order of names generated in
+        // the inference and checking phases. If we infer a `TyKind::Refine` we "fix" the naming
+        // by keeping the expression of the type in the first environment jumping to the block.
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(bty1, _), TyKind::Refine(_, e2)) => {
+                TyKind::Refine(bty1.clone(), e2.clone()).intern()
+            }
+            _ => ty1.clone(),
+        }
     }
 }
 
 impl BasicBlockEnv {
-    fn generalize(
-        &mut self,
-        name_gen: &IndexGen<Name>,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
-    ) {
-        for (loc, ty) in &mut self.bindings {
-            match ty.kind() {
-                TyKind::Exists(bty, Pred::KVar(..)) if !self.borrowed.contains(loc) => {
-                    let fresh = name_gen.fresh();
-                    let param = Param {
-                        name: fresh,
-                        sort: bty.sort(),
-                        pred: fresh_kvar(fresh.into(), bty.sort(), &self.params),
-                    };
-                    self.params.push(param);
-                    let e = ExprKind::Var(fresh.into()).intern();
-                    *ty = TyKind::Refine(bty.clone(), e).intern();
-                }
-                _ => {}
-            };
-        }
-    }
-
     pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
         let mut subst = Subst::empty();
         for param in &self.params {
-            cursor.push_binding(param.sort, |fresh| {
+            cursor.push_binding(param.sort.clone(), |fresh| {
                 subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
                 subst.subst_pred(&param.pred)
             });
@@ -485,48 +528,63 @@ impl BasicBlockEnv {
 
         TypeEnv {
             bindings: self
+                .env
                 .bindings
                 .iter()
-                .map(|(loc, ty)| (*loc, Binding::Strong(subst.subst_ty(ty))))
+                .map(|(loc, binding)| (*loc, subst_binding(binding, &subst)))
                 .collect(),
-            borrowed: self.borrowed.clone(),
+            borrowed: self.env.borrowed.clone(),
         }
     }
 
     pub fn subst(&self, subst: &Subst) -> TypeEnv {
         TypeEnv {
             bindings: self
+                .env
                 .bindings
                 .iter()
-                .map(|(loc, ty)| (*loc, Binding::Strong(subst.subst_ty(ty))))
+                .map(|(loc, binding)| (*loc, subst_binding(binding, subst)))
                 .collect(),
-            borrowed: self.borrowed.clone(),
+            borrowed: self.env.borrowed.clone(),
         }
     }
 }
 
-fn replace_kvars(ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred) -> Ty {
+fn subst_binding(binding: &Binding, subst: &Subst) -> Binding {
+    match binding {
+        Binding::Weak { bound, ty } => {
+            Binding::Weak { bound: subst.subst_ty(bound), ty: subst.subst_ty(ty) }
+        }
+        Binding::Strong(ty) => Binding::Strong(subst.subst_ty(ty)),
+    }
+}
+
+fn replace_kvars(genv: &GlobalEnv, ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
     match ty.kind() {
-        TyKind::Refine(bty, e) => TyKind::Refine(bty.clone(), e.clone()).intern(),
+        TyKind::Refine(bty, e) => {
+            TyKind::Refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()).intern()
+        }
         TyKind::Exists(bty, Pred::KVar(_, _)) => {
-            let p = fresh_kvar(Var::Bound, bty.sort(), &[]);
-            TyKind::Exists(replace_kvars_bty(bty, fresh_kvar), p).intern()
+            let p = fresh_kvar(Var::Bound, genv.sort(bty));
+            TyKind::Exists(replace_kvars_bty(genv, bty, fresh_kvar), p).intern()
         }
         TyKind::Exists(bty, p) => TyKind::Exists(bty.clone(), p.clone()).intern(),
         TyKind::Uninit => TyKind::Uninit.intern(),
         TyKind::StrgRef(loc) => TyKind::StrgRef(*loc).intern(),
-        TyKind::Ref(ty) => TyKind::Ref(replace_kvars(ty, fresh_kvar)).intern(),
+        TyKind::WeakRef(ty) => TyKind::WeakRef(replace_kvars(genv, ty, fresh_kvar)).intern(),
+        TyKind::ShrRef(ty) => TyKind::ShrRef(replace_kvars(genv, ty, fresh_kvar)).intern(),
         TyKind::Param(param_ty) => TyKind::Param(*param_ty).intern(),
     }
 }
 
 fn replace_kvars_bty(
+    genv: &GlobalEnv,
     bty: &BaseTy,
-    fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+    fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred,
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
-            let substs = substs.iter().map(|ty| replace_kvars(ty, fresh_kvar));
+            let substs = substs.iter().map(|ty| replace_kvars(genv, ty, fresh_kvar));
             BaseTy::adt(*did, substs)
         }
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -559,27 +617,15 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            // PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 
     impl Pretty for TypeEnvShape {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let bindings = self
-                .into_iter()
-                .filter(|(_, ty)| !ty.is_uninit())
-                .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
-                .collect_vec();
-
-            w!("{{")?;
-            for (i, (loc, binding)) in bindings.into_iter().enumerate() {
-                if i > 0 {
-                    w!(", ")?;
-                }
-                w!("{:?}: {:?}", loc, binding)?;
-            }
-            w!("}}")
+            w!("{:?}", &self.0)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -590,33 +636,20 @@ mod pretty {
     impl Pretty for BasicBlockEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("∀ ")?;
+            w!("∃ ")?;
             for (i, param) in self.params.iter().enumerate() {
                 if i > 0 {
                     w!(", ")?;
                 }
                 w!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, &param.pred)?;
             }
-            w!("\n")?;
-
-            let bindings = self
-                .bindings
-                .iter()
-                .filter(|(_, ty)| !ty.is_uninit())
-                .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
-                .collect_vec();
-            w!("  {{")?;
-            for (i, (loc, binding)) in bindings.into_iter().enumerate() {
-                if i > 0 {
-                    w!(", ")?;
-                }
-                w!("{:?}: {:?}", loc, binding)?;
-            }
-            w!("}}")
+            w!(".\n")?;
+            w!("  {:?}", &self.env)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            // PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 
@@ -632,5 +665,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv, TypeEnvShape, BasicBlockEnv);
+    impl_debug_with_default_cx!(TypeEnv, TypeEnvShape, BasicBlockEnv, Binding);
 }

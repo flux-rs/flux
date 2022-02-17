@@ -3,15 +3,17 @@ use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, Operand, Place, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind,
     },
 };
 use rustc_const_eval::interpret::ConstValue;
+use rustc_errors::DiagnosticId;
 use rustc_middle::{
     mir,
     ty::{subst::GenericArgKind, ParamEnv, TyCtxt},
 };
+use rustc_span::Span;
 
 pub struct LoweringCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -60,10 +62,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_statement(&self, stmt: &mir::Statement<'tcx>) -> Result<Statement, ErrorReported> {
         let kind = match &stmt.kind {
-            mir::StatementKind::Assign(box (place, rvalue)) => StatementKind::Assign(
-                self.lower_place(place)?,
-                self.lower_rvalue(rvalue, stmt.source_info)?,
-            ),
+            mir::StatementKind::Assign(box (place, rvalue)) => {
+                StatementKind::Assign(
+                    self.lower_place(place)?,
+                    self.lower_rvalue(rvalue, stmt.source_info)?,
+                )
+            }
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
@@ -73,13 +77,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::StatementKind::AscribeUserType(_, _)
             | mir::StatementKind::Coverage(_)
             | mir::StatementKind::CopyNonOverlapping(_) => {
-                self.tcx
-                    .sess
-                    .span_err(stmt.source_info.span, "unsupported statement kind");
-                return Err(ErrorReported);
+                return self.emit_err(
+                    Some(stmt.source_info.span),
+                    format!("unsupported statement: `{stmt:?}`"),
+                );
             }
         };
-        Ok(Statement { kind })
+        Ok(Statement { kind, source_info: stmt.source_info })
     }
 
     fn lower_terminator(
@@ -88,12 +92,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<Terminator, ErrorReported> {
         let kind = match &terminator.kind {
             mir::TerminatorKind::Return => TerminatorKind::Return,
-            mir::TerminatorKind::Call {
-                func,
-                args,
-                destination,
-                ..
-            } => {
+            mir::TerminatorKind::Call { func, args, destination, .. } => {
                 let (func, substs) = match func.ty(self.body, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let substs = substs
@@ -104,10 +103,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         (*fn_def, substs)
                     }
                     _ => {
-                        self.tcx
-                            .sess
-                            .span_err(terminator.source_info.span, "unsupported function call");
-                        return Err(ErrorReported);
+                        return self.emit_err(
+                            Some(terminator.source_info.span),
+                            "unsupported function call",
+                        );
                     }
                 };
                 let destination = match destination {
@@ -125,25 +124,23 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .try_collect()?,
                 }
             }
-            mir::TerminatorKind::SwitchInt { discr, targets, .. } => TerminatorKind::SwitchInt {
-                discr: self.lower_operand(discr)?,
-                targets: targets.clone(),
-            },
+            mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
+                TerminatorKind::SwitchInt {
+                    discr: self.lower_operand(discr)?,
+                    targets: targets.clone(),
+                }
+            }
             mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
-            mir::TerminatorKind::Drop { place, target, .. } => TerminatorKind::Drop {
-                place: self.lower_place(place)?,
-                target: *target,
-            },
-            mir::TerminatorKind::Assert {
-                cond,
-                target,
-                expected,
-                ..
-            } => TerminatorKind::Assert {
-                cond: self.lower_operand(cond)?,
-                expected: *expected,
-                target: *target,
-            },
+            mir::TerminatorKind::Drop { place, target, .. } => {
+                TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
+            }
+            mir::TerminatorKind::Assert { cond, target, expected, .. } => {
+                TerminatorKind::Assert {
+                    cond: self.lower_operand(cond)?,
+                    expected: *expected,
+                    target: *target,
+                }
+            }
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
@@ -153,17 +150,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::TerminatorKind::FalseEdge { .. }
             | mir::TerminatorKind::FalseUnwind { .. }
             | mir::TerminatorKind::InlineAsm { .. } => {
-                self.tcx.sess.span_err(
-                    terminator.source_info.span,
-                    &format!("unsupported terminator kind: {:?}", terminator.kind),
+                return self.emit_err(
+                    Some(terminator.source_info.span),
+                    format!("unsupported terminator kind: {:?}", terminator.kind),
                 );
-                return Err(ErrorReported);
             }
         };
-        Ok(Terminator {
-            kind,
-            source_info: terminator.source_info,
-        })
+        Ok(Terminator { kind, source_info: terminator.source_info })
     }
 
     fn lower_rvalue(
@@ -173,13 +166,18 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<Rvalue, ErrorReported> {
         match rvalue {
             mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
-            mir::Rvalue::BinaryOp(bin_op, operands) => Ok(Rvalue::BinaryOp(
-                self.lower_bin_op(*bin_op)?,
-                self.lower_operand(&operands.0)?,
-                self.lower_operand(&operands.1)?,
-            )),
+            mir::Rvalue::BinaryOp(bin_op, operands) => {
+                Ok(Rvalue::BinaryOp(
+                    self.lower_bin_op(*bin_op)?,
+                    self.lower_operand(&operands.0)?,
+                    self.lower_operand(&operands.1)?,
+                ))
+            }
             mir::Rvalue::Ref(_, mir::BorrowKind::Mut { .. }, p) => {
                 Ok(Rvalue::MutRef(self.lower_place(p)?))
+            }
+            mir::Rvalue::Ref(_, mir::BorrowKind::Shared, p) => {
+                Ok(Rvalue::ShrRef(self.lower_place(p)?))
             }
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
             mir::Rvalue::Repeat(_, _)
@@ -193,11 +191,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::Rvalue::Discriminant(_)
             | mir::Rvalue::Aggregate(_, _)
             | mir::Rvalue::ShallowInitBox(_, _) => {
-                self.tcx.sess.span_err(
-                    source_info.span,
-                    &format!("unsupported rvalue: `{:?}`", rvalue),
-                );
-                Err(ErrorReported)
+                self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
             }
         }
     }
@@ -207,24 +201,21 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::BinOp::Add => Ok(BinOp::Add),
             mir::BinOp::Sub => Ok(BinOp::Sub),
             mir::BinOp::Gt => Ok(BinOp::Gt),
-            mir::BinOp::Ge => Ok(BinOp::Gt),
+            mir::BinOp::Ge => Ok(BinOp::Ge),
             mir::BinOp::Lt => Ok(BinOp::Lt),
             mir::BinOp::Le => Ok(BinOp::Le),
             mir::BinOp::Eq => Ok(BinOp::Eq),
             mir::BinOp::Ne => Ok(BinOp::Ne),
             mir::BinOp::Mul => Ok(BinOp::Mul),
             mir::BinOp::Div => Ok(BinOp::Div),
-            mir::BinOp::Rem
-            | mir::BinOp::BitXor
-            | mir::BinOp::BitAnd
+            mir::BinOp::Rem => Ok(BinOp::Rem),
+            mir::BinOp::BitAnd => Ok(BinOp::BitAnd),
+            mir::BinOp::BitXor
             | mir::BinOp::BitOr
             | mir::BinOp::Shl
             | mir::BinOp::Shr
             | mir::BinOp::Offset => {
-                self.tcx
-                    .sess
-                    .err(&format!("unsupported binary operation: `{:?}`", bin_op));
-                Err(ErrorReported)
+                self.emit_err(None, format!("unsupported binary operation: `{bin_op:?}`"))
             }
         }
     }
@@ -238,48 +229,41 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_place(&self, place: &mir::Place<'tcx>) -> Result<Place, ErrorReported> {
-        let mut projection = vec![];
-        for elem in place.projection {
-            match elem {
-                mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
-                _ => {
-                    self.tcx.sess.err("place not supported");
-                    return Err(ErrorReported);
-                }
-            }
+        // let mut projection = vec![];
+        // for elem in place.projection {
+        //     match elem {
+        //         mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+        //         _ => {
+        //             self.tcx.sess.err("place not supported");
+        //             return Err(ErrorReported);
+        //         }
+        //     }
+        // }
+        // Ok(Place { local: place.local, projection })
+        match &place.projection[..] {
+            [] => Ok(Place::Local(place.local)),
+            [mir::PlaceElem::Deref] => Ok(Place::Deref(place.local)),
+            _ => self.emit_err(None, format!("place not supported: `{place:?}`")),
         }
-        Ok(Place {
-            local: place.local,
-            projection,
-        })
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
         use rustc_middle::ty::{Const, ConstKind, TyKind};
         let tcx = self.tcx;
-        match &c.literal {
+        let lit = &c.literal;
+        match lit {
             mir::ConstantKind::Ty(&Const {
                 ty,
                 val: ConstKind::Value(ConstValue::Scalar(scalar)),
-            }) => match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
-                (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
-                (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
-                (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
-                _ => {
-                    self.tcx.sess.span_err(
-                        c.span,
-                        &format!("constant not supported: `{:?}`", c.literal),
-                    );
-                    Err(ErrorReported)
+            }) => {
+                match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
+                    (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
+                    (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
+                    (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
+                    _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
                 }
-            },
-            _ => {
-                self.tcx.sess.span_err(
-                    c.span,
-                    &format!("constant not supported: `{:?}`", c.literal),
-                );
-                Err(ErrorReported)
             }
+            _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
         }
     }
 
@@ -290,10 +274,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         match arg.unpack() {
             GenericArgKind::Type(ty) => self.lower_ty(ty),
             GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-                self.tcx
-                    .sess
-                    .err(&format!("unsupported generic argument: `{:?}`", arg));
-                Err(ErrorReported)
+                self.emit_err(None, format!("unsupported generic argument: `{arg:?}`"))
             }
         }
     }
@@ -304,18 +285,15 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_middle::ty::TyKind::Bool => {
                 Ok(core::Ty::Exists(core::BaseTy::Bool, core::Pred::Infer))
             }
-            rustc_middle::ty::TyKind::Int(int_ty) => Ok(core::Ty::Exists(
-                core::BaseTy::Int(*int_ty),
-                core::Pred::Infer,
-            )),
-            rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(core::Ty::Exists(
-                core::BaseTy::Uint(*uint_ty),
-                core::Pred::Infer,
-            )),
-            rustc_middle::ty::TyKind::Param(param) => Ok(core::Ty::Param(core::ParamTy {
-                index: param.index,
-                name: param.name,
-            })),
+            rustc_middle::ty::TyKind::Int(int_ty) => {
+                Ok(core::Ty::Exists(core::BaseTy::Int(*int_ty), core::Pred::Infer))
+            }
+            rustc_middle::ty::TyKind::Uint(uint_ty) => {
+                Ok(core::Ty::Exists(core::BaseTy::Uint(*uint_ty), core::Pred::Infer))
+            }
+            rustc_middle::ty::TyKind::Param(param) => {
+                Ok(core::Ty::Param(core::ParamTy { index: param.index, name: param.name }))
+            }
             rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
                 let substs = substs
                     .iter()
@@ -324,15 +302,20 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
                 Ok(core::Ty::Exists(adt, core::Pred::Infer))
             }
-            _ => {
-                self.tcx.sess.err(&format!(
-                    "unsupported type `{:?}`, kind: `{:?}`",
-                    ty,
-                    ty.kind()
-                ));
-                Err(ErrorReported)
-            }
+            _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
+    }
+
+    fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorReported> {
+        let mut diagnostic = self
+            .tcx
+            .sess
+            .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("LIQUID".to_string()));
+        if let Some(span) = span {
+            diagnostic.set_span(span);
+        }
+        diagnostic.emit();
+        Err(ErrorReported)
     }
 }
 
