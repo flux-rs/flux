@@ -486,7 +486,7 @@ impl TypeEnvShape {
                 (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
                     // HACK(nilehmann): The current inference algorithm cannot distinguish when a bound
                     // in a weak binding is preserved through a join point. To avoid generating extra kvars
-                    // we keep the bound of the first environment jumping to the block. This could loose precision in
+                    // we keep the bound of the first environment jumping to the block. This could lose precision in
                     // cases where the bound does need to be strengthened.
                     let ty = replace_kvars(genv, &ty1, fresh_kvar);
                     Binding::Weak { ty: TypeEnvShape::fix_ty(&ty, ty2), bound: bound.clone() }
@@ -508,7 +508,9 @@ impl TypeEnvShape {
         // the inference and checking phases. If we infer a `TyKind::Refine` we "fix" the naming
         // by keeping the expression of the type in the first environment jumping to the block.
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(..), TyKind::Refine(..)) => ty2.clone(),
+            (TyKind::Refine(bty1, _), TyKind::Refine(_, e2)) => {
+                TyKind::Refine(bty1.clone(), e2.clone()).intern()
+            }
             _ => ty1.clone(),
         }
     }
