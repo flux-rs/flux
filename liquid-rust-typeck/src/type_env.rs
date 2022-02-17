@@ -479,11 +479,17 @@ impl TypeEnvShape {
             }
             let binding2 = &env.bindings[&loc];
             let binding = match (binding1, binding2) {
-                (Binding::Strong(ty1), Binding::Strong(_)) => {
-                    Binding::Strong(replace_kvars(genv, &ty1, fresh_kvar))
+                (Binding::Strong(ty1), Binding::Strong(ty2)) => {
+                    let ty = replace_kvars(genv, &ty1, fresh_kvar);
+                    Binding::Strong(TypeEnvShape::fix_ty(&ty, ty2))
                 }
-                (Binding::Weak { ty, .. }, Binding::Weak { bound, .. }) => {
-                    Binding::Weak { ty: replace_kvars(genv, &ty, fresh_kvar), bound: bound.clone() }
+                (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
+                    // HACK(nilehmann): The current inference algorithm cannot distinguish when a bound
+                    // in a weak binding is preserved through a join point. To avoid generating extra kvars
+                    // we keep the bound of the first environment jumping to the block. This could lose precision in
+                    // cases where the bound does need to be strengthened.
+                    let ty = replace_kvars(genv, &ty1, fresh_kvar);
+                    Binding::Weak { ty: TypeEnvShape::fix_ty(&ty, ty2), bound: bound.clone() }
                 }
                 _ => {
                     todo!()
@@ -494,6 +500,18 @@ impl TypeEnvShape {
         BasicBlockEnv {
             params,
             env: TypeEnv { bindings: bindings.into_iter().collect(), borrowed: self.0.borrowed },
+        }
+    }
+
+    fn fix_ty(ty1: &Ty, ty2: &Ty) -> Ty {
+        // HACK(nilehmann): there could be a mismatch between the order of names generated in
+        // the inference and checking phases. If we infer a `TyKind::Refine` we "fix" the naming
+        // by keeping the expression of the type in the first environment jumping to the block.
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(bty1, _), TyKind::Refine(_, e2)) => {
+                TyKind::Refine(bty1.clone(), e2.clone()).intern()
+            }
+            _ => ty1.clone(),
         }
     }
 }
