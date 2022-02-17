@@ -106,6 +106,7 @@ pub struct PPrintCx<'tcx> {
     pub fully_qualified_paths: bool,
     pub simplify_exprs: bool,
     pub tags: bool,
+    pub bindings_chain: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -140,6 +141,7 @@ impl PPrintCx<'_> {
             fully_qualified_paths: false,
             simplify_exprs: true,
             tags: false,
+            bindings_chain: true,
         }
     }
 
@@ -154,6 +156,11 @@ impl PPrintCx<'_> {
     #[allow(unused)]
     pub fn tags(self, tags: bool) -> Self {
         Self { tags, ..self }
+    }
+
+    #[allow(unused)]
+    pub fn bindings_chain(self, bindings_chain: bool) -> Self {
+        Self { bindings_chain, ..self }
     }
 }
 

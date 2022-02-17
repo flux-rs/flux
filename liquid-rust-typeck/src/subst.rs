@@ -185,10 +185,7 @@ impl Subst {
 
     fn infer_from_exprs(&mut self, params: &HashSet<Var>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
-            (_, ExprKind::Var(var)) => {
-                if !params.contains(var) {
-                    return;
-                }
+            (_, ExprKind::Var(var)) if params.contains(var) => {
                 match self.exprs.insert(*var, e1.clone()) {
                     Some(old_e) if &old_e != e1 => {
                         todo!(

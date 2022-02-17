@@ -135,7 +135,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
         let mut kvars = KVarStore::new();
 
-        // println!("\n---------------------------------------");
+        // println!("\n---------------------------------------\n{shapes:#?}\n");
 
         Checker::run(
             genv,

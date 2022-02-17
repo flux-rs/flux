@@ -426,25 +426,25 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    // fn bindings_chain(node: NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-    //     fn go(
-    //         ptr: NodePtr,
-    //         mut bindings: Vec<(Name, Sort, Pred)>,
-    //     ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-    //         let node = ptr.borrow();
-    //         if let NodeKind::Binding(name, sort, pred) = &node.kind {
-    //             bindings.push((*name, *sort, pred.clone()));
-    //             if let [child] = &node.children[..] {
-    //                 go(Rc::clone(child), bindings)
-    //             } else {
-    //                 (bindings, node.children.clone())
-    //             }
-    //         } else {
-    //             (bindings, vec![Rc::clone(&ptr)])
-    //         }
-    //     }
-    //     go(node, vec![])
-    // }
+    fn bindings_chain(node: NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+        fn go(
+            ptr: NodePtr,
+            mut bindings: Vec<(Name, Sort, Pred)>,
+        ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+            let node = ptr.borrow();
+            if let NodeKind::Binding(name, sort, pred) = &node.kind {
+                bindings.push((*name, sort.clone(), pred.clone()));
+                if let [child] = &node.children[..] {
+                    go(Rc::clone(child), bindings)
+                } else {
+                    (bindings, node.children.clone())
+                }
+            } else {
+                (bindings, vec![Rc::clone(&ptr)])
+            }
+        }
+        go(node, vec![])
+    }
 
     impl Pretty for PureCtxt {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -469,40 +469,30 @@ mod pretty {
                     w!("{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Binding(name, sort, pred) => {
-                    if pred.is_true() {
-                        w!("∀ {:?}: {:?}.{:?}", ^name, ^sort, &node.children)
+                    let (bindings, children) = if cx.bindings_chain {
+                        bindings_chain(Rc::clone(self))
                     } else {
-                        w!("∀ {:?}: {:?}{{{:?}}}.{:?}", ^name, ^sort, pred, &node.children)
-                    }
+                        (vec![(*name, sort.clone(), pred.clone())], node.children.clone())
+                    };
+
+                    w!(
+                        "∀ {}.{:?}",
+                        ^bindings
+                            .iter()
+                            .format_with(", ", |(name, sort, pred), f| {
+                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
+                                if pred.is_true() {
+                                    return Ok(())
+                                }
+                                if pred.is_atom() {
+                                    f(&format_args_cx!(", {:?}", pred))
+                                } else {
+                                    f(&format_args_cx!(", ({:?})", pred))
+                                }
+                            }),
+                        children
+                    )
                 }
-                // NodeKind::Binding(..) => {
-                //     let (bindings, children) = bindings_chain(Rc::clone(self));
-
-                //     let vars = bindings.iter().format_with(", ", |(var, sort, _), f| {
-                //         f(&format_args_cx!("{:?}: {:?}", ^var, ^sort))
-                //     });
-
-                //     let preds = bindings
-                //         .iter()
-                //         .map(|(_, _, pred)| pred)
-                //         .filter(|p| !p.is_true())
-                //         .collect_vec();
-
-                //     let preds_fmt = preds.iter().format_with(" ∧ ", |pred, f| {
-                //         if pred.is_atom() {
-                //             f(&format_args_cx!("{:?}", pred))
-                //         } else {
-                //             f(&format_args_cx!("({:?})", pred))
-                //         }
-                //     });
-
-                //     w!("∀ {}.", ^vars)?;
-                //     if preds.is_empty() {
-                //         w!("{:?}", &children)
-                //     } else {
-                //         w!(PadAdapter::wrap_fmt(f), "\n{} ⇒{:?}", ^preds_fmt, &children)
-                //     }
-                // }
                 NodeKind::Pred(expr) => {
                     let expr = if cx.simplify_exprs { expr.simplify() } else { expr.clone() };
                     if expr.is_atom() {
