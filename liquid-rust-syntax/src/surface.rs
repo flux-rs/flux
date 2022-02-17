@@ -137,6 +137,14 @@ fn mk_singleton(x: Ident) -> Expr {
     }
 }
 
+fn mk_generic(x: Ident, pred: Option<Expr>) -> ast::GenericParam {
+    ast::GenericParam {
+        name: x,
+        sort: mk_sort(x.span),
+        pred,
+    }
+}
+
 fn ident_loc(x: Ident) -> Ident {
     let mut star = String::from("*");
     star.push_str(x.name.as_str());
@@ -144,38 +152,19 @@ fn ident_loc(x: Ident) -> Ident {
     Ident { name, span: x.span }
 }
 
+fn path_bind_in(x: Ident, path: Path, span: Span, pred: Option<Expr>) -> BindIn {
+    let gen = Some(mk_generic(x, pred));
+    let path = convert_path(path);
+    let refine = mk_singleton(x);
+    let kind = ast::TyKind::RefineTy { path, refine };
+    let ty = ast::Ty { kind, span };
+    BindIn { gen, ty, loc: None }
+}
+
 fn bind_in(x: Ident, ty: Ty) -> BindIn {
     match ty.kind {
-        TyKind::AnonEx { path, pred } => {
-            // make the generic
-            let gen = Some(ast::GenericParam {
-                name: x,
-                sort: mk_sort(x.span),
-                pred: Some(pred),
-            });
-            // convert the path into a singleton-ty
-            let path = convert_path(path);
-            let refine = mk_singleton(x);
-            let kind = ast::TyKind::RefineTy { path, refine };
-            let ty = ast::Ty {
-                kind,
-                span: ty.span,
-            };
-            BindIn { gen, ty, loc: None }
-        }
-        TyKind::Base(p) => {
-            let path = convert_path(p);
-            let kind = ast::TyKind::BaseTy(path);
-            let ty = ast::Ty {
-                kind,
-                span: ty.span,
-            };
-            BindIn {
-                gen: None,
-                loc: None,
-                ty,
-            }
-        }
+        TyKind::AnonEx { path, pred } => path_bind_in(x, path, ty.span, Some(pred)),
+        TyKind::Base(path) => path_bind_in(x, path, ty.span, None),
         TyKind::Exists { bind, path, pred } => {
             let path = convert_path(path);
             let kind = ast::TyKind::Exists { bind, path, pred };
