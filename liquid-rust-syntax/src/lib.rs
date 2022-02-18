@@ -36,7 +36,7 @@ pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> 
     parse!(FnSigParser, tokens, span)
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<ast::RefinedByParam>> {
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Generics> {
     parse!(RefinedByParser, tokens, span)
 }
 

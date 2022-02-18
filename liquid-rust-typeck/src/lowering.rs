@@ -144,9 +144,9 @@ pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
         .refined_by
         .into_iter()
         .enumerate()
-        .map(|(idx, (_, sort))| {
+        .map(|(idx, param)| {
             let name = ty::Name::new(idx);
-            (name, lower_sort(sort))
+            ty::Param { name, sort: lower_sort(param.sort), pred: ty::Pred::tt() }
         })
         .collect();
 

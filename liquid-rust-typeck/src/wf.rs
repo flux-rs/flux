@@ -168,7 +168,7 @@ impl Wf<'_> {
             core::BaseTy::Bool => ty::Sort::bool(),
             core::BaseTy::Adt(def_id, _) => {
                 if let Some(def) = self.adt_defs.get(*def_id) {
-                    ty::Sort::tuple(def.refined_by.iter().map(|(_, sort)| sort.clone()))
+                    ty::Sort::tuple(def.refined_by.iter().map(|param| param.sort.clone()))
                 } else {
                     ty::Sort::unit()
                 }

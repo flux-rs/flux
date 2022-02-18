@@ -6,7 +6,7 @@ use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
 pub struct AdtDef {
-    pub refined_by: Vec<(Name, Sort)>,
+    pub refined_by: Vec<Param>,
     pub fields: Vec<Option<Ty>>,
 }
 

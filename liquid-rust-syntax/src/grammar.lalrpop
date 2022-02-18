@@ -8,14 +8,16 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub RefinedBy: Vec<ast::RefinedByParam> = <Comma<RefinedByParam>>;
+pub RefinedBy: ast::Generics = {
+    <lo:@L> <params:Comma<RefinedByParam>> <hi:@R> => ast::Generics { params, span: mk_span(lo, hi) }
+}
 
-RefinedByParam: ast::RefinedByParam = <name: Ident> ":" <sort: Ident> => ast::RefinedByParam { <> };
+RefinedByParam: ast::GenericParam = <name: Ident> ":" <sort: Ident> => ast::GenericParam { <>, pred: None };
 
 pub FnSig: ast::FnSig = {
     <lo:@L>
     "fn"
-    <generics:Generics>
+    <generics:FnGenerics>
     "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
     "->"
     <ret:Ty> <ensures:(";" <Env>)?>
@@ -43,7 +45,7 @@ TyKind: ast::TyKind = {
     "&" <Ty>                                           => ast::TyKind::ShrRef(Box::new(<>)),
 }
 
-Generics: ast::Generics = {
+FnGenerics: ast::Generics = {
     <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => ast::Generics { params, span: mk_span(lo, hi) },
     <lo:@L> <hi:@R> => ast::Generics::empty(mk_span(lo, hi))
 }

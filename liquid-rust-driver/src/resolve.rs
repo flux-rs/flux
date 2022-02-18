@@ -82,15 +82,10 @@ impl<'tcx> Resolver<'tcx> {
         let name_gen = IndexGen::new();
         let mut subst = Subst::new();
 
-        let refined_by: Vec<_> = spec
-            .refined_by
-            .into_iter()
-            .map(|param| {
-                let fresh = name_gen.fresh();
-                subst.insert_expr(param.name.name, ty::Var::Free(fresh));
-                Ok((fresh, resolve_sort(&mut self.diagnostics, param.sort)?))
-            })
-            .try_collect_exhaust()?;
+        let refined_by = match spec.refined_by {
+            Some(refined_by) => self.resolve_generics(refined_by, &name_gen, &mut subst)?,
+            None => vec![],
+        };
 
         let fields = spec
             .fields
@@ -180,7 +175,7 @@ impl<'tcx> Resolver<'tcx> {
                     .is_some()
                 {
                     self.diagnostics
-                        .emit_err(errors::DuplicateGenericParam::new(param.name))
+                        .emit_err(errors::DuplicateParam::new(param.name))
                         .raise()
                 } else {
                     let name =
@@ -650,14 +645,14 @@ mod errors {
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
-    pub struct DuplicateGenericParam {
-        #[message = "the name `{name}` is already used for a generic parameter"]
+    pub struct DuplicateParam {
+        #[message = "the name `{name}` is already used as a parameter"]
         #[label = "already used"]
         span: Span,
         name: Ident,
     }
 
-    impl DuplicateGenericParam {
+    impl DuplicateParam {
         pub fn new(name: Ident) -> Self {
             Self { span: name.span, name }
         }

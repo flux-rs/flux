@@ -12,7 +12,7 @@ pub use rustc_middle::ty::{IntTy, UintTy};
 use crate::intern::{impl_internable, Interned};
 
 pub struct AdtDef {
-    pub refined_by: Vec<(Name, Sort)>,
+    pub refined_by: Vec<Param>,
 }
 
 #[derive(Debug)]

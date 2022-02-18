@@ -34,7 +34,7 @@ pub struct FnSpec {
 
 #[derive(Debug)]
 pub struct AdtSpec {
-    pub refined_by: Vec<ast::RefinedByParam>,
+    pub refined_by: Option<ast::Generics>,
     pub fields: Vec<Option<ast::Ty>>,
 }
 
@@ -77,7 +77,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
 
-        let refined_by = attrs.refined_by().unwrap_or_default();
+        let refined_by = attrs.refined_by();
 
         let fields = data
             .fields()
@@ -235,7 +235,7 @@ struct LiquidAttr {
 enum LiquidAttrKind {
     Assume,
     FnSig(ast::FnSig),
-    RefinedBy(Vec<ast::RefinedByParam>),
+    RefinedBy(ast::Generics),
     Field(ast::Ty),
 }
 
@@ -272,7 +272,7 @@ impl LiquidAttrs {
         read_attr!(self, "ty", FnSig)
     }
 
-    fn refined_by(&mut self) -> Option<Vec<ast::RefinedByParam>> {
+    fn refined_by(&mut self) -> Option<ast::Generics> {
         read_attr!(self, "refined_by", RefinedBy)
     }
 
