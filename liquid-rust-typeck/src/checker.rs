@@ -327,12 +327,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|arg| self.check_operand(env, arg))
             .collect_vec();
 
-        let cx = LoweringCtxt::empty(self.genv);
+        let cx = LoweringCtxt::empty();
         let scope = cursor.scope();
         let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter());
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty, fresh_kvar))
+            .map(|ty| cx.lower_ty(self.genv, ty, fresh_kvar))
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);

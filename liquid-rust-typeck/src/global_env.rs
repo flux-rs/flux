@@ -5,7 +5,7 @@ use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 
 use crate::{
-    lowering::lower_adt_def,
+    lowering::LoweringCtxt,
     ty::{self, BaseTy, Sort},
 };
 
@@ -73,7 +73,7 @@ impl FromIterator<(LocalDefId, core::AdtDef)> for AdtDefs {
         AdtDefs {
             map: iter
                 .into_iter()
-                .map(|(did, def)| (did, lower_adt_def(def)))
+                .map(|(did, def)| (did, LoweringCtxt::lower_adt_def(def)))
                 .collect(),
         }
     }
