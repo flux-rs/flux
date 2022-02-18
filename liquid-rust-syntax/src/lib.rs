@@ -27,17 +27,6 @@ lalrpop_mod!(
     surface_grammar
 );
 
-pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
-    let offset = span.lo();
-    let ctx = span.ctxt();
-    let parent = span.parent();
-    let mk_span = |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
-    surface_grammar::FnSigParser::new()
-        .parse(&mk_span, Cursor::new(tokens, span.lo()))
-        .map_err(|err| map_err(err, offset, ctx, parent))
-        .map(|sig| surface::desugar(sig))
-}
-
 macro_rules! parse {
     ($parser:ident, $tokens:expr, $span:expr) => {{
         let offset = $span.lo();
@@ -58,6 +47,32 @@ pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
 pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<RefinedByParam>> {
     parse!(RefinedByParser, tokens, span)
 }
+
+pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
+    let offset = span.lo();
+    let ctx = span.ctxt();
+    let parent = span.parent();
+    let mk_span = |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
+    surface_grammar::FnSigParser::new()
+        .parse(&mk_span, Cursor::new(tokens, span.lo()))
+        .map_err(|err| map_err(err, offset, ctx, parent))
+        .map(|sig| surface::desugar(sig))
+}
+
+// fn parse_fn_annot_sig(tokens: TokenStream, span: Span) -> Option<FnSig> {
+//     // match parse_fn_surface_sig(tokens, span) {
+//     //     Ok(fn_sig) => Some(fn_sig),
+//     //     Err(err) => {
+//     //         let msg = match err.kind {
+//     //             ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
+//     //             ParseErrorKind::UnexpectedToken => "unexpected token",
+//     //             ParseErrorKind::IntTooLarge => "integer literal is too large",
+//     //         };
+//     //         self.emit_error(msg, err.span);
+//     //         None
+//     //     }
+//     // }
+// }
 
 pub enum UserParseError {
     UnsupportedLiteral(Location, Location),

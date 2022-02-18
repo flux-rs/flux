@@ -108,7 +108,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 // let fn_sig = self.parse_fn_annot_sig(tokens.clone(), span.entire())?;
-                let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_annot_sig)?;
+                let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("ty", MacArgs::Delimited(span, _, tokens)) => {
@@ -123,22 +123,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
         };
         Ok(LiquidAttr { kind, span: attr_item.span() })
-    }
-
-    // RJ: FIXME
-    fn parse_fn_annot_sig(&mut self, tokens: TokenStream, input_span: Span) -> Option<FnSig> {
-        match parse_fn_surface_sig(tokens, input_span) {
-            Ok(fn_sig) => Some(fn_sig),
-            Err(err) => {
-                let msg = match err.kind {
-                    ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
-                    ParseErrorKind::UnexpectedToken => "unexpected token",
-                    ParseErrorKind::IntTooLarge => "integer literal is too large",
-                };
-                self.emit_error(msg, err.span);
-                None
-            }
-        }
     }
 
     fn parse<T>(

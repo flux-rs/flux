@@ -100,11 +100,9 @@ fn convert_path(p: Path) -> ast::Path {
 fn convert_tykind(t: TyKind) -> ast::TyKind {
     match t {
         TyKind::Base(p) => ast::TyKind::BaseTy(convert_path(p)),
-        TyKind::Exists { bind, path, pred } => ast::TyKind::Exists {
-            bind,
-            path: convert_path(path),
-            pred,
-        },
+        TyKind::Exists { bind, path, pred } => {
+            ast::TyKind::Exists { bind, path: convert_path(path), pred }
+        }
         TyKind::AnonEx { .. } => {
             panic!("Unexpected input in convert_tykind!")
         }
@@ -112,37 +110,25 @@ fn convert_tykind(t: TyKind) -> ast::TyKind {
             let ty = convert_ty(*t);
             ty.kind
         }
-        TyKind::Ref(_, t) => ast::TyKind::Ref(Box::new(convert_ty(*t))),
+        TyKind::Ref(_, t) => ast::TyKind::WeakRef(Box::new(convert_ty(*t))),
     }
 }
 
 fn convert_ty(t: Ty) -> ast::Ty {
-    ast::Ty {
-        kind: convert_tykind(t.kind),
-        span: t.span,
-    }
+    ast::Ty { kind: convert_tykind(t.kind), span: t.span }
 }
 
 fn mk_sort(span: Span) -> Ident {
-    Ident {
-        name: rustc_span::Symbol::intern("int"),
-        span,
-    }
+    Ident { name: rustc_span::Symbol::intern("int"), span }
 }
 
-fn mk_singleton(x: Ident) -> Expr {
-    Expr {
-        kind: ast::ExprKind::Var(x),
-        span: x.span,
-    }
+fn mk_singleton(x: Ident) -> ast::Refine {
+    let e = Expr { kind: ast::ExprKind::Var(x), span: x.span };
+    ast::Refine { exprs: vec![e], span: x.span }
 }
 
 fn mk_generic(x: Ident, pred: Option<Expr>) -> ast::GenericParam {
-    ast::GenericParam {
-        name: x,
-        sort: mk_sort(x.span),
-        pred,
-    }
+    ast::GenericParam { name: x, sort: mk_sort(x.span), pred }
 }
 
 fn ident_loc(x: Ident) -> Ident {
@@ -168,29 +154,15 @@ fn bind_in(x: Ident, ty: Ty) -> BindIn {
         TyKind::Exists { bind, path, pred } => {
             let path = convert_path(path);
             let kind = ast::TyKind::Exists { bind, path, pred };
-            let ty = ast::Ty {
-                kind,
-                span: ty.span,
-            };
-            BindIn {
-                gen: None,
-                ty,
-                loc: None,
-            }
+            let ty = ast::Ty { kind, span: ty.span };
+            BindIn { gen: None, ty, loc: None }
         }
         TyKind::Named(n, t) => bind_in(n, *t),
         TyKind::Ref(_, t) => {
             let b = bind_in(x, *t);
             let l = ident_loc(x);
-            let ty = ast::Ty {
-                kind: ast::TyKind::StrgRef(l),
-                span: ty.span,
-            };
-            BindIn {
-                gen: b.gen,
-                ty,
-                loc: Some((l, b.ty)),
-            }
+            let ty = ast::Ty { kind: ast::TyKind::StrgRef(l), span: ty.span };
+            BindIn { gen: b.gen, ty, loc: Some((l, b.ty)) }
         }
     }
 }
@@ -210,11 +182,7 @@ impl Desugar {
     }
 
     pub fn desugar(ssig: FnSig) -> ast::FnSig {
-        let mut me = Self {
-            generics: vec![],
-            args: vec![],
-            reqs: vec![],
-        };
+        let mut me = Self { generics: vec![], args: vec![], reqs: vec![] };
 
         // walk over the input types
         me.desugar_inputs(ssig.requires);
@@ -226,10 +194,7 @@ impl Desugar {
             .collect();
 
         ast::FnSig {
-            generics: ast::Generics {
-                params: me.generics,
-                span: ssig.span,
-            },
+            generics: ast::Generics { params: me.generics, span: ssig.span },
             args: me.args,
             requires: me.reqs,
             ret: convert_ty(ssig.returns),
