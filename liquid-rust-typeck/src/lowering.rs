@@ -52,10 +52,19 @@ impl LoweringCtxt {
     }
 
     pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
+        let mut fresh_kvar = |_: &ty::BaseTy| panic!("inference predicate in top item");
         let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::empty();
+
         let refined_by = cx.lower_params(&name_gen, &adt_def.refined_by);
-        ty::AdtDef { refined_by }
+
+        let fields = adt_def
+            .fields
+            .into_iter()
+            .map(|ty| ty.map(|ty| cx.lower_ty(&ty, &mut fresh_kvar)))
+            .collect();
+
+        ty::AdtDef { refined_by, fields }
     }
 
     fn lower_params(

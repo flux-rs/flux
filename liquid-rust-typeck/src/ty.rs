@@ -13,6 +13,7 @@ use crate::intern::{impl_internable, Interned};
 
 pub struct AdtDef {
     pub refined_by: Vec<Param>,
+    pub fields: Vec<Option<Ty>>,
 }
 
 #[derive(Debug)]

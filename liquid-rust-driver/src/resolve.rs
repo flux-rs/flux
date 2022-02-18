@@ -90,7 +90,7 @@ impl<'tcx> Resolver<'tcx> {
         let fields = spec
             .fields
             .into_iter()
-            .map(|ty| ty.map(|spec| self.resolve_ty(spec, &mut subst)).transpose())
+            .map(|ty| ty.map(|ty| self.resolve_ty(ty, &mut subst)).transpose())
             .try_collect_exhaust()?;
 
         Ok(ty::AdtDef { refined_by, fields })
