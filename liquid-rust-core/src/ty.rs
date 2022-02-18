@@ -1,8 +1,13 @@
 use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_syntax::ast::BinOp;
-use rustc_hir::def_id::DefId;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::{DefId, LocalDefId};
 pub use rustc_middle::ty::{IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
+
+pub struct AdtDefs {
+    map: FxHashMap<LocalDefId, AdtDef>,
+}
 
 #[derive(Debug)]
 pub struct AdtDef {
@@ -118,4 +123,30 @@ impl Pred {
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
+}
+
+impl AdtDefs {
+    pub fn get(&self, did: LocalDefId) -> Option<&AdtDef> {
+        self.map.get(&did)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&LocalDefId, &AdtDef)> {
+        self.map.iter()
+    }
+}
+
+impl FromIterator<(LocalDefId, AdtDef)> for AdtDefs {
+    fn from_iter<T: IntoIterator<Item = (LocalDefId, AdtDef)>>(iter: T) -> Self {
+        AdtDefs { map: iter.into_iter().collect() }
+    }
+}
+
+impl IntoIterator for AdtDefs {
+    type Item = (LocalDefId, AdtDef);
+
+    type IntoIter = std::collections::hash_map::IntoIter<LocalDefId, AdtDef>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map.into_iter()
+    }
 }

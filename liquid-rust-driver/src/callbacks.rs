@@ -9,7 +9,6 @@ use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
-use typeck::global_env::AdtDefs;
 
 use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
 
@@ -38,7 +37,7 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
 
-    let adt_defs: AdtDefs = specs
+    let adt_defs = specs
         .adts
         .into_iter()
         .map(|(def_id, spec)| {
@@ -48,6 +47,10 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .try_collect_exhaust()?;
 
     let wf = Wf::new(sess, &adt_defs);
+    adt_defs
+        .iter()
+        .try_for_each_exhaust(|(_, def)| wf.check_adt_def(def))?;
+
     let fn_sigs: FxHashMap<_, _> = specs
         .fns
         .into_iter()
