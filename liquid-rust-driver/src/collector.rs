@@ -3,14 +3,13 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
-    ast::{FnSig, RefinedByParam},
-    parse_fn_sig, parse_refined_by, ParseErrorKind, ParseResult,
+    ast, parse_fn_sig, parse_refined_by, parse_ty, ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, ImplItemKind, Item,
-    ItemKind, TraitItem,
+    ItemKind, TraitItem, VariantData,
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{Session, SessionDiagnostic};
@@ -29,12 +28,14 @@ pub struct Specs {
 }
 
 pub struct FnSpec {
-    pub fn_sig: FnSig,
+    pub fn_sig: ast::FnSig,
     pub assume: bool,
 }
 
+#[derive(Debug)]
 pub struct AdtSpec {
-    pub refined_by: Vec<RefinedByParam>,
+    pub refined_by: Vec<ast::RefinedByParam>,
+    pub fields: Vec<Option<ast::Ty>>,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -67,17 +68,34 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_adt_spec(
+    fn parse_struct_spec(
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
+        data: &VariantData,
     ) -> Result<(), ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        if let Some(refined_by) = attrs.refined_by() {
-            self.specs.adts.insert(def_id, AdtSpec { refined_by });
-        }
+
+        let refined_by = attrs.refined_by().unwrap_or_default();
+
+        let fields = data
+            .fields()
+            .iter()
+            .map(|field| self.parse_field_spec(self.tcx.hir().attrs(field.hir_id)))
+            .try_collect_exhaust()?;
+
+        self.specs
+            .adts
+            .insert(def_id, AdtSpec { refined_by, fields });
+
         Ok(())
+    }
+
+    fn parse_field_spec(&mut self, attrs: &[Attribute]) -> Result<Option<ast::Ty>, ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+        Ok(attrs.field())
     }
 
     fn parse_liquid_attrs(&mut self, attrs: &[Attribute]) -> Result<LiquidAttrs, ErrorReported> {
@@ -113,6 +131,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
                 let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
                 LiquidAttrKind::RefinedBy(refined_by)
+            }
+            ("field", MacArgs::Delimited(span, _, tokens)) => {
+                let ty = self.parse(tokens.clone(), span.entire(), parse_ty)?;
+                LiquidAttrKind::Field(ty)
             }
             ("assume", MacArgs::Empty) => LiquidAttrKind::Assume,
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
@@ -166,16 +188,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
 impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
     fn visit_item(&mut self, item: &'hir Item<'hir>) {
-        match item.kind {
+        match &item.kind {
             ItemKind::Fn(..) => {
                 let hir_id = item.hir_id();
                 let attrs = self.tcx.hir().attrs(hir_id);
                 let _ = self.parse_fn_spec(item.def_id, attrs);
             }
-            ItemKind::Struct(..) => {
+            ItemKind::Struct(data, ..) => {
                 let hir_id = item.hir_id();
                 let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_adt_spec(item.def_id, attrs);
+                let _ = self.parse_struct_spec(item.def_id, attrs, &data);
             }
             _ => (),
         }
@@ -212,8 +234,9 @@ struct LiquidAttr {
 #[derive(Debug)]
 enum LiquidAttrKind {
     Assume,
-    FnSig(FnSig),
-    RefinedBy(Vec<RefinedByParam>),
+    FnSig(ast::FnSig),
+    RefinedBy(Vec<ast::RefinedByParam>),
+    Field(ast::Ty),
 }
 
 macro_rules! read_attr {
@@ -245,21 +268,26 @@ impl LiquidAttrs {
         self.map.get("assume").is_some()
     }
 
-    fn fn_sig(&mut self) -> Option<FnSig> {
-        read_attr!(self, "fn_sig", FnSig)
+    fn fn_sig(&mut self) -> Option<ast::FnSig> {
+        read_attr!(self, "ty", FnSig)
     }
 
-    fn refined_by(&mut self) -> Option<Vec<RefinedByParam>> {
+    fn refined_by(&mut self) -> Option<Vec<ast::RefinedByParam>> {
         read_attr!(self, "refined_by", RefinedBy)
+    }
+
+    fn field(&mut self) -> Option<ast::Ty> {
+        read_attr!(self, "field", Field)
     }
 }
 
 impl LiquidAttrKind {
     fn name(&self) -> &'static str {
         match self {
-            Self::Assume => "assume",
-            Self::FnSig(_) => "fn_sig",
-            Self::RefinedBy(_) => "refined_by",
+            LiquidAttrKind::Assume => "assume",
+            LiquidAttrKind::FnSig(_) => "ty",
+            LiquidAttrKind::RefinedBy(_) => "refined_by",
+            LiquidAttrKind::Field(_) => "field",
         }
     }
 }

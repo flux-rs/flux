@@ -7,7 +7,6 @@ extern crate rustc_span;
 pub mod ast;
 pub mod lexer;
 
-use ast::{FnSig, RefinedByParam};
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
@@ -33,12 +32,16 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
+pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
     parse!(FnSigParser, tokens, span)
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<RefinedByParam>> {
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<ast::RefinedByParam>> {
     parse!(RefinedByParser, tokens, span)
+}
+
+pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<ast::Ty> {
+    parse!(TyParser, tokens, span)
 }
 
 pub enum UserParseError {

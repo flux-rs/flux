@@ -27,7 +27,7 @@ pub FnSig: ast::FnSig = {
     }
 }
 
-Ty: ast::Ty = {
+pub Ty: ast::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => ast::Ty {
         kind,
         span: mk_span(lo, hi)
