@@ -43,19 +43,15 @@ impl Wf<'_> {
 
     pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
         let mut env = Env::default();
-        let refined_by = self.check_params(&mut env, &def.refined_by);
+        let refined_by = self.check_params(&mut env, def.refined_by());
 
-        let fields = def.fields.iter().try_for_each_exhaust(|ty| {
-            if let Some(ty) = ty {
-                self.check_type(&mut env, ty)
-            } else {
-                Ok(())
-            }
-        });
+        if let core::AdtDef::Transparent { fields, .. } = def {
+            fields
+                .iter()
+                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty))?;
+        }
 
-        refined_by?;
-        fields?;
-        Ok(())
+        refined_by
     }
 
     fn check_params(&self, env: &mut Env, params: &[core::Param]) -> Result<(), ErrorReported> {
@@ -78,7 +74,7 @@ impl Wf<'_> {
                 Ok(())
             }
             core::Ty::StrgRef(_) => {
-                // TODO: check identifier is actually a region
+                // TODO: check identifier is actually a loc
                 Ok(())
             }
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
@@ -188,7 +184,7 @@ impl Wf<'_> {
             core::BaseTy::Bool => ty::Sort::bool(),
             core::BaseTy::Adt(def_id, _) => {
                 if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
-                    ty::Sort::tuple(def.refined_by.iter().map(|param| lower_sort(param.sort)))
+                    ty::Sort::tuple(def.refined_by().iter().map(|param| lower_sort(param.sort)))
                 } else {
                     ty::Sort::unit()
                 }

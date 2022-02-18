@@ -11,9 +11,9 @@ pub use rustc_middle::ty::{IntTy, UintTy};
 
 use crate::intern::{impl_internable, Interned};
 
-pub struct AdtDef {
-    pub refined_by: Vec<Param>,
-    pub fields: Vec<Option<Ty>>,
+pub enum AdtDef {
+    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
+    Opaque { refined_by: Vec<Param> },
 }
 
 #[derive(Debug)]
@@ -114,6 +114,16 @@ pub enum Var {
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "a{}",
+    }
+}
+
+impl AdtDef {
+    pub fn refined_by(&self) -> &[Param] {
+        match self {
+            AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
+                refined_by
+            }
+        }
     }
 }
 

@@ -10,9 +10,9 @@ pub struct AdtDefs {
 }
 
 #[derive(Debug)]
-pub struct AdtDef {
-    pub refined_by: Vec<Param>,
-    pub fields: Vec<Option<Ty>>,
+pub enum AdtDef {
+    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
+    Opaque { refined_by: Vec<Param> },
 }
 
 #[derive(Debug)]
@@ -123,6 +123,14 @@ impl Pred {
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
+}
+
+impl AdtDef {
+    pub fn refined_by(&self) -> &[Param] {
+        match self {
+            Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
+        }
+    }
 }
 
 impl AdtDefs {

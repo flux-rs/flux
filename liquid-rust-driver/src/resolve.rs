@@ -87,13 +87,17 @@ impl<'tcx> Resolver<'tcx> {
             None => vec![],
         };
 
-        let fields = spec
-            .fields
-            .into_iter()
-            .map(|ty| ty.map(|ty| self.resolve_ty(ty, &mut subst)).transpose())
-            .try_collect_exhaust()?;
+        if spec.opaque {
+            Ok(ty::AdtDef::Opaque { refined_by })
+        } else {
+            let fields = spec
+                .fields
+                .into_iter()
+                .map(|ty| self.resolve_ty(ty.unwrap(), &mut subst))
+                .try_collect_exhaust()?;
 
-        Ok(ty::AdtDef { refined_by, fields })
+            Ok(ty::AdtDef::Transparent { refined_by, fields })
+        }
     }
 
     pub fn resolve_fn_sig(

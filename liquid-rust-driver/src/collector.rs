@@ -36,6 +36,7 @@ pub struct FnSpec {
 pub struct AdtSpec {
     pub refined_by: Option<ast::Generics>,
     pub fields: Vec<Option<ast::Ty>>,
+    pub opaque: bool,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -58,6 +59,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
+        // TODO: error if it has non-fun attrs
 
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
@@ -76,6 +78,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
+        // TODO: error on field attrs if opaque
+        // TODO: error if it has non-struct attrs
+
+        let opaque = attrs.opaque();
 
         let refined_by = attrs.refined_by();
 
@@ -87,7 +93,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .adts
-            .insert(def_id, AdtSpec { refined_by, fields });
+            .insert(def_id, AdtSpec { refined_by, fields, opaque });
 
         Ok(())
     }
@@ -136,6 +142,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let ty = self.parse(tokens.clone(), span.entire(), parse_ty)?;
                 LiquidAttrKind::Field(ty)
             }
+            ("opaque", MacArgs::Empty) => LiquidAttrKind::Opaque,
             ("assume", MacArgs::Empty) => LiquidAttrKind::Assume,
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
         };
@@ -234,6 +241,7 @@ struct LiquidAttr {
 #[derive(Debug)]
 enum LiquidAttrKind {
     Assume,
+    Opaque,
     FnSig(ast::FnSig),
     RefinedBy(ast::Generics),
     Field(ast::Ty),
@@ -268,6 +276,10 @@ impl LiquidAttrs {
         self.map.get("assume").is_some()
     }
 
+    fn opaque(&mut self) -> bool {
+        self.map.get("opaque").is_some()
+    }
+
     fn fn_sig(&mut self) -> Option<ast::FnSig> {
         read_attr!(self, "ty", FnSig)
     }
@@ -285,6 +297,7 @@ impl LiquidAttrKind {
     fn name(&self) -> &'static str {
         match self {
             LiquidAttrKind::Assume => "assume",
+            LiquidAttrKind::Opaque => "opaque",
             LiquidAttrKind::FnSig(_) => "ty",
             LiquidAttrKind::RefinedBy(_) => "refined_by",
             LiquidAttrKind::Field(_) => "field",

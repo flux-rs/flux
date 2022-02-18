@@ -56,15 +56,18 @@ impl LoweringCtxt {
         let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::empty();
 
-        let refined_by = cx.lower_params(&name_gen, &adt_def.refined_by);
+        let refined_by = cx.lower_params(&name_gen, adt_def.refined_by());
 
-        let fields = adt_def
-            .fields
-            .into_iter()
-            .map(|ty| ty.map(|ty| cx.lower_ty(&ty, &mut fresh_kvar)))
-            .collect();
-
-        ty::AdtDef { refined_by, fields }
+        match adt_def {
+            core::AdtDef::Transparent { fields, .. } => {
+                let fields = fields
+                    .into_iter()
+                    .map(|ty| cx.lower_ty(&ty, &mut fresh_kvar))
+                    .collect();
+                ty::AdtDef::Transparent { refined_by, fields }
+            }
+            core::AdtDef::Opaque { .. } => ty::AdtDef::Opaque { refined_by },
+        }
     }
 
     fn lower_params(
