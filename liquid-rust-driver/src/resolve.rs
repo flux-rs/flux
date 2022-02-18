@@ -1,9 +1,5 @@
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
-use liquid_rust_common::{
-    errors::ErrorReported,
-    index::{Idx, IndexGen},
-    iter::IterExt,
-};
+use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_core::ty::{self, Name, ParamTy};
 use liquid_rust_syntax::ast;
 use quickscope::ScopeMap;
@@ -21,7 +17,6 @@ pub struct Resolver<'tcx> {
     tcx: TyCtxt<'tcx>,
     diagnostics: Diagnostics<'tcx>,
     name_res_table: NameResTable,
-    def_id: LocalDefId,
     parent: Option<&'tcx Impl<'tcx>>,
 }
 
@@ -37,16 +32,12 @@ struct Diagnostics<'tcx> {
 
 struct Subst {
     exprs: ScopeMap<Symbol, ty::Var>,
-    regions: FxHashMap<Symbol, Name>,
+    locs: FxHashMap<Symbol, Name>,
     types: ScopeMap<DefId, ParamTy>,
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn resolve(
-        tcx: TyCtxt<'tcx>,
-        def_id: LocalDefId,
-        fn_sig: ast::FnSig,
-    ) -> Result<ty::FnSig, ErrorReported> {
+    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
         let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
@@ -64,29 +55,14 @@ impl<'tcx> Resolver<'tcx> {
         }
         collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
 
-        let mut resolver = Self { tcx, diagnostics, parent, name_res_table, def_id };
-        resolver.run(fn_sig)
+        Ok(Resolver { tcx, diagnostics, name_res_table, parent })
     }
 
-    pub fn resolve_adt_spec(
+    pub fn from_adt(
         tcx: TyCtxt<'tcx>,
         def_id: LocalDefId,
-        spec: AdtSpec,
-    ) -> Result<ty::AdtDef, ErrorReported> {
-        let name_gen = IndexGen::new();
-        let mut subst = Subst::new();
-
+    ) -> Result<Resolver<'tcx>, ErrorReported> {
         let mut diagnostics = Diagnostics::new(tcx.sess);
-        let refined_by: Vec<_> = spec
-            .refined_by
-            .into_iter()
-            .map(|param| {
-                let fresh = name_gen.fresh();
-                subst.insert_expr(param.name.name, ty::Var::Free(fresh));
-                Ok((fresh, resolve_sort(&mut diagnostics, param.sort)?))
-            })
-            .try_collect_exhaust()?;
-
         let item = tcx.hir().expect_item(def_id);
         let data = if let ItemKind::Struct(data, _) = &item.kind {
             data
@@ -99,42 +75,58 @@ impl<'tcx> Resolver<'tcx> {
             collect_res_ty(&mut diagnostics, field.ty, &mut name_res_table)?;
         }
 
-        let mut resolver = Self { tcx, diagnostics, parent: None, def_id, name_res_table };
+        Ok(Self { tcx, diagnostics, parent: None, name_res_table })
+    }
+
+    pub fn resolve_adt_spec(&mut self, spec: AdtSpec) -> Result<ty::AdtDef, ErrorReported> {
+        let name_gen = IndexGen::new();
+        let mut subst = Subst::new();
+
+        let refined_by: Vec<_> = spec
+            .refined_by
+            .into_iter()
+            .map(|param| {
+                let fresh = name_gen.fresh();
+                subst.insert_expr(param.name.name, ty::Var::Free(fresh));
+                Ok((fresh, resolve_sort(&mut self.diagnostics, param.sort)?))
+            })
+            .try_collect_exhaust()?;
 
         let fields = spec
             .fields
             .into_iter()
-            .map(|ty| {
-                ty.map(|spec| resolver.resolve_ty(spec, &mut subst))
-                    .transpose()
-            })
+            .map(|ty| ty.map(|spec| self.resolve_ty(spec, &mut subst)).transpose())
             .try_collect_exhaust()?;
 
         Ok(ty::AdtDef { refined_by, fields })
     }
 
-    fn run(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
+    pub fn resolve_fn_sig(
+        &mut self,
+        def_id: LocalDefId,
+        fn_sig: ast::FnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
         let mut subst = Subst::new();
 
         let name_gen = IndexGen::new();
 
         if let Some(parent) = self.parent {
-            self.insert_generic_types(&parent.generics, &mut subst);
+            subst.insert_generic_types(self.tcx, &parent.generics);
             subst.push_type_layer();
         }
 
-        let hir_generics = self.tcx.hir().get_generics(self.def_id).unwrap();
+        let hir_generics = self.tcx.hir().get_generics(def_id).unwrap();
 
-        self.insert_generic_types(hir_generics, &mut subst);
+        subst.insert_generic_types(self.tcx, hir_generics);
 
         let params = self.resolve_generics(fn_sig.generics, &name_gen, &mut subst);
 
         let requires = fn_sig
             .requires
             .into_iter()
-            .map(|(region, ty)| {
+            .map(|(loc, ty)| {
                 let fresh = name_gen.fresh();
-                subst.insert_region(region.name, fresh);
+                subst.insert_loc(loc.name, fresh);
                 let ty = self.resolve_ty(ty, &mut subst)?;
                 Ok((fresh, ty))
             })
@@ -149,12 +141,12 @@ impl<'tcx> Resolver<'tcx> {
         let ensures = fn_sig
             .ensures
             .into_iter()
-            .map(|(region, ty)| {
-                let name = if let Some(name) = subst.get_region(region.name) {
+            .map(|(loc, ty)| {
+                let name = if let Some(name) = subst.get_loc(loc.name) {
                     name
                 } else {
                     let fresh = name_gen.fresh();
-                    subst.insert_region(region.name, fresh);
+                    subst.insert_loc(loc.name, fresh);
                     fresh
                 };
                 let ty = self.resolve_ty(ty, &mut subst)?;
@@ -171,16 +163,6 @@ impl<'tcx> Resolver<'tcx> {
             ret: ret?,
             ensures: ensures?,
         })
-    }
-
-    fn insert_generic_types(&self, generics: &hir::Generics, subst: &mut Subst) {
-        for param in generics.params.iter() {
-            if let hir::GenericParamKind::Type { .. } = param.kind {
-                let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
-                let name = param.name.ident().name;
-                subst.insert_type(def_id, name);
-            }
-        }
     }
 
     fn resolve_generics(
@@ -255,12 +237,12 @@ impl<'tcx> Resolver<'tcx> {
                     }
                 }
             }
-            ast::TyKind::StrgRef(region) => {
-                if let Some(name) = subst.get_region(region.name) {
+            ast::TyKind::StrgRef(loc) => {
+                if let Some(name) = subst.get_loc(loc.name) {
                     Ok(ty::Ty::StrgRef(name))
                 } else {
                     self.diagnostics
-                        .emit_err(errors::UnresolvedLoc::new(region))
+                        .emit_err(errors::UnresolvedLoc::new(loc))
                         .raise()
                 }
             }
@@ -397,7 +379,7 @@ impl<'tcx> Resolver<'tcx> {
 
 impl Subst {
     fn new() -> Self {
-        Self { exprs: ScopeMap::new(), regions: FxHashMap::default(), types: ScopeMap::new() }
+        Self { exprs: ScopeMap::new(), locs: FxHashMap::default(), types: ScopeMap::new() }
     }
 
     fn push_expr_layer(&mut self) {
@@ -417,8 +399,8 @@ impl Subst {
         }
     }
 
-    fn insert_region(&mut self, symb: Symbol, name: Name) -> Option<Name> {
-        self.regions.insert(symb, name)
+    fn insert_loc(&mut self, symb: Symbol, name: Name) -> Option<Name> {
+        self.locs.insert(symb, name)
     }
 
     fn insert_type(&mut self, did: DefId, name: Symbol) {
@@ -426,6 +408,16 @@ impl Subst {
         let param_ty = ty::ParamTy { index, name };
         assert!(!self.types.contains_key_at_top(&did));
         self.types.define(did, param_ty);
+    }
+
+    fn insert_generic_types(&mut self, tcx: TyCtxt, generics: &hir::Generics) {
+        for param in generics.params {
+            if let hir::GenericParamKind::Type { .. } = param.kind {
+                let def_id = tcx.hir().local_def_id(param.hir_id).to_def_id();
+                let name = param.name.ident().name;
+                self.insert_type(def_id, name);
+            }
+        }
     }
 
     fn push_type_layer(&mut self) {
@@ -436,8 +428,8 @@ impl Subst {
         self.exprs.get(&symb).copied()
     }
 
-    fn get_region(&self, symb: Symbol) -> Option<Name> {
-        self.regions.get(&symb).copied()
+    fn get_loc(&self, symb: Symbol) -> Option<Name> {
+        self.locs.get(&symb).copied()
     }
 
     fn get_param_ty(&self, did: DefId) -> Option<ParamTy> {

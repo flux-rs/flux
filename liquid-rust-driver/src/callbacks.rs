@@ -41,7 +41,10 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let adt_defs: AdtDefs = specs
         .adts
         .into_iter()
-        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_spec(tcx, def_id, spec)?)))
+        .map(|(def_id, spec)| {
+            let mut resolver = Resolver::from_adt(tcx, def_id)?;
+            Ok((def_id, resolver.resolve_adt_spec(spec)?))
+        })
         .try_collect_exhaust()?;
 
     let wf = Wf::new(sess, &adt_defs);
@@ -49,7 +52,8 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .fns
         .into_iter()
         .map(|(def_id, spec)| {
-            let fn_sig = Resolver::resolve(tcx, def_id, spec.fn_sig)?;
+            let mut resolver = Resolver::from_fn(tcx, def_id)?;
+            let fn_sig = resolver.resolve_fn_sig(def_id, spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
             Ok((def_id, FnSpec { fn_sig, assume: spec.assume }))
         })
