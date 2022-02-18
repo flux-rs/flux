@@ -14,7 +14,6 @@ use rustc_middle::{
 
 use crate::ty::Ty;
 
-#[derive(Debug)]
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
@@ -168,12 +167,30 @@ impl Place {
     }
 }
 
+impl fmt::Debug for Body<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (bb, data) in self.basic_blocks.iter_enumerated() {
+            writeln!(
+                f,
+                "{bb:?}: {{{}",
+                data.statements
+                    .iter()
+                    .filter(|stmt| !matches!(stmt.kind, StatementKind::Nop))
+                    .format_with("", |stmt, f| f(&format_args!("\n    {stmt:?};")))
+            )?;
+            if let Some(terminator) = &data.terminator {
+                writeln!(f, "    {terminator:?}", terminator = terminator)?;
+            }
+            writeln!(f, "}}\n")?;
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            StatementKind::Assign(place, rvalue) => {
-                write!(f, "{:?} = {:?}", place, rvalue)
-            }
+            StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
             StatementKind::Nop => write!(f, "nop"),
         }
     }
