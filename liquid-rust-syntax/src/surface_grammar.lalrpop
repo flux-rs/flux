@@ -25,7 +25,7 @@ pub FnSig: surface::FnSig = {
     }
 }
 
-Env  = <Comma<(<Ident> ":" <Ty>)>>;
+Env  = <Comma<(<Ident> "@" <Ty>)>>;
 
 Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
