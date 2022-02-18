@@ -107,7 +107,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
-                // let fn_sig = self.parse_fn_annot_sig(tokens.clone(), span.entire())?;
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
                 LiquidAttrKind::FnSig(fn_sig)
             }
