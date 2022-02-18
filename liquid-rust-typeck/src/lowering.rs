@@ -73,7 +73,7 @@ impl LoweringCtxt {
         params: &[core::Param],
     ) -> Vec<ty::Param> {
         params
-            .into_iter()
+            .iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
                 self.params.insert(param.name.name, fresh);

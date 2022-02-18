@@ -63,7 +63,7 @@ impl Wf<'_> {
             .iter()
             .map(|param| {
                 env.insert(core::Var::Free(param.name.name), lower_sort(param.sort));
-                self.check_expr(&env, &param.pred, ty::Sort::bool())
+                self.check_expr(env, &param.pred, ty::Sort::bool())
             })
             .try_collect_exhaust()
     }

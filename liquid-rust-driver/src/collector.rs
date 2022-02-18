@@ -197,7 +197,7 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
             ItemKind::Struct(data, ..) => {
                 let hir_id = item.hir_id();
                 let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_struct_spec(item.def_id, attrs, &data);
+                let _ = self.parse_struct_spec(item.def_id, attrs, data);
             }
             _ => (),
         }
