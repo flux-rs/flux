@@ -4,8 +4,10 @@ use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::{IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 
+#[derive(Debug)]
 pub struct AdtDef {
     pub refined_by: Vec<(Name, Sort)>,
+    pub fields: Vec<Option<Ty>>,
 }
 
 #[derive(Debug)]

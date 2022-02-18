@@ -13,6 +13,8 @@ use rustc_middle::ty::TyCtxt;
 use rustc_session::{Session, SessionDiagnostic};
 use rustc_span::{sym, symbol::kw, Symbol};
 
+use crate::collector::AdtSpec;
+
 type NameResTable = FxHashMap<Symbol, hir::def::Res>;
 
 pub struct Resolver<'tcx> {
@@ -66,17 +68,49 @@ impl<'tcx> Resolver<'tcx> {
         resolver.run(fn_sig)
     }
 
-    pub fn resolve_adt_def(
+    pub fn resolve_adt_spec(
         tcx: TyCtxt<'tcx>,
-        refined_by: Vec<ast::RefinedByParam>,
+        def_id: LocalDefId,
+        spec: AdtSpec,
     ) -> Result<ty::AdtDef, ErrorReported> {
+        let name_gen = IndexGen::new();
+        let mut subst = Subst::new();
+
         let mut diagnostics = Diagnostics::new(tcx.sess);
-        let refined_by = refined_by
+        let refined_by: Vec<_> = spec
+            .refined_by
             .into_iter()
-            .enumerate()
-            .map(|(idx, param)| Ok((Name::new(idx), resolve_sort(&mut diagnostics, param.sort)?)))
+            .map(|param| {
+                let fresh = name_gen.fresh();
+                subst.insert_expr(param.name.name, ty::Var::Free(fresh));
+                Ok((fresh, resolve_sort(&mut diagnostics, param.sort)?))
+            })
             .try_collect_exhaust()?;
-        Ok(ty::AdtDef { refined_by })
+
+        let item = tcx.hir().expect_item(def_id);
+        let data = if let ItemKind::Struct(data, _) = &item.kind {
+            data
+        } else {
+            panic!("expected a struct")
+        };
+
+        let mut name_res_table = FxHashMap::default();
+        for field in data.fields() {
+            collect_res_ty(&mut diagnostics, field.ty, &mut name_res_table)?;
+        }
+
+        let mut resolver = Self { tcx, diagnostics, parent: None, def_id, name_res_table };
+
+        let fields = spec
+            .fields
+            .into_iter()
+            .map(|ty| {
+                ty.map(|spec| resolver.resolve_ty(spec, &mut subst))
+                    .transpose()
+            })
+            .try_collect_exhaust()?;
+
+        Ok(ty::AdtDef { refined_by, fields })
     }
 
     fn run(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
@@ -94,8 +128,6 @@ impl<'tcx> Resolver<'tcx> {
         self.insert_generic_types(hir_generics, &mut subst);
 
         let params = self.resolve_generics(fn_sig.generics, &name_gen, &mut subst);
-
-        // From here on each step is independent so we check for errors at the end.
 
         let requires = fn_sig
             .requires

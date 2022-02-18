@@ -37,12 +37,11 @@ impl Callbacks for LiquidCallbacks {
 
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
-    println!("{:#?}", specs.adts);
 
     let adt_defs: AdtDefs = specs
         .adts
         .into_iter()
-        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_def(tcx, spec.refined_by)?)))
+        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_spec(tcx, def_id, spec)?)))
         .try_collect_exhaust()?;
 
     let wf = Wf::new(sess, &adt_defs);
