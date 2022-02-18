@@ -2,18 +2,17 @@ pub use rustc_ast::token::LitKind;
 pub use rustc_span::symbol::Ident;
 use rustc_span::{Span, Symbol};
 
+/* The concrete syntax for a function signature looks like
 
-/* The concrete syntax for a function signature looks like 
-   
         fn<generics>(requires;args) -> ret;ensures
 
-    For example, consider the signature 
+    For example, consider the signature
 
-        fn ref_join<n: int, m: int{m > n}>(bool, i32@n, i32@m) -> i32{v: v >= 0} 
+        fn ref_join<n: int, m: int{m > n}>(bool, i32@n, i32@m) -> i32{v: v >= 0}
 
         fn inc<n: int>(l: i32@n; ref<l>) -> (); l: i32 @ {n+1})
 
-    The `generics` refers to the value binders for `n` and `m` 
+    The `generics` refers to the value binders for `n` and `m`
 
     The inputs are each a `Ty
 */
@@ -26,7 +25,6 @@ pub struct RefinedByParam {
 
 #[derive(Debug)]
 pub struct FnSig {
-
     /// example: `<n: int>`
     pub generics: Generics,
 
@@ -79,7 +77,6 @@ pub struct Path {
     pub args: Option<Vec<Ty>>,
     pub span: Span,
 }
-
 
 /// `GenericParam` represents a "value" binder
 #[derive(Debug)]
