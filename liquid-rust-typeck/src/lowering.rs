@@ -1,4 +1,4 @@
-use crate::{global_env::GlobalEnv, ty};
+use crate::ty;
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
@@ -13,9 +13,10 @@ impl LoweringCtxt {
         Self { params: FxHashMap::default(), locs: FxHashMap::default() }
     }
 
-    pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: &core::FnSig) -> ty::FnSig {
+    pub fn lower_fn_sig(fn_sig: &core::FnSig) -> ty::FnSig {
         let name_gen = IndexGen::new();
-        let fresh_kvar = &mut |_| unreachable!("inference predicate in top level function");
+        let fresh_kvar =
+            &mut |_: &ty::BaseTy| unreachable!("inference predicate in top level function");
 
         let mut cx = LoweringCtxt::empty();
 
@@ -24,13 +25,13 @@ impl LoweringCtxt {
         let mut requires = vec![];
         for (loc, ty) in &fn_sig.requires {
             let fresh = name_gen.fresh();
-            requires.push((fresh, cx.lower_ty(genv, ty, fresh_kvar)));
+            requires.push((fresh, cx.lower_ty(ty, fresh_kvar)));
             cx.locs.insert(*loc, fresh);
         }
 
         let mut args = vec![];
         for ty in &fn_sig.args {
-            args.push(cx.lower_ty(genv, ty, fresh_kvar));
+            args.push(cx.lower_ty(ty, fresh_kvar));
         }
 
         let mut ensures = vec![];
@@ -42,10 +43,10 @@ impl LoweringCtxt {
                 cx.locs.insert(*loc, fresh);
                 fresh
             };
-            ensures.push((loc, cx.lower_ty(genv, ty, fresh_kvar)));
+            ensures.push((loc, cx.lower_ty(ty, fresh_kvar)));
         }
 
-        let ret = cx.lower_ty(genv, &fn_sig.ret, fresh_kvar);
+        let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
         ty::FnSig { params, requires, args, ret, ensures }
     }
@@ -78,19 +79,18 @@ impl LoweringCtxt {
 
     pub fn lower_ty(
         &self,
-        genv: &GlobalEnv,
         ty: &core::Ty,
-        fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
     ) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, refine) => {
                 let refine = ty::Expr::tuple(refine.exprs.iter().map(|e| self.lower_expr(e)));
-                ty::TyKind::Refine(self.lower_base_ty(genv, bty, fresh_kvar), refine).intern()
+                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), refine).intern()
             }
             core::Ty::Exists(bty, pred) => {
-                let bty = self.lower_base_ty(genv, bty, fresh_kvar);
+                let bty = self.lower_base_ty(bty, fresh_kvar);
                 let pred = match pred {
-                    core::Pred::Infer => fresh_kvar(genv.sort(&bty)),
+                    core::Pred::Infer => fresh_kvar(&bty),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
                 ty::TyKind::Exists(bty, pred).intern()
@@ -98,21 +98,16 @@ impl LoweringCtxt {
             core::Ty::StrgRef(loc) => {
                 ty::TyKind::StrgRef(ty::Loc::Abstract(self.locs[loc])).intern()
             }
-            core::Ty::WeakRef(ty) => {
-                ty::TyKind::WeakRef(self.lower_ty(genv, ty, fresh_kvar)).intern()
-            }
-            core::Ty::ShrRef(ty) => {
-                ty::TyKind::ShrRef(self.lower_ty(genv, ty, fresh_kvar)).intern()
-            }
+            core::Ty::WeakRef(ty) => ty::TyKind::WeakRef(self.lower_ty(ty, fresh_kvar)).intern(),
+            core::Ty::ShrRef(ty) => ty::TyKind::ShrRef(self.lower_ty(ty, fresh_kvar)).intern(),
             core::Ty::Param(param) => ty::TyKind::Param(*param).intern(),
         }
     }
 
     fn lower_base_ty(
         &self,
-        genv: &GlobalEnv,
         bty: &core::BaseTy,
-        fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
     ) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
@@ -121,7 +116,7 @@ impl LoweringCtxt {
             core::BaseTy::Adt(did, substs) => {
                 let substs = substs
                     .iter()
-                    .map(|ty| self.lower_ty(genv, ty, fresh_kvar))
+                    .map(|ty| self.lower_ty(ty, fresh_kvar))
                     .collect();
                 ty::BaseTy::Adt(*did, substs)
             }
