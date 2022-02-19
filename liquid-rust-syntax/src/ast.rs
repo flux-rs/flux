@@ -18,12 +18,6 @@ use rustc_span::{Span, Symbol};
 */
 
 #[derive(Debug)]
-pub struct RefinedByParam {
-    pub name: Ident,
-    pub sort: Ident,
-}
-
-#[derive(Debug)]
 pub struct FnSig {
     /// example: `<n: int>`
     pub generics: Generics,

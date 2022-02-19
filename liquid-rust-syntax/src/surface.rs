@@ -72,10 +72,7 @@ fn convert_path(p: Path) -> ast::Path {
     ast::Path {
         ident: p.ident,
         span: p.span,
-        args: match p.args {
-            Some(ts) => Some(ts.into_iter().map(convert_ty).collect()),
-            None => None,
-        },
+        args: p.args.map(|ts| ts.into_iter().map(convert_ty).collect()),
     }
 }
 
@@ -104,7 +101,7 @@ fn is_bool(path: &Path) -> bool {
     path.ident.as_str() == "bool"
 }
 
-// TODO: hack - need better way to "embed" rust types to sort
+// HACK(ranjitjhala) need better way to "embed" rust types to sort
 fn mk_sort(path: &Path, span: Span) -> Ident {
     let sort_name = if is_bool(path) { "bool" } else { "int" };
     Ident { name: rustc_span::Symbol::intern(sort_name), span }

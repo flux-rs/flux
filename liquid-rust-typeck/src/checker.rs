@@ -112,7 +112,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         fn_sig: &core::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let mut bb_envs = FxHashMap::default();
         Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
@@ -132,7 +132,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(genv, fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
         let mut kvars = KVarStore::new();
 
         // println!("\n---------------------------------------\n{shapes:#?}\n");
@@ -320,19 +320,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         let fn_sig = self.genv.lookup_fn_sig(func);
-        let fn_sig = LoweringCtxt::lower_fn_sig(self.genv, fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let actuals = args
             .iter()
             .map(|arg| self.check_operand(env, arg))
             .collect_vec();
 
-        let cx = LoweringCtxt::empty(self.genv);
+        let cx = LoweringCtxt::empty();
         let scope = cursor.scope();
-        let fresh_kvar = &mut |sort| self.mode.fresh_kvar(sort, scope.iter());
+        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(self.genv.sort(bty), scope.iter());
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty, fresh_kvar))
+            .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);

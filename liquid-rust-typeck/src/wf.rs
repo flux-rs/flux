@@ -3,42 +3,33 @@ use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
 
-use crate::{global_env::AdtDefs, lowering::lower_sort, ty};
+use crate::{lowering::lower_sort, ty};
 
 pub struct Wf<'a> {
     sess: &'a Session,
-    adt_defs: &'a AdtDefs,
+    adt_defs: &'a core::AdtDefs,
 }
 
 type Env = FxHashMap<core::Var, ty::Sort>;
 
 impl Wf<'_> {
-    pub fn new<'a>(sess: &'a Session, adt_defs: &'a AdtDefs) -> Wf<'a> {
+    pub fn new<'a>(sess: &'a Session, adt_defs: &'a core::AdtDefs) -> Wf<'a> {
         Wf { sess, adt_defs }
     }
 
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorReported> {
         let mut env = Env::default();
-        let params = fn_sig
-            .params
-            .iter()
-            .map(|param| {
-                env.insert(core::Var::Free(param.name.name), lower_sort(param.sort));
-                self.check_expr(&env, &param.pred, ty::Sort::bool())
-            })
-            .try_collect_exhaust();
+        let params = self.check_params(&mut env, &fn_sig.params);
 
         let args = fn_sig
             .args
             .iter()
-            .map(|ty| self.check_type(&mut env, ty))
-            .try_collect_exhaust();
+            .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
 
         let ensures = fn_sig
             .ensures
             .iter()
-            .map(|(_, ty)| self.check_type(&mut env, ty))
-            .try_collect_exhaust();
+            .try_for_each_exhaust(|(_, ty)| self.check_type(&mut env, ty));
 
         let ret = self.check_type(&mut env, &fn_sig.ret);
 
@@ -50,15 +41,40 @@ impl Wf<'_> {
         Ok(())
     }
 
+    pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
+        let mut env = Env::default();
+        let refined_by = self.check_params(&mut env, def.refined_by());
+
+        if let core::AdtDef::Transparent { fields, .. } = def {
+            fields
+                .iter()
+                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty))?;
+        }
+
+        refined_by
+    }
+
+    fn check_params(&self, env: &mut Env, params: &[core::Param]) -> Result<(), ErrorReported> {
+        params
+            .iter()
+            .map(|param| {
+                env.insert(core::Var::Free(param.name.name), lower_sort(param.sort));
+                self.check_expr(env, &param.pred, ty::Sort::bool())
+            })
+            .try_collect_exhaust()
+    }
+
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
             core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sort(bty)),
             core::Ty::Exists(bty, pred) => {
                 env.insert(core::Var::Bound, self.sort(bty));
-                self.check_pred(env, pred, ty::Sort::bool())
+                self.check_pred(env, pred, ty::Sort::bool())?;
+                env.remove(&core::Var::Bound);
+                Ok(())
             }
             core::Ty::StrgRef(_) => {
-                // TODO: check identifier is actually a region
+                // TODO: check identifier is actually a loc
                 Ok(())
             }
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
@@ -68,7 +84,7 @@ impl Wf<'_> {
 
     fn check_refine(
         &self,
-        env: &mut Env,
+        env: &Env,
         refine: &core::Refine,
         expected: ty::Sort,
     ) -> Result<(), ErrorReported> {
@@ -76,7 +92,7 @@ impl Wf<'_> {
         if found == expected {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(Some(refine.span), found, expected))
+            self.emit_err(errors::SortMismatch::new(Some(refine.span), expected, found))
         }
     }
 
@@ -167,8 +183,8 @@ impl Wf<'_> {
             core::BaseTy::Uint(_) => ty::Sort::int(),
             core::BaseTy::Bool => ty::Sort::bool(),
             core::BaseTy::Adt(def_id, _) => {
-                if let Some(def) = self.adt_defs.get(*def_id) {
-                    ty::Sort::tuple(def.refined_by.iter().map(|(_, sort)| sort.clone()))
+                if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
+                    ty::Sort::tuple(def.refined_by().iter().map(|param| lower_sort(param.sort)))
                 } else {
                     ty::Sort::unit()
                 }

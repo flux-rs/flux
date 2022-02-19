@@ -8,7 +8,6 @@ pub mod ast;
 pub mod lexer;
 pub mod surface;
 
-use ast::{FnSig, RefinedByParam};
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
@@ -40,17 +39,21 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
+pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
     parse!(grammar::FnSigParser, tokens, span)
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<RefinedByParam>> {
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Generics> {
     parse!(grammar::RefinedByParser, tokens, span)
 }
 
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
     let res = parse!(surface_grammar::FnSigParser, tokens, span);
-    res.map(|sig| surface::desugar(sig))
+    res.map(surface::desugar)
+}
+
+pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<ast::Ty> {
+    parse!(grammar::TyParser, tokens, span)
 }
 
 pub enum UserParseError {

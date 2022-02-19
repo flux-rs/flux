@@ -5,7 +5,7 @@ use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 
 use crate::{
-    lowering::lower_adt_def,
+    lowering::LoweringCtxt,
     ty::{self, BaseTy, Sort},
 };
 
@@ -16,27 +16,24 @@ pub struct FnSpec {
 
 pub struct GlobalEnv<'tcx> {
     pub fn_specs: FxHashMap<LocalDefId, FnSpec>,
-    pub adt_defs: AdtDefs,
+    pub adt_defs: FxHashMap<LocalDefId, ty::AdtDef>,
     pub tcx: TyCtxt<'tcx>,
-}
-
-pub struct AdtDefs {
-    map: FxHashMap<LocalDefId, ty::AdtDef>,
-}
-
-impl AdtDefs {
-    pub fn new(adt_defs: FxHashMap<LocalDefId, ty::AdtDef>) -> Self {
-        Self { map: adt_defs }
-    }
 }
 
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(
         tcx: TyCtxt<'tcx>,
         fn_specs: FxHashMap<LocalDefId, FnSpec>,
-        adt_defs: AdtDefs,
+        adt_defs: core::AdtDefs,
     ) -> Self {
-        GlobalEnv { fn_specs, adt_defs, tcx }
+        GlobalEnv {
+            fn_specs,
+            adt_defs: adt_defs
+                .into_iter()
+                .map(|(did, def)| (did, LoweringCtxt::lower_adt_def(def)))
+                .collect(),
+            tcx,
+        }
     }
 
     pub fn lookup_fn_sig(&self, did: DefId) -> &core::FnSig {
@@ -52,29 +49,12 @@ impl<'tcx> GlobalEnv<'tcx> {
             BaseTy::Int(_) | BaseTy::Uint(_) => Sort::int(),
             BaseTy::Bool => Sort::bool(),
             BaseTy::Adt(def_id, _) => {
-                if let Some(def) = self.adt_defs.get(*def_id) {
-                    Sort::tuple(def.refined_by.iter().map(|(_, sort)| sort.clone()))
+                if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(&did)) {
+                    Sort::tuple(def.refined_by().iter().map(|param| param.sort.clone()))
                 } else {
                     Sort::unit()
                 }
             }
-        }
-    }
-}
-
-impl AdtDefs {
-    pub fn get(&self, did: DefId) -> Option<&ty::AdtDef> {
-        self.map.get(&did.as_local()?)
-    }
-}
-
-impl FromIterator<(LocalDefId, core::AdtDef)> for AdtDefs {
-    fn from_iter<T: IntoIterator<Item = (LocalDefId, core::AdtDef)>>(iter: T) -> Self {
-        AdtDefs {
-            map: iter
-                .into_iter()
-                .map(|(did, def)| (did, lower_adt_def(def)))
-                .collect(),
         }
     }
 }
