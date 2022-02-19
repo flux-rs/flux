@@ -15,6 +15,11 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
+pub struct FnSpec {
+    pub fn_sig: FnSig,
+    pub assume: bool,
+}
+
 #[derive(Debug)]
 pub struct FnSig {
     pub params: Vec<Param>,

@@ -1,9 +1,6 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_typeck::{
-    self as typeck,
-    global_env::{FnSpec, GlobalEnv},
-    wf::Wf,
-};
+use liquid_rust_core::ty as core;
+use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
@@ -58,7 +55,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
             let mut resolver = Resolver::from_fn(tcx, def_id)?;
             let fn_sig = resolver.resolve_fn_sig(def_id, spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
-            Ok((def_id, FnSpec { fn_sig, assume: spec.assume }))
+            Ok((def_id, core::FnSpec { fn_sig, assume: spec.assume }))
         })
         .try_collect_exhaust()?;
 

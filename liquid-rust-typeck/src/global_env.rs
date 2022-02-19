@@ -9,13 +9,8 @@ use crate::{
     ty::{self, BaseTy, Sort},
 };
 
-pub struct FnSpec {
-    pub fn_sig: core::FnSig,
-    pub assume: bool,
-}
-
 pub struct GlobalEnv<'tcx> {
-    pub fn_specs: FxHashMap<LocalDefId, FnSpec>,
+    pub fn_specs: FxHashMap<LocalDefId, ty::FnSpec>,
     pub adt_defs: FxHashMap<LocalDefId, ty::AdtDef>,
     pub tcx: TyCtxt<'tcx>,
 }
@@ -23,11 +18,14 @@ pub struct GlobalEnv<'tcx> {
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(
         tcx: TyCtxt<'tcx>,
-        fn_specs: FxHashMap<LocalDefId, FnSpec>,
+        fn_specs: FxHashMap<LocalDefId, core::FnSpec>,
         adt_defs: core::AdtDefs,
     ) -> Self {
         GlobalEnv {
-            fn_specs,
+            fn_specs: fn_specs
+                .into_iter()
+                .map(|(did, spec)| (did, LoweringCtxt::lower_fn_spec(&spec)))
+                .collect(),
             adt_defs: adt_defs
                 .into_iter()
                 .map(|(did, def)| (did, LoweringCtxt::lower_adt_def(def)))
@@ -36,7 +34,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         }
     }
 
-    pub fn lookup_fn_sig(&self, did: DefId) -> &core::FnSig {
+    pub fn lookup_fn_sig(&self, did: DefId) -> &ty::FnSig {
         &self.fn_specs[&did.as_local().unwrap()].fn_sig
     }
 
