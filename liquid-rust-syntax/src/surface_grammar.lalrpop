@@ -12,12 +12,12 @@ grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
-    "(" <requires:Env> ")"
+    "(" <requires:Store> ")"
     "->"
-    <returns:Ty> <ensures:(";" Env)?>
+    <returns:Ty> <ensures:(";" Store)?>
     <hi:@R>
     => {
-        let ensures = match ensures { 
+        let ensures = match ensures {
             Some(tup) => tup.1,
             None => vec![],
         };
@@ -25,7 +25,8 @@ pub FnSig: surface::FnSig = {
     }
 }
 
-Env  = <Comma<(<Ident> "@" <Ty>)>>;
+Env   = <Comma<(<Ident> "@" <Ty>)>>;
+Store = <Comma<(<Ident> ":" <Ty>)>>;
 
 Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
@@ -35,31 +36,16 @@ Ty: surface::Ty = {
 }
 
 TyKind: surface::TyKind = {
-    <ident:Ident> "@" <ty:Ty> => surface::TyKind::Named(ident, Box::new(ty)), 
     "&" "mut"         <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
     "&"               <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Immut, Box::new(ty)),
+    <ident:Ident> "@" <ty:Ty> => surface::TyKind::Named(ident, Box::new(ty)),
     <path:Path>               => surface::TyKind::Base(<>),
-    <path:Path> "{" <pred:Level1> "}" => surface::TyKind::AnonEx { <> }, 
-    <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" 
+    <path:Path> "{" <pred:Level1> "}" => surface::TyKind::AnonEx { <> },
+    <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}"
                               => surface::TyKind::Exists { <> },
-
-    // <path:Path> "@" <refine:Refinement>                => ast::TyKind::RefineTy { <> },
-    // "ref" "<" <ident:Ident> ">"                        => ast::TyKind::StrgRef(<>),
-    // "&" <Ty>                                           => ast::TyKind::Ref(Box::new(<>)),
 }
 
-// NamedTy: surface::NamedTy = { 
-//     <lo:@L> <kind:NamedTyKind> <hi:@L> => surface::NamedTy {
-//         kind,
-//         span: mk_span(lo, hi)
-//     }
-// }
 
-// NamedTyKind: surface::NamedTyKind = {
-//     <ident:Ident> "@" <ty:Ty> => surface::NamedTyKind::NamedBase(ident, ty), 
-//                       <ty:Ty> => surface::NamedTyKind::AnonBase(ty), 
-
-// }
 
 GenericArgs: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">"
@@ -190,10 +176,10 @@ extern {
     type Error = UserParseError;
 
     enum Token {
+        "mut" => Token::Mut,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
-        "mut" => Token::Mut,
         "ref" => Token::Ref,
         "@"  => Token::At,
         "==" => Token::EqEq,

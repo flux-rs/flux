@@ -49,24 +49,6 @@ pub struct Path {
     pub span: Span,
 }
 
-// #[derive(Debug)]
-// pub struct NamedTy {
-//     pub kind: NamedTyKind,
-//     pub span: Span,
-// }
-
-// #[derive(Debug)]
-// pub enum NamedTyKind {
-//     /// For inputs
-//     NamedBase(Ident, Ty),
-
-//     /// For outputs
-//     AnonBase(Ty),
-
-//     /// For inputs and outputs
-//     Ref(RefKind, Box<NamedTy>),
-// }
-
 #[derive(Debug)]
 pub enum RefKind {
     Mut,
@@ -131,12 +113,12 @@ fn mk_generic(x: Ident, pred: Option<Expr>) -> ast::GenericParam {
     ast::GenericParam { name: x, sort: mk_sort(x.span), pred }
 }
 
-fn ident_loc(x: Ident) -> Ident {
-    let mut star = String::from("*");
-    star.push_str(x.name.as_str());
-    let name = rustc_span::Symbol::intern(&star);
-    Ident { name, span: x.span }
-}
+// DELETE fn ident_loc(x: Ident) -> Ident {
+// DELETE     let mut star = String::from("*");
+// DELETE     star.push_str(x.name.as_str());
+// DELETE     let name = rustc_span::Symbol::intern(&star);
+// DELETE     Ident { name, span: x.span }
+// DELETE }
 
 fn path_bind_in(x: Ident, path: Path, span: Span, pred: Option<Expr>) -> BindIn {
     let gen = Some(mk_generic(x, pred));
@@ -160,9 +142,8 @@ fn bind_in(x: Ident, ty: Ty) -> BindIn {
         TyKind::Named(n, t) => bind_in(n, *t),
         TyKind::Ref(_, t) => {
             let b = bind_in(x, *t);
-            let l = ident_loc(x);
-            let ty = ast::Ty { kind: ast::TyKind::StrgRef(l), span: ty.span };
-            BindIn { gen: b.gen, ty, loc: Some((l, b.ty)) }
+            let ty = ast::Ty { kind: ast::TyKind::StrgRef(x), span: ty.span };
+            BindIn { gen: b.gen, ty, loc: Some((x, b.ty)) }
         }
     }
 }
