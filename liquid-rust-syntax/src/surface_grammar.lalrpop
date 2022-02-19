@@ -1,0 +1,207 @@
+use crate::{
+    UserParseError,
+    ast,
+    surface,
+    lexer::{Lit, Location, Token, DelimToken, BinOpToken}
+};
+use rustc_span::{Span, Symbol};
+use lalrpop_util::ParseError;
+
+grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
+
+pub FnSig: surface::FnSig = {
+    <lo:@L>
+    "fn"
+    "(" <requires:Store> ")"
+    "->"
+    <returns:Ty> <ensures:(";" Store)?>
+    <hi:@R>
+    => {
+        let ensures = match ensures {
+            Some(tup) => tup.1,
+            None => vec![],
+        };
+        surface::FnSig { requires, returns, ensures, span: mk_span(lo, hi) }
+    }
+}
+
+Env   = <Comma<(<Ident> "@" <Ty>)>>;
+Store = <Comma<(<Ident> ":" <Ty>)>>;
+
+Ty: surface::Ty = {
+    <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
+        kind,
+        span: mk_span(lo, hi)
+    }
+}
+
+TyKind: surface::TyKind = {
+    "&" "mut"         <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+    "&"               <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Immut, Box::new(ty)),
+    <ident:Ident> "@" <ty:Ty> => surface::TyKind::Named(ident, Box::new(ty)),
+    <path:Path>               => surface::TyKind::Base(<>),
+    <path:Path> "{" <pred:Level1> "}" => surface::TyKind::AnonEx { <> },
+    <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}"
+                              => surface::TyKind::Exists { <> },
+}
+
+
+
+GenericArgs: Vec<surface::Ty> = {
+    "<" <Comma<Ty>> ">"
+}
+
+// The code below is duplicated from grammar.lalrpop ---------------------------------
+
+Path: surface::Path = {
+    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args, span: mk_span(lo, hi) }
+}
+
+Refinement: ast::Expr = {
+    <lo:@L> <lit:Lit> <hi:@R> => {
+        ast::Expr {
+            kind: ast::ExprKind::Literal(lit),
+            span: mk_span(lo, hi),
+        }
+    },
+    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::Var(var),
+        span: mk_span(lo, hi),
+    },
+    "{" <Level1> "}" => <>
+};
+
+Level1 = NonAssoc<BinOp1, Level2>;  // <=>
+Level2 = LeftAssoc<BinOp2, Level3>; // =>
+Level3 = LeftAssoc<BinOp3, Level4>; // ||
+Level4 = LeftAssoc<BinOp4, Level5>; // &&
+Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
+Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
+Level7: ast::Expr = {
+    <lo:@L> <lit:Lit> <hi:@R> => {
+        ast::Expr {
+            kind: ast::ExprKind::Literal(lit),
+            span: mk_span(lo, hi),
+        }
+    },
+    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::Var(var),
+        span: mk_span(lo, hi),
+    },
+    "(" <Level1> ")" => <>
+}
+
+
+NonAssoc<Op, NextLevel>: ast::Expr = {
+    <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => ast::Expr {
+        kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
+        span: mk_span(lo, hi)
+    },
+    NextLevel
+}
+LeftAssoc<Op, NextLevel>: ast::Expr = {
+    <lo:@L> <e1:LeftAssoc<Op, NextLevel>> <op:Op> <e2:NextLevel> <hi:@R> =>
+        ast::Expr {
+            kind: ast::ExprKind::BinaryOp(
+                op,
+                Box::new(e1),
+                Box::new(e2)
+            ),
+            span: mk_span(lo, hi),
+        },
+    NextLevel
+}
+
+BinOp1: ast::BinOp = {
+    "<=>" => ast::BinOp::Iff
+}
+
+BinOp2: ast::BinOp = {
+    "=>" => ast::BinOp::Imp
+}
+
+BinOp3: ast::BinOp = {
+    "||" => ast::BinOp::Or,
+}
+
+BinOp4: ast::BinOp = {
+    "&&" => ast::BinOp::And,
+}
+
+BinOp5: ast::BinOp = {
+    "==" => ast::BinOp::Eq,
+    ">" => ast::BinOp::Gt,
+    ">=" => ast::BinOp::Ge,
+    "<" => ast::BinOp::Lt,
+    "<=" => ast::BinOp::Le,
+}
+
+BinOp6: ast::BinOp = {
+    "+" => ast::BinOp::Add,
+    "-" => ast::BinOp::Sub
+}
+
+Lit: ast::Lit = {
+    <lo:@L> <lit:"literal"> <hi:@R> => ast::Lit {
+        kind: lit.kind,
+        span: mk_span(lo, hi),
+        symbol: lit.symbol
+    },
+}
+
+
+Ident: ast::Ident = {
+    <lo:@L> <name:"ident"> <hi:@R> => {
+        ast::Ident { name, span: mk_span(lo, hi) }
+    }
+}
+
+Sep<S, T>: Vec<T> = {
+    <v:(<T> S)*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+}
+
+Comma<T> = Sep<",", T>;
+
+Binding<A, B>: (A, B) = <A> ":" <B>;
+
+extern {
+    type Location = Location;
+    type Error = UserParseError;
+
+    enum Token {
+        "mut" => Token::Mut,
+        "literal" => Token::Literal(<Lit>),
+        "ident"   => Token::Ident(<Symbol>),
+        "fn" => Token::Fn,
+        "ref" => Token::Ref,
+        "@"  => Token::At,
+        "==" => Token::EqEq,
+        "&&" => Token::AndAnd,
+        "||" => Token::OrOr,
+        "=>" => Token::FatArrow,
+        "<=>" => Token::Iff,
+        "+"  => Token::Plus,
+        "-"  => Token::Minus,
+        "|"  => Token::Caret,
+        "("  => Token::OpenDelim(DelimToken::Paren),
+        ")"  => Token::CloseDelim(DelimToken::Paren),
+        "{"  => Token::OpenDelim(DelimToken::Brace),
+        "}"  => Token::CloseDelim(DelimToken::Brace),
+        "<"  => Token::Lt,
+        "<="  => Token::Le,
+        ">"  => Token::Gt,
+        ">="  => Token::Ge,
+        ":"  => Token::Colon,
+        ";"  => Token::Semi,
+        ","  => Token::Comma,
+        "->" => Token::RArrow,
+        "&"  => Token::And,
+    }
+}
