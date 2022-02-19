@@ -100,8 +100,14 @@ fn convert_ty(t: Ty) -> ast::Ty {
     ast::Ty { kind: convert_tykind(t.kind), span: t.span }
 }
 
-fn mk_sort(span: Span) -> Ident {
-    Ident { name: rustc_span::Symbol::intern("int"), span }
+fn is_bool(path: &Path) -> bool {
+    path.ident.as_str() == "bool"
+}
+
+// TODO: hack - need better way to "embed" rust types to sort
+fn mk_sort(path: &Path, span: Span) -> Ident {
+    let sort_name = if is_bool(path) { "bool" } else { "int" };
+    Ident { name: rustc_span::Symbol::intern(sort_name), span }
 }
 
 fn mk_singleton(x: Ident) -> ast::Refine {
@@ -109,13 +115,13 @@ fn mk_singleton(x: Ident) -> ast::Refine {
     ast::Refine { exprs: vec![e], span: x.span }
 }
 
-fn mk_generic(x: Ident, pred: Option<Expr>) -> ast::GenericParam {
-    ast::GenericParam { name: x, sort: mk_sort(x.span), pred }
+fn mk_generic(x: Ident, path: &Path, pred: Option<Expr>) -> ast::GenericParam {
+    ast::GenericParam { name: x, sort: mk_sort(path, x.span), pred }
 }
 
 impl BindIn {
     fn from_path(x: Ident, path: Path, span: Span, pred: Option<Expr>) -> BindIn {
-        let gen = Some(mk_generic(x, pred));
+        let gen = Some(mk_generic(x, &path, pred));
         let path = convert_path(path);
         let refine = mk_singleton(x);
         let kind = ast::TyKind::RefineTy { path, refine };
