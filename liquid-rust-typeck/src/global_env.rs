@@ -24,7 +24,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         GlobalEnv {
             fn_specs: fn_specs
                 .into_iter()
-                .map(|(did, spec)| (did, LoweringCtxt::lower_fn_spec(&spec)))
+                .map(|(did, spec)| (did, LoweringCtxt::lower_fn_spec(spec)))
                 .collect(),
             adt_defs: adt_defs
                 .into_iter()

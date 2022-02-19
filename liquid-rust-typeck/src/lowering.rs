@@ -13,7 +13,7 @@ impl LoweringCtxt {
         Self { params: FxHashMap::default(), locs: FxHashMap::default() }
     }
 
-    pub fn lower_fn_spec(fn_spec: &core::FnSpec) -> ty::FnSpec {
+    pub fn lower_fn_spec(fn_spec: core::FnSpec) -> ty::FnSpec {
         let core::FnSpec { fn_sig, assume } = fn_spec;
 
         let name_gen = IndexGen::new();
@@ -25,15 +25,15 @@ impl LoweringCtxt {
         let params = cx.lower_params(&name_gen, &fn_sig.params);
 
         let mut requires = vec![];
-        for (loc, ty) in &fn_sig.requires {
+        for (loc, ty) in fn_sig.requires {
             let fresh = name_gen.fresh();
-            requires.push((fresh, cx.lower_ty(ty, fresh_kvar)));
-            cx.locs.insert(*loc, fresh);
+            requires.push((fresh, cx.lower_ty(&ty, fresh_kvar)));
+            cx.locs.insert(loc, fresh);
         }
 
         let mut args = vec![];
-        for ty in &fn_sig.args {
-            args.push(cx.lower_ty(ty, fresh_kvar));
+        for ty in fn_sig.args {
+            args.push(cx.lower_ty(&ty, fresh_kvar));
         }
 
         let mut ensures = vec![];
@@ -50,7 +50,7 @@ impl LoweringCtxt {
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        ty::FnSpec { fn_sig: ty::FnSig { params, requires, args, ret, ensures }, assume: *assume }
+        ty::FnSpec { fn_sig: ty::FnSig { params, requires, args, ret, ensures }, assume }
     }
 
     pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
