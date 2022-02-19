@@ -74,7 +74,7 @@ impl Wf<'_> {
                 Ok(())
             }
             core::Ty::StrgRef(_) => {
-                // TODO: check identifier is actually a loc
+                // TODO(nilehmann) check identifier is actually a loc
                 Ok(())
             }
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),

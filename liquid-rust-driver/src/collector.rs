@@ -25,7 +25,7 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 
 pub struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
-    pub adts: FxHashMap<LocalDefId, AdtSpec>,
+    pub adts: FxHashMap<LocalDefId, AdtDef>,
 }
 
 pub struct FnSpec {
@@ -34,7 +34,7 @@ pub struct FnSpec {
 }
 
 #[derive(Debug)]
-pub struct AdtSpec {
+pub struct AdtDef {
     pub refined_by: Option<ast::Generics>,
     pub fields: Vec<Option<ast::Ty>>,
     pub opaque: bool,
@@ -60,7 +60,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        // TODO: error if it has non-fun attrs
+        // TODO(nilehmann) error if it has non-fun attrs
 
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
@@ -71,7 +71,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_struct_spec(
+    fn parse_struct_def(
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
@@ -79,8 +79,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        // TODO: error on field attrs if opaque
-        // TODO: error if it has non-struct attrs
+        // TODO(nilehmann) error on field attrs if opaque
+        // TODO(nilehmann) error if it has non-struct attrs
 
         let opaque = attrs.opaque();
 
@@ -94,7 +94,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .adts
-            .insert(def_id, AdtSpec { refined_by, fields, opaque });
+            .insert(def_id, AdtDef { refined_by, fields, opaque });
 
         Ok(())
     }
@@ -210,7 +210,7 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
             ItemKind::Struct(data, ..) => {
                 let hir_id = item.hir_id();
                 let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_struct_spec(item.def_id, attrs, data);
+                let _ = self.parse_struct_def(item.def_id, attrs, data);
             }
             _ => (),
         }

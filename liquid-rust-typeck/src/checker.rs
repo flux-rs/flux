@@ -109,13 +109,12 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
-        fn_sig: &core::FnSig,
+        fn_sig: &ty::FnSig,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let mut bb_envs = FxHashMap::default();
-        Checker::run(genv, &mut pure_cx, body, &fn_sig, Inference { bb_envs: &mut bb_envs })?;
+        Checker::run(genv, &mut pure_cx, body, fn_sig, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -128,11 +127,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     pub fn check(
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
-        fn_sig: &core::FnSig,
+        fn_sig: &ty::FnSig,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
         let mut pure_cx = PureCtxt::new();
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
         let mut kvars = KVarStore::new();
 
         // println!("\n---------------------------------------\n{shapes:#?}\n");
@@ -141,7 +139,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
             genv,
             &mut pure_cx,
             body,
-            &fn_sig,
+            fn_sig,
             Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
         )?;
 
@@ -320,7 +318,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         let fn_sig = self.genv.lookup_fn_sig(func);
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
 
         let actuals = args
             .iter()
@@ -336,13 +333,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect();
 
         let mut subst = Subst::with_type_substs(substs);
-        if subst.infer_from_fn_call(env, &actuals, &fn_sig).is_err() {
+        if subst.infer_from_fn_call(env, &actuals, fn_sig).is_err() {
             self.sess
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
             return Err(ErrorReported);
         };
 
-        for param in fn_sig.params {
+        for param in &fn_sig.params {
             cursor.push_head(subst.subst_pred(&param.pred), Tag::Call(source_info.span));
         }
 
@@ -351,16 +348,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             sub.subtyping(actual, subst.subst_ty(formal));
         }
 
-        for (loc, required_ty) in fn_sig.requires {
-            let loc = subst.subst_loc(Loc::Abstract(loc));
+        for (loc, required_ty) in &fn_sig.requires {
+            let loc = subst.subst_loc(Loc::Abstract(*loc));
             let actual_ty = env.lookup_loc(loc);
-            let required_ty = subst.subst_ty(&required_ty);
+            let required_ty = subst.subst_ty(required_ty);
             sub.subtyping(actual_ty, required_ty);
         }
 
-        for (loc, updated_ty) in fn_sig.ensures {
-            let loc = Loc::Abstract(loc);
-            let updated_ty = subst.subst_ty(&updated_ty);
+        for (loc, updated_ty) in &fn_sig.ensures {
+            let loc = Loc::Abstract(*loc);
+            let updated_ty = subst.subst_ty(updated_ty);
             let updated_ty = env.unpack(self.genv, cursor, updated_ty);
             if subst.has_loc(loc) {
                 let loc = subst.subst_loc(loc);
