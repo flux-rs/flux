@@ -113,37 +113,32 @@ fn mk_generic(x: Ident, pred: Option<Expr>) -> ast::GenericParam {
     ast::GenericParam { name: x, sort: mk_sort(x.span), pred }
 }
 
-// DELETE fn ident_loc(x: Ident) -> Ident {
-// DELETE     let mut star = String::from("*");
-// DELETE     star.push_str(x.name.as_str());
-// DELETE     let name = rustc_span::Symbol::intern(&star);
-// DELETE     Ident { name, span: x.span }
-// DELETE }
+impl BindIn {
+    fn from_path(x: Ident, path: Path, span: Span, pred: Option<Expr>) -> BindIn {
+        let gen = Some(mk_generic(x, pred));
+        let path = convert_path(path);
+        let refine = mk_singleton(x);
+        let kind = ast::TyKind::RefineTy { path, refine };
+        let ty = ast::Ty { kind, span };
+        BindIn { gen, ty, loc: None }
+    }
 
-fn path_bind_in(x: Ident, path: Path, span: Span, pred: Option<Expr>) -> BindIn {
-    let gen = Some(mk_generic(x, pred));
-    let path = convert_path(path);
-    let refine = mk_singleton(x);
-    let kind = ast::TyKind::RefineTy { path, refine };
-    let ty = ast::Ty { kind, span };
-    BindIn { gen, ty, loc: None }
-}
-
-fn bind_in(x: Ident, ty: Ty) -> BindIn {
-    match ty.kind {
-        TyKind::AnonEx { path, pred } => path_bind_in(x, path, ty.span, Some(pred)),
-        TyKind::Base(path) => path_bind_in(x, path, ty.span, None),
-        TyKind::Exists { bind, path, pred } => {
-            let path = convert_path(path);
-            let kind = ast::TyKind::Exists { bind, path, pred };
-            let ty = ast::Ty { kind, span: ty.span };
-            BindIn { gen: None, ty, loc: None }
-        }
-        TyKind::Named(n, t) => bind_in(n, *t),
-        TyKind::Ref(_, t) => {
-            let b = bind_in(x, *t);
-            let ty = ast::Ty { kind: ast::TyKind::StrgRef(x), span: ty.span };
-            BindIn { gen: b.gen, ty, loc: Some((x, b.ty)) }
+    fn from_ty(x: Ident, ty: Ty) -> BindIn {
+        match ty.kind {
+            TyKind::AnonEx { path, pred } => BindIn::from_path(x, path, ty.span, Some(pred)),
+            TyKind::Base(path) => BindIn::from_path(x, path, ty.span, None),
+            TyKind::Exists { bind, path, pred } => {
+                let path = convert_path(path);
+                let kind = ast::TyKind::Exists { bind, path, pred };
+                let ty = ast::Ty { kind, span: ty.span };
+                BindIn { gen: None, ty, loc: None }
+            }
+            TyKind::Named(n, t) => BindIn::from_ty(n, *t),
+            TyKind::Ref(_, t) => {
+                let b = BindIn::from_ty(x, *t);
+                let ty = ast::Ty { kind: ast::TyKind::StrgRef(x), span: ty.span };
+                BindIn { gen: b.gen, ty, loc: Some((x, b.ty)) }
+            }
         }
     }
 }
@@ -151,7 +146,7 @@ fn bind_in(x: Ident, ty: Ty) -> BindIn {
 impl Desugar {
     fn desugar_inputs(&mut self, in_sigs: Vec<(Ident, Ty)>) {
         for (x, ty) in in_sigs {
-            let b_in = bind_in(x, ty);
+            let b_in = BindIn::from_ty(x, ty);
             if let Some(g) = b_in.gen {
                 self.generics.push(g);
             }
