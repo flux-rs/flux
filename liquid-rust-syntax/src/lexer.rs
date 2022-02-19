@@ -27,6 +27,7 @@ pub enum Token {
     Fn,
     Iff,
     FatArrow,
+    Mut,
     Literal(Lit),
     Ident(Symbol),
     OpenDelim(DelimToken),
