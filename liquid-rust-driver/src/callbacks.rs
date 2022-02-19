@@ -37,9 +37,9 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let adt_defs = specs
         .adts
         .into_iter()
-        .map(|(def_id, spec)| {
+        .map(|(def_id, def)| {
             let mut resolver = Resolver::from_adt(tcx, def_id)?;
-            Ok((def_id, resolver.resolve_adt_spec(spec)?))
+            Ok((def_id, resolver.resolve_adt_def(def)?))
         })
         .try_collect_exhaust()?;
 

@@ -78,7 +78,7 @@ impl<'tcx> Resolver<'tcx> {
         Ok(Self { tcx, diagnostics, parent: None, name_res_table })
     }
 
-    pub fn resolve_adt_spec(&mut self, spec: AdtDef) -> Result<ty::AdtDef, ErrorReported> {
+    pub fn resolve_adt_def(&mut self, spec: AdtDef) -> Result<ty::AdtDef, ErrorReported> {
         let name_gen = IndexGen::new();
         let mut subst = Subst::new();
 
