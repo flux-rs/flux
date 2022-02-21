@@ -16,7 +16,7 @@ use crate::{
     subst::Subst,
     subtyping::{Sub, Tag},
     ty::{
-        self, BaseTy, BinOp, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
+        self, BaseTy, BinOp, Constr, Expr, ExprKind, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
     },
     type_env::{BasicBlockEnv, TypeEnv},
 };
@@ -45,7 +45,7 @@ pub struct Checker<'a, 'tcx, M> {
     genv: &'a GlobalEnv<'tcx>,
     mode: M,
     ret: Ty,
-    ensures: Vec<(Name, Ty)>,
+    ensures: Vec<Constr>,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
@@ -86,7 +86,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
-        ensures: Vec<(Name, Ty)>,
+        ensures: Vec<Constr>,
         dominators: &'a Dominators<BasicBlock>,
         mode: M,
     ) -> Self {
@@ -109,12 +109,12 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
-        fn_sig: &ty::FnSig,
+        def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
         let mut pure_cx = PureCtxt::new();
 
         let mut bb_envs = FxHashMap::default();
-        Checker::run(genv, &mut pure_cx, body, fn_sig, Inference { bb_envs: &mut bb_envs })?;
+        Checker::run(genv, &mut pure_cx, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -127,7 +127,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     pub fn check(
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
-        fn_sig: &ty::FnSig,
+        def_id: DefId,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
     ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
         let mut pure_cx = PureCtxt::new();
@@ -139,7 +139,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
             genv,
             &mut pure_cx,
             body,
-            fn_sig,
+            def_id,
             Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
         )?;
 
@@ -152,29 +152,31 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         genv: &GlobalEnv<'tcx>,
         pure_cx: &mut PureCtxt,
         body: &Body<'tcx>,
-        fn_sig: &FnSig,
+        def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
+        let fn_sig = genv.lookup_fn_sig(def_id);
+
         let mut cursor = pure_cx.cursor_at_root();
         let mut env = TypeEnv::new();
-        let mut subst = Subst::empty();
+        let subst = Subst::with_fresh_names(&mut cursor, &fn_sig.params);
 
-        for param in &fn_sig.params {
-            cursor.push_binding(param.sort.clone(), |fresh| {
-                subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
-                subst.subst_pred(&param.pred)
-            });
-        }
+        let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
-        for (loc, ty) in &fn_sig.requires {
-            let fresh = cursor.push_loc();
-            let ty = env.unpack(genv, &mut cursor, subst.subst_ty(ty));
-            env.insert_loc(fresh, ty);
-            subst.insert_loc(Loc::Abstract(*loc), fresh);
+        for constr in &fn_sig.requires {
+            match constr {
+                ty::Constr::Type(loc, ty) => {
+                    let ty = env.unpack(genv, &mut cursor, ty);
+                    env.insert_loc(*loc, ty);
+                }
+                ty::Constr::Pred(e) => {
+                    cursor.push_pred(subst.subst_expr(e));
+                }
+            }
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(genv, &mut cursor, subst.subst_ty(ty));
+            let ty = env.unpack(genv, &mut cursor, ty);
             env.insert_loc(Loc::Local(local), ty);
         }
 
@@ -185,14 +187,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
 
         let ret = subst.subst_ty(&fn_sig.ret);
-        let ensures = fn_sig
-            .ensures
-            .iter()
-            .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
-            .collect();
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(genv, body, ret, ensures, &dominators, mode);
+        let mut ck = Checker::new(genv, body, ret, fn_sig.ensures, &dominators, mode);
 
         ck.check_goto(cursor, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -250,7 +247,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(p, rvalue) => {
                 // println!("{stmt:?}");
                 let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
-                let ty = env.unpack(self.genv, cursor, ty);
+                let ty = env.unpack(self.genv, cursor, &ty);
                 let sub = &mut Sub::new(
                     self.genv,
                     cursor.breadcrumb(),
@@ -276,9 +273,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
                 sub.subtyping(ret_place_ty, self.ret.clone());
 
-                for (loc, ensured_ty) in &self.ensures {
-                    let actual_ty = env.lookup_loc(Loc::Abstract(*loc));
-                    sub.subtyping(actual_ty, ensured_ty.clone());
+                for constr in &self.ensures {
+                    sub.check_constr(env, constr);
                 }
                 Ok(vec![])
             }
@@ -338,43 +334,33 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
             return Err(ErrorReported);
         };
-
-        for param in &fn_sig.params {
-            cursor.push_head(subst.subst_pred(&param.pred), Tag::Call(source_info.span));
-        }
+        let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
         let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
             sub.subtyping(actual, subst.subst_ty(formal));
         }
 
-        for (loc, required_ty) in &fn_sig.requires {
-            let loc = subst.subst_loc(Loc::Abstract(*loc));
-            let actual_ty = env.lookup_loc(loc);
-            let required_ty = subst.subst_ty(required_ty);
-            sub.subtyping(actual_ty, required_ty);
+        for constr in &fn_sig.requires {
+            sub.check_constr(env, constr);
         }
 
-        for (loc, updated_ty) in &fn_sig.ensures {
-            let loc = Loc::Abstract(*loc);
-            let updated_ty = subst.subst_ty(updated_ty);
-            let updated_ty = env.unpack(self.genv, cursor, updated_ty);
-            if subst.has_loc(loc) {
-                let loc = subst.subst_loc(loc);
-                let sub =
-                    &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
-                env.update_loc(sub, loc, updated_ty);
-            } else {
-                let fresh = cursor.push_loc();
-                subst.insert_loc(loc, fresh);
-                env.insert_loc(fresh, updated_ty);
+        for constr in &fn_sig.ensures {
+            match constr {
+                Constr::Type(loc, updated_ty) => {
+                    let updated_ty = env.unpack(self.genv, cursor, updated_ty);
+                    let sub =
+                        &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+                    env.update_loc(sub, *loc, updated_ty);
+                }
+                Constr::Pred(e) => cursor.push_pred(subst.subst_expr(e)),
             }
         }
 
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
-            let ret = subst.subst_ty(&fn_sig.ret);
-            let ret = env.unpack(self.genv, cursor, ret);
+            let ret = env.unpack(self.genv, cursor, &fn_sig.ret);
             let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
             env.write_place(sub, p, ret);
             successors.push((*bb, None));
@@ -808,8 +794,8 @@ impl Mode for Check<'_> {
         // println!("\ngoto {target:?}\n{cursor:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        for param in &bb_env.params {
-            cursor.push_head(subst.subst_pred(&param.pred), tag);
+        for constr in &bb_env.constrs {
+            cursor.push_head(subst.subst_pred(constr), tag);
         }
         let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), tag);
         env.transform_into(sub, &bb_env.subst(&subst));

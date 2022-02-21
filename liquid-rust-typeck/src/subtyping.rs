@@ -5,7 +5,8 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::Cursor,
-    ty::{BaseTy, BinOp, ExprKind, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Constr, ExprKind, Ty, TyKind, Var},
+    type_env::TypeEnv,
 };
 
 pub struct Sub<'a, 'tcx> {
@@ -31,6 +32,18 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
 
     fn breadcrumb(&mut self) -> Sub<'_, 'tcx> {
         Sub { cursor: self.cursor.breadcrumb(), ..*self }
+    }
+
+    pub fn check_constr(&mut self, env: &TypeEnv, constr: &Constr) {
+        match constr {
+            Constr::Type(loc, ty) => {
+                let actual_ty = env.lookup_loc(*loc);
+                self.subtyping(actual_ty, ty.clone());
+            }
+            Constr::Pred(e) => {
+                self.cursor.push_head(e.clone(), self.tag);
+            }
+        }
     }
 
     pub fn subtyping(&mut self, ty1: Ty, ty2: Ty) {

@@ -82,10 +82,11 @@ impl<'tcx> Resolver<'tcx> {
         let name_gen = IndexGen::new();
         let mut subst = Subst::new();
 
-        let refined_by = match spec.refined_by {
-            Some(refined_by) => self.resolve_generics(refined_by, &name_gen, &mut subst)?,
-            None => vec![],
+        let (refined_by, constrs) = match spec.refined_by {
+            Some(refined_by) => self.resolve_generic_values(refined_by, &name_gen, &mut subst)?,
+            None => (vec![], vec![]),
         };
+        assert!(constrs.is_empty());
 
         if spec.opaque {
             Ok(ty::AdtDef::Opaque { refined_by })
@@ -118,18 +119,17 @@ impl<'tcx> Resolver<'tcx> {
 
         subst.insert_generic_types(self.tcx, hir_generics);
 
-        let params = self.resolve_generics(fn_sig.generics, &name_gen, &mut subst);
+        let (mut params, mut requires) =
+            self.resolve_generic_values(fn_sig.generics, &name_gen, &mut subst)?;
 
-        let requires = fn_sig
-            .requires
-            .into_iter()
-            .map(|(loc, ty)| {
-                let fresh = name_gen.fresh();
-                subst.insert_loc(loc.name, fresh);
-                let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok((fresh, ty))
-            })
-            .try_collect_exhaust();
+        for (loc, ty) in fn_sig.requires {
+            let fresh = name_gen.fresh();
+            let name = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+            subst.insert_loc(loc.name, fresh);
+            params.push(ty::Param { name, sort: ty::Sort::Loc });
+            let ty = self.resolve_ty(ty, &mut subst)?;
+            requires.push(ty::Constr::Type(fresh, ty));
+        }
 
         let args = fn_sig
             .args
@@ -141,7 +141,7 @@ impl<'tcx> Resolver<'tcx> {
             .ensures
             .into_iter()
             .map(|(loc, ty)| {
-                let name = if let Some(name) = subst.get_loc(loc.name) {
+                let loc = if let Some(name) = subst.get_loc(loc.name) {
                     name
                 } else {
                     let fresh = name_gen.fresh();
@@ -149,50 +149,45 @@ impl<'tcx> Resolver<'tcx> {
                     fresh
                 };
                 let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok((name, ty))
+                Ok(ty::Constr::Type(loc, ty))
             })
             .try_collect_exhaust();
 
         let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
-        Ok(ty::FnSig {
-            params: params?,
-            requires: requires?,
-            args: args?,
-            ret: ret?,
-            ensures: ensures?,
-        })
+        Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
     }
 
-    fn resolve_generics(
+    fn resolve_generic_values(
         &mut self,
         generics: ast::Generics,
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
-    ) -> Result<Vec<ty::Param>, ErrorReported> {
-        generics
-            .into_iter()
-            .map(|param| {
-                let fresh = name_gen.fresh();
-                if subst
-                    .insert_expr(param.name.name, ty::Var::Free(fresh))
-                    .is_some()
-                {
-                    self.diagnostics
-                        .emit_err(errors::DuplicateParam::new(param.name))
-                        .raise()
-                } else {
-                    let name =
-                        ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-                    let sort = resolve_sort(&mut self.diagnostics, param.sort);
-                    let pred = match param.pred {
-                        Some(expr) => self.resolve_expr(expr, subst),
-                        None => Ok(ty::Expr::TRUE),
-                    };
-                    Ok(ty::Param { name, sort: sort?, pred: pred? })
-                }
-            })
-            .try_collect_exhaust()
+    ) -> Result<(Vec<ty::Param>, Vec<ty::Constr>), ErrorReported> {
+        let mut params = vec![];
+        let mut constrs = vec![];
+        for param in generics {
+            let fresh = name_gen.fresh();
+            if subst
+                .insert_expr(param.name.name, ty::Var::Free(fresh))
+                .is_some()
+            {
+                self.diagnostics
+                    .emit_err(errors::DuplicateParam::new(param.name));
+            } else {
+                let name =
+                    ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
+                let sort = resolve_sort(&mut self.diagnostics, param.sort);
+
+                if let Some(expr) = param.pred {
+                    constrs.push(ty::Constr::Pred(self.resolve_expr(expr, subst)?))
+                };
+                params.push(ty::Param { name, sort: sort? });
+            }
+        }
+        self.diagnostics.raise_if_errors()?;
+
+        Ok((params, constrs))
     }
 
     fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
@@ -447,14 +442,14 @@ impl Diagnostics<'_> {
         Err(ErrorReported)
     }
 
-    // fn raise_if_errors(&mut self) -> Result<(), ErrorReported> {
-    //     if self.errors > 0 {
-    //         self.errors = 0;
-    //         Err(ErrorReported)
-    //     } else {
-    //         Ok(())
-    //     }
-    // }
+    fn raise_if_errors(&mut self) -> Result<(), ErrorReported> {
+        if self.errors > 0 {
+            self.errors = 0;
+            Err(ErrorReported)
+        } else {
+            Ok(())
+        }
+    }
 
     fn emit_err<'a>(&'a mut self, err: impl SessionDiagnostic<'a>) -> &mut Self {
         self.sess.emit_err(err);

@@ -17,24 +17,33 @@ pub enum AdtDef {
 }
 
 pub struct FnSpec {
-    pub fn_sig: FnSig,
+    pub fn_sig: Binders<FnSig>,
     pub assume: bool,
 }
 
 #[derive(Debug)]
-pub struct FnSig {
+pub struct Binders<T> {
     pub params: Vec<Param>,
-    pub requires: Vec<(Name, Ty)>,
+    pub value: T,
+}
+
+#[derive(Debug)]
+pub struct FnSig {
+    pub requires: Vec<Constr>,
     pub args: Vec<Ty>,
     pub ret: Ty,
-    pub ensures: Vec<(Name, Ty)>,
+    pub ensures: Vec<Constr>,
+}
+
+pub enum Constr {
+    Type(Loc, Ty),
+    Pred(Expr),
 }
 
 #[derive(Debug)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,
-    pub pred: Pred,
 }
 
 pub type Ty = Interned<TyS>;
@@ -119,6 +128,12 @@ pub enum Var {
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "a{}",
+    }
+}
+
+impl<T> Binders<T> {
+    pub fn new(params: Vec<Param>, value: T) -> Binders<T> {
+        Binders { params, value }
     }
 }
 
@@ -249,6 +264,10 @@ impl Expr {
         static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
         ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
             .clone()
+    }
+
+    pub fn unit() -> Expr {
+        Expr::tuple([])
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -431,6 +450,16 @@ mod pretty {
 
     use super::*;
     use crate::pretty::*;
+
+    impl Pretty for Constr {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Constr::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+                Constr::Pred(e) => w!("{:?}", e),
+            }
+        }
+    }
 
     impl Pretty for TyS {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -617,11 +646,11 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
-
     impl fmt::Display for Sort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             fmt::Debug::fmt(self, f)
         }
     }
+
+    impl_debug_with_default_cx!(Constr, TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
 }
