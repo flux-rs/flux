@@ -432,24 +432,41 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    fn bindings_chain(node: NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+    fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
         fn go(
-            ptr: NodePtr,
+            ptr: &NodePtr,
             mut bindings: Vec<(Name, Sort, Pred)>,
         ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
             let node = ptr.borrow();
             if let NodeKind::Binding(name, sort, pred) = &node.kind {
                 bindings.push((*name, sort.clone(), pred.clone()));
                 if let [child] = &node.children[..] {
-                    go(Rc::clone(child), bindings)
+                    go(child, bindings)
                 } else {
                     (bindings, node.children.clone())
                 }
             } else {
-                (bindings, vec![Rc::clone(&ptr)])
+                (bindings, vec![Rc::clone(ptr)])
             }
         }
-        go(node, vec![])
+        go(ptr, vec![])
+    }
+
+    fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
+            let node = ptr.borrow();
+            if let NodeKind::Pred(e) = &node.kind {
+                preds.push(e.clone());
+                if let [child] = &node.children[..] {
+                    go(child, preds)
+                } else {
+                    (preds, node.children.clone())
+                }
+            } else {
+                (preds, vec![Rc::clone(ptr)])
+            }
+        }
+        go(ptr, vec![])
     }
 
     impl Pretty for PureCtxt {
@@ -477,7 +494,7 @@ mod pretty {
                 }
                 NodeKind::Binding(name, sort, pred) => {
                     let (bindings, children) = if cx.bindings_chain {
-                        bindings_chain(Rc::clone(self))
+                        bindings_chain(self)
                     } else {
                         (vec![(*name, sort.clone(), pred.clone())], node.children.clone())
                     };
@@ -485,28 +502,38 @@ mod pretty {
                     w!(
                         "∀ {}.{:?}",
                         ^bindings
-                            .iter()
+                            .into_iter()
                             .format_with(", ", |(name, sort, pred), f| {
-                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
                                 if pred.is_true() {
-                                    return Ok(())
-                                }
-                                if pred.is_atom() {
-                                    f(&format_args_cx!(", {:?}", pred))
+                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                                 } else {
-                                    f(&format_args_cx!(", ({:?})", pred))
+                                    f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, sort, pred))
                                 }
                             }),
                         children
                     )
                 }
                 NodeKind::Pred(expr) => {
-                    let expr = if cx.simplify_exprs { expr.simplify() } else { expr.clone() };
-                    if expr.is_atom() {
-                        w!("{:?} ⇒{:?}", expr, &node.children)
+                    let (exprs, children) = if cx.preds_chain {
+                        preds_chain(self)
                     } else {
-                        w!("({:?}) ⇒{:?}", expr, &node.children)
-                    }
+                        (vec![expr.clone()], node.children.clone())
+                    };
+                    w!(
+                        "{} ⇒{:?}",
+                        ^exprs
+                            .into_iter()
+                            .filter(|e| !e.is_true())
+                            .format_with(" ∧ ", |e, f| {
+                                let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+                                if e.is_atom() {
+                                    f(&format_args_cx!("{:?}", ^e))
+                                } else {
+                                    f(&format_args_cx!("({:?})", ^e))
+                                }
+                            }),
+                        children
+                    )
                 }
                 NodeKind::Head(pred, tag) => {
                     if pred.is_atom() {
