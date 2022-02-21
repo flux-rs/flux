@@ -472,7 +472,13 @@ mod pretty {
                         w!("{:?}@{{{:?}}}", bty, e)
                     }
                 }
-                TyKind::Exists(bty, p) => w!("{:?}{{{:?}}}", bty, p),
+                TyKind::Exists(bty, p) => {
+                    if p.is_true() {
+                        w!("{:?}", bty)
+                    } else {
+                        w!("{:?}{{{:?}}}", bty, p)
+                    }
+                }
                 TyKind::Uninit => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
