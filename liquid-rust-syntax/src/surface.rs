@@ -166,8 +166,6 @@ impl Desugar {
         // walk over the input types
         me.desugar_inputs(ssig.requires);
 
-        println!("GENERICS: {:?}", me.generics);
-
         let ensures = ssig
             .ensures
             .into_iter()
