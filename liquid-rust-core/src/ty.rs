@@ -23,10 +23,19 @@ pub struct FnSpec {
 #[derive(Debug)]
 pub struct FnSig {
     pub params: Vec<Param>,
-    pub requires: Vec<(Name, Ty)>,
+    pub requires: Vec<Constr>,
     pub args: Vec<Ty>,
     pub ret: Ty,
-    pub ensures: Vec<(Name, Ty)>,
+    pub ensures: Vec<Constr>,
+}
+
+/// A *constr*aint
+#[derive(Debug)]
+pub enum Constr {
+    /// A type constraint on a location
+    Type(Name, Ty),
+    /// A predicate that needs to hold
+    Pred(Expr),
 }
 
 #[derive(Debug)]
@@ -63,13 +72,13 @@ pub enum BaseTy {
 pub struct Param {
     pub name: Ident,
     pub sort: Sort,
-    pub pred: Expr,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Sort {
     Bool,
     Int,
+    Loc,
 }
 
 #[derive(Debug)]

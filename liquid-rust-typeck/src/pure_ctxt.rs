@@ -149,8 +149,7 @@ impl Cursor<'_> {
         P: Into<Pred>,
     {
         let fresh = Name::new(self.next_name_idx());
-        let pred = f(fresh).into();
-        self.node = self.push_node(NodeKind::Binding(fresh, sort, pred));
+        self.node = self.push_node(NodeKind::Binding(fresh, sort, f(fresh).into()));
         fresh
     }
 
@@ -463,6 +462,7 @@ mod pretty {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
             // PPrintCx::default(tcx)
             //     .kvar_args(Visibility::Show)
+            //     .bindings_chain(false)
             //     .tags(true)
         }
     }
@@ -525,7 +525,8 @@ mod pretty {
 
     impl Pretty for Vec<NodePtr> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, PadAdapter::wrap_fmt(f));
+            let mut f = PadAdapter::wrap_fmt(f);
+            define_scoped!(cx, f);
             match &self[..] {
                 [] => w!(" true"),
                 [n] => {

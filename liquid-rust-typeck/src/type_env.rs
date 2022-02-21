@@ -23,6 +23,7 @@ pub struct TypeEnvShape(TypeEnv);
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
+    pub constrs: Vec<Pred>,
     pub env: TypeEnv,
 }
 
@@ -169,7 +170,7 @@ impl TypeEnv {
         self.bindings.iter()
     }
 
-    pub fn unpack(&mut self, genv: &GlobalEnv, cursor: &mut Cursor, ty: Ty) -> Ty {
+    pub fn unpack(&mut self, genv: &GlobalEnv, cursor: &mut Cursor, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
                 let fresh = cursor
@@ -178,22 +179,22 @@ impl TypeEnv {
             }
             TyKind::WeakRef(ty) => {
                 let fresh = cursor.push_loc();
-                let unpacked = self.unpack(genv, cursor, ty.clone());
+                let unpacked = self.unpack(genv, cursor, ty);
                 self.bindings
                     .insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
                 TyKind::StrgRef(fresh).intern()
             }
             TyKind::ShrRef(ty) => {
-                let ty = self.unpack(genv, cursor, ty.clone());
+                let ty = self.unpack(genv, cursor, ty);
                 TyKind::ShrRef(ty).intern()
             }
-            _ => ty,
+            _ => ty.clone(),
         }
     }
 
     pub fn unpack_all(&mut self, genv: &GlobalEnv, cursor: &mut Cursor) {
         for loc in self.bindings.iter().map(|(loc, _)| *loc).collect_vec() {
-            let ty = self.unpack(genv, cursor, self.bindings[&loc].ty().clone());
+            let ty = self.unpack(genv, cursor, &self.bindings[&loc].ty());
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty;
         }
     }
@@ -450,6 +451,7 @@ impl TypeEnvShape {
         env: &TypeEnv,
     ) -> BasicBlockEnv {
         let mut params = vec![];
+        let mut constrs = vec![];
         let mut bindings = FxHashMap::default();
         for (loc, binding) in &self.0.bindings {
             if let Binding::Strong(ty) = binding {
@@ -457,11 +459,8 @@ impl TypeEnvShape {
                     TyKind::Exists(bty, Pred::KVar(..)) if !self.0.borrowed.contains(loc) => {
                         let fresh = name_gen.fresh();
                         let sort = genv.sort(bty);
-                        let param = Param {
-                            name: fresh,
-                            sort: sort.clone(),
-                            pred: fresh_kvar(fresh.into(), sort, &params),
-                        };
+                        constrs.push(fresh_kvar(fresh.into(), sort.clone(), &params));
+                        let param = Param { name: fresh, sort };
                         params.push(param);
                         let e = ExprKind::Var(fresh.into()).intern();
                         let ty = TyKind::Refine(bty.clone(), e).intern();
@@ -484,7 +483,7 @@ impl TypeEnvShape {
                     Binding::Strong(TypeEnvShape::fix_ty(&ty, ty2))
                 }
                 (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
-                    // HACK(nilehmann): The current inference algorithm cannot distinguish when a bound
+                    // HACK(nilehmann) The current inference algorithm cannot distinguish when a bound
                     // in a weak binding is preserved through a join point. To avoid generating extra kvars
                     // we keep the bound of the first environment jumping to the block. This could lose precision in
                     // cases where the bound does need to be strengthened.
@@ -497,10 +496,7 @@ impl TypeEnvShape {
             };
             bindings.insert(loc, binding);
         }
-        BasicBlockEnv {
-            params,
-            env: TypeEnv { bindings: bindings.into_iter().collect(), borrowed: self.0.borrowed },
-        }
+        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.0.borrowed } }
     }
 
     fn fix_ty(ty1: &Ty, ty2: &Ty) -> Ty {
@@ -519,10 +515,10 @@ impl TypeEnvShape {
 impl BasicBlockEnv {
     pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
         let mut subst = Subst::empty();
-        for param in &self.params {
+        for (param, constr) in self.params.iter().zip(&self.constrs) {
             cursor.push_binding(param.sort.clone(), |fresh| {
-                subst.insert_expr(Var::Free(param.name), Var::Free(fresh));
-                subst.subst_pred(&param.pred)
+                subst.insert_param(param, fresh);
+                subst.subst_pred(constr)
             });
         }
 
@@ -641,7 +637,7 @@ mod pretty {
                 if i > 0 {
                     w!(", ")?;
                 }
-                w!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, &param.pred)?;
+                w!("{:?}: {:?}", ^param.name, ^param.sort)?;
             }
             w!(".\n")?;
             w!("  {:?}", &self.env)
