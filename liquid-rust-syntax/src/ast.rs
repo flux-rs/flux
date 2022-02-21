@@ -120,6 +120,10 @@ impl Generics {
     pub fn empty(span: Span) -> Generics {
         Generics { params: vec![], span }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &GenericParam> {
+        self.params.iter()
+    }
 }
 
 impl IntoIterator for Generics {

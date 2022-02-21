@@ -164,28 +164,32 @@ impl<'tcx> Resolver<'tcx> {
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
     ) -> Result<(Vec<ty::Param>, Vec<ty::Constr>), ErrorReported> {
-        let mut params = vec![];
-        let mut constrs = vec![];
-        for param in generics {
-            let fresh = name_gen.fresh();
-            if subst
-                .insert_expr(param.name.name, ty::Var::Free(fresh))
-                .is_some()
-            {
-                self.diagnostics
-                    .emit_err(errors::DuplicateParam::new(param.name));
-            } else {
-                let name =
-                    ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-                let sort = resolve_sort(&mut self.diagnostics, param.sort);
+        let params = generics
+            .iter()
+            .map(|param| {
+                let fresh = name_gen.fresh();
+                if subst
+                    .insert_expr(param.name.name, ty::Var::Free(fresh))
+                    .is_some()
+                {
+                    self.diagnostics
+                        .emit_err(errors::DuplicateParam::new(param.name))
+                        .raise()
+                } else {
+                    let name =
+                        ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
+                    let sort = resolve_sort(&mut self.diagnostics, param.sort)?;
 
-                if let Some(expr) = param.pred {
-                    constrs.push(ty::Constr::Pred(self.resolve_expr(expr, subst)?))
-                };
-                params.push(ty::Param { name, sort: sort? });
-            }
-        }
-        self.diagnostics.raise_if_errors()?;
+                    Ok(ty::Param { name, sort })
+                }
+            })
+            .try_collect_exhaust()?;
+
+        let constrs = generics
+            .into_iter()
+            .filter_map(|param| param.pred)
+            .map(|pred| Ok(ty::Constr::Pred(self.resolve_expr(pred, subst)?)))
+            .try_collect_exhaust()?;
 
         Ok((params, constrs))
     }
@@ -442,14 +446,14 @@ impl Diagnostics<'_> {
         Err(ErrorReported)
     }
 
-    fn raise_if_errors(&mut self) -> Result<(), ErrorReported> {
-        if self.errors > 0 {
-            self.errors = 0;
-            Err(ErrorReported)
-        } else {
-            Ok(())
-        }
-    }
+    // fn raise_if_errors(&mut self) -> Result<(), ErrorReported> {
+    //     if self.errors > 0 {
+    //         self.errors = 0;
+    //         Err(ErrorReported)
+    //     } else {
+    //         Ok(())
+    //     }
+    // }
 
     fn emit_err<'a>(&'a mut self, err: impl SessionDiagnostic<'a>) -> &mut Self {
         self.sess.emit_err(err);
