@@ -10,11 +10,11 @@ extern crate rustc_span;
 use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{
+    constrgen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    subtyping::{Sub, Tag},
     ty::{
         self, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty,
         TyKind, Var,
@@ -252,9 +252,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 // println!("{stmt:?}");
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
                 let ty = env.unpack(self.genv, pcx, &ty);
-                let sub =
-                    &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Assign(stmt.source_info.span));
-                env.write_place(sub, p, ty);
+                let gen = &mut ConstraintGen::new(
+                    self.genv,
+                    pcx.breadcrumb(),
+                    Tag::Assign(stmt.source_info.span),
+                );
+                env.write_place(gen, p, ty);
                 // println!("{pcx:?}\n{env:?}");
             }
             StatementKind::Nop => {}
@@ -270,12 +273,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                let sub = &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Ret);
+                let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
-                sub.subtyping(ret_place_ty, self.ret.clone());
+                gen.subtyping(ret_place_ty, self.ret.clone());
 
                 for constr in &self.ensures {
-                    sub.check_constr(env, constr);
+                    gen.check_constr(env, constr);
                 }
                 Ok(vec![])
             }
@@ -329,23 +332,26 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
         let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
-        let sub = &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
+        let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            sub.subtyping(actual, subst.subst_ty(formal));
+            gen.subtyping(actual, subst.subst_ty(formal));
         }
 
         for constr in &fn_sig.requires {
-            sub.check_constr(env, constr);
+            gen.check_constr(env, constr);
         }
 
         for constr in &fn_sig.ensures {
             match constr {
                 Constr::Type(loc, updated_ty) => {
                     let updated_ty = env.unpack(self.genv, pcx, updated_ty);
-                    let sub =
-                        &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-                    env.update_loc(sub, *loc, updated_ty);
+                    let gen = &mut ConstraintGen::new(
+                        self.genv,
+                        pcx.breadcrumb(),
+                        Tag::Call(source_info.span),
+                    );
+                    env.update_loc(gen, *loc, updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(subst.subst_expr(e)),
             }
@@ -354,8 +360,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
             let ret = env.unpack(self.genv, pcx, &fn_sig.ret);
-            let sub = &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-            env.write_place(sub, p, ret);
+            let mut gen =
+                ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
+            env.write_place(&mut gen, p, ret);
             successors.push((*bb, None));
         }
         Ok(successors)
@@ -531,16 +538,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     // Rem is a special case due to differing semantics with negative numbers
     fn check_rem(&self, pcx: &mut PureCtxt, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
+        let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Rem(source_info.span));
         let ty = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                pcx.push_head(
-                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
-                    Tag::Rem(source_info.span),
-                );
+                gen.check_pred(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
 
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = ExprKind::BinaryOp(
@@ -564,10 +569,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                pcx.push_head(
-                    ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
-                    Tag::Rem(source_info.span),
-                );
+                gen.check_pred(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
 
                 TyKind::Refine(
                     BaseTy::Uint(*uint_ty1),
@@ -607,10 +609,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
-            pcx.push_head(
-                ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
-                Tag::Div(source_info.span),
-            );
+            let mut gen =
+                ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Div(source_info.span));
+            gen.check_pred(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
         }
         TyKind::Refine(bty, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
@@ -787,11 +788,11 @@ impl Mode for Check<'_> {
         // println!("\ngoto {target:?}\n{pcx:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
+        let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);
         for constr in &bb_env.constrs {
-            pcx.push_head(subst.subst_pred(constr), tag);
+            gen.check_pred(subst.subst_pred(constr));
         }
-        let sub = &mut Sub::new(ck.genv, pcx.breadcrumb(), tag);
-        env.transform_into(sub, &bb_env.subst(&subst));
+        env.transform_into(&mut gen, &bb_env.subst(&subst));
 
         first
     }
