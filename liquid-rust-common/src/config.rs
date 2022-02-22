@@ -10,17 +10,15 @@ pub struct Config {
 }
 
 pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
-    let mut config = config::Config::new();
-    // 1. Set defaults
-    config.set_default("log_dir", "./log/").unwrap();
-    config.set_default("dump_constraint", false).unwrap();
-
-    // 2. Merge with env variables (prefixed with LR_)
-    config
-        .merge(Environment::with_prefix("LR").ignore_empty(true))
-        .unwrap();
-
-    config.try_into().unwrap()
+    fn build() -> Result<Config, config::ConfigError> {
+        config::Config::builder()
+            .set_default("log_dir", "./log/")?
+            .set_default("dump_constraint", false)?
+            .add_source(Environment::with_prefix("LR").ignore_empty(true))
+            .build()?
+            .try_deserialize()
+    }
+    build().unwrap()
 });
 
 pub static CONFIG_PATH: SyncLazy<Option<PathBuf>> = SyncLazy::new(|| {
