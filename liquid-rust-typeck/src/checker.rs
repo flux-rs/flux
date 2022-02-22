@@ -16,7 +16,8 @@ use crate::{
     subst::Subst,
     subtyping::{Sub, Tag},
     ty::{
-        self, BaseTy, BinOp, Constr, Expr, ExprKind, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var,
+        self, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty,
+        TyKind, Var,
     },
     type_env::{BasicBlockEnv, TypeEnv},
 };
@@ -149,47 +150,23 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
 
 impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
-        genv: &GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'tcx>,
         pure_cx: &mut PureCtxt,
-        body: &Body<'tcx>,
+        body: &'a Body<'tcx>,
         def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
         let fn_sig = genv.lookup_fn_sig(def_id);
 
         let mut cursor = pure_cx.cursor_at_root();
-        let mut env = TypeEnv::new();
         let subst = Subst::with_fresh_names(&mut cursor, &fn_sig.params);
 
         let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
-        for constr in &fn_sig.requires {
-            match constr {
-                ty::Constr::Type(loc, ty) => {
-                    let ty = env.unpack(genv, &mut cursor, ty);
-                    env.insert_loc(*loc, ty);
-                }
-                ty::Constr::Pred(e) => {
-                    cursor.push_pred(subst.subst_expr(e));
-                }
-            }
-        }
-
-        for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(genv, &mut cursor, ty);
-            env.insert_loc(Loc::Local(local), ty);
-        }
-
-        for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern());
-        }
-
-        env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
-
-        let ret = subst.subst_ty(&fn_sig.ret);
+        let env = Self::init(genv, &mut cursor, body, &fn_sig);
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(genv, body, ret, fn_sig.ensures, &dominators, mode);
+        let mut ck = Checker::new(genv, body, fn_sig.ret, fn_sig.ensures, &dominators, mode);
 
         ck.check_goto(cursor, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -207,6 +184,33 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         Ok(())
+    }
+
+    fn init(genv: &GlobalEnv, cursor: &mut Cursor, body: &Body, fn_sig: &FnSig) -> TypeEnv {
+        let mut env = TypeEnv::new();
+        for constr in &fn_sig.requires {
+            match constr {
+                ty::Constr::Type(loc, ty) => {
+                    let ty = env.unpack(genv, cursor, ty);
+                    env.insert_loc(*loc, ty);
+                }
+                ty::Constr::Pred(e) => {
+                    cursor.push_pred(e.clone());
+                }
+            }
+        }
+
+        for (local, ty) in body.args_iter().zip(&fn_sig.args) {
+            let ty = env.unpack(genv, cursor, ty);
+            env.insert_loc(Loc::Local(local), ty);
+        }
+
+        for local in body.vars_and_temps_iter() {
+            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern());
+        }
+
+        env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
+        env
     }
 
     fn clear(&mut self, root: BasicBlock) {
