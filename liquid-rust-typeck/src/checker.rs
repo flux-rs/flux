@@ -10,7 +10,7 @@ extern crate rustc_span;
 use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{
-    constrgen::{ConstraintGen, Tag},
+    constraint_gen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},

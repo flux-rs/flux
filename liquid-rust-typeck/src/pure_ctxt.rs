@@ -8,7 +8,7 @@ use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
-    constrgen::Tag,
+    constraint_gen::Tag,
     ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
