@@ -12,7 +12,7 @@ use std::collections::{hash_map::Entry, BinaryHeap};
 use crate::{
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
-    pure_ctxt::{Cursor, KVarStore, PureCtxt, Snapshot},
+    pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
     subtyping::{Sub, Tag},
     ty::{
@@ -59,11 +59,11 @@ pub trait Mode: Sized {
     where
         I: IntoIterator<Item = (Name, Sort)>;
 
-    fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv;
+    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
         ck: &mut Checker<Self>,
-        cursor: Cursor,
+        pcx: PureCtxt,
         env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -112,10 +112,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         body: &Body<'tcx>,
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
-        let mut pure_cx = PureCtxt::new();
+        let mut constraint = ConstraintBuilder::new();
 
         let mut bb_envs = FxHashMap::default();
-        Checker::run(genv, &mut pure_cx, body, def_id, Inference { bb_envs: &mut bb_envs })?;
+        Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
         Ok(bb_envs
             .into_iter()
@@ -130,78 +130,78 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         body: &Body<'tcx>,
         def_id: DefId,
         shapes: FxHashMap<BasicBlock, TypeEnvShape>,
-    ) -> Result<(PureCtxt, KVarStore), ErrorReported> {
-        let mut pure_cx = PureCtxt::new();
+    ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
+        let mut constraint = ConstraintBuilder::new();
         let mut kvars = KVarStore::new();
 
         // println!("\n---------------------------------------\n{shapes:#?}\n");
 
         Checker::run(
             genv,
-            &mut pure_cx,
+            &mut constraint,
             body,
             def_id,
             Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
         )?;
 
-        Ok((pure_cx, kvars))
+        Ok((constraint, kvars))
     }
 }
 
 impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
         genv: &'a GlobalEnv<'tcx>,
-        pure_cx: &mut PureCtxt,
+        constraint: &mut ConstraintBuilder,
         body: &'a Body<'tcx>,
         def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
         let fn_sig = genv.lookup_fn_sig(def_id);
 
-        let mut cursor = pure_cx.cursor_at_root();
-        let subst = Subst::with_fresh_names(&mut cursor, &fn_sig.params);
+        let mut pcx = constraint.pure_context_at_root();
+        let subst = Subst::with_fresh_names(&mut pcx, &fn_sig.params);
 
         let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
-        let env = Self::init(genv, &mut cursor, body, &fn_sig);
+        let env = Self::init(genv, &mut pcx, body, &fn_sig);
 
         let dominators = body.dominators();
         let mut ck = Checker::new(genv, body, fn_sig.ret, fn_sig.ensures, &dominators, mode);
 
-        ck.check_goto(cursor, env, None, START_BLOCK)?;
+        ck.check_goto(pcx, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut cursor = pure_cx.cursor_at(snapshot).unwrap();
+            let mut pcx = constraint.pure_context_at(snapshot).unwrap();
 
             if ck.visited.contains(bb) {
-                cursor.clear();
+                pcx.clear();
                 ck.clear(bb);
             }
 
-            let mut env = ck.mode.enter_basic_block(&mut cursor, bb);
-            env.unpack_all(genv, &mut cursor);
-            ck.check_basic_block(cursor, env, bb)?;
+            let mut env = ck.mode.enter_basic_block(&mut pcx, bb);
+            env.unpack_all(genv, &mut pcx);
+            ck.check_basic_block(pcx, env, bb)?;
         }
 
         Ok(())
     }
 
-    fn init(genv: &GlobalEnv, cursor: &mut Cursor, body: &Body, fn_sig: &FnSig) -> TypeEnv {
+    fn init(genv: &GlobalEnv, pcx: &mut PureCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
         for constr in &fn_sig.requires {
             match constr {
                 ty::Constr::Type(loc, ty) => {
-                    let ty = env.unpack(genv, cursor, ty);
+                    let ty = env.unpack(genv, pcx, ty);
                     env.insert_loc(*loc, ty);
                 }
                 ty::Constr::Pred(e) => {
-                    cursor.push_pred(e.clone());
+                    pcx.push_pred(e.clone());
                 }
             }
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(genv, cursor, ty);
+            let ty = env.unpack(genv, pcx, ty);
             env.insert_loc(Loc::Local(local), ty);
         }
 
@@ -226,39 +226,36 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_basic_block(
         &mut self,
-        mut cursor: Cursor,
+        mut pcx: PureCtxt,
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        // println!("\n{bb:?}\n{cursor:?}\n{env:?}");
+        // println!("\n{bb:?}\n{pcx:?}\n{env:?}");
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            self.check_statement(&mut cursor, &mut env, stmt);
+            self.check_statement(&mut pcx, &mut env, stmt);
         }
         if let Some(terminator) = &data.terminator {
             // println!("{terminator:?}");
-            let successors = self.check_terminator(&mut cursor, &mut env, terminator)?;
-            self.snapshots[bb] = Some(cursor.snapshot());
-            self.check_successors(cursor, env, terminator.source_info, successors)?;
+            let successors = self.check_terminator(&mut pcx, &mut env, terminator)?;
+            self.snapshots[bb] = Some(pcx.snapshot());
+            self.check_successors(pcx, env, terminator.source_info, successors)?;
         }
         Ok(())
     }
 
-    fn check_statement(&self, cursor: &mut Cursor, env: &mut TypeEnv, stmt: &Statement) {
+    fn check_statement(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 // println!("{stmt:?}");
-                let ty = self.check_rvalue(cursor, env, stmt.source_info, rvalue);
-                let ty = env.unpack(self.genv, cursor, &ty);
-                let sub = &mut Sub::new(
-                    self.genv,
-                    cursor.breadcrumb(),
-                    Tag::Assign(stmt.source_info.span),
-                );
+                let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
+                let ty = env.unpack(self.genv, pcx, &ty);
+                let sub =
+                    &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Assign(stmt.source_info.span));
                 env.write_place(sub, p, ty);
-                // println!("{cursor:?}\n{env:?}");
+                // println!("{pcx:?}\n{env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -266,14 +263,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_terminator(
         &mut self,
-        cursor: &mut Cursor,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Ret);
+                let sub = &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
                 sub.subtyping(ret_place_ty, self.ret.clone());
 
@@ -287,15 +284,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.check_switch_int(env, discr, targets)
             }
             TerminatorKind::Call { func, substs, args, destination } => {
-                self.check_call(
-                    cursor,
-                    env,
-                    terminator.source_info,
-                    *func,
-                    substs,
-                    args,
-                    destination,
-                )
+                self.check_call(pcx, env, terminator.source_info, *func, substs, args, destination)
             }
             TerminatorKind::Assert { cond, expected, target } => {
                 self.check_assert(env, cond, *expected, *target)
@@ -309,7 +298,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_call(
         &mut self,
-        cursor: &mut Cursor,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
         func: DefId,
@@ -325,7 +314,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
 
         let cx = LoweringCtxt::empty();
-        let scope = cursor.scope();
+        let scope = pcx.scope();
         let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(self.genv.sort(bty), scope.iter());
         let substs = substs
             .iter()
@@ -340,7 +329,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
         let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
-        let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+        let sub = &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
             sub.subtyping(actual, subst.subst_ty(formal));
@@ -353,19 +342,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &fn_sig.ensures {
             match constr {
                 Constr::Type(loc, updated_ty) => {
-                    let updated_ty = env.unpack(self.genv, cursor, updated_ty);
+                    let updated_ty = env.unpack(self.genv, pcx, updated_ty);
                     let sub =
-                        &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+                        &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
                     env.update_loc(sub, *loc, updated_ty);
                 }
-                Constr::Pred(e) => cursor.push_pred(subst.subst_expr(e)),
+                Constr::Pred(e) => pcx.push_pred(subst.subst_expr(e)),
             }
         }
 
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
-            let ret = env.unpack(self.genv, cursor, &fn_sig.ret);
-            let sub = &mut Sub::new(self.genv, cursor.breadcrumb(), Tag::Call(source_info.span));
+            let ret = env.unpack(self.genv, pcx, &fn_sig.ret);
+            let sub = &mut Sub::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
             env.write_place(sub, p, ret);
             successors.push((*bb, None));
         }
@@ -431,42 +420,42 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_successors(
         &mut self,
-        mut cursor: Cursor,
+        mut pcx: PureCtxt,
         env: TypeEnv,
         src_info: SourceInfo,
         successors: Vec<(BasicBlock, Option<Expr>)>,
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
-            let mut cursor = cursor.breadcrumb();
+            let mut pcx = pcx.breadcrumb();
             let env = env.clone();
             if let Some(guard) = guard {
-                cursor.push_pred(guard);
+                pcx.push_pred(guard);
             }
-            self.check_goto(cursor, env, Some(src_info), target)?;
+            self.check_goto(pcx, env, Some(src_info), target)?;
         }
         Ok(())
     }
 
     fn check_goto(
         &mut self,
-        cursor: Cursor,
+        pcx: PureCtxt,
         env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            if M::check_goto_join_point(self, cursor, env, src_info, target) {
+            if M::check_goto_join_point(self, pcx, env, src_info, target) {
                 self.queue.insert(target);
             }
             Ok(())
         } else {
-            self.check_basic_block(cursor, env, target)
+            self.check_basic_block(pcx, env, target)
         }
     }
 
     fn check_rvalue(
         &self,
-        cursor: &mut Cursor,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
         rvalue: &Rvalue,
@@ -474,7 +463,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(cursor, env, source_info, *bin_op, op1, op2)
+                self.check_binary_op(pcx, env, source_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
@@ -490,7 +479,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_binary_op(
         &self,
-        cursor: &mut Cursor,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
         bin_op: ir::BinOp,
@@ -503,11 +492,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
             ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
-            ir::BinOp::Add => self.check_arith_op(cursor, source_info, BinOp::Add, ty1, ty2),
-            ir::BinOp::Sub => self.check_arith_op(cursor, source_info, BinOp::Sub, ty1, ty2),
-            ir::BinOp::Mul => self.check_arith_op(cursor, source_info, BinOp::Mul, ty1, ty2),
-            ir::BinOp::Div => self.check_arith_op(cursor, source_info, BinOp::Div, ty1, ty2),
-            ir::BinOp::Rem => self.check_rem(cursor, source_info, ty1, ty2),
+            ir::BinOp::Add => self.check_arith_op(pcx, source_info, BinOp::Add, ty1, ty2),
+            ir::BinOp::Sub => self.check_arith_op(pcx, source_info, BinOp::Sub, ty1, ty2),
+            ir::BinOp::Mul => self.check_arith_op(pcx, source_info, BinOp::Mul, ty1, ty2),
+            ir::BinOp::Div => self.check_arith_op(pcx, source_info, BinOp::Div, ty1, ty2),
+            ir::BinOp::Rem => self.check_rem(pcx, source_info, ty1, ty2),
             ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
             ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, ty1, ty2),
             ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
@@ -541,14 +530,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     // Rem is a special case due to differing semantics with negative numbers
-    fn check_rem(&self, cursor: &mut Cursor, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_rem(&self, pcx: &mut PureCtxt, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
         let ty = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                cursor.push_head(
+                pcx.push_head(
                     ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
                     Tag::Rem(source_info.span),
                 );
@@ -575,7 +564,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                cursor.push_head(
+                pcx.push_head(
                     ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
                     Tag::Rem(source_info.span),
                 );
@@ -594,7 +583,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_arith_op(
         &self,
-        cursor: &mut Cursor,
+        pcx: &mut PureCtxt,
         source_info: SourceInfo,
         op: BinOp,
         ty1: Ty,
@@ -618,7 +607,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
-            cursor.push_head(
+            pcx.push_head(
                 ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern(),
                 Tag::Div(source_info.span),
             );
@@ -722,13 +711,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 }
 
 impl Mode for Inference<'_> {
-    fn enter_basic_block(&mut self, _cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv {
+    fn enter_basic_block(&mut self, _pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
         self.bb_envs[&bb].clone()
     }
 
     fn check_goto_join_point(
         ck: &mut Checker<Inference>,
-        _cursor: Cursor,
+        _pcx: PureCtxt,
         mut env: TypeEnv,
         _src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -757,13 +746,13 @@ impl Mode for Inference<'_> {
 }
 
 impl Mode for Check<'_> {
-    fn enter_basic_block(&mut self, cursor: &mut Cursor, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].enter(cursor)
+    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter(pcx)
     }
 
     fn check_goto_join_point(
         ck: &mut Checker<Check>,
-        mut cursor: Cursor,
+        mut pcx: PureCtxt,
         mut env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -784,7 +773,7 @@ impl Mode for Check<'_> {
             first = true;
             ck.mode.shapes.remove(&target).unwrap().into_bb_env(
                 ck.genv,
-                &cursor.name_gen(),
+                &pcx.name_gen(),
                 fresh_kvar,
                 &env,
             )
@@ -795,13 +784,13 @@ impl Mode for Check<'_> {
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
 
-        // println!("\ngoto {target:?}\n{cursor:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
+        // println!("\ngoto {target:?}\n{pcx:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         for constr in &bb_env.constrs {
-            cursor.push_head(subst.subst_pred(constr), tag);
+            pcx.push_head(subst.subst_pred(constr), tag);
         }
-        let sub = &mut Sub::new(ck.genv, cursor.breadcrumb(), tag);
+        let sub = &mut Sub::new(ck.genv, pcx.breadcrumb(), tag);
         env.transform_into(sub, &bb_env.subst(&subst));
 
         first

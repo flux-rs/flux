@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    pure_ctxt::Cursor,
+    pure_ctxt::PureCtxt,
     ty::*,
     type_env::{BasicBlockEnv, TypeEnv},
 };
@@ -31,10 +31,10 @@ impl Subst {
         Self { types, map: FxHashMap::default() }
     }
 
-    pub fn with_fresh_names(cursor: &mut Cursor, params: &[Param]) -> Self {
+    pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
         let mut subst = Self::empty();
         for param in params {
-            let fresh = cursor.push_binding(param.sort.clone(), |_| Expr::tt());
+            let fresh = pcx.push_binding(param.sort.clone(), |_| Expr::tt());
             subst.insert_param(param, fresh);
         }
         subst

@@ -4,14 +4,14 @@ use rustc_span::Span;
 
 use crate::{
     global_env::{GlobalEnv, Variance},
-    pure_ctxt::Cursor,
+    pure_ctxt::PureCtxt,
     ty::{BaseTy, BinOp, Constr, ExprKind, Ty, TyKind, Var},
     type_env::TypeEnv,
 };
 
 pub struct Sub<'a, 'tcx> {
     genv: &'a GlobalEnv<'tcx>,
-    cursor: Cursor<'a>,
+    pcx: PureCtxt<'a>,
     tag: Tag,
 }
 
@@ -26,12 +26,12 @@ pub enum Tag {
 }
 
 impl<'a, 'tcx> Sub<'a, 'tcx> {
-    pub fn new(genv: &'a GlobalEnv<'tcx>, cursor: Cursor<'a>, tag: Tag) -> Self {
-        Sub { genv, cursor, tag }
+    pub fn new(genv: &'a GlobalEnv<'tcx>, pcx: PureCtxt<'a>, tag: Tag) -> Self {
+        Sub { genv, pcx, tag }
     }
 
     fn breadcrumb(&mut self) -> Sub<'_, 'tcx> {
-        Sub { cursor: self.cursor.breadcrumb(), ..*self }
+        Sub { pcx: self.pcx.breadcrumb(), ..*self }
     }
 
     pub fn check_constr(&mut self, env: &TypeEnv, constr: &Constr) {
@@ -41,7 +41,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
                 self.subtyping(actual_ty, ty.clone());
             }
             Constr::Pred(e) => {
-                self.cursor.push_head(e.clone(), self.tag);
+                self.pcx.push_head(e.clone(), self.tag);
             }
         }
     }
@@ -59,7 +59,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             }
             (TyKind::Exists(bty, p), _) => {
                 let fresh = sub
-                    .cursor
+                    .pcx
                     .push_binding(sub.genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
                 let ty1 = TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern();
                 sub.subtyping(ty1, ty2);
@@ -71,7 +71,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 sub.bty_subtyping(bty1, bty2);
-                sub.cursor.push_head(
+                sub.pcx.push_head(
                     ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern(),
                     sub.tag,
                 );
@@ -79,7 +79,7 @@ impl<'a, 'tcx> Sub<'a, 'tcx> {
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 sub.bty_subtyping(bty1, bty2);
                 let p = p.subst_bound_vars(e.clone());
-                sub.cursor.push_head(p.subst_bound_vars(e.clone()), sub.tag);
+                sub.pcx.push_head(p.subst_bound_vars(e.clone()), sub.tag);
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);
