@@ -1,6 +1,6 @@
 use crate::{
     global_env::GlobalEnv,
-    pure_ctxt::{Cursor, Scope},
+    pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
     subtyping::Sub,
     ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
@@ -170,31 +170,31 @@ impl TypeEnv {
         self.bindings.iter()
     }
 
-    pub fn unpack(&mut self, genv: &GlobalEnv, cursor: &mut Cursor, ty: &Ty) -> Ty {
+    pub fn unpack(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let fresh = cursor
-                    .push_binding(genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
+                let fresh =
+                    pcx.push_binding(genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
                 TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern()
             }
             TyKind::WeakRef(ty) => {
-                let fresh = cursor.push_loc();
-                let unpacked = self.unpack(genv, cursor, ty);
+                let fresh = pcx.push_loc();
+                let unpacked = self.unpack(genv, pcx, ty);
                 self.bindings
                     .insert(fresh, Binding::Weak { bound: ty.clone(), ty: unpacked });
                 TyKind::StrgRef(fresh).intern()
             }
             TyKind::ShrRef(ty) => {
-                let ty = self.unpack(genv, cursor, ty);
+                let ty = self.unpack(genv, pcx, ty);
                 TyKind::ShrRef(ty).intern()
             }
             _ => ty.clone(),
         }
     }
 
-    pub fn unpack_all(&mut self, genv: &GlobalEnv, cursor: &mut Cursor) {
+    pub fn unpack_all(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) {
         for loc in self.bindings.iter().map(|(loc, _)| *loc).collect_vec() {
-            let ty = self.unpack(genv, cursor, &self.bindings[&loc].ty());
+            let ty = self.unpack(genv, pcx, &self.bindings[&loc].ty());
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty;
         }
     }
@@ -500,7 +500,7 @@ impl TypeEnvShape {
     }
 
     fn fix_ty(ty1: &Ty, ty2: &Ty) -> Ty {
-        // HACK(nilehmann): there could be a mismatch between the order of names generated in
+        // HACK(nilehmann) there could be a mismatch between the order of names generated in
         // the inference and checking phases. If we infer a `TyKind::Refine` we "fix" the naming
         // by keeping the expression of the type in the first environment jumping to the block.
         match (ty1.kind(), ty2.kind()) {
@@ -513,10 +513,10 @@ impl TypeEnvShape {
 }
 
 impl BasicBlockEnv {
-    pub fn enter(&self, cursor: &mut Cursor) -> TypeEnv {
+    pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            cursor.push_binding(param.sort.clone(), |fresh| {
+            pcx.push_binding(param.sort.clone(), |fresh| {
                 subst.insert_param(param, fresh);
                 subst.subst_pred(constr)
             });
