@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
-use typeck::global_env::{AdtDefs, Qualifiers};
+use typeck::global_env::AdtDefs;
 
 use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
 
@@ -38,14 +38,6 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
 
-    let qualifiers: Qualifiers = Qualifiers::new(
-        specs
-            .qualifs
-            .into_iter()
-            .map(|qualifier| Ok(Resolver::resolve_qualifier(tcx, qualifier)?))
-            .try_collect_exhaust()?,
-    );
-
     let adt_defs: AdtDefs = specs
         .adts
         .into_iter()
@@ -53,6 +45,17 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .try_collect_exhaust()?;
 
     let wf = Wf::new(sess, &adt_defs);
+
+    let _qualifiers: Vec<liquid_rust_core::ty::Qualifier> = specs
+        .qualifs
+        .into_iter()
+        .map(|qualifier| {
+            let resolved = Resolver::resolve_qualifier(tcx, qualifier)?;
+            wf.check_qualifier(&resolved)?;
+            Ok(resolved)
+        })
+        .try_collect_exhaust()?;
+
     let fn_sigs: FxHashMap<_, _> = specs
         .fns
         .into_iter()

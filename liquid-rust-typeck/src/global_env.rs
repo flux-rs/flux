@@ -30,17 +30,6 @@ impl AdtDefs {
     }
 }
 
-#[derive(Debug)]
-pub struct Qualifiers {
-    qualifs: Vec<core::Qualifier>,
-}
-
-impl Qualifiers {
-    pub fn new(qualifs: Vec<core::Qualifier>) -> Self {
-        Self { qualifs }
-    }
-}
-
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(
         tcx: TyCtxt<'tcx>,

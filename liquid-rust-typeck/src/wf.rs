@@ -50,6 +50,17 @@ impl Wf<'_> {
         Ok(())
     }
 
+    pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorReported> {
+        let mut env = Env::default();
+        let _ = qualifier.args.iter().for_each(|(param, sort)| {
+            env.insert(core::Var::Free(*param), lower_sort(*sort));
+        });
+
+        let _ = self.check_expr(&mut env, &qualifier.expr, ty::Sort::bool())?;
+
+        Ok(())
+    }
+
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
             core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sort(bty)),
