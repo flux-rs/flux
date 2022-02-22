@@ -1,8 +1,8 @@
 use crate::{
+    constraint_gen::ConstraintGen,
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    subtyping::Sub,
     ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
@@ -87,12 +87,12 @@ impl TypeEnv {
         self.bindings.insert(loc, Binding::Strong(ty));
     }
 
-    pub fn update_loc(&mut self, sub: &mut Sub, loc: Loc, new_ty: Ty) {
+    pub fn update_loc(&mut self, gen: &mut ConstraintGen, loc: Loc, new_ty: Ty) {
         let binding = self.bindings.get_mut(&loc).unwrap();
         match binding {
             Binding::Strong(_) => *binding = Binding::Strong(new_ty),
             Binding::Weak { bound, .. } => {
-                sub.subtyping(new_ty, bound.clone());
+                gen.subtyping(new_ty, bound.clone());
             }
         }
     }
@@ -149,7 +149,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn write_place(&mut self, sub: &mut Sub, place: &ir::Place, new_ty: Ty) {
+    pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
         let loc = Loc::Local(place.local());
         let ty = self.lookup_loc(loc);
         let loc = match (place, ty.kind()) {
@@ -163,7 +163,7 @@ impl TypeEnv {
             }
             _ => unreachable!("unexpected place `{place:?}`"),
         };
-        self.update_loc(sub, loc, new_ty);
+        self.update_loc(gen, loc, new_ty);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&Loc, &Binding)> + '_ {
@@ -227,7 +227,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn transform_into(&mut self, sub: &mut Sub, other: &TypeEnv) {
+    pub fn transform_into(&mut self, gen: &mut ConstraintGen, other: &TypeEnv) {
         let levels = self
             .levels()
             .into_iter()
@@ -252,10 +252,10 @@ impl TypeEnv {
             };
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::StrgRef(loc), TyKind::WeakRef(bound)) => {
-                    self.weaken_ref(sub, *loc, bound.clone());
+                    self.weaken_ref(gen, *loc, bound.clone());
                 }
                 _ => {
-                    sub.subtyping(ty1, ty2.clone());
+                    gen.subtyping(ty1, ty2.clone());
                 }
             };
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty2;
@@ -424,17 +424,17 @@ impl TypeEnv {
         }
     }
 
-    fn weaken_ref(&mut self, sub: &mut Sub, loc: Loc, bound: Ty) {
+    fn weaken_ref(&mut self, gen: &mut ConstraintGen, loc: Loc, bound: Ty) {
         let ty = match &self.bindings[&loc] {
             Binding::Weak { bound: bound2, ty } => {
-                sub.subtyping(bound.clone(), bound2.clone());
+                gen.subtyping(bound.clone(), bound2.clone());
                 ty.clone()
             }
             Binding::Strong(ty) => ty.clone(),
         };
         match (ty.kind(), bound.kind()) {
             (_, TyKind::Exists(..)) => {
-                sub.subtyping(ty, bound.clone());
+                gen.subtyping(ty, bound.clone());
                 *self.bindings.get_mut(&loc).unwrap().ty_mut() = bound;
             }
             _ => todo!(),

@@ -12,13 +12,13 @@ extern crate rustc_session;
 extern crate rustc_span;
 
 mod checker;
+mod constraint_gen;
 pub mod global_env;
 mod intern;
 mod lowering;
 mod pretty;
 mod pure_ctxt;
 mod subst;
-mod subtyping;
 pub mod ty;
 mod type_env;
 pub mod wf;
@@ -26,6 +26,7 @@ pub mod wf;
 use std::{fs, io::Write, str::FromStr};
 
 use checker::Checker;
+use constraint_gen::Tag;
 use global_env::GlobalEnv;
 use itertools::Itertools;
 use liquid_rust_common::{
@@ -41,7 +42,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
-use subtyping::Tag;
 use ty::Name;
 
 pub struct FixpointCtxt {
