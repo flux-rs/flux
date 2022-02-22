@@ -538,7 +538,7 @@ mod pretty {
                         w!("({:?})", pred)?;
                     }
                     if cx.tags {
-                        w!(" [{:?}]", tag)?;
+                        w!(" ~ {:?}", tag)?;
                     }
                     Ok(())
                 }

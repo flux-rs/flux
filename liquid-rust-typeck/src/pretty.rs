@@ -3,6 +3,7 @@ use std::{cell::RefCell, fmt};
 use liquid_rust_common::config;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::{Pos, Span};
 
 use crate::intern::{Internable, Interned};
 
@@ -122,6 +123,7 @@ pub struct PPrintCx<'tcx> {
     pub tags: bool,
     pub bindings_chain: bool,
     pub preds_chain: bool,
+    pub full_spans: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -168,6 +170,7 @@ impl PPrintCx<'_> {
             tags: false,
             bindings_chain: true,
             preds_chain: true,
+            full_spans: false,
         }
     }
 
@@ -175,7 +178,15 @@ impl PPrintCx<'_> {
         set_opts!(
             self,
             opts,
-            [kvar_args, fully_qualified_paths, simplify_exprs, tags, bindings_chain, preds_chain]
+            [
+                kvar_args,
+                fully_qualified_paths,
+                simplify_exprs,
+                tags,
+                bindings_chain,
+                preds_chain,
+                full_spans
+            ]
         );
     }
 
@@ -185,21 +196,6 @@ impl PPrintCx<'_> {
 
     pub fn fully_qualified_paths(self, b: bool) -> Self {
         Self { fully_qualified_paths: b, ..self }
-    }
-
-    #[allow(unused)]
-    pub fn tags(self, tags: bool) -> Self {
-        Self { tags, ..self }
-    }
-
-    #[allow(unused)]
-    pub fn bindings_chain(self, bindings_chain: bool) -> Self {
-        Self { bindings_chain, ..self }
-    }
-
-    #[allow(unused)]
-    pub fn preds_chain(self, preds_chain: bool) -> Self {
-        Self { preds_chain, ..self }
     }
 }
 
@@ -269,12 +265,56 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, T> {
 
 impl Pretty for DefId {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+
         let path = cx.tcx.def_path(*self);
         if cx.fully_qualified_paths {
             let krate = cx.tcx.crate_name(self.krate);
-            write!(f, "{krate}{}", path.to_string_no_crate_verbose())
+            w!("{}{}", ^krate, ^path.to_string_no_crate_verbose())
         } else {
-            write!(f, "{}", path.data.last().unwrap())
+            w!("{}", ^path.data.last().unwrap())
+        }
+    }
+}
+
+impl Pretty for Span {
+    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if cx.full_spans {
+            write!(f, "{self:?}")
+        } else {
+            let src_map = cx.tcx.sess.source_map();
+            let lo = src_map.lookup_char_pos(self.lo());
+            let hi = src_map.lookup_char_pos(self.hi());
+            // use rustc_span::FileName;
+            // match lo.file.name {
+            //     FileName::Real(ref name) => {
+            //         write!(
+            //             f,
+            //             "{}",
+            //             name.local_path_if_available()
+            //                 .file_name()
+            //                 .unwrap()
+            //                 .to_string_lossy()
+            //         )
+            //     }
+            //     FileName::QuoteExpansion(_) => write!(f, "<quote expansion>"),
+            //     FileName::MacroExpansion(_) => write!(f, "<macro expansion>"),
+            //     FileName::Anon(_) => write!(f, "<anon>"),
+            //     FileName::ProcMacroSourceCode(_) => write!(f, "<proc-macro source code>"),
+            //     FileName::CfgSpec(_) => write!(f, "<cfgspec>"),
+            //     FileName::CliCrateAttr(_) => write!(f, "<crate attribute>"),
+            //     FileName::Custom(ref s) => write!(f, "<{}>", s),
+            //     FileName::DocTest(ref path, _) => write!(f, "{}", path.display()),
+            //     FileName::InlineAsm(_) => write!(f, "<inline asm>"),
+            // }?;
+            write!(
+                f,
+                "{}:{}: {}:{}",
+                lo.line,
+                lo.col.to_usize() + 1,
+                hi.line,
+                hi.col.to_usize() + 1,
+            )
         }
     }
 }
