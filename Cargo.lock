@@ -368,6 +368,7 @@ dependencies = [
  "itertools",
  "once_cell",
  "serde 1.0.130",
+ "toml",
 ]
 
 [[package]]

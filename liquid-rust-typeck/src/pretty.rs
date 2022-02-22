@@ -1,5 +1,6 @@
 use std::{cell::RefCell, fmt};
 
+use liquid_rust_common::config;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 
@@ -84,11 +85,21 @@ pub use crate::_join as join;
 
 #[macro_export]
 macro_rules! _impl_debug_with_default_cx {
-    ($($ty:ty),* $(,)?) => {$(
+    ($($ty:ty $(=> $key:literal)?),* $(,)?) => {$(
         impl fmt::Debug for $ty  {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 rustc_middle::ty::tls::with(|tcx| {
-                    let cx = <$ty>::default_cx(tcx);
+                    #[allow(unused_mut)]
+                    let mut cx = <$ty>::default_cx(tcx);
+                    $(
+                    if let Some(opts) = liquid_rust_common::config::CONFIG_FILE
+                        .get("dev")
+                        .and_then(|dev| dev.get("pprint"))
+                        .and_then(|pprint| pprint.get($key))
+                    {
+                        cx.merge(opts);
+                    }
+                    )?
                     Pretty::fmt(self, &cx, f)
                 })
             }
@@ -137,6 +148,16 @@ impl<'a, I> Join<'a, I> {
     }
 }
 
+macro_rules! set_opts {
+    ($cx:expr, $opts:expr, [$($opt:ident),+]) => {
+        $(
+        if let Some(val) = $opts.get(stringify!($opt)).and_then(|v| FromOpt::from_opt(v)) {
+            $cx.$opt = val;
+        }
+        )+
+    };
+}
+
 impl PPrintCx<'_> {
     pub fn default(tcx: TyCtxt) -> PPrintCx {
         PPrintCx {
@@ -148,6 +169,14 @@ impl PPrintCx<'_> {
             bindings_chain: true,
             preds_chain: true,
         }
+    }
+
+    pub fn merge(&mut self, opts: &config::Value) {
+        set_opts!(
+            self,
+            opts,
+            [kvar_args, fully_qualified_paths, simplify_exprs, tags, bindings_chain, preds_chain]
+        );
     }
 
     pub fn kvar_args(self, kvar_args: Visibility) -> Self {
@@ -246,6 +275,34 @@ impl Pretty for DefId {
             write!(f, "{krate}{}", path.to_string_no_crate_verbose())
         } else {
             write!(f, "{}", path.data.last().unwrap())
+        }
+    }
+}
+
+trait FromOpt: Sized {
+    fn from_opt(opt: &config::Value) -> Option<Self>;
+}
+
+impl FromOpt for bool {
+    fn from_opt(opt: &config::Value) -> Option<Self> {
+        opt.as_bool()
+    }
+}
+
+impl FromOpt for Visibility {
+    fn from_opt(opt: &config::Value) -> Option<Self> {
+        match opt.as_str() {
+            Some("show") => Some(Visibility::Show),
+            Some("hide") => Some(Visibility::Hide),
+            Some(s) => {
+                let n = s
+                    .strip_prefix("truncate(")?
+                    .strip_suffix(")")?
+                    .parse()
+                    .ok()?;
+                Some(Visibility::Truncate(n))
+            }
+            _ => None,
         }
     }
 }
