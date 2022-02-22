@@ -150,12 +150,18 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(_cx, f);
             match self {
-                Tag::Call(span) => w!("Call({:?})", ^span),
-                Tag::Assign(span) => w!("Assign({:?})", ^span),
+                Tag::Call(span) => w!("Call({:?})", span),
+                Tag::Assign(span) => w!("Assign({:?})", span),
                 Tag::Ret => w!("Ret"),
-                Tag::Div(span) => w!("Div({:?})", ^span),
-                Tag::Rem(span) => w!("Rem({:?})", ^span),
-                Tag::Goto(span, bb) => w!("Goto({:?}, {:?})", ^span, ^bb),
+                Tag::Div(span) => w!("Div({:?})", span),
+                Tag::Rem(span) => w!("Rem({:?})", span),
+                Tag::Goto(span, bb) => {
+                    if let Some(span) = span {
+                        w!("Goto({:?}, {:?})", span, ^bb)
+                    } else {
+                        w!("Goto({:?})", ^bb)
+                    }
+                }
             }
         }
     }

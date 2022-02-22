@@ -19,6 +19,9 @@
         },
         {
             "include": "#constants"
+        },
+        {
+            "include": "#tags"
         }
     ],
     "repository": {
@@ -63,6 +66,14 @@
                 {
                     "name": "constant.language.boolean.lrc",
                     "match": "\\b(true|false)\\b"
+                }
+            ]
+        },
+        "tags": {
+            "patterns": [
+                {
+                    "name": "comment.line.tag.lrc",
+                    "match": "~.*$"
                 }
             ]
         },
