@@ -71,7 +71,7 @@ impl LoweringCtxt {
         match constr {
             core::Constr::Type(loc, ty) => {
                 ty::Constr::Type(
-                    ty::Loc::Abstract(self.name_map[loc]),
+                    ty::Loc::Abstract(self.name_map[&loc.name]),
                     self.lower_ty(ty, fresh_kvar),
                 )
             }
@@ -113,7 +113,7 @@ impl LoweringCtxt {
                 ty::TyKind::Exists(bty, pred).intern()
             }
             core::Ty::StrgRef(loc) => {
-                ty::TyKind::StrgRef(ty::Loc::Abstract(self.name_map[loc])).intern()
+                ty::TyKind::StrgRef(ty::Loc::Abstract(self.name_map[&loc.name])).intern()
             }
             core::Ty::WeakRef(ty) => ty::TyKind::WeakRef(self.lower_ty(ty, fresh_kvar)).intern(),
             core::Ty::ShrRef(ty) => ty::TyKind::ShrRef(self.lower_ty(ty, fresh_kvar)).intern(),

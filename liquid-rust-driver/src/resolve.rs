@@ -124,11 +124,13 @@ impl<'tcx> Resolver<'tcx> {
 
         for (loc, ty) in fn_sig.requires {
             let fresh = name_gen.fresh();
-            let name = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
             subst.insert_loc(loc.name, fresh);
-            params.push(ty::Param { name, sort: ty::Sort::Loc });
+
+            let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
             let ty = self.resolve_ty(ty, &mut subst)?;
-            requires.push(ty::Constr::Type(fresh, ty));
+
+            params.push(ty::Param { name: loc, sort: ty::Sort::Loc });
+            requires.push(ty::Constr::Type(loc, ty));
         }
 
         let args = fn_sig
@@ -141,15 +143,15 @@ impl<'tcx> Resolver<'tcx> {
             .ensures
             .into_iter()
             .map(|(loc, ty)| {
-                let loc = if let Some(name) = subst.get_loc(loc.name) {
-                    name
+                if let Some(name) = subst.get_loc(loc.name) {
+                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                    let ty = self.resolve_ty(ty, &mut subst)?;
+                    Ok(ty::Constr::Type(loc, ty))
                 } else {
-                    let fresh = name_gen.fresh();
-                    subst.insert_loc(loc.name, fresh);
-                    fresh
-                };
-                let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok(ty::Constr::Type(loc, ty))
+                    self.diagnostics
+                        .emit_err(errors::UnresolvedVar::new(loc))
+                        .raise()
+                }
             })
             .try_collect_exhaust();
 
@@ -237,7 +239,8 @@ impl<'tcx> Resolver<'tcx> {
             }
             ast::TyKind::StrgRef(loc) => {
                 if let Some(name) = subst.get_loc(loc.name) {
-                    Ok(ty::Ty::StrgRef(name))
+                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                    Ok(ty::Ty::StrgRef(loc))
                 } else {
                     self.diagnostics
                         .emit_err(errors::UnresolvedLoc::new(loc))

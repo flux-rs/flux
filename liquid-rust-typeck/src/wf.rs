@@ -83,9 +83,10 @@ impl Wf<'_> {
 
     fn check_constr(&self, env: &mut Env, constr: &core::Constr) -> Result<(), ErrorReported> {
         match constr {
-            core::Constr::Type(_, ty) => {
-                // TODO(nilehmann) check identifier is actually a loc
-                self.check_type(env, ty)
+            core::Constr::Type(loc, ty) => {
+                [self.check_loc(env, *loc), self.check_type(env, ty)]
+                    .into_iter()
+                    .try_collect_exhaust()
             }
             core::Constr::Pred(e) => self.check_expr(env, e, ty::Sort::bool()),
         }
@@ -97,10 +98,7 @@ impl Wf<'_> {
             core::Ty::Exists(bty, pred) => {
                 env.with_bound(self.sort(bty), |env| self.check_pred(env, pred, ty::Sort::bool()))
             }
-            core::Ty::StrgRef(_) => {
-                // TODO(nilehmann) check identifier is actually a loc
-                Ok(())
-            }
+            core::Ty::StrgRef(loc) => self.check_loc(env, *loc),
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
             core::Ty::Param(_) => Ok(()),
         }
@@ -143,6 +141,19 @@ impl Wf<'_> {
             Ok(())
         } else {
             self.emit_err(errors::SortMismatch::new(e.span, expected, found))
+        }
+    }
+
+    fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorReported> {
+        let found = env[&core::Var::Free(loc.name)].clone();
+        if found == ty::Sort::loc() {
+            Ok(())
+        } else {
+            self.emit_err(errors::SortMismatch::new(
+                Some(loc.source_info.0),
+                ty::Sort::loc(),
+                found,
+            ))
         }
     }
 

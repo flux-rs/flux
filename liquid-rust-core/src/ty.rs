@@ -33,7 +33,7 @@ pub struct FnSig {
 #[derive(Debug)]
 pub enum Constr {
     /// A type constraint on a location
-    Type(Name, Ty),
+    Type(Ident, Ty),
     /// A predicate that needs to hold
     Pred(Expr),
 }
@@ -42,7 +42,7 @@ pub enum Constr {
 pub enum Ty {
     Refine(BaseTy, Refine),
     Exists(BaseTy, Pred),
-    StrgRef(Name),
+    StrgRef(Ident),
     WeakRef(Box<Ty>),
     ShrRef(Box<Ty>),
     Param(ParamTy),
