@@ -87,8 +87,8 @@ pub use crate::_join as join;
 #[macro_export]
 macro_rules! _impl_debug_with_default_cx {
     ($($ty:ty $(=> $key:literal)?),* $(,)?) => {$(
-        impl fmt::Debug for $ty  {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl std::fmt::Debug for $ty  {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 rustc_middle::ty::tls::with(|tcx| {
                     #[allow(unused_mut)]
                     let mut cx = <$ty>::default_cx(tcx);
@@ -337,7 +337,7 @@ impl FromOpt for Visibility {
             Some(s) => {
                 let n = s
                     .strip_prefix("truncate(")?
-                    .strip_suffix(")")?
+                    .strip_suffix(')')?
                     .parse()
                     .ok()?;
                 Some(Visibility::Truncate(n))
