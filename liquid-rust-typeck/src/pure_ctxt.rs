@@ -521,7 +521,7 @@ mod pretty {
                             .into_iter()
                             .filter(|e| !e.is_true())
                             .format_with(" ∧ ", |e, f| {
-                                let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+                                let e = if cx.simplify_exprs { e.simplify() } else { e };
                                 if e.is_atom() {
                                     f(&format_args_cx!("{:?}", ^e))
                                 } else {

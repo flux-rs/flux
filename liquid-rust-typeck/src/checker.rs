@@ -335,7 +335,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
 
         for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            gen.subtyping(actual, subst.subst_ty(formal));
+            gen.subtyping(actual, formal.clone());
         }
 
         for constr in &fn_sig.requires {
@@ -353,7 +353,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     );
                     env.update_loc(gen, *loc, updated_ty);
                 }
-                Constr::Pred(e) => pcx.push_pred(subst.subst_expr(e)),
+                Constr::Pred(e) => pcx.push_pred(e.clone()),
             }
         }
 

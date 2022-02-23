@@ -483,7 +483,7 @@ mod pretty {
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
                 TyKind::ShrRef(ty) => w!("&{:?}", ty),
-                TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
+                TyKind::Param(param) => w!("{}", ^param),
             }
         }
 

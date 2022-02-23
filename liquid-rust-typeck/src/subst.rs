@@ -14,7 +14,6 @@ pub struct Subst {
     types: Vec<Ty>,
 }
 
-#[derive(Debug)]
 enum LocOrExpr {
     Loc(Loc),
     Expr(Expr),
@@ -131,7 +130,9 @@ impl Subst {
             Var::Bound => var.into(),
             Var::Free(name) => {
                 match self.map.get(&name) {
-                    Some(LocOrExpr::Loc(_)) => panic!("substituting loc for var"),
+                    Some(LocOrExpr::Loc(loc)) => {
+                        panic!("substituting loc for var: `{name:?}` -> `{loc:?}`")
+                    }
                     Some(LocOrExpr::Expr(expr)) => expr.clone(),
                     None => var.into(),
                 }
@@ -144,7 +145,9 @@ impl Subst {
             Loc::Local(local) => Loc::Local(local),
             Loc::Abstract(name) => {
                 match self.map.get(&name) {
-                    Some(LocOrExpr::Expr(_)) => panic!("substituting expr for loc"),
+                    Some(LocOrExpr::Expr(e)) => {
+                        panic!("substituting expr for loc: `{loc:?}` -> `{e:?}`")
+                    }
                     Some(LocOrExpr::Loc(loc)) => *loc,
                     None => Loc::Abstract(name),
                 }
@@ -250,4 +253,28 @@ impl Subst {
             _ => {}
         }
     }
+}
+
+mod pretty {
+    use super::*;
+    use crate::pretty::*;
+
+    impl Pretty for LocOrExpr {
+        fn fmt(&self, cx: &PPrintCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                LocOrExpr::Loc(loc) => w!("loc${:?}", loc),
+                LocOrExpr::Expr(e) => {
+                    let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+                    if e.is_atom() {
+                        w!("expr${:?}", e)
+                    } else {
+                        w!("expr$({:?})", e)
+                    }
+                }
+            }
+        }
+    }
+
+    impl_debug_with_default_cx!(LocOrExpr);
 }
