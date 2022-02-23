@@ -3,34 +3,77 @@ use std::collections::HashSet;
 use rustc_hash::FxHashMap;
 
 use crate::{
+    pure_ctxt::PureCtxt,
     ty::*,
     type_env::{BasicBlockEnv, TypeEnv},
 };
 
 #[derive(Debug)]
 pub struct Subst {
-    exprs: FxHashMap<Var, Expr>,
-    locs: FxHashMap<Loc, Loc>,
+    map: FxHashMap<Name, LocOrExpr>,
     types: Vec<Ty>,
+}
+
+enum LocOrExpr {
+    Loc(Loc),
+    Expr(Expr),
 }
 
 pub struct InferenceError;
 
 impl Subst {
     pub fn empty() -> Self {
-        Self { exprs: FxHashMap::default(), locs: FxHashMap::default(), types: vec![] }
+        Self { types: vec![], map: FxHashMap::default() }
     }
 
     pub fn with_type_substs(types: Vec<Ty>) -> Self {
-        Self { exprs: FxHashMap::default(), locs: FxHashMap::default(), types }
+        Self { types, map: FxHashMap::default() }
     }
 
-    pub fn insert_expr(&mut self, var: Var, expr: impl Into<Expr>) {
-        self.exprs.insert(var, expr.into());
+    pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
+        let mut subst = Self::empty();
+        for param in params {
+            let fresh = pcx.push_binding(param.sort.clone(), |_| Expr::tt());
+            subst.insert_param(param, fresh);
+        }
+        subst
     }
 
-    pub fn insert_loc(&mut self, from: Loc, to: Loc) {
-        self.locs.insert(from, to);
+    pub fn insert_param(&mut self, param: &Param, to: Name) {
+        match param.sort.kind() {
+            SortKind::Loc => {
+                self.map
+                    .insert(param.name, LocOrExpr::Loc(Loc::Abstract(to)));
+            }
+            _ => {
+                self.map
+                    .insert(param.name, LocOrExpr::Expr(Var::Free(to).into()));
+            }
+        }
+    }
+
+    pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
+        FnSig {
+            requires: sig
+                .requires
+                .iter()
+                .map(|constr| self.subst_constr(constr))
+                .collect(),
+            args: sig.args.iter().map(|ty| self.subst_ty(ty)).collect(),
+            ret: self.subst_ty(&sig.ret),
+            ensures: sig
+                .ensures
+                .iter()
+                .map(|constr| self.subst_constr(constr))
+                .collect(),
+        }
+    }
+
+    fn subst_constr(&self, constr: &Constr) -> Constr {
+        match constr {
+            Constr::Type(loc, ty) => Constr::Type(self.subst_loc(*loc), self.subst_ty(ty)),
+            Constr::Pred(e) => Constr::Pred(self.subst_expr(e)),
+        }
     }
 
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
@@ -82,16 +125,34 @@ impl Subst {
         }
     }
 
-    fn subst_var(&self, var: Var) -> Expr {
-        self.exprs.get(&var).cloned().unwrap_or_else(|| var.into())
+    pub fn subst_var(&self, var: Var) -> Expr {
+        match var {
+            Var::Bound => var.into(),
+            Var::Free(name) => {
+                match self.map.get(&name) {
+                    Some(LocOrExpr::Loc(loc)) => {
+                        panic!("substituting loc for var: `{name:?}` -> `{loc:?}`")
+                    }
+                    Some(LocOrExpr::Expr(expr)) => expr.clone(),
+                    None => var.into(),
+                }
+            }
+        }
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
-        self.locs.get(&loc).copied().unwrap_or(loc)
-    }
-
-    pub fn has_loc(&self, loc: Loc) -> bool {
-        self.locs.contains_key(&loc)
+        match loc {
+            Loc::Local(local) => Loc::Local(local),
+            Loc::Abstract(name) => {
+                match self.map.get(&name) {
+                    Some(LocOrExpr::Expr(e)) => {
+                        panic!("substituting expr for loc: `{loc:?}` -> `{e:?}`")
+                    }
+                    Some(LocOrExpr::Loc(loc)) => *loc,
+                    None => Loc::Abstract(name),
+                }
+            }
+        }
     }
 
     fn subst_ty_param(&self, param: ParamTy) -> Ty {
@@ -105,26 +166,23 @@ impl Subst {
         &mut self,
         env: &TypeEnv,
         actuals: &[Ty],
-        fn_sig: &FnSig,
+        fn_sig: &Binders<FnSig>,
     ) -> Result<(), InferenceError> {
-        assert!(actuals.len() == fn_sig.args.len());
-        let params = fn_sig
-            .params
-            .iter()
-            .map(|param| param.name.into())
-            .collect();
+        assert!(actuals.len() == fn_sig.value.args.len());
+        let params = fn_sig.params.iter().map(|param| param.name).collect();
 
-        for (actual, formal) in actuals.iter().zip(fn_sig.args.iter()) {
+        for (actual, formal) in actuals.iter().zip(fn_sig.value.args.iter()) {
             self.infer_from_tys(&params, actual, formal);
         }
 
-        for (loc, required) in &fn_sig.requires {
-            let loc = Loc::Abstract(*loc);
-            let actual = env.lookup_loc(self.subst_loc(loc));
-            self.infer_from_tys(&params, &actual, required);
+        for constr in &fn_sig.value.requires {
+            if let Constr::Type(loc, required) = constr {
+                let actual = env.lookup_loc(self.subst_loc(*loc));
+                self.infer_from_tys(&params, &actual, required);
+            }
         }
 
-        self.check_inference(&fn_sig.params, &fn_sig.requires)
+        self.check_inference(&fn_sig.params)
     }
 
     pub fn infer_from_bb_env(
@@ -132,47 +190,34 @@ impl Subst {
         env: &TypeEnv,
         bb_env: &BasicBlockEnv,
     ) -> Result<(), InferenceError> {
-        let params = bb_env
-            .params
-            .iter()
-            .map(|param| param.name.into())
-            .collect();
+        let params = bb_env.params.iter().map(|param| param.name).collect();
         for (loc, binding2) in bb_env.env.iter() {
             let ty1 = env.lookup_loc(*loc);
             self.infer_from_tys(&params, &ty1, &binding2.ty());
         }
-        self.check_inference(&bb_env.params, &[])
+        self.check_inference(&bb_env.params)
     }
 
-    fn check_inference(
-        &self,
-        params: &[Param],
-        requires: &[(Name, Ty)],
-    ) -> Result<(), InferenceError> {
+    fn check_inference(&self, params: &[Param]) -> Result<(), InferenceError> {
         for param in params {
-            if !self.exprs.contains_key(&param.name.into()) {
-                return Err(InferenceError);
-            }
-        }
-
-        for (loc, _) in requires {
-            if !self.locs.contains_key(&Loc::Abstract(*loc)) {
+            if !self.map.contains_key(&param.name) {
                 return Err(InferenceError);
             }
         }
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, params: &HashSet<Var>, ty1: &TyS, ty2: &TyS) {
+    fn infer_from_tys(&mut self, params: &HashSet<Name>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
                 self.infer_from_exprs(params, e1, e2);
             }
-            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-                match self.locs.insert(*loc2, *loc1) {
-                    Some(old_loc) if &old_loc != loc1 => {
+            (TyKind::StrgRef(loc), TyKind::StrgRef(Loc::Abstract(name))) => {
+                match self.map.insert(*name, LocOrExpr::Loc(*loc)) {
+                    Some(LocOrExpr::Loc(old_loc)) if &old_loc != loc => {
                         todo!("ambiguous instantiation for location parameter`",);
                     }
+                    Some(_) => panic!("subsitution of expression for loc"),
                     _ => {}
                 }
             }
@@ -183,18 +228,19 @@ impl Subst {
         }
     }
 
-    fn infer_from_exprs(&mut self, params: &HashSet<Var>, e1: &Expr, e2: &Expr) {
+    fn infer_from_exprs(&mut self, params: &HashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
-            (_, ExprKind::Var(var)) if params.contains(var) => {
-                match self.exprs.insert(*var, e1.clone()) {
-                    Some(old_e) if &old_e != e1 => {
+            (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
+                match self.map.insert(*name, LocOrExpr::Expr(e1.clone())) {
+                    Some(LocOrExpr::Expr(old_e)) if &old_e != e1 => {
                         todo!(
                             "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *var,
+                            *name,
                             old_e,
                             e1
                         )
                     }
+                    Some(_) => panic!("subsitution of loc for var"),
                     _ => {}
                 }
             }
@@ -207,4 +253,28 @@ impl Subst {
             _ => {}
         }
     }
+}
+
+mod pretty {
+    use super::*;
+    use crate::pretty::*;
+
+    impl Pretty for LocOrExpr {
+        fn fmt(&self, cx: &PPrintCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                LocOrExpr::Loc(loc) => w!("loc${:?}", loc),
+                LocOrExpr::Expr(e) => {
+                    let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+                    if e.is_atom() {
+                        w!("expr${:?}", e)
+                    } else {
+                        w!("expr$({:?})", e)
+                    }
+                }
+            }
+        }
+    }
+
+    impl_debug_with_default_cx!(LocOrExpr);
 }

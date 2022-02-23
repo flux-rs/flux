@@ -82,10 +82,11 @@ impl<'tcx> Resolver<'tcx> {
         let name_gen = IndexGen::new();
         let mut subst = Subst::new();
 
-        let refined_by = match spec.refined_by {
-            Some(refined_by) => self.resolve_generics(refined_by, &name_gen, &mut subst)?,
-            None => vec![],
+        let (refined_by, constrs) = match spec.refined_by {
+            Some(refined_by) => self.resolve_generic_values(refined_by, &name_gen, &mut subst)?,
+            None => (vec![], vec![]),
         };
+        assert!(constrs.is_empty());
 
         if spec.opaque {
             Ok(ty::AdtDef::Opaque { refined_by })
@@ -118,18 +119,19 @@ impl<'tcx> Resolver<'tcx> {
 
         subst.insert_generic_types(self.tcx, hir_generics);
 
-        let params = self.resolve_generics(fn_sig.generics, &name_gen, &mut subst);
+        let (mut params, mut requires) =
+            self.resolve_generic_values(fn_sig.generics, &name_gen, &mut subst)?;
 
-        let requires = fn_sig
-            .requires
-            .into_iter()
-            .map(|(loc, ty)| {
-                let fresh = name_gen.fresh();
-                subst.insert_loc(loc.name, fresh);
-                let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok((fresh, ty))
-            })
-            .try_collect_exhaust();
+        for (loc, ty) in fn_sig.requires {
+            let fresh = name_gen.fresh();
+            subst.insert_loc(loc.name, fresh);
+
+            let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+            let ty = self.resolve_ty(ty, &mut subst)?;
+
+            params.push(ty::Param { name: loc, sort: ty::Sort::Loc });
+            requires.push(ty::Constr::Type(loc, ty));
+        }
 
         let args = fn_sig
             .args
@@ -141,37 +143,31 @@ impl<'tcx> Resolver<'tcx> {
             .ensures
             .into_iter()
             .map(|(loc, ty)| {
-                let name = if let Some(name) = subst.get_loc(loc.name) {
-                    name
+                if let Some(name) = subst.get_loc(loc.name) {
+                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                    let ty = self.resolve_ty(ty, &mut subst)?;
+                    Ok(ty::Constr::Type(loc, ty))
                 } else {
-                    let fresh = name_gen.fresh();
-                    subst.insert_loc(loc.name, fresh);
-                    fresh
-                };
-                let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok((name, ty))
+                    self.diagnostics
+                        .emit_err(errors::UnresolvedVar::new(loc))
+                        .raise()
+                }
             })
             .try_collect_exhaust();
 
         let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
-        Ok(ty::FnSig {
-            params: params?,
-            requires: requires?,
-            args: args?,
-            ret: ret?,
-            ensures: ensures?,
-        })
+        Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
     }
 
-    fn resolve_generics(
+    fn resolve_generic_values(
         &mut self,
         generics: ast::Generics,
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
-    ) -> Result<Vec<ty::Param>, ErrorReported> {
-        generics
-            .into_iter()
+    ) -> Result<(Vec<ty::Param>, Vec<ty::Constr>), ErrorReported> {
+        let params = generics
+            .iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
                 if subst
@@ -184,15 +180,20 @@ impl<'tcx> Resolver<'tcx> {
                 } else {
                     let name =
                         ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-                    let sort = resolve_sort(&mut self.diagnostics, param.sort);
-                    let pred = match param.pred {
-                        Some(expr) => self.resolve_expr(expr, subst),
-                        None => Ok(ty::Expr::TRUE),
-                    };
-                    Ok(ty::Param { name, sort: sort?, pred: pred? })
+                    let sort = resolve_sort(&mut self.diagnostics, param.sort)?;
+
+                    Ok(ty::Param { name, sort })
                 }
             })
-            .try_collect_exhaust()
+            .try_collect_exhaust()?;
+
+        let constrs = generics
+            .into_iter()
+            .filter_map(|param| param.pred)
+            .map(|pred| Ok(ty::Constr::Pred(self.resolve_expr(pred, subst)?)))
+            .try_collect_exhaust()?;
+
+        Ok((params, constrs))
     }
 
     fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
@@ -238,7 +239,8 @@ impl<'tcx> Resolver<'tcx> {
             }
             ast::TyKind::StrgRef(loc) => {
                 if let Some(name) = subst.get_loc(loc.name) {
-                    Ok(ty::Ty::StrgRef(name))
+                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                    Ok(ty::Ty::StrgRef(loc))
                 } else {
                     self.diagnostics
                         .emit_err(errors::UnresolvedLoc::new(loc))

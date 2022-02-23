@@ -34,7 +34,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         }
     }
 
-    pub fn lookup_fn_sig(&self, did: DefId) -> &ty::FnSig {
+    pub fn lookup_fn_sig(&self, did: DefId) -> &ty::Binders<ty::FnSig> {
         &self.fn_specs[&did.as_local().unwrap()].fn_sig
     }
 

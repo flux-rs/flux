@@ -10,7 +10,38 @@ pub struct Wf<'a> {
     adt_defs: &'a core::AdtDefs,
 }
 
-type Env = FxHashMap<core::Var, ty::Sort>;
+struct Env {
+    sorts: FxHashMap<core::Name, ty::Sort>,
+    bound_var_sort: Option<ty::Sort>,
+}
+
+impl Env {
+    fn new(params: &[core::Param]) -> Env {
+        let sorts = params
+            .iter()
+            .map(|param| (param.name.name, lower_sort(param.sort)))
+            .collect();
+        Env { sorts, bound_var_sort: None }
+    }
+
+    fn with_bound<R>(&mut self, sort: ty::Sort, f: impl FnOnce(&Self) -> R) -> R {
+        self.bound_var_sort = Some(sort);
+        let r = f(self);
+        self.bound_var_sort = None;
+        r
+    }
+}
+
+impl std::ops::Index<&'_ core::Var> for Env {
+    type Output = ty::Sort;
+
+    fn index(&self, var: &core::Var) -> &Self::Output {
+        match var {
+            core::Var::Bound => self.bound_var_sort.as_ref().unwrap(),
+            core::Var::Free(name) => &self.sorts[name],
+        }
+    }
+}
 
 impl Wf<'_> {
     pub fn new<'a>(sess: &'a Session, adt_defs: &'a core::AdtDefs) -> Wf<'a> {
@@ -18,8 +49,7 @@ impl Wf<'_> {
     }
 
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorReported> {
-        let mut env = Env::default();
-        let params = self.check_params(&mut env, &fn_sig.params);
+        let mut env = Env::new(&fn_sig.params);
 
         let args = fn_sig
             .args
@@ -29,54 +59,46 @@ impl Wf<'_> {
         let ensures = fn_sig
             .ensures
             .iter()
-            .try_for_each_exhaust(|(_, ty)| self.check_type(&mut env, ty));
+            .try_for_each_exhaust(|constr| self.check_constr(&mut env, constr));
 
         let ret = self.check_type(&mut env, &fn_sig.ret);
 
         args?;
         ret?;
-        params?;
         ensures?;
 
         Ok(())
     }
 
     pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
-        let mut env = Env::default();
-        let refined_by = self.check_params(&mut env, def.refined_by());
+        let mut env = Env::new(def.refined_by());
 
         if let core::AdtDef::Transparent { fields, .. } = def {
             fields
                 .iter()
                 .try_for_each_exhaust(|ty| self.check_type(&mut env, ty))?;
         }
-
-        refined_by
+        Ok(())
     }
 
-    fn check_params(&self, env: &mut Env, params: &[core::Param]) -> Result<(), ErrorReported> {
-        params
-            .iter()
-            .map(|param| {
-                env.insert(core::Var::Free(param.name.name), lower_sort(param.sort));
-                self.check_expr(env, &param.pred, ty::Sort::bool())
-            })
-            .try_collect_exhaust()
+    fn check_constr(&self, env: &mut Env, constr: &core::Constr) -> Result<(), ErrorReported> {
+        match constr {
+            core::Constr::Type(loc, ty) => {
+                [self.check_loc(env, *loc), self.check_type(env, ty)]
+                    .into_iter()
+                    .try_collect_exhaust()
+            }
+            core::Constr::Pred(e) => self.check_expr(env, e, ty::Sort::bool()),
+        }
     }
 
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
             core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sort(bty)),
             core::Ty::Exists(bty, pred) => {
-                env.insert(core::Var::Bound, self.sort(bty));
-                self.check_pred(env, pred, ty::Sort::bool())?;
-                env.remove(&core::Var::Bound);
-                Ok(())
+                env.with_bound(self.sort(bty), |env| self.check_pred(env, pred, ty::Sort::bool()))
             }
-            core::Ty::StrgRef(_) => {
-                // TODO(nilehmann) check identifier is actually a loc
-                Ok(())
-            }
+            core::Ty::StrgRef(loc) => self.check_loc(env, *loc),
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
             core::Ty::Param(_) => Ok(()),
         }
@@ -119,6 +141,19 @@ impl Wf<'_> {
             Ok(())
         } else {
             self.emit_err(errors::SortMismatch::new(e.span, expected, found))
+        }
+    }
+
+    fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorReported> {
+        let found = env[&core::Var::Free(loc.name)].clone();
+        if found == ty::Sort::loc() {
+            Ok(())
+        } else {
+            self.emit_err(errors::SortMismatch::new(
+                Some(loc.source_info.0),
+                ty::Sort::loc(),
+                found,
+            ))
         }
     }
 

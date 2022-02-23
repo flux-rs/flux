@@ -151,7 +151,7 @@ impl<Tag: fmt::Display> fmt::Display for Constraint<Tag> {
                 write!(f, "\n)")
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ int) ({}))", body)?;
+                write!(f, "(forall ((_ Unit) ({}))", body)?;
                 write!(PadAdapter::wrap_fmt(f), "\n{}", head)?;
                 write!(f, "\n)")
             }

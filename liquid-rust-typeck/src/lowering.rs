@@ -4,13 +4,12 @@ use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
 pub struct LoweringCtxt {
-    params: FxHashMap<core::Name, ty::Name>,
-    locs: FxHashMap<core::Name, ty::Name>,
+    name_map: FxHashMap<core::Name, ty::Name>,
 }
 
 impl LoweringCtxt {
     pub fn empty() -> Self {
-        Self { params: FxHashMap::default(), locs: FxHashMap::default() }
+        Self { name_map: FxHashMap::default() }
     }
 
     pub fn lower_fn_spec(fn_spec: core::FnSpec) -> ty::FnSpec {
@@ -25,10 +24,8 @@ impl LoweringCtxt {
         let params = cx.lower_params(&name_gen, &fn_sig.params);
 
         let mut requires = vec![];
-        for (loc, ty) in fn_sig.requires {
-            let fresh = name_gen.fresh();
-            requires.push((fresh, cx.lower_ty(&ty, fresh_kvar)));
-            cx.locs.insert(loc, fresh);
+        for constr in fn_sig.requires {
+            requires.push(cx.lower_constr(&constr, fresh_kvar));
         }
 
         let mut args = vec![];
@@ -37,20 +34,14 @@ impl LoweringCtxt {
         }
 
         let mut ensures = vec![];
-        for (loc, ty) in &fn_sig.ensures {
-            let loc = if let Some(loc) = cx.locs.get(loc) {
-                *loc
-            } else {
-                let fresh = name_gen.fresh();
-                cx.locs.insert(*loc, fresh);
-                fresh
-            };
-            ensures.push((loc, cx.lower_ty(ty, fresh_kvar)));
+        for constr in fn_sig.ensures {
+            ensures.push(cx.lower_constr(&constr, fresh_kvar));
         }
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        ty::FnSpec { fn_sig: ty::FnSig { params, requires, args, ret, ensures }, assume }
+        let fn_sig = ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures });
+        ty::FnSpec { fn_sig, assume }
     }
 
     pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
@@ -72,6 +63,22 @@ impl LoweringCtxt {
         }
     }
 
+    fn lower_constr(
+        &self,
+        constr: &core::Constr,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
+    ) -> ty::Constr {
+        match constr {
+            core::Constr::Type(loc, ty) => {
+                ty::Constr::Type(
+                    ty::Loc::Abstract(self.name_map[&loc.name]),
+                    self.lower_ty(ty, fresh_kvar),
+                )
+            }
+            core::Constr::Pred(e) => ty::Constr::Pred(self.lower_expr(e)),
+        }
+    }
+
     fn lower_params(
         &mut self,
         name_gen: &IndexGen<ty::Name>,
@@ -81,12 +88,8 @@ impl LoweringCtxt {
             .iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
-                self.params.insert(param.name.name, fresh);
-                ty::Param {
-                    name: fresh,
-                    sort: lower_sort(param.sort),
-                    pred: self.lower_expr(&param.pred).into(),
-                }
+                self.name_map.insert(param.name.name, fresh);
+                ty::Param { name: fresh, sort: lower_sort(param.sort) }
             })
             .collect()
     }
@@ -110,7 +113,7 @@ impl LoweringCtxt {
                 ty::TyKind::Exists(bty, pred).intern()
             }
             core::Ty::StrgRef(loc) => {
-                ty::TyKind::StrgRef(ty::Loc::Abstract(self.locs[loc])).intern()
+                ty::TyKind::StrgRef(ty::Loc::Abstract(self.name_map[&loc.name])).intern()
             }
             core::Ty::WeakRef(ty) => ty::TyKind::WeakRef(self.lower_ty(ty, fresh_kvar)).intern(),
             core::Ty::ShrRef(ty) => ty::TyKind::ShrRef(self.lower_ty(ty, fresh_kvar)).intern(),
@@ -151,7 +154,7 @@ impl LoweringCtxt {
     fn lower_var(&self, var: core::Var) -> ty::Var {
         match var {
             core::Var::Bound => ty::Var::Bound,
-            core::Var::Free(name) => ty::Var::Free(self.params[&name]),
+            core::Var::Free(name) => ty::Var::Free(self.name_map[&name]),
         }
     }
 
@@ -167,6 +170,7 @@ pub fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
         core::Sort::Int => ty::Sort::int(),
         core::Sort::Bool => ty::Sort::bool(),
+        core::Sort::Loc => ty::Sort::loc(),
     }
 }
 
