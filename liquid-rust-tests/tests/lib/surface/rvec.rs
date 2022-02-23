@@ -39,7 +39,8 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    // HACK(ranjitjhala) we should use the surface syntax but for issue #...
+    // HACK(ranjitjhala) we should use the surface syntax but for issue #58
+    // https://github.com/liquid-rust/liquid-rust/issues/58
     // [lr::sig(fn(self: &mut n@RVec<T>, i:usize{0 <= i && i < n}) -> &weak T; self: RVec<T>{v:v == n})]
     // #[lr::ty(fn<n:int, i:int{0 <= i && i < n}>(self: RVec<T>@n; ref<self>, usize@i) -> &weak T; self: RVec<T>{v:v==n})]
     #[lr::ty(fn<n:int, i:int{0 <= i && i < n}>(self: RVec<T>@n; ref<self>, usize@i) -> &weak T; self: RVec<T>@n)]
