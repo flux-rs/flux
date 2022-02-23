@@ -237,20 +237,18 @@ impl Node {
             }
             NodeKind::Binding(name, sort, pred) => {
                 let fresh = cx.fresh_name();
-                // The name is no longer in scope after we return from `pred_to_fixpoint`
-                // but there's no harm in keeping it around as it will just get overwritten if
-                // it's used in a different branch of the tree.
-                cx.name_map.insert(*name, fresh);
-                let (bindings, pred) = pred_to_fixpoint(cx, pred);
-                Some(stitch(
-                    bindings,
-                    fixpoint::Constraint::ForAll(
-                        fresh,
-                        sort_to_fixpoint(sort),
-                        pred,
-                        Box::new(children_to_fixpoint(cx, &self.children)?),
-                    ),
-                ))
+                cx.with_name_map(*name, fresh, |cx| {
+                    let (bindings, pred) = pred_to_fixpoint(cx, pred);
+                    Some(stitch(
+                        bindings,
+                        fixpoint::Constraint::ForAll(
+                            fresh,
+                            sort_to_fixpoint(sort),
+                            pred,
+                            Box::new(children_to_fixpoint(cx, &self.children)?),
+                        ),
+                    ))
+                })
             }
             NodeKind::Pred(expr) => {
                 Some(fixpoint::Constraint::Guard(

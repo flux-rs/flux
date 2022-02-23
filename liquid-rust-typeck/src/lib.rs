@@ -88,6 +88,18 @@ impl FixpointCtxt {
         }
     }
 
+    pub fn with_name_map<R>(
+        &mut self,
+        name: Name,
+        to: fixpoint::Name,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        self.name_map.insert(name, to);
+        let r = f(self);
+        self.name_map.remove(&name);
+        r
+    }
+
     fn fresh_name(&self) -> fixpoint::Name {
         self.name_gen.fresh()
     }

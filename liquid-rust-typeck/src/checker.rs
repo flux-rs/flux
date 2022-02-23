@@ -271,17 +271,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         terminator: &Terminator,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
         match &terminator.kind {
-            TerminatorKind::Return => {
-                let ret_place_ty = env.lookup_local(RETURN_PLACE);
-                let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
-
-                gen.subtyping(ret_place_ty, self.ret.clone());
-
-                for constr in &self.ensures {
-                    gen.check_constr(env, constr);
-                }
-                Ok(vec![])
-            }
+            TerminatorKind::Return => self.check_ret(pcx, env),
             TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
                 self.check_switch_int(env, discr, targets)
@@ -297,6 +287,22 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(vec![(*target, None)])
             }
         }
+    }
+
+    fn check_ret(
+        &mut self,
+        pcx: &mut PureCtxt,
+        env: &mut TypeEnv,
+    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+        let ret_place_ty = env.lookup_local(RETURN_PLACE);
+        let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
+
+        gen.subtyping(ret_place_ty, self.ret.clone());
+
+        for constr in &self.ensures {
+            gen.check_constr(env, constr);
+        }
+        Ok(vec![])
     }
 
     fn check_call(
