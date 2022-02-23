@@ -8,13 +8,13 @@ pub struct RVec<T> {
 
 impl<T> RVec<T> {
     #[lr::assume]
-    #[lr::sig(fn() -> RVec<T>{v:v==0)]
+    #[lr::sig(fn() -> RVec<T>{v:v==0})]
     pub fn new() -> Self {
         Self { inner: Vec::new() }
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &mut n@RVec<T>, T) -> i32{v:v == 0}; self: RVec<T>{v:v == n+1})]
+    #[lr::sig(fn(self: &mut n@RVec<T>, item: T) -> i32{v:v == 0}; self: RVec<T>{v:v == n+1})]
     pub fn push(&mut self, item: T) -> i32 {
         self.inner.push(item);
         0
@@ -27,19 +27,22 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: & n@RVec<T>) -> bool{b: b == (len == 0)})]
+    #[lr::sig(fn(self: & len@RVec<T>) -> bool{b: b == (len == 0)})]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self:& len@RVec<T>, usize{v: 0 <= v && v < len}) -> &T)]
+    #[lr::sig(fn(self:& len@RVec<T>, i:usize{0 <= i && i < len}) -> &T)]
     pub fn get(&self, i: usize) -> &T {
         &self.inner[i]
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &mut n@RVec<T>, usize{v: 0 <= v && v < n}) -> &weak T; self: RVec<T>{v:v == n})]
+    // HACK(ranjitjhala) we should use the surface syntax but for issue #...
+    // [lr::sig(fn(self: &mut n@RVec<T>, i:usize{0 <= i && i < n}) -> &weak T; self: RVec<T>{v:v == n})]
+    // #[lr::ty(fn<n:int, i:int{0 <= i && i < n}>(self: RVec<T>@n; ref<self>, usize@i) -> &weak T; self: RVec<T>{v:v==n})]
+    #[lr::ty(fn<n:int, i:int{0 <= i && i < n}>(self: RVec<T>@n; ref<self>, usize@i) -> &weak T; self: RVec<T>@n)]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]
     }

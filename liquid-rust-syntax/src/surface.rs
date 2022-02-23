@@ -51,6 +51,7 @@ pub struct Path {
 
 #[derive(Debug)]
 pub enum RefKind {
+    Weak,
     Mut,
     Immut,
 }
@@ -101,6 +102,16 @@ fn is_bool(path: &Path) -> bool {
     path.ident.as_str() == "bool"
 }
 
+// HACK(ranjitjhala) need better way to determine if Path is a Type-Param
+fn is_generic(path: &Path) -> bool {
+    let str = path.ident.as_str();
+    if let Some(c) = str.chars().nth(0) {
+        c.is_uppercase() && str.len() == 1
+    } else {
+        false
+    }
+}
+
 // HACK(ranjitjhala) need better way to "embed" rust types to sort
 fn mk_sort(path: &Path, span: Span) -> Ident {
     let sort_name = if is_bool(path) { "bool" } else { "int" };
@@ -117,13 +128,20 @@ fn mk_generic(x: Ident, path: &Path, pred: Option<Expr>) -> ast::GenericParam {
 }
 
 impl BindIn {
-    fn from_path(x: Ident, path: Path, span: Span, pred: Option<Expr>) -> BindIn {
-        let gen = Some(mk_generic(x, &path, pred));
-        let path = convert_path(path);
-        let refine = mk_singleton(x);
-        let kind = ast::TyKind::RefineTy { path, refine };
-        let ty = ast::Ty { kind, span };
-        BindIn { gen, ty, loc: None }
+    fn from_path(x: Ident, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
+        if is_generic(&p) {
+            let path = convert_path(p);
+            let kind = ast::TyKind::BaseTy(path);
+            let ty = ast::Ty { kind, span };
+            BindIn { gen: None, ty, loc: None }
+        } else {
+            let gen = Some(mk_generic(x, &p, pred));
+            let path = convert_path(p);
+            let refine = mk_singleton(x);
+            let kind = ast::TyKind::RefineTy { path, refine };
+            let ty = ast::Ty { kind, span };
+            BindIn { gen, ty, loc: None }
+        }
     }
 
     fn from_ty(x: Ident, ty: Ty) -> BindIn {
@@ -146,6 +164,11 @@ impl BindIn {
                 let b = BindIn::from_ty(x, *t);
                 let ty = ast::Ty { kind: ast::TyKind::ShrRef(Box::new(b.ty)), span: ty.span };
                 BindIn { gen: b.gen, ty, loc: None }
+            }
+            TyKind::Ref(RefKind::Weak, t) => {
+                let b = BindIn::from_ty(x, *t);
+                let ty = ast::Ty { kind: ast::TyKind::WeakRef(Box::new(b.ty)), span: ty.span };
+                BindIn { gen: None, ty, loc: None }
             }
         }
     }
@@ -189,5 +212,6 @@ impl Desugar {
 }
 
 pub fn desugar(ssig: FnSig) -> ast::FnSig {
-    Desugar::desugar(ssig)
+    let sig = Desugar::desugar(ssig);
+    sig
 }
