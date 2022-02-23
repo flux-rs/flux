@@ -19,7 +19,9 @@ pub struct TypeEnv {
     borrowed: FxHashSet<Loc>,
 }
 
-pub struct TypeEnvShape(TypeEnv);
+pub struct TypeEnvInfer {
+    env: TypeEnv,
+}
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
@@ -61,8 +63,8 @@ impl TypeEnv {
         TypeEnv { bindings: FxHashMap::default(), borrowed: FxHashSet::default() }
     }
 
-    pub fn into_shape(self) -> TypeEnvShape {
-        TypeEnvShape(self)
+    pub fn into_infer(self) -> TypeEnvInfer {
+        TypeEnvInfer { env: self }
     }
 
     pub fn lookup_local(&self, local: Local) -> Ty {
@@ -288,8 +290,32 @@ impl TypeEnv {
         levels
     }
 
-    pub fn join(&mut self, genv: &GlobalEnv, other: &mut TypeEnv) -> bool {
+    fn weaken_ref(&mut self, gen: &mut ConstraintGen, loc: Loc, bound: Ty) {
+        let ty = match &self.bindings[&loc] {
+            Binding::Weak { bound: bound2, ty } => {
+                gen.subtyping(bound.clone(), bound2.clone());
+                ty.clone()
+            }
+            Binding::Strong(ty) => ty.clone(),
+        };
+        match (ty.kind(), bound.kind()) {
+            (_, TyKind::Exists(..)) => {
+                gen.subtyping(ty, bound.clone());
+                *self.bindings.get_mut(&loc).unwrap().ty_mut() = bound;
+            }
+            _ => todo!(),
+        }
+    }
+}
+
+impl TypeEnvInfer {
+    pub fn enter(&self) -> TypeEnv {
+        self.env.clone()
+    }
+
+    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnvInfer) -> bool {
         let levels = self
+            .env
             .levels()
             .into_iter()
             .sorted_by_key(|(_, level)| *level)
@@ -297,39 +323,46 @@ impl TypeEnv {
 
         let mut modified = false;
         for (loc, _) in levels {
-            let (ty1, ty2) = match (self.bindings[&loc].clone(), other.bindings[&loc].clone()) {
-                (Binding::Strong(ty1), Binding::Strong(ty2)) => (ty1, ty2),
-                (
-                    Binding::Weak { bound: bound1, ty: ty1 },
-                    Binding::Weak { bound: bound2, ty: ty2 },
-                ) => {
-                    assert_eq!(bound1, bound2);
-                    (ty1, ty2)
-                }
-                _ => todo!(),
-            };
-            let ty = self.join_ty(genv, other, ty1.clone(), ty2);
+            let (ty1, ty2) =
+                match (self.env.bindings[&loc].clone(), other.env.bindings[&loc].clone()) {
+                    (Binding::Strong(ty1), Binding::Strong(ty2)) => (ty1, ty2),
+                    (
+                        Binding::Weak { bound: bound1, ty: ty1 },
+                        Binding::Weak { bound: bound2, ty: ty2 },
+                    ) => {
+                        assert_eq!(bound1, bound2);
+                        (ty1, ty2)
+                    }
+                    _ => todo!(),
+                };
+            let ty = self.join_ty(genv, &mut other, ty1.clone(), ty2);
             modified |= ty1 != ty;
-            *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty.clone();
+            *self.env.bindings.get_mut(&loc).unwrap().ty_mut() = ty.clone();
         }
-        let n = self.borrowed.len();
-        self.borrowed.extend(&other.borrowed);
-        modified |= n != self.borrowed.len();
+        let n = self.env.borrowed.len();
+        self.env.borrowed.extend(&other.env.borrowed);
+        modified |= n != self.env.borrowed.len();
 
         modified
     }
 
-    fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnv, mut ty1: Ty, mut ty2: Ty) -> Ty {
+    fn join_ty(
+        &mut self,
+        genv: &GlobalEnv,
+        other: &mut TypeEnvInfer,
+        mut ty1: Ty,
+        mut ty2: Ty,
+    ) -> Ty {
         if ty1 == ty2 {
             return ty1;
         }
 
         if let TyKind::StrgRef(loc) = ty1.kind() {
-            ty1 = self.weaken_ref_join(*loc);
+            ty1 = self.weaken_ref(*loc);
         }
 
         if let TyKind::StrgRef(loc) = ty2.kind() {
-            ty2 = other.weaken_ref_join(*loc);
+            ty2 = other.weaken_ref(*loc);
         }
 
         match (ty1.kind(), ty2.kind()) {
@@ -364,7 +397,7 @@ impl TypeEnv {
     fn join_bty(
         &mut self,
         genv: &GlobalEnv,
-        other: &mut TypeEnv,
+        other: &mut TypeEnvInfer,
         bty1: &BaseTy,
         bty2: &BaseTy,
     ) -> BaseTy {
@@ -383,11 +416,11 @@ impl TypeEnv {
         }
     }
 
-    fn weaken_ref_join(&mut self, loc: Loc) -> Ty {
-        match self.bindings[&loc].clone() {
+    fn weaken_ref(&mut self, loc: Loc) -> Ty {
+        match self.env.bindings[&loc].clone() {
             Binding::Strong(ty) => {
                 let ty = self.weaken_ty(ty);
-                self.bindings.insert(loc, Binding::Strong(ty.clone()));
+                self.env.bindings.insert(loc, Binding::Strong(ty.clone()));
                 TyKind::WeakRef(ty).intern()
             }
             Binding::Weak { bound, .. } => TyKind::WeakRef(bound).intern(),
@@ -402,9 +435,9 @@ impl TypeEnv {
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             TyKind::StrgRef(loc) => {
-                let ty = self.bindings[loc].assert_strong();
+                let ty = self.env.bindings[loc].assert_strong();
                 let ty = self.weaken_ty(ty);
-                self.bindings.insert(*loc, Binding::Strong(ty.clone()));
+                self.env.bindings.insert(*loc, Binding::Strong(ty.clone()));
                 TyKind::WeakRef(ty).intern()
             }
             TyKind::ShrRef(_) | TyKind::WeakRef(_) => todo!(),
@@ -424,25 +457,6 @@ impl TypeEnv {
         }
     }
 
-    fn weaken_ref(&mut self, gen: &mut ConstraintGen, loc: Loc, bound: Ty) {
-        let ty = match &self.bindings[&loc] {
-            Binding::Weak { bound: bound2, ty } => {
-                gen.subtyping(bound.clone(), bound2.clone());
-                ty.clone()
-            }
-            Binding::Strong(ty) => ty.clone(),
-        };
-        match (ty.kind(), bound.kind()) {
-            (_, TyKind::Exists(..)) => {
-                gen.subtyping(ty, bound.clone());
-                *self.bindings.get_mut(&loc).unwrap().ty_mut() = bound;
-            }
-            _ => todo!(),
-        }
-    }
-}
-
-impl TypeEnvShape {
     pub fn into_bb_env(
         self,
         genv: &GlobalEnv,
@@ -453,10 +467,10 @@ impl TypeEnvShape {
         let mut params = vec![];
         let mut constrs = vec![];
         let mut bindings = FxHashMap::default();
-        for (loc, binding) in &self.0.bindings {
+        for (loc, binding) in &self.env.bindings {
             if let Binding::Strong(ty) = binding {
                 match ty.kind() {
-                    TyKind::Exists(bty, Pred::KVar(..)) if !self.0.borrowed.contains(loc) => {
+                    TyKind::Exists(bty, Pred::KVar(..)) if !self.env.borrowed.contains(loc) => {
                         let fresh = name_gen.fresh();
                         let sort = genv.sort(bty);
                         constrs.push(fresh_kvar(fresh.into(), sort.clone(), &params));
@@ -472,7 +486,7 @@ impl TypeEnvShape {
         }
 
         let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
-        for (loc, binding1) in self.0.bindings {
+        for (loc, binding1) in self.env.bindings {
             if bindings.contains_key(&loc) {
                 continue;
             }
@@ -480,7 +494,7 @@ impl TypeEnvShape {
             let binding = match (binding1, binding2) {
                 (Binding::Strong(ty1), Binding::Strong(ty2)) => {
                     let ty = replace_kvars(genv, &ty1, fresh_kvar);
-                    Binding::Strong(TypeEnvShape::fix_ty(&ty, ty2))
+                    Binding::Strong(TypeEnvInfer::fix_ty(&ty, ty2))
                 }
                 (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
                     // HACK(nilehmann) The current inference algorithm cannot distinguish when a bound
@@ -488,7 +502,7 @@ impl TypeEnvShape {
                     // we keep the bound of the first environment jumping to the block. This could lose precision in
                     // cases where the bound does need to be strengthened.
                     let ty = replace_kvars(genv, &ty1, fresh_kvar);
-                    Binding::Weak { ty: TypeEnvShape::fix_ty(&ty, ty2), bound: bound.clone() }
+                    Binding::Weak { ty: TypeEnvInfer::fix_ty(&ty, ty2), bound: bound.clone() }
                 }
                 _ => {
                     todo!()
@@ -496,7 +510,7 @@ impl TypeEnvShape {
             };
             bindings.insert(loc, binding);
         }
-        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.0.borrowed } }
+        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.env.borrowed } }
     }
 
     fn fix_ty(ty1: &Ty, ty2: &Ty) -> Ty {
@@ -618,10 +632,10 @@ mod pretty {
         }
     }
 
-    impl Pretty for TypeEnvShape {
+    impl Pretty for TypeEnvInfer {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?}", &self.0)
+            w!("{:?}", &self.env)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -661,5 +675,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv, TypeEnvShape, BasicBlockEnv, Binding);
+    impl_debug_with_default_cx!(TypeEnv, TypeEnvInfer, BasicBlockEnv, Binding);
 }

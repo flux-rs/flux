@@ -19,7 +19,7 @@ use crate::{
         self, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty,
         TyKind, Var,
     },
-    type_env::{BasicBlockEnv, TypeEnv},
+    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, index::IndexVec};
@@ -36,8 +36,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::mir;
 use rustc_session::Session;
-
-use super::type_env::TypeEnvShape;
 
 pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
@@ -73,11 +71,11 @@ pub trait Mode: Sized {
 }
 
 pub struct Inference<'a> {
-    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnv>,
+    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnvInfer>,
 }
 
 pub struct Check<'a> {
-    shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+    bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
     kvars: &'a mut KVarStore,
 }
@@ -111,16 +109,13 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-    ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
+    ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
         let mut constraint = ConstraintBuilder::new();
 
         let mut bb_envs = FxHashMap::default();
         Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
-        Ok(bb_envs
-            .into_iter()
-            .map(|(bb, env)| (bb, env.into_shape()))
-            .collect())
+        Ok(bb_envs)
     }
 }
 
@@ -129,19 +124,19 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-        shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+        bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
         let mut constraint = ConstraintBuilder::new();
         let mut kvars = KVarStore::new();
 
-        // println!("\n---------------------------------------\n{shapes:#?}\n");
+        // println!("\n---------------------------------------\n{bb_env_infer:#?}\n");
 
         Checker::run(
             genv,
             &mut constraint,
             body,
             def_id,
-            Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
+            Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars: &mut kvars },
         )?;
 
         Ok((constraint, kvars))
@@ -719,7 +714,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
 impl Mode for Inference<'_> {
     fn enter_basic_block(&mut self, _pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].clone()
+        self.bb_envs[&bb].enter()
     }
 
     fn check_goto_join_point(
@@ -732,9 +727,9 @@ impl Mode for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
         env.pack_refs(&scope);
         match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut env),
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env.into_infer()),
             Entry::Vacant(entry) => {
-                entry.insert(env.clone());
+                entry.insert(env.into_infer());
                 true
             }
         }
@@ -778,7 +773,7 @@ impl Mode for Check<'_> {
         let mut first = false;
         let bb_env = ck.mode.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            ck.mode.shapes.remove(&target).unwrap().into_bb_env(
+            ck.mode.bb_envs_infer.remove(&target).unwrap().into_bb_env(
                 ck.genv,
                 &pcx.name_gen(),
                 fresh_kvar,
