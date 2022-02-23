@@ -137,10 +137,15 @@ impl BindIn {
                 BindIn { gen: None, ty, loc: None }
             }
             TyKind::Named(n, t) => BindIn::from_ty(n, *t),
-            TyKind::Ref(_, t) => {
+            TyKind::Ref(RefKind::Mut, t) => {
                 let b = BindIn::from_ty(x, *t);
                 let ty = ast::Ty { kind: ast::TyKind::StrgRef(x), span: ty.span };
                 BindIn { gen: b.gen, ty, loc: Some((x, b.ty)) }
+            }
+            TyKind::Ref(RefKind::Immut, t) => {
+                let b = BindIn::from_ty(x, *t);
+                let ty = ast::Ty { kind: ast::TyKind::ShrRef(Box::new(b.ty)), span: ty.span };
+                BindIn { gen: b.gen, ty, loc: None }
             }
         }
     }
