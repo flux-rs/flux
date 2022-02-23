@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(lr)]
 
-#[path = "../../lib/rvec.rs"]
+#[path = "../../lib/surface/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
@@ -19,7 +19,7 @@ pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     *r - n
 }
 
-#[lr::sig(fn(vec: & len@RVec<i32>{2 <= len}, b:bool) -> i32{v:v == 0}; vec: RVec<i32>{v:v == len})]
+#[lr::sig(fn(vec: &mut len@RVec<i32>{2 <= len}, b:bool) -> i32{v:v == 0}; vec: RVec<i32>{v:v == len})]
 pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     let r;
     if b {

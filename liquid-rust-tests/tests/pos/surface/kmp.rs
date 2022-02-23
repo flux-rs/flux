@@ -1,11 +1,11 @@
 #![feature(register_tool)]
 #![register_tool(lr)]
 
-#[path = "../lib/rvec.rs"]
+#[path = "../../lib/surface/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-#[lr::ty(fn<len: int{len > 0}>(&RVec<u8>@len) -> RVec<usize{v: v >=0 && v <= len}>@len)]
+#[lr::sig(fn(p: &len@RVec<u8>{0 < len}) -> RVec<usize{v: 0 <= v && v <= len}>{v:v == len})]
 fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     let m = p.len();
     let mut t = RVec::from_elem_n(0, m);
@@ -29,8 +29,10 @@ fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     t
 }
 
-#[lr::ty(fn<n: int{0 < n}, m: int{0 < m && m <= n }>(target: RVec<u8>@n; RVec<u8>@m, ref<target>) -> usize)]
-pub fn kmp_search(mut pat: RVec<u8>, target: &mut RVec<u8>) -> usize {
+// TODO: original order was the below which makes the WF checker complain about the unbound 'n' in 'pat'
+// [lr::sig(fn(pat: RVec<u8>{0 < pat && pat <= n}, target: &mut n@RVec<u8>{0 < n}) -> usize)]
+#[lr::sig(fn(target: &mut n@RVec<u8>{0 < n}, pat: RVec<u8>{0 < pat && pat <= n}) -> usize)]
+pub fn kmp_search(target: &mut RVec<u8>, mut pat: RVec<u8>) -> usize {
     let mut t_i = 0;
     let mut p_i = 0;
     let mut result_idx = 0;

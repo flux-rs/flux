@@ -37,6 +37,7 @@ Ty: surface::Ty = {
 
 TyKind: surface::TyKind = {
     "&" "mut"         <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+    "&" "weak"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Weak, Box::new(ty)),
     "&"               <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Immut, Box::new(ty)),
     <ident:Ident> "@" <ty:Ty> => surface::TyKind::Named(ident, Box::new(ty)),
     <path:Path>               => surface::TyKind::Base(<>),
@@ -138,7 +139,8 @@ BinOp5: ast::BinOp = {
 
 BinOp6: ast::BinOp = {
     "+" => ast::BinOp::Add,
-    "-" => ast::BinOp::Sub
+    "-" => ast::BinOp::Sub,
+    "%" => ast::BinOp::Mod,
 }
 
 Lit: ast::Lit = {
@@ -177,6 +179,7 @@ extern {
 
     enum Token {
         "mut" => Token::Mut,
+        "weak" => Token::Weak,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
@@ -203,5 +206,6 @@ extern {
         ","  => Token::Comma,
         "->" => Token::RArrow,
         "&"  => Token::And,
+        "%" => Token::Percent,
     }
 }
