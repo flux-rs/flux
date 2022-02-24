@@ -5,6 +5,7 @@ use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{IntTy, UintTy};
@@ -340,6 +341,27 @@ impl ExprS {
                 Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(to.clone())))
             }
         }
+    }
+
+    pub fn vars(&self) -> FxHashSet<Name> {
+        fn go(e: &ExprS, vars: &mut FxHashSet<Name>) {
+            match e.kind() {
+                ExprKind::Var(Var::Free(name)) => {
+                    vars.insert(*name);
+                }
+                ExprKind::BinaryOp(_, e1, e2) => {
+                    go(e1, vars);
+                    go(e2, vars);
+                }
+                ExprKind::UnaryOp(_, e) => go(e, vars),
+                ExprKind::Proj(e, _) => go(e, vars),
+                ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| go(e, vars)),
+                ExprKind::Var(Var::Bound) | ExprKind::Constant(_) => {}
+            }
+        }
+        let mut vars = FxHashSet::default();
+        go(self, &mut vars);
+        vars
     }
 
     /// Simplify expression applying some rules like removing double negation. This is used for pretty

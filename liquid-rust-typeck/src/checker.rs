@@ -129,7 +129,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let mut constraint = ConstraintBuilder::new();
         let mut kvars = KVarStore::new();
 
-        // println!("\n---------------------------------------\n{bb_env_infer:#?}\n");
+        // println!("\n---------------------------------------\n{bb_envs_infer:#?}\n");
 
         Checker::run(
             genv,
@@ -713,8 +713,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 }
 
 impl Mode for Inference<'_> {
-    fn enter_basic_block(&mut self, _pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].enter()
+    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter(pcx)
     }
 
     fn check_goto_join_point(
@@ -725,11 +725,23 @@ impl Mode for Inference<'_> {
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
+        // println!("\ngoto {target:?}");
+        // println!("{scope:?}");
+        // println!("{env:?}\n");
         env.pack_refs(&scope);
         match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env.into_infer()),
+            Entry::Occupied(mut entry) => {
+                let env = env.into_infer(ck.genv, &scope);
+                // println!("{env:?}");
+                // println!("{:?}", entry.get());
+                let b = entry.get_mut().join(ck.genv, env);
+                // println!("{:?}\n\n", entry.get());
+                b
+            }
             Entry::Vacant(entry) => {
-                entry.insert(env.into_infer());
+                let env = env.into_infer(ck.genv, &scope);
+                // println!("{:?}\n\n", env);
+                entry.insert(env);
                 true
             }
         }
@@ -773,13 +785,15 @@ impl Mode for Check<'_> {
         let mut first = false;
         let bb_env = ck.mode.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            ck.mode.bb_envs_infer.remove(&target).unwrap().into_bb_env(
-                ck.genv,
-                &pcx.name_gen(),
-                fresh_kvar,
-                &env,
-            )
+            ck.mode
+                .bb_envs_infer
+                .remove(&target)
+                .unwrap()
+                .into_bb_env(ck.genv, fresh_kvar, &env)
         });
+
+        // println!("{env:?}");
+        // println!("{bb_env:?}\n");
 
         let mut subst = Subst::empty();
         subst

@@ -121,12 +121,6 @@ impl std::ops::Index<KVid> for KVarStore {
 }
 
 impl PureCtxt<'_> {
-    pub fn name_gen(&self) -> IndexGen<Name> {
-        let gen = IndexGen::new();
-        gen.skip(self.next_name_idx());
-        gen
-    }
-
     pub fn breadcrumb(&mut self) -> PureCtxt {
         PureCtxt { cx: self.cx, ptr: Rc::clone(&self.ptr) }
     }
@@ -213,6 +207,13 @@ impl Scope {
         self.bindings
             .iter_enumerated()
             .map(|(name, sort)| (name, sort.clone()))
+    }
+
+    /// A generator of fresh names in this scope.
+    pub fn name_gen(&self) -> IndexGen<Name> {
+        let gen = IndexGen::new();
+        gen.skip(self.bindings.len());
+        gen
     }
 
     pub fn contains(&self, name: Name) -> bool {

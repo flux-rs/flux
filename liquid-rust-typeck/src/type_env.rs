@@ -3,7 +3,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, ExprKind, Param, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, ParamTy, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -20,6 +20,8 @@ pub struct TypeEnv {
 }
 
 pub struct TypeEnvInfer {
+    params: FxHashMap<Name, Sort>,
+    name_gen: IndexGen<Name>,
     env: TypeEnv,
 }
 
@@ -63,8 +65,8 @@ impl TypeEnv {
         TypeEnv { bindings: FxHashMap::default(), borrowed: FxHashSet::default() }
     }
 
-    pub fn into_infer(self) -> TypeEnvInfer {
-        TypeEnvInfer { env: self }
+    pub fn into_infer(self, genv: &GlobalEnv, scope: &Scope) -> TypeEnvInfer {
+        TypeEnvInfer::new(genv, scope, self)
     }
 
     pub fn lookup_local(&self, local: Local) -> Ty {
@@ -308,9 +310,114 @@ impl TypeEnv {
     }
 }
 
+#[derive(Debug)]
+enum JoinKind {
+    Packed(BaseTy, Expr, Name),
+    Refine(BaseTy, Expr),
+    Exists(BaseTy, Pred),
+    Uninit,
+    StrgRef(Loc),
+    WeakRef(Ty),
+    ShrRef(Ty),
+    Param(ParamTy),
+}
+
 impl TypeEnvInfer {
-    pub fn enter(&self) -> TypeEnv {
-        self.env.clone()
+    pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
+        let mut subst = Subst::empty();
+        for (name, sort) in self.params.iter() {
+            let fresh = pcx.push_binding(sort.clone(), |_| Pred::tt());
+            subst.insert_param(&Param { name: *name, sort: sort.clone() }, fresh);
+        }
+        TypeEnv {
+            bindings: self
+                .env
+                .bindings
+                .iter()
+                .map(|(loc, binding)| (*loc, subst_binding(binding, &subst)))
+                .collect(),
+            borrowed: self.env.borrowed.clone(),
+        }
+    }
+
+    fn join_kind(&self, ty: &Ty) -> JoinKind {
+        match ty.kind() {
+            TyKind::Refine(bty, e) => {
+                match e.kind() {
+                    ExprKind::Var(Var::Free(name)) if self.params.contains_key(name) => {
+                        JoinKind::Packed(bty.clone(), e.clone(), *name)
+                    }
+                    _ => JoinKind::Refine(bty.clone(), e.clone()),
+                }
+            }
+            TyKind::Exists(bty, p) => JoinKind::Exists(bty.clone(), p.clone()),
+            TyKind::Uninit => JoinKind::Uninit,
+            TyKind::StrgRef(loc) => JoinKind::StrgRef(*loc),
+            TyKind::WeakRef(ty) => JoinKind::WeakRef(ty.clone()),
+            TyKind::ShrRef(ty) => JoinKind::ShrRef(ty.clone()),
+            TyKind::Param(param_ty) => JoinKind::Param(*param_ty),
+        }
+    }
+
+    fn new(genv: &GlobalEnv, scope: &Scope, mut env: TypeEnv) -> TypeEnvInfer {
+        let name_gen = scope.name_gen();
+        let mut params = FxHashMap::default();
+        for loc in env.bindings.keys().copied().collect_vec() {
+            // TODO(nilehmann) Figure out what to do with bounds in weak locations.
+            let ty = env.lookup_loc(loc);
+            *env.bindings.get_mut(&loc).unwrap().ty_mut() =
+                TypeEnvInfer::pack_ty(&mut params, genv, scope, &name_gen, &ty);
+        }
+        TypeEnvInfer { params, name_gen, env }
+    }
+
+    fn pack_ty(
+        params: &mut FxHashMap<Name, Sort>,
+        genv: &GlobalEnv,
+        scope: &Scope,
+        name_gen: &IndexGen<Name>,
+        ty: &Ty,
+    ) -> Ty {
+        match ty.kind() {
+            TyKind::Refine(bty, e) => {
+                let has_free_vars = e.vars().into_iter().any(|name| !scope.contains(name));
+                let e = if has_free_vars {
+                    let fresh = name_gen.fresh();
+                    params.insert(fresh, genv.sort(bty));
+                    ExprKind::Var(fresh.into()).intern()
+                } else {
+                    e.clone()
+                };
+                let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
+                TyKind::Refine(bty, e).intern()
+            }
+            // TODO(nilehmann) [`TyKind::Exists`] and [`TyKind::StrRef`] could also have free variables.
+            // Figure out what to do in those cases. Currently [`TyKind::StrgRef`] is handled by pack_refs
+            TyKind::Exists(_, _)
+            | TyKind::Uninit
+            | TyKind::StrgRef(_)
+            | TyKind::WeakRef(_)
+            | TyKind::ShrRef(_)
+            | TyKind::Param(_) => ty.clone(),
+        }
+    }
+
+    fn pack_bty(
+        params: &mut FxHashMap<Name, Sort>,
+        genv: &GlobalEnv,
+        scope: &Scope,
+        name_gen: &IndexGen<Name>,
+        bty: &BaseTy,
+    ) -> BaseTy {
+        match bty {
+            BaseTy::Adt(did, substs) => {
+                let substs = substs
+                    .iter()
+                    .map(|ty| Self::pack_ty(params, genv, scope, name_gen, ty));
+                BaseTy::adt(*did, substs)
+            }
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
+        }
     }
 
     pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnvInfer) -> bool {
@@ -353,6 +460,8 @@ impl TypeEnvInfer {
         mut ty1: Ty,
         mut ty2: Ty,
     ) -> Ty {
+        use JoinKind::*;
+
         if ty1 == ty2 {
             return ty1;
         }
@@ -365,32 +474,43 @@ impl TypeEnvInfer {
             ty2 = other.weaken_ref(*loc);
         }
 
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit, _) | (_, TyKind::Uninit) => TyKind::Uninit.intern(),
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
-                TyKind::Refine(self.join_bty(genv, other, bty1, bty2), e1.clone()).intern()
+        match (self.join_kind(&ty1), other.join_kind(&ty2)) {
+            (Uninit, _) | (_, Uninit) => TyKind::Uninit.intern(),
+            (Refine(bty1, e1), Refine(bty2, e2)) if e1 == e2 => {
+                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                TyKind::Refine(bty, e1).intern()
             }
-            (
-                TyKind::Refine(bty1, ..) | TyKind::Exists(bty1, Pred::Expr(..)),
-                TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
-            ) => {
-                let bty = self.join_bty(genv, other, bty1, bty2);
+            (Packed(bty1, _, name1), Exists(bty2, _)) => {
+                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                self.params.remove(&name1);
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
-            (
-                TyKind::Exists(bty1, p @ Pred::KVar(..)),
-                TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..),
-            ) => {
-                let bty = self.join_bty(genv, other, bty1, bty2);
-                TyKind::Exists(bty, p.clone()).intern()
+            (Refine(bty1, _), Packed(bty2, _, _) | Refine(bty2, _)) => {
+                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                let fresh = self.name_gen.fresh();
+                let sort = genv.sort(&bty);
+                self.params.insert(fresh, sort);
+                let e = ExprKind::Var(fresh.into()).intern();
+                TyKind::Refine(bty, e).intern()
             }
-            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+            (
+                Refine(bty1, _) | Exists(bty1, _),
+                Exists(bty2, _) | Refine(bty2, _) | Packed(bty2, ..),
+            ) => {
+                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
+            }
+            (Packed(bty1, e1, _), Refine(bty2, _) | Packed(bty2, ..)) => {
+                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                TyKind::Refine(bty, e1).intern()
+            }
+            (WeakRef(ty1), WeakRef(ty2)) => {
                 TyKind::WeakRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
             }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+            (ShrRef(ty1), ShrRef(ty2)) => {
                 TyKind::ShrRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
             }
-            _ => todo!("`{ty1:?}` `{ty2:?}`"),
+            (k1, k2) => todo!("`{k1:?}` -- `{k2:?}"),
         }
     }
 
@@ -457,52 +577,91 @@ impl TypeEnvInfer {
         }
     }
 
+    // pub fn into_bb_env(
+    //     self,
+    //     genv: &GlobalEnv,
+    //     name_gen: &IndexGen<Name>,
+    //     fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+    //     env: &TypeEnv,
+    // ) -> BasicBlockEnv {
+    //     let mut params = vec![];
+    //     let mut constrs = vec![];
+    //     let mut bindings = FxHashMap::default();
+    //     for (loc, binding) in &self.env.bindings {
+    //         if let Binding::Strong(ty) = binding {
+    //             match ty.kind() {
+    //                 TyKind::Exists(bty, Pred::KVar(..)) if !self.env.borrowed.contains(loc) => {
+    //                     let fresh = name_gen.fresh();
+    //                     let sort = genv.sort(bty);
+    //                     constrs.push(fresh_kvar(fresh.into(), sort.clone(), &params));
+    //                     let param = Param { name: fresh, sort };
+    //                     params.push(param);
+    //                     let e = ExprKind::Var(fresh.into()).intern();
+    //                     let ty = TyKind::Refine(bty.clone(), e).intern();
+    //                     bindings.insert(*loc, Binding::Strong(ty));
+    //                 }
+    //                 _ => {}
+    //             };
+    //         }
+    //     }
+
+    //     let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
+    //     for (loc, binding1) in self.env.bindings {
+    //         if bindings.contains_key(&loc) {
+    //             continue;
+    //         }
+    //         let binding2 = &env.bindings[&loc];
+    //         let binding = match (binding1, binding2) {
+    //             (Binding::Strong(ty1), Binding::Strong(ty2)) => {
+    //                 let ty = replace_kvars(genv, &ty1, fresh_kvar);
+    //                 Binding::Strong(TypeEnvInfer::fix_ty(&ty, ty2))
+    //             }
+    //             (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
+    //                 // HACK(nilehmann) The current inference algorithm cannot distinguish when a bound
+    //                 // in a weak binding is preserved through a join point. To avoid generating extra kvars
+    //                 // we keep the bound of the first environment jumping to the block. This could lose precision in
+    //                 // cases where the bound does need to be strengthened.
+    //                 let ty = replace_kvars(genv, &ty1, fresh_kvar);
+    //                 Binding::Weak { ty: TypeEnvInfer::fix_ty(&ty, ty2), bound: bound.clone() }
+    //             }
+    //             _ => {
+    //                 todo!()
+    //             }
+    //         };
+    //         bindings.insert(loc, binding);
+    //     }
+    //     BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.env.borrowed } }
+    // }
+
     pub fn into_bb_env(
         self,
         genv: &GlobalEnv,
-        name_gen: &IndexGen<Name>,
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
+        // TODO(nilehmann) maybe sort by name here
         let mut params = vec![];
         let mut constrs = vec![];
-        let mut bindings = FxHashMap::default();
-        for (loc, binding) in &self.env.bindings {
-            if let Binding::Strong(ty) = binding {
-                match ty.kind() {
-                    TyKind::Exists(bty, Pred::KVar(..)) if !self.env.borrowed.contains(loc) => {
-                        let fresh = name_gen.fresh();
-                        let sort = genv.sort(bty);
-                        constrs.push(fresh_kvar(fresh.into(), sort.clone(), &params));
-                        let param = Param { name: fresh, sort };
-                        params.push(param);
-                        let e = ExprKind::Var(fresh.into()).intern();
-                        let ty = TyKind::Refine(bty.clone(), e).intern();
-                        bindings.insert(*loc, Binding::Strong(ty));
-                    }
-                    _ => {}
-                };
-            }
+        for (name, sort) in self.params {
+            constrs.push(fresh_kvar(name.into(), sort.clone(), &params));
+            params.push(Param { name, sort });
         }
 
+        let mut bindings = FxHashMap::default();
         let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
         for (loc, binding1) in self.env.bindings {
-            if bindings.contains_key(&loc) {
-                continue;
-            }
             let binding2 = &env.bindings[&loc];
             let binding = match (binding1, binding2) {
-                (Binding::Strong(ty1), Binding::Strong(ty2)) => {
-                    let ty = replace_kvars(genv, &ty1, fresh_kvar);
-                    Binding::Strong(TypeEnvInfer::fix_ty(&ty, ty2))
+                (Binding::Strong(ty1), Binding::Strong(_)) => {
+                    Binding::Strong(replace_kvars(genv, &ty1, fresh_kvar))
                 }
-                (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
+                (Binding::Weak { ty, .. }, Binding::Weak { bound, .. }) => {
                     // HACK(nilehmann) The current inference algorithm cannot distinguish when a bound
                     // in a weak binding is preserved through a join point. To avoid generating extra kvars
                     // we keep the bound of the first environment jumping to the block. This could lose precision in
                     // cases where the bound does need to be strengthened.
-                    let ty = replace_kvars(genv, &ty1, fresh_kvar);
-                    Binding::Weak { ty: TypeEnvInfer::fix_ty(&ty, ty2), bound: bound.clone() }
+                    let ty = replace_kvars(genv, &ty, fresh_kvar);
+                    Binding::Weak { ty, bound: bound.clone() }
                 }
                 _ => {
                     todo!()
@@ -511,18 +670,6 @@ impl TypeEnvInfer {
             bindings.insert(loc, binding);
         }
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.env.borrowed } }
-    }
-
-    fn fix_ty(ty1: &Ty, ty2: &Ty) -> Ty {
-        // HACK(nilehmann) there could be a mismatch between the order of names generated in
-        // the inference and checking phases. If we infer a `TyKind::Refine` we "fix" the naming
-        // by keeping the expression of the type in the first environment jumping to the block.
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, _), TyKind::Refine(_, e2)) => {
-                TyKind::Refine(bty1.clone(), e2.clone()).intern()
-            }
-            _ => ty1.clone(),
-        }
     }
 }
 
@@ -635,7 +782,13 @@ mod pretty {
     impl Pretty for TypeEnvInfer {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?}", &self.env)
+            w!(
+                "∃ {}.\n  {:?}",
+                ^self.params
+                    .iter()
+                    .format_with(", ", |(name, sort), f| f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))),
+                &self.env
+            )
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -646,15 +799,13 @@ mod pretty {
     impl Pretty for BasicBlockEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("∃ ")?;
-            for (i, param) in self.params.iter().enumerate() {
-                if i > 0 {
-                    w!(", ")?;
-                }
-                w!("{:?}: {:?}", ^param.name, ^param.sort)?;
-            }
-            w!(".\n")?;
-            w!("  {:?}", &self.env)
+            w!(
+                "∃ {}.\n  {:?}",
+                ^self.params
+                    .iter()
+                    .format_with(", ", |param, f| f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))),
+                &self.env
+            )
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
