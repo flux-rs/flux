@@ -725,22 +725,14 @@ impl Mode for Inference<'_> {
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        // println!("\ngoto {target:?}");
-        // println!("{scope:?}");
-        // println!("{env:?}\n");
         env.pack_refs(&scope);
         match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => {
                 let env = env.into_infer(ck.genv, &scope);
-                // println!("{env:?}");
-                // println!("{:?}", entry.get());
-                let b = entry.get_mut().join(ck.genv, env);
-                // println!("{:?}\n\n", entry.get());
-                b
+                entry.get_mut().join(ck.genv, env)
             }
             Entry::Vacant(entry) => {
                 let env = env.into_infer(ck.genv, &scope);
-                // println!("{:?}\n\n", env);
                 entry.insert(env);
                 true
             }
@@ -791,9 +783,6 @@ impl Mode for Check<'_> {
                 .unwrap()
                 .into_bb_env(ck.genv, fresh_kvar, &env)
         });
-
-        // println!("{env:?}");
-        // println!("{bb_env:?}\n");
 
         let mut subst = Subst::empty();
         subst
