@@ -325,6 +325,8 @@ enum JoinKind {
 impl TypeEnvInfer {
     pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
+        // HACK(nilehmann) it is crucial that the order in this iteration is the same than
+        // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
             let fresh = pcx.push_binding(sort.clone(), |_| Pred::tt());
             subst.insert_param(&Param { name: *name, sort: sort.clone() }, fresh);
@@ -589,9 +591,10 @@ impl TypeEnvInfer {
         fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
-        // TODO(nilehmann) maybe sort by name here
         let mut params = vec![];
         let mut constrs = vec![];
+        // HACK(nilehmann) it is crucial that the order in this iteration is the same than
+        // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
             constrs.push(fresh_kvar(name.into(), sort.clone(), &params));
             params.push(Param { name, sort });
