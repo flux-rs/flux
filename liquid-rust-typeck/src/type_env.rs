@@ -8,7 +8,7 @@ use crate::{
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ir::{self, Local};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
 
 use super::ty::{Loc, Name, Pred, Sort, TyS};
@@ -16,7 +16,6 @@ use super::ty::{Loc, Name, Pred, Sort, TyS};
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct TypeEnv {
     bindings: FxHashMap<Loc, Binding>,
-    borrowed: FxHashSet<Loc>,
 }
 
 pub struct TypeEnvInfer {
@@ -62,7 +61,7 @@ impl Binding {
 
 impl TypeEnv {
     pub fn new() -> TypeEnv {
-        TypeEnv { bindings: FxHashMap::default(), borrowed: FxHashSet::default() }
+        TypeEnv { bindings: FxHashMap::default() }
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: &Scope) -> TypeEnvInfer {
@@ -115,7 +114,6 @@ impl TypeEnv {
             }
             _ => unreachable!("unxepected place `{place:?}`"),
         };
-        self.borrowed.insert(loc);
         TyKind::StrgRef(loc).intern()
     }
 
@@ -123,12 +121,8 @@ impl TypeEnv {
         let loc = Loc::Local(place.local());
         let ty = self.lookup_loc(loc);
         match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => {
-                self.borrowed.insert(loc);
-                TyKind::ShrRef(ty).intern()
-            }
+            (ir::Place::Local(_), _) => TyKind::ShrRef(ty).intern(),
             (ir::Place::Deref(_), TyKind::StrgRef(loc)) => {
-                self.borrowed.insert(*loc);
                 let ty = self.lookup_loc(*loc);
                 TyKind::ShrRef(ty).intern()
             }
@@ -264,7 +258,6 @@ impl TypeEnv {
             };
             *self.bindings.get_mut(&loc).unwrap().ty_mut() = ty2;
         }
-        self.borrowed.extend(&other.borrowed);
         debug_assert_eq!(self, other);
     }
 
@@ -338,7 +331,6 @@ impl TypeEnvInfer {
                 .iter()
                 .map(|(loc, binding)| (*loc, subst_binding(binding, &subst)))
                 .collect(),
-            borrowed: self.env.borrowed.clone(),
         }
     }
 
@@ -448,9 +440,6 @@ impl TypeEnvInfer {
             modified |= ty1 != ty;
             *self.env.bindings.get_mut(&loc).unwrap().ty_mut() = ty.clone();
         }
-        let n = self.env.borrowed.len();
-        self.env.borrowed.extend(&other.env.borrowed);
-        modified |= n != self.env.borrowed.len();
 
         modified
     }
@@ -623,7 +612,7 @@ impl TypeEnvInfer {
             };
             bindings.insert(loc, binding);
         }
-        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.env.borrowed } }
+        BasicBlockEnv { params, constrs, env: TypeEnv { bindings } }
     }
 }
 
@@ -644,7 +633,6 @@ impl BasicBlockEnv {
                 .iter()
                 .map(|(loc, binding)| (*loc, subst_binding(binding, &subst)))
                 .collect(),
-            borrowed: self.env.borrowed.clone(),
         }
     }
 
@@ -656,7 +644,6 @@ impl BasicBlockEnv {
                 .iter()
                 .map(|(loc, binding)| (*loc, subst_binding(binding, subst)))
                 .collect(),
-            borrowed: self.env.borrowed.clone(),
         }
     }
 }
