@@ -548,20 +548,26 @@ impl TypeEnvInfer {
     }
 
     fn weaken_ty(&mut self, ty: Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Exists(.., Pred::KVar(..)) | TyKind::Param(_) => ty,
-            TyKind::Exists(bty, Pred::Expr(..)) | TyKind::Refine(bty, _) => {
-                let bty = self.weaken_bty(bty);
+        use JoinKind::*;
+        match self.join_kind(&ty) {
+            Param(_) => ty,
+            Packed(bty, _, name) => {
+                self.params.remove(&name);
+                let bty = self.weaken_bty(&bty);
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
-            TyKind::StrgRef(loc) => {
-                let ty = self.env.bindings[loc].assert_strong();
+            Exists(bty, _) | Refine(bty, _) => {
+                let bty = self.weaken_bty(&bty);
+                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
+            }
+            StrgRef(loc) => {
+                let ty = self.env.bindings[&loc].assert_strong();
                 let ty = self.weaken_ty(ty);
-                self.env.bindings.insert(*loc, Binding::Strong(ty.clone()));
+                self.env.bindings.insert(loc, Binding::Strong(ty.clone()));
                 TyKind::WeakRef(ty).intern()
             }
-            TyKind::ShrRef(_) | TyKind::WeakRef(_) => todo!(),
-            TyKind::Uninit => {
+            ShrRef(_) | WeakRef(_) => todo!(),
+            Uninit => {
                 unreachable!()
             }
         }
@@ -576,62 +582,6 @@ impl TypeEnvInfer {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
         }
     }
-
-    // pub fn into_bb_env(
-    //     self,
-    //     genv: &GlobalEnv,
-    //     name_gen: &IndexGen<Name>,
-    //     fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
-    //     env: &TypeEnv,
-    // ) -> BasicBlockEnv {
-    //     let mut params = vec![];
-    //     let mut constrs = vec![];
-    //     let mut bindings = FxHashMap::default();
-    //     for (loc, binding) in &self.env.bindings {
-    //         if let Binding::Strong(ty) = binding {
-    //             match ty.kind() {
-    //                 TyKind::Exists(bty, Pred::KVar(..)) if !self.env.borrowed.contains(loc) => {
-    //                     let fresh = name_gen.fresh();
-    //                     let sort = genv.sort(bty);
-    //                     constrs.push(fresh_kvar(fresh.into(), sort.clone(), &params));
-    //                     let param = Param { name: fresh, sort };
-    //                     params.push(param);
-    //                     let e = ExprKind::Var(fresh.into()).intern();
-    //                     let ty = TyKind::Refine(bty.clone(), e).intern();
-    //                     bindings.insert(*loc, Binding::Strong(ty));
-    //                 }
-    //                 _ => {}
-    //             };
-    //         }
-    //     }
-
-    //     let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
-    //     for (loc, binding1) in self.env.bindings {
-    //         if bindings.contains_key(&loc) {
-    //             continue;
-    //         }
-    //         let binding2 = &env.bindings[&loc];
-    //         let binding = match (binding1, binding2) {
-    //             (Binding::Strong(ty1), Binding::Strong(ty2)) => {
-    //                 let ty = replace_kvars(genv, &ty1, fresh_kvar);
-    //                 Binding::Strong(TypeEnvInfer::fix_ty(&ty, ty2))
-    //             }
-    //             (Binding::Weak { ty: ty1, .. }, Binding::Weak { ty: ty2, bound, .. }) => {
-    //                 // HACK(nilehmann) The current inference algorithm cannot distinguish when a bound
-    //                 // in a weak binding is preserved through a join point. To avoid generating extra kvars
-    //                 // we keep the bound of the first environment jumping to the block. This could lose precision in
-    //                 // cases where the bound does need to be strengthened.
-    //                 let ty = replace_kvars(genv, &ty1, fresh_kvar);
-    //                 Binding::Weak { ty: TypeEnvInfer::fix_ty(&ty, ty2), bound: bound.clone() }
-    //             }
-    //             _ => {
-    //                 todo!()
-    //             }
-    //         };
-    //         bindings.insert(loc, binding);
-    //     }
-    //     BasicBlockEnv { params, constrs, env: TypeEnv { bindings, borrowed: self.env.borrowed } }
-    // }
 
     pub fn into_bb_env(
         self,
