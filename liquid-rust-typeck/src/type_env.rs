@@ -311,7 +311,7 @@ impl TypeEnv {
 }
 
 #[derive(Debug)]
-enum JoinKind {
+enum TyKindJoin {
     Packed(BaseTy, Expr, Name),
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
@@ -342,22 +342,22 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_kind(&self, ty: &Ty) -> JoinKind {
+    fn join_kind(&self, ty: &Ty) -> TyKindJoin {
         match ty.kind() {
             TyKind::Refine(bty, e) => {
                 match e.kind() {
                     ExprKind::Var(Var::Free(name)) if self.params.contains_key(name) => {
-                        JoinKind::Packed(bty.clone(), e.clone(), *name)
+                        TyKindJoin::Packed(bty.clone(), e.clone(), *name)
                     }
-                    _ => JoinKind::Refine(bty.clone(), e.clone()),
+                    _ => TyKindJoin::Refine(bty.clone(), e.clone()),
                 }
             }
-            TyKind::Exists(bty, p) => JoinKind::Exists(bty.clone(), p.clone()),
-            TyKind::Uninit => JoinKind::Uninit,
-            TyKind::StrgRef(loc) => JoinKind::StrgRef(*loc),
-            TyKind::WeakRef(ty) => JoinKind::WeakRef(ty.clone()),
-            TyKind::ShrRef(ty) => JoinKind::ShrRef(ty.clone()),
-            TyKind::Param(param_ty) => JoinKind::Param(*param_ty),
+            TyKind::Exists(bty, p) => TyKindJoin::Exists(bty.clone(), p.clone()),
+            TyKind::Uninit => TyKindJoin::Uninit,
+            TyKind::StrgRef(loc) => TyKindJoin::StrgRef(*loc),
+            TyKind::WeakRef(ty) => TyKindJoin::WeakRef(ty.clone()),
+            TyKind::ShrRef(ty) => TyKindJoin::ShrRef(ty.clone()),
+            TyKind::Param(param_ty) => TyKindJoin::Param(*param_ty),
         }
     }
 
@@ -462,7 +462,7 @@ impl TypeEnvInfer {
         mut ty1: Ty,
         mut ty2: Ty,
     ) -> Ty {
-        use JoinKind::*;
+        use TyKindJoin::*;
 
         if ty1 == ty2 {
             return ty1;
@@ -482,6 +482,10 @@ impl TypeEnvInfer {
                 let bty = self.join_bty(genv, other, &bty1, &bty2);
                 TyKind::Refine(bty, e1).intern()
             }
+            (Packed(bty1, e1, _), Refine(bty2, _) | Packed(bty2, ..)) => {
+                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                TyKind::Refine(bty, e1).intern()
+            }
             (Packed(bty1, _, name1), Exists(bty2, _)) => {
                 let bty = self.join_bty(genv, other, &bty1, &bty2);
                 self.params.remove(&name1);
@@ -495,16 +499,13 @@ impl TypeEnvInfer {
                 let e = ExprKind::Var(fresh.into()).intern();
                 TyKind::Refine(bty, e).intern()
             }
-            (
-                Refine(bty1, _) | Exists(bty1, _),
-                Exists(bty2, _) | Refine(bty2, _) | Packed(bty2, ..),
-            ) => {
+            (Exists(bty1, _), Packed(bty2, ..) | Exists(bty2, ..) | Refine(bty2, ..)) => {
                 let bty = self.join_bty(genv, other, &bty1, &bty2);
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
-            (Packed(bty1, e1, _), Refine(bty2, _) | Packed(bty2, ..)) => {
+            (Refine(bty1, _), Exists(bty2, _)) => {
                 let bty = self.join_bty(genv, other, &bty1, &bty2);
-                TyKind::Refine(bty, e1).intern()
+                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             (WeakRef(ty1), WeakRef(ty2)) => {
                 TyKind::WeakRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
@@ -550,7 +551,7 @@ impl TypeEnvInfer {
     }
 
     fn weaken_ty(&mut self, ty: Ty) -> Ty {
-        use JoinKind::*;
+        use TyKindJoin::*;
         match self.join_kind(&ty) {
             Param(_) => ty,
             Packed(bty, _, name) => {
