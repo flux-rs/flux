@@ -13,6 +13,7 @@ liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-core = { path = "../liquid-rust-core" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 quickscope = "0.1"
+tracing = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
