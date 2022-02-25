@@ -107,7 +107,6 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
-    #[instrument(skip(genv, body))]
     pub fn infer(
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
