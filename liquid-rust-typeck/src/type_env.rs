@@ -497,10 +497,10 @@ impl TypeEnvInfer {
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             (WeakRef(ty1), WeakRef(ty2)) => {
-                TyKind::WeakRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
+                TyKind::WeakRef(self.join_ty(genv, other, ty1, ty2)).intern()
             }
             (ShrRef(ty1), ShrRef(ty2)) => {
-                TyKind::ShrRef(self.join_ty(genv, other, ty1.clone(), ty2.clone())).intern()
+                TyKind::ShrRef(self.join_ty(genv, other, ty1, ty2)).intern()
             }
             (k1, k2) => todo!("`{k1:?}` -- `{k2:?}"),
         }

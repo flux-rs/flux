@@ -105,7 +105,7 @@ fn is_bool(path: &Path) -> bool {
 // HACK(ranjitjhala) need better way to determine if Path is a Type-Param
 fn is_generic(path: &Path) -> bool {
     let str = path.ident.as_str();
-    if let Some(c) = str.chars().nth(0) {
+    if let Some(c) = str.chars().next() {
         c.is_uppercase() && str.len() == 1
     } else {
         false
@@ -212,6 +212,5 @@ impl Desugar {
 }
 
 pub fn desugar(ssig: FnSig) -> ast::FnSig {
-    let sig = Desugar::desugar(ssig);
-    sig
+    Desugar::desugar(ssig)
 }
