@@ -29,10 +29,8 @@ fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     t
 }
 
-// TODO: original order was the below which makes the WF checker complain about the unbound 'n' in 'pat'
-// [lr::sig(fn(pat: RVec<u8>{0 < pat && pat <= n}, target: &mut n@RVec<u8>{0 < n}) -> usize)]
-#[lr::sig(fn(target: &mut n@RVec<u8>{0 < n}, pat: RVec<u8>{0 < pat && pat <= n}) -> usize)]
-pub fn kmp_search(target: &mut RVec<u8>, mut pat: RVec<u8>) -> usize {
+#[lr::sig(fn(pat: RVec<u8>{0 < pat && pat <= n}, target: &n@RVec<u8>{0 < n}) -> usize)]
+pub fn kmp_search(mut pat: RVec<u8>, target: &RVec<u8>) -> usize {
     let mut t_i = 0;
     let mut p_i = 0;
     let mut result_idx = 0;

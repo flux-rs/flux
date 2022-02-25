@@ -11,6 +11,7 @@ use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
+    dbg,
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
@@ -19,7 +20,7 @@ use crate::{
         self, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty,
         TyKind, Var,
     },
-    type_env::{BasicBlockEnv, TypeEnv},
+    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, index::IndexVec};
@@ -36,8 +37,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::mir;
 use rustc_session::Session;
-
-use super::type_env::TypeEnvShape;
 
 pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
@@ -73,11 +72,11 @@ pub trait Mode: Sized {
 }
 
 pub struct Inference<'a> {
-    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnv>,
+    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnvInfer>,
 }
 
 pub struct Check<'a> {
-    shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+    bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
     kvars: &'a mut KVarStore,
 }
@@ -111,16 +110,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-    ) -> Result<FxHashMap<BasicBlock, TypeEnvShape>, ErrorReported> {
-        let mut constraint = ConstraintBuilder::new();
+    ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
+        dbg::run_span!("infer", genv.tcx, def_id).in_scope(|| {
+            let mut constraint = ConstraintBuilder::new();
 
-        let mut bb_envs = FxHashMap::default();
-        Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
+            let mut bb_envs = FxHashMap::default();
+            Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
-        Ok(bb_envs
-            .into_iter()
-            .map(|(bb, env)| (bb, env.into_shape()))
-            .collect())
+            Ok(bb_envs)
+        })
     }
 }
 
@@ -129,22 +127,24 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-        shapes: FxHashMap<BasicBlock, TypeEnvShape>,
+        bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
-        let mut constraint = ConstraintBuilder::new();
-        let mut kvars = KVarStore::new();
+        dbg::run_span!("check", genv.tcx, def_id).in_scope(|| {
+            let mut constraint = ConstraintBuilder::new();
+            let mut kvars = KVarStore::new();
 
-        // println!("\n---------------------------------------\n{shapes:#?}\n");
+            // debug!(?bb_envs_infer);
 
-        Checker::run(
-            genv,
-            &mut constraint,
-            body,
-            def_id,
-            Check { shapes, bb_envs: FxHashMap::default(), kvars: &mut kvars },
-        )?;
+            Checker::run(
+                genv,
+                &mut constraint,
+                body,
+                def_id,
+                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars: &mut kvars },
+            )?;
 
-        Ok((constraint, kvars))
+            Ok((constraint, kvars))
+        })
     }
 }
 
@@ -230,16 +230,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        // println!("\n{bb:?}\n{pcx:?}\n{env:?}");
+        dbg::basic_block_start!(bb, pcx, env);
+
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
             self.check_statement(&mut pcx, &mut env, stmt);
+
+            dbg::statement_end!(stmt, pcx, env);
         }
         if let Some(terminator) = &data.terminator {
-            // println!("{terminator:?}");
             let successors = self.check_terminator(&mut pcx, &mut env, terminator)?;
+            dbg::terminator_end!(terminator, pcx, env);
+
             self.snapshots[bb] = Some(pcx.snapshot());
             self.check_successors(pcx, env, terminator.source_info, successors)?;
         }
@@ -249,7 +253,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                // println!("{stmt:?}");
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
                 let ty = env.unpack(self.genv, pcx, &ty);
                 let gen = &mut ConstraintGen::new(
@@ -258,7 +261,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     Tag::Assign(stmt.source_info.span),
                 );
                 env.write_place(gen, p, ty);
-                // println!("{pcx:?}\n{env:?}");
             }
             StatementKind::Nop => {}
         }
@@ -718,8 +720,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 }
 
 impl Mode for Inference<'_> {
-    fn enter_basic_block(&mut self, _pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].clone()
+    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter(pcx)
     }
 
     fn check_goto_join_point(
@@ -732,9 +734,13 @@ impl Mode for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
         env.pack_refs(&scope);
         match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut env),
+            Entry::Occupied(mut entry) => {
+                let env = env.into_infer(ck.genv, &scope);
+                entry.get_mut().join(ck.genv, env)
+            }
             Entry::Vacant(entry) => {
-                entry.insert(env.clone());
+                let env = env.into_infer(ck.genv, &scope);
+                entry.insert(env);
                 true
             }
         }
@@ -778,12 +784,11 @@ impl Mode for Check<'_> {
         let mut first = false;
         let bb_env = ck.mode.bb_envs.entry(target).or_insert_with(|| {
             first = true;
-            ck.mode.shapes.remove(&target).unwrap().into_bb_env(
-                ck.genv,
-                &pcx.name_gen(),
-                fresh_kvar,
-                &env,
-            )
+            ck.mode
+                .bb_envs_infer
+                .remove(&target)
+                .unwrap()
+                .into_bb_env(ck.genv, fresh_kvar, &env)
         });
 
         let mut subst = Subst::empty();

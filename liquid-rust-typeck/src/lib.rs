@@ -13,6 +13,7 @@ extern crate rustc_span;
 
 mod checker;
 mod constraint_gen;
+mod dbg;
 pub mod global_env;
 mod intern;
 mod lowering;

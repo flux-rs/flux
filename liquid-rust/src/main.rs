@@ -1,9 +1,10 @@
-use std::{env::args, process::exit};
+mod logger;
+use std::{env::args, io, process::exit};
 
 const CMD_PREFIX: &str = "-lr";
 
-fn main() {
-    // Get the arguments from the command line.
+fn main() -> io::Result<()> {
+    logger::install()?;
     let args: Vec<String> = args().filter(|x| !x.starts_with(CMD_PREFIX)).collect();
 
     let exit_code = liquid_rust_driver::run_compiler(args);
