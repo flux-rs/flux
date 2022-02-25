@@ -18,7 +18,6 @@ pub fn test_mod() -> usize {
 
 // Error because a and b may be < 0 and which doesn't preserve mod semantics
 #[lr::sig(fn(a:i32, b:i32) -> i32[a % b])]
-pub fn mod_signed(a: i32, b: i32) -> i32 {
-    //~ ERROR postcondition might not hold
+pub fn mod_signed(a: i32, b: i32) -> i32 { //~ ERROR postcondition might not hold
     a % b
 }
