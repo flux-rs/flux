@@ -5,11 +5,7 @@
 mod rvec;
 use rvec::RVec;
 
-// type RVecN<T, n> = RVec<T>{v:v = n}
-// type RVecN<T, @n> = n@RVec<T>{v:v = n}
-// [lr::sig(fn(vec: &mut RVec<i32, @n>) -> i32; vec:RVec<i32, n>)]
-
-#[lr::sig(fn(vec: &mut n@RVec<i32>) -> i32; vec:RVec<i32>{v:v == n})]
+#[lr::sig(fn(vec: &mut n@RVec<i32>) -> i32; vec:RVec<i32>[n])]
 pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     let len = vec.len();
 
@@ -32,8 +28,7 @@ pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     0
 }
 
-
-#[lr::sig(fn(vec: &mut len@RVec<i32>, s:usize{0 <= s && s < len}, e:usize{0 <= e && e < len}) -> i32; vec: RVec<i32>{v:v==len})]
+#[lr::sig(fn(vec: &mut len@RVec<i32>, s:usize{0 <= s && s < len}, e:usize{0 <= e && e < len}) -> i32; vec: RVec<i32>[len])]
 pub fn shift_down(vec: &mut RVec<i32>, start: usize, end: usize) -> i32 {
     let mut root = start;
     loop {

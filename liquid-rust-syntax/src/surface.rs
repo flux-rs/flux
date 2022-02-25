@@ -2,7 +2,7 @@ pub use rustc_ast::token::LitKind;
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
-use crate::ast::{self, Expr, GenericParam};
+use crate::ast::{self, Expr, GenericParam, Refine};
 
 #[derive(Debug)]
 pub struct FnSig {
@@ -26,6 +26,9 @@ pub struct Ty {
 pub enum TyKind {
     /// ty
     Base(Path),
+
+    /// t[e]
+    Refine { path: Path, refine: Refine },
 
     /// ty{b:e}
     Exists { bind: Ident, path: Path, pred: Expr },
@@ -91,6 +94,10 @@ fn convert_tykind(t: TyKind) -> ast::TyKind {
             ty.kind
         }
         TyKind::Ref(_, t) => ast::TyKind::WeakRef(Box::new(convert_ty(*t))),
+        TyKind::Refine { path, refine } => {
+            let path = convert_path(path);
+            ast::TyKind::RefineTy { path, refine }
+        }
     }
 }
 
@@ -148,6 +155,7 @@ impl BindIn {
         match ty.kind {
             TyKind::AnonEx { path, pred } => BindIn::from_path(x, path, ty.span, Some(pred)),
             TyKind::Base(path) => BindIn::from_path(x, path, ty.span, None),
+            TyKind::Refine { path, .. } => BindIn::from_path(x, path, ty.span, None),
             TyKind::Exists { bind, path, pred } => {
                 let path = convert_path(path);
                 let kind = ast::TyKind::Exists { bind, path, pred };
