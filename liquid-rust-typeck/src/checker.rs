@@ -11,6 +11,7 @@ use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
+    dbg,
     global_env::GlobalEnv,
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
@@ -36,6 +37,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::mir;
 use rustc_session::Session;
+use tracing::instrument;
 
 pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
@@ -105,17 +107,20 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
+    #[instrument(skip(genv, body))]
     pub fn infer(
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
-        let mut constraint = ConstraintBuilder::new();
+        dbg::run_span!("infer", genv.tcx, def_id).in_scope(|| {
+            let mut constraint = ConstraintBuilder::new();
 
-        let mut bb_envs = FxHashMap::default();
-        Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
+            let mut bb_envs = FxHashMap::default();
+            Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
-        Ok(bb_envs)
+            Ok(bb_envs)
+        })
     }
 }
 
@@ -126,20 +131,22 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         def_id: DefId,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
-        let mut constraint = ConstraintBuilder::new();
-        let mut kvars = KVarStore::new();
+        dbg::run_span!("check", genv.tcx, def_id).in_scope(|| {
+            let mut constraint = ConstraintBuilder::new();
+            let mut kvars = KVarStore::new();
 
-        // println!("\n---------------------------------------\n{bb_envs_infer:#?}\n");
+            // debug!(?bb_envs_infer);
 
-        Checker::run(
-            genv,
-            &mut constraint,
-            body,
-            def_id,
-            Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars: &mut kvars },
-        )?;
+            Checker::run(
+                genv,
+                &mut constraint,
+                body,
+                def_id,
+                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars: &mut kvars },
+            )?;
 
-        Ok((constraint, kvars))
+            Ok((constraint, kvars))
+        })
     }
 }
 
@@ -225,16 +232,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        // println!("\n{bb:?}\n{pcx:?}\n{env:?}");
+        dbg::basic_block_start!(bb, pcx, env);
+
         self.visited.insert(bb);
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
             self.check_statement(&mut pcx, &mut env, stmt);
+
+            dbg::statement_end!(stmt, pcx, env);
         }
         if let Some(terminator) = &data.terminator {
-            // println!("{terminator:?}");
             let successors = self.check_terminator(&mut pcx, &mut env, terminator)?;
+            dbg::terminator_end!(terminator, pcx, env);
+
             self.snapshots[bb] = Some(pcx.snapshot());
             self.check_successors(pcx, env, terminator.source_info, successors)?;
         }
@@ -244,7 +255,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_statement(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, stmt: &Statement) {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
-                // println!("{stmt:?}");
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
                 let ty = env.unpack(self.genv, pcx, &ty);
                 let gen = &mut ConstraintGen::new(
@@ -253,7 +263,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     Tag::Assign(stmt.source_info.span),
                 );
                 env.write_place(gen, p, ty);
-                // println!("{pcx:?}\n{env:?}");
             }
             StatementKind::Nop => {}
         }
