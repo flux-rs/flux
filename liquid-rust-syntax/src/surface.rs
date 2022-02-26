@@ -12,6 +12,8 @@ pub struct FnSig {
     pub returns: Ty,
     /// example: `*x: i32{v:v = n+1}`
     pub ensures: Vec<(Ident, Ty)>,
+    /// example: `where n > 0`
+    pub wherep: Option<Expr>,
     /// source span
     pub span: Span,
 }
@@ -213,6 +215,8 @@ impl Desugar {
             .into_iter()
             .map(|(x, ty)| (x, convert_ty(ty)))
             .collect();
+
+        // TODO(Ranjit) : tweak the generics using `wherep`
 
         ast::FnSig {
             generics: ast::Generics { params: me.generics, span: ssig.span },

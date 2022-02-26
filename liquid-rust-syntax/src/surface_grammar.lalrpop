@@ -15,13 +15,18 @@ pub FnSig: surface::FnSig = {
     "(" <requires:Store> ")"
     "->"
     <returns:Ty> <ensures:(";" Store)?>
+    <wherep: ("where" Level1)?>
     <hi:@R>
     => {
         let ensures = match ensures {
             Some(tup) => tup.1,
             None => vec![],
         };
-        surface::FnSig { requires, returns, ensures, span: mk_span(lo, hi) }
+        let wherep = match wherep {
+            Some(t) => Some(t.1),
+            None => None,
+        };
+        surface::FnSig { requires, returns, ensures, wherep, span: mk_span(lo, hi) }
     }
 }
 
@@ -191,6 +196,7 @@ extern {
 
     enum Token {
         "mut" => Token::Mut,
+        "where" => Token::Where,
         "weak" => Token::Weak,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
