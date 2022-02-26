@@ -133,10 +133,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
+                // print!("LR::SIG {:#?} \n", fn_sig);
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("ty", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_sig)?;
+                // print!("LR::TY {:#?} \n", fn_sig);
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
