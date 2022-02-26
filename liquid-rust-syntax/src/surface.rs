@@ -136,6 +136,17 @@ fn mk_generic(x: Ident, path: &Path, pred: Option<Expr>) -> ast::GenericParam {
     ast::GenericParam { name: x, sort: mk_sort(path, x.span), pred }
 }
 
+fn strengthen_pred(p: Option<Expr>, e: Expr) -> Expr {
+    match p {
+        None => e,
+        Some(pe) => {
+            let span = pe.span;
+            let kind = ast::ExprKind::BinaryOp(ast::BinOp::And, Box::new(pe), Box::new(e));
+            Expr { kind, span }
+        }
+    }
+}
+
 impl BindIn {
     fn from_path(x: Ident, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
         if is_generic(&p) {
@@ -210,13 +221,22 @@ impl Desugar {
         // walk over the input types
         me.desugar_inputs(ssig.requires);
 
+        // Add the "where" clause to the last GenericParam
+        if let Some(e) = ssig.wherep {
+            if let Some(mut g) = me.generics.pop() {
+                g.pred = Some(strengthen_pred(g.pred, e));
+                me.generics.push(g);
+            } else {
+                panic!("'where' clause without generic params! {:?}", e.span);
+            }
+        }
+
+        // translate the output store
         let ensures = ssig
             .ensures
             .into_iter()
             .map(|(x, ty)| (x, convert_ty(ty)))
             .collect();
-
-        // TODO(Ranjit) : tweak the generics using `wherep`
 
         ast::FnSig {
             generics: ast::Generics { params: me.generics, span: ssig.span },
