@@ -1,12 +1,22 @@
 #[macro_export]
-macro_rules! _run_span {
-    ($mode:literal, $tcx:expr, $def_id:expr) => {{
+macro_rules! _infer_span {
+    ($tcx:expr, $def_id:expr) => {{
         let path = $tcx.def_path($def_id);
         let def_id = path.data.iter().join("::");
-        tracing::info_span!($mode, def_id = def_id.as_str())
+        tracing::info_span!("infer", def_id = def_id.as_str())
     }};
 }
-pub use crate::_run_span as run_span;
+pub use crate::_infer_span as infer_span;
+
+#[macro_export]
+macro_rules! _check_span {
+    ($tcx:expr, $def_id:expr, $bb_envs_infer:expr) => {{
+        let path = $tcx.def_path($def_id);
+        let def_id = path.data.iter().join("::");
+        tracing::info_span!("check", def_id = def_id.as_str(), bb_envs_infer = ?$bb_envs_infer)
+    }};
+}
+pub use crate::_check_span as check_span;
 
 #[macro_export]
 macro_rules! _basic_block_start {
@@ -31,3 +41,19 @@ macro_rules! _terminator_end {
     }};
 }
 pub use crate::_terminator_end as terminator_end;
+
+#[macro_export]
+macro_rules! _check_goto {
+    ($target:expr, $pcx:expr, $env:expr, $bb_env:expr) => {{
+        tracing::debug!(event = "check_goto", target = ?$target, pcx = ?$pcx, env = ?$env, bb_env = ?$bb_env)
+    }};
+}
+pub use crate::_check_goto as check_goto;
+
+#[macro_export]
+macro_rules! _infer_goto {
+    ($target:expr, $scope:expr, $bb_env:expr) => {{
+        tracing::debug!(event = "infer_goto", target = ?$target, scope = ?&$scope, bb_env = ?&$bb_env)
+    }};
+}
+pub use crate::_infer_goto as infer_goto;

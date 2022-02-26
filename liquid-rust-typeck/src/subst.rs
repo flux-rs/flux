@@ -191,9 +191,9 @@ impl Subst {
         bb_env: &BasicBlockEnv,
     ) -> Result<(), InferenceError> {
         let params = bb_env.params.iter().map(|param| param.name).collect();
-        for (loc, binding2) in bb_env.env.iter() {
+        for (loc, ty2) in bb_env.env.iter() {
             let ty1 = env.lookup_loc(*loc);
-            self.infer_from_tys(&params, &ty1, &binding2.ty());
+            self.infer_from_tys(&params, &ty1, &ty2);
         }
         self.check_inference(&bb_env.params)
     }

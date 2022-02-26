@@ -111,7 +111,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         body: &Body<'tcx>,
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
-        dbg::run_span!("infer", genv.tcx, def_id).in_scope(|| {
+        dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
 
             let mut bb_envs = FxHashMap::default();
@@ -129,7 +129,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         def_id: DefId,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
-        dbg::run_span!("check", genv.tcx, def_id).in_scope(|| {
+        dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
             let mut kvars = KVarStore::new();
 
@@ -179,7 +179,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
 
             let mut env = ck.mode.enter_basic_block(&mut pcx, bb);
-            env.unpack_all(genv, &mut pcx);
+            env.unpack(genv, &mut pcx);
             ck.check_basic_block(pcx, env, bb)?;
         }
 
@@ -191,7 +191,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &fn_sig.requires {
             match constr {
                 ty::Constr::Type(loc, ty) => {
-                    let ty = env.unpack(genv, pcx, ty);
+                    let ty = env.unpack_ty(genv, pcx, ty);
                     env.insert_loc(*loc, ty);
                 }
                 ty::Constr::Pred(e) => {
@@ -201,7 +201,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(genv, pcx, ty);
+            let ty = env.unpack_ty(genv, pcx, ty);
             env.insert_loc(Loc::Local(local), ty);
         }
 
@@ -254,7 +254,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
-                let ty = env.unpack(self.genv, pcx, &ty);
+                let ty = env.unpack_ty(self.genv, pcx, &ty);
                 let gen = &mut ConstraintGen::new(
                     self.genv,
                     pcx.breadcrumb(),
@@ -353,7 +353,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &fn_sig.ensures {
             match constr {
                 Constr::Type(loc, updated_ty) => {
-                    let updated_ty = env.unpack(self.genv, pcx, updated_ty);
+                    let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
                     let gen = &mut ConstraintGen::new(
                         self.genv,
                         pcx.breadcrumb(),
@@ -367,7 +367,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
-            let ret = env.unpack(self.genv, pcx, &fn_sig.ret);
+            let ret = env.unpack_ty(self.genv, pcx, &fn_sig.ret);
             let mut gen =
                 ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
             env.write_place(&mut gen, p, ret);
@@ -735,12 +735,15 @@ impl Mode for Inference<'_> {
         env.pack_refs(&scope);
         match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => {
-                let env = env.into_infer(ck.genv, &scope);
-                entry.get_mut().join(ck.genv, env)
+                let bb_env = env.into_infer(ck.genv, &scope);
+                let modified = entry.get_mut().join(ck.genv, bb_env);
+                dbg::infer_goto!(target, scope, entry.get());
+                modified
             }
             Entry::Vacant(entry) => {
-                let env = env.into_infer(ck.genv, &scope);
-                entry.insert(env);
+                let bb_env = env.into_infer(ck.genv, &scope);
+                dbg::infer_goto!(target, scope, bb_env);
+                entry.insert(bb_env);
                 true
             }
         }
@@ -796,7 +799,7 @@ impl Mode for Check<'_> {
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
 
-        // println!("\ngoto {target:?}\n{pcx:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
+        dbg::check_goto!(target, pcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);

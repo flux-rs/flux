@@ -6,7 +6,7 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, DefaultDict, List, Optional, Union
+from typing import Any, DefaultDict, List, Optional, Union, Dict
 
 
 class ansi:
@@ -35,11 +35,14 @@ def main() -> None:
     events_by_def_id_and_mode: DefaultDict[str,
                                            DefaultDict[str,
                                                        List[Any]]] = defaultdict(lambda: defaultdict(list))
+    bb_envs_infer: Dict[str, Any] = {}
     for line in open(args.file):
         event = json.loads(line)
         def_id = event['span']['def_id']
         mode = event['span']['name']
         events_by_def_id_and_mode[def_id][mode].append(event)
+        if bb_envs_infer.get(def_id) is None:
+            bb_envs_infer[def_id] = event['span'].get('bb_envs_infer')
 
     buf = Buff()
 
@@ -51,6 +54,8 @@ def main() -> None:
             if args.mode != mode:
                 continue
             buf.print(bold(f'{mode.upper()} {def_id}'))
+            if args.mode == "check" and bb_envs_infer[def_id] is not None:
+                buf.print(bb_envs_infer[def_id])
             buf.print_rule('=')
             buf.print()
             buf.print_mode(events)
@@ -91,6 +96,7 @@ class Buff:
             fields = event['fields']
 
             if fields['event'] == 'basic_block_start':
+                self.print()
                 self.print_bb_header(fields['bb'])
                 self.print_context(fields['pcx'], fields['env'])
             elif fields['event'] == 'statement_end':
@@ -102,7 +108,16 @@ class Buff:
                 self.print_stmt(fields['terminator'])
                 self.print_context(fields['pcx'], fields['env'])
                 self.print_rule()
-                self.print()
+            elif fields['event'] == 'check_goto':
+                self.print(f'goto {fields["target"]}')
+                self.print_context(fields['pcx'], fields['env'])
+                self.print(fields['bb_env'])
+                self.print_rule()
+            elif fields['event'] == 'infer_goto':
+                self.print(f'goto {fields["target"]}')
+                self.print(fields['scope'])
+                self.print(fields['bb_env'])
+                self.print_rule()
 
     def print_rule(self, c='-') -> None:
         self.print(Rule(c))
