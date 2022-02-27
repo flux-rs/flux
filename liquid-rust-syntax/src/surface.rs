@@ -169,7 +169,6 @@ impl BindIn {
             TyKind::AnonEx { path, pred } => BindIn::from_path(x, path, ty.span, Some(pred)),
             TyKind::Base(path) => BindIn::from_path(x, path, ty.span, None),
             TyKind::Refine { path, refine } => {
-                // let gen = Some(mk_generic(x, &path, None));
                 let path = convert_path(path);
                 let kind = ast::TyKind::RefineTy { path, refine };
                 let ty = ast::Ty { kind, span: ty.span };
