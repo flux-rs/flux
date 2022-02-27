@@ -532,13 +532,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Refine(bty, e) => {
-                    if matches!(e.kind(), ExprKind::Constant(..) | ExprKind::Var(..)) {
-                        w!("{:?}@{:?}", bty, e)
-                    } else {
-                        w!("{:?}@{{{:?}}}", bty, e)
-                    }
-                }
+                TyKind::Refine(bty, e) => fmt_bty(bty, Some(e), cx, f),
                 TyKind::Exists(bty, p) => {
                     if p.is_true() {
                         w!("{:?}", bty)
@@ -561,20 +555,46 @@ mod pretty {
 
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
-                BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
-                BaseTy::Bool => w!("bool"),
-                BaseTy::Adt(did, args) => {
-                    w!("{:?}", did)?;
+            fmt_bty(self, None, cx, f)
+        }
+    }
+
+    fn fmt_bty(
+        bty: &BaseTy,
+        e: Option<&ExprS>,
+        cx: &PPrintCx,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        define_scoped!(cx, f);
+        match bty {
+            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
+            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
+            BaseTy::Bool => w!("bool")?,
+            BaseTy::Adt(did, _) => w!("{:?}", did)?,
+        }
+        match bty {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
+                if let Some(e) = e {
+                    w!("<{:?}>", e)?;
+                }
+            }
+            BaseTy::Adt(_, args) => {
+                if !args.is_empty() || e.is_some() {
+                    w!("<")?;
+                }
+                w!("{:?}", join!(", ", args))?;
+                if let Some(e) = e {
                     if !args.is_empty() {
-                        w!("<{:?}>", join!(", ", args))?;
+                        w!(", ")?;
                     }
-                    Ok(())
+                    w!("{:?}", e)?;
+                }
+                if !args.is_empty() || e.is_some() {
+                    w!(">")?;
                 }
             }
         }
+        Ok(())
     }
 
     impl Pretty for Pred {
