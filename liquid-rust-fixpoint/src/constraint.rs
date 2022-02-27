@@ -144,7 +144,7 @@ impl<Tag: fmt::Display> fmt::Display for Constraint<Tag> {
             Constraint::Pred(pred, None) => write!(f, "({})", pred),
             Constraint::Conj(preds) => {
                 write!(f, "(and")?;
-                let mut w = PadAdapter::wrap_fmt(f);
+                let mut w = PadAdapter::wrap_fmt(f, 2);
                 for pred in preds {
                     write!(w, "\n{}", pred)?;
                 }
@@ -152,12 +152,12 @@ impl<Tag: fmt::Display> fmt::Display for Constraint<Tag> {
             }
             Constraint::Guard(body, head) => {
                 write!(f, "(forall ((_ Unit) ({}))", body)?;
-                write!(PadAdapter::wrap_fmt(f), "\n{}", head)?;
+                write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
                 write!(f, "\n)")
             }
             Constraint::ForAll(x, sort, body, head) => {
                 write!(f, "(forall (({:?} {}) {})", x, sort, body)?;
-                write!(PadAdapter::wrap_fmt(f), "\n{}", head)?;
+                write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
                 write!(f, "\n)")
             }
         }
@@ -186,7 +186,7 @@ impl fmt::Display for Pred {
         match self {
             Pred::And(preds) => {
                 write!(f, "(and")?;
-                let mut w = PadAdapter::wrap_fmt(f);
+                let mut w = PadAdapter::wrap_fmt(f, 2);
                 for pred in preds {
                     write!(w, "\n{}", pred)?;
                 }

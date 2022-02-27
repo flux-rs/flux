@@ -22,7 +22,6 @@ pub struct FnSpec {
     pub assume: bool,
 }
 
-#[derive(Debug)]
 pub struct Binders<T> {
     pub params: Vec<Param>,
     pub value: T,
@@ -468,10 +467,56 @@ impl<'a> From<&'a Name> for Var {
 impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, SortS);
 
 mod pretty {
+    use liquid_rust_common::format::PadAdapter;
     use rustc_middle::ty::TyCtxt;
+    use std::fmt::Write;
 
     use super::*;
     use crate::pretty::*;
+
+    impl Pretty for Binders<FnSig> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let fn_sig = &self.value;
+            if f.alternate() {
+                let mut padded = PadAdapter::wrap_fmt(f, 4);
+                define_scoped!(cx, padded);
+                w!("(\nfn")?;
+                if !self.params.is_empty() {
+                    w!("<{}>",
+                        ^self.params.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        })
+                    )?;
+                }
+                w!("({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+                if !fn_sig.requires.is_empty() {
+                    w!("\nrequires {:?} ", join!(", ", &fn_sig.requires))?;
+                }
+                if !fn_sig.ensures.is_empty() {
+                    w!("\nensures {:?}", join!(", ", &fn_sig.ensures))?;
+                }
+                write!(f, "\n)")?;
+            } else {
+                define_scoped!(cx, f);
+                if !self.params.is_empty() {
+                    w!("for<{}> ",
+                        ^self.params.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        })
+                    )?;
+                }
+                if !fn_sig.requires.is_empty() {
+                    w!("[{:?}] ", join!(", ", &fn_sig.requires))?;
+                }
+                w!("fn({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+                if !fn_sig.ensures.is_empty() {
+                    w!("; [{:?}]", join!(", ", &fn_sig.ensures))?;
+                }
+            }
+
+            Ok(())
+        }
+    }
 
     impl Pretty for Constr {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -680,5 +725,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Constr, TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
+    impl_debug_with_default_cx!(Constr, TyS, BaseTy, Pred, Sort, ExprS, Var, Loc, Binders<FnSig>);
 }
