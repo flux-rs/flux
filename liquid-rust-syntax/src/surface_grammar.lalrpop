@@ -15,13 +15,18 @@ pub FnSig: surface::FnSig = {
     "(" <requires:Store> ")"
     "->"
     <returns:Ty> <ensures:(";" Store)?>
+    <wherep: ("where" Level1)?>
     <hi:@R>
     => {
         let ensures = match ensures {
             Some(tup) => tup.1,
             None => vec![],
         };
-        surface::FnSig { requires, returns, ensures, span: mk_span(lo, hi) }
+        let wherep = match wherep {
+            Some(t) => Some(t.1),
+            None => None,
+        };
+        surface::FnSig { requires, returns, ensures, wherep, span: mk_span(lo, hi) }
     }
 }
 
@@ -44,6 +49,8 @@ TyKind: surface::TyKind = {
     <path:Path> "{" <pred:Level1> "}" => surface::TyKind::AnonEx { <> },
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}"
                               => surface::TyKind::Exists { <> },
+
+    <path:Path> "[" <refine:Singleton> "]"  => surface::TyKind::Refine { <> },
 }
 
 
@@ -71,6 +78,16 @@ Refinement: ast::Expr = {
     },
     "{" <Level1> "}" => <>
 };
+
+Singleton: ast::Refine = {
+    <lo:@L>  <exprs: Comma<<Level1>>> <hi:@R> => {
+        ast::Refine {
+            exprs,
+            span: mk_span(lo, hi),
+        }
+    }
+};
+
 
 Level1 = NonAssoc<BinOp1, Level2>;  // <=>
 Level2 = LeftAssoc<BinOp2, Level3>; // =>
@@ -179,6 +196,7 @@ extern {
 
     enum Token {
         "mut" => Token::Mut,
+        "where" => Token::Where,
         "weak" => Token::Weak,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
@@ -197,6 +215,8 @@ extern {
         ")"  => Token::CloseDelim(DelimToken::Paren),
         "{"  => Token::OpenDelim(DelimToken::Brace),
         "}"  => Token::CloseDelim(DelimToken::Brace),
+        "["  => Token::OpenDelim(DelimToken::Bracket),
+        "]"  => Token::CloseDelim(DelimToken::Bracket),
         "<"  => Token::Lt,
         "<="  => Token::Le,
         ">"  => Token::Gt,

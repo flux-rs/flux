@@ -2,7 +2,7 @@ pub use rustc_ast::token::LitKind;
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
-use crate::ast::{self, Expr, GenericParam};
+use crate::ast::{self, Expr, GenericParam, Refine};
 
 #[derive(Debug)]
 pub struct FnSig {
@@ -12,6 +12,8 @@ pub struct FnSig {
     pub returns: Ty,
     /// example: `*x: i32{v:v = n+1}`
     pub ensures: Vec<(Ident, Ty)>,
+    /// example: `where n > 0`
+    pub wherep: Option<Expr>,
     /// source span
     pub span: Span,
 }
@@ -26,6 +28,9 @@ pub struct Ty {
 pub enum TyKind {
     /// ty
     Base(Path),
+
+    /// t[e]
+    Refine { path: Path, refine: Refine },
 
     /// ty{b:e}
     Exists { bind: Ident, path: Path, pred: Expr },
@@ -91,6 +96,10 @@ fn convert_tykind(t: TyKind) -> ast::TyKind {
             ty.kind
         }
         TyKind::Ref(_, t) => ast::TyKind::WeakRef(Box::new(convert_ty(*t))),
+        TyKind::Refine { path, refine } => {
+            let path = convert_path(path);
+            ast::TyKind::RefineTy { path, refine }
+        }
     }
 }
 
@@ -127,6 +136,17 @@ fn mk_generic(x: Ident, path: &Path, pred: Option<Expr>) -> ast::GenericParam {
     ast::GenericParam { name: x, sort: mk_sort(path, x.span), pred }
 }
 
+fn strengthen_pred(p: Option<Expr>, e: Expr) -> Expr {
+    match p {
+        None => e,
+        Some(pe) => {
+            let span = pe.span;
+            let kind = ast::ExprKind::BinaryOp(ast::BinOp::And, Box::new(pe), Box::new(e));
+            Expr { kind, span }
+        }
+    }
+}
+
 impl BindIn {
     fn from_path(x: Ident, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
         if is_generic(&p) {
@@ -148,6 +168,12 @@ impl BindIn {
         match ty.kind {
             TyKind::AnonEx { path, pred } => BindIn::from_path(x, path, ty.span, Some(pred)),
             TyKind::Base(path) => BindIn::from_path(x, path, ty.span, None),
+            TyKind::Refine { path, refine } => {
+                let path = convert_path(path);
+                let kind = ast::TyKind::RefineTy { path, refine };
+                let ty = ast::Ty { kind, span: ty.span };
+                BindIn { gen: None, ty, loc: None }
+            }
             TyKind::Exists { bind, path, pred } => {
                 let path = convert_path(path);
                 let kind = ast::TyKind::Exists { bind, path, pred };
@@ -194,6 +220,17 @@ impl Desugar {
         // walk over the input types
         me.desugar_inputs(ssig.requires);
 
+        // Add the "where" clause to the last GenericParam
+        if let Some(e) = ssig.wherep {
+            if let Some(mut g) = me.generics.pop() {
+                g.pred = Some(strengthen_pred(g.pred, e));
+                me.generics.push(g);
+            } else {
+                panic!("'where' clause without generic params! {:?}", e.span);
+            }
+        }
+
+        // translate the output store
         let ensures = ssig
             .ensures
             .into_iter()
