@@ -547,7 +547,7 @@ mod pretty {
 
     impl Pretty for Vec<NodePtr> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let mut f = PadAdapter::wrap_fmt(f);
+            let mut f = PadAdapter::wrap_fmt(f, 2);
             define_scoped!(cx, f);
             match &self[..] {
                 [] => w!(" true"),

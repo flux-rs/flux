@@ -99,7 +99,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         }
         writeln!(f)?;
         write!(f, "(constraint")?;
-        write!(PadAdapter::wrap_fmt(f), "\n{}", self.constraint)?;
+        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", self.constraint)?;
         writeln!(f, "\n)")
     }
 }

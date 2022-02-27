@@ -1,7 +1,8 @@
-use std::fmt::{self, Write};
+use std::fmt;
 
 pub struct PadAdapter<T> {
     inner: T,
+    width: u32,
     state: PadAdapterState,
 }
 
@@ -10,26 +11,12 @@ pub struct PadAdapterState {
     on_newline: bool,
 }
 
-impl<T> PadAdapter<T> {
-    fn new(inner: T, state: PadAdapterState) -> Self {
-        PadAdapter { inner, state }
-    }
-
-    pub fn wrap(inner: T) -> Self {
-        PadAdapter { inner, state: PadAdapterState { on_newline: false } }
-    }
-
-    pub fn wrap_on_newline(inner: T) -> Self {
-        PadAdapter { inner, state: PadAdapterState { on_newline: true } }
-    }
-}
-
 impl<'a, W> PadAdapter<&'a mut W> {
-    pub fn wrap_fmt(inner: &'a mut W) -> Self
+    pub fn wrap_fmt(inner: &'a mut W, width: u32) -> Self
     where
         W: fmt::Write,
     {
-        PadAdapter { inner, state: PadAdapterState { on_newline: false } }
+        PadAdapter { inner, state: PadAdapterState { on_newline: false }, width }
     }
 }
 
@@ -40,7 +27,9 @@ where
     fn write_str(&mut self, mut s: &str) -> fmt::Result {
         while !s.is_empty() {
             if self.state.on_newline {
-                self.inner.write_str("  ")?;
+                for _ in 0..self.width {
+                    self.inner.write_str(" ")?;
+                }
             }
 
             let split = if let Some(pos) = s.find('\n') {
@@ -55,23 +44,5 @@ where
         }
 
         Ok(())
-    }
-}
-
-impl<T> fmt::Display for PadAdapter<T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(PadAdapter::new(f, self.state), "{}", self.inner)
-    }
-}
-
-impl<T> fmt::Debug for PadAdapter<T>
-where
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(PadAdapter::new(f, self.state), "{:?}", self.inner)
     }
 }
