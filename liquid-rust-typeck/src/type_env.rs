@@ -276,13 +276,13 @@ impl TypeEnvInfer {
                 .env
                 .bindings
                 .iter()
-                .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
+                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
                 .collect(),
             pledges: self
                 .env
                 .pledges
                 .iter()
-                .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
+                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
                 .collect(),
         }
     }
@@ -338,11 +338,13 @@ impl TypeEnvInfer {
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
                 TyKind::Refine(bty, e).intern()
             }
-            // TODO(nilehmann) [`TyKind::Exists`] and [`TyKind::StrRef`] could also have free variables.
-            // Figure out what to do in those cases. Currently [`TyKind::StrgRef`] is handled by pack_refs
+            // TyKind::StrgRef(Loc::Abstract(loc)) if !scope.contains(*loc) => {
+
+            // }
+            // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
-            | TyKind::Uninit
             | TyKind::StrgRef(_)
+            | TyKind::Uninit
             | TyKind::WeakRef(_)
             | TyKind::ShrRef(_)
             | TyKind::Param(_) => ty.clone(),
@@ -388,29 +390,29 @@ impl TypeEnvInfer {
         modified
     }
 
-    fn join_ty(
-        &mut self,
-        genv: &GlobalEnv,
-        other: &mut TypeEnvInfer,
-        mut ty1: Ty,
-        mut ty2: Ty,
-    ) -> Ty {
+    fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnvInfer, ty1: Ty, ty2: Ty) -> Ty {
         use TyKindJoin::*;
 
+        // TODO(nilehmann) types can be equal but with different scopes
         if ty1 == ty2 {
             return ty1;
         }
 
-        if let TyKind::StrgRef(loc) = ty1.kind() {
-            ty1 = self.weaken_ref(*loc);
-        }
+        // if let TyKind::StrgRef(loc) = ty1.kind() {
+        //     ty1 = self.borrow_weakly(*loc);
+        // }
 
-        if let TyKind::StrgRef(loc) = ty2.kind() {
-            ty2 = other.weaken_ref(*loc);
-        }
+        // if let TyKind::StrgRef(loc) = ty2.kind() {
+        //     ty2 = other.borrow_weakly(*loc);
+        // }
 
         match (self.join_kind(&ty1), other.join_kind(&ty2)) {
             (Uninit, _) | (_, Uninit) => TyKind::Uninit.intern(),
+            (StrgRef(loc1), StrgRef(loc2)) if loc1 != loc2 => {
+                let ty = self.borrow_weakly(loc1);
+                other.borrow_weakly(loc2);
+                ty
+            }
             (Refine(bty1, e1), Refine(bty2, e2)) if e1 == e2 => {
                 let bty = self.join_bty(genv, other, &bty1, &bty2);
                 TyKind::Refine(bty, e1).intern()
@@ -472,11 +474,27 @@ impl TypeEnvInfer {
         }
     }
 
+    fn fresh(&mut self, sort: Sort) -> Name {
+        let fresh = self.name_gen.fresh();
+        self.params.insert(fresh, sort);
+        fresh
+    }
+
     fn weaken_ref(&mut self, loc: Loc) -> Ty {
         let ty = self.env.bindings[&loc].clone();
         let ty = self.weaken_ty(ty);
         self.env.bindings.insert(loc, ty.clone());
         TyKind::WeakRef(ty).intern()
+    }
+
+    fn borrow_weakly(&mut self, loc: Loc) -> Ty {
+        // TODO(nilehmann) this should introduce a pledge on fresh
+        let fresh = self.fresh(Sort::loc());
+        let ty = self.env.bindings[&loc].clone();
+        let ty = self.weaken_ty(ty);
+        self.env.bindings.insert(loc, ty.clone());
+        self.env.bindings.insert(Loc::Abstract(fresh), ty);
+        TyKind::StrgRef(Loc::Abstract(fresh)).intern()
     }
 
     fn weaken_ty(&mut self, ty: Ty) -> Ty {
@@ -567,13 +585,13 @@ impl BasicBlockEnv {
                 .env
                 .bindings
                 .iter()
-                .map(|(loc, ty)| (*loc, subst.subst_ty(ty)))
+                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
                 .collect(),
             pledges: self
                 .env
                 .pledges
                 .iter()
-                .map(|(loc, pledge)| (*loc, subst.subst_ty(pledge)))
+                .map(|(loc, pledge)| (subst.subst_loc(*loc), subst.subst_ty(pledge)))
                 .collect(),
         }
     }

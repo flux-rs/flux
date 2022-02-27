@@ -51,9 +51,21 @@ macro_rules! _check_goto {
 pub use crate::_check_goto as check_goto;
 
 #[macro_export]
-macro_rules! _infer_goto {
-    ($target:expr, $scope:expr, $bb_env:expr) => {{
-        tracing::debug!(event = "infer_goto", target = ?$target, scope = ?&$scope, bb_env = ?&$bb_env)
+macro_rules! _infer_goto_enter {
+    ($target:expr, $scope:expr, $env:expr, $bb_env:expr) => {{
+        if let Some(bb_env) = &$bb_env {
+            tracing::debug!(event = "infer_goto_enter", target = ?$target, scope = ?&$scope, env = ?&$env, ?bb_env)
+        } else {
+            tracing::debug!(event = "infer_goto_enter", target = ?$target, scope = ?&$scope, env = ?&$env, bb_env = "empty")
+        }
     }};
 }
-pub use crate::_infer_goto as infer_goto;
+pub use crate::_infer_goto_enter as infer_goto_enter;
+
+#[macro_export]
+macro_rules! _infer_goto_exit {
+    ($target:expr, $bb_env:expr) => {{
+        tracing::debug!(event = "infer_goto_exit", target = ?$target, bb_env = ?&$bb_env)
+    }};
+}
+pub use crate::_infer_goto_exit as infer_goto_exit;

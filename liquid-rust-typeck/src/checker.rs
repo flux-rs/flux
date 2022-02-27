@@ -727,26 +727,24 @@ impl Mode for Inference<'_> {
     fn check_goto_join_point(
         ck: &mut Checker<Inference>,
         _pcx: PureCtxt,
-        mut env: TypeEnv,
+        env: TypeEnv,
         _src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        env.pack_refs(&scope);
-        match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => {
-                let bb_env = env.into_infer(ck.genv, &scope);
-                let modified = entry.get_mut().join(ck.genv, bb_env);
-                dbg::infer_goto!(target, scope, entry.get());
-                modified
-            }
+        let env = env.into_infer(ck.genv, &scope);
+
+        dbg::infer_goto_enter!(target, scope, env, ck.mode.bb_envs.get(&target));
+        let modified = match ck.mode.bb_envs.entry(target) {
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
-                let bb_env = env.into_infer(ck.genv, &scope);
-                dbg::infer_goto!(target, scope, bb_env);
-                entry.insert(bb_env);
+                entry.insert(env);
                 true
             }
-        }
+        };
+        dbg::infer_goto_exit!(target, ck.mode.bb_envs[&target]);
+
+        modified
     }
 
     fn fresh_kvar<I>(&mut self, _sort: Sort, _scope: I) -> Pred

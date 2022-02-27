@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--file', help='Path to the log file', type=Path, default=Path('./log/checker'))
     parser.add_argument('--mode', help='Either `check` or `infer`', type=str, default='check')
     parser.add_argument('--name', help='Name of the function', type=str, default=None)
+    parser.add_argument('--filter', help='Events to filter', type=str, action='append')
     return parser.parse_args()
 
 
@@ -58,7 +59,7 @@ def main() -> None:
                 buf.print(bb_envs_infer[def_id])
             buf.print_rule('=')
             buf.print()
-            buf.print_mode(events)
+            buf.print_mode(events, args.filter)
             buf.print('\n')
 
         buf.flush()
@@ -91,9 +92,12 @@ class Buff:
             line = ''
         self.buffer.append(line)
 
-    def print_mode(self, events: List[dict]) -> None:
+    def print_mode(self, events: List[dict], filters: Optional[List[str]]) -> None:
         for event in events:
             fields = event['fields']
+
+            if filters is not None and fields['event'] not in filters:
+                continue
 
             if fields['event'] == 'basic_block_start':
                 self.print()
@@ -105,7 +109,7 @@ class Buff:
                 self.print_stmt(fields['stmt'])
                 self.print_context(fields['pcx'], fields['env'])
             elif fields['event'] == 'terminator_end':
-                self.print_stmt(fields['terminator'])
+                self.print_terminator(fields['terminator'])
                 self.print_context(fields['pcx'], fields['env'])
                 self.print_rule()
             elif fields['event'] == 'check_goto':
@@ -113,9 +117,12 @@ class Buff:
                 self.print_context(fields['pcx'], fields['env'])
                 self.print(fields['bb_env'])
                 self.print_rule()
-            elif fields['event'] == 'infer_goto':
+            elif fields['event'] == 'infer_goto_enter':
                 self.print(f'goto {fields["target"]}')
                 self.print(fields['scope'])
+                self.print(fields['env'])
+                self.print(fields['bb_env'])
+            elif fields['event'] == 'infer_goto_exit':
                 self.print(fields['bb_env'])
                 self.print_rule()
 
@@ -130,7 +137,7 @@ class Buff:
         self.print(colorize(ansi.BLUE, stmt))
 
     def print_terminator(self, terminator: str) -> None:
-        self.print(colorize(ansi.BLUE, terminator))
+        self.print(colorize(ansi.MAGENTA, terminator))
 
     def print_context(self, pcx: str, env: str) -> None:
         self.print(pcx)
