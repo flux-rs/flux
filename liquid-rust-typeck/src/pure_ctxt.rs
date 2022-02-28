@@ -596,7 +596,6 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
-            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 
@@ -615,5 +614,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(ConstraintBuilder => "constraint_builder", PureCtxt<'_>, Scope);
+    impl_debug_with_default_cx!(ConstraintBuilder => "constraint_builder", PureCtxt<'_> => "pure_ctxt", Scope);
 }

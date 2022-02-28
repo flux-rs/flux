@@ -111,7 +111,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         body: &Body<'tcx>,
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
-        dbg::run_span!("infer", genv.tcx, def_id).in_scope(|| {
+        dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
 
             let mut bb_envs = FxHashMap::default();
@@ -129,7 +129,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         def_id: DefId,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
-        dbg::run_span!("check", genv.tcx, def_id).in_scope(|| {
+        dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
             let mut kvars = KVarStore::new();
 
@@ -733,17 +733,19 @@ impl Mode for Inference<'_> {
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
         env.pack_refs(&scope);
-        match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => {
-                let env = env.into_infer(ck.genv, &scope);
-                entry.get_mut().join(ck.genv, env)
-            }
+        let env = env.into_infer(ck.genv, &scope);
+
+        dbg::infer_goto_enter!(target, scope, env, ck.mode.bb_envs.get(&target));
+        let modified = match ck.mode.bb_envs.entry(target) {
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
-                let env = env.into_infer(ck.genv, &scope);
                 entry.insert(env);
                 true
             }
-        }
+        };
+        dbg::infer_goto_exit!(target, ck.mode.bb_envs[&target]);
+
+        modified
     }
 
     fn fresh_kvar<I>(&mut self, _sort: Sort, _scope: I) -> Pred
@@ -796,7 +798,7 @@ impl Mode for Check<'_> {
             .infer_from_bb_env(&env, bb_env)
             .unwrap_or_else(|_| panic!("inference failed"));
 
-        // println!("\ngoto {target:?}\n{pcx:?}\n{env:?}\n{bb_env:?}\n{subst:?}");
+        dbg::check_goto!(target, pcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);

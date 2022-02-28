@@ -715,8 +715,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            // PPrintCx::default(tcx).kvar_args(Visibility::Hide)
-            PPrintCx::default(tcx).kvar_args(Visibility::Show)
+            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
         }
     }
 
@@ -724,7 +723,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "∃ {}.\n  {:?}",
+                "∃ {}. {:?}",
                 ^self.params
                     .iter()
                     .format_with(", ", |(name, sort), f| f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))),
@@ -741,7 +740,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "∃ {}.\n  {:?}",
+                "∃ {}. {:?}",
                 ^self.params
                     .iter()
                     .format_with(", ", |param, f| f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))),
@@ -750,8 +749,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            // PPrintCx::default(tcx).kvar_args(Visibility::Hide)
-            PPrintCx::default(tcx).kvar_args(Visibility::Show)
+            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
         }
     }
 
@@ -767,5 +765,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv, TypeEnvInfer, BasicBlockEnv, Binding);
+    impl_debug_with_default_cx!(TypeEnv => "type_env", TypeEnvInfer => "type_env_infer", BasicBlockEnv => "basic_block_env", Binding);
 }
