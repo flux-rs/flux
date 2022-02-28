@@ -39,17 +39,19 @@ impl Subst {
         subst
     }
 
-    pub fn insert_param(&mut self, param: &Param, to: Name) {
-        match param.sort.kind() {
+    pub fn insert_name_subst(&mut self, name: Name, sort: Sort, to: Name) {
+        match sort.kind() {
             SortKind::Loc => {
-                self.map
-                    .insert(param.name, LocOrExpr::Loc(Loc::Abstract(to)));
+                self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(to)));
             }
             _ => {
-                self.map
-                    .insert(param.name, LocOrExpr::Expr(Var::Free(to).into()));
+                self.map.insert(name, LocOrExpr::Expr(Var::Free(to).into()));
             }
         }
+    }
+
+    pub fn insert_param(&mut self, param: &Param, to: Name) {
+        self.insert_name_subst(param.name, param.sort.clone(), to);
     }
 
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {

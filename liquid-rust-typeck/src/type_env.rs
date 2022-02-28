@@ -248,6 +248,21 @@ impl TypeEnv {
             _ => todo!(),
         }
     }
+
+    pub fn subst(&self, subst: &Subst) -> TypeEnv {
+        TypeEnv {
+            bindings: self
+                .bindings
+                .iter()
+                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
+                .collect(),
+            pledges: self
+                .pledges
+                .iter()
+                .map(|(loc, pledge)| (subst.subst_loc(*loc), subst.subst_ty(pledge)))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -306,9 +321,10 @@ impl TypeEnvInfer {
         }
     }
 
-    fn new(genv: &GlobalEnv, scope: &Scope, mut env: TypeEnv) -> TypeEnvInfer {
+    fn new(genv: &GlobalEnv, scope: &Scope, env: TypeEnv) -> TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut params = FxHashMap::default();
+        let mut env = TypeEnvInfer::pack_refs(&mut params, scope, &name_gen, env);
         for loc in env.bindings.keys().copied().collect_vec() {
             // TODO(nilehmann) Figure out what to do with pledges
             let ty = env.lookup_loc(loc);
@@ -316,6 +332,36 @@ impl TypeEnvInfer {
                 .insert(loc, TypeEnvInfer::pack_ty(&mut params, genv, scope, &name_gen, &ty));
         }
         TypeEnvInfer { params, name_gen, env }
+    }
+
+    fn pack_refs(
+        params: &mut FxHashMap<Name, Sort>,
+        scope: &Scope,
+        name_gen: &IndexGen<Name>,
+        env: TypeEnv,
+    ) -> TypeEnv {
+        let mut subst = Subst::empty();
+        for loc in env.bindings.keys() {
+            if let Loc::Abstract(loc) = loc {
+                if !scope.contains(*loc) {
+                    let fresh = name_gen.fresh();
+                    params.insert(fresh, Sort::loc());
+                    subst.insert_name_subst(*loc, Sort::loc(), fresh);
+                }
+            }
+        }
+        TypeEnv {
+            bindings: env
+                .bindings
+                .into_iter()
+                .map(|(loc, ty)| (subst.subst_loc(loc), subst.subst_ty(&ty)))
+                .collect(),
+            pledges: env
+                .pledges
+                .into_iter()
+                .map(|(loc, pledge)| (subst.subst_loc(loc), subst.subst_ty(&pledge)))
+                .collect(),
+        }
     }
 
     fn pack_ty(
@@ -338,9 +384,6 @@ impl TypeEnvInfer {
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
                 TyKind::Refine(bty, e).intern()
             }
-            // TyKind::StrgRef(Loc::Abstract(loc)) if !scope.contains(*loc) => {
-
-            // }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::StrgRef(_)
@@ -576,9 +619,10 @@ impl BasicBlockEnv {
                 subst.subst_pred(constr)
             });
         }
-        self.subst(&subst)
+        self.env.subst(&subst)
     }
 
+    // TODO(nilehmann) this is weird beause it's skipping the parameters
     pub fn subst(&self, subst: &Subst) -> TypeEnv {
         TypeEnv {
             bindings: self
