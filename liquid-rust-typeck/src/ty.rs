@@ -251,10 +251,7 @@ impl SortS {
     }
 
     pub fn is_loc(&self) -> bool {
-        match self.kind() {
-            SortKind::Loc => true,
-            _ => false,
-        }
+        matches!(self.kind, SortKind::Loc)
     }
 }
 

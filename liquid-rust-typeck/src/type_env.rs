@@ -179,7 +179,7 @@ impl TypeEnv {
         for (loc, ty1) in &self.bindings {
             if bb_env.env.has_loc(*loc) {
                 let ty2 = bb_env.env.lookup_loc(*loc);
-                self.infer_subst_for_bb_env_tys(bb_env, &params, &ty1, &ty2, &mut subst);
+                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
             }
         }
         assert!(subst
@@ -221,7 +221,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &BasicBlockEnv) {
+    pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &mut BasicBlockEnv) {
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
@@ -229,18 +229,18 @@ impl TypeEnv {
             gen.check_pred(subst.subst_pred(constr));
         }
 
-        let bb_env = bb_env.env.clone().subst(&subst);
+        let goto_env = bb_env.env.clone().subst(&subst);
 
         // Create pledged borrows
         for loc in self.bindings.keys().copied().collect_vec() {
-            if !bb_env.has_loc(loc) {
+            if !goto_env.has_loc(loc) {
                 continue;
             }
             let ty1 = self.lookup_loc(loc);
-            let ty2 = bb_env.lookup_loc(loc);
+            let ty2 = goto_env.lookup_loc(loc);
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let pledge = bb_env.lookup_loc(*loc2);
+                    let pledge = goto_env.lookup_loc(*loc2);
                     let fresh = self.pledged_borrow(gen, *loc1, pledge);
                     self.bindings.insert(loc, TyKind::StrgRef(fresh).intern());
                 }
@@ -250,27 +250,23 @@ impl TypeEnv {
 
         // Check subtyping
         for loc in self.bindings.keys().copied().collect_vec() {
-            if !bb_env.bindings.contains_key(&loc) {
+            if !goto_env.bindings.contains_key(&loc) {
                 self.bindings.remove(&loc);
                 continue;
             }
             let ty1 = self.lookup_loc(loc);
-            let ty2 = bb_env.lookup_loc(loc);
+            let ty2 = goto_env.lookup_loc(loc);
             gen.subtyping(ty1, ty2.clone());
             self.bindings.insert(loc, ty2);
         }
 
-        for (loc, pledges) in self.pledges.iter_mut() {
-            pledges.extend(
-                bb_env
-                    .pledges
-                    .get(loc)
-                    .iter()
-                    .flat_map(|v| v.iter().cloned()),
-            );
+        // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
+        // the pledges from all the environements we jump from.
+        for (loc, pledges) in self.pledges {
+            bb_env.env.pledges.entry(loc).or_default().extend(pledges);
         }
 
-        debug_assert_eq!(self.bindings, bb_env.bindings);
+        debug_assert_eq!(self.bindings, goto_env.bindings);
     }
 
     fn levels(&self) -> FxHashMap<Loc, u32> {
@@ -370,7 +366,6 @@ impl TypeEnvInfer {
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
         for loc in env.bindings.keys().copied().collect_vec() {
-            // TODO(nilehmann) Figure out what to do with pledges
             let ty = env.lookup_loc(loc);
             env.bindings
                 .insert(loc, TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, &ty));
@@ -496,12 +491,12 @@ impl TypeEnvInfer {
                     TyKind::StrgRef(*loc1).intern()
                 } else {
                     let (fresh, pledge) = self.pledged_borrow(*loc1);
-                    other.bindings.insert(*loc2, pledge.clone());
+                    other.bindings.insert(*loc2, pledge);
                     TyKind::StrgRef(fresh).intern()
                 }
             }
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
-                let bty = self.join_bty(genv, other, &bty1, bty2);
+                let bty = self.join_bty(genv, other, bty1, bty2);
                 let e = if !self.is_packed_expr(e1) && (e2.has_free_vars(&self.scope) || e1 != e2) {
                     ExprKind::Var(self.fresh(genv.sort(&bty)).into()).intern()
                 } else {
@@ -511,14 +506,14 @@ impl TypeEnvInfer {
             }
             (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
-                let bty = self.join_bty(genv, other, &bty1, &bty2);
+                let bty = self.join_bty(genv, other, bty1, bty2);
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
             (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
-                TyKind::WeakRef(self.join_ty(genv, other, &ty1, ty2)).intern()
+                TyKind::WeakRef(self.join_ty(genv, other, ty1, ty2)).intern()
             }
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
-                TyKind::ShrRef(self.join_ty(genv, other, &ty1, ty2)).intern()
+                TyKind::ShrRef(self.join_ty(genv, other, ty1, ty2)).intern()
             }
             _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
         }
@@ -553,7 +548,6 @@ impl TypeEnvInfer {
     }
 
     fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
-        // TODO(nilehmann) this should introduce a pledge on fresh
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
         let ty = self.env.bindings[&loc].clone();
         let pledge = self.weaken_ty(ty);
@@ -625,8 +619,8 @@ impl TypeEnvInfer {
             .map(|(loc, ty)| (loc, replace_kvars(genv, &ty, fresh_kvar)))
             .collect();
 
-        // HACK(nilehmann) the inference algorithm doesn't track pledges so we keep the pledges from
-        // the first environment we are jumping from.
+        // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
+        // the pledges from all the environements we jump from.
         let pledges = env.pledges.clone();
 
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings, pledges }, scope: self.scope }
@@ -653,7 +647,7 @@ impl BasicBlockEnv {
                 constr
                     .as_ref()
                     .map(|p| subst.subst_pred(p))
-                    .unwrap_or_else(|| Pred::tt())
+                    .unwrap_or_else(Pred::tt)
             });
         }
         self.env.clone().subst(&subst)
