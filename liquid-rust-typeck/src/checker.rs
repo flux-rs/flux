@@ -767,12 +767,11 @@ impl Mode for Check<'_> {
     fn check_goto_join_point(
         ck: &mut Checker<Check>,
         mut pcx: PureCtxt,
-        mut env: TypeEnv,
+        env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        // env.pack_refs(&scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
             ck.mode.kvars.fresh(
                 var,
@@ -792,19 +791,11 @@ impl Mode for Check<'_> {
                 .into_bb_env(ck.genv, fresh_kvar, &env)
         });
 
-        let mut subst = Subst::empty();
-        subst
-            .infer_from_bb_env(&env, bb_env)
-            .unwrap_or_else(|_| panic!("inference failed"));
-
         dbg::check_goto!(target, pcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);
-        for constr in bb_env.constrs() {
-            gen.check_pred(subst.subst_pred(constr));
-        }
-        env.transform_into(&mut gen, &bb_env.subst(&subst));
+        env.check_goto(&mut gen, bb_env);
 
         first
     }

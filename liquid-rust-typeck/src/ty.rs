@@ -249,6 +249,13 @@ impl SortS {
     pub fn kind(&self) -> &SortKind {
         &self.kind
     }
+
+    pub fn is_loc(&self) -> bool {
+        match self.kind() {
+            SortKind::Loc => true,
+            _ => false,
+        }
+    }
 }
 
 impl ExprKind {
@@ -444,7 +451,7 @@ impl From<Var> for Expr {
 }
 
 impl Loc {
-    pub fn has_free_vars(&self, scope: &Scope) -> bool {
+    pub fn is_free(&self, scope: &Scope) -> bool {
         match self {
             Loc::Local(_) => false,
             Loc::Abstract(name) => !scope.contains(*name),

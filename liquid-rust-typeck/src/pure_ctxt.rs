@@ -304,7 +304,9 @@ fn pred_to_fixpoint(
         Pred::KVar(kvid, args) => {
             let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
                 if let ExprKind::Var(Var::Free(name)) = arg.kind() {
-                    cx.name_map[name]
+                    *cx.name_map
+                        .get(name)
+                        .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`",))
                 } else {
                     let fresh = cx.fresh_name();
                     let pred = fixpoint::Expr::BinaryOp(

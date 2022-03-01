@@ -5,7 +5,7 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, ExprKind, Pred, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Constr, Expr, ExprKind, Name, Pred, Sort, Ty, TyKind, Var},
     type_env::TypeEnv,
 };
 
@@ -48,6 +48,10 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
 
     pub fn check_pred(&mut self, pred: impl Into<Pred>) {
         self.pcx.push_head(pred, self.tag);
+    }
+
+    pub fn push_binding(&mut self, sort: Sort) -> Name {
+        self.pcx.push_binding(sort, |_| Expr::tt())
     }
 
     pub fn subtyping(&mut self, ty1: Ty, ty2: Ty) {

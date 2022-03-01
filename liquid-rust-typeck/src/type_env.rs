@@ -8,7 +8,7 @@ use crate::{
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ir::{self, Local};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
 use super::ty::{Loc, Name, Pred, Sort, TyS};
@@ -29,6 +29,7 @@ pub struct TypeEnvInfer {
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
     constrs: Vec<Option<Pred>>,
+    scope: Scope,
     pub env: TypeEnv,
 }
 
@@ -46,11 +47,12 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_loc(&self, loc: Loc) -> Ty {
-        self.bindings
-            .get(&loc)
-            .unwrap_or_else(|| panic!("loc not found: `{loc:?}`"))
-            .clone()
+    pub fn lookup_loc(&self, loc: impl Into<Loc>) -> Ty {
+        let loc = loc.into();
+        match self.bindings.get(&loc) {
+            Some(ty) => ty.clone(),
+            None => panic!("no entry found for loc: `{loc:?}`"),
+        }
     }
 
     pub fn has_loc(&self, loc: Loc) -> bool {
@@ -141,10 +143,6 @@ impl TypeEnv {
         self.update_loc(gen, loc, new_ty);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&Loc, &Ty)> + '_ {
-        self.bindings.iter()
-    }
-
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
@@ -175,34 +173,96 @@ impl TypeEnv {
         }
     }
 
-    pub fn transform_into(&mut self, gen: &mut ConstraintGen, other: &TypeEnv) {
-        let levels = self
-            .levels()
-            .into_iter()
-            .sorted_by_key(|(_, level)| *level)
-            .rev();
+    fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> Subst {
+        let params = bb_env.params.iter().map(|param| param.name).collect();
+        let mut subst = Subst::empty();
+        for (loc, ty1) in &self.bindings {
+            if bb_env.env.has_loc(*loc) {
+                let ty2 = bb_env.env.lookup_loc(*loc);
+                self.infer_subst_for_bb_env_tys(bb_env, &params, &ty1, &ty2, &mut subst);
+            }
+        }
+        assert!(subst
+            .check_inference(
+                bb_env
+                    .params
+                    .iter()
+                    .filter(|param| !param.sort.is_loc())
+                    .map(|param| param.name)
+            )
+            .is_ok());
+        subst
+    }
 
-        for (loc, _) in levels {
-            if !other.bindings.contains_key(&loc) {
+    fn infer_subst_for_bb_env_tys(
+        &self,
+        bb_env: &BasicBlockEnv,
+        params: &FxHashSet<Name>,
+        ty1: &Ty,
+        ty2: &Ty,
+        subst: &mut Subst,
+    ) {
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Refine(_, e1), TyKind::Refine(_, e2)) => {
+                subst.infer_from_exprs(params, e1, e2);
+            }
+            (TyKind::StrgRef(Loc::Abstract(loc1)), TyKind::StrgRef(Loc::Abstract(loc2)))
+                if !bb_env.scope.contains(*loc1) && !bb_env.scope.contains(*loc2) =>
+            {
+                subst.insert_loc_subst(*loc2, *loc1);
+                let ty1 = self.lookup_loc(*loc1);
+                let ty2 = bb_env.env.lookup_loc(*loc2);
+                self.infer_subst_for_bb_env_tys(bb_env, params, &ty1, &ty2, subst);
+            }
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &BasicBlockEnv) {
+        let subst = self.infer_subst_for_bb_env(bb_env);
+
+        // Check constraints
+        for constr in bb_env.constrs() {
+            gen.check_pred(subst.subst_pred(constr));
+        }
+
+        let bb_env = bb_env.env.clone().subst(&subst);
+
+        // Create pledged borrows
+        for loc in self.bindings.keys().copied().collect_vec() {
+            if !bb_env.has_loc(loc) {
+                continue;
+            }
+            let ty1 = self.lookup_loc(loc);
+            let ty2 = bb_env.lookup_loc(loc);
+            match (ty1.kind(), ty2.kind()) {
+                (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
+                    let pledge = bb_env.lookup_loc(*loc2);
+                    let fresh = self.pledged_borrow(gen, *loc1, pledge);
+                    self.bindings.insert(loc, TyKind::StrgRef(fresh).intern());
+                }
+                _ => {}
+            }
+        }
+
+        // Check subtyping
+        for loc in self.bindings.keys().copied().collect_vec() {
+            if !bb_env.bindings.contains_key(&loc) {
                 self.bindings.remove(&loc);
                 continue;
             }
-            let ty1 = self.bindings[&loc].clone();
-            let ty2 = other.bindings[&loc].clone();
-            match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(loc), TyKind::WeakRef(bound)) => {
-                    self.weaken_ref(gen, *loc, bound.clone());
-                }
-                _ => {
-                    gen.subtyping(ty1, ty2.clone());
-                }
-            };
+            let ty1 = self.lookup_loc(loc);
+            let ty2 = bb_env.lookup_loc(loc);
+            gen.subtyping(ty1, ty2.clone());
             self.bindings.insert(loc, ty2);
         }
 
         for (loc, pledges) in self.pledges.iter_mut() {
             pledges.extend(
-                other
+                bb_env
                     .pledges
                     .get(loc)
                     .iter()
@@ -210,7 +270,7 @@ impl TypeEnv {
             );
         }
 
-        debug_assert_eq!(self.bindings, other.bindings);
+        debug_assert_eq!(self.bindings, bb_env.bindings);
     }
 
     fn levels(&self) -> FxHashMap<Loc, u32> {
@@ -232,15 +292,14 @@ impl TypeEnv {
         levels
     }
 
-    fn weaken_ref(&mut self, gen: &mut ConstraintGen, loc: Loc, bound: Ty) {
-        let ty = &self.bindings[&loc];
-        match (ty.kind(), bound.kind()) {
-            (_, TyKind::Exists(..)) => {
-                gen.subtyping(ty.clone(), bound.clone());
-                self.bindings.insert(loc, bound);
-            }
-            _ => todo!(),
-        }
+    fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
+        let fresh = Loc::Abstract(gen.push_binding(Sort::loc()));
+        let ty = self.lookup_loc(loc);
+        gen.subtyping(ty, pledge.clone());
+        self.bindings.insert(loc, pledge.clone());
+        self.pledges.entry(fresh).or_default().push(pledge.clone());
+        self.bindings.insert(fresh, pledge);
+        fresh
     }
 
     pub fn subst(self, subst: &Subst) -> TypeEnv {
@@ -388,7 +447,7 @@ impl TypeEnvInfer {
     pub fn join(&mut self, genv: &GlobalEnv, other: TypeEnv) -> bool {
         let mut subst = Subst::empty();
         for loc in self.env.bindings.keys() {
-            if !loc.has_free_vars(&self.scope) {
+            if !loc.is_free(&self.scope) {
                 let ty1 = self.env.lookup_loc(*loc);
                 let ty2 = other.lookup_loc(*loc);
                 match (ty1.kind(), ty2.kind()) {
@@ -436,9 +495,9 @@ impl TypeEnvInfer {
                 if loc1 == loc2 {
                     TyKind::StrgRef(*loc1).intern()
                 } else {
-                    let (fresh, pledge) = self.borrow_weakly(*loc1);
+                    let (fresh, pledge) = self.pledged_borrow(*loc1);
                     other.bindings.insert(*loc2, pledge.clone());
-                    TyKind::StrgRef(fresh.into()).intern()
+                    TyKind::StrgRef(fresh).intern()
                 }
             }
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
@@ -493,15 +552,13 @@ impl TypeEnvInfer {
         fresh
     }
 
-    fn borrow_weakly(&mut self, loc: Loc) -> (Name, Ty) {
+    fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
         // TODO(nilehmann) this should introduce a pledge on fresh
-        let fresh = self.fresh(Sort::loc());
+        let fresh = Loc::Abstract(self.fresh(Sort::loc()));
         let ty = self.env.bindings[&loc].clone();
         let pledge = self.weaken_ty(ty);
         self.env.bindings.insert(loc, pledge.clone());
-        self.env
-            .bindings
-            .insert(Loc::Abstract(fresh), pledge.clone());
+        self.env.bindings.insert(fresh, pledge.clone());
         (fresh, pledge)
     }
 
@@ -572,7 +629,7 @@ impl TypeEnvInfer {
         // the first environment we are jumping from.
         let pledges = env.pledges.clone();
 
-        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, pledges } }
+        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, pledges }, scope: self.scope }
     }
 
     fn is_packed_expr(&self, expr: &Expr) -> bool {
@@ -604,11 +661,6 @@ impl BasicBlockEnv {
 
     pub fn constrs(&self) -> impl Iterator<Item = &Pred> {
         self.constrs.iter().filter_map(|c| c.as_ref())
-    }
-
-    // TODO(nilehmann) this is weird beause it's skipping the parameters
-    pub fn subst(&self, subst: &Subst) -> TypeEnv {
-        self.env.clone().subst(subst)
     }
 }
 
@@ -713,11 +765,17 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "∃ {}, {:?}. {:?}",
+                "∃ {}. {:?}",
                 ^self.params
                     .iter()
-                    .format_with(", ", |param, f| f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))),
-                join!(", ", self.constrs.iter().filter_map(|c| c.as_ref())),
+                    .zip(&self.constrs)
+                    .format_with(", ", |(param, constr), f| {
+                        if let Some(constr) = constr {
+                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr))
+                        } else {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        }
+                    }),
                 &self.env
             )
         }
