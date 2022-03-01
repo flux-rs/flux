@@ -57,7 +57,7 @@ def main() -> None:
             buf.print(bold(f'{mode.upper()} {def_id}'))
             if args.mode == "check" and bb_envs_infer[def_id] is not None:
                 buf.print(bb_envs_infer[def_id])
-            buf.print_rule('=')
+            buf.print_rule('═')
             buf.print()
             buf.print_mode(events, args.filter)
             buf.print('\n')
@@ -77,7 +77,7 @@ class Buff:
         self.buffer = []
 
     def flush(self) -> None:
-        max_len = max(len(line) for line in self.buffer if isinstance(line, str))
+        max_len = max((len(line) for line in self.buffer if isinstance(line, str)), default=0)
         rule_len = min(max_len, os.get_terminal_size().columns)
         for line in self.buffer:
             if isinstance(line, Rule):
@@ -100,6 +100,7 @@ class Buff:
                 continue
 
             if fields['event'] == 'basic_block_start':
+                self.flush()
                 self.print()
                 self.print_bb_header(fields['bb'])
                 self.print_context(fields['pcx'], fields['env'])
@@ -119,14 +120,14 @@ class Buff:
                 self.print_rule()
             elif fields['event'] == 'infer_goto_enter':
                 self.print(f'goto {fields["target"]}')
-                self.print(fields['scope'])
+                # self.print(fields['scope'])
                 self.print(fields['env'])
                 self.print(fields['bb_env'])
             elif fields['event'] == 'infer_goto_exit':
                 self.print(fields['bb_env'])
                 self.print_rule()
 
-    def print_rule(self, c='-') -> None:
+    def print_rule(self, c='─') -> None:
         self.print(Rule(c))
 
     def print_bb_header(self, bb: str) -> None:

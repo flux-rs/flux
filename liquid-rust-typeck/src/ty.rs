@@ -10,13 +10,17 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{IntTy, UintTy};
 
-use crate::intern::{impl_internable, Interned};
+use crate::{
+    intern::{impl_internable, Interned},
+    pure_ctxt::Scope,
+};
 
 pub enum AdtDef {
     Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
     Opaque { refined_by: Vec<Param> },
 }
 
+#[derive(Debug)]
 pub struct FnSpec {
     pub fn_sig: Binders<FnSig>,
     pub assume: bool,
@@ -245,6 +249,10 @@ impl SortS {
     pub fn kind(&self) -> &SortKind {
         &self.kind
     }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self.kind, SortKind::Loc)
+    }
 }
 
 impl ExprKind {
@@ -363,6 +371,10 @@ impl ExprS {
         vars
     }
 
+    pub fn has_free_vars(&self, scope: &Scope) -> bool {
+        self.vars().into_iter().any(|name| !scope.contains(name))
+    }
+
     /// Simplify expression applying some rules like removing double negation. This is used for pretty
     /// printing.
     pub fn simplify(&self) -> Expr {
@@ -432,6 +444,21 @@ impl Pred {
 impl From<Var> for Expr {
     fn from(var: Var) -> Self {
         ExprKind::Var(var).intern()
+    }
+}
+
+impl Loc {
+    pub fn is_free(&self, scope: &Scope) -> bool {
+        match self {
+            Loc::Local(_) => false,
+            Loc::Abstract(name) => !scope.contains(*name),
+        }
+    }
+}
+
+impl From<Name> for Loc {
+    fn from(name: Name) -> Self {
+        Loc::Abstract(name)
     }
 }
 

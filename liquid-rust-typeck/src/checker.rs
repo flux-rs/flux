@@ -179,7 +179,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
 
             let mut env = ck.mode.enter_basic_block(&mut pcx, bb);
-            env.unpack_all(genv, &mut pcx);
+            env.unpack(genv, &mut pcx);
             ck.check_basic_block(pcx, env, bb)?;
         }
 
@@ -191,7 +191,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &fn_sig.requires {
             match constr {
                 ty::Constr::Type(loc, ty) => {
-                    let ty = env.unpack(genv, pcx, ty);
+                    let ty = env.unpack_ty(genv, pcx, ty);
                     env.insert_loc(*loc, ty);
                 }
                 ty::Constr::Pred(e) => {
@@ -201,7 +201,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
-            let ty = env.unpack(genv, pcx, ty);
+            let ty = env.unpack_ty(genv, pcx, ty);
             env.insert_loc(Loc::Local(local), ty);
         }
 
@@ -254,7 +254,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
-                let ty = env.unpack(self.genv, pcx, &ty);
+                let ty = env.unpack_ty(self.genv, pcx, &ty);
                 let gen = &mut ConstraintGen::new(
                     self.genv,
                     pcx.breadcrumb(),
@@ -353,7 +353,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &fn_sig.ensures {
             match constr {
                 Constr::Type(loc, updated_ty) => {
-                    let updated_ty = env.unpack(self.genv, pcx, updated_ty);
+                    let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
                     let gen = &mut ConstraintGen::new(
                         self.genv,
                         pcx.breadcrumb(),
@@ -367,7 +367,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
-            let ret = env.unpack(self.genv, pcx, &fn_sig.ret);
+            let ret = env.unpack_ty(self.genv, pcx, &fn_sig.ret);
             let mut gen =
                 ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
             env.write_place(&mut gen, p, ret);
@@ -727,19 +727,18 @@ impl Mode for Inference<'_> {
     fn check_goto_join_point(
         ck: &mut Checker<Inference>,
         _pcx: PureCtxt,
-        mut env: TypeEnv,
+        env: TypeEnv,
         _src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
+        // TODO(nilehmann) we should only ask for the scope in the vacant branch
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        env.pack_refs(&scope);
-        let env = env.into_infer(ck.genv, &scope);
 
-        dbg::infer_goto_enter!(target, scope, env, ck.mode.bb_envs.get(&target));
+        dbg::infer_goto_enter!(target, env, ck.mode.bb_envs.get(&target));
         let modified = match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
-                entry.insert(env);
+                entry.insert(env.into_infer(ck.genv, scope));
                 true
             }
         };
@@ -768,12 +767,11 @@ impl Mode for Check<'_> {
     fn check_goto_join_point(
         ck: &mut Checker<Check>,
         mut pcx: PureCtxt,
-        mut env: TypeEnv,
+        env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        env.pack_refs(&scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
             ck.mode.kvars.fresh(
                 var,
@@ -793,19 +791,11 @@ impl Mode for Check<'_> {
                 .into_bb_env(ck.genv, fresh_kvar, &env)
         });
 
-        let mut subst = Subst::empty();
-        subst
-            .infer_from_bb_env(&env, bb_env)
-            .unwrap_or_else(|_| panic!("inference failed"));
-
         dbg::check_goto!(target, pcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);
-        for constr in &bb_env.constrs {
-            gen.check_pred(subst.subst_pred(constr));
-        }
-        env.transform_into(&mut gen, &bb_env.subst(&subst));
+        env.check_goto(&mut gen, bb_env);
 
         first
     }

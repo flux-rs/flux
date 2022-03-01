@@ -1,12 +1,6 @@
-use std::collections::HashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
-use rustc_hash::FxHashMap;
-
-use crate::{
-    pure_ctxt::PureCtxt,
-    ty::*,
-    type_env::{BasicBlockEnv, TypeEnv},
-};
+use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
 
 #[derive(Debug)]
 pub struct Subst {
@@ -19,7 +13,8 @@ enum LocOrExpr {
     Expr(Expr),
 }
 
-pub struct InferenceError;
+#[derive(Debug, Eq, PartialEq)]
+pub struct InferenceError(Name);
 
 impl Subst {
     pub fn empty() -> Self {
@@ -39,17 +34,23 @@ impl Subst {
         subst
     }
 
-    pub fn insert_param(&mut self, param: &Param, to: Name) {
-        match param.sort.kind() {
+    pub fn insert_name_subst(&mut self, name: Name, sort: Sort, to: Name) {
+        match sort.kind() {
             SortKind::Loc => {
-                self.map
-                    .insert(param.name, LocOrExpr::Loc(Loc::Abstract(to)));
+                self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(to)));
             }
             _ => {
-                self.map
-                    .insert(param.name, LocOrExpr::Expr(Var::Free(to).into()));
+                self.map.insert(name, LocOrExpr::Expr(Var::Free(to).into()));
             }
         }
+    }
+
+    pub fn insert_loc_subst(&mut self, name: Name, to: impl Into<Loc>) {
+        self.map.insert(name, LocOrExpr::Loc(to.into()));
+    }
+
+    pub fn insert_param(&mut self, param: &Param, to: Name) {
+        self.insert_name_subst(param.name, param.sort.clone(), to);
     }
 
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
@@ -182,32 +183,22 @@ impl Subst {
             }
         }
 
-        self.check_inference(&fn_sig.params)
+        self.check_inference(params.into_iter())
     }
 
-    pub fn infer_from_bb_env(
-        &mut self,
-        env: &TypeEnv,
-        bb_env: &BasicBlockEnv,
+    pub fn check_inference(
+        &self,
+        params: impl Iterator<Item = Name>,
     ) -> Result<(), InferenceError> {
-        let params = bb_env.params.iter().map(|param| param.name).collect();
-        for (loc, binding2) in bb_env.env.iter() {
-            let ty1 = env.lookup_loc(*loc);
-            self.infer_from_tys(&params, &ty1, &binding2.ty());
-        }
-        self.check_inference(&bb_env.params)
-    }
-
-    fn check_inference(&self, params: &[Param]) -> Result<(), InferenceError> {
-        for param in params {
-            if !self.map.contains_key(&param.name) {
-                return Err(InferenceError);
+        for name in params {
+            if !self.map.contains_key(&name) {
+                return Err(InferenceError(name));
             }
         }
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, params: &HashSet<Name>, ty1: &TyS, ty2: &TyS) {
+    fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
                 self.infer_from_exprs(params, e1, e2);
@@ -228,20 +219,24 @@ impl Subst {
         }
     }
 
-    fn infer_from_exprs(&mut self, params: &HashSet<Name>, e1: &Expr, e2: &Expr) {
+    pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
                 match self.map.insert(*name, LocOrExpr::Expr(e1.clone())) {
-                    Some(LocOrExpr::Expr(old_e)) if &old_e != e1 => {
-                        todo!(
-                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *name,
-                            old_e,
-                            e1
-                        )
+                    Some(LocOrExpr::Expr(old_e)) => {
+                        if &old_e != e2 {
+                            todo!(
+                                "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                                *name,
+                                old_e,
+                                e1
+                            )
+                        }
                     }
-                    Some(_) => panic!("subsitution of loc for var"),
-                    _ => {}
+                    Some(LocOrExpr::Loc(old_l)) => {
+                        panic!("subsitution of loc for expr: `{name:?}`: old `{old_l:?}`, new: `{e1:?}`")
+                    }
+                    None => {}
                 }
             }
             (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {

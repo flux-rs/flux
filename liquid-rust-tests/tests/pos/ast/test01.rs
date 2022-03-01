@@ -5,7 +5,7 @@
 mod rvec;
 use rvec::RVec;
 
-#[lr::ty(fn<n: int, m: int{m > n}>(bool, i32@n, i32@m) -> i32{v: v >= 0})]
+#[lr::ty(fn<n: int, m: int{m >= n}>(bool, i32@n, i32@m) -> i32{v: v >= 1})]
 pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     let mut x = n;
     let mut y = m;

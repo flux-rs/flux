@@ -52,11 +52,11 @@ pub use crate::_check_goto as check_goto;
 
 #[macro_export]
 macro_rules! _infer_goto_enter {
-    ($target:expr, $scope:expr, $env:expr, $bb_env:expr) => {{
+    ($target:expr, $env:expr, $bb_env:expr) => {{
         if let Some(bb_env) = &$bb_env {
-            tracing::debug!(event = "infer_goto_enter", target = ?$target, scope = ?&$scope, env = ?&$env, ?bb_env)
+            tracing::debug!(event = "infer_goto_enter", target = ?$target, env = ?&$env, ?bb_env)
         } else {
-            tracing::debug!(event = "infer_goto_enter", target = ?$target, scope = ?&$scope, env = ?&$env, bb_env = "empty")
+            tracing::debug!(event = "infer_goto_enter", target = ?$target, env = ?&$env, bb_env = "empty")
         }
     }};
 }
