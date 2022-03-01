@@ -12,9 +12,7 @@ impl LoweringCtxt {
         Self { name_map: FxHashMap::default() }
     }
 
-    pub fn lower_fn_spec(fn_spec: core::FnSpec) -> ty::FnSpec {
-        let core::FnSpec { fn_sig, assume } = fn_spec;
-
+    pub fn lower_fn_sig(fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let name_gen = IndexGen::new();
         let fresh_kvar =
             &mut |_: &ty::BaseTy| unreachable!("inference predicate in top level function");
@@ -40,8 +38,7 @@ impl LoweringCtxt {
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        let fn_sig = ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures });
-        ty::FnSpec { fn_sig, assume }
+        ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures })
     }
 
     pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {

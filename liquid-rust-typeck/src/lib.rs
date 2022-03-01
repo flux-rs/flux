@@ -16,7 +16,7 @@ mod constraint_gen;
 mod dbg;
 pub mod global_env;
 mod intern;
-mod lowering;
+pub mod lowering;
 mod pretty;
 mod pure_ctxt;
 mod subst;
