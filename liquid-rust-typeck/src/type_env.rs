@@ -16,7 +16,7 @@ use super::ty::{Loc, Name, Pred, Sort, TyS};
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct TypeEnv {
     bindings: FxHashMap<Loc, Ty>,
-    pledges: FxHashMap<Loc, Ty>,
+    pledges: FxHashMap<Loc, Vec<Ty>>,
 }
 
 pub struct TypeEnvInfer {
@@ -73,8 +73,8 @@ impl TypeEnv {
 
     pub fn update_loc(&mut self, gen: &mut ConstraintGen, loc: Loc, new_ty: Ty) {
         self.bindings.insert(loc, new_ty.clone());
-        if let Some(pledge) = self.pledges.get(&loc) {
-            gen.subtyping(new_ty, pledge.clone());
+        for pledge in self.pledges.get(&loc).iter().flat_map(|v| v.iter()) {
+            gen.subtyping(new_ty.clone(), pledge.clone());
         }
     }
 
@@ -156,7 +156,7 @@ impl TypeEnv {
                 let fresh = pcx.push_loc();
                 let ty = self.unpack_ty(genv, pcx, pledge);
                 self.bindings.insert(fresh, ty);
-                self.pledges.insert(fresh, pledge.clone());
+                self.pledges.insert(fresh, vec![pledge.clone()]);
                 TyKind::StrgRef(fresh).intern()
             }
             TyKind::ShrRef(ty) => {
@@ -199,8 +199,18 @@ impl TypeEnv {
             };
             self.bindings.insert(loc, ty2);
         }
+        for (loc, pledges) in self.pledges.iter_mut() {
+            pledges.extend(
+                other
+                    .pledges
+                    .get(loc)
+                    .iter()
+                    .flat_map(|v| v.iter().cloned()),
+            );
+        }
+
         // TODO(nilehmann) we should also join pledges
-        assert_eq!(self, other);
+        debug_assert_eq!(self.bindings, other.bindings);
     }
 
     fn levels(&self) -> FxHashMap<Loc, u32> {
@@ -243,7 +253,11 @@ impl TypeEnv {
             pledges: self
                 .pledges
                 .into_iter()
-                .map(|(loc, pledge)| (subst.subst_loc(loc), subst.subst_ty(&pledge)))
+                .map(|(loc, pledges)| {
+                    let loc = subst.subst_loc(loc);
+                    let pledges = pledges.into_iter().map(|ty| subst.subst_ty(&ty)).collect();
+                    (loc, pledges)
+                })
                 .collect(),
         }
     }
@@ -387,6 +401,7 @@ impl TypeEnvInfer {
                 }
             }
         }
+        println!("\n{self:?}\n{other:?}\n{subst:?}");
         let mut other = other.subst(&subst);
 
         let levels = self
@@ -398,13 +413,15 @@ impl TypeEnvInfer {
 
         let mut modified = false;
         for (loc, _) in levels {
-            let ty1 = self.env.bindings[&loc].clone();
-            let ty2 = other.bindings[&loc].clone();
+            if !other.has_loc(loc) {
+                continue;
+            }
+            let ty1 = self.env.lookup_loc(loc);
+            let ty2 = other.lookup_loc(loc);
             let ty = self.join_ty(genv, &mut other, &ty1, &ty2);
             modified |= ty1 != ty;
             self.env.bindings.insert(loc, ty);
         }
-        // TODO(nilehmann) we also have to join pledges
 
         modified
     }
@@ -550,11 +567,8 @@ impl TypeEnvInfer {
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we keep the pledges from
         // the first environment we are jumping from.
-        let pledges = env
-            .pledges
-            .iter()
-            .map(|(loc, pledge)| (*loc, replace_kvars(genv, pledge, fresh_kvar)))
-            .collect();
+        let pledges = env.pledges.clone();
+
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings, pledges } }
     }
 
@@ -643,7 +657,7 @@ mod pretty {
             let pledges = self
                 .pledges
                 .iter()
-                .filter(|(_, ty)| !ty.is_uninit())
+                .filter(|(_, pledges)| !pledges.is_empty())
                 .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
                 .collect_vec();
 
@@ -655,10 +669,12 @@ mod pretty {
             )?;
             if !pledges.is_empty() {
                 w!(
-                    " [{}]",
+                    " ~ {{{}}}",
                     ^pledges
                         .into_iter()
-                        .format_with(", ", |(loc, ty), f| f(&format_args_cx!("{:?}: {:?}", loc, ty)))
+                        .format_with(", ", |(loc, pledges), f| {
+                            f(&format_args_cx!("{:?}: [{:?}]", loc, join!(", ", pledges.iter().filter(|ty| !ty.is_uninit()))))
+                        })
                 )?;
             }
             Ok(())
