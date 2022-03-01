@@ -95,6 +95,7 @@ fn convert_tykind(t: TyKind) -> ast::TyKind {
             let ty = convert_ty(*t);
             ty.kind
         }
+        TyKind::Ref(RefKind::Immut, t) => ast::TyKind::ShrRef(Box::new(convert_ty(*t))),
         TyKind::Ref(_, t) => ast::TyKind::WeakRef(Box::new(convert_ty(*t))),
         TyKind::Refine { path, refine } => {
             let path = convert_path(path);

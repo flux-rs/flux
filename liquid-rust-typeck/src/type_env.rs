@@ -199,6 +199,7 @@ impl TypeEnv {
             };
             self.bindings.insert(loc, ty2);
         }
+
         for (loc, pledges) in self.pledges.iter_mut() {
             pledges.extend(
                 other
@@ -209,7 +210,6 @@ impl TypeEnv {
             );
         }
 
-        // TODO(nilehmann) we should also join pledges
         debug_assert_eq!(self.bindings, other.bindings);
     }
 
@@ -393,7 +393,7 @@ impl TypeEnvInfer {
                 let ty2 = other.lookup_loc(*loc);
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::StrgRef(loc1), TyKind::StrgRef(Loc::Abstract(loc2)))
-                        if self.is_packed_loc(*loc1) && !self.scope.contains(*loc2) =>
+                        if self.packed_loc(*loc1).is_some() && !self.scope.contains(*loc2) =>
                     {
                         subst.insert_loc_subst(*loc2, *loc1);
                     }
@@ -401,7 +401,6 @@ impl TypeEnvInfer {
                 }
             }
         }
-        println!("\n{self:?}\n{other:?}\n{subst:?}");
         let mut other = other.subst(&subst);
 
         let levels = self
@@ -414,6 +413,10 @@ impl TypeEnvInfer {
         let mut modified = false;
         for (loc, _) in levels {
             if !other.has_loc(loc) {
+                if let Some(loc) = self.packed_loc(loc) {
+                    self.params.remove(&loc);
+                }
+                self.env.bindings.remove(&loc);
                 continue;
             }
             let ty1 = self.env.lookup_loc(loc);
@@ -576,8 +579,11 @@ impl TypeEnvInfer {
         matches!(expr.kind(), ExprKind::Var(Var::Free(name)) if self.params.contains_key(name))
     }
 
-    fn is_packed_loc(&self, loc: Loc) -> bool {
-        matches!(loc, Loc::Abstract(name) if self.params.contains_key(&name))
+    fn packed_loc(&self, loc: Loc) -> Option<Name> {
+        match loc {
+            Loc::Abstract(name) if self.params.contains_key(&name) => Some(name),
+            _ => None,
+        }
     }
 }
 

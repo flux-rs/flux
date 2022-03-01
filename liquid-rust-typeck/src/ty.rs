@@ -20,6 +20,7 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
+#[derive(Debug)]
 pub struct FnSpec {
     pub fn_sig: Binders<FnSig>,
     pub assume: bool,
