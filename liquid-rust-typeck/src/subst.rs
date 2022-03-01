@@ -79,16 +79,12 @@ impl Subst {
 
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Refine(bty, e) => {
-                TyKind::Refine(self.subst_base_ty(bty), self.subst_expr(e)).intern()
-            }
-            TyKind::Exists(bty, pred) => {
-                TyKind::Exists(self.subst_base_ty(bty), self.subst_pred(pred)).intern()
-            }
-            TyKind::StrgRef(loc) => TyKind::StrgRef(self.subst_loc(*loc)).intern(),
+            TyKind::Refine(bty, e) => Ty::refine(self.subst_base_ty(bty), self.subst_expr(e)),
+            TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
+            TyKind::StrgRef(loc) => Ty::strg_ref(self.subst_loc(*loc)),
             TyKind::Param(param) => self.subst_ty_param(*param),
-            TyKind::WeakRef(ty) => TyKind::WeakRef(self.subst_ty(ty)).intern(),
-            TyKind::ShrRef(ty) => TyKind::ShrRef(self.subst_ty(ty)).intern(),
+            TyKind::WeakRef(ty) => Ty::weak_ref(self.subst_ty(ty)),
+            TyKind::ShrRef(ty) => Ty::shr_ref(self.subst_ty(ty)),
             TyKind::Uninit => ty.clone(),
         }
     }
@@ -118,10 +114,10 @@ impl Subst {
             ExprKind::Var(var) => self.subst_var(*var),
             ExprKind::Constant(_) => expr.clone(),
             ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(*op, self.subst_expr(e1), self.subst_expr(e2)).intern()
+                Expr::binary_op(*op, self.subst_expr(e1), self.subst_expr(e2))
             }
-            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, self.subst_expr(e)).intern(),
-            ExprKind::Proj(e, field) => ExprKind::Proj(self.subst_expr(e), *field).intern(),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, self.subst_expr(e)),
+            ExprKind::Proj(e, field) => Expr::proj(self.subst_expr(e), *field),
             ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
         }
     }
@@ -160,7 +156,7 @@ impl Subst {
         self.types
             .get(param.index as usize)
             .cloned()
-            .unwrap_or_else(|| TyKind::Param(param).intern())
+            .unwrap_or_else(|| Ty::param(param))
     }
 
     pub fn infer_from_fn_call(

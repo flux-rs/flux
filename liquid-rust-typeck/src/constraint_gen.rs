@@ -5,7 +5,7 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, ExprKind, Name, Pred, Sort, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Constr, Expr, Name, Pred, Sort, Ty, TyKind, Var},
     type_env::TypeEnv,
 };
 
@@ -69,7 +69,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 let fresh = ck
                     .pcx
                     .push_binding(ck.genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
-                let ty1 = TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern();
+                let ty1 = Ty::refine(bty.clone(), Var::Free(fresh));
                 ck.subtyping(&ty1, ty2);
                 return;
             }
@@ -79,7 +79,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 ck.bty_subtyping(bty1, bty2);
-                ck.check_pred(ExprKind::BinaryOp(BinOp::Eq, e1.clone(), e2.clone()).intern());
+                ck.check_pred(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()));
             }
             (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
                 ck.bty_subtyping(bty1, bty2);

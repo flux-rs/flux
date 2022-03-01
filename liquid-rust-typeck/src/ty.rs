@@ -151,8 +151,38 @@ impl AdtDef {
     }
 }
 
+impl Ty {
+    pub fn strg_ref(loc: impl Into<Loc>) -> Ty {
+        TyKind::StrgRef(loc.into()).intern()
+    }
+
+    pub fn weak_ref(ty: Ty) -> Ty {
+        TyKind::WeakRef(ty).intern()
+    }
+
+    pub fn shr_ref(ty: Ty) -> Ty {
+        TyKind::ShrRef(ty).intern()
+    }
+
+    pub fn uninit() -> Ty {
+        TyKind::Uninit.intern()
+    }
+
+    pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
+        TyKind::Refine(bty, e.into()).intern()
+    }
+
+    pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
+        TyKind::Exists(bty, pred.into()).intern()
+    }
+
+    pub fn param(param: ParamTy) -> Ty {
+        TyKind::Param(param).intern()
+    }
+}
+
 impl TyKind {
-    pub fn intern(self) -> Ty {
+    fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
     }
 }
@@ -256,7 +286,7 @@ impl SortS {
 }
 
 impl ExprKind {
-    pub fn intern(self) -> Expr {
+    fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
     }
 }
@@ -276,6 +306,14 @@ impl Expr {
 
     pub fn unit() -> Expr {
         Expr::tuple([])
+    }
+
+    pub fn var(var: impl Into<Var>) -> Expr {
+        ExprKind::Var(var.into()).intern()
+    }
+
+    pub fn constant(c: Constant) -> Expr {
+        ExprKind::Constant(c).intern()
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -301,6 +339,18 @@ impl Expr {
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
             BaseTy::Adt(_, _) => panic!(),
         }
+    }
+
+    pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
+    }
+
+    pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
+        ExprKind::UnaryOp(op, e.into()).intern()
+    }
+
+    pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
+        ExprKind::Proj(e.into(), proj).intern()
     }
 
     pub fn not(&self) -> Expr {

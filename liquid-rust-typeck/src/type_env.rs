@@ -94,19 +94,19 @@ impl TypeEnv {
             }
             _ => unreachable!("unxepected place `{place:?}`"),
         };
-        TyKind::StrgRef(loc).intern()
+        Ty::strg_ref(loc)
     }
 
     pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local());
         let ty = self.lookup_loc(loc);
         match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => TyKind::ShrRef(ty).intern(),
+            (ir::Place::Local(_), _) => Ty::shr_ref(ty),
             (ir::Place::Deref(_), TyKind::StrgRef(loc)) => {
                 let ty = self.lookup_loc(*loc);
-                TyKind::ShrRef(ty).intern()
+                Ty::shr_ref(ty)
             }
-            (ir::Place::Deref(_), TyKind::ShrRef(ty)) => TyKind::ShrRef(ty.clone()).intern(),
+            (ir::Place::Deref(_), TyKind::ShrRef(ty)) => Ty::shr_ref(ty.clone()),
             (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
                 unreachable!("shared borrow with unpacked weak ref")
             }
@@ -119,7 +119,7 @@ impl TypeEnv {
             ir::Place::Local(local) => {
                 let loc = Loc::Local(*local);
                 let ty = self.lookup_loc(loc);
-                self.bindings.insert(loc, TyKind::Uninit.intern());
+                self.bindings.insert(loc, Ty::uninit());
                 ty
             }
             ir::Place::Deref(_) => unreachable!("cannot move out from a dereference"),
@@ -148,18 +148,18 @@ impl TypeEnv {
             TyKind::Exists(bty, p) => {
                 let fresh =
                     pcx.push_binding(genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
-                TyKind::Refine(bty.clone(), Var::Free(fresh).into()).intern()
+                Ty::refine(bty.clone(), Var::Free(fresh))
             }
             TyKind::WeakRef(pledge) => {
                 let fresh = pcx.push_loc();
                 let ty = self.unpack_ty(genv, pcx, pledge);
                 self.bindings.insert(fresh, ty);
                 self.pledges.insert(fresh, vec![pledge.clone()]);
-                TyKind::StrgRef(fresh).intern()
+                Ty::strg_ref(fresh)
             }
             TyKind::ShrRef(ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);
-                TyKind::ShrRef(ty).intern()
+                Ty::shr_ref(ty)
             }
             _ => ty.clone(),
         }
@@ -242,7 +242,7 @@ impl TypeEnv {
                 (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
                     let pledge = goto_env.lookup_loc(*loc2);
                     let fresh = self.pledged_borrow(gen, *loc1, pledge);
-                    self.bindings.insert(loc, TyKind::StrgRef(fresh).intern());
+                    self.bindings.insert(loc, Ty::strg_ref(fresh));
                 }
                 _ => {}
             }
@@ -404,12 +404,12 @@ impl TypeEnvInfer {
                 let e = if e.has_free_vars(scope) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, genv.sort(bty));
-                    ExprKind::Var(fresh.into()).intern()
+                    Expr::var(fresh)
                 } else {
                     e.clone()
                 };
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
-                TyKind::Refine(bty, e).intern()
+                Ty::refine(bty, e)
             }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
@@ -485,35 +485,35 @@ impl TypeEnvInfer {
 
     fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnv, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit, _) | (_, TyKind::Uninit) => TyKind::Uninit.intern(),
+            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 if loc1 == loc2 {
-                    TyKind::StrgRef(*loc1).intern()
+                    Ty::strg_ref(*loc1)
                 } else {
                     let (fresh, pledge) = self.pledged_borrow(*loc1);
                     other.bindings.insert(*loc2, pledge);
-                    TyKind::StrgRef(fresh).intern()
+                    Ty::strg_ref(fresh)
                 }
             }
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
                 let e = if !self.is_packed_expr(e1) && (e2.has_free_vars(&self.scope) || e1 != e2) {
-                    ExprKind::Var(self.fresh(genv.sort(&bty)).into()).intern()
+                    Expr::var(self.fresh(genv.sort(&bty)))
                 } else {
                     e1.clone()
                 };
-                TyKind::Refine(bty, e).intern()
+                Ty::refine(bty, e)
             }
             (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
-                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
+                Ty::exists(bty, Pred::dummy_kvar())
             }
             (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
-                TyKind::WeakRef(self.join_ty(genv, other, ty1, ty2)).intern()
+                Ty::weak_ref(self.join_ty(genv, other, ty1, ty2))
             }
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
-                TyKind::ShrRef(self.join_ty(genv, other, ty1, ty2)).intern()
+                Ty::shr_ref(self.join_ty(genv, other, ty1, ty2))
             }
             _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
         }
@@ -563,17 +563,17 @@ impl TypeEnvInfer {
             Packed(bty, _, name) => {
                 self.params.remove(&name);
                 let bty = self.weaken_bty(&bty);
-                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
+                Ty::exists(bty, Pred::dummy_kvar())
             }
             Exists(bty, _) | Refine(bty, _) => {
                 let bty = self.weaken_bty(&bty);
-                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
+                Ty::exists(bty, Pred::dummy_kvar())
             }
             StrgRef(loc) => {
                 let ty = self.env.bindings[&loc].clone();
                 let ty = self.weaken_ty(&ty);
                 self.env.bindings.insert(loc, ty.clone());
-                TyKind::WeakRef(ty).intern()
+                Ty::weak_ref(ty)
             }
             ShrRef(_) | WeakRef(_) => todo!(),
             Uninit => {
@@ -660,19 +660,17 @@ impl BasicBlockEnv {
 
 fn replace_kvars(genv: &GlobalEnv, ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
     match ty.kind() {
-        TyKind::Refine(bty, e) => {
-            TyKind::Refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()).intern()
-        }
+        TyKind::Refine(bty, e) => Ty::refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()),
         TyKind::Exists(bty, Pred::KVar(_, _)) => {
             let p = fresh_kvar(Var::Bound, genv.sort(bty));
-            TyKind::Exists(replace_kvars_bty(genv, bty, fresh_kvar), p).intern()
+            Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
         }
-        TyKind::Exists(bty, p) => TyKind::Exists(bty.clone(), p.clone()).intern(),
-        TyKind::Uninit => TyKind::Uninit.intern(),
-        TyKind::StrgRef(loc) => TyKind::StrgRef(*loc).intern(),
-        TyKind::WeakRef(ty) => TyKind::WeakRef(replace_kvars(genv, ty, fresh_kvar)).intern(),
-        TyKind::ShrRef(ty) => TyKind::ShrRef(replace_kvars(genv, ty, fresh_kvar)).intern(),
-        TyKind::Param(param_ty) => TyKind::Param(*param_ty).intern(),
+        TyKind::Exists(bty, p) => Ty::exists(bty.clone(), p.clone()),
+        TyKind::Uninit => Ty::uninit(),
+        TyKind::StrgRef(loc) => Ty::strg_ref(*loc),
+        TyKind::WeakRef(ty) => Ty::weak_ref(replace_kvars(genv, ty, fresh_kvar)),
+        TyKind::ShrRef(ty) => Ty::shr_ref(replace_kvars(genv, ty, fresh_kvar)),
+        TyKind::Param(param_ty) => Ty::param(*param_ty),
     }
 }
 

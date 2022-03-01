@@ -16,10 +16,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{
-        self, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Loc, Name, Param, Pred, Sort, Ty,
-        TyKind, Var,
-    },
+    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
@@ -206,10 +203,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), TyKind::Uninit.intern());
+            env.insert_loc(Loc::Local(local), Ty::uninit());
         }
 
-        env.insert_loc(Loc::Local(RETURN_PLACE), TyKind::Uninit.intern());
+        env.insert_loc(Loc::Local(RETURN_PLACE), Ty::uninit());
         env
     }
 
@@ -412,7 +409,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     }
                 }
                 TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
-                    ExprKind::BinaryOp(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits)).intern()
+                    Expr::binary_op(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits))
                 }
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -426,7 +423,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let otherwise = targets
             .iter()
             .map(|(bits, _)| mk(bits).not())
-            .reduce(|e1, e2| ExprKind::BinaryOp(BinOp::And, e1, e2).intern());
+            .reduce(|e1, e2| Expr::binary_op(BinOp::And, e1, e2));
 
         successors.push((targets.otherwise(), otherwise));
 
@@ -524,21 +521,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(BaseTy::Int(int_ty1), _), TyKind::Refine(BaseTy::Int(int_ty2), _)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                TyKind::Exists(BaseTy::Int(*int_ty1), Expr::tt().into()).intern()
+                Ty::exists(BaseTy::Int(*int_ty1), Pred::tt())
             }
             (
                 TyKind::Refine(BaseTy::Uint(uint_ty1), _),
                 TyKind::Refine(BaseTy::Uint(uint_ty2), _),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                TyKind::Exists(BaseTy::Uint(*uint_ty1), Expr::tt().into()).intern()
+                Ty::exists(BaseTy::Uint(*uint_ty1), Pred::tt())
             }
             (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
-                TyKind::Refine(
-                    BaseTy::Bool,
-                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
-                )
-                .intern()
+                Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1.clone(), e2.clone()))
             }
             _ => unreachable!("non-boolean arguments to bitwise op: `{:?}` `{:?}`", ty1, ty2),
         }
@@ -553,37 +546,33 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Refine(BaseTy::Int(int_ty2), e2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                gen.check_pred(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+                gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
                 let bty = BaseTy::Int(*int_ty1);
-                let binding = ExprKind::BinaryOp(
+                let binding = Expr::binary_op(
                     BinOp::Eq,
-                    ExprKind::Var(Var::Bound).intern(),
-                    ExprKind::BinaryOp(BinOp::Mod, e1.clone(), e2.clone()).intern(),
-                )
-                .intern();
-                let guard = ExprKind::BinaryOp(
+                    Var::Bound,
+                    Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
+                );
+                let guard = Expr::binary_op(
                     BinOp::And,
-                    ExprKind::BinaryOp(BinOp::Ge, e1.clone(), Expr::zero()).intern(),
-                    ExprKind::BinaryOp(BinOp::Ge, e2.clone(), Expr::zero()).intern(),
-                )
-                .intern();
-                let pred = ty::Pred::Expr(ExprKind::BinaryOp(BinOp::Imp, guard, binding).intern());
-
-                TyKind::Exists(bty, pred).intern()
+                    Expr::binary_op(BinOp::Ge, e1.clone(), Expr::zero()),
+                    Expr::binary_op(BinOp::Ge, e2.clone(), Expr::zero()),
+                );
+                let pred = Expr::binary_op(BinOp::Imp, guard, binding);
+                Ty::exists(bty, pred)
             }
             (
                 TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
                 TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                gen.check_pred(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+                gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
-                TyKind::Refine(
+                Ty::refine(
                     BaseTy::Uint(*uint_ty1),
-                    ExprKind::BinaryOp(BinOp::Mod, e1.clone(), e2.clone()).intern(),
+                    Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
                 )
-                .intern()
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
@@ -619,9 +608,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         if matches!(op, BinOp::Div) {
             let mut gen =
                 ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Div(source_info.span));
-            gen.check_pred(ExprKind::BinaryOp(BinOp::Ne, e2.clone(), Expr::zero()).intern());
+            gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
         }
-        TyKind::Refine(bty, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
+        Ty::refine(bty, Expr::binary_op(op, e1, e2))
     }
 
     fn check_cmp_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
@@ -642,18 +631,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
-        TyKind::Refine(BaseTy::Bool, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
+        Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1, e2))
     }
 
     fn check_eq(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 debug_assert_eq!(bty1, bty2);
-                TyKind::Refine(
-                    BaseTy::Bool,
-                    ExprKind::BinaryOp(op, e1.clone(), e2.clone()).intern(),
-                )
-                .intern()
+                Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1.clone(), e2.clone()))
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         }
@@ -664,16 +649,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match un_op {
             ir::UnOp::Not => {
                 match ty.kind() {
-                    TyKind::Refine(BaseTy::Bool, e) => {
-                        TyKind::Refine(BaseTy::Bool, e.not()).intern()
-                    }
+                    TyKind::Refine(BaseTy::Bool, e) => Ty::refine(BaseTy::Bool, e.not()),
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
             }
             ir::UnOp::Neg => {
                 match ty.kind() {
                     TyKind::Refine(BaseTy::Int(int_ty), e) => {
-                        TyKind::Refine(BaseTy::Int(*int_ty), e.neg()).intern()
+                        Ty::refine(BaseTy::Int(*int_ty), e.neg())
                     }
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
@@ -698,16 +681,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_constant(&self, c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
-                let expr = ExprKind::Constant(ty::Constant::from(*n)).intern();
-                TyKind::Refine(BaseTy::Int(*int_ty), expr).intern()
+                let expr = Expr::constant(ty::Constant::from(*n));
+                Ty::refine(BaseTy::Int(*int_ty), expr)
             }
             Constant::Uint(n, uint_ty) => {
-                let expr = ExprKind::Constant(ty::Constant::from(*n)).intern();
-                TyKind::Refine(BaseTy::Uint(*uint_ty), expr).intern()
+                let expr = Expr::constant(ty::Constant::from(*n));
+                Ty::refine(BaseTy::Uint(*uint_ty), expr)
             }
             Constant::Bool(b) => {
-                let expr = ExprKind::Constant(ty::Constant::from(*b)).intern();
-                TyKind::Refine(BaseTy::Bool, expr).intern()
+                let expr = Expr::constant(ty::Constant::from(*b));
+                Ty::refine(BaseTy::Bool, expr)
             }
         }
     }

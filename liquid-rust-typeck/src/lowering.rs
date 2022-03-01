@@ -102,7 +102,7 @@ impl LoweringCtxt {
         match ty {
             core::Ty::Refine(bty, refine) => {
                 let refine = ty::Expr::tuple(refine.exprs.iter().map(|e| self.lower_expr(e)));
-                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), refine).intern()
+                ty::Ty::refine(self.lower_base_ty(bty, fresh_kvar), refine)
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty, fresh_kvar);
@@ -110,14 +110,12 @@ impl LoweringCtxt {
                     core::Pred::Infer => fresh_kvar(&bty),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
-                ty::TyKind::Exists(bty, pred).intern()
+                ty::Ty::exists(bty, pred)
             }
-            core::Ty::StrgRef(loc) => {
-                ty::TyKind::StrgRef(ty::Loc::Abstract(self.name_map[&loc.name])).intern()
-            }
-            core::Ty::WeakRef(ty) => ty::TyKind::WeakRef(self.lower_ty(ty, fresh_kvar)).intern(),
-            core::Ty::ShrRef(ty) => ty::TyKind::ShrRef(self.lower_ty(ty, fresh_kvar)).intern(),
-            core::Ty::Param(param) => ty::TyKind::Param(*param).intern(),
+            core::Ty::StrgRef(loc) => ty::Ty::strg_ref(ty::Loc::Abstract(self.name_map[&loc.name])),
+            core::Ty::WeakRef(ty) => ty::Ty::weak_ref(self.lower_ty(ty, fresh_kvar)),
+            core::Ty::ShrRef(ty) => ty::Ty::shr_ref(self.lower_ty(ty, fresh_kvar)),
+            core::Ty::Param(param) => ty::Ty::param(*param),
         }
     }
 
@@ -142,11 +140,10 @@ impl LoweringCtxt {
 
     fn lower_expr(&self, expr: &core::Expr) -> ty::Expr {
         match &expr.kind {
-            core::ExprKind::Var(var, ..) => ty::ExprKind::Var(self.lower_var(*var)).intern(),
-            core::ExprKind::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
+            core::ExprKind::Var(var, ..) => ty::Expr::var(self.lower_var(*var)),
+            core::ExprKind::Literal(lit) => ty::Expr::constant(self.lower_lit(*lit)),
             core::ExprKind::BinaryOp(op, e1, e2) => {
-                ty::ExprKind::BinaryOp(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
-                    .intern()
+                ty::Expr::binary_op(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
             }
         }
     }
