@@ -175,31 +175,6 @@ impl TypeEnv {
         }
     }
 
-    pub fn pack_refs(&mut self, scope: &Scope) {
-        let references = self
-            .bindings
-            .iter()
-            .filter_map(|(loc, ty)| {
-                match ty.kind() {
-                    TyKind::StrgRef(ref_loc @ Loc::Abstract(name)) if !scope.contains(*name) => {
-                        Some((*ref_loc, *loc))
-                    }
-                    _ => None,
-                }
-            })
-            .into_group_map();
-
-        for (ref_loc, locs) in references {
-            let pledge = &self.pledges[&ref_loc];
-            for loc in locs {
-                self.bindings
-                    .insert(loc, TyKind::WeakRef(pledge.clone()).intern());
-            }
-            self.pledges.remove(&ref_loc);
-            self.bindings.remove(&ref_loc);
-        }
-    }
-
     pub fn transform_into(&mut self, gen: &mut ConstraintGen, other: &TypeEnv) {
         let levels = self
             .levels()
@@ -295,20 +270,7 @@ impl TypeEnvInfer {
             let fresh = pcx.push_binding(sort.clone(), |_| Pred::tt());
             subst.insert_param(&Param { name: *name, sort: sort.clone() }, fresh);
         }
-        TypeEnv {
-            bindings: self
-                .env
-                .bindings
-                .iter()
-                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
-                .collect(),
-            pledges: self
-                .env
-                .pledges
-                .iter()
-                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
-                .collect(),
-        }
+        self.env.clone().subst(&subst)
     }
 
     fn join_kind(&self, ty: &Ty) -> TyKindJoin {
@@ -511,13 +473,6 @@ impl TypeEnvInfer {
         fresh
     }
 
-    fn weaken_ref(&mut self, loc: Loc) -> Ty {
-        let ty = self.env.bindings[&loc].clone();
-        let ty = self.weaken_ty(ty);
-        self.env.bindings.insert(loc, ty.clone());
-        TyKind::WeakRef(ty).intern()
-    }
-
     fn borrow_weakly(&mut self, loc: Loc) -> (Name, Ty) {
         // TODO(nilehmann) this should introduce a pledge on fresh
         let fresh = self.fresh(Sort::loc());
@@ -633,20 +588,7 @@ impl BasicBlockEnv {
 
     // TODO(nilehmann) this is weird beause it's skipping the parameters
     pub fn subst(&self, subst: &Subst) -> TypeEnv {
-        TypeEnv {
-            bindings: self
-                .env
-                .bindings
-                .iter()
-                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
-                .collect(),
-            pledges: self
-                .env
-                .pledges
-                .iter()
-                .map(|(loc, pledge)| (subst.subst_loc(*loc), subst.subst_ty(pledge)))
-                .collect(),
-        }
+        self.env.clone().subst(subst)
     }
 }
 
