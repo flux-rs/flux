@@ -731,14 +731,14 @@ impl Mode for Inference<'_> {
         _src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
+        // TODO(nilehmann) we should only ask for the scope in the vacant branch
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        let env = env.into_infer(ck.genv, &scope);
 
-        dbg::infer_goto_enter!(target, scope, env, ck.mode.bb_envs.get(&target));
+        dbg::infer_goto_enter!(target, env, ck.mode.bb_envs.get(&target));
         let modified = match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
-                entry.insert(env);
+                entry.insert(env.into_infer(ck.genv, scope));
                 true
             }
         };
@@ -772,7 +772,7 @@ impl Mode for Check<'_> {
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        env.pack_refs(&scope);
+        // env.pack_refs(&scope);
         let fresh_kvar = &mut |var, sort, params: &[Param]| {
             ck.mode.kvars.fresh(
                 var,
@@ -801,7 +801,7 @@ impl Mode for Check<'_> {
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);
-        for constr in &bb_env.constrs {
+        for constr in bb_env.constrs() {
             gen.check_pred(subst.subst_pred(constr));
         }
         env.transform_into(&mut gen, &bb_env.subst(&subst));

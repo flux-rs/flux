@@ -119,7 +119,7 @@ class Buff:
                 self.print_rule()
             elif fields['event'] == 'infer_goto_enter':
                 self.print(f'goto {fields["target"]}')
-                self.print(fields['scope'])
+                # self.print(fields['scope'])
                 self.print(fields['env'])
                 self.print(fields['bb_env'])
             elif fields['event'] == 'infer_goto_exit':

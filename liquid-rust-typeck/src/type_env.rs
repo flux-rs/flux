@@ -21,13 +21,14 @@ pub struct TypeEnv {
 
 pub struct TypeEnvInfer {
     params: FxHashMap<Name, Sort>,
+    scope: Scope,
     name_gen: IndexGen<Name>,
     env: TypeEnv,
 }
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
-    pub constrs: Vec<Pred>,
+    constrs: Vec<Option<Pred>>,
     pub env: TypeEnv,
 }
 
@@ -36,7 +37,7 @@ impl TypeEnv {
         TypeEnv { bindings: FxHashMap::default(), pledges: FxHashMap::default() }
     }
 
-    pub fn into_infer(self, genv: &GlobalEnv, scope: &Scope) -> TypeEnvInfer {
+    pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
         TypeEnvInfer::new(genv, scope, self)
     }
 
@@ -44,8 +45,16 @@ impl TypeEnv {
         self.lookup_loc(Loc::Local(local))
     }
 
+    #[track_caller]
     pub fn lookup_loc(&self, loc: Loc) -> Ty {
-        self.bindings.get(&loc).unwrap().clone()
+        self.bindings
+            .get(&loc)
+            .unwrap_or_else(|| panic!("loc not found: `{loc:?}`"))
+            .clone()
+    }
+
+    pub fn has_loc(&self, loc: Loc) -> bool {
+        self.bindings.contains_key(&loc)
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
@@ -249,17 +258,17 @@ impl TypeEnv {
         }
     }
 
-    pub fn subst(&self, subst: &Subst) -> TypeEnv {
+    pub fn subst(self, subst: &Subst) -> TypeEnv {
         TypeEnv {
             bindings: self
                 .bindings
-                .iter()
-                .map(|(loc, ty)| (subst.subst_loc(*loc), subst.subst_ty(ty)))
+                .into_iter()
+                .map(|(loc, ty)| (subst.subst_loc(loc), subst.subst_ty(&ty)))
                 .collect(),
             pledges: self
                 .pledges
-                .iter()
-                .map(|(loc, pledge)| (subst.subst_loc(*loc), subst.subst_ty(pledge)))
+                .into_iter()
+                .map(|(loc, pledge)| (subst.subst_loc(loc), subst.subst_ty(&pledge)))
                 .collect(),
         }
     }
@@ -321,17 +330,17 @@ impl TypeEnvInfer {
         }
     }
 
-    fn new(genv: &GlobalEnv, scope: &Scope, env: TypeEnv) -> TypeEnvInfer {
+    fn new(genv: &GlobalEnv, scope: Scope, env: TypeEnv) -> TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut params = FxHashMap::default();
-        let mut env = TypeEnvInfer::pack_refs(&mut params, scope, &name_gen, env);
+        let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
         for loc in env.bindings.keys().copied().collect_vec() {
             // TODO(nilehmann) Figure out what to do with pledges
             let ty = env.lookup_loc(loc);
             env.bindings
-                .insert(loc, TypeEnvInfer::pack_ty(&mut params, genv, scope, &name_gen, &ty));
+                .insert(loc, TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, &ty));
         }
-        TypeEnvInfer { params, name_gen, env }
+        TypeEnvInfer { params, name_gen, env, scope }
     }
 
     fn pack_refs(
@@ -350,18 +359,7 @@ impl TypeEnvInfer {
                 }
             }
         }
-        TypeEnv {
-            bindings: env
-                .bindings
-                .into_iter()
-                .map(|(loc, ty)| (subst.subst_loc(loc), subst.subst_ty(&ty)))
-                .collect(),
-            pledges: env
-                .pledges
-                .into_iter()
-                .map(|(loc, pledge)| (subst.subst_loc(loc), subst.subst_ty(&pledge)))
-                .collect(),
-        }
+        env.subst(&subst)
     }
 
     fn pack_ty(
@@ -373,8 +371,7 @@ impl TypeEnvInfer {
     ) -> Ty {
         match ty.kind() {
             TyKind::Refine(bty, e) => {
-                let has_free_vars = e.vars().into_iter().any(|name| !scope.contains(name));
-                let e = if has_free_vars {
+                let e = if e.has_free_vars(scope) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, genv.sort(bty));
                     ExprKind::Var(fresh.into()).intern()
@@ -412,7 +409,24 @@ impl TypeEnvInfer {
         }
     }
 
-    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnvInfer) -> bool {
+    pub fn join(&mut self, genv: &GlobalEnv, other: TypeEnv) -> bool {
+        let mut subst = Subst::empty();
+        for loc in self.env.bindings.keys() {
+            if !loc.has_free_vars(&self.scope) {
+                let ty1 = self.env.lookup_loc(*loc);
+                let ty2 = other.lookup_loc(*loc);
+                match (ty1.kind(), ty2.kind()) {
+                    (TyKind::StrgRef(loc1), TyKind::StrgRef(Loc::Abstract(loc2)))
+                        if self.is_packed_loc(*loc1) && !self.scope.contains(*loc2) =>
+                    {
+                        subst.insert_loc_subst(*loc2, *loc1);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut other = other.subst(&subst);
+
         let levels = self
             .env
             .levels()
@@ -423,8 +437,8 @@ impl TypeEnvInfer {
         let mut modified = false;
         for (loc, _) in levels {
             let ty1 = self.env.bindings[&loc].clone();
-            let ty2 = other.env.bindings[&loc].clone();
-            let ty = self.join_ty(genv, &mut other, ty1.clone(), ty2);
+            let ty2 = other.bindings[&loc].clone();
+            let ty = self.join_ty(genv, &mut other, &ty1, &ty2);
             modified |= ty1 != ty;
             self.env.bindings.insert(loc, ty);
         }
@@ -433,72 +447,46 @@ impl TypeEnvInfer {
         modified
     }
 
-    fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnvInfer, ty1: Ty, ty2: Ty) -> Ty {
-        use TyKindJoin::*;
-
-        // TODO(nilehmann) types can be equal but with different scopes
-        if ty1 == ty2 {
-            return ty1;
-        }
-
-        // if let TyKind::StrgRef(loc) = ty1.kind() {
-        //     ty1 = self.borrow_weakly(*loc);
-        // }
-
-        // if let TyKind::StrgRef(loc) = ty2.kind() {
-        //     ty2 = other.borrow_weakly(*loc);
-        // }
-
-        match (self.join_kind(&ty1), other.join_kind(&ty2)) {
-            (Uninit, _) | (_, Uninit) => TyKind::Uninit.intern(),
-            (StrgRef(loc1), StrgRef(loc2)) if loc1 != loc2 => {
-                let ty = self.borrow_weakly(loc1);
-                other.borrow_weakly(loc2);
-                ty
+    fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnv, ty1: &Ty, ty2: &Ty) -> Ty {
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Uninit, _) | (_, TyKind::Uninit) => TyKind::Uninit.intern(),
+            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
+                if loc1 == loc2 {
+                    TyKind::StrgRef(*loc1).intern()
+                } else {
+                    let (fresh, pledge) = self.borrow_weakly(*loc1);
+                    other.bindings.insert(*loc2, pledge.clone());
+                    TyKind::StrgRef(fresh.into()).intern()
+                }
             }
-            (Refine(bty1, e1), Refine(bty2, e2)) if e1 == e2 => {
-                let bty = self.join_bty(genv, other, &bty1, &bty2);
-                TyKind::Refine(bty, e1).intern()
-            }
-            (Packed(bty1, e1, _), Refine(bty2, _) | Packed(bty2, ..)) => {
-                let bty = self.join_bty(genv, other, &bty1, &bty2);
-                TyKind::Refine(bty, e1).intern()
-            }
-            (Packed(bty1, _, name1), Exists(bty2, _)) => {
-                let bty = self.join_bty(genv, other, &bty1, &bty2);
-                self.params.remove(&name1);
-                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
-            }
-            (Refine(bty1, _), Packed(bty2, _, _) | Refine(bty2, _)) => {
-                let bty = self.join_bty(genv, other, &bty1, &bty2);
-                let fresh = self.name_gen.fresh();
-                let sort = genv.sort(&bty);
-                self.params.insert(fresh, sort);
-                let e = ExprKind::Var(fresh.into()).intern();
+            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
+                let bty = self.join_bty(genv, other, &bty1, bty2);
+                let e = if !self.is_packed_expr(e1) && (e2.has_free_vars(&self.scope) || e1 != e2) {
+                    ExprKind::Var(self.fresh(genv.sort(&bty)).into()).intern()
+                } else {
+                    e1.clone()
+                };
                 TyKind::Refine(bty, e).intern()
             }
-            (Exists(bty1, _), Packed(bty2, ..) | Exists(bty2, ..) | Refine(bty2, ..)) => {
+            (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
+            | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, other, &bty1, &bty2);
                 TyKind::Exists(bty, Pred::dummy_kvar()).intern()
             }
-            (Refine(bty1, _), Exists(bty2, _)) => {
-                let bty = self.join_bty(genv, other, &bty1, &bty2);
-                TyKind::Exists(bty, Pred::dummy_kvar()).intern()
+            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+                TyKind::WeakRef(self.join_ty(genv, other, &ty1, ty2)).intern()
             }
-            (WeakRef(ty1), WeakRef(ty2)) => {
-                TyKind::WeakRef(self.join_ty(genv, other, ty1, ty2)).intern()
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+                TyKind::ShrRef(self.join_ty(genv, other, &ty1, ty2)).intern()
             }
-            (ShrRef(ty1), ShrRef(ty2)) => {
-                TyKind::ShrRef(self.join_ty(genv, other, ty1, ty2)).intern()
-            }
-            (k1, k2) => todo!("`{k1:?}` -- `{k2:?}"),
+            _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
         }
     }
 
     fn join_bty(
         &mut self,
         genv: &GlobalEnv,
-        other: &mut TypeEnvInfer,
+        other: &mut TypeEnv,
         bty1: &BaseTy,
         bty2: &BaseTy,
     ) -> BaseTy {
@@ -508,7 +496,7 @@ impl TypeEnvInfer {
             let substs =
                 izip!(variances, substs1.iter(), substs2.iter()).map(|(variance, ty1, ty2)| {
                     assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                    self.join_ty(genv, other, ty1.clone(), ty2.clone())
+                    self.join_ty(genv, other, ty1, ty2)
                 });
             BaseTy::adt(*did1, substs)
         } else {
@@ -530,14 +518,16 @@ impl TypeEnvInfer {
         TyKind::WeakRef(ty).intern()
     }
 
-    fn borrow_weakly(&mut self, loc: Loc) -> Ty {
+    fn borrow_weakly(&mut self, loc: Loc) -> (Name, Ty) {
         // TODO(nilehmann) this should introduce a pledge on fresh
         let fresh = self.fresh(Sort::loc());
         let ty = self.env.bindings[&loc].clone();
-        let ty = self.weaken_ty(ty);
-        self.env.bindings.insert(loc, ty.clone());
-        self.env.bindings.insert(Loc::Abstract(fresh), ty);
-        TyKind::StrgRef(Loc::Abstract(fresh)).intern()
+        let pledge = self.weaken_ty(ty);
+        self.env.bindings.insert(loc, pledge.clone());
+        self.env
+            .bindings
+            .insert(Loc::Abstract(fresh), pledge.clone());
+        (fresh, pledge)
     }
 
     fn weaken_ty(&mut self, ty: Ty) -> Ty {
@@ -587,7 +577,11 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same than
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
-            constrs.push(fresh_kvar(name.into(), sort.clone(), &params));
+            if sort != Sort::loc() {
+                constrs.push(Some(fresh_kvar(name.into(), sort.clone(), &params)));
+            } else {
+                constrs.push(None)
+            }
             params.push(Param { name, sort });
         }
 
@@ -608,6 +602,14 @@ impl TypeEnvInfer {
             .collect();
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings, pledges } }
     }
+
+    fn is_packed_expr(&self, expr: &Expr) -> bool {
+        matches!(expr.kind(), ExprKind::Var(Var::Free(name)) if self.params.contains_key(name))
+    }
+
+    fn is_packed_loc(&self, loc: Loc) -> bool {
+        matches!(loc, Loc::Abstract(name) if self.params.contains_key(&name))
+    }
 }
 
 impl BasicBlockEnv {
@@ -616,10 +618,17 @@ impl BasicBlockEnv {
         for (param, constr) in self.params.iter().zip(&self.constrs) {
             pcx.push_binding(param.sort.clone(), |fresh| {
                 subst.insert_param(param, fresh);
-                subst.subst_pred(constr)
+                constr
+                    .as_ref()
+                    .map(|p| subst.subst_pred(p))
+                    .unwrap_or_else(|| Pred::tt())
             });
         }
-        self.env.subst(&subst)
+        self.env.clone().subst(&subst)
+    }
+
+    pub fn constrs(&self) -> impl Iterator<Item = &Pred> {
+        self.constrs.iter().filter_map(|c| c.as_ref())
     }
 
     // TODO(nilehmann) this is weird beause it's skipping the parameters
@@ -722,7 +731,8 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "∃ {}. {:?}",
+                "{:?} ∃ {}. {:?}",
+                &self.scope,
                 ^self.params
                     .iter()
                     .format_with(", ", |(name, sort), f| f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))),
@@ -739,10 +749,11 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "∃ {}. {:?}",
+                "∃ {}, {:?}. {:?}",
                 ^self.params
                     .iter()
                     .format_with(", ", |param, f| f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))),
+                join!(", ", self.constrs.iter().filter_map(|c| c.as_ref())),
                 &self.env
             )
         }

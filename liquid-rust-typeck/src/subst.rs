@@ -50,6 +50,10 @@ impl Subst {
         }
     }
 
+    pub fn insert_loc_subst(&mut self, name: Name, to: Loc) {
+        self.map.insert(name, LocOrExpr::Loc(to));
+    }
+
     pub fn insert_param(&mut self, param: &Param, to: Name) {
         self.insert_name_subst(param.name, param.sort.clone(), to);
     }
@@ -193,9 +197,11 @@ impl Subst {
         bb_env: &BasicBlockEnv,
     ) -> Result<(), InferenceError> {
         let params = bb_env.params.iter().map(|param| param.name).collect();
-        for (loc, ty2) in bb_env.env.iter() {
-            let ty1 = env.lookup_loc(*loc);
-            self.infer_from_tys(&params, &ty1, &ty2);
+        for (loc, ty1) in env.iter() {
+            if bb_env.env.has_loc(*loc) {
+                let ty2 = bb_env.env.lookup_loc(*loc);
+                self.infer_from_tys(&params, &ty1, &ty2);
+            }
         }
         self.check_inference(&bb_env.params)
     }
