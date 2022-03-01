@@ -299,7 +299,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ret_place_ty = env.lookup_local(RETURN_PLACE);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
-        gen.subtyping(ret_place_ty, self.ret.clone());
+        gen.subtyping(&ret_place_ty, &self.ret);
 
         for constr in &self.ensures {
             gen.check_constr(env, constr);
@@ -342,8 +342,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
 
-        for (actual, formal) in actuals.into_iter().zip(&fn_sig.args) {
-            gen.subtyping(actual, formal.clone());
+        for (actual, formal) in actuals.iter().zip(&fn_sig.args) {
+            gen.subtyping(actual, formal);
         }
 
         for constr in &fn_sig.requires {
@@ -505,22 +505,22 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty2 = self.check_operand(env, op2);
 
         match bin_op {
-            ir::BinOp::Eq => self.check_eq(BinOp::Eq, ty1, ty2),
-            ir::BinOp::Ne => self.check_eq(BinOp::Ne, ty1, ty2),
-            ir::BinOp::Add => self.check_arith_op(pcx, source_info, BinOp::Add, ty1, ty2),
-            ir::BinOp::Sub => self.check_arith_op(pcx, source_info, BinOp::Sub, ty1, ty2),
-            ir::BinOp::Mul => self.check_arith_op(pcx, source_info, BinOp::Mul, ty1, ty2),
-            ir::BinOp::Div => self.check_arith_op(pcx, source_info, BinOp::Div, ty1, ty2),
-            ir::BinOp::Rem => self.check_rem(pcx, source_info, ty1, ty2),
-            ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, ty1, ty2),
-            ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, ty1, ty2),
-            ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, ty1, ty2),
-            ir::BinOp::Le => self.check_cmp_op(BinOp::Le, ty1, ty2),
-            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, ty1, ty2),
+            ir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
+            ir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
+            ir::BinOp::Add => self.check_arith_op(pcx, source_info, BinOp::Add, &ty1, &ty2),
+            ir::BinOp::Sub => self.check_arith_op(pcx, source_info, BinOp::Sub, &ty1, &ty2),
+            ir::BinOp::Mul => self.check_arith_op(pcx, source_info, BinOp::Mul, &ty1, &ty2),
+            ir::BinOp::Div => self.check_arith_op(pcx, source_info, BinOp::Div, &ty1, &ty2),
+            ir::BinOp::Rem => self.check_rem(pcx, source_info, &ty1, &ty2),
+            ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
+            ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
+            ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
+            ir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
+            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
         }
     }
 
-    fn check_bitwise_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_bitwise_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(BaseTy::Int(int_ty1), _), TyKind::Refine(BaseTy::Int(int_ty2), _)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
@@ -545,7 +545,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     // Rem is a special case due to differing semantics with negative numbers
-    fn check_rem(&self, pcx: &mut PureCtxt, source_info: SourceInfo, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_rem(&self, pcx: &mut PureCtxt, source_info: SourceInfo, ty1: &Ty, ty2: &Ty) -> Ty {
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Rem(source_info.span));
         let ty = match (ty1.kind(), ty2.kind()) {
             (
@@ -596,8 +596,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         source_info: SourceInfo,
         op: BinOp,
-        ty1: Ty,
-        ty2: Ty,
+        ty1: &Ty,
+        ty2: &Ty,
     ) -> Ty {
         let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
@@ -624,7 +624,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         TyKind::Refine(bty, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
 
-    fn check_cmp_op(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_cmp_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Refine(BaseTy::Int(int_ty1), e1),
@@ -645,7 +645,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         TyKind::Refine(BaseTy::Bool, ExprKind::BinaryOp(op, e1, e2).intern()).intern()
     }
 
-    fn check_eq(&self, op: BinOp, ty1: Ty, ty2: Ty) -> Ty {
+    fn check_eq(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 debug_assert_eq!(bty1, bty2);

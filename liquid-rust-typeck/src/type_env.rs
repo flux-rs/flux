@@ -76,7 +76,7 @@ impl TypeEnv {
     pub fn update_loc(&mut self, gen: &mut ConstraintGen, loc: Loc, new_ty: Ty) {
         self.bindings.insert(loc, new_ty.clone());
         for pledge in self.pledges.get(&loc).iter().flat_map(|v| v.iter()) {
-            gen.subtyping(new_ty.clone(), pledge.clone());
+            gen.subtyping(&new_ty, pledge);
         }
     }
 
@@ -256,7 +256,7 @@ impl TypeEnv {
             }
             let ty1 = self.lookup_loc(loc);
             let ty2 = goto_env.lookup_loc(loc);
-            gen.subtyping(ty1, ty2.clone());
+            gen.subtyping(&ty1, &ty2);
             self.bindings.insert(loc, ty2);
         }
 
@@ -291,7 +291,7 @@ impl TypeEnv {
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
         let fresh = Loc::Abstract(gen.push_binding(Sort::loc()));
         let ty = self.lookup_loc(loc);
-        gen.subtyping(ty, pledge.clone());
+        gen.subtyping(&ty, &pledge);
         self.bindings.insert(loc, pledge.clone());
         self.pledges.entry(fresh).or_default().push(pledge.clone());
         self.bindings.insert(fresh, pledge);
@@ -550,16 +550,16 @@ impl TypeEnvInfer {
     fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
         let ty = self.env.bindings[&loc].clone();
-        let pledge = self.weaken_ty(ty);
+        let pledge = self.weaken_ty(&ty);
         self.env.bindings.insert(loc, pledge.clone());
         self.env.bindings.insert(fresh, pledge.clone());
         (fresh, pledge)
     }
 
-    fn weaken_ty(&mut self, ty: Ty) -> Ty {
+    fn weaken_ty(&mut self, ty: &Ty) -> Ty {
         use TyKindJoin::*;
-        match self.join_kind(&ty) {
-            Param(_) => ty,
+        match self.join_kind(ty) {
+            Param(_) => ty.clone(),
             Packed(bty, _, name) => {
                 self.params.remove(&name);
                 let bty = self.weaken_bty(&bty);
@@ -571,7 +571,7 @@ impl TypeEnvInfer {
             }
             StrgRef(loc) => {
                 let ty = self.env.bindings[&loc].clone();
-                let ty = self.weaken_ty(ty);
+                let ty = self.weaken_ty(&ty);
                 self.env.bindings.insert(loc, ty.clone());
                 TyKind::WeakRef(ty).intern()
             }
@@ -585,7 +585,7 @@ impl TypeEnvInfer {
     fn weaken_bty(&mut self, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| self.weaken_ty(ty.clone()));
+                let substs = substs.iter().map(|ty| self.weaken_ty(ty));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
