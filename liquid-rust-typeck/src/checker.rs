@@ -124,23 +124,21 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
+        kvars: &mut KVarStore,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
-    ) -> Result<(ConstraintBuilder, KVarStore), ErrorReported> {
+    ) -> Result<ConstraintBuilder, ErrorReported> {
         dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
-            let mut kvars = KVarStore::new();
-
-            // debug!(?bb_envs_infer);
 
             Checker::run(
                 genv,
                 &mut constraint,
                 body,
                 def_id,
-                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars: &mut kvars },
+                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
             )?;
 
-            Ok((constraint, kvars))
+            Ok(constraint)
         })
     }
 }

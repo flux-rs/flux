@@ -65,7 +65,8 @@ pub fn check<'tcx>(
     body: &Body<'tcx>,
 ) -> Result<(), ErrorReported> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
-    let (pure_cx, kvars) = Checker::check(genv, body, def_id, bb_envs)?;
+    let mut kvars = KVarStore::new();
+    let pure_cx = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
 
     if CONFIG.dump_constraint {
         dump_constraint(genv.tcx, def_id, &pure_cx, ".lrc").unwrap();
