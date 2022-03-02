@@ -2,7 +2,7 @@ use liquid_rust_common::index::newtype_index;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
-pub use rustc_middle::ty::{IntTy, ParamTy, UintTy};
+pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 
 pub struct AdtDefs {
@@ -42,6 +42,7 @@ pub enum Constr {
 pub enum Ty {
     Refine(BaseTy, Refine),
     Exists(BaseTy, Pred),
+    Float(FloatTy),
     StrgRef(Ident),
     WeakRef(Box<Ty>),
     ShrRef(Box<Ty>),

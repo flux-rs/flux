@@ -113,6 +113,7 @@ impl LoweringCtxt {
             core::Ty::WeakRef(ty) => ty::Ty::weak_ref(self.lower_ty(ty, fresh_kvar)),
             core::Ty::ShrRef(ty) => ty::Ty::shr_ref(self.lower_ty(ty, fresh_kvar)),
             core::Ty::Param(param) => ty::Ty::param(*param),
+            core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
         }
     }
 

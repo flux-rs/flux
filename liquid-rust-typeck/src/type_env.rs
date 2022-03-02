@@ -3,7 +3,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, ParamTy, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, FloatTy, Param, ParamTy, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -11,7 +11,7 @@ use liquid_rust_core::ir::{self, Local};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
-use super::ty::{Loc, Name, Pred, Sort, TyS};
+use super::ty::{Loc, Name, Pred, Sort};
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct TypeEnv {
@@ -310,6 +310,7 @@ enum TyKindJoin {
     WeakRef(Ty),
     ShrRef(Ty),
     Param(ParamTy),
+    Float(FloatTy),
 }
 
 impl TypeEnvInfer {
@@ -340,6 +341,7 @@ impl TypeEnvInfer {
             TyKind::WeakRef(ty) => TyKindJoin::WeakRef(ty.clone()),
             TyKind::ShrRef(ty) => TyKindJoin::ShrRef(ty.clone()),
             TyKind::Param(param_ty) => TyKindJoin::Param(*param_ty),
+            TyKind::Float(float_ty) => TyKindJoin::Float(*float_ty),
         }
     }
 
@@ -395,6 +397,7 @@ impl TypeEnvInfer {
             }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
+            | TyKind::Float(_)
             | TyKind::StrgRef(_)
             | TyKind::Uninit
             | TyKind::WeakRef(_)
@@ -552,7 +555,7 @@ impl TypeEnvInfer {
     fn weaken_ty(&mut self, ty: &Ty) -> Ty {
         use TyKindJoin::*;
         match self.join_kind(ty) {
-            Param(_) => ty.clone(),
+            Param(_) | Float(_) => ty.clone(),
             Packed(bty, _, name) => {
                 self.params.remove(&name);
                 let bty = self.weaken_bty(&bty);
@@ -651,7 +654,7 @@ impl BasicBlockEnv {
     }
 }
 
-fn replace_kvars(genv: &GlobalEnv, ty: &TyS, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
+fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
     match ty.kind() {
         TyKind::Refine(bty, e) => Ty::refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()),
         TyKind::Exists(bty, Pred::KVar(_, _)) => {
@@ -664,6 +667,7 @@ fn replace_kvars(genv: &GlobalEnv, ty: &TyS, fresh_kvar: &mut impl FnMut(Var, So
         TyKind::WeakRef(ty) => Ty::weak_ref(replace_kvars(genv, ty, fresh_kvar)),
         TyKind::ShrRef(ty) => Ty::shr_ref(replace_kvars(genv, ty, fresh_kvar)),
         TyKind::Param(param_ty) => Ty::param(*param_ty),
+        TyKind::Float(_) => ty.clone(),
     }
 }
 

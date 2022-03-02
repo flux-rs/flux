@@ -122,6 +122,14 @@ fn is_generic(path: &Path) -> bool {
     }
 }
 
+fn is_float(path: &Path) -> bool {
+    path.ident.as_str() == "f32" || path.ident.as_str() == "f64"
+}
+
+fn is_refinable(path: &Path) -> bool {
+    !is_generic(path) && !is_float(path)
+}
+
 // HACK(ranjitjhala) need better way to "embed" rust types to sort
 fn mk_sort(path: &Path, span: Span) -> Ident {
     let sort_name = if is_bool(path) { "bool" } else { "int" };
@@ -150,18 +158,18 @@ fn strengthen_pred(p: Option<Expr>, e: Expr) -> Expr {
 
 impl BindIn {
     fn from_path(x: Ident, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
-        if is_generic(&p) {
-            let path = convert_path(p);
-            let kind = ast::TyKind::BaseTy(path);
-            let ty = ast::Ty { kind, span };
-            BindIn { gen: None, ty, loc: None }
-        } else {
+        if is_refinable(&p) {
             let gen = Some(mk_generic(x, &p, pred));
             let path = convert_path(p);
             let refine = mk_singleton(x);
             let kind = ast::TyKind::RefineTy { path, refine };
             let ty = ast::Ty { kind, span };
             BindIn { gen, ty, loc: None }
+        } else {
+            let path = convert_path(p);
+            let kind = ast::TyKind::BaseTy(path);
+            let ty = ast::Ty { kind, span };
+            BindIn { gen: None, ty, loc: None }
         }
     }
 

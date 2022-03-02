@@ -20,9 +20,10 @@ pub struct Resolver<'tcx> {
     parent: Option<&'tcx Impl<'tcx>>,
 }
 
-enum ParamTyOrBaseTy {
+enum ResolvedPath {
     BaseTy(ty::BaseTy),
     ParamTy(ty::ParamTy),
+    Float(ty::FloatTy),
 }
 
 struct Diagnostics<'tcx> {
@@ -200,13 +201,14 @@ impl<'tcx> Resolver<'tcx> {
         match ty.kind {
             ast::TyKind::BaseTy(path) => {
                 match self.resolve_path(path, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
-                    ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
+                    ResolvedPath::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
+                    ResolvedPath::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
+                    ResolvedPath::Float(float_ty) => Ok(ty::Ty::Float(float_ty)),
                 }
             }
             ast::TyKind::RefineTy { path, refine } => {
                 match self.resolve_path(path, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => {
+                    ResolvedPath::BaseTy(bty) => {
                         let exprs = refine
                             .exprs
                             .into_iter()
@@ -214,25 +216,35 @@ impl<'tcx> Resolver<'tcx> {
                             .try_collect_exhaust()?;
                         Ok(ty::Ty::Refine(bty, ty::Refine { exprs, span: refine.span }))
                     }
-                    ParamTyOrBaseTy::ParamTy(_) => {
+                    ResolvedPath::ParamTy(_) => {
                         self.diagnostics
                             .emit_err(errors::RefinedTypeParam { span: ty.span })
+                            .raise()
+                    }
+                    ResolvedPath::Float(_) => {
+                        self.diagnostics
+                            .emit_err(errors::RefinedFloat { span: ty.span })
                             .raise()
                     }
                 }
             }
             ast::TyKind::Exists { bind, path, pred } => {
                 match self.resolve_path(path, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => {
+                    ResolvedPath::BaseTy(bty) => {
                         subst.push_expr_layer();
                         subst.insert_expr(bind.name, ty::Var::Bound);
                         let e = self.resolve_expr(pred, subst);
                         subst.pop_expr_layer();
                         Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
                     }
-                    ParamTyOrBaseTy::ParamTy(_) => {
+                    ResolvedPath::ParamTy(_) => {
                         self.diagnostics
                             .emit_err(errors::RefinedTypeParam { span: ty.span })
+                            .raise()
+                    }
+                    ResolvedPath::Float(_) => {
+                        self.diagnostics
+                            .emit_err(errors::RefinedFloat { span: ty.span })
                             .raise()
                     }
                 }
@@ -262,7 +274,7 @@ impl<'tcx> Resolver<'tcx> {
         &mut self,
         path: ast::Path,
         subst: &mut Subst,
-    ) -> Result<ParamTyOrBaseTy, ErrorReported> {
+    ) -> Result<ResolvedPath, ErrorReported> {
         let res = if let Some(res) = self.name_res_table.get(&path.ident.name) {
             *res
         } else {
@@ -274,7 +286,7 @@ impl<'tcx> Resolver<'tcx> {
 
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                Ok(ParamTyOrBaseTy::ParamTy(subst.get_param_ty(did).unwrap()))
+                Ok(ResolvedPath::ParamTy(subst.get_param_ty(did).unwrap()))
             }
             hir::def::Res::Def(hir::def::DefKind::Struct, did) => {
                 let args = path
@@ -283,24 +295,17 @@ impl<'tcx> Resolver<'tcx> {
                     .flatten()
                     .map(|ty| self.resolve_ty(ty, subst))
                     .try_collect_exhaust()?;
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Adt(did, args)))
+                Ok(ResolvedPath::BaseTy(ty::BaseTy::Adt(did, args)))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))))
+                Ok(ResolvedPath::BaseTy(ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))))
+                Ok(ResolvedPath::BaseTy(ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => {
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Bool))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => {
-                self.diagnostics
-                    .emit_err(errors::UnsupportedSignature {
-                        span: path.span,
-                        msg: "floats are not supported yet",
-                    })
-                    .raise()
+            hir::def::Res::PrimTy(hir::PrimTy::Bool) => Ok(ResolvedPath::BaseTy(ty::BaseTy::Bool)),
+            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
+                Ok(ResolvedPath::Float(rustc_middle::ty::float_ty(float_ty)))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Str) => {
                 self.diagnostics
@@ -669,6 +674,14 @@ mod errors {
     pub struct RefinedTypeParam {
         #[message = "type parameters cannot be refined"]
         #[label = "refined type parameter"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct RefinedFloat {
+        #[message = "float cannot be refined"]
+        #[label = "refined float"]
         pub span: Span,
     }
 

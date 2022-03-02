@@ -81,6 +81,7 @@ impl Subst {
         match ty.kind() {
             TyKind::Refine(bty, e) => Ty::refine(self.subst_base_ty(bty), self.subst_expr(e)),
             TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
+            TyKind::Float(float_ty) => Ty::float(*float_ty),
             TyKind::StrgRef(loc) => Ty::strg_ref(self.subst_loc(*loc)),
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::WeakRef(ty) => Ty::weak_ref(self.subst_ty(ty)),

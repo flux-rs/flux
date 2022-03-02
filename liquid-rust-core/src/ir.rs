@@ -9,7 +9,7 @@ pub use rustc_middle::mir::{
 };
 use rustc_middle::{
     mir,
-    ty::{IntTy, UintTy},
+    ty::{FloatTy, IntTy, UintTy},
 };
 
 use crate::ty::Ty;
@@ -120,6 +120,7 @@ pub enum Place {
 pub enum Constant {
     Int(i128, IntTy),
     Uint(u128, UintTy),
+    Float(u128, FloatTy),
     Bool(bool),
 }
 
@@ -289,6 +290,7 @@ impl fmt::Debug for Constant {
         match self {
             Self::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
             Self::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
+            Self::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
             Self::Bool(b) => write!(f, "{}", b),
         }
     }

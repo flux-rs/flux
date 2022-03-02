@@ -100,7 +100,7 @@ impl Wf<'_> {
             }
             core::Ty::StrgRef(loc) => self.check_loc(env, *loc),
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
-            core::Ty::Param(_) => Ok(()),
+            core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
         }
     }
 

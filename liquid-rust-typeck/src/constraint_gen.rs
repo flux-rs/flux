@@ -102,7 +102,10 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 debug_assert_eq!(param1, param2);
             }
             (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
-            _ => todo!("`{ty1:?}` `{ty2:?}`"),
+            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
+                debug_assert_eq!(float_ty1, float_ty2);
+            }
+            _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
 

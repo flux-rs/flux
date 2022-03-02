@@ -8,7 +8,7 @@ pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-pub use rustc_middle::ty::{IntTy, UintTy};
+pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
 use crate::{
     intern::{impl_internable, Interned},
@@ -61,6 +61,7 @@ pub struct TyS {
 pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
+    Float(FloatTy),
     Uninit,
     StrgRef(Loc),
     WeakRef(Ty),
@@ -174,6 +175,10 @@ impl Ty {
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
         TyKind::Exists(bty, pred.into()).intern()
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        TyKind::Float(float_ty).intern()
     }
 
     pub fn param(param: ParamTy) -> Ty {
@@ -617,6 +622,7 @@ mod pretty {
                         w!("{:?}{{{:?}}}", bty, p)
                     }
                 }
+                TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),

@@ -601,6 +601,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 debug_assert_eq!(uint_ty1, uint_ty2);
                 (BaseTy::Uint(*uint_ty1), e1.clone(), e2.clone())
             }
+            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
+                debug_assert_eq!(float_ty1, float_ty2);
+                return Ty::float(*float_ty1);
+            }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
@@ -626,6 +630,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
                 (e1.clone(), e2.clone())
+            }
+            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
+                debug_assert_eq!(float_ty1, float_ty2);
+                return Ty::exists(BaseTy::Bool, Pred::tt());
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
@@ -690,6 +698,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let expr = Expr::constant(ty::Constant::from(*b));
                 Ty::refine(BaseTy::Bool, expr)
             }
+            Constant::Float(_, float_ty) => Ty::float(*float_ty),
         }
     }
 
