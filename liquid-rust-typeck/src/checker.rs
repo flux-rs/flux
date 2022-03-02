@@ -668,9 +668,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     TyKind::Refine(BaseTy::Int(int_ty), e) => {
                         Ty::refine(BaseTy::Int(*int_ty), e.neg())
                     }
-                    TyKind::Refine(BaseTy::Uint(int_ty), e) => {
-                        Ty::refine(BaseTy::Uint(*int_ty), e.neg())
-                    }
                     TyKind::Float(float_ty) => Ty::float(*float_ty),
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
