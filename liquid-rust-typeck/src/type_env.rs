@@ -60,11 +60,11 @@ impl TypeEnv {
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        let ty = self.lookup_loc(Loc::Local(place.local()));
-        match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => ty,
-            (ir::Place::Deref(_), TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => ty.clone(),
-            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => self.lookup_loc(*loc),
+        let ty = self.lookup_loc(Loc::Local(place.local));
+        match (&place.projection[..], ty.kind()) {
+            ([], _) => ty,
+            ([ir::PlaceElem::Deref], TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => ty.clone(),
+            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => self.lookup_loc(*loc),
             _ => unreachable!(""),
         }
     }
@@ -81,15 +81,15 @@ impl TypeEnv {
     }
 
     pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
-        let loc = Loc::Local(place.local());
+        let loc = Loc::Local(place.local);
         let ty = self.lookup_loc(loc);
-        let loc = match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => loc,
-            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
-            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+        let loc = match (&place.projection[..], ty.kind()) {
+            ([], _) => loc,
+            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
+            ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
                 unreachable!("mutable borrow with unpacked weak ref")
             }
-            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+            ([ir::PlaceElem::Deref], TyKind::ShrRef(_)) => {
                 unreachable!("cannot borrow mutably from a shared ref")
             }
             _ => unreachable!("unxepected place `{place:?}`"),
@@ -98,16 +98,16 @@ impl TypeEnv {
     }
 
     pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
-        let loc = Loc::Local(place.local());
+        let loc = Loc::Local(place.local);
         let ty = self.lookup_loc(loc);
-        match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => Ty::shr_ref(ty),
-            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => {
+        match (&place.projection[..], ty.kind()) {
+            ([], _) => Ty::shr_ref(ty),
+            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => {
                 let ty = self.lookup_loc(*loc);
                 Ty::shr_ref(ty)
             }
-            (ir::Place::Deref(_), TyKind::ShrRef(ty)) => Ty::shr_ref(ty.clone()),
-            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+            ([ir::PlaceElem::Deref], TyKind::ShrRef(ty)) => Ty::shr_ref(ty.clone()),
+            ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
                 unreachable!("shared borrow with unpacked weak ref")
             }
             _ => unreachable!("unxepected place `{place:?}`"),
@@ -115,27 +115,27 @@ impl TypeEnv {
     }
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
-        match place {
-            ir::Place::Local(local) => {
-                let loc = Loc::Local(*local);
+        match &place.projection[..] {
+            [] => {
+                let loc = Loc::Local(place.local);
                 let ty = self.lookup_loc(loc);
                 self.bindings.insert(loc, Ty::uninit());
                 ty
             }
-            ir::Place::Deref(_) => unreachable!("cannot move out from a dereference"),
+            _ => unreachable!("cannot move out from a dereference"),
         }
     }
 
     pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
-        let loc = Loc::Local(place.local());
+        let loc = Loc::Local(place.local);
         let ty = self.lookup_loc(loc);
-        let loc = match (place, ty.kind()) {
-            (ir::Place::Local(_), _) => loc,
-            (ir::Place::Deref(_), TyKind::StrgRef(loc)) => *loc,
-            (ir::Place::Deref(_), TyKind::WeakRef(_)) => {
+        let loc = match (&place.projection[..], ty.kind()) {
+            ([], _) => loc,
+            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
+            ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
                 unreachable!("update through unpacked weak ref")
             }
-            (ir::Place::Deref(_), TyKind::ShrRef(_)) => {
+            ([ir::PlaceElem::Deref], TyKind::ShrRef(_)) => {
                 unreachable!("cannot update through a shared ref")
             }
             _ => unreachable!("unexpected place `{place:?}`"),

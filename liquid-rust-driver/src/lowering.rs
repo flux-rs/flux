@@ -3,8 +3,8 @@ use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, Operand, Place, Rvalue, Statement, StatementKind,
-        Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
 };
 use rustc_const_eval::interpret::ConstValue;
@@ -229,22 +229,17 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_place(&self, place: &mir::Place<'tcx>) -> Result<Place, ErrorReported> {
-        // let mut projection = vec![];
-        // for elem in place.projection {
-        //     match elem {
-        //         mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
-        //         _ => {
-        //             self.tcx.sess.err("place not supported");
-        //             return Err(ErrorReported);
-        //         }
-        //     }
-        // }
-        // Ok(Place { local: place.local, projection })
-        match &place.projection[..] {
-            [] => Ok(Place::Local(place.local)),
-            [mir::PlaceElem::Deref] => Ok(Place::Deref(place.local)),
-            _ => self.emit_err(None, format!("place not supported: `{place:?}`")),
+        let mut projection = vec![];
+        for elem in place.projection {
+            match elem {
+                mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+                _ => {
+                    self.tcx.sess.err("place not supported");
+                    return Err(ErrorReported);
+                }
+            }
         }
+        Ok(Place { local: place.local, projection })
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {

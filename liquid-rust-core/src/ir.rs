@@ -100,22 +100,15 @@ pub enum Operand {
     Constant(Constant),
 }
 
-pub enum Place {
-    /// x
-    Local(Local),
-    /// *x
-    Deref(Local),
+pub struct Place {
+    pub local: Local,
+    pub projection: Vec<PlaceElem>,
 }
 
-// pub struct Place {
-//     pub local: Local,
-//     pub projection: Vec<PlaceElem>,
-// }
-
-// #[derive(Debug)]
-// pub enum PlaceElem {
-//     Deref,
-// }
+#[derive(Debug)]
+pub enum PlaceElem {
+    Deref,
+}
 
 pub enum Constant {
     Int(i128, IntTy),
@@ -157,14 +150,6 @@ impl Body<'_> {
         self.basic_blocks
             .indices()
             .filter(|bb| self.is_join_point(*bb))
-    }
-}
-
-impl Place {
-    pub fn local(&self) -> Local {
-        match self {
-            Place::Local(local) | Place::Deref(local) => *local,
-        }
     }
 }
 
@@ -250,16 +235,12 @@ impl fmt::Debug for Terminator {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Place::Local(local) => write!(f, "{local:?}"),
-            Place::Deref(local) => write!(f, "*{local:?}"),
+        for elem in &self.projection {
+            match elem {
+                PlaceElem::Deref => write!(f, "*")?,
+            }
         }
-        // for elem in &self.projection {
-        //     match elem {
-        //         PlaceElem::Deref => write!(f, "*")?,
-        //     }
-        // }
-        // write!(f, "{:?}", self.local)
+        write!(f, "{:?}", self.local)
     }
 }
 
