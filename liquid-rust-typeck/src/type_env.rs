@@ -511,6 +511,14 @@ impl TypeEnvInfer {
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
                 Ty::shr_ref(self.join_ty(genv, other, ty1, ty2))
             }
+            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
+                debug_assert_eq!(float_ty1, float_ty2);
+                Ty::float(*float_ty1)
+            }
+            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
+                debug_assert_eq!(param_ty1, param_ty2);
+                Ty::param(*param_ty1)
+            }
             _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
         }
     }

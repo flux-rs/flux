@@ -646,6 +646,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 debug_assert_eq!(bty1, bty2);
                 Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1.clone(), e2.clone()))
             }
+            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
+                debug_assert_eq!(float_ty1, float_ty2);
+                Ty::exists(BaseTy::Bool, Pred::tt())
+            }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         }
     }
@@ -664,6 +668,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     TyKind::Refine(BaseTy::Int(int_ty), e) => {
                         Ty::refine(BaseTy::Int(*int_ty), e.neg())
                     }
+                    TyKind::Refine(BaseTy::Uint(int_ty), e) => {
+                        Ty::refine(BaseTy::Uint(*int_ty), e.neg())
+                    }
+                    TyKind::Float(float_ty) => Ty::float(*float_ty),
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
             }
