@@ -222,6 +222,7 @@ impl TypeEnv {
     }
 
     pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &mut BasicBlockEnv) {
+        // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
@@ -267,25 +268,6 @@ impl TypeEnv {
         }
 
         debug_assert_eq!(self.bindings, goto_env.bindings);
-    }
-
-    fn levels(&self) -> FxHashMap<Loc, u32> {
-        fn dfs(env: &TypeEnv, loc: Loc, binding: &Ty, levels: &mut FxHashMap<Loc, u32>) -> u32 {
-            if levels.contains_key(&loc) {
-                return levels[&loc];
-            }
-            let level = match binding.kind() {
-                TyKind::StrgRef(referee) => dfs(env, *referee, &env.bindings[referee], levels) + 1,
-                _ => 0,
-            };
-            levels.insert(loc, level);
-            level
-        }
-        let mut levels = FxHashMap::default();
-        for (loc, ty) in &self.bindings {
-            dfs(self, *loc, ty, &mut levels);
-        }
-        levels
     }
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
@@ -440,6 +422,7 @@ impl TypeEnvInfer {
     }
 
     pub fn join(&mut self, genv: &GlobalEnv, other: TypeEnv) -> bool {
+        // Infer subst
         let mut subst = Subst::empty();
         for loc in self.env.bindings.keys() {
             if !loc.is_free(&self.scope) {
@@ -457,15 +440,30 @@ impl TypeEnvInfer {
         }
         let mut other = other.subst(&subst);
 
-        let levels = self
-            .env
-            .levels()
-            .into_iter()
-            .sorted_by_key(|(_, level)| *level)
-            .rev();
+        let locs = self.env.bindings.keys().copied().collect_vec();
 
+        // Create pledged borrows
+        for &loc in &locs {
+            if !other.has_loc(loc) {
+                continue;
+            }
+            let ty1 = self.env.lookup_loc(loc);
+            let ty2 = other.lookup_loc(loc);
+            match (ty1.kind(), ty2.kind()) {
+                (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
+                    let (fresh, pledge) = self.pledged_borrow(*loc1);
+                    self.env.bindings.insert(loc, Ty::strg_ref(fresh));
+                    other.bindings.insert(loc, Ty::strg_ref(fresh));
+                    other.bindings.insert(*loc2, pledge.clone());
+                    other.bindings.insert(fresh, pledge);
+                }
+                _ => {}
+            }
+        }
+
+        // Join types
         let mut modified = false;
-        for (loc, _) in levels {
+        for loc in locs {
             if !other.has_loc(loc) {
                 if let Some(loc) = self.packed_loc(loc) {
                     self.params.remove(&loc);
@@ -487,13 +485,8 @@ impl TypeEnvInfer {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-                if loc1 == loc2 {
-                    Ty::strg_ref(*loc1)
-                } else {
-                    let (fresh, pledge) = self.pledged_borrow(*loc1);
-                    other.bindings.insert(*loc2, pledge);
-                    Ty::strg_ref(fresh)
-                }
+                debug_assert_eq!(loc1, loc2);
+                Ty::strg_ref(*loc1)
             }
             (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
