@@ -108,6 +108,7 @@ pub struct Place {
 #[derive(Debug)]
 pub enum PlaceElem {
     Deref,
+    Field(Field),
 }
 
 pub enum Constant {
@@ -235,12 +236,25 @@ impl fmt::Debug for Terminator {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut p = format!("{:?}", self.local);
+        let mut need_parens = false;
         for elem in &self.projection {
             match elem {
-                PlaceElem::Deref => write!(f, "*")?,
+                PlaceElem::Field(f) => {
+                    if need_parens {
+                        p = format!("({}).{:?}", p, f);
+                        need_parens = false;
+                    } else {
+                        p = format!("{}.{:?}", p, f);
+                    }
+                }
+                PlaceElem::Deref => {
+                    p = format!("*{}", p);
+                    need_parens = true;
+                }
             }
         }
-        write!(f, "{:?}", self.local)
+        write!(f, "{}", p)
     }
 }
 
