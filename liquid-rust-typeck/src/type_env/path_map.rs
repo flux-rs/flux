@@ -56,13 +56,10 @@ impl<'a, T> Iterator for PathsIter<'a, T> {
                             projection.push(Field::new(i));
                             stack.push(fields.iter().enumerate());
                         } else {
-                            return Some(Path::new(
-                                *loc,
-                                projection
-                                    .iter()
-                                    .copied()
-                                    .chain(std::iter::once(Field::new(i))),
-                            ));
+                            projection.push(Field::new(i));
+                            let path = Path::new(*loc, &projection);
+                            projection.pop();
+                            return Some(path);
                         }
                     } else {
                         projection.pop();
@@ -71,7 +68,7 @@ impl<'a, T> Iterator for PathsIter<'a, T> {
                 }
                 None
             }
-            PathsIter::Leaf(loc) => loc.take().map(|loc| Path::new(loc, vec![])),
+            PathsIter::Leaf(loc) => loc.take().map(|loc| Path::new(loc, &[])),
         }
     }
 }
@@ -307,7 +304,7 @@ impl<'a> PathRef<'a> {
     }
 
     pub fn to_path(&self) -> Path {
-        Path::new(self.loc, self.projection.iter().copied())
+        Path::new(self.loc, self.projection)
     }
 }
 

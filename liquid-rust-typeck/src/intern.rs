@@ -270,6 +270,22 @@ impl<T: Internable> Interned<T> {
     }
 }
 
+impl<T> Interned<[T]>
+where
+    [T]: Internable,
+    T: Clone,
+{
+    pub fn new_slice(slice: &[T]) -> Self {
+        match Interned::lookup(slice) {
+            Ok(this) => this,
+            Err(shard) => {
+                let arc = Arc::from(slice);
+                Self::alloc(arc, shard)
+            }
+        }
+    }
+}
+
 impl<T: Internable + ?Sized> Interned<T> {
     fn lookup(obj: &T) -> Result<Self, Guard<T>> {
         let storage = T::storage().get();
@@ -430,7 +446,7 @@ pub trait Internable: Hash + Eq + 'static {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! _impl_internable {
-    ( $($t:path),+ $(,)? ) => { $(
+    ( $($t:ty),+ $(,)? ) => { $(
         impl $crate::intern::Internable for $t {
             fn storage() -> &'static $crate::intern::InternStorage<Self> {
                 static STORAGE: $crate::intern::InternStorage<$t> = $crate::intern::InternStorage::new();

@@ -72,7 +72,7 @@ pub enum TyKind {
 
 pub struct Path {
     pub loc: Loc,
-    projection: Interned<Vec<Field>>,
+    projection: Interned<[Field]>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -509,8 +509,8 @@ impl From<Var> for Expr {
 }
 
 impl Path {
-    pub fn new(loc: Loc, projection: impl IntoIterator<Item = Field>) -> Path {
-        Path { loc, projection: Interned::new(projection.into_iter().collect()) }
+    pub fn new(loc: Loc, projection: &[Field]) -> Path {
+        Path { loc, projection: Interned::new_slice(projection) }
     }
 
     pub fn as_ref(&self) -> PathRef {
@@ -566,7 +566,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, Vec<Field>, SortS);
+impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, [Field], SortS);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
