@@ -1,3 +1,5 @@
+pub mod path_map;
+
 use crate::{
     constraint_gen::ConstraintGen,
     global_env::GlobalEnv,
@@ -11,12 +13,16 @@ use liquid_rust_core::ir::{self, Local};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
+use path_map::PathMap;
+
+use self::path_map::PathRef;
+
 use super::ty::{Loc, Name, Pred, Sort};
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default)]
 pub struct TypeEnv {
-    bindings: FxHashMap<Loc, Ty>,
-    pledges: FxHashMap<Loc, Vec<Ty>>,
+    bindings: PathMap<Ty>,
+    pledges: PathMap<Vec<Ty>>,
 }
 
 pub struct TypeEnvInfer {
@@ -35,7 +41,7 @@ pub struct BasicBlockEnv {
 
 impl TypeEnv {
     pub fn new() -> TypeEnv {
-        TypeEnv { bindings: FxHashMap::default(), pledges: FxHashMap::default() }
+        TypeEnv { bindings: PathMap::new(), pledges: PathMap::new() }
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
@@ -48,16 +54,26 @@ impl TypeEnv {
 
     #[track_caller]
     pub fn lookup_loc(&self, loc: impl Into<Loc>) -> Ty {
-        let loc = loc.into();
-        match self.bindings.get(&loc) {
+        self.get(loc.into())
+    }
+
+    #[track_caller]
+    pub fn get<'a>(&self, path: impl Into<PathRef<'a>>) -> Ty {
+        let path = path.into();
+        match self.bindings.get(path) {
             Some(ty) => ty.clone(),
-            None => panic!("no entry found for loc: `{loc:?}`"),
+            None => panic!("no entry found for path: `{:?}`", path),
         }
     }
 
-    pub fn has_loc(&self, loc: Loc) -> bool {
-        self.bindings.contains_key(&loc)
+    fn remove(&mut self, loc: Loc) {
+        self.bindings.remove(loc);
+        self.pledges.remove(loc);
     }
+
+    // fn has_path<'a>(&self, path: impl Into<PathRef<'a>>) -> bool {
+    //     self.bindings.contains_path(path)
+    // }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
         let ty = self.lookup_loc(Loc::Local(place.local));
@@ -73,10 +89,25 @@ impl TypeEnv {
         self.bindings.insert(loc, ty);
     }
 
-    pub fn update_loc(&mut self, gen: &mut ConstraintGen, loc: Loc, new_ty: Ty) {
-        self.bindings.insert(loc, new_ty.clone());
-        for pledge in self.pledges.get(&loc).iter().flat_map(|v| v.iter()) {
-            gen.subtyping(&new_ty, pledge);
+    // pub fn update_loc(&mut self, gen: &mut ConstraintGen, loc: Loc, new_ty: Ty) {
+    //     self.bindings.insert(loc, new_ty.clone());
+    //     for pledge in self.pledges.get(&loc).iter().flat_map(|v| v.iter()) {
+    //         gen.subtyping(&new_ty, pledge);
+    //     }
+    // }
+
+    pub fn update_path<'a>(
+        &mut self,
+        gen: &mut ConstraintGen,
+        path: impl Into<PathRef<'a>>,
+        new_ty: Ty,
+    ) {
+        let path = path.into();
+        self.bindings.update(path, new_ty.clone());
+        if let Some(pledges) = self.pledges.get(path) {
+            for pledge in pledges.iter() {
+                gen.subtyping(&new_ty, pledge);
+            }
         }
     }
 
@@ -140,7 +171,7 @@ impl TypeEnv {
             }
             _ => unreachable!("unexpected place `{place:?}`"),
         };
-        self.update_loc(gen, loc, new_ty);
+        self.update_path(gen, loc, new_ty);
     }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
@@ -166,22 +197,22 @@ impl TypeEnv {
     }
 
     pub fn unpack(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) {
-        for loc in self.bindings.iter().map(|(loc, _)| *loc).collect_vec() {
-            let ty = self.bindings[&loc].clone();
+        for path in self.bindings.paths().collect_vec() {
+            let ty = self.get(&path);
             let ty = self.unpack_ty(genv, pcx, &ty);
-            self.bindings.insert(loc, ty);
+            self.bindings.update(&path, ty);
         }
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> Subst {
         let params = bb_env.params.iter().map(|param| param.name).collect();
         let mut subst = Subst::empty();
-        for (loc, ty1) in &self.bindings {
-            if bb_env.env.has_loc(*loc) {
-                let ty2 = bb_env.env.lookup_loc(*loc);
-                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
+        self.bindings.iter(|path, ty1| {
+            if bb_env.env.bindings.contains_path(path) {
+                let ty2 = bb_env.env.get(path);
+                self.infer_subst_for_bb_env_tys(bb_env, &params, &ty1, &ty2, &mut subst);
             }
-        }
+        });
         assert!(subst
             .check_inference(
                 bb_env
@@ -232,71 +263,59 @@ impl TypeEnv {
 
         let goto_env = bb_env.env.clone().subst(&subst);
 
+        // Weakening
+        let locs = self
+            .bindings
+            .locs()
+            .filter(|loc| !goto_env.bindings.contains_loc(*loc))
+            .collect_vec();
+        for loc in locs {
+            self.remove(loc);
+        }
+
         // Create pledged borrows
-        for loc in self.bindings.keys().copied().collect_vec() {
-            if !goto_env.has_loc(loc) {
-                continue;
-            }
-            let ty1 = self.lookup_loc(loc);
-            let ty2 = goto_env.lookup_loc(loc);
+        for path in self.bindings.paths().collect_vec() {
+            let ty1 = self.get(&path);
+            let ty2 = goto_env.get(&path);
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let pledge = goto_env.lookup_loc(*loc2);
+                    let pledge = goto_env.get(*loc2);
                     let fresh = self.pledged_borrow(gen, *loc1, pledge);
-                    self.bindings.insert(loc, Ty::strg_ref(fresh));
+                    self.bindings.update(&path, Ty::strg_ref(fresh));
                 }
                 _ => {}
             }
         }
 
         // Check subtyping
-        for loc in self.bindings.keys().copied().collect_vec() {
-            if !goto_env.bindings.contains_key(&loc) {
-                self.bindings.remove(&loc);
-                continue;
-            }
-            let ty1 = self.lookup_loc(loc);
-            let ty2 = goto_env.lookup_loc(loc);
+        self.bindings.iter_mut(|path, ty1| {
+            let ty2 = goto_env.get(path);
             gen.subtyping(&ty1, &ty2);
-            self.bindings.insert(loc, ty2);
-        }
+            *ty1 = ty2;
+        });
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
         // the pledges from all the environements we jump from.
-        for (loc, pledges) in self.pledges {
-            bb_env.env.pledges.entry(loc).or_default().extend(pledges);
-        }
+        bb_env
+            .env
+            .pledges
+            .merge_with(self.pledges, |pledges1, pledges2| pledges1.extend(pledges2));
 
-        debug_assert_eq!(self.bindings, goto_env.bindings);
+        // debug_assert_eq!(self.bindings, goto_env.bindings);
     }
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
         let fresh = Loc::Abstract(gen.push_binding(Sort::loc()));
         let ty = self.lookup_loc(loc);
         gen.subtyping(&ty, &pledge);
-        self.bindings.insert(loc, pledge.clone());
-        self.pledges.entry(fresh).or_default().push(pledge.clone());
-        self.bindings.insert(fresh, pledge);
+        self.bindings.update(loc, pledge.clone());
+        self.bindings.insert(fresh, pledge.clone());
+        self.pledges.insert(fresh, vec![pledge]);
         fresh
     }
 
     pub fn subst(self, subst: &Subst) -> TypeEnv {
-        TypeEnv {
-            bindings: self
-                .bindings
-                .into_iter()
-                .map(|(loc, ty)| (subst.subst_loc(loc), subst.subst_ty(&ty)))
-                .collect(),
-            pledges: self
-                .pledges
-                .into_iter()
-                .map(|(loc, pledges)| {
-                    let loc = subst.subst_loc(loc);
-                    let pledges = pledges.into_iter().map(|ty| subst.subst_ty(&ty)).collect();
-                    (loc, pledges)
-                })
-                .collect(),
-        }
+        TypeEnv { bindings: self.bindings.subst(subst), pledges: self.pledges.subst(subst) }
     }
 }
 
@@ -349,11 +368,9 @@ impl TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
-        for loc in env.bindings.keys().copied().collect_vec() {
-            let ty = env.lookup_loc(loc);
-            env.bindings
-                .insert(loc, TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, &ty));
-        }
+        env.bindings.iter_mut(|_, ty| {
+            *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, &ty);
+        });
         TypeEnvInfer { params, name_gen, env, scope }
     }
 
@@ -364,12 +381,13 @@ impl TypeEnvInfer {
         env: TypeEnv,
     ) -> TypeEnv {
         let mut subst = Subst::empty();
-        for loc in env.bindings.keys() {
+
+        for loc in env.bindings.locs() {
             if let Loc::Abstract(loc) = loc {
-                if !scope.contains(*loc) {
+                if !scope.contains(loc) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, Sort::loc());
-                    subst.insert_name_subst(*loc, Sort::loc(), fresh);
+                    subst.insert_name_subst(loc, Sort::loc(), fresh);
                 }
             }
         }
@@ -427,10 +445,9 @@ impl TypeEnvInfer {
     pub fn join(&mut self, genv: &GlobalEnv, other: TypeEnv) -> bool {
         // Infer subst
         let mut subst = Subst::empty();
-        for loc in self.env.bindings.keys() {
-            if !loc.is_free(&self.scope) {
-                let ty1 = self.env.lookup_loc(*loc);
-                let ty2 = other.lookup_loc(*loc);
+        self.env.bindings.iter(|path, ty1| {
+            if other.bindings.contains_path(path) {
+                let ty2 = other.get(path);
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::StrgRef(loc1), TyKind::StrgRef(Loc::Abstract(loc2)))
                         if self.packed_loc(*loc1).is_some() && !self.scope.contains(*loc2) =>
@@ -440,24 +457,36 @@ impl TypeEnvInfer {
                     _ => {}
                 }
             }
-        }
+        });
+
         let mut other = other.subst(&subst);
 
-        let locs = self.env.bindings.keys().copied().collect_vec();
+        // Weakening
+        let locs = self
+            .env
+            .bindings
+            .locs()
+            .filter(|loc| !other.bindings.contains_loc(*loc))
+            .collect_vec();
+        for loc in locs {
+            if let Some(loc) = self.packed_loc(loc) {
+                self.params.remove(&loc);
+            }
+            self.env.remove(loc);
+        }
+
+        let paths = self.env.bindings.paths().collect_vec();
 
         // Create pledged borrows
-        for &loc in &locs {
-            if !other.has_loc(loc) {
-                continue;
-            }
-            let ty1 = self.env.lookup_loc(loc);
-            let ty2 = other.lookup_loc(loc);
+        for path in &paths {
+            let ty1 = self.env.get(path);
+            let ty2 = other.get(path);
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
                     let (fresh, pledge) = self.pledged_borrow(*loc1);
-                    self.env.bindings.insert(loc, Ty::strg_ref(fresh));
-                    other.bindings.insert(loc, Ty::strg_ref(fresh));
-                    other.bindings.insert(*loc2, pledge.clone());
+                    self.env.bindings.update(path, Ty::strg_ref(fresh));
+                    other.bindings.update(path, Ty::strg_ref(fresh));
+                    other.bindings.update(*loc2, pledge.clone());
                     other.bindings.insert(fresh, pledge);
                 }
                 _ => {}
@@ -466,19 +495,13 @@ impl TypeEnvInfer {
 
         // Join types
         let mut modified = false;
-        for loc in locs {
-            if !other.has_loc(loc) {
-                if let Some(loc) = self.packed_loc(loc) {
-                    self.params.remove(&loc);
-                }
-                self.env.bindings.remove(&loc);
-                continue;
-            }
-            let ty1 = self.env.lookup_loc(loc);
-            let ty2 = other.lookup_loc(loc);
+        for path in &paths {
+            let ty1 = self.env.get(path);
+            let ty2 = other.get(path);
             let ty = self.join_ty(genv, &mut other, &ty1, &ty2);
+            // println!("{path:?} {ty1:?} {ty2:?} {ty:?}");
             modified |= ty1 != ty;
-            self.env.bindings.insert(loc, ty);
+            self.env.bindings.update(path, ty);
         }
 
         modified
@@ -553,7 +576,7 @@ impl TypeEnvInfer {
 
     fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
-        let ty = self.env.bindings[&loc].clone();
+        let ty = self.env.get(loc);
         let pledge = self.weaken_ty(&ty);
         self.env.bindings.insert(loc, pledge.clone());
         self.env.bindings.insert(fresh, pledge.clone());
@@ -574,7 +597,7 @@ impl TypeEnvInfer {
                 Ty::exists(bty, Pred::dummy_kvar())
             }
             StrgRef(loc) => {
-                let ty = self.env.bindings[&loc].clone();
+                let ty = self.env.get(loc);
                 let ty = self.weaken_ty(&ty);
                 self.env.bindings.insert(loc, ty.clone());
                 Ty::weak_ref(ty)
@@ -616,12 +639,11 @@ impl TypeEnvInfer {
         }
 
         let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
-        let bindings = self
-            .env
-            .bindings
-            .into_iter()
-            .map(|(loc, ty)| (loc, replace_kvars(genv, &ty, fresh_kvar)))
-            .collect();
+
+        let mut bindings = self.env.bindings;
+        bindings.iter_mut(|_, ty| {
+            *ty = replace_kvars(genv, &ty, fresh_kvar);
+        });
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
         // the pledges from all the environements we jump from.
@@ -702,19 +724,19 @@ mod pretty {
     impl Pretty for TypeEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let bindings = self
-                .bindings
-                .iter()
-                .filter(|(_, ty)| !ty.is_uninit())
-                .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
-                .collect_vec();
+            let mut bindings = vec![];
+            self.bindings.iter(|path, ty| {
+                if !ty.is_uninit() {
+                    bindings.push((path.to_path(), ty));
+                }
+            });
 
-            let pledges = self
-                .pledges
-                .iter()
-                .filter(|(_, pledges)| !pledges.is_empty())
-                .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
-                .collect_vec();
+            let mut pledges = vec![];
+            self.pledges.iter(|path, pl| {
+                if !pl.is_empty() {
+                    pledges.push((path.to_path(), pl));
+                }
+            });
 
             w!(
                 "{{{}}}",

@@ -3,7 +3,7 @@ use std::{fmt, lazy::SyncOnceCell};
 use itertools::Itertools;
 use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
-pub use liquid_rust_core::ty::ParamTy;
+pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
@@ -13,6 +13,7 @@ pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 use crate::{
     intern::{impl_internable, Interned},
     pure_ctxt::Scope,
+    type_env::path_map::PathRef,
 };
 
 pub enum AdtDef {
@@ -67,6 +68,11 @@ pub enum TyKind {
     WeakRef(Ty),
     ShrRef(Ty),
     Param(ParamTy),
+}
+
+pub struct Path {
+    pub loc: Loc,
+    projection: Interned<Vec<Field>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -502,6 +508,20 @@ impl From<Var> for Expr {
     }
 }
 
+impl Path {
+    pub fn new(loc: Loc, projection: impl IntoIterator<Item = Field>) -> Path {
+        Path { loc, projection: Interned::new(projection.into_iter().collect()) }
+    }
+
+    pub fn as_ref(&self) -> PathRef {
+        PathRef::new(self.loc, self.projection())
+    }
+
+    pub fn projection(&self) -> &[Field] {
+        &self.projection[..]
+    }
+}
+
 impl Loc {
     pub fn is_free(&self, scope: &Scope) -> bool {
         match self {
@@ -546,7 +566,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, SortS);
+impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, Vec<Field>, SortS);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -767,6 +787,12 @@ mod pretty {
         }
     }
 
+    impl Pretty for Path {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            Pretty::fmt(&self.as_ref(), cx, f)
+        }
+    }
+
     impl Pretty for Loc {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -828,5 +854,16 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Constr, TyS, BaseTy, Pred, Sort, ExprS, Var, Loc, Binders<FnSig>);
+    impl_debug_with_default_cx!(
+        Constr,
+        TyS,
+        BaseTy,
+        Pred,
+        Sort,
+        ExprS,
+        Var,
+        Loc,
+        Binders<FnSig>,
+        Path
+    );
 }

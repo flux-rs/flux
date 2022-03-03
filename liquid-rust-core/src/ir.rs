@@ -5,7 +5,7 @@ use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{
-    BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
+    BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
 };
 use rustc_middle::{
     mir,
