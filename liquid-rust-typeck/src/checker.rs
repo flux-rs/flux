@@ -16,7 +16,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var},
+    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, Sort, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
@@ -187,7 +187,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match constr {
                 ty::Constr::Type(loc, ty) => {
                     let ty = env.unpack_ty(genv, pcx, ty);
-                    env.insert_loc(*loc, ty);
+                    env.alloc_with_ty(*loc, ty);
                 }
                 ty::Constr::Pred(e) => {
                     pcx.push_pred(e.clone());
@@ -197,14 +197,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
             let ty = env.unpack_ty(genv, pcx, ty);
-            env.insert_loc(Loc::Local(local), ty);
+            env.alloc_with_ty(local, ty);
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), Ty::uninit());
+            env.alloc(local, body.local_decls[local].layout);
         }
 
-        env.insert_loc(Loc::Local(RETURN_PLACE), Ty::uninit());
+        env.alloc(RETURN_PLACE, body.local_decls[RETURN_PLACE].layout);
         env
     }
 

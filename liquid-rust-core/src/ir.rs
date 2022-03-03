@@ -12,12 +12,12 @@ use rustc_middle::{
     ty::{FloatTy, IntTy, UintTy},
 };
 
-use crate::ty::Ty;
+use crate::ty::{Layout, Ty};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
-    pub nlocals: usize,
+    pub local_decls: IndexVec<Local, LocalDecl>,
     pub mir: &'tcx mir::Body<'tcx>,
 }
 
@@ -25,6 +25,11 @@ pub struct Body<'tcx> {
 pub struct BasicBlockData {
     pub statements: Vec<Statement>,
     pub terminator: Option<Terminator>,
+}
+
+pub struct LocalDecl {
+    pub layout: Layout,
+    pub source_info: SourceInfo,
 }
 
 pub struct Terminator {
@@ -128,7 +133,7 @@ impl Body<'_> {
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.arg_count + 1..self.nlocals).map(Local::new)
+        (self.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]

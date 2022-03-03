@@ -86,7 +86,7 @@ impl Subst {
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::WeakRef(ty) => Ty::weak_ref(self.subst_ty(ty)),
             TyKind::ShrRef(ty) => Ty::shr_ref(self.subst_ty(ty)),
-            TyKind::Uninit => ty.clone(),
+            TyKind::Uninit(_) => ty.clone(),
         }
     }
 

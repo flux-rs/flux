@@ -9,7 +9,10 @@ use crate::{
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::ir::{self, Local};
+use liquid_rust_core::{
+    ir::{self, Local},
+    ty::Layout,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
@@ -23,6 +26,7 @@ use super::ty::{Loc, Name, Pred, Sort};
 pub struct TypeEnv {
     bindings: PathMap<Ty>,
     pledges: PathMap<Vec<Ty>>,
+    layouts: FxHashMap<Loc, Layout>,
 }
 
 pub struct TypeEnvInfer {
@@ -41,7 +45,19 @@ pub struct BasicBlockEnv {
 
 impl TypeEnv {
     pub fn new() -> TypeEnv {
-        TypeEnv { bindings: PathMap::new(), pledges: PathMap::new() }
+        TypeEnv { bindings: PathMap::new(), pledges: PathMap::new(), layouts: FxHashMap::default() }
+    }
+
+    pub fn alloc_with_ty(&mut self, loc: impl Into<Loc>, ty: Ty) {
+        let loc = loc.into();
+        self.layouts.insert(loc, ty.layout());
+        self.bindings.insert(loc, ty);
+    }
+
+    pub fn alloc(&mut self, loc: impl Into<Loc>, layout: Layout) {
+        let loc = loc.into();
+        self.layouts.insert(loc, layout);
+        self.bindings.insert(loc, Ty::uninit(layout));
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
@@ -71,10 +87,6 @@ impl TypeEnv {
         self.pledges.remove(loc);
     }
 
-    // fn has_path<'a>(&self, path: impl Into<PathRef<'a>>) -> bool {
-    //     self.bindings.contains_path(path)
-    // }
-
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
         let ty = self.lookup_loc(Loc::Local(place.local));
         match (&place.projection[..], ty.kind()) {
@@ -84,17 +96,6 @@ impl TypeEnv {
             _ => unreachable!(""),
         }
     }
-
-    pub fn insert_loc(&mut self, loc: Loc, ty: Ty) {
-        self.bindings.insert(loc, ty);
-    }
-
-    // pub fn update_loc(&mut self, gen: &mut ConstraintGen, loc: Loc, new_ty: Ty) {
-    //     self.bindings.insert(loc, new_ty.clone());
-    //     for pledge in self.pledges.get(&loc).iter().flat_map(|v| v.iter()) {
-    //         gen.subtyping(&new_ty, pledge);
-    //     }
-    // }
 
     pub fn update_path<'a>(
         &mut self,
@@ -150,7 +151,7 @@ impl TypeEnv {
             [] => {
                 let loc = Loc::Local(place.local);
                 let ty = self.lookup_loc(loc);
-                self.bindings.insert(loc, Ty::uninit());
+                self.bindings.insert(loc, Ty::uninit(ty.layout()));
                 ty
             }
             _ => unreachable!("cannot move out from a dereference"),
@@ -315,7 +316,11 @@ impl TypeEnv {
     }
 
     pub fn subst(self, subst: &Subst) -> TypeEnv {
-        TypeEnv { bindings: self.bindings.subst(subst), pledges: self.pledges.subst(subst) }
+        TypeEnv {
+            bindings: self.bindings.subst(subst),
+            pledges: self.pledges.subst(subst),
+            layouts: self.layouts.clone(),
+        }
     }
 }
 
@@ -324,7 +329,7 @@ enum TyKindJoin {
     Packed(BaseTy, Expr, Name),
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
-    Uninit,
+    Uninit(Layout),
     StrgRef(Loc),
     WeakRef(Ty),
     ShrRef(Ty),
@@ -355,7 +360,7 @@ impl TypeEnvInfer {
                 }
             }
             TyKind::Exists(bty, p) => TyKindJoin::Exists(bty.clone(), p.clone()),
-            TyKind::Uninit => TyKindJoin::Uninit,
+            TyKind::Uninit(layout) => TyKindJoin::Uninit(*layout),
             TyKind::StrgRef(loc) => TyKindJoin::StrgRef(*loc),
             TyKind::WeakRef(ty) => TyKindJoin::WeakRef(ty.clone()),
             TyKind::ShrRef(ty) => TyKindJoin::ShrRef(ty.clone()),
@@ -417,7 +422,7 @@ impl TypeEnvInfer {
             TyKind::Exists(_, _)
             | TyKind::Float(_)
             | TyKind::StrgRef(_)
-            | TyKind::Uninit
+            | TyKind::Uninit(_)
             | TyKind::WeakRef(_)
             | TyKind::ShrRef(_)
             | TyKind::Param(_) => ty.clone(),
@@ -509,7 +514,14 @@ impl TypeEnvInfer {
 
     fn join_ty(&mut self, genv: &GlobalEnv, other: &mut TypeEnv, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
+            (TyKind::Uninit(layout), _) => {
+                debug_assert_eq!(layout, &ty2.layout());
+                Ty::uninit(*layout)
+            }
+            (_, TyKind::Uninit(layout)) => {
+                debug_assert_eq!(layout, &ty1.layout());
+                Ty::uninit(*layout)
+            }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 debug_assert_eq!(loc1, loc2);
                 Ty::strg_ref(*loc1)
@@ -603,7 +615,7 @@ impl TypeEnvInfer {
                 Ty::weak_ref(ty)
             }
             ShrRef(_) | WeakRef(_) => todo!(),
-            Uninit => {
+            Uninit(_) => {
                 unreachable!()
             }
         }
@@ -649,7 +661,14 @@ impl TypeEnvInfer {
         // the pledges from all the environements we jump from.
         let pledges = env.pledges.clone();
 
-        BasicBlockEnv { params, constrs, env: TypeEnv { bindings, pledges }, scope: self.scope }
+        let layouts = self.env.layouts;
+
+        BasicBlockEnv {
+            params,
+            constrs,
+            env: TypeEnv { bindings, pledges, layouts },
+            scope: self.scope,
+        }
     }
 
     fn is_packed_expr(&self, expr: &Expr) -> bool {
@@ -692,12 +711,9 @@ fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Var, Sor
             Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
         }
         TyKind::Exists(bty, p) => Ty::exists(bty.clone(), p.clone()),
-        TyKind::Uninit => Ty::uninit(),
-        TyKind::StrgRef(loc) => Ty::strg_ref(*loc),
         TyKind::WeakRef(ty) => Ty::weak_ref(replace_kvars(genv, ty, fresh_kvar)),
         TyKind::ShrRef(ty) => Ty::shr_ref(replace_kvars(genv, ty, fresh_kvar)),
-        TyKind::Param(param_ty) => Ty::param(*param_ty),
-        TyKind::Float(_) => ty.clone(),
+        TyKind::StrgRef(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
     }
 }
 

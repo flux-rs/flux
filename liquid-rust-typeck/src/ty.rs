@@ -2,8 +2,8 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::Idx;
-use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
+use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
@@ -63,7 +63,7 @@ pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
     Float(FloatTy),
-    Uninit,
+    Uninit(Layout),
     StrgRef(Loc),
     WeakRef(Ty),
     ShrRef(Ty),
@@ -171,8 +171,8 @@ impl Ty {
         TyKind::ShrRef(ty).intern()
     }
 
-    pub fn uninit() -> Ty {
-        TyKind::Uninit.intern()
+    pub fn uninit(layout: Layout) -> Ty {
+        TyKind::Uninit(layout).intern()
     }
 
     pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
@@ -204,7 +204,7 @@ impl TyS {
     }
 
     pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit)
+        matches!(self.kind(), TyKind::Uninit(..))
     }
 
     pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
@@ -213,6 +213,16 @@ impl TyS {
             TyKind::WeakRef(ty) => ty.walk(f),
             TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.walk(f),
             _ => {}
+        }
+    }
+
+    pub fn layout(&self) -> Layout {
+        match self.kind() {
+            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.layout(),
+            TyKind::Float(float_ty) => Layout::Float(*float_ty),
+            TyKind::Uninit(layout) => *layout,
+            TyKind::StrgRef(_) | TyKind::WeakRef(_) | TyKind::ShrRef(_) => Layout::Ref,
+            TyKind::Param(_) => Layout::Param,
         }
     }
 }
@@ -225,6 +235,15 @@ impl BaseTy {
     fn walk(&self, f: &mut impl FnMut(&TyS)) {
         if let BaseTy::Adt(_, substs) = self {
             substs.iter().for_each(|ty| ty.walk(f));
+        }
+    }
+
+    fn layout(&self) -> Layout {
+        match self {
+            BaseTy::Int(int_ty) => Layout::Int(*int_ty),
+            BaseTy::Uint(uint_ty) => Layout::Uint(*uint_ty),
+            BaseTy::Bool => Layout::Bool,
+            BaseTy::Adt(did, _) => Layout::Adt(*did),
         }
     }
 }
@@ -537,6 +556,12 @@ impl From<Name> for Loc {
     }
 }
 
+impl From<Local> for Loc {
+    fn from(local: Local) -> Self {
+        Loc::Local(local)
+    }
+}
+
 impl PartialOrd for Loc {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -643,7 +668,7 @@ mod pretty {
                     }
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
-                TyKind::Uninit => w!("uninit"),
+                TyKind::Uninit(_) => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
                 TyKind::ShrRef(ty) => w!("&{:?}", ty),
