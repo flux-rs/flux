@@ -67,6 +67,8 @@ pub struct Statement {
 #[derive(Debug)]
 pub enum StatementKind {
     Assign(Place, Rvalue),
+    Fold(Place),
+    Unfold(Place),
     Nop,
 }
 
@@ -178,6 +180,8 @@ impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
+            StatementKind::Fold(place) => write!(f, "fold {:?}", place),
+            StatementKind::Unfold(place) => write!(f, "unfold {:?}", place),
             StatementKind::Nop => write!(f, "nop"),
         }
     }

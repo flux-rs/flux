@@ -28,6 +28,10 @@ impl<'tcx> GlobalEnv<'tcx> {
         self.tcx.variances_of(did)
     }
 
+    pub fn adt_def(&self, did: DefId) -> &ty::AdtDef {
+        &self.adt_defs[&did.as_local().unwrap()]
+    }
+
     pub fn sort(&self, bty: &BaseTy) -> Sort {
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) => Sort::int(),

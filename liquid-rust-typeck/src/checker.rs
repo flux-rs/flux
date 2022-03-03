@@ -209,7 +209,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn clear(&mut self, root: BasicBlock) {
-        // FIXME: there should be a better way to iterate over all dominated blocks.
+        // HACK(nilehmann) there should be a better way to iterate over all dominated blocks.
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.is_dominated_by(bb, root) {
@@ -258,6 +258,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.write_place(gen, p, ty);
             }
             StatementKind::Nop => {}
+            StatementKind::Fold(_) => todo!(),
+            StatementKind::Unfold(_) => todo!(),
         }
     }
 
