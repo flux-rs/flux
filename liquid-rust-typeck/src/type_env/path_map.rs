@@ -9,7 +9,7 @@ use crate::{
     ty::{Loc, Path},
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PathMap<T> {
     map: FxHashMap<Loc, Node<T>>,
 }
@@ -20,60 +20,7 @@ pub struct PathRef<'a> {
     pub projection: &'a [Field],
 }
 
-enum PathsIter<'a, T> {
-    Internal {
-        stack: Vec<std::iter::Enumerate<std::slice::Iter<'a, Node<T>>>>,
-        loc: Loc,
-        projection: Vec<Field>,
-    },
-    Leaf(Option<Loc>),
-}
-
-impl<'a, T> PathsIter<'a, T> {
-    fn new(loc: Loc, root: &'a Node<T>) -> Self {
-        match root {
-            Node::Leaf(_) => PathsIter::Leaf(Some(loc)),
-            Node::Internal(fields) => {
-                PathsIter::Internal {
-                    loc,
-                    projection: vec![],
-                    stack: vec![fields.iter().enumerate()],
-                }
-            }
-        }
-    }
-}
-
-impl<'a, T> Iterator for PathsIter<'a, T> {
-    type Item = Path;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            PathsIter::Internal { stack, loc, projection } => {
-                while let Some(top) = stack.last_mut() {
-                    if let Some((i, node)) = top.next() {
-                        if let Node::Internal(fields) = node {
-                            projection.push(Field::new(i));
-                            stack.push(fields.iter().enumerate());
-                        } else {
-                            projection.push(Field::new(i));
-                            let path = Path::new(*loc, &projection);
-                            projection.pop();
-                            return Some(path);
-                        }
-                    } else {
-                        projection.pop();
-                        stack.pop();
-                    }
-                }
-                None
-            }
-            PathsIter::Leaf(loc) => loc.take().map(|loc| Path::new(loc, &[])),
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum Node<T> {
     Leaf(T),
     Internal(IndexVec<Field, Node<T>>),
@@ -89,61 +36,23 @@ impl<T> PathMap<T> {
     }
 
     pub fn paths(&self) -> impl Iterator<Item = Path> + '_ {
+        self.iter().map(|(path, _)| path)
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Path, &T)> + '_ {
         self.map
             .iter()
             .flat_map(|(loc, root)| PathsIter::new(*loc, root))
     }
 
-    pub fn iter_mut(&mut self, mut f: impl FnMut(PathRef, &mut T)) {
-        fn go<T>(
-            node: &mut Node<T>,
-            loc: Loc,
-            projection: &mut Vec<Field>,
-            f: &mut impl FnMut(PathRef, &mut T),
-        ) {
-            match node {
-                Node::Leaf(value) => {
-                    f(PathRef::new(loc, projection), value);
-                }
-                Node::Internal(fields) => {
-                    for (field, child) in fields.iter_enumerated_mut() {
-                        projection.push(field);
-                        go(child, loc, projection, f);
-                        projection.pop();
-                    }
-                }
-            }
-        }
-
-        for (loc, node) in &mut self.map {
-            go(node, *loc, &mut vec![], &mut f);
-        }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Path, &mut T)> + '_ {
+        self.map
+            .iter_mut()
+            .flat_map(|(loc, root)| PathsIterMut::new(*loc, root))
     }
 
-    pub fn iter<'a>(&'a self, mut f: impl FnMut(PathRef, &'a T)) {
-        fn go<'a, T>(
-            node: &'a Node<T>,
-            loc: Loc,
-            projection: &mut Vec<Field>,
-            f: &mut impl FnMut(PathRef, &'a T),
-        ) {
-            match node {
-                Node::Leaf(value) => {
-                    f(PathRef::new(loc, projection), value);
-                }
-                Node::Internal(fields) => {
-                    for (field, child) in fields.iter_enumerated() {
-                        projection.push(field);
-                        go(child, loc, projection, f);
-                        projection.pop();
-                    }
-                }
-            }
-        }
-
-        for (loc, node) in &self.map {
-            go(node, *loc, &mut vec![], &mut f);
-        }
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
+        self.iter_mut().map(|(_, value)| value)
     }
 
     pub fn merge_with(&mut self, other: PathMap<T>, f: impl Fn(&mut T, T) + Copy) {
@@ -320,6 +229,119 @@ impl<'a> From<&'a Path> for PathRef<'a> {
     }
 }
 
+enum PathsIter<'a, T> {
+    Internal {
+        stack: Vec<std::iter::Enumerate<std::slice::Iter<'a, Node<T>>>>,
+        loc: Loc,
+        projection: Vec<Field>,
+    },
+    Leaf(Option<(Loc, &'a T)>),
+}
+
+enum PathsIterMut<'a, T> {
+    Internal {
+        stack: Vec<std::iter::Enumerate<std::slice::IterMut<'a, Node<T>>>>,
+        loc: Loc,
+        projection: Vec<Field>,
+    },
+    Leaf(Option<(Loc, &'a mut T)>),
+}
+
+impl<'a, T> PathsIter<'a, T> {
+    fn new(loc: Loc, root: &'a Node<T>) -> Self {
+        match root {
+            Node::Leaf(value) => PathsIter::Leaf(Some((loc, value))),
+            Node::Internal(fields) => {
+                PathsIter::Internal {
+                    loc,
+                    projection: vec![],
+                    stack: vec![fields.iter().enumerate()],
+                }
+            }
+        }
+    }
+}
+
+impl<'a, T> Iterator for PathsIter<'a, T> {
+    type Item = (Path, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            PathsIter::Internal { stack, loc, projection } => {
+                while let Some(top) = stack.last_mut() {
+                    if let Some((i, node)) = top.next() {
+                        match node {
+                            Node::Internal(fields) => {
+                                projection.push(Field::new(i));
+                                stack.push(fields.iter().enumerate());
+                            }
+                            Node::Leaf(value) => {
+                                projection.push(Field::new(i));
+                                let path = Path::new(*loc, &projection);
+                                projection.pop();
+                                return Some((path, value));
+                            }
+                        }
+                    } else {
+                        projection.pop();
+                        stack.pop();
+                    }
+                }
+                None
+            }
+            PathsIter::Leaf(item) => item.take().map(|(loc, value)| (Path::new(loc, &[]), value)),
+        }
+    }
+}
+
+impl<'a, T> PathsIterMut<'a, T> {
+    fn new(loc: Loc, root: &'a mut Node<T>) -> Self {
+        match root {
+            Node::Leaf(value) => PathsIterMut::Leaf(Some((loc, value))),
+            Node::Internal(fields) => {
+                PathsIterMut::Internal {
+                    loc,
+                    projection: vec![],
+                    stack: vec![fields.iter_mut().enumerate()],
+                }
+            }
+        }
+    }
+}
+
+impl<'a, T> Iterator for PathsIterMut<'a, T> {
+    type Item = (Path, &'a mut T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            PathsIterMut::Internal { stack, loc, projection } => {
+                while let Some(top) = stack.last_mut() {
+                    if let Some((i, node)) = top.next() {
+                        match node {
+                            Node::Internal(fields) => {
+                                projection.push(Field::from(i));
+                                stack.push(fields.iter_mut().enumerate());
+                            }
+                            Node::Leaf(value) => {
+                                projection.push(Field::new(i));
+                                let path = Path::new(*loc, &projection);
+                                projection.pop();
+                                return Some((path, value));
+                            }
+                        }
+                    } else {
+                        projection.pop();
+                        stack.pop();
+                    }
+                }
+                None
+            }
+            PathsIterMut::Leaf(item) => {
+                item.take().map(|(loc, value)| (Path::new(loc, &[]), value))
+            }
+        }
+    }
+}
 mod pretty {
     use super::*;
     use crate::pretty::*;

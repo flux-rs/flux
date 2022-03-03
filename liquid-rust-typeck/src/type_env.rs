@@ -207,12 +207,12 @@ impl TypeEnv {
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> Subst {
         let params = bb_env.params.iter().map(|param| param.name).collect();
         let mut subst = Subst::empty();
-        self.bindings.iter(|path, ty1| {
-            if bb_env.env.bindings.contains_path(path) {
-                let ty2 = bb_env.env.get(path);
+        for (path, ty1) in self.bindings.iter() {
+            if bb_env.env.bindings.contains_path(&path) {
+                let ty2 = bb_env.env.get(&path);
                 self.infer_subst_for_bb_env_tys(bb_env, &params, &ty1, &ty2, &mut subst);
             }
-        });
+        }
         assert!(subst
             .check_inference(
                 bb_env
@@ -288,11 +288,11 @@ impl TypeEnv {
         }
 
         // Check subtyping
-        self.bindings.iter_mut(|path, ty1| {
-            let ty2 = goto_env.get(path);
+        for (path, ty1) in self.bindings.iter_mut() {
+            let ty2 = goto_env.get(&path);
             gen.subtyping(&ty1, &ty2);
             *ty1 = ty2;
-        });
+        }
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
         // the pledges from all the environements we jump from.
@@ -301,7 +301,7 @@ impl TypeEnv {
             .pledges
             .merge_with(self.pledges, |pledges1, pledges2| pledges1.extend(pledges2));
 
-        // debug_assert_eq!(self.bindings, goto_env.bindings);
+        debug_assert_eq!(self.bindings, goto_env.bindings);
     }
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
@@ -368,9 +368,9 @@ impl TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
-        env.bindings.iter_mut(|_, ty| {
+        for ty in env.bindings.values_mut() {
             *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, &ty);
-        });
+        }
         TypeEnvInfer { params, name_gen, env, scope }
     }
 
@@ -445,9 +445,9 @@ impl TypeEnvInfer {
     pub fn join(&mut self, genv: &GlobalEnv, other: TypeEnv) -> bool {
         // Infer subst
         let mut subst = Subst::empty();
-        self.env.bindings.iter(|path, ty1| {
-            if other.bindings.contains_path(path) {
-                let ty2 = other.get(path);
+        for (path, ty1) in self.env.bindings.iter() {
+            if other.bindings.contains_path(&path) {
+                let ty2 = other.get(&path);
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::StrgRef(loc1), TyKind::StrgRef(Loc::Abstract(loc2)))
                         if self.packed_loc(*loc1).is_some() && !self.scope.contains(*loc2) =>
@@ -457,7 +457,7 @@ impl TypeEnvInfer {
                     _ => {}
                 }
             }
-        });
+        }
 
         let mut other = other.subst(&subst);
 
@@ -641,9 +641,9 @@ impl TypeEnvInfer {
         let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
 
         let mut bindings = self.env.bindings;
-        bindings.iter_mut(|_, ty| {
+        for ty in bindings.values_mut() {
             *ty = replace_kvars(genv, &ty, fresh_kvar);
-        });
+        }
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
         // the pledges from all the environements we jump from.
@@ -724,19 +724,17 @@ mod pretty {
     impl Pretty for TypeEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let mut bindings = vec![];
-            self.bindings.iter(|path, ty| {
-                if !ty.is_uninit() {
-                    bindings.push((path.to_path(), ty));
-                }
-            });
+            let bindings = self
+                .bindings
+                .iter()
+                .filter(|(_, ty)| !ty.is_uninit())
+                .collect_vec();
 
-            let mut pledges = vec![];
-            self.pledges.iter(|path, pl| {
-                if !pl.is_empty() {
-                    pledges.push((path.to_path(), pl));
-                }
-            });
+            let pledges = self
+                .pledges
+                .iter()
+                .filter(|(_, pledges)| !pledges.is_empty())
+                .collect_vec();
 
             w!(
                 "{{{}}}",
