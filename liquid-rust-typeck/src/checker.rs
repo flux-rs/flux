@@ -26,7 +26,7 @@ use liquid_rust_core::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
         StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
     },
-    ty as core,
+    ty::{self as core, Layout},
 };
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
@@ -258,7 +258,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.write_place(gen, p, ty);
             }
             StatementKind::Nop => {}
-            StatementKind::Fold(_) => todo!(),
+            StatementKind::Fold(place) => {
+                let layout = env.layout(place);
+                if let Layout::Adt(did) = layout {
+                    let adt_def = self.genv.adt_def(did);
+                    // let e = adt_def.fol
+                    todo!()
+                } else {
+                    panic!("layout cannot be folded: `{layout:?}`")
+                }
+            }
             StatementKind::Unfold(place) => {
                 let ty = env.lookup_place(place);
                 if let TyKind::Refine(BaseTy::Adt(did, substs), e) = ty.kind() {

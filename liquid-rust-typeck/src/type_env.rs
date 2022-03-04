@@ -323,11 +323,19 @@ impl TypeEnv {
         }
     }
 
+    pub fn layout(&self, place: &ir::Place) -> Layout {
+        match &place.projection[..] {
+            [] => self.layouts[&Loc::Local(place.local)],
+            _ => todo!(),
+        }
+    }
+
     pub fn unfold(&mut self, place: &ir::Place, fields: IndexVec<Field, Ty>) {
         match &place.projection[..] {
             [] => {
                 self.bindings
                     .update_internal(Loc::Local(place.local), fields);
+                assert!(self.pledges.get(Loc::Local(place.local)).is_none());
             }
             _ => todo!(),
         }

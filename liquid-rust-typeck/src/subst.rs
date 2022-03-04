@@ -57,6 +57,13 @@ impl Subst<'_> {
         self.insert_name_subst(param.name, param.sort.clone(), to);
     }
 
+    pub fn get_expr(&self, name: Name) -> Expr {
+        match self.map.get(&name) {
+            Some(LocOrExpr::Expr(expr)) => expr.clone(),
+            _ => panic!("expected expr"),
+        }
+    }
+
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
         FnSig {
             requires: sig
@@ -199,7 +206,7 @@ impl Subst<'_> {
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
+    pub fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
                 self.infer_from_exprs(params, e1, e2);
