@@ -8,9 +8,9 @@ use crate::{
     ty::{BaseTy, Expr, ExprKind, FloatTy, Param, ParamTy, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
-use liquid_rust_common::index::IndexGen;
+use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_core::{
-    ir::{self, Local},
+    ir::{self, Field, Local},
     ty::Layout,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -320,6 +320,16 @@ impl TypeEnv {
             bindings: self.bindings.subst(subst),
             pledges: self.pledges.subst(subst),
             layouts: self.layouts.clone(),
+        }
+    }
+
+    pub fn unfold(&mut self, place: &ir::Place, fields: IndexVec<Field, Ty>) {
+        match &place.projection[..] {
+            [] => {
+                self.bindings
+                    .update_internal(Loc::Local(place.local), fields);
+            }
+            _ => todo!(),
         }
     }
 }

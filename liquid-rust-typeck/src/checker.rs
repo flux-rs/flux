@@ -209,7 +209,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn clear(&mut self, root: BasicBlock) {
-        // HACK(nilehmann) there should be a better way to iterate over all dominated blocks.
+        // TODO(nilehmann) there should be a better way to iterate over all dominated blocks.
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.is_dominated_by(bb, root) {
@@ -259,7 +259,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             StatementKind::Nop => {}
             StatementKind::Fold(_) => todo!(),
-            StatementKind::Unfold(_) => todo!(),
+            StatementKind::Unfold(place) => {
+                let ty = env.lookup_place(place);
+                if let TyKind::Refine(BaseTy::Adt(did, substs), e) = ty.kind() {
+                    let adt_def = self.genv.adt_def(*did);
+                    let fields = adt_def.unfold(substs, e);
+                    env.unfold(place, fields);
+                } else {
+                    panic!("type cannot be unfolded: `{ty:?}`")
+                }
+            }
         }
     }
 
@@ -327,9 +336,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
-            .collect();
+            .collect_vec();
 
-        let mut subst = Subst::with_type_substs(substs);
+        let mut subst = Subst::with_type_substs(&substs);
         if subst.infer_from_fn_call(env, &actuals, fn_sig).is_err() {
             self.sess
                 .emit_err(errors::ParamInferenceError { span: source_info.span });

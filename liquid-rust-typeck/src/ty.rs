@@ -1,7 +1,7 @@
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
-use liquid_rust_common::index::Idx;
+use liquid_rust_common::index::{Idx, IndexVec};
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
@@ -13,6 +13,7 @@ pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 use crate::{
     intern::{impl_internable, Interned},
     pure_ctxt::Scope,
+    subst::Subst,
     type_env::path_map::PathRef,
 };
 
@@ -156,6 +157,32 @@ impl AdtDef {
             }
         }
     }
+
+    pub fn sort(&self) -> Sort {
+        Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
+    }
+
+    pub fn unfold(&self, substs: &Substs, e: &Expr) -> IndexVec<Field, Ty> {
+        let mut subst = Subst::with_type_substs(substs.as_slice());
+        match (e.kind(), self.refined_by()) {
+            (ExprKind::Tuple(exprs), refined_by) => {
+                debug_assert_eq!(exprs.len(), self.refined_by().len());
+                for (e, param) in exprs.iter().zip(refined_by) {
+                    subst.insert_expr_subst(param.name, e.clone());
+                }
+            }
+            (_, [param]) => {
+                subst.insert_expr_subst(param.name, e.clone());
+            }
+            _ => panic!("invalid sort for expr: `{e:?}`"),
+        }
+        match self {
+            AdtDef::Transparent { fields, .. } => {
+                fields.iter().map(|ty| subst.subst_ty(ty)).collect()
+            }
+            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+        }
+    }
 }
 
 impl Ty {
@@ -259,6 +286,10 @@ impl Substs {
 
     pub fn iter(&self) -> std::slice::Iter<Ty> {
         self.0.iter()
+    }
+
+    pub fn as_slice(&self) -> &[Ty] {
+        self.0.as_slice()
     }
 }
 

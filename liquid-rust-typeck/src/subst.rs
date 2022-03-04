@@ -3,9 +3,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
 
 #[derive(Debug)]
-pub struct Subst {
+pub struct Subst<'a> {
     map: FxHashMap<Name, LocOrExpr>,
-    types: Vec<Ty>,
+    types: &'a [Ty],
 }
 
 enum LocOrExpr {
@@ -16,13 +16,13 @@ enum LocOrExpr {
 #[derive(Debug, Eq, PartialEq)]
 pub struct InferenceError(Name);
 
-impl Subst {
+impl Subst<'_> {
     pub fn empty() -> Self {
-        Self { types: vec![], map: FxHashMap::default() }
+        Subst { types: &[], map: FxHashMap::default() }
     }
 
-    pub fn with_type_substs(types: Vec<Ty>) -> Self {
-        Self { types, map: FxHashMap::default() }
+    pub fn with_type_substs(types: &[Ty]) -> Subst {
+        Subst { types, map: FxHashMap::default() }
     }
 
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
@@ -43,6 +43,10 @@ impl Subst {
                 self.map.insert(name, LocOrExpr::Expr(Var::Free(to).into()));
             }
         }
+    }
+
+    pub fn insert_expr_subst(&mut self, name: Name, expr: Expr) {
+        self.map.insert(name, LocOrExpr::Expr(expr));
     }
 
     pub fn insert_loc_subst(&mut self, name: Name, to: impl Into<Loc>) {

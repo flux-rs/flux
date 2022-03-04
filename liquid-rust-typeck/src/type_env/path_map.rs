@@ -68,6 +68,14 @@ impl<T> PathMap<T> {
         }
     }
 
+    pub fn insert(&mut self, loc: Loc, value: T) {
+        self.map.insert(loc, Node::Leaf(value));
+    }
+
+    pub fn remove(&mut self, loc: Loc) {
+        self.map.remove(&loc);
+    }
+
     pub fn get<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<&T> {
         let path = path.into();
         let mut node = self.map.get(&path.loc)?;
@@ -84,15 +92,7 @@ impl<T> PathMap<T> {
     }
 
     pub fn get_mut<'a>(&mut self, path: impl Into<PathRef<'a>>) -> Option<&mut T> {
-        let path = path.into();
-        let mut node = self.map.get_mut(&path.loc)?;
-        for field in path.projection {
-            match node {
-                Node::Leaf(_) => return None,
-                Node::Internal(fields) => node = &mut fields[*field],
-            }
-        }
-        match node {
+        match self.get_mut_inner(path)? {
             Node::Leaf(value) => Some(value),
             Node::Internal(_) => None,
         }
@@ -106,14 +106,6 @@ impl<T> PathMap<T> {
         self.map.contains_key(&loc)
     }
 
-    pub fn insert(&mut self, loc: Loc, value: T) {
-        self.map.insert(loc, Node::Leaf(value));
-    }
-
-    pub fn remove(&mut self, loc: Loc) {
-        self.map.remove(&loc);
-    }
-
     #[track_caller]
     pub fn update<'a>(&mut self, path: impl Into<PathRef<'a>>, value: T) {
         let path = path.into();
@@ -122,6 +114,33 @@ impl<T> PathMap<T> {
         } else {
             panic!("no entry found for path: `{:?}", path)
         }
+    }
+
+    #[track_caller]
+    pub fn update_internal<'a>(
+        &mut self,
+        path: impl Into<PathRef<'a>>,
+        fields: IndexVec<Field, T>,
+    ) {
+        let path = path.into();
+        let fields = fields.into_iter().map(Node::Leaf).collect();
+        if let Some(slot) = self.get_mut_inner(path) {
+            *slot = Node::Internal(fields);
+        } else {
+            panic!("no entry found for path: `{:?}", path)
+        }
+    }
+
+    fn get_mut_inner<'a>(&mut self, path: impl Into<PathRef<'a>>) -> Option<&mut Node<T>> {
+        let path = path.into();
+        let mut node = self.map.get_mut(&path.loc)?;
+        for field in path.projection {
+            match node {
+                Node::Leaf(_) => return None,
+                Node::Internal(fields) => node = &mut fields[*field],
+            }
+        }
+        Some(node)
     }
 }
 

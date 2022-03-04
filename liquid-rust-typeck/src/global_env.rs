@@ -37,8 +37,8 @@ impl<'tcx> GlobalEnv<'tcx> {
             BaseTy::Int(_) | BaseTy::Uint(_) => Sort::int(),
             BaseTy::Bool => Sort::bool(),
             BaseTy::Adt(def_id, _) => {
-                if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(&did)) {
-                    Sort::tuple(def.refined_by().iter().map(|param| param.sort.clone()))
+                if let Some(adt_def) = def_id.as_local().and_then(|did| self.adt_defs.get(&did)) {
+                    adt_def.sort()
                 } else {
                     Sort::unit()
                 }
