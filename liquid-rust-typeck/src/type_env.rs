@@ -8,9 +8,9 @@ use crate::{
     ty::{BaseTy, Expr, ExprKind, FloatTy, Param, ParamTy, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
-use liquid_rust_common::index::{IndexGen, IndexVec};
+use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::{
-    ir::{self, Field, Local},
+    ir::{self, Local},
     ty::Layout,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -323,19 +323,24 @@ impl TypeEnv {
         }
     }
 
-    pub fn layout(&self, place: &ir::Place) -> Layout {
+    pub fn fold(&mut self, place: &ir::Place, f: impl FnOnce(Layout, Vec<Ty>) -> Ty) {
         match &place.projection[..] {
-            [] => self.layouts[&Loc::Local(place.local)],
+            [] => {
+                let mut entry = self.bindings.entry(Loc::Local(place.local));
+                let layout = self.layouts[&Loc::Local(place.local)];
+                let ty = f(layout, entry.as_fields().cloned().collect());
+                entry.set_value(ty);
+            }
             _ => todo!(),
         }
     }
 
-    pub fn unfold(&mut self, place: &ir::Place, fields: IndexVec<Field, Ty>) {
+    pub fn unfold(&mut self, place: &ir::Place, f: impl FnOnce(Ty) -> Vec<Ty>) {
         match &place.projection[..] {
             [] => {
-                self.bindings
-                    .update_internal(Loc::Local(place.local), fields);
-                assert!(self.pledges.get(Loc::Local(place.local)).is_none());
+                let mut entry = self.bindings.entry(Loc::Local(place.local));
+                let fields = f(entry.as_value().clone());
+                entry.set_fields(fields);
             }
             _ => todo!(),
         }

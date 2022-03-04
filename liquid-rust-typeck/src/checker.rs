@@ -259,24 +259,25 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             StatementKind::Nop => {}
             StatementKind::Fold(place) => {
-                let layout = env.layout(place);
-                if let Layout::Adt(did) = layout {
-                    let adt_def = self.genv.adt_def(did);
-                    // let e = adt_def.fol
-                    todo!()
-                } else {
-                    panic!("layout cannot be folded: `{layout:?}`")
-                }
+                env.fold(place, |layout, fields| {
+                    if let Layout::Adt(did) = layout {
+                        let adt_def = self.genv.adt_def(did);
+                        let e = adt_def.fold(&fields);
+                        Ty::refine(BaseTy::adt(did, []), e)
+                    } else {
+                        panic!("layout cannot be folded: `{layout:?}`")
+                    }
+                })
             }
             StatementKind::Unfold(place) => {
-                let ty = env.lookup_place(place);
-                if let TyKind::Refine(BaseTy::Adt(did, substs), e) = ty.kind() {
-                    let adt_def = self.genv.adt_def(*did);
-                    let fields = adt_def.unfold(substs, e);
-                    env.unfold(place, fields);
-                } else {
-                    panic!("type cannot be unfolded: `{ty:?}`")
-                }
+                env.unfold(place, |ty| {
+                    if let TyKind::Refine(BaseTy::Adt(did, substs), e) = ty.kind() {
+                        let adt_def = self.genv.adt_def(*did);
+                        adt_def.unfold(substs, e)
+                    } else {
+                        panic!("type cannot be unfolded: `{ty:?}`")
+                    }
+                });
             }
         }
     }

@@ -1,4 +1,4 @@
-use std::collections::hash_map::Entry;
+use std::collections::hash_map;
 
 use liquid_rust_common::index::{Idx, IndexVec};
 use liquid_rust_core::ir::Field;
@@ -18,6 +18,10 @@ pub struct PathMap<T> {
 pub struct PathRef<'a> {
     pub loc: Loc,
     pub projection: &'a [Field],
+}
+
+pub struct Entry<'a, T> {
+    node: &'a mut Node<T>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -58,10 +62,10 @@ impl<T> PathMap<T> {
     pub fn merge_with(&mut self, other: PathMap<T>, f: impl Fn(&mut T, T) + Copy) {
         for (loc, node) in other.map {
             match self.map.entry(loc) {
-                Entry::Occupied(mut entry) => {
+                hash_map::Entry::Occupied(mut entry) => {
                     entry.get_mut().merge_with(node, f);
                 }
-                Entry::Vacant(entry) => {
+                hash_map::Entry::Vacant(entry) => {
                     entry.insert(node);
                 }
             }
@@ -98,6 +102,11 @@ impl<T> PathMap<T> {
         }
     }
 
+    #[track_caller]
+    pub fn entry<'a>(&mut self, path: impl Into<PathRef<'a>>) -> Entry<T> {
+        Entry { node: self.get_mut_inner(path).unwrap() }
+    }
+
     pub fn contains_path<'a>(&self, path: impl Into<PathRef<'a>>) -> bool {
         self.get(path.into()).is_some()
     }
@@ -111,21 +120,6 @@ impl<T> PathMap<T> {
         let path = path.into();
         if let Some(slot) = self.get_mut(path) {
             *slot = value;
-        } else {
-            panic!("no entry found for path: `{:?}", path)
-        }
-    }
-
-    #[track_caller]
-    pub fn update_internal<'a>(
-        &mut self,
-        path: impl Into<PathRef<'a>>,
-        fields: IndexVec<Field, T>,
-    ) {
-        let path = path.into();
-        let fields = fields.into_iter().map(Node::Leaf).collect();
-        if let Some(slot) = self.get_mut_inner(path) {
-            *slot = Node::Internal(fields);
         } else {
             panic!("no entry found for path: `{:?}", path)
         }
@@ -158,6 +152,37 @@ impl<T> Node<T> {
             }
             _ => panic!("merge of incompatible nodes"),
         }
+    }
+
+    #[track_caller]
+    pub fn assert_leaf(&self) -> &T {
+        match self {
+            Node::Leaf(value) => value,
+            Node::Internal(_) => panic!("expected leaf node"),
+        }
+    }
+}
+
+impl<T> Entry<'_, T> {
+    #[track_caller]
+    pub fn as_fields(&self) -> impl Iterator<Item = &T> + '_ {
+        match &*self.node {
+            Node::Leaf(_) => panic!("expected internal node"),
+            Node::Internal(fields) => fields.iter().map(Node::assert_leaf),
+        }
+    }
+
+    #[track_caller]
+    pub fn as_value(&self) -> &T {
+        self.node.assert_leaf()
+    }
+
+    pub fn set_value(&mut self, value: T) {
+        *self.node = Node::Leaf(value);
+    }
+
+    pub fn set_fields(&mut self, fields: impl IntoIterator<Item = T>) {
+        *self.node = Node::Internal(fields.into_iter().map(Node::Leaf).collect());
     }
 }
 

@@ -1,7 +1,7 @@
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
-use liquid_rust_common::index::{Idx, IndexVec};
+// use liquid_rust_common::index::Idx;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
@@ -162,7 +162,7 @@ impl AdtDef {
         Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
     }
 
-    pub fn unfold(&self, substs: &Substs, e: &Expr) -> IndexVec<Field, Ty> {
+    pub fn unfold(&self, substs: &Substs, e: &Expr) -> Vec<Ty> {
         let mut subst = Subst::with_type_substs(substs.as_slice());
         match (e.kind(), self.refined_by()) {
             (ExprKind::Tuple(exprs), refined_by) => {
@@ -198,14 +198,6 @@ impl AdtDef {
             AdtDef::Opaque { .. } => panic!("folding opaque adt"),
         }
     }
-    // p.0: i32<8 + 1> p.1: i32<1 + 5>
-    //  p: Pair<8 + 1, 1 + 5>
-    //
-    //  {a -> 8 + 1, b -> }
-    // Pair {
-    //    fst: i32<@a>,
-    //    snd: i32<@b>,
-    // }
 }
 
 impl Ty {
@@ -546,7 +538,7 @@ impl Pred {
     }
 
     pub fn dummy_kvar() -> Pred {
-        Pred::kvar(KVid::new(0), [])
+        Pred::kvar(KVid::from(0u32), [])
     }
 
     pub fn is_atom(&self) -> bool {
