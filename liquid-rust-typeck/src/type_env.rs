@@ -8,7 +8,7 @@ use crate::{
     ty::{BaseTy, Expr, ExprKind, FloatTy, Param, ParamTy, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
-use liquid_rust_common::index::IndexGen;
+use liquid_rust_common::{index::IndexGen, iter::IterExt};
 use liquid_rust_core::{
     ir::{self, Local},
     ty::Layout,
@@ -25,8 +25,13 @@ use super::ty::{Loc, Name, Pred, Sort};
 #[derive(Clone, Default)]
 pub struct TypeEnv {
     bindings: PathMap<Ty>,
-    pledges: PathMap<Vec<Ty>>,
+    pledges: Pledges,
     layouts: FxHashMap<Loc, Layout>,
+}
+
+#[derive(Clone, Default)]
+struct Pledges {
+    map: PathMap<Vec<Ty>>,
 }
 
 pub struct TypeEnvInfer {
@@ -45,7 +50,11 @@ pub struct BasicBlockEnv {
 
 impl TypeEnv {
     pub fn new() -> TypeEnv {
-        TypeEnv { bindings: PathMap::new(), pledges: PathMap::new(), layouts: FxHashMap::default() }
+        TypeEnv {
+            bindings: PathMap::new(),
+            pledges: Pledges::default(),
+            layouts: FxHashMap::default(),
+        }
     }
 
     pub fn alloc_with_ty(&mut self, loc: impl Into<Loc>, ty: Ty) {
@@ -104,12 +113,8 @@ impl TypeEnv {
         new_ty: Ty,
     ) {
         let path = path.into();
-        self.bindings.update(path, new_ty.clone());
-        if let Some(pledges) = self.pledges.get(path) {
-            for pledge in pledges.iter() {
-                gen.subtyping(&new_ty, pledge);
-            }
-        }
+        self.pledges.check(gen, path, &new_ty);
+        self.bindings.update(path, new_ty);
     }
 
     pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
@@ -146,6 +151,28 @@ impl TypeEnv {
         }
     }
 
+    pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
+        let mut projection = place.projection.iter();
+        let mut loc = Loc::Local(place.local);
+        loop {
+            let mut entry = self
+                .bindings
+                .entry(loc)
+                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
+
+            let ty = entry.unwrap_value();
+            match (ty.kind(), projection.next()) {
+                (TyKind::StrgRef(ref_loc), Some(ir::PlaceElem::Deref)) => loc = *ref_loc,
+                (_, None) => {
+                    self.pledges.check(gen, entry.path(), &new_ty);
+                    entry.set_value(new_ty);
+                    return;
+                }
+                _ => panic!(),
+            }
+        }
+    }
+
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
         match &place.projection[..] {
             [] => {
@@ -158,22 +185,22 @@ impl TypeEnv {
         }
     }
 
-    pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
-        let loc = Loc::Local(place.local);
-        let ty = self.lookup_loc(loc);
-        let loc = match (&place.projection[..], ty.kind()) {
-            ([], _) => loc,
-            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
-            ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
-                unreachable!("update through unpacked weak ref")
-            }
-            ([ir::PlaceElem::Deref], TyKind::ShrRef(_)) => {
-                unreachable!("cannot update through a shared ref")
-            }
-            _ => unreachable!("unexpected place `{place:?}`"),
-        };
-        self.update_path(gen, loc, new_ty);
-    }
+    // pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
+    //     let loc = Loc::Local(place.local);
+    //     let ty = self.lookup_loc(loc);
+    //     let loc = match (&place.projection[..], ty.kind()) {
+    //         ([], _) => loc,
+    //         ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
+    //         ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
+    //             unreachable!("update through unpacked weak ref")
+    //         }
+    //         ([ir::PlaceElem::Deref], TyKind::ShrRef(_)) => {
+    //             unreachable!("cannot update through a shared ref")
+    //         }
+    //         _ => unreachable!("unexpected place `{place:?}`"),
+    //     };
+    //     self.update_path(gen, loc, new_ty);
+    // }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
@@ -186,7 +213,7 @@ impl TypeEnv {
                 let fresh = pcx.push_loc();
                 let ty = self.unpack_ty(genv, pcx, pledge);
                 self.bindings.insert(fresh, ty);
-                self.pledges.insert(fresh, vec![pledge.clone()]);
+                self.pledges.insert(fresh, pledge.clone());
                 Ty::strg_ref(fresh)
             }
             TyKind::ShrRef(ty) => {
@@ -297,10 +324,7 @@ impl TypeEnv {
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
         // the pledges from all the environements we jump from.
-        bb_env
-            .env
-            .pledges
-            .merge_with(self.pledges, |pledges1, pledges2| pledges1.extend(pledges2));
+        bb_env.env.pledges.merge_with(self.pledges);
 
         debug_assert_eq!(self.bindings, goto_env.bindings);
     }
@@ -311,7 +335,7 @@ impl TypeEnv {
         gen.subtyping(&ty, &pledge);
         self.bindings.update(loc, pledge.clone());
         self.bindings.insert(fresh, pledge.clone());
-        self.pledges.insert(fresh, vec![pledge]);
+        self.pledges.insert(fresh, pledge);
         fresh
     }
 
@@ -328,8 +352,10 @@ impl TypeEnv {
             [] => {
                 let mut entry = self.bindings.entry(Loc::Local(place.local));
                 let layout = self.layouts[&Loc::Local(place.local)];
-                let ty = f(layout, entry.as_fields().cloned().collect());
-                entry.set_value(ty);
+                if let Some(fields) = entry.as_fields() {
+                    let ty = f(layout, fields.into_iter().cloned().collect());
+                    entry.set_value(ty);
+                };
             }
             _ => todo!(),
         }
@@ -339,11 +365,39 @@ impl TypeEnv {
         match &place.projection[..] {
             [] => {
                 let mut entry = self.bindings.entry(Loc::Local(place.local));
-                let fields = f(entry.as_value().clone());
-                entry.set_fields(fields);
+                if let Some(ty) = entry.as_value() {
+                    let fields = f(ty.clone());
+                    entry.set_fields(fields);
+                }
             }
             _ => todo!(),
         }
+    }
+}
+
+impl Pledges {
+    fn remove(&mut self, loc: Loc) {
+        self.map.remove(loc);
+    }
+
+    fn insert(&mut self, loc: Loc, pledge: Ty) {
+        self.map.insert(loc, vec![pledge]);
+    }
+
+    fn check<'a>(&self, gen: &mut ConstraintGen, path: impl Into<PathRef<'a>>, ty: &Ty) {
+        if let Some(pledges) = self.map.get(path) {
+            for pledge in pledges.iter() {
+                gen.subtyping(ty, pledge);
+            }
+        }
+    }
+
+    fn subst(self, subst: &Subst) -> Pledges {
+        Pledges { map: self.map.subst(subst) }
+    }
+
+    fn merge_with(&mut self, pledges: Pledges) {
+        self.map.merge_with(pledges.map, Vec::extend);
     }
 }
 
@@ -771,6 +825,7 @@ mod pretty {
 
             let pledges = self
                 .pledges
+                .map
                 .iter()
                 .filter(|(_, pledges)| !pledges.is_empty())
                 .collect_vec();

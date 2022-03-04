@@ -22,6 +22,8 @@ pub struct PathRef<'a> {
 
 pub struct Entry<'a, T> {
     node: &'a mut Node<T>,
+    loc: Loc,
+    projection: Vec<Field>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -104,7 +106,7 @@ impl<T> PathMap<T> {
 
     #[track_caller]
     pub fn entry<'a>(&mut self, path: impl Into<PathRef<'a>>) -> Entry<T> {
-        Entry { node: self.get_mut_inner(path).unwrap() }
+        Entry::new(self, path.into())
     }
 
     pub fn contains_path<'a>(&self, path: impl Into<PathRef<'a>>) -> bool {
@@ -163,18 +165,54 @@ impl<T> Node<T> {
     }
 }
 
-impl<T> Entry<'_, T> {
-    #[track_caller]
-    pub fn as_fields(&self) -> impl Iterator<Item = &T> + '_ {
+impl<'a, T> Entry<'a, T> {
+    fn new(map: &'a mut PathMap<T>, path: PathRef) -> Entry<'a, T> {
+        let entry =
+            Entry { node: map.map.get_mut(&path.loc).unwrap(), loc: path.loc, projection: vec![] };
+        entry.walk(path.projection.iter().copied())
+    }
+
+    pub fn path(&self) -> PathRef {
+        PathRef::new(self.loc, self.projection.as_slice())
+    }
+
+    pub fn walk(self, path: impl IntoIterator<Item = Field>) -> Self {
+        let mut node = self.node;
+        for field in path {
+            match node {
+                Node::Leaf(_) => panic!("expected internal node"),
+                Node::Internal(fields) => node = &mut fields[field],
+            }
+        }
+        Entry { node, loc: self.loc, projection: self.projection }
+    }
+
+    pub fn as_value(&self) -> Option<&T> {
         match &*self.node {
-            Node::Leaf(_) => panic!("expected internal node"),
-            Node::Internal(fields) => fields.iter().map(Node::assert_leaf),
+            Node::Leaf(value) => Some(value),
+            Node::Internal(_) => None,
         }
     }
 
     #[track_caller]
-    pub fn as_value(&self) -> &T {
-        self.node.assert_leaf()
+    pub fn unwrap_value(&self) -> &T {
+        self.as_value().unwrap()
+    }
+
+    pub fn as_fields(&self) -> Option<Vec<&T>> {
+        match &*self.node {
+            Node::Leaf(_) => None,
+            Node::Internal(fields) => {
+                let mut v = vec![];
+                for field in fields {
+                    match field {
+                        Node::Leaf(value) => v.push(value),
+                        Node::Internal(_) => return None,
+                    }
+                }
+                Some(v)
+            }
+        }
     }
 
     pub fn set_value(&mut self, value: T) {

@@ -167,6 +167,15 @@ impl Place {
     }
 }
 
+impl PlaceElem {
+    pub fn as_field(&self) -> Option<Field> {
+        match self {
+            PlaceElem::Field(field) => Some(*field),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Debug for Body<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (bb, data) in self.basic_blocks.iter_enumerated() {
