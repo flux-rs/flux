@@ -184,6 +184,15 @@ impl AdtDef {
         }
     }
 
+    pub fn unfold_uninit(&self) -> Vec<Ty> {
+        match self {
+            AdtDef::Transparent { fields, .. } => {
+                fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
+            }
+            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+        }
+    }
+
     pub fn fold(&self, tys: &[Ty]) -> Expr {
         match self {
             AdtDef::Transparent { fields, refined_by } => {

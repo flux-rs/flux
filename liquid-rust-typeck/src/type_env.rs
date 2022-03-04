@@ -766,7 +766,7 @@ mod pretty {
             let bindings = self
                 .bindings
                 .iter()
-                .filter(|(_, ty)| !ty.is_uninit())
+                .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
                 .collect_vec();
 
             let pledges = self
@@ -787,7 +787,7 @@ mod pretty {
                     ^pledges
                         .into_iter()
                         .format_with(", ", |(loc, pledges), f| {
-                            f(&format_args_cx!("{:?}: [{:?}]", loc, join!(", ", pledges.iter().filter(|ty| !ty.is_uninit()))))
+                            f(&format_args_cx!("{:?}: [{:?}]", loc, join!(", ", pledges)))
                         })
                 )?;
             }

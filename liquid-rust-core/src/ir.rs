@@ -161,6 +161,12 @@ impl Body<'_> {
     }
 }
 
+impl Place {
+    pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
+        Place { local, projection }
+    }
+}
+
 impl fmt::Debug for Body<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (bb, data) in self.basic_blocks.iter_enumerated() {
@@ -251,10 +257,10 @@ impl fmt::Debug for Place {
             match elem {
                 PlaceElem::Field(f) => {
                     if need_parens {
-                        p = format!("({}).{:?}", p, f);
+                        p = format!("({}).{}", p, u32::from(*f));
                         need_parens = false;
                     } else {
-                        p = format!("{}.{:?}", p, f);
+                        p = format!("{}.{}", p, u32::from(*f));
                     }
                 }
                 PlaceElem::Deref => {

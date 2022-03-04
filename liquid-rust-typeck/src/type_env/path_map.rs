@@ -396,7 +396,7 @@ mod pretty {
             define_scoped!(cx, f);
             w!("{:?}", self.loc)?;
             for field in self.projection {
-                w!(".{:?}", ^field)?;
+                w!(".{}", ^u32::from(*field))?;
             }
             Ok(())
         }

@@ -271,11 +271,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             StatementKind::Unfold(place) => {
                 env.unfold(place, |ty| {
-                    if let TyKind::Refine(BaseTy::Adt(did, substs), e) = ty.kind() {
-                        let adt_def = self.genv.adt_def(*did);
-                        adt_def.unfold(substs, e)
-                    } else {
-                        panic!("type cannot be unfolded: `{ty:?}`")
+                    match ty.kind() {
+                        TyKind::Refine(BaseTy::Adt(did, substs), e) => {
+                            let adt_def = self.genv.adt_def(*did);
+                            adt_def.unfold(substs, e)
+                        }
+                        TyKind::Uninit(Layout::Adt(did)) => {
+                            let adt_def = self.genv.adt_def(*did);
+                            adt_def.unfold_uninit()
+                        }
+                        _ => panic!("type cannot be unfolded: `{ty:?}`"),
                     }
                 });
             }
