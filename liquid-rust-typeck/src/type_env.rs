@@ -1,4 +1,5 @@
 pub mod path_map;
+pub mod paths_tree;
 
 use crate::{
     constraint_gen::ConstraintGen,
@@ -346,7 +347,7 @@ impl TypeEnv {
     pub fn unfold(&mut self, genv: &GlobalEnv, place: &ir::Place) {
         TypeEnv::walk_place_mut(&mut self.bindings, place, |_, mut entry| {
             if let Some(ty) = entry.as_value() {
-                let fields = ty.unfold(genv);
+                let (_, fields) = ty.unfold(genv);
                 entry.set_fields(fields);
             }
         });

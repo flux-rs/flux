@@ -1,6 +1,7 @@
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
+use liquid_rust_common::index::IndexVec;
 // use liquid_rust_common::index::Idx;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 use liquid_rust_core::{ir::Local, ty::Layout};
@@ -164,7 +165,7 @@ impl AdtDef {
         Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
     }
 
-    pub fn unfold(&self, substs: &Substs, e: &Expr) -> Vec<Ty> {
+    pub fn unfold(&self, substs: &Substs, e: &Expr) -> IndexVec<Field, Ty> {
         let mut subst = Subst::with_type_substs(substs.as_slice());
         match (e.kind(), self.refined_by()) {
             (ExprKind::Tuple(exprs), refined_by) => {
@@ -186,7 +187,7 @@ impl AdtDef {
         }
     }
 
-    pub fn unfold_uninit(&self) -> Vec<Ty> {
+    pub fn unfold_uninit(&self) -> IndexVec<Field, Ty> {
         match self {
             AdtDef::Transparent { fields, .. } => {
                 fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
@@ -290,17 +291,20 @@ impl TyS {
         Interned::new(ty.clone())
     }
 
-    pub fn unfold(&self, genv: &GlobalEnv) -> Vec<Ty> {
+    pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
         match self.kind() {
             TyKind::Refine(BaseTy::Adt(did, substs), e) => {
                 let adt_def = genv.adt_def(*did);
-                adt_def.unfold(substs, e)
+                (*did, adt_def.unfold(substs, e))
             }
             TyKind::Uninit(Layout::Adt(did)) => {
                 let adt_def = genv.adt_def(*did);
-                adt_def.unfold_uninit()
+                (*did, adt_def.unfold_uninit())
             }
-            TyKind::ShrRef(ty) => ty.unfold(genv).into_iter().map(Ty::shr_ref).collect(),
+            TyKind::ShrRef(ty) => {
+                let (did, fields) = ty.unfold(genv);
+                (did, fields.into_iter().map(Ty::shr_ref).collect())
+            }
             _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
     }
