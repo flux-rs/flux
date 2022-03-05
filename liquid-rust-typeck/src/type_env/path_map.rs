@@ -229,11 +229,6 @@ impl<'a, T> EntryMut<'a, T> {
         }
     }
 
-    #[track_caller]
-    pub fn unwrap_value(&self) -> &T {
-        self.as_value().unwrap()
-    }
-
     pub fn as_fields(&self) -> Option<Vec<&T>> {
         match &*self.node {
             Node::Leaf(_) => None,
@@ -329,7 +324,7 @@ impl<'a> PathRef<'a> {
         Self { loc, projection }
     }
 
-    pub fn to_path(&self) -> Path {
+    pub fn to_path(self) -> Path {
         Path::new(self.loc, self.projection)
     }
 }
@@ -394,7 +389,7 @@ impl<'a, T> Iterator for PathsIter<'a, T> {
                             }
                             Node::Leaf(value) => {
                                 projection.push(Field::new(i));
-                                let path = Path::new(*loc, &projection);
+                                let path = Path::new(*loc, projection);
                                 projection.pop();
                                 return Some((path, value));
                             }
@@ -441,7 +436,7 @@ impl<'a, T> Iterator for PathsIterMut<'a, T> {
                             }
                             Node::Leaf(value) => {
                                 projection.push(Field::new(i));
-                                let path = Path::new(*loc, &projection);
+                                let path = Path::new(*loc, projection);
                                 projection.pop();
                                 return Some((path, value));
                             }

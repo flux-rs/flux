@@ -72,6 +72,7 @@ pub enum TyKind {
     Param(ParamTy),
 }
 
+#[derive(Clone)]
 pub struct Path {
     pub loc: Loc,
     projection: Interned<[Field]>,

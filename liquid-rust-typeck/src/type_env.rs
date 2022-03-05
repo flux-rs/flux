@@ -220,7 +220,7 @@ impl TypeEnv {
         for (path, ty1) in self.bindings.iter() {
             if bb_env.env.bindings.contains_path(&path) {
                 let ty2 = bb_env.env.get(&path);
-                self.infer_subst_for_bb_env_tys(bb_env, &params, &ty1, &ty2, &mut subst);
+                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
             }
         }
         assert!(subst
@@ -300,7 +300,7 @@ impl TypeEnv {
         // Check subtyping
         for (path, ty1) in self.bindings.iter_mut() {
             let ty2 = goto_env.get(&path);
-            gen.subtyping(&ty1, &ty2);
+            gen.subtyping(ty1, &ty2);
             *ty1 = ty2;
         }
 
@@ -325,7 +325,7 @@ impl TypeEnv {
         TypeEnv {
             bindings: self.bindings.subst(subst),
             pledges: self.pledges.subst(subst),
-            layouts: self.layouts.clone(),
+            layouts: self.layouts,
         }
     }
 
@@ -481,7 +481,7 @@ impl TypeEnvInfer {
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
         for ty in env.bindings.values_mut() {
-            *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, &ty);
+            *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, ty);
         }
         TypeEnvInfer { params, name_gen, env, scope }
     }
@@ -761,7 +761,7 @@ impl TypeEnvInfer {
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
-            *ty = replace_kvars(genv, &ty, fresh_kvar);
+            *ty = replace_kvars(genv, ty, fresh_kvar);
         }
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
