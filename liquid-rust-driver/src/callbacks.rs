@@ -1,5 +1,4 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_core::fold_unfold;
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
@@ -72,8 +71,6 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
                 return Ok(());
             }
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            println!("{body:?}");
-            // let body = fold_unfold::add_fold_unfold(body);
             typeck::check(&genv, def_id.to_def_id(), &body)
         })
         .try_collect_exhaust()

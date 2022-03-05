@@ -260,10 +260,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.write_place(gen, p, ty);
             }
             StatementKind::Nop => {}
-            StatementKind::Fold(place) => {
-                todo!()
-            }
-            StatementKind::Unfold(place) => todo!(),
         }
     }
 

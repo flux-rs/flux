@@ -16,7 +16,6 @@ use crate::{
     intern::{impl_internable, Interned},
     pure_ctxt::Scope,
     subst::Subst,
-    type_env::path_map::PathRef,
 };
 
 pub enum AdtDef {
@@ -300,10 +299,6 @@ impl TyS {
             TyKind::Uninit(Layout::Adt(did)) => {
                 let adt_def = genv.adt_def(*did);
                 (*did, adt_def.unfold_uninit())
-            }
-            TyKind::ShrRef(ty) => {
-                let (did, fields) = ty.unfold(genv);
-                (did, fields.into_iter().map(Ty::shr_ref).collect())
             }
             _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
@@ -619,10 +614,6 @@ impl Path {
         Path { loc, projection: Interned::new_slice(projection) }
     }
 
-    pub fn as_ref(&self) -> PathRef {
-        PathRef::new(self.loc, self.projection())
-    }
-
     pub fn projection(&self) -> &[Field] {
         &self.projection[..]
     }
@@ -901,7 +892,12 @@ mod pretty {
 
     impl Pretty for Path {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            Pretty::fmt(&self.as_ref(), cx, f)
+            define_scoped!(cx, f);
+            w!("{:?}", self.loc)?;
+            for field in self.projection.iter() {
+                w!(".{}", ^u32::from(*field))?;
+            }
+            Ok(())
         }
     }
 

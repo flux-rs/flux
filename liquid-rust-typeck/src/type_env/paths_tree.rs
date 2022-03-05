@@ -102,19 +102,6 @@ impl PathsTree {
         PathsTree { map }
     }
 
-    fn path_proj_iter(
-        &mut self,
-        genv: &GlobalEnv,
-        loc: Loc,
-        proj: impl IntoIterator<Item = Field>,
-    ) -> &mut Ty {
-        let mut node = self.map.get_mut(&loc).unwrap();
-        for f in proj {
-            node = &mut node.unfold(genv)[f];
-        }
-        node.fold(genv)
-    }
-
     fn place_proj_iter<M, R, F>(
         &mut self,
         _mode: M,
@@ -229,7 +216,7 @@ impl Node {
 pub trait LookupMode {
     type Result<'a>;
 
-    fn to_result<'a>(ty: &'a mut Ty) -> Self::Result<'a>;
+    fn to_result(ty: &mut Ty) -> Self::Result<'_>;
 
     fn place_proj_ty<'a>(
         paths: &'a mut PathsTree,
@@ -246,7 +233,7 @@ pub struct Write;
 impl LookupMode for Read {
     type Result<'a> = Ty;
 
-    fn to_result<'a>(ty: &'a mut Ty) -> Ty {
+    fn to_result(ty: &mut Ty) -> Ty {
         ty.clone()
     }
 
@@ -279,7 +266,7 @@ impl LookupMode for Read {
 impl LookupMode for Write {
     type Result<'a> = &'a mut Ty;
 
-    fn to_result<'a>(ty: &'a mut Ty) -> &'a mut Ty {
+    fn to_result(ty: &mut Ty) -> &mut Ty {
         ty
     }
 

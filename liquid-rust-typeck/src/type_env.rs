@@ -1,4 +1,3 @@
-pub mod path_map;
 pub mod paths_tree;
 
 use crate::{
