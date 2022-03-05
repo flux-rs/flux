@@ -97,25 +97,9 @@ impl TypeEnv {
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        let mut projection = place.projection.iter();
-        let mut loc = Loc::Local(place.local);
-        loop {
-            let entry = self
-                .bindings
-                .entry(loc)
-                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
-
-            let ty = entry.unwrap_value();
-            match (ty.kind(), projection.next()) {
-                (TyKind::StrgRef(ref_loc), Some(ir::PlaceElem::Deref)) => loc = *ref_loc,
-                (TyKind::ShrRef(ty), Some(ir::PlaceElem::Deref)) => {
-                    assert!(projection.next().is_none());
-                    return ty.clone();
-                }
-                (_, None) => return ty.clone(),
-                _ => panic!(),
-            }
-        }
+        TypeEnv::walk_place(&self.bindings, place, |derefs, entry| {
+            entry.unwrap_value().deref(derefs)
+        })
     }
 
     pub fn update_path<'a>(
@@ -164,25 +148,11 @@ impl TypeEnv {
     }
 
     pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
-        let mut projection = place.projection.iter();
-        let mut loc = Loc::Local(place.local);
-        loop {
-            let mut entry = self
-                .bindings
-                .entry_mut(loc)
-                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
-
-            let ty = entry.unwrap_value();
-            match (ty.kind(), projection.next()) {
-                (TyKind::StrgRef(ref_loc), Some(ir::PlaceElem::Deref)) => loc = *ref_loc,
-                (_, None) => {
-                    self.pledges.check(gen, entry.path(), &new_ty);
-                    entry.set_value(new_ty);
-                    return;
-                }
-                _ => panic!(),
-            }
-        }
+        TypeEnv::walk_place_mut(&mut self.bindings, place, |derefs, mut entry| {
+            debug_assert_eq!(derefs, 0);
+            self.pledges.check(gen, entry.path(), &new_ty);
+            entry.set_value(new_ty);
+        });
     }
 
     pub fn move_place(&mut self, place: &ir::Place) -> Ty {
@@ -373,16 +343,64 @@ impl TypeEnv {
         }
     }
 
-    pub fn unfold(&mut self, place: &ir::Place, f: impl FnOnce(Ty) -> Vec<Ty>) {
-        match &place.projection[..] {
-            [] => {
-                let mut entry = self.bindings.entry_mut(Loc::Local(place.local));
-                if let Some(ty) = entry.as_value() {
-                    let fields = f(ty.clone());
-                    entry.set_fields(fields);
-                }
+    pub fn unfold(&mut self, genv: &GlobalEnv, place: &ir::Place) {
+        TypeEnv::walk_place_mut(&mut self.bindings, place, |_, mut entry| {
+            if let Some(ty) = entry.as_value() {
+                let fields = ty.unfold(genv);
+                entry.set_fields(fields);
             }
-            _ => todo!(),
+        });
+    }
+
+    fn walk_place<R>(
+        bindings: &PathMap<Ty>,
+        place: &ir::Place,
+        f: impl FnOnce(u32, path_map::Entry<Ty>) -> R,
+    ) -> R {
+        let mut projection = place.projection.iter();
+        let mut loc = Loc::Local(place.local);
+        let mut derefs = 0;
+        loop {
+            let entry = bindings
+                .entry(loc)
+                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
+
+            match (projection.next(), entry.as_value().map(|ty| ty.kind())) {
+                (Some(ir::PlaceElem::Deref), Some(TyKind::StrgRef(ref_loc))) => {
+                    loc = *ref_loc;
+                }
+                (Some(ir::PlaceElem::Deref), Some(TyKind::ShrRef(_)) | None) => {
+                    derefs += 1;
+                }
+                (None, _) => return f(derefs, entry),
+                _ => panic!(),
+            }
+        }
+    }
+
+    fn walk_place_mut(
+        bindings: &mut PathMap<Ty>,
+        place: &ir::Place,
+        f: impl FnOnce(u32, path_map::EntryMut<Ty>),
+    ) {
+        let mut projection = place.projection.iter();
+        let mut loc = Loc::Local(place.local);
+        let mut derefs = 0;
+        loop {
+            let entry = bindings
+                .entry_mut(loc)
+                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
+
+            match (projection.next(), entry.as_value().map(|ty| ty.kind())) {
+                (Some(ir::PlaceElem::Deref), Some(TyKind::StrgRef(ref_loc))) => {
+                    loc = *ref_loc;
+                }
+                (Some(ir::PlaceElem::Deref), Some(TyKind::ShrRef(_)) | None) => {
+                    derefs += 1;
+                }
+                (None, _) => return f(derefs, entry),
+                _ => panic!(),
+            }
         }
     }
 }

@@ -11,6 +11,7 @@ use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
 use crate::{
+    global_env::GlobalEnv,
     intern::{impl_internable, Interned},
     pure_ctxt::Scope,
     subst::Subst,
@@ -274,6 +275,32 @@ impl TyS {
             TyKind::Uninit(layout) => *layout,
             TyKind::StrgRef(_) | TyKind::WeakRef(_) | TyKind::ShrRef(_) => Layout::Ref,
             TyKind::Param(_) => Layout::Param,
+        }
+    }
+
+    pub fn deref(&self, derefs: u32) -> Ty {
+        let mut ty = self;
+        for _ in 0..derefs {
+            match self.kind() {
+                TyKind::ShrRef(ref_ty) => ty = &*ref_ty,
+                _ => panic!("dereferencing non-reference type: `{:?}`", self),
+            }
+        }
+        Interned::new(ty.clone())
+    }
+
+    pub fn unfold(&self, genv: &GlobalEnv) -> Vec<Ty> {
+        match self.kind() {
+            TyKind::Refine(BaseTy::Adt(did, substs), e) => {
+                let adt_def = genv.adt_def(*did);
+                adt_def.unfold(substs, e)
+            }
+            TyKind::Uninit(Layout::Adt(did)) => {
+                let adt_def = genv.adt_def(*did);
+                adt_def.unfold_uninit()
+            }
+            TyKind::ShrRef(ty) => ty.unfold(genv).into_iter().map(Ty::shr_ref).collect(),
+            _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
     }
 }

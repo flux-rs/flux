@@ -34,7 +34,9 @@ fn add_fold_unfold_terminator(terminator: &Option<Terminator>) -> Vec<Statement>
             .map(|place| {
                 let kind = match &place.projection[..] {
                     [] | [PlaceElem::Deref] => StatementKind::Fold(Place::new(place.local, vec![])),
-                    [PlaceElem::Field(_)] => StatementKind::Unfold(Place::new(place.local, vec![])),
+                    [projection @ .., PlaceElem::Field(_)] => {
+                        StatementKind::Unfold(Place::new(place.local, projection.to_vec()))
+                    }
                     _ => todo!(""),
                 };
                 Statement { kind, source_info: terminator.source_info }
@@ -54,7 +56,9 @@ fn add_fold_unfold_stmt(stmt: Statement) -> Vec<Statement> {
             stmts.extend(places.into_iter().map(|place| {
                 let kind = match &place.projection[..] {
                     [] | [PlaceElem::Deref] => StatementKind::Fold(Place::new(place.local, vec![])),
-                    [PlaceElem::Field(_)] => StatementKind::Unfold(Place::new(place.local, vec![])),
+                    [projection @ .., PlaceElem::Field(_)] => {
+                        StatementKind::Unfold(Place::new(place.local, projection.to_vec()))
+                    }
                     _ => todo!(""),
                 };
                 Statement { kind, source_info: stmt.source_info }

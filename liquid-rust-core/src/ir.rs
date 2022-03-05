@@ -112,7 +112,7 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PlaceElem {
     Deref,
     Field(Field),
