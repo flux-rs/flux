@@ -74,7 +74,7 @@ impl TypeEnv {
     }
 
     pub fn lookup_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(Read, genv, place, |ty| ty)
+        self.bindings.lookup_place(Read, genv, place, |_, ty| ty)
     }
 
     pub fn lookup_path(&self, path: &Path) -> Ty {
@@ -121,15 +121,15 @@ impl TypeEnv {
     }
 
     pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
-        self.bindings.lookup_place(Write, gen.genv, place, |ty| {
-            // TODO(nilehmann) check pledges
-            // self.pledges.check(gen, entry.path(), &new_ty);
-            *ty = new_ty;
-        });
+        self.bindings
+            .lookup_place(Write, gen.genv, place, |path, ty| {
+                self.pledges.check(gen, &path, &new_ty);
+                *ty = new_ty;
+            });
     }
 
     pub fn move_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(Write, genv, place, |ty| {
+        self.bindings.lookup_place(Write, genv, place, |_, ty| {
             let old = ty.clone();
             *ty = Ty::uninit(ty.layout());
             old

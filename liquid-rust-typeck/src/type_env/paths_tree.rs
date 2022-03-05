@@ -21,9 +21,16 @@ impl PathsTree {
     pub fn lookup_place<M, F, R>(&mut self, mode: M, genv: &GlobalEnv, place: &Place, f: F) -> R
     where
         M: LookupMode,
-        F: for<'a> FnOnce(M::Result<'a>) -> R,
+        F: for<'a> FnOnce(Path, M::Result<'a>) -> R,
     {
-        self.place_proj_iter(mode, genv, Loc::Local(place.local), &mut place.projection.iter(), f)
+        self.place_proj_iter(
+            mode,
+            genv,
+            Loc::Local(place.local),
+            &mut vec![],
+            &mut place.projection.iter(),
+            f,
+        )
     }
 
     pub fn get(&self, path: &Path) -> Option<&Ty> {
@@ -107,31 +114,38 @@ impl PathsTree {
         _mode: M,
         genv: &GlobalEnv,
         mut loc: Loc,
+        path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
         f: F,
     ) -> R
     where
         M: LookupMode,
-        F: for<'a> FnOnce(M::Result<'a>) -> R,
+        F: for<'a> FnOnce(Path, M::Result<'a>) -> R,
     {
         loop {
             let mut node = self.map.get_mut(&loc).unwrap();
             for f in proj.map_take_while(|p| PlaceElem::as_field(p)) {
+                path.push(f);
                 node = &mut node.unfold(genv)[f];
             }
             let ty = node.fold(genv);
 
-            match (proj.next(), ty.kind()) {
-                (Some(PlaceElem::Deref), TyKind::StrgRef(ref_loc)) => loc = *ref_loc,
-                (Some(PlaceElem::Deref), TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => {
-                    let ty = ty.clone();
-                    return f(M::place_proj_ty(self, genv, &ty, proj));
+            match proj.next() {
+                Some(PlaceElem::Deref) => {
+                    path.clear();
+                    match ty.kind() {
+                        TyKind::StrgRef(ref_loc) => loc = *ref_loc,
+                        TyKind::ShrRef(ty) => {
+                            let ty = ty.clone();
+                            let (path, ty) = M::place_proj_ty(self, genv, &ty, loc, path, proj);
+                            return f(path, ty);
+                        }
+                        TyKind::WeakRef(_) => todo!(),
+                        _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
+                    }
                 }
-                (Some(PlaceElem::Deref), _) => {
-                    unreachable!("type cannot be dereferenced: `{ty:?}`")
-                }
-                (Some(_), _) => unreachable!("expected deref"),
-                (None, _) => return f(M::to_result(ty)),
+                Some(_) => unreachable!("expected deref"),
+                None => return f(Path::new(loc, path), M::to_result(ty)),
             }
         }
     }
@@ -222,8 +236,10 @@ pub trait LookupMode {
         paths: &'a mut PathsTree,
         genv: &GlobalEnv,
         ty: &Ty,
+        loc: Loc,
+        path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> Self::Result<'a>;
+    ) -> (Path, Self::Result<'a>);
 }
 
 pub struct Read;
@@ -241,25 +257,31 @@ impl LookupMode for Read {
         paths: &'a mut PathsTree,
         genv: &GlobalEnv,
         ty: &Ty,
+        loc: Loc,
+        path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> Ty {
+    ) -> (Path, Ty) {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
                 (PlaceElem::Deref, TyKind::ShrRef(ref_ty) | TyKind::WeakRef(ref_ty)) => {
+                    path.clear();
                     ty = ref_ty.clone();
                 }
                 (PlaceElem::Deref, TyKind::StrgRef(loc)) => {
-                    return paths.place_proj_iter(Read, genv, *loc, proj, |ty| ty);
+                    path.clear();
+                    return paths
+                        .place_proj_iter(Read, genv, *loc, path, proj, |path, ty| (path, ty));
                 }
                 (PlaceElem::Field(f), _) => {
+                    path.push(*f);
                     let (_, fields) = ty.unfold(genv);
                     ty = fields[*f].clone()
                 }
                 _ => unreachable!(),
             }
         }
-        ty
+        (Path::new(loc, path), ty)
     }
 }
 
@@ -274,8 +296,10 @@ impl LookupMode for Write {
         _paths: &'a mut PathsTree,
         _genv: &GlobalEnv,
         _ty: &Ty,
+        _loc: Loc,
+        _path: &mut Vec<Field>,
         _proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> &'a mut Ty {
+    ) -> (Path, &'a mut Ty) {
         panic!()
     }
 }
