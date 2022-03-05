@@ -12,5 +12,6 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
+pub mod fold_unfold;
 pub mod ir;
 pub mod ty;

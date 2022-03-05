@@ -95,7 +95,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
                 ck.subtyping(ty1, ty2);
             }
-            (_, TyKind::Uninit) => {
+            (_, TyKind::Uninit(_)) => {
                 // FIXME: we should rethink in which situation this is sound.
             }
             (TyKind::Param(param1), TyKind::Param(param2)) => {

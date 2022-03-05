@@ -5,19 +5,19 @@ use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{
-    BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
+    BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
 };
 use rustc_middle::{
     mir,
     ty::{FloatTy, IntTy, UintTy},
 };
 
-use crate::ty::Ty;
+use crate::ty::{Layout, Ty};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
-    pub nlocals: usize,
+    pub local_decls: IndexVec<Local, LocalDecl>,
     pub mir: &'tcx mir::Body<'tcx>,
 }
 
@@ -25,6 +25,11 @@ pub struct Body<'tcx> {
 pub struct BasicBlockData {
     pub statements: Vec<Statement>,
     pub terminator: Option<Terminator>,
+}
+
+pub struct LocalDecl {
+    pub layout: Layout,
+    pub source_info: SourceInfo,
 }
 
 pub struct Terminator {
@@ -67,6 +72,8 @@ pub struct Statement {
 #[derive(Debug)]
 pub enum StatementKind {
     Assign(Place, Rvalue),
+    Fold(Place),
+    Unfold(Place),
     Nop,
 }
 
@@ -105,9 +112,10 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PlaceElem {
     Deref,
+    Field(Field),
 }
 
 pub enum Constant {
@@ -125,7 +133,7 @@ impl Body<'_> {
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.arg_count + 1..self.nlocals).map(Local::new)
+        (self.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
@@ -153,6 +161,23 @@ impl Body<'_> {
     }
 }
 
+impl Place {
+    pub const RETURN: &'static Place = &Place { local: RETURN_PLACE, projection: vec![] };
+
+    pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
+        Place { local, projection }
+    }
+}
+
+impl PlaceElem {
+    pub fn as_field(&self) -> Option<Field> {
+        match self {
+            PlaceElem::Field(field) => Some(*field),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Debug for Body<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (bb, data) in self.basic_blocks.iter_enumerated() {
@@ -177,6 +202,8 @@ impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
+            StatementKind::Fold(place) => write!(f, "fold {:?}", place),
+            StatementKind::Unfold(place) => write!(f, "unfold {:?}", place),
             StatementKind::Nop => write!(f, "nop"),
         }
     }
@@ -235,12 +262,25 @@ impl fmt::Debug for Terminator {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut p = format!("{:?}", self.local);
+        let mut need_parens = false;
         for elem in &self.projection {
             match elem {
-                PlaceElem::Deref => write!(f, "*")?,
+                PlaceElem::Field(f) => {
+                    if need_parens {
+                        p = format!("({}).{}", p, u32::from(*f));
+                        need_parens = false;
+                    } else {
+                        p = format!("{}.{}", p, u32::from(*f));
+                    }
+                }
+                PlaceElem::Deref => {
+                    p = format!("*{}", p);
+                    need_parens = true;
+                }
             }
         }
-        write!(f, "{:?}", self.local)
+        write!(f, "{}", p)
     }
 }
 

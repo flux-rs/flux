@@ -124,6 +124,7 @@ pub struct PPrintCx<'tcx> {
     pub bindings_chain: bool,
     pub preds_chain: bool,
     pub full_spans: bool,
+    pub hide_uninit: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -171,6 +172,7 @@ impl PPrintCx<'_> {
             bindings_chain: true,
             preds_chain: true,
             full_spans: false,
+            hide_uninit: true,
         }
     }
 
@@ -185,7 +187,8 @@ impl PPrintCx<'_> {
                 tags,
                 bindings_chain,
                 preds_chain,
-                full_spans
+                full_spans,
+                hide_uninit
             ]
         );
     }

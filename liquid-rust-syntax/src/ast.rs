@@ -114,6 +114,7 @@ pub enum BinOp {
     Add,
     Sub,
     Mod,
+    Mul,
 }
 
 impl Generics {

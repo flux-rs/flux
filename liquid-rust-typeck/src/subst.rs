@@ -3,9 +3,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
 
 #[derive(Debug)]
-pub struct Subst {
+pub struct Subst<'a> {
     map: FxHashMap<Name, LocOrExpr>,
-    types: Vec<Ty>,
+    types: &'a [Ty],
 }
 
 enum LocOrExpr {
@@ -16,13 +16,13 @@ enum LocOrExpr {
 #[derive(Debug, Eq, PartialEq)]
 pub struct InferenceError(Name);
 
-impl Subst {
+impl Subst<'_> {
     pub fn empty() -> Self {
-        Self { types: vec![], map: FxHashMap::default() }
+        Subst { types: &[], map: FxHashMap::default() }
     }
 
-    pub fn with_type_substs(types: Vec<Ty>) -> Self {
-        Self { types, map: FxHashMap::default() }
+    pub fn with_type_substs(types: &[Ty]) -> Subst {
+        Subst { types, map: FxHashMap::default() }
     }
 
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
@@ -45,12 +45,23 @@ impl Subst {
         }
     }
 
+    pub fn insert_expr_subst(&mut self, name: Name, expr: Expr) {
+        self.map.insert(name, LocOrExpr::Expr(expr));
+    }
+
     pub fn insert_loc_subst(&mut self, name: Name, to: impl Into<Loc>) {
         self.map.insert(name, LocOrExpr::Loc(to.into()));
     }
 
     pub fn insert_param(&mut self, param: &Param, to: Name) {
         self.insert_name_subst(param.name, param.sort.clone(), to);
+    }
+
+    pub fn get_expr(&self, name: Name) -> Expr {
+        match self.map.get(&name) {
+            Some(LocOrExpr::Expr(expr)) => expr.clone(),
+            _ => panic!("expected expr"),
+        }
     }
 
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
@@ -86,7 +97,7 @@ impl Subst {
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::WeakRef(ty) => Ty::weak_ref(self.subst_ty(ty)),
             TyKind::ShrRef(ty) => Ty::shr_ref(self.subst_ty(ty)),
-            TyKind::Uninit => ty.clone(),
+            TyKind::Uninit(_) => ty.clone(),
         }
     }
 
@@ -195,7 +206,7 @@ impl Subst {
         Ok(())
     }
 
-    fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
+    pub fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
                 self.infer_from_exprs(params, e1, e2);

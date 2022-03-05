@@ -1,9 +1,9 @@
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
-use liquid_rust_common::index::Idx;
-use liquid_rust_core::ir::Local;
-pub use liquid_rust_core::ty::ParamTy;
+// use liquid_rust_common::index::Idx;
+pub use liquid_rust_core::{ir::Field, ty::ParamTy};
+use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
@@ -11,8 +11,11 @@ use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
 use crate::{
+    global_env::GlobalEnv,
     intern::{impl_internable, Interned},
     pure_ctxt::Scope,
+    subst::Subst,
+    type_env::path_map::PathRef,
 };
 
 pub enum AdtDef {
@@ -62,11 +65,17 @@ pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
     Float(FloatTy),
-    Uninit,
+    Uninit(Layout),
     StrgRef(Loc),
     WeakRef(Ty),
     ShrRef(Ty),
     Param(ParamTy),
+}
+
+#[derive(Clone)]
+pub struct Path {
+    pub loc: Loc,
+    projection: Interned<[Field]>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -150,6 +159,56 @@ impl AdtDef {
             }
         }
     }
+
+    pub fn sort(&self) -> Sort {
+        Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
+    }
+
+    pub fn unfold(&self, substs: &Substs, e: &Expr) -> Vec<Ty> {
+        let mut subst = Subst::with_type_substs(substs.as_slice());
+        match (e.kind(), self.refined_by()) {
+            (ExprKind::Tuple(exprs), refined_by) => {
+                debug_assert_eq!(exprs.len(), self.refined_by().len());
+                for (e, param) in exprs.iter().zip(refined_by) {
+                    subst.insert_expr_subst(param.name, e.clone());
+                }
+            }
+            (_, [param]) => {
+                subst.insert_expr_subst(param.name, e.clone());
+            }
+            _ => panic!("invalid sort for expr: `{e:?}`"),
+        }
+        match self {
+            AdtDef::Transparent { fields, .. } => {
+                fields.iter().map(|ty| subst.subst_ty(ty)).collect()
+            }
+            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+        }
+    }
+
+    pub fn unfold_uninit(&self) -> Vec<Ty> {
+        match self {
+            AdtDef::Transparent { fields, .. } => {
+                fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
+            }
+            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+        }
+    }
+
+    pub fn fold(&self, tys: &[Ty]) -> Expr {
+        match self {
+            AdtDef::Transparent { fields, refined_by } => {
+                debug_assert_eq!(fields.len(), tys.len());
+                let mut subst = Subst::empty();
+                let params = refined_by.iter().map(|param| param.name).collect();
+                for (ty, field) in tys.iter().zip(fields) {
+                    subst.infer_from_tys(&params, ty, field);
+                }
+                Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
+            }
+            AdtDef::Opaque { .. } => panic!("folding opaque adt"),
+        }
+    }
 }
 
 impl Ty {
@@ -165,8 +224,8 @@ impl Ty {
         TyKind::ShrRef(ty).intern()
     }
 
-    pub fn uninit() -> Ty {
-        TyKind::Uninit.intern()
+    pub fn uninit(layout: Layout) -> Ty {
+        TyKind::Uninit(layout).intern()
     }
 
     pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
@@ -198,7 +257,7 @@ impl TyS {
     }
 
     pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit)
+        matches!(self.kind(), TyKind::Uninit(..))
     }
 
     pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
@@ -207,6 +266,42 @@ impl TyS {
             TyKind::WeakRef(ty) => ty.walk(f),
             TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.walk(f),
             _ => {}
+        }
+    }
+
+    pub fn layout(&self) -> Layout {
+        match self.kind() {
+            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.layout(),
+            TyKind::Float(float_ty) => Layout::Float(*float_ty),
+            TyKind::Uninit(layout) => *layout,
+            TyKind::StrgRef(_) | TyKind::WeakRef(_) | TyKind::ShrRef(_) => Layout::Ref,
+            TyKind::Param(_) => Layout::Param,
+        }
+    }
+
+    pub fn deref(&self, derefs: u32) -> Ty {
+        let mut ty = self;
+        for _ in 0..derefs {
+            match self.kind() {
+                TyKind::ShrRef(ref_ty) => ty = &*ref_ty,
+                _ => panic!("dereferencing non-reference type: `{:?}`", self),
+            }
+        }
+        Interned::new(ty.clone())
+    }
+
+    pub fn unfold(&self, genv: &GlobalEnv) -> Vec<Ty> {
+        match self.kind() {
+            TyKind::Refine(BaseTy::Adt(did, substs), e) => {
+                let adt_def = genv.adt_def(*did);
+                adt_def.unfold(substs, e)
+            }
+            TyKind::Uninit(Layout::Adt(did)) => {
+                let adt_def = genv.adt_def(*did);
+                adt_def.unfold_uninit()
+            }
+            TyKind::ShrRef(ty) => ty.unfold(genv).into_iter().map(Ty::shr_ref).collect(),
+            _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
     }
 }
@@ -219,6 +314,15 @@ impl BaseTy {
     fn walk(&self, f: &mut impl FnMut(&TyS)) {
         if let BaseTy::Adt(_, substs) = self {
             substs.iter().for_each(|ty| ty.walk(f));
+        }
+    }
+
+    fn layout(&self) -> Layout {
+        match self {
+            BaseTy::Int(int_ty) => Layout::Int(*int_ty),
+            BaseTy::Uint(uint_ty) => Layout::Uint(*uint_ty),
+            BaseTy::Bool => Layout::Bool,
+            BaseTy::Adt(did, _) => Layout::Adt(*did),
         }
     }
 }
@@ -234,6 +338,10 @@ impl Substs {
 
     pub fn iter(&self) -> std::slice::Iter<Ty> {
         self.0.iter()
+    }
+
+    pub fn as_slice(&self) -> &[Ty] {
+        self.0.as_slice()
     }
 }
 
@@ -467,7 +575,7 @@ impl Pred {
     }
 
     pub fn dummy_kvar() -> Pred {
-        Pred::kvar(KVid::new(0), [])
+        Pred::kvar(KVid::from(0u32), [])
     }
 
     pub fn is_atom(&self) -> bool {
@@ -502,6 +610,20 @@ impl From<Var> for Expr {
     }
 }
 
+impl Path {
+    pub fn new(loc: Loc, projection: &[Field]) -> Path {
+        Path { loc, projection: Interned::new_slice(projection) }
+    }
+
+    pub fn as_ref(&self) -> PathRef {
+        PathRef::new(self.loc, self.projection())
+    }
+
+    pub fn projection(&self) -> &[Field] {
+        &self.projection[..]
+    }
+}
+
 impl Loc {
     pub fn is_free(&self, scope: &Scope) -> bool {
         match self {
@@ -514,6 +636,12 @@ impl Loc {
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
         Loc::Abstract(name)
+    }
+}
+
+impl From<Local> for Loc {
+    fn from(local: Local) -> Self {
+        Loc::Local(local)
     }
 }
 
@@ -546,7 +674,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, SortS);
+impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, [Field], SortS);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -623,7 +751,7 @@ mod pretty {
                     }
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
-                TyKind::Uninit => w!("uninit"),
+                TyKind::Uninit(_) => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
                 TyKind::ShrRef(ty) => w!("&{:?}", ty),
@@ -767,6 +895,12 @@ mod pretty {
         }
     }
 
+    impl Pretty for Path {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            Pretty::fmt(&self.as_ref(), cx, f)
+        }
+    }
+
     impl Pretty for Loc {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -828,5 +962,16 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Constr, TyS, BaseTy, Pred, Sort, ExprS, Var, Loc, Binders<FnSig>);
+    impl_debug_with_default_cx!(
+        Constr,
+        TyS,
+        BaseTy,
+        Pred,
+        Sort,
+        ExprS,
+        Var,
+        Loc,
+        Binders<FnSig>,
+        Path
+    );
 }

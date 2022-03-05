@@ -3,9 +3,10 @@ use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, LocalDecl, Operand, Place, PlaceElem, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
+    ty::Layout,
 };
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::DiagnosticId;
@@ -33,12 +34,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        Ok(Body {
-            basic_blocks,
-            nlocals: body.local_decls.len(),
-            arg_count: body.arg_count,
-            mir: body,
-        })
+        let local_decls = body
+            .local_decls
+            .iter()
+            .map(|local_decl| lower.lower_local_decl(local_decl))
+            .try_collect()?;
+
+        Ok(Body { basic_blocks, local_decls, arg_count: body.arg_count, mir: body })
     }
 
     fn lower_basic_block_data(
@@ -58,6 +60,16 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 .transpose()?,
         };
         Ok(data)
+    }
+
+    fn lower_local_decl(
+        &self,
+        local_decl: &mir::LocalDecl<'tcx>,
+    ) -> Result<LocalDecl, ErrorReported> {
+        Ok(LocalDecl {
+            layout: self.lower_ty_to_layout(local_decl.ty)?,
+            source_info: local_decl.source_info,
+        })
     }
 
     fn lower_statement(&self, stmt: &mir::Statement<'tcx>) -> Result<Statement, ErrorReported> {
@@ -233,6 +245,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         for elem in place.projection {
             match elem {
                 mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+                mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
                 _ => {
                     self.tcx.sess.err("place not supported");
                     return Err(ErrorReported);
@@ -272,6 +285,19 @@ impl<'tcx> LoweringCtxt<'tcx> {
             GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
                 self.emit_err(None, format!("unsupported generic argument: `{arg:?}`"))
             }
+        }
+    }
+
+    fn lower_ty_to_layout(&self, ty: rustc_middle::ty::Ty) -> Result<Layout, ErrorReported> {
+        match ty.kind() {
+            rustc_middle::ty::TyKind::Bool => Ok(Layout::Bool),
+            rustc_middle::ty::TyKind::Int(int_ty) => Ok(Layout::Int(*int_ty)),
+            rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(Layout::Uint(*uint_ty)),
+            rustc_middle::ty::TyKind::Param(_) => Ok(Layout::Param),
+            rustc_middle::ty::TyKind::Adt(adt_def, _) => Ok(Layout::Adt(adt_def.did)),
+            rustc_middle::ty::TyKind::Ref(..) => Ok(Layout::Ref),
+            rustc_middle::ty::TyKind::Float(float_ty) => Ok(Layout::Float(*float_ty)),
+            _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
     }
 

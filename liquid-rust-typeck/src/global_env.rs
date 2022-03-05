@@ -28,13 +28,17 @@ impl<'tcx> GlobalEnv<'tcx> {
         self.tcx.variances_of(did)
     }
 
+    pub fn adt_def(&self, did: DefId) -> &ty::AdtDef {
+        &self.adt_defs[&did.as_local().unwrap()]
+    }
+
     pub fn sort(&self, bty: &BaseTy) -> Sort {
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) => Sort::int(),
             BaseTy::Bool => Sort::bool(),
             BaseTy::Adt(def_id, _) => {
-                if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(&did)) {
-                    Sort::tuple(def.refined_by().iter().map(|param| param.sort.clone()))
+                if let Some(adt_def) = def_id.as_local().and_then(|did| self.adt_defs.get(&did)) {
+                    adt_def.sort()
                 } else {
                     Sort::unit()
                 }

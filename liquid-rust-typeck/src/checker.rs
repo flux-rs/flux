@@ -16,7 +16,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Loc, Name, Param, Pred, Sort, Ty, TyKind, Var},
+    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, Sort, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
@@ -26,7 +26,7 @@ use liquid_rust_core::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
         StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
     },
-    ty as core,
+    ty::{self as core, Layout},
 };
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
@@ -187,7 +187,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match constr {
                 ty::Constr::Type(loc, ty) => {
                     let ty = env.unpack_ty(genv, pcx, ty);
-                    env.insert_loc(*loc, ty);
+                    env.alloc_with_ty(*loc, ty);
                 }
                 ty::Constr::Pred(e) => {
                     pcx.push_pred(e.clone());
@@ -197,19 +197,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (local, ty) in body.args_iter().zip(&fn_sig.args) {
             let ty = env.unpack_ty(genv, pcx, ty);
-            env.insert_loc(Loc::Local(local), ty);
+            env.alloc_with_ty(local, ty);
         }
 
         for local in body.vars_and_temps_iter() {
-            env.insert_loc(Loc::Local(local), Ty::uninit());
+            env.alloc(local, body.local_decls[local].layout);
         }
 
-        env.insert_loc(Loc::Local(RETURN_PLACE), Ty::uninit());
+        env.alloc(RETURN_PLACE, body.local_decls[RETURN_PLACE].layout);
         env
     }
 
     fn clear(&mut self, root: BasicBlock) {
-        // FIXME: there should be a better way to iterate over all dominated blocks.
+        // TODO(nilehmann) there should be a better way to iterate over all dominated blocks.
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.is_dominated_by(bb, root) {
@@ -258,6 +258,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.write_place(gen, p, ty);
             }
             StatementKind::Nop => {}
+            StatementKind::Fold(place) => {
+                env.fold(place, |layout, fields| {
+                    if let Layout::Adt(did) = layout {
+                        let adt_def = self.genv.adt_def(did);
+                        let e = adt_def.fold(&fields);
+                        Ty::refine(BaseTy::adt(did, []), e)
+                    } else {
+                        panic!("layout cannot be folded: `{layout:?}`")
+                    }
+                })
+            }
+            StatementKind::Unfold(place) => env.unfold(self.genv, place),
         }
     }
 
@@ -325,9 +337,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
-            .collect();
+            .collect_vec();
 
-        let mut subst = Subst::with_type_substs(substs);
+        let mut subst = Subst::with_type_substs(&substs);
         if subst.infer_from_fn_call(env, &actuals, fn_sig).is_err() {
             self.sess
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
@@ -354,7 +366,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                         pcx.breadcrumb(),
                         Tag::Call(source_info.span),
                     );
-                    env.update_loc(gen, *loc, updated_ty);
+                    env.update_path(gen, *loc, updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }
