@@ -79,7 +79,7 @@ pub fn check<'tcx>(
 
     let qualifiers = qualifiers
         .iter()
-        .map(|q| -> ty::Qualifier { lowering::LoweringCtxt::lower_qualifer(genv, q) })
+        .map(|q| -> ty::Qualifier { lowering::LoweringCtxt::lower_qualifer(q) })
         .collect();
 
     fcx.check(genv.tcx, def_id, body.mir.span, constraint, qualifiers)

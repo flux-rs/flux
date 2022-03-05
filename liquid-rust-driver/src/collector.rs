@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
-    ast, parse_fn_sig, parse_fn_surface_sig, parse_refined_by, parse_ty, parse_qualifier,
-    ParseErrorKind,
-    ParseResult,
+    ast, parse_fn_sig, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;

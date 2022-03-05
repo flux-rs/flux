@@ -41,7 +41,7 @@ pub enum Constr {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<(Name, Sort)>,
+    pub args: Vec<Param>,
     pub expr: Expr,
 }
 

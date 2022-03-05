@@ -91,16 +91,16 @@ impl LoweringCtxt {
             .collect()
     }
 
-    pub fn lower_qualifer(genv: &'a GlobalEnv<'tcx>, qualifier: &core::Qualifier) -> ty::Qualifier {
+    pub fn lower_qualifer(qualifier: &core::Qualifier) -> ty::Qualifier {
         let name_gen = IndexGen::new();
         let mut args = Vec::new();
 
-        let mut cx = LoweringCtxt::empty(genv);
+        let mut cx = LoweringCtxt::empty();
 
-        for (name, sort) in &qualifier.args {
+        for param in &qualifier.args {
             let fresh = name_gen.fresh();
-            cx.params.insert(*name, fresh);
-            let sort = lower_sort(*sort);
+            cx.name_map.insert(param.name.name, fresh);
+            let sort = lower_sort(param.sort);
             args.push((fresh, sort));
         }
 
