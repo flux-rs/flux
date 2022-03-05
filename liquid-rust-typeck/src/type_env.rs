@@ -1,30 +1,25 @@
-pub mod path_map;
+pub mod paths_tree;
 
 use crate::{
     constraint_gen::ConstraintGen,
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, FloatTy, Param, ParamTy, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, FloatTy, Param, ParamTy, Path, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
-use liquid_rust_common::{index::IndexGen, iter::IterExt};
-use liquid_rust_core::{
-    ir::{self, Local},
-    ty::Layout,
-};
+use liquid_rust_common::index::IndexGen;
+use liquid_rust_core::{ir, ty::Layout};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
-use path_map::PathMap;
-
-use self::path_map::PathRef;
+use self::paths_tree::{PathsTree, Read, Write};
 
 use super::ty::{Loc, Name, Pred, Sort};
 
 #[derive(Clone, Default)]
 pub struct TypeEnv {
-    bindings: PathMap<Ty>,
+    bindings: PathsTree,
     pledges: Pledges,
     layouts: FxHashMap<Loc, Layout>,
 }
@@ -51,7 +46,7 @@ pub struct BasicBlockEnv {
 impl TypeEnv {
     pub fn new() -> TypeEnv {
         TypeEnv {
-            bindings: PathMap::new(),
+            bindings: PathsTree::default(),
             pledges: Pledges::default(),
             layouts: FxHashMap::default(),
         }
@@ -73,49 +68,27 @@ impl TypeEnv {
         TypeEnvInfer::new(genv, scope, self)
     }
 
-    pub fn lookup_local(&self, local: Local) -> Ty {
-        self.lookup_loc(Loc::Local(local))
-    }
-
-    #[track_caller]
-    pub fn lookup_loc(&self, loc: impl Into<Loc>) -> Ty {
-        self.get(loc.into())
-    }
-
-    #[track_caller]
-    pub fn get<'a>(&self, path: impl Into<PathRef<'a>>) -> Ty {
-        let path = path.into();
-        match self.bindings.get(path) {
-            Some(ty) => ty.clone(),
-            None => panic!("no entry found for path: `{:?}`", path),
-        }
-    }
-
     fn remove(&mut self, loc: Loc) {
         self.bindings.remove(loc);
         self.pledges.remove(loc);
     }
 
-    pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        TypeEnv::walk_place(&self.bindings, place, |derefs, entry| {
-            entry.unwrap_value().deref(derefs)
-        })
+    pub fn lookup_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
+        self.bindings.lookup_place(Read, genv, place, |_, ty| ty)
     }
 
-    pub fn update_path<'a>(
-        &mut self,
-        gen: &mut ConstraintGen,
-        path: impl Into<PathRef<'a>>,
-        new_ty: Ty,
-    ) {
-        let path = path.into();
+    pub fn lookup_path(&self, path: &Path) -> Ty {
+        self.bindings[path].clone()
+    }
+
+    pub fn update_path(&mut self, gen: &mut ConstraintGen, path: &Path, new_ty: Ty) {
         self.pledges.check(gen, path, &new_ty);
-        self.bindings.update(path, new_ty);
+        self.bindings[path] = new_ty;
     }
 
     pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local);
-        let ty = self.lookup_loc(loc);
+        let ty = &self.bindings[&Path::new(loc, &[])];
         let loc = match (&place.projection[..], ty.kind()) {
             ([], _) => loc,
             ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
@@ -132,11 +105,11 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local);
-        let ty = self.lookup_loc(loc);
+        let ty = self.bindings[&Path::new(loc, &[])].clone();
         match (&place.projection[..], ty.kind()) {
             ([], _) => Ty::shr_ref(ty),
             ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => {
-                let ty = self.lookup_loc(*loc);
+                let ty = self.bindings[&Path::new(*loc, &[])].clone();
                 Ty::shr_ref(ty)
             }
             ([ir::PlaceElem::Deref], TyKind::ShrRef(ty)) => Ty::shr_ref(ty.clone()),
@@ -148,41 +121,20 @@ impl TypeEnv {
     }
 
     pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
-        TypeEnv::walk_place_mut(&mut self.bindings, place, |derefs, mut entry| {
-            debug_assert_eq!(derefs, 0);
-            self.pledges.check(gen, entry.path(), &new_ty);
-            entry.set_value(new_ty);
-        });
+        self.bindings
+            .lookup_place(Write, gen.genv, place, |path, ty| {
+                self.pledges.check(gen, &path, &new_ty);
+                *ty = new_ty;
+            });
     }
 
-    pub fn move_place(&mut self, place: &ir::Place) -> Ty {
-        match &place.projection[..] {
-            [] => {
-                let loc = Loc::Local(place.local);
-                let ty = self.lookup_loc(loc);
-                self.bindings.insert(loc, Ty::uninit(ty.layout()));
-                ty
-            }
-            _ => unreachable!("cannot move out from a dereference"),
-        }
+    pub fn move_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
+        self.bindings.lookup_place(Write, genv, place, |_, ty| {
+            let old = ty.clone();
+            *ty = Ty::uninit(ty.layout());
+            old
+        })
     }
-
-    // pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
-    //     let loc = Loc::Local(place.local);
-    //     let ty = self.lookup_loc(loc);
-    //     let loc = match (&place.projection[..], ty.kind()) {
-    //         ([], _) => loc,
-    //         ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
-    //         ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
-    //             unreachable!("update through unpacked weak ref")
-    //         }
-    //         ([ir::PlaceElem::Deref], TyKind::ShrRef(_)) => {
-    //             unreachable!("cannot update through a shared ref")
-    //         }
-    //         _ => unreachable!("unexpected place `{place:?}`"),
-    //     };
-    //     self.update_path(gen, loc, new_ty);
-    // }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
@@ -208,9 +160,9 @@ impl TypeEnv {
 
     pub fn unpack(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) {
         for path in self.bindings.paths().collect_vec() {
-            let ty = self.get(&path);
+            let ty = self.bindings[&path].clone();
             let ty = self.unpack_ty(genv, pcx, &ty);
-            self.bindings.update(&path, ty);
+            self.bindings[&path] = ty;
         }
     }
 
@@ -218,9 +170,9 @@ impl TypeEnv {
         let params = bb_env.params.iter().map(|param| param.name).collect();
         let mut subst = Subst::empty();
         for (path, ty1) in self.bindings.iter() {
-            if bb_env.env.bindings.contains_path(&path) {
-                let ty2 = bb_env.env.get(&path);
-                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
+            if bb_env.env.bindings.contains_loc(path.loc) {
+                let ty2 = &bb_env.env.bindings[&path];
+                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, ty2, &mut subst);
             }
         }
         assert!(subst
@@ -251,9 +203,9 @@ impl TypeEnv {
                 if !bb_env.scope.contains(*loc1) && !bb_env.scope.contains(*loc2) =>
             {
                 subst.insert_loc_subst(*loc2, *loc1);
-                let ty1 = self.lookup_loc(*loc1);
-                let ty2 = bb_env.env.lookup_loc(*loc2);
-                self.infer_subst_for_bb_env_tys(bb_env, params, &ty1, &ty2, subst);
+                let ty1 = &self.bindings[&Path::new(Loc::Abstract(*loc1), &[])];
+                let ty2 = &bb_env.env.bindings[&Path::new(Loc::Abstract(*loc2), &[])];
+                self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
@@ -285,13 +237,13 @@ impl TypeEnv {
 
         // Create pledged borrows
         for path in self.bindings.paths().collect_vec() {
-            let ty1 = self.get(&path);
-            let ty2 = goto_env.get(&path);
+            let ty1 = &self.bindings[&path];
+            let ty2 = &goto_env.bindings[&path];
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let pledge = goto_env.get(*loc2);
-                    let fresh = self.pledged_borrow(gen, *loc1, pledge);
-                    self.bindings.update(&path, Ty::strg_ref(fresh));
+                (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
+                    let pledge = goto_env.bindings[&Path::new(loc2, &[])].clone();
+                    let fresh = self.pledged_borrow(gen, loc1, pledge);
+                    self.bindings[&path] = Ty::strg_ref(fresh);
                 }
                 _ => {}
             }
@@ -299,7 +251,7 @@ impl TypeEnv {
 
         // Check subtyping
         for (path, ty1) in self.bindings.iter_mut() {
-            let ty2 = goto_env.get(&path);
+            let ty2 = goto_env.bindings[&path].clone();
             gen.subtyping(ty1, &ty2);
             *ty1 = ty2;
         }
@@ -313,9 +265,9 @@ impl TypeEnv {
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
         let fresh = Loc::Abstract(gen.push_binding(Sort::loc()));
-        let ty = self.lookup_loc(loc);
-        gen.subtyping(&ty, &pledge);
-        self.bindings.update(loc, pledge.clone());
+        let ty = &self.bindings[&Path::new(loc, &[])];
+        gen.subtyping(ty, &pledge);
+        self.bindings[&Path::new(loc, &[])] = pledge.clone();
         self.bindings.insert(fresh, pledge.clone());
         self.pledges.insert(fresh, pledge);
         fresh
@@ -326,81 +278,6 @@ impl TypeEnv {
             bindings: self.bindings.subst(subst),
             pledges: self.pledges.subst(subst),
             layouts: self.layouts,
-        }
-    }
-
-    pub fn fold(&mut self, place: &ir::Place, f: impl FnOnce(Layout, Vec<Ty>) -> Ty) {
-        match &place.projection[..] {
-            [] => {
-                let mut entry = self.bindings.entry_mut(Loc::Local(place.local));
-                let layout = self.layouts[&Loc::Local(place.local)];
-                if let Some(fields) = entry.as_fields() {
-                    let ty = f(layout, fields.into_iter().cloned().collect());
-                    entry.set_value(ty);
-                };
-            }
-            _ => todo!(),
-        }
-    }
-
-    pub fn unfold(&mut self, genv: &GlobalEnv, place: &ir::Place) {
-        TypeEnv::walk_place_mut(&mut self.bindings, place, |_, mut entry| {
-            if let Some(ty) = entry.as_value() {
-                let fields = ty.unfold(genv);
-                entry.set_fields(fields);
-            }
-        });
-    }
-
-    fn walk_place<R>(
-        bindings: &PathMap<Ty>,
-        place: &ir::Place,
-        f: impl FnOnce(u32, path_map::Entry<Ty>) -> R,
-    ) -> R {
-        let mut projection = place.projection.iter();
-        let mut loc = Loc::Local(place.local);
-        let mut derefs = 0;
-        loop {
-            let entry = bindings
-                .entry(loc)
-                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
-
-            match (projection.next(), entry.as_value().map(|ty| ty.kind())) {
-                (Some(ir::PlaceElem::Deref), Some(TyKind::StrgRef(ref_loc))) => {
-                    loc = *ref_loc;
-                }
-                (Some(ir::PlaceElem::Deref), Some(TyKind::ShrRef(_)) | None) => {
-                    derefs += 1;
-                }
-                (None, _) => return f(derefs, entry),
-                _ => panic!(),
-            }
-        }
-    }
-
-    fn walk_place_mut(
-        bindings: &mut PathMap<Ty>,
-        place: &ir::Place,
-        f: impl FnOnce(u32, path_map::EntryMut<Ty>),
-    ) {
-        let mut projection = place.projection.iter();
-        let mut loc = Loc::Local(place.local);
-        let mut derefs = 0;
-        loop {
-            let entry = bindings
-                .entry_mut(loc)
-                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
-
-            match (projection.next(), entry.as_value().map(|ty| ty.kind())) {
-                (Some(ir::PlaceElem::Deref), Some(TyKind::StrgRef(ref_loc))) => {
-                    loc = *ref_loc;
-                }
-                (Some(ir::PlaceElem::Deref), Some(TyKind::ShrRef(_)) | None) => {
-                    derefs += 1;
-                }
-                (None, _) => return f(derefs, entry),
-                _ => panic!(),
-            }
         }
     }
 }
@@ -414,9 +291,9 @@ impl Pledges {
         self.map.insert(loc, vec![pledge]);
     }
 
-    fn check(&self, gen: &mut ConstraintGen, path: PathRef, ty: &Ty) {
+    fn check(&self, gen: &mut ConstraintGen, path: &Path, ty: &Ty) {
         if let Some(pledges) = self.map.get(&path.loc) {
-            assert!(path.projection.is_empty());
+            assert!(path.projection().is_empty());
             for pledge in pledges.iter() {
                 gen.subtyping(ty, pledge);
             }
@@ -571,8 +448,8 @@ impl TypeEnvInfer {
         // Infer subst
         let mut subst = Subst::empty();
         for (path, ty1) in self.env.bindings.iter() {
-            if other.bindings.contains_path(&path) {
-                let ty2 = other.get(&path);
+            if other.bindings.contains_loc(path.loc) {
+                let ty2 = &other.bindings[&path];
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::StrgRef(loc1), TyKind::StrgRef(Loc::Abstract(loc2)))
                         if self.packed_loc(*loc1).is_some() && !self.scope.contains(*loc2) =>
@@ -604,14 +481,14 @@ impl TypeEnvInfer {
 
         // Create pledged borrows
         for path in &paths {
-            let ty1 = self.env.get(path);
-            let ty2 = other.get(path);
+            let ty1 = &self.env.bindings[path];
+            let ty2 = &other.bindings[path];
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let (fresh, pledge) = self.pledged_borrow(*loc1);
-                    self.env.bindings.update(path, Ty::strg_ref(fresh));
-                    other.bindings.update(path, Ty::strg_ref(fresh));
-                    other.bindings.update(*loc2, pledge.clone());
+                (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
+                    let (fresh, pledge) = self.pledged_borrow(loc1);
+                    self.env.bindings[path] = Ty::strg_ref(fresh);
+                    other.bindings[path] = Ty::strg_ref(fresh);
+                    other.bindings[&Path::new(loc2, &[])] = pledge.clone();
                     other.bindings.insert(fresh, pledge);
                 }
                 _ => {}
@@ -621,12 +498,11 @@ impl TypeEnvInfer {
         // Join types
         let mut modified = false;
         for path in &paths {
-            let ty1 = self.env.get(path);
-            let ty2 = other.get(path);
+            let ty1 = self.env.bindings[path].clone();
+            let ty2 = other.bindings[path].clone();
             let ty = self.join_ty(genv, &mut other, &ty1, &ty2);
-            // println!("{path:?} {ty1:?} {ty2:?} {ty:?}");
             modified |= ty1 != ty;
-            self.env.bindings.update(path, ty);
+            self.env.bindings[path] = ty;
         }
 
         modified
@@ -708,7 +584,7 @@ impl TypeEnvInfer {
 
     fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
-        let ty = self.env.get(loc);
+        let ty = self.env.bindings[&Path::new(loc, &[])].clone();
         let pledge = self.weaken_ty(&ty);
         self.env.bindings.insert(loc, pledge.clone());
         self.env.bindings.insert(fresh, pledge.clone());
@@ -729,7 +605,7 @@ impl TypeEnvInfer {
                 Ty::exists(bty, Pred::dummy_kvar())
             }
             StrgRef(loc) => {
-                let ty = self.env.get(loc);
+                let ty = self.env.bindings[&Path::new(loc, &[])].clone();
                 let ty = self.weaken_ty(&ty);
                 self.env.bindings.insert(loc, ty.clone());
                 Ty::weak_ref(ty)

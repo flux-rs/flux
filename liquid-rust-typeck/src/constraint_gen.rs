@@ -5,12 +5,12 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, Name, Pred, Sort, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Constr, Expr, Name, Path, Pred, Sort, Ty, TyKind, Var},
     type_env::TypeEnv,
 };
 
 pub struct ConstraintGen<'a, 'tcx> {
-    genv: &'a GlobalEnv<'tcx>,
+    pub genv: &'a GlobalEnv<'tcx>,
     pcx: PureCtxt<'a>,
     tag: Tag,
 }
@@ -34,10 +34,10 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
         ConstraintGen { pcx: self.pcx.breadcrumb(), ..*self }
     }
 
-    pub fn check_constr(&mut self, env: &TypeEnv, constr: &Constr) {
+    pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
         match constr {
             Constr::Type(loc, ty) => {
-                let actual_ty = env.lookup_loc(*loc);
+                let actual_ty = env.lookup_path(&Path::new(*loc, &[]));
                 self.subtyping(&actual_ty, ty);
             }
             Constr::Pred(e) => {

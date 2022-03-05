@@ -16,7 +16,9 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, Sort, Ty, TyKind, Var},
+    ty::{
+        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Path, Pred, Sort, Ty, TyKind, Var,
+    },
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
@@ -26,7 +28,7 @@ use liquid_rust_core::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
         StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
     },
-    ty::{self as core, Layout},
+    ty as core,
 };
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
@@ -258,18 +260,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.write_place(gen, p, ty);
             }
             StatementKind::Nop => {}
-            StatementKind::Fold(place) => {
-                env.fold(place, |layout, fields| {
-                    if let Layout::Adt(did) = layout {
-                        let adt_def = self.genv.adt_def(did);
-                        let e = adt_def.fold(&fields);
-                        Ty::refine(BaseTy::adt(did, []), e)
-                    } else {
-                        panic!("layout cannot be folded: `{layout:?}`")
-                    }
-                })
-            }
-            StatementKind::Unfold(place) => env.unfold(self.genv, place),
         }
     }
 
@@ -292,7 +282,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.check_assert(env, cond, *expected, *target)
             }
             TerminatorKind::Drop { place, target } => {
-                let _ = env.move_place(place);
+                let _ = env.move_place(self.genv, place);
                 Ok(vec![(*target, None)])
             }
         }
@@ -303,7 +293,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let ret_place_ty = env.lookup_local(RETURN_PLACE);
+        let ret_place_ty = env.lookup_place(self.genv, Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -366,7 +356,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                         pcx.breadcrumb(),
                         Tag::Call(source_info.span),
                     );
-                    env.update_path(gen, *loc, updated_ty);
+                    env.update_path(gen, &Path::new(*loc, &[]), updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }
@@ -691,11 +681,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(p)
+                env.lookup_place(self.genv, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(p)
+                env.move_place(self.genv, p)
             }
             Operand::Constant(c) => self.check_constant(c),
         }

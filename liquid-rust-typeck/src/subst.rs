@@ -186,7 +186,7 @@ impl Subst<'_> {
 
         for constr in &fn_sig.value.requires {
             if let Constr::Type(loc, required) = constr {
-                let actual = env.lookup_loc(self.subst_loc(*loc));
+                let actual = env.lookup_path(&Path::new(self.subst_loc(*loc), &[]));
                 self.infer_from_tys(&params, &actual, required);
             }
         }
