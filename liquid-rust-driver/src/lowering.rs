@@ -265,10 +265,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 val: ConstKind::Value(ConstValue::Scalar(scalar)),
             }) => {
                 match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
-                    (TyKind::Int(int_ty), Some(bits)) => {
-                        println!("{} {}", bits, bits as i128);
-                        Ok(Constant::Int(bits as i128, *int_ty))
-                    }
+                    (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
                     (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
                     (TyKind::Float(float_ty), Some(bits)) => Ok(Constant::Float(bits, *float_ty)),
                     (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
