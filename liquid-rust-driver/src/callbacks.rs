@@ -46,7 +46,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
 
     let wf = Wf::new(sess, &adt_defs);
 
-    let _qualifiers: Vec<liquid_rust_core::ty::Qualifier> = specs
+    let qualifiers: Vec<liquid_rust_core::ty::Qualifier> = specs
         .qualifs
         .into_iter()
         .map(|qualifier| {
@@ -74,7 +74,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
                 return Ok(());
             }
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            typeck::check(&genv, def_id.to_def_id(), &body)
+            typeck::check(&genv, def_id.to_def_id(), &body, &qualifiers)
         })
         .try_collect_exhaust()
 }

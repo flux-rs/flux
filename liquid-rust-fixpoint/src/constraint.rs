@@ -44,9 +44,9 @@ pub enum Proj {
 }
 
 pub struct Qualifier {
-    expr: Expr,
-    args: Vec<(Name, Sort)>,
-    name: String,
+    pub expr: Expr,
+    pub args: Vec<(Name, Sort)>,
+    pub name: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

@@ -60,6 +60,24 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         ty::FnSig { params, requires, args, ret, ensures }
     }
 
+    pub fn lower_qualifer(genv: &'a GlobalEnv<'tcx>, qualifier: &core::Qualifier) -> ty::Qualifier {
+        let name_gen = IndexGen::new();
+        let mut args = Vec::new();
+
+        let mut cx = LoweringCtxt::empty(genv);
+
+        for (name, sort) in &qualifier.args {
+            let fresh = name_gen.fresh();
+            cx.params.insert(*name, fresh);
+            let sort = lower_sort(*sort);
+            args.push((fresh, sort));
+        }
+
+        let expr = cx.lower_expr(&qualifier.expr);
+
+        ty::Qualifier { name: qualifier.name.clone(), args, expr }
+    }
+
     pub fn lower_ty(
         &self,
         ty: &core::Ty,

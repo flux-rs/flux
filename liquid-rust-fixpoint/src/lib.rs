@@ -23,6 +23,7 @@ use crate::constraint::DEFAULT_QUALIFIERS;
 pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
+    pub qualifiers: Vec<Qualifier>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -55,8 +56,8 @@ pub struct CrashInfo(Vec<serde_json::Value>);
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
-    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>) -> Self {
-        Task { kvars, constraint }
+    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>, qualifiers: Vec<Qualifier>) -> Self {
+        Task { kvars, constraint, qualifiers }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
@@ -88,6 +89,10 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
 impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for qualif in DEFAULT_QUALIFIERS.iter() {
+            writeln!(f, "{qualif}")?;
+        }
+
+        for qualif in self.qualifiers.iter() {
             writeln!(f, "{qualif}")?;
         }
 
