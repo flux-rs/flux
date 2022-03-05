@@ -241,7 +241,7 @@ impl fmt::Display for Expr {
                     write!(f, "{}({})", op, e)
                 }
             }
-            Expr::Pair(e1, e2) => write!(f, "(Pair {e1} {e2})"),
+            Expr::Pair(e1, e2) => write!(f, "(Pair ({e1}) ({e2}))"),
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),

@@ -21,6 +21,12 @@ pub struct PathRef<'a> {
 }
 
 pub struct Entry<'a, T> {
+    node: &'a Node<T>,
+    loc: Loc,
+    projection: Vec<Field>,
+}
+
+pub struct EntryMut<'a, T> {
     node: &'a mut Node<T>,
     loc: Loc,
     projection: Vec<Field>,
@@ -104,9 +110,12 @@ impl<T> PathMap<T> {
         }
     }
 
-    #[track_caller]
-    pub fn entry<'a>(&mut self, path: impl Into<PathRef<'a>>) -> Entry<T> {
+    pub fn entry<'a>(&self, path: impl Into<PathRef<'a>>) -> Entry<T> {
         Entry::new(self, path.into())
+    }
+
+    pub fn entry_mut<'a>(&mut self, path: impl Into<PathRef<'a>>) -> EntryMut<T> {
+        EntryMut::new(self, path.into())
     }
 
     pub fn contains_path<'a>(&self, path: impl Into<PathRef<'a>>) -> bool {
@@ -155,20 +164,46 @@ impl<T> Node<T> {
             _ => panic!("merge of incompatible nodes"),
         }
     }
-
-    #[track_caller]
-    pub fn assert_leaf(&self) -> &T {
-        match self {
-            Node::Leaf(value) => value,
-            Node::Internal(_) => panic!("expected leaf node"),
-        }
-    }
 }
 
 impl<'a, T> Entry<'a, T> {
-    fn new(map: &'a mut PathMap<T>, path: PathRef) -> Entry<'a, T> {
+    fn new(map: &'a PathMap<T>, path: PathRef) -> Entry<'a, T> {
         let entry =
-            Entry { node: map.map.get_mut(&path.loc).unwrap(), loc: path.loc, projection: vec![] };
+            Entry { node: map.map.get(&path.loc).unwrap(), loc: path.loc, projection: vec![] };
+        entry.walk(path.projection.iter().copied())
+    }
+
+    pub fn walk(self, path: impl IntoIterator<Item = Field>) -> Self {
+        let mut node = self.node;
+        for field in path {
+            match node {
+                Node::Leaf(_) => panic!("expected internal node"),
+                Node::Internal(fields) => node = &fields[field],
+            }
+        }
+        Entry { node, loc: self.loc, projection: self.projection }
+    }
+
+    pub fn as_value(&self) -> Option<&T> {
+        match &*self.node {
+            Node::Leaf(value) => Some(value),
+            Node::Internal(_) => None,
+        }
+    }
+
+    #[track_caller]
+    pub fn unwrap_value(&self) -> &T {
+        self.as_value().unwrap()
+    }
+}
+
+impl<'a, T> EntryMut<'a, T> {
+    fn new(map: &'a mut PathMap<T>, path: PathRef) -> EntryMut<'a, T> {
+        let entry = EntryMut {
+            node: map.map.get_mut(&path.loc).unwrap(),
+            loc: path.loc,
+            projection: vec![],
+        };
         entry.walk(path.projection.iter().copied())
     }
 
@@ -184,7 +219,7 @@ impl<'a, T> Entry<'a, T> {
                 Node::Internal(fields) => node = &mut fields[field],
             }
         }
-        Entry { node, loc: self.loc, projection: self.projection }
+        EntryMut { node, loc: self.loc, projection: self.projection }
     }
 
     pub fn as_value(&self) -> Option<&T> {

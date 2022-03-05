@@ -162,6 +162,8 @@ impl Body<'_> {
 }
 
 impl Place {
+    pub const RETURN: &'static Place = &Place { local: RETURN_PLACE, projection: vec![] };
+
     pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
         Place { local, projection }
     }

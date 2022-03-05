@@ -197,7 +197,7 @@ impl Wf<'_> {
                 self.check_expr(env, e2, ty::Sort::int())?;
                 Ok(ty::Sort::bool())
             }
-            core::BinOp::Add | core::BinOp::Sub | core::BinOp::Mod => {
+            core::BinOp::Add | core::BinOp::Sub | core::BinOp::Mod | core::BinOp::Mul => {
                 self.check_expr(env, e1, ty::Sort::int())?;
                 self.check_expr(env, e2, ty::Sort::int())?;
                 Ok(ty::Sort::int())

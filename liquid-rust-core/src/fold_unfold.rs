@@ -79,7 +79,8 @@ fn gather_places_terminator<'a>(terminator: &'a Terminator, places: &mut Vec<&'a
         TerminatorKind::SwitchInt { discr, .. } => gather_places_operand(discr, places),
         TerminatorKind::Drop { place, .. } => places.push(place),
         TerminatorKind::Assert { cond, .. } => gather_places_operand(cond, places),
-        TerminatorKind::Goto { .. } | TerminatorKind::Return => {}
+        TerminatorKind::Return => places.push(Place::RETURN),
+        TerminatorKind::Goto { .. } => {}
     }
 }
 

@@ -92,7 +92,8 @@ Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
 Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
 Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
-Level7: ast::Expr = {
+Level7 = LeftAssoc<BinOp7, Level8>; // *, /
+Level8: ast::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
         ast::Expr {
             kind: ast::ExprKind::Literal(lit),
@@ -154,6 +155,10 @@ BinOp5: ast::BinOp = {
 BinOp6: ast::BinOp = {
     "+" => ast::BinOp::Add,
     "-" => ast::BinOp::Sub,
+}
+
+BinOp7: ast::BinOp = {
+    "*" => ast::BinOp::Mul,
     "%" => ast::BinOp::Mod,
 }
 
@@ -217,6 +222,7 @@ extern {
         "->" => Token::RArrow,
         "&"  => Token::And,
         "%" => Token::Percent,
+        "*" => Token::Star,
         "weak" => Token::Weak,
     }
 }

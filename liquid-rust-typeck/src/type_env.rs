@@ -97,12 +97,24 @@ impl TypeEnv {
     }
 
     pub fn lookup_place(&self, place: &ir::Place) -> Ty {
-        let ty = self.lookup_loc(Loc::Local(place.local));
-        match (&place.projection[..], ty.kind()) {
-            ([], _) => ty,
-            ([ir::PlaceElem::Deref], TyKind::ShrRef(ty) | TyKind::WeakRef(ty)) => ty.clone(),
-            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => self.lookup_loc(*loc),
-            _ => unreachable!(""),
+        let mut projection = place.projection.iter();
+        let mut loc = Loc::Local(place.local);
+        loop {
+            let entry = self
+                .bindings
+                .entry(loc)
+                .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
+
+            let ty = entry.unwrap_value();
+            match (ty.kind(), projection.next()) {
+                (TyKind::StrgRef(ref_loc), Some(ir::PlaceElem::Deref)) => loc = *ref_loc,
+                (TyKind::ShrRef(ty), Some(ir::PlaceElem::Deref)) => {
+                    assert!(projection.next().is_none());
+                    return ty.clone();
+                }
+                (_, None) => return ty.clone(),
+                _ => panic!(),
+            }
         }
     }
 
@@ -157,7 +169,7 @@ impl TypeEnv {
         loop {
             let mut entry = self
                 .bindings
-                .entry(loc)
+                .entry_mut(loc)
                 .walk(projection.map_take_while(|p| ir::PlaceElem::as_field(p)));
 
             let ty = entry.unwrap_value();
@@ -350,7 +362,7 @@ impl TypeEnv {
     pub fn fold(&mut self, place: &ir::Place, f: impl FnOnce(Layout, Vec<Ty>) -> Ty) {
         match &place.projection[..] {
             [] => {
-                let mut entry = self.bindings.entry(Loc::Local(place.local));
+                let mut entry = self.bindings.entry_mut(Loc::Local(place.local));
                 let layout = self.layouts[&Loc::Local(place.local)];
                 if let Some(fields) = entry.as_fields() {
                     let ty = f(layout, fields.into_iter().cloned().collect());
@@ -364,7 +376,7 @@ impl TypeEnv {
     pub fn unfold(&mut self, place: &ir::Place, f: impl FnOnce(Ty) -> Vec<Ty>) {
         match &place.projection[..] {
             [] => {
-                let mut entry = self.bindings.entry(Loc::Local(place.local));
+                let mut entry = self.bindings.entry_mut(Loc::Local(place.local));
                 if let Some(ty) = entry.as_value() {
                     let fields = f(ty.clone());
                     entry.set_fields(fields);

@@ -48,7 +48,7 @@ def main() -> None:
     buf = Buff()
 
     for def_id, modes in events_by_def_id_and_mode.items():
-        if args.name is not None and args.name != def_id:
+        if args.name is not None and args.name not in def_id:
             continue
 
         for mode, events in modes.items():
