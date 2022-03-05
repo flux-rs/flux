@@ -12,13 +12,14 @@ extern crate rustc_session;
 extern crate rustc_span;
 
 mod checker;
+mod constraint_gen;
+mod dbg;
 pub mod global_env;
 mod intern;
-mod lowering;
+pub mod lowering;
 mod pretty;
 mod pure_ctxt;
 mod subst;
-mod subtyping;
 pub mod ty;
 mod type_env;
 pub mod wf;
@@ -26,6 +27,7 @@ pub mod wf;
 use std::{fs, io::Write, str::FromStr};
 
 use checker::Checker;
+use constraint_gen::Tag;
 use global_env::GlobalEnv;
 use itertools::Itertools;
 use liquid_rust_common::{
@@ -41,7 +43,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
-use subtyping::Tag;
 use ty::Name;
 
 pub struct FixpointCtxt {
@@ -64,13 +65,12 @@ pub fn check<'tcx>(
     body: &Body<'tcx>,
     qualifiers: &Vec<core::ty::Qualifier>,
 ) -> Result<(), ErrorReported> {
-    let fn_sig = genv.lookup_fn_sig(def_id);
-
-    let bb_envs = Checker::infer(genv, body, fn_sig)?;
-    let (pure_cx, kvars) = Checker::check(genv, body, fn_sig, bb_envs)?;
+    let bb_envs = Checker::infer(genv, body, def_id)?;
+    let mut kvars = KVarStore::new();
+    let pure_cx = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
 
     if CONFIG.dump_constraint {
-        dump_constraint(genv.tcx, def_id, &pure_cx, "").unwrap();
+        dump_constraint(genv.tcx, def_id, &pure_cx, ".lrc").unwrap();
     }
 
     let mut fcx = FixpointCtxt::new(kvars);
@@ -94,6 +94,18 @@ impl FixpointCtxt {
             tags: IndexVec::new(),
             tags_inv: FxHashMap::default(),
         }
+    }
+
+    pub fn with_name_map<R>(
+        &mut self,
+        name: Name,
+        to: fixpoint::Name,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        self.name_map.insert(name, to);
+        let r = f(self);
+        self.name_map.remove(&name);
+        r
     }
 
     fn fresh_name(&self) -> fixpoint::Name {
@@ -153,7 +165,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto(span) => tcx.sess.emit_err(errors::GotoError { span }),
+            Tag::Goto(span, bb) => tcx.sess.emit_err(errors::GotoError { span, bb }),
         }
     }
 
@@ -187,14 +199,16 @@ impl FromStr for TagIdx {
 }
 
 mod errors {
+    use liquid_rust_core::ir::BasicBlock;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
     pub struct GotoError {
-        #[message = "error jumping to join point"]
+        #[message = "error jumping to join point: `{bb:?}`"]
         pub span: Option<Span>,
+        pub bb: BasicBlock,
     }
 
     #[derive(SessionDiagnostic)]

@@ -1,9 +1,5 @@
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
-use liquid_rust_common::{
-    errors::ErrorReported,
-    index::{Idx, IndexGen},
-    iter::IterExt,
-};
+use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_core::ty::{self, Name, ParamTy};
 use liquid_rust_syntax::ast;
 use quickscope::ScopeMap;
@@ -13,19 +9,21 @@ use rustc_middle::ty::TyCtxt;
 use rustc_session::{Session, SessionDiagnostic};
 use rustc_span::{sym, symbol::kw, Symbol};
 
+use crate::collector::AdtDef;
+
 type NameResTable = FxHashMap<Symbol, hir::def::Res>;
 
 pub struct Resolver<'tcx> {
     tcx: TyCtxt<'tcx>,
     diagnostics: Diagnostics<'tcx>,
     name_res_table: NameResTable,
-    def_id: LocalDefId,
     parent: Option<&'tcx Impl<'tcx>>,
 }
 
-enum ParamTyOrBaseTy {
+enum ResolvedPath {
     BaseTy(ty::BaseTy),
     ParamTy(ty::ParamTy),
+    Float(ty::FloatTy),
 }
 
 struct Diagnostics<'tcx> {
@@ -35,16 +33,12 @@ struct Diagnostics<'tcx> {
 
 struct Subst {
     exprs: ScopeMap<Symbol, ty::Var>,
-    regions: FxHashMap<Symbol, Name>,
+    locs: FxHashMap<Symbol, Name>,
     types: ScopeMap<DefId, ParamTy>,
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn resolve(
-        tcx: TyCtxt<'tcx>,
-        def_id: LocalDefId,
-        fn_sig: ast::FnSig,
-    ) -> Result<ty::FnSig, ErrorReported> {
+    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
         let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
@@ -62,8 +56,7 @@ impl<'tcx> Resolver<'tcx> {
         }
         collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
 
-        let mut resolver = Self { tcx, diagnostics, parent, name_res_table, def_id };
-        resolver.run(fn_sig)
+        Ok(Resolver { tcx, diagnostics, name_res_table, parent })
     }
 
     pub fn resolve_qualifier(
@@ -76,76 +69,110 @@ impl<'tcx> Resolver<'tcx> {
 
         let name_res_table = FxHashMap::default();
         let parent = None;
-        let def_id = hir::def_id::CRATE_DEF_ID;
 
         let args = qualifier
             .args
             .into_iter()
-            .map(|(region, sort)| {
+            .map(|(loc, sort)| {
                 let fresh = name_gen.fresh();
                 if subst
-                    .insert_expr(region.name, ty::Var::Free(fresh))
+                    .insert_expr(loc.name, ty::Var::Free(fresh))
                     .is_some()
                 {
                     diagnostics
-                        .emit_err(errors::DuplicateGenericParam::new(region))
+                        .emit_err(errors::DuplicateParam::new(loc))
                         .raise()?;
                 }
                 let sort = resolve_sort(&mut diagnostics, sort)?;
-                Ok((fresh, sort))
+
+                let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+                Ok( ty::Param { name: loc, sort: sort } )
             })
             .try_collect_exhaust();
 
-        let mut resolver = Self { tcx, diagnostics, parent, name_res_table, def_id };
+        let mut resolver = Self { tcx, diagnostics, parent, name_res_table };
 
         let expr = resolver.resolve_expr(qualifier.expr, &subst)?;
 
-        let name = qualifier.name.name.to_ident_string();
+        let name = qualifier.name.name.to_ident_string();        
 
         Ok(ty::Qualifier { name, args: args?, expr })
     }
 
-    pub fn resolve_adt_def(
+    pub fn from_adt(
         tcx: TyCtxt<'tcx>,
-        refined_by: Vec<ast::RefinedByParam>,
-    ) -> Result<ty::AdtDef, ErrorReported> {
+        def_id: LocalDefId,
+    ) -> Result<Resolver<'tcx>, ErrorReported> {
         let mut diagnostics = Diagnostics::new(tcx.sess);
-        let refined_by = refined_by
-            .into_iter()
-            .enumerate()
-            .map(|(idx, param)| Ok((Name::new(idx), resolve_sort(&mut diagnostics, param.sort)?)))
-            .try_collect_exhaust()?;
-        Ok(ty::AdtDef { refined_by })
+        let item = tcx.hir().expect_item(def_id);
+        let data = if let ItemKind::Struct(data, _) = &item.kind {
+            data
+        } else {
+            panic!("expected a struct")
+        };
+
+        let mut name_res_table = FxHashMap::default();
+        for field in data.fields() {
+            collect_res_ty(&mut diagnostics, field.ty, &mut name_res_table)?;
+        }
+
+        Ok(Self { tcx, diagnostics, parent: None, name_res_table })
     }
 
-    fn run(&mut self, fn_sig: ast::FnSig) -> Result<ty::FnSig, ErrorReported> {
+    pub fn resolve_adt_def(&mut self, spec: AdtDef) -> Result<ty::AdtDef, ErrorReported> {
+        let name_gen = IndexGen::new();
+        let mut subst = Subst::new();
+
+        let (refined_by, constrs) = match spec.refined_by {
+            Some(refined_by) => self.resolve_generic_values(refined_by, &name_gen, &mut subst)?,
+            None => (vec![], vec![]),
+        };
+        assert!(constrs.is_empty());
+
+        if spec.opaque {
+            Ok(ty::AdtDef::Opaque { refined_by })
+        } else {
+            let fields = spec
+                .fields
+                .into_iter()
+                .map(|ty| self.resolve_ty(ty.unwrap(), &mut subst))
+                .try_collect_exhaust()?;
+
+            Ok(ty::AdtDef::Transparent { refined_by, fields })
+        }
+    }
+
+    pub fn resolve_fn_sig(
+        &mut self,
+        def_id: LocalDefId,
+        fn_sig: ast::FnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
         let mut subst = Subst::new();
 
         let name_gen = IndexGen::new();
 
         if let Some(parent) = self.parent {
-            self.insert_generic_types(&parent.generics, &mut subst);
+            subst.insert_generic_types(self.tcx, &parent.generics);
             subst.push_type_layer();
         }
 
-        let hir_generics = self.tcx.hir().get_generics(self.def_id).unwrap();
+        let hir_generics = self.tcx.hir().get_generics(def_id).unwrap();
 
-        self.insert_generic_types(hir_generics, &mut subst);
+        subst.insert_generic_types(self.tcx, hir_generics);
 
-        let params = self.resolve_generics(fn_sig.generics, &name_gen, &mut subst);
+        let (mut params, mut requires) =
+            self.resolve_generic_values(fn_sig.generics, &name_gen, &mut subst)?;
 
-        // From here on each step is independent so we check for errors at the end.
+        for (loc, ty) in fn_sig.requires {
+            let fresh = name_gen.fresh();
+            subst.insert_loc(loc.name, fresh);
 
-        let requires = fn_sig
-            .requires
-            .into_iter()
-            .map(|(region, ty)| {
-                let fresh = name_gen.fresh();
-                subst.insert_region(region.name, fresh);
-                let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok((fresh, ty))
-            })
-            .try_collect_exhaust();
+            let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+            let ty = self.resolve_ty(ty, &mut subst)?;
+
+            params.push(ty::Param { name: loc, sort: ty::Sort::Loc });
+            requires.push(ty::Constr::Type(loc, ty));
+        }
 
         let args = fn_sig
             .args
@@ -156,48 +183,32 @@ impl<'tcx> Resolver<'tcx> {
         let ensures = fn_sig
             .ensures
             .into_iter()
-            .map(|(region, ty)| {
-                let name = if let Some(name) = subst.get_region(region.name) {
-                    name
+            .map(|(loc, ty)| {
+                if let Some(name) = subst.get_loc(loc.name) {
+                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                    let ty = self.resolve_ty(ty, &mut subst)?;
+                    Ok(ty::Constr::Type(loc, ty))
                 } else {
-                    let fresh = name_gen.fresh();
-                    subst.insert_region(region.name, fresh);
-                    fresh
-                };
-                let ty = self.resolve_ty(ty, &mut subst)?;
-                Ok((name, ty))
+                    self.diagnostics
+                        .emit_err(errors::UnresolvedVar::new(loc))
+                        .raise()
+                }
             })
             .try_collect_exhaust();
 
         let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
-        Ok(ty::FnSig {
-            params: params?,
-            requires: requires?,
-            args: args?,
-            ret: ret?,
-            ensures: ensures?,
-        })
+        Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
     }
 
-    fn insert_generic_types(&self, generics: &hir::Generics, subst: &mut Subst) {
-        for param in generics.params.iter() {
-            if let hir::GenericParamKind::Type { .. } = param.kind {
-                let def_id = self.tcx.hir().local_def_id(param.hir_id).to_def_id();
-                let name = param.name.ident().name;
-                subst.insert_type(def_id, name);
-            }
-        }
-    }
-
-    fn resolve_generics(
+    fn resolve_generic_values(
         &mut self,
         generics: ast::Generics,
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
-    ) -> Result<Vec<ty::Param>, ErrorReported> {
-        generics
-            .into_iter()
+    ) -> Result<(Vec<ty::Param>, Vec<ty::Constr>), ErrorReported> {
+        let params = generics
+            .iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
                 if subst
@@ -205,33 +216,39 @@ impl<'tcx> Resolver<'tcx> {
                     .is_some()
                 {
                     self.diagnostics
-                        .emit_err(errors::DuplicateGenericParam::new(param.name))
+                        .emit_err(errors::DuplicateParam::new(param.name))
                         .raise()
                 } else {
                     let name =
                         ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-                    let sort = resolve_sort(&mut self.diagnostics, param.sort);
-                    let pred = match param.pred {
-                        Some(expr) => self.resolve_expr(expr, subst),
-                        None => Ok(ty::Expr::TRUE),
-                    };
-                    Ok(ty::Param { name, sort: sort?, pred: pred? })
+                    let sort = resolve_sort(&mut self.diagnostics, param.sort)?;
+
+                    Ok(ty::Param { name, sort })
                 }
             })
-            .try_collect_exhaust()
+            .try_collect_exhaust()?;
+
+        let constrs = generics
+            .into_iter()
+            .filter_map(|param| param.pred)
+            .map(|pred| Ok(ty::Constr::Pred(self.resolve_expr(pred, subst)?)))
+            .try_collect_exhaust()?;
+
+        Ok((params, constrs))
     }
 
     fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
         match ty.kind {
             ast::TyKind::BaseTy(path) => {
                 match self.resolve_path(path, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
-                    ParamTyOrBaseTy::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
+                    ResolvedPath::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
+                    ResolvedPath::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
+                    ResolvedPath::Float(float_ty) => Ok(ty::Ty::Float(float_ty)),
                 }
             }
             ast::TyKind::RefineTy { path, refine } => {
                 match self.resolve_path(path, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => {
+                    ResolvedPath::BaseTy(bty) => {
                         let exprs = refine
                             .exprs
                             .into_iter()
@@ -239,35 +256,46 @@ impl<'tcx> Resolver<'tcx> {
                             .try_collect_exhaust()?;
                         Ok(ty::Ty::Refine(bty, ty::Refine { exprs, span: refine.span }))
                     }
-                    ParamTyOrBaseTy::ParamTy(_) => {
+                    ResolvedPath::ParamTy(_) => {
                         self.diagnostics
                             .emit_err(errors::RefinedTypeParam { span: ty.span })
+                            .raise()
+                    }
+                    ResolvedPath::Float(_) => {
+                        self.diagnostics
+                            .emit_err(errors::RefinedFloat { span: ty.span })
                             .raise()
                     }
                 }
             }
             ast::TyKind::Exists { bind, path, pred } => {
                 match self.resolve_path(path, subst)? {
-                    ParamTyOrBaseTy::BaseTy(bty) => {
+                    ResolvedPath::BaseTy(bty) => {
                         subst.push_expr_layer();
                         subst.insert_expr(bind.name, ty::Var::Bound);
                         let e = self.resolve_expr(pred, subst);
                         subst.pop_expr_layer();
                         Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
                     }
-                    ParamTyOrBaseTy::ParamTy(_) => {
+                    ResolvedPath::ParamTy(_) => {
                         self.diagnostics
                             .emit_err(errors::RefinedTypeParam { span: ty.span })
                             .raise()
                     }
+                    ResolvedPath::Float(_) => {
+                        self.diagnostics
+                            .emit_err(errors::RefinedFloat { span: ty.span })
+                            .raise()
+                    }
                 }
             }
-            ast::TyKind::StrgRef(region) => {
-                if let Some(name) = subst.get_region(region.name) {
-                    Ok(ty::Ty::StrgRef(name))
+            ast::TyKind::StrgRef(loc) => {
+                if let Some(name) = subst.get_loc(loc.name) {
+                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                    Ok(ty::Ty::StrgRef(loc))
                 } else {
                     self.diagnostics
-                        .emit_err(errors::UnresolvedLoc::new(region))
+                        .emit_err(errors::UnresolvedLoc::new(loc))
                         .raise()
                 }
             }
@@ -286,7 +314,7 @@ impl<'tcx> Resolver<'tcx> {
         &mut self,
         path: ast::Path,
         subst: &mut Subst,
-    ) -> Result<ParamTyOrBaseTy, ErrorReported> {
+    ) -> Result<ResolvedPath, ErrorReported> {
         let res = if let Some(res) = self.name_res_table.get(&path.ident.name) {
             *res
         } else {
@@ -298,7 +326,7 @@ impl<'tcx> Resolver<'tcx> {
 
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                Ok(ParamTyOrBaseTy::ParamTy(subst.get_param_ty(did).unwrap()))
+                Ok(ResolvedPath::ParamTy(subst.get_param_ty(did).unwrap()))
             }
             hir::def::Res::Def(hir::def::DefKind::Struct, did) => {
                 let args = path
@@ -307,24 +335,17 @@ impl<'tcx> Resolver<'tcx> {
                     .flatten()
                     .map(|ty| self.resolve_ty(ty, subst))
                     .try_collect_exhaust()?;
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Adt(did, args)))
+                Ok(ResolvedPath::BaseTy(ty::BaseTy::Adt(did, args)))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))))
+                Ok(ResolvedPath::BaseTy(ty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))))
+                Ok(ResolvedPath::BaseTy(ty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => {
-                Ok(ParamTyOrBaseTy::BaseTy(ty::BaseTy::Bool))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Float(_)) => {
-                self.diagnostics
-                    .emit_err(errors::UnsupportedSignature {
-                        span: path.span,
-                        msg: "floats are not supported yet",
-                    })
-                    .raise()
+            hir::def::Res::PrimTy(hir::PrimTy::Bool) => Ok(ResolvedPath::BaseTy(ty::BaseTy::Bool)),
+            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
+                Ok(ResolvedPath::Float(rustc_middle::ty::float_ty(float_ty)))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Str) => {
                 self.diagnostics
@@ -404,7 +425,7 @@ impl<'tcx> Resolver<'tcx> {
 
 impl Subst {
     fn new() -> Self {
-        Self { exprs: ScopeMap::new(), regions: FxHashMap::default(), types: ScopeMap::new() }
+        Self { exprs: ScopeMap::new(), locs: FxHashMap::default(), types: ScopeMap::new() }
     }
 
     fn push_expr_layer(&mut self) {
@@ -424,8 +445,8 @@ impl Subst {
         }
     }
 
-    fn insert_region(&mut self, symb: Symbol, name: Name) -> Option<Name> {
-        self.regions.insert(symb, name)
+    fn insert_loc(&mut self, symb: Symbol, name: Name) -> Option<Name> {
+        self.locs.insert(symb, name)
     }
 
     fn insert_type(&mut self, did: DefId, name: Symbol) {
@@ -433,6 +454,16 @@ impl Subst {
         let param_ty = ty::ParamTy { index, name };
         assert!(!self.types.contains_key_at_top(&did));
         self.types.define(did, param_ty);
+    }
+
+    fn insert_generic_types(&mut self, tcx: TyCtxt, generics: &hir::Generics) {
+        for param in generics.params {
+            if let hir::GenericParamKind::Type { .. } = param.kind {
+                let def_id = tcx.hir().local_def_id(param.hir_id).to_def_id();
+                let name = param.name.ident().name;
+                self.insert_type(def_id, name);
+            }
+        }
     }
 
     fn push_type_layer(&mut self) {
@@ -443,8 +474,8 @@ impl Subst {
         self.exprs.get(&symb).copied()
     }
 
-    fn get_region(&self, symb: Symbol) -> Option<Name> {
-        self.regions.get(&symb).copied()
+    fn get_loc(&self, symb: Symbol) -> Option<Name> {
+        self.locs.get(&symb).copied()
     }
 
     fn get_param_ty(&self, did: DefId) -> Option<ParamTy> {
@@ -665,14 +696,14 @@ mod errors {
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
-    pub struct DuplicateGenericParam {
-        #[message = "the name `{name}` is already used for a generic parameter"]
+    pub struct DuplicateParam {
+        #[message = "the name `{name}` is already used as a parameter"]
         #[label = "already used"]
         span: Span,
         name: Ident,
     }
 
-    impl DuplicateGenericParam {
+    impl DuplicateParam {
         pub fn new(name: Ident) -> Self {
             Self { span: name.span, name }
         }
@@ -683,6 +714,14 @@ mod errors {
     pub struct RefinedTypeParam {
         #[message = "type parameters cannot be refined"]
         #[label = "refined type parameter"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct RefinedFloat {
+        #[message = "float cannot be refined"]
+        #[label = "refined float"]
         pub span: Span,
     }
 

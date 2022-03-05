@@ -1,63 +1,94 @@
-use crate::{global_env::GlobalEnv, ty};
-use liquid_rust_common::index::{Idx, IndexGen};
+use crate::ty;
+use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
-pub struct LoweringCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'tcx>,
-    params: FxHashMap<core::Name, ty::Name>,
-    locs: FxHashMap<core::Name, ty::Name>,
+pub struct LoweringCtxt {
+    name_map: FxHashMap<core::Name, ty::Name>,
 }
 
-impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
-    pub fn empty(genv: &'a GlobalEnv<'tcx>) -> Self {
-        Self { genv, params: FxHashMap::default(), locs: FxHashMap::default() }
+impl LoweringCtxt {
+    pub fn empty() -> Self {
+        Self { name_map: FxHashMap::default() }
     }
 
-    pub fn lower_fn_sig(genv: &'a GlobalEnv<'tcx>, fn_sig: &core::FnSig) -> ty::FnSig {
+    pub fn lower_fn_sig(fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let name_gen = IndexGen::new();
-        let fresh_kvar = &mut |_| unreachable!("inference predicate in top level function");
+        let fresh_kvar =
+            &mut |_: &ty::BaseTy| unreachable!("inference predicate in top level function");
 
-        let mut cx = LoweringCtxt::empty(genv);
+        let mut cx = LoweringCtxt::empty();
 
-        let mut params = Vec::new();
-        for param in &fn_sig.params {
-            let fresh = name_gen.fresh();
-            cx.params.insert(param.name.name, fresh);
-            params.push(ty::Param {
-                name: fresh,
-                sort: lower_sort(param.sort),
-                pred: cx.lower_expr(&param.pred).into(),
-            });
-        }
+        let params = cx.lower_params(&name_gen, &fn_sig.params);
 
         let mut requires = vec![];
-        for (loc, ty) in &fn_sig.requires {
-            let fresh = name_gen.fresh();
-            requires.push((fresh, cx.lower_ty(ty, fresh_kvar)));
-            cx.locs.insert(*loc, fresh);
+        for constr in fn_sig.requires {
+            requires.push(cx.lower_constr(&constr, fresh_kvar));
         }
 
         let mut args = vec![];
-        for ty in &fn_sig.args {
-            args.push(cx.lower_ty(ty, fresh_kvar));
+        for ty in fn_sig.args {
+            args.push(cx.lower_ty(&ty, fresh_kvar));
         }
 
         let mut ensures = vec![];
-        for (loc, ty) in &fn_sig.ensures {
-            let loc = if let Some(loc) = cx.locs.get(loc) {
-                *loc
-            } else {
-                let fresh = name_gen.fresh();
-                cx.locs.insert(*loc, fresh);
-                fresh
-            };
-            ensures.push((loc, cx.lower_ty(ty, fresh_kvar)));
+        for constr in fn_sig.ensures {
+            ensures.push(cx.lower_constr(&constr, fresh_kvar));
         }
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        ty::FnSig { params, requires, args, ret, ensures }
+        ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures })
+    }
+
+    pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
+        let mut fresh_kvar = |_: &ty::BaseTy| panic!("inference predicate in top item");
+        let name_gen = IndexGen::new();
+        let mut cx = LoweringCtxt::empty();
+
+        let refined_by = cx.lower_params(&name_gen, adt_def.refined_by());
+
+        match adt_def {
+            core::AdtDef::Transparent { fields, .. } => {
+                let fields = fields
+                    .into_iter()
+                    .map(|ty| cx.lower_ty(&ty, &mut fresh_kvar))
+                    .collect();
+                ty::AdtDef::Transparent { refined_by, fields }
+            }
+            core::AdtDef::Opaque { .. } => ty::AdtDef::Opaque { refined_by },
+        }
+    }
+
+    fn lower_constr(
+        &self,
+        constr: &core::Constr,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
+    ) -> ty::Constr {
+        match constr {
+            core::Constr::Type(loc, ty) => {
+                ty::Constr::Type(
+                    ty::Loc::Abstract(self.name_map[&loc.name]),
+                    self.lower_ty(ty, fresh_kvar),
+                )
+            }
+            core::Constr::Pred(e) => ty::Constr::Pred(self.lower_expr(e)),
+        }
+    }
+
+    fn lower_params(
+        &mut self,
+        name_gen: &IndexGen<ty::Name>,
+        params: &[core::Param],
+    ) -> Vec<ty::Param> {
+        params
+            .iter()
+            .map(|param| {
+                let fresh = name_gen.fresh();
+                self.name_map.insert(param.name.name, fresh);
+                ty::Param { name: fresh, sort: lower_sort(param.sort) }
+            })
+            .collect()
     }
 
     pub fn lower_qualifer(genv: &'a GlobalEnv<'tcx>, qualifier: &core::Qualifier) -> ty::Qualifier {
@@ -81,34 +112,33 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_ty(
         &self,
         ty: &core::Ty,
-        fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
     ) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, refine) => {
                 let refine = ty::Expr::tuple(refine.exprs.iter().map(|e| self.lower_expr(e)));
-                ty::TyKind::Refine(self.lower_base_ty(bty, fresh_kvar), refine).intern()
+                ty::Ty::refine(self.lower_base_ty(bty, fresh_kvar), refine)
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty, fresh_kvar);
                 let pred = match pred {
-                    core::Pred::Infer => fresh_kvar(self.genv.sort(&bty)),
+                    core::Pred::Infer => fresh_kvar(&bty),
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
-                ty::TyKind::Exists(bty, pred).intern()
+                ty::Ty::exists(bty, pred)
             }
-            core::Ty::StrgRef(loc) => {
-                ty::TyKind::StrgRef(ty::Loc::Abstract(self.locs[loc])).intern()
-            }
-            core::Ty::WeakRef(ty) => ty::TyKind::WeakRef(self.lower_ty(ty, fresh_kvar)).intern(),
-            core::Ty::ShrRef(ty) => ty::TyKind::ShrRef(self.lower_ty(ty, fresh_kvar)).intern(),
-            core::Ty::Param(param) => ty::TyKind::Param(*param).intern(),
+            core::Ty::StrgRef(loc) => ty::Ty::strg_ref(ty::Loc::Abstract(self.name_map[&loc.name])),
+            core::Ty::WeakRef(ty) => ty::Ty::weak_ref(self.lower_ty(ty, fresh_kvar)),
+            core::Ty::ShrRef(ty) => ty::Ty::shr_ref(self.lower_ty(ty, fresh_kvar)),
+            core::Ty::Param(param) => ty::Ty::param(*param),
+            core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
         }
     }
 
     fn lower_base_ty(
         &self,
         bty: &core::BaseTy,
-        fresh_kvar: &mut impl FnMut(ty::Sort) -> ty::Pred,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
     ) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
@@ -126,11 +156,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
     fn lower_expr(&self, expr: &core::Expr) -> ty::Expr {
         match &expr.kind {
-            core::ExprKind::Var(var, ..) => ty::ExprKind::Var(self.lower_var(*var)).intern(),
-            core::ExprKind::Literal(lit) => ty::ExprKind::Constant(self.lower_lit(*lit)).intern(),
+            core::ExprKind::Var(var, ..) => ty::Expr::var(self.lower_var(*var)),
+            core::ExprKind::Literal(lit) => ty::Expr::constant(self.lower_lit(*lit)),
             core::ExprKind::BinaryOp(op, e1, e2) => {
-                ty::ExprKind::BinaryOp(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
-                    .intern()
+                ty::Expr::binary_op(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
             }
         }
     }
@@ -138,7 +167,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     fn lower_var(&self, var: core::Var) -> ty::Var {
         match var {
             core::Var::Bound => ty::Var::Bound,
-            core::Var::Free(name) => ty::Var::Free(self.params[&name]),
+            core::Var::Free(name) => ty::Var::Free(self.name_map[&name]),
         }
     }
 
@@ -154,21 +183,8 @@ pub fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
         core::Sort::Int => ty::Sort::int(),
         core::Sort::Bool => ty::Sort::bool(),
+        core::Sort::Loc => ty::Sort::loc(),
     }
-}
-
-pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
-    let refined_by = adt_def
-        .refined_by
-        .into_iter()
-        .enumerate()
-        .map(|(idx, (_, sort))| {
-            let name = ty::Name::new(idx);
-            (name, lower_sort(sort))
-        })
-        .collect();
-
-    ty::AdtDef { refined_by }
 }
 
 fn lower_bin_op(op: core::BinOp) -> ty::BinOp {

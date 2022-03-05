@@ -8,18 +8,18 @@ use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
-    subtyping::Tag,
+    constraint_gen::Tag,
     ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
-pub struct PureCtxt {
+pub struct ConstraintBuilder {
     root: NodePtr,
 }
 
-pub struct Cursor<'a> {
-    cx: &'a mut PureCtxt,
-    node: NodePtr,
+pub struct PureCtxt<'a> {
+    cx: &'a mut ConstraintBuilder,
+    ptr: NodePtr,
 }
 
 pub struct Snapshot {
@@ -53,19 +53,19 @@ enum NodeKind {
     Head(Pred, Tag),
 }
 
-impl PureCtxt {
-    pub fn new() -> PureCtxt {
+impl ConstraintBuilder {
+    pub fn new() -> ConstraintBuilder {
         let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = Rc::new(RefCell::new(root));
-        PureCtxt { root }
+        ConstraintBuilder { root }
     }
 
-    pub fn cursor_at_root(&mut self) -> Cursor {
-        Cursor { node: Rc::clone(&self.root), cx: self }
+    pub fn pure_context_at_root(&mut self) -> PureCtxt {
+        PureCtxt { ptr: Rc::clone(&self.root), cx: self }
     }
 
-    pub fn cursor_at(&mut self, snapshot: &Snapshot) -> Option<Cursor> {
-        Some(Cursor { node: snapshot.node.upgrade()?, cx: self })
+    pub fn pure_context_at(&mut self, snapshot: &Snapshot) -> Option<PureCtxt> {
+        Some(PureCtxt { ptr: snapshot.node.upgrade()?, cx: self })
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt) -> fixpoint::Constraint<TagIdx> {
@@ -120,23 +120,17 @@ impl std::ops::Index<KVid> for KVarStore {
     }
 }
 
-impl Cursor<'_> {
-    pub fn name_gen(&self) -> IndexGen<Name> {
-        let gen = IndexGen::new();
-        gen.skip(self.next_name_idx());
-        gen
-    }
-
-    pub fn breadcrumb(&mut self) -> Cursor {
-        Cursor { cx: self.cx, node: Rc::clone(&self.node) }
+impl PureCtxt<'_> {
+    pub fn breadcrumb(&mut self) -> PureCtxt {
+        PureCtxt { cx: self.cx, ptr: Rc::clone(&self.ptr) }
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        Snapshot { node: Rc::downgrade(&self.node) }
+        Snapshot { node: Rc::downgrade(&self.ptr) }
     }
 
     pub fn clear(&mut self) {
-        self.node.borrow_mut().children.clear();
+        self.ptr.borrow_mut().children.clear();
     }
 
     pub fn scope(&self) -> Scope {
@@ -149,18 +143,17 @@ impl Cursor<'_> {
         P: Into<Pred>,
     {
         let fresh = Name::new(self.next_name_idx());
-        let pred = f(fresh).into();
-        self.node = self.push_node(NodeKind::Binding(fresh, sort, pred));
+        self.ptr = self.push_node(NodeKind::Binding(fresh, sort, f(fresh).into()));
         fresh
     }
 
     pub fn push_pred(&mut self, expr: impl Into<Expr>) {
-        self.node = self.push_node(NodeKind::Pred(expr.into()));
+        self.ptr = self.push_node(NodeKind::Pred(expr.into()));
     }
 
     pub fn push_loc(&mut self) -> Loc {
         let fresh = Name::new(self.next_name_idx());
-        self.node = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
+        self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
         Loc::Abstract(fresh)
     }
 
@@ -172,19 +165,19 @@ impl Cursor<'_> {
     }
 
     fn next_name_idx(&self) -> usize {
-        self.node.borrow().nbindings + usize::from(self.node.borrow().is_binding())
+        self.ptr.borrow().nbindings + usize::from(self.ptr.borrow().is_binding())
     }
 
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
-        debug_assert!(!matches!(self.node.borrow().kind, NodeKind::Head(..)));
+        debug_assert!(!matches!(self.ptr.borrow().kind, NodeKind::Head(..)));
         let node = Node {
             kind,
             nbindings: self.next_name_idx(),
-            parent: Some(Rc::downgrade(&self.node)),
+            parent: Some(Rc::downgrade(&self.ptr)),
             children: vec![],
         };
         let node = Rc::new(RefCell::new(node));
-        self.node.borrow_mut().children.push(Rc::clone(&node));
+        self.ptr.borrow_mut().children.push(Rc::clone(&node));
         node
     }
 }
@@ -216,6 +209,13 @@ impl Scope {
             .map(|(name, sort)| (name, sort.clone()))
     }
 
+    /// A generator of fresh names in this scope.
+    pub fn name_gen(&self) -> IndexGen<Name> {
+        let gen = IndexGen::new();
+        gen.skip(self.bindings.len());
+        gen
+    }
+
     pub fn contains(&self, name: Name) -> bool {
         name.index() < self.bindings.len()
     }
@@ -238,20 +238,18 @@ impl Node {
             }
             NodeKind::Binding(name, sort, pred) => {
                 let fresh = cx.fresh_name();
-                // The name is no longer in scope after we return from `pred_to_fixpoint`
-                // but there's no harm in keeping it around as it will just get overwritten if
-                // it's used in a different branch of the tree.
-                cx.name_map.insert(*name, fresh);
-                let (bindings, pred) = pred_to_fixpoint(cx, pred);
-                Some(stitch(
-                    bindings,
-                    fixpoint::Constraint::ForAll(
-                        fresh,
-                        sort_to_fixpoint(sort),
-                        pred,
-                        Box::new(children_to_fixpoint(cx, &self.children)?),
-                    ),
-                ))
+                cx.with_name_map(*name, fresh, |cx| {
+                    let (bindings, pred) = pred_to_fixpoint(cx, pred);
+                    Some(stitch(
+                        bindings,
+                        fixpoint::Constraint::ForAll(
+                            fresh,
+                            sort_to_fixpoint(sort),
+                            pred,
+                            Box::new(children_to_fixpoint(cx, &self.children)?),
+                        ),
+                    ))
+                })
             }
             NodeKind::Pred(expr) => {
                 Some(fixpoint::Constraint::Guard(
@@ -271,6 +269,13 @@ impl Node {
     /// [`Binding`]: NodeKind::Binding
     fn is_binding(&self) -> bool {
         matches!(self.kind, NodeKind::Binding(..))
+    }
+
+    /// Returns `true` if the node kind is [`Head`].
+    ///
+    /// [`Head`]: NodeKind::Head
+    fn is_head(&self) -> bool {
+        matches!(self.kind, NodeKind::Head(..))
     }
 }
 
@@ -299,7 +304,9 @@ fn pred_to_fixpoint(
         Pred::KVar(kvid, args) => {
             let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
                 if let ExprKind::Var(Var::Free(name)) = arg.kind() {
-                    cx.name_map[name]
+                    *cx.name_map
+                        .get(name)
+                        .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`",))
                 } else {
                     let fresh = cx.fresh_name();
                     let pred = fixpoint::Expr::BinaryOp(
@@ -394,12 +401,12 @@ fn stitch(
 }
 
 struct ParentsIter {
-    node: Option<NodePtr>,
+    ptr: Option<NodePtr>,
 }
 
 impl ParentsIter {
-    fn new(node: NodePtr) -> Self {
-        Self { node: Some(node) }
+    fn new(ptr: NodePtr) -> Self {
+        Self { ptr: Some(ptr) }
     }
 }
 
@@ -407,9 +414,9 @@ impl Iterator for ParentsIter {
     type Item = NodePtr;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(node) = self.node.take() {
-            self.node = node.borrow().parent.as_ref().and_then(WeakNodePtr::upgrade);
-            Some(node)
+        if let Some(ptr) = self.ptr.take() {
+            self.ptr = ptr.borrow().parent.as_ref().and_then(WeakNodePtr::upgrade);
+            Some(ptr)
         } else {
             None
         }
@@ -426,27 +433,44 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    // fn bindings_chain(node: NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-    //     fn go(
-    //         ptr: NodePtr,
-    //         mut bindings: Vec<(Name, Sort, Pred)>,
-    //     ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-    //         let node = ptr.borrow();
-    //         if let NodeKind::Binding(name, sort, pred) = &node.kind {
-    //             bindings.push((*name, *sort, pred.clone()));
-    //             if let [child] = &node.children[..] {
-    //                 go(Rc::clone(child), bindings)
-    //             } else {
-    //                 (bindings, node.children.clone())
-    //             }
-    //         } else {
-    //             (bindings, vec![Rc::clone(&ptr)])
-    //         }
-    //     }
-    //     go(node, vec![])
-    // }
+    fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+        fn go(
+            ptr: &NodePtr,
+            mut bindings: Vec<(Name, Sort, Pred)>,
+        ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+            let node = ptr.borrow();
+            if let NodeKind::Binding(name, sort, pred) = &node.kind {
+                bindings.push((*name, sort.clone(), pred.clone()));
+                if let [child] = &node.children[..] {
+                    go(child, bindings)
+                } else {
+                    (bindings, node.children.clone())
+                }
+            } else {
+                (bindings, vec![Rc::clone(ptr)])
+            }
+        }
+        go(ptr, vec![])
+    }
 
-    impl Pretty for PureCtxt {
+    fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
+            let node = ptr.borrow();
+            if let NodeKind::Pred(e) = &node.kind {
+                preds.push(e.clone());
+                if let [child] = &node.children[..] {
+                    go(child, preds)
+                } else {
+                    (preds, node.children.clone())
+                }
+            } else {
+                (preds, vec![Rc::clone(ptr)])
+            }
+        }
+        go(ptr, vec![])
+    }
+
+    impl Pretty for ConstraintBuilder {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
@@ -454,8 +478,6 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
-            // .tags(true)
-            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 
@@ -468,47 +490,47 @@ mod pretty {
                     w!("{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Binding(name, sort, pred) => {
-                    if pred.is_true() {
-                        w!("∀ {:?}: {:?}.{:?}", ^name, ^sort, &node.children)
+                    let (bindings, children) = if cx.bindings_chain {
+                        bindings_chain(self)
                     } else {
-                        w!("∀ {:?}: {:?}{{{:?}}}.{:?}", ^name, ^sort, pred, &node.children)
-                    }
+                        (vec![(*name, sort.clone(), pred.clone())], node.children.clone())
+                    };
+
+                    w!(
+                        "∀ {}.{:?}",
+                        ^bindings
+                            .into_iter()
+                            .format_with(", ", |(name, sort, pred), f| {
+                                if pred.is_true() {
+                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                                } else {
+                                    f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, sort, pred))
+                                }
+                            }),
+                        children
+                    )
                 }
-                // NodeKind::Binding(..) => {
-                //     let (bindings, children) = bindings_chain(Rc::clone(self));
-
-                //     let vars = bindings.iter().format_with(", ", |(var, sort, _), f| {
-                //         f(&format_args_cx!("{:?}: {:?}", ^var, ^sort))
-                //     });
-
-                //     let preds = bindings
-                //         .iter()
-                //         .map(|(_, _, pred)| pred)
-                //         .filter(|p| !p.is_true())
-                //         .collect_vec();
-
-                //     let preds_fmt = preds.iter().format_with(" ∧ ", |pred, f| {
-                //         if pred.is_atom() {
-                //             f(&format_args_cx!("{:?}", pred))
-                //         } else {
-                //             f(&format_args_cx!("({:?})", pred))
-                //         }
-                //     });
-
-                //     w!("∀ {}.", ^vars)?;
-                //     if preds.is_empty() {
-                //         w!("{:?}", &children)
-                //     } else {
-                //         w!(PadAdapter::wrap_fmt(f), "\n{} ⇒{:?}", ^preds_fmt, &children)
-                //     }
-                // }
                 NodeKind::Pred(expr) => {
-                    let expr = if cx.simplify_exprs { expr.simplify() } else { expr.clone() };
-                    if expr.is_atom() {
-                        w!("{:?} ⇒{:?}", expr, &node.children)
+                    let (exprs, children) = if cx.preds_chain {
+                        preds_chain(self)
                     } else {
-                        w!("({:?}) ⇒{:?}", expr, &node.children)
-                    }
+                        (vec![expr.clone()], node.children.clone())
+                    };
+                    w!(
+                        "{} ⇒{:?}",
+                        ^exprs
+                            .into_iter()
+                            .filter(|e| !e.is_true())
+                            .format_with(" ∧ ", |e, f| {
+                                let e = if cx.simplify_exprs { e.simplify() } else { e };
+                                if e.is_atom() {
+                                    f(&format_args_cx!("{:?}", ^e))
+                                } else {
+                                    f(&format_args_cx!("({:?})", ^e))
+                                }
+                            }),
+                        children
+                    )
                 }
                 NodeKind::Head(pred, tag) => {
                     if pred.is_atom() {
@@ -517,7 +539,7 @@ mod pretty {
                         w!("({:?})", pred)?;
                     }
                     if cx.tags {
-                        w!(" [{:?}]", tag)?;
+                        w!(" ~ {:?}", tag)?;
                     }
                     Ok(())
                 }
@@ -527,19 +549,27 @@ mod pretty {
 
     impl Pretty for Vec<NodePtr> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, PadAdapter::wrap_fmt(f));
+            let mut f = PadAdapter::wrap_fmt(f, 2);
+            define_scoped!(cx, f);
             match &self[..] {
                 [] => w!(" true"),
-                // [n] => w!("{:?}", Rc::clone(n)),
+                [n] => {
+                    if n.borrow().is_head() {
+                        w!(" ")?;
+                    } else {
+                        w!("\n")?;
+                    }
+                    w!("{:?}", Rc::clone(n))
+                }
                 _ => w!("\n{:?}", join!("\n", self.iter().map(Rc::clone))),
             }
         }
     }
 
-    impl Pretty for Cursor<'_> {
+    impl Pretty for PureCtxt<'_> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let parents = ParentsIter::new(Rc::clone(&self.node)).collect_vec();
+            let parents = ParentsIter::new(Rc::clone(&self.ptr)).collect_vec();
             write!(
                 f,
                 "{{{}}}",
@@ -568,7 +598,6 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
-            // PPrintCx::default(tcx).kvar_args(Visibility::Show)
         }
     }
 
@@ -587,5 +616,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(PureCtxt, Cursor<'_>, Scope);
+    impl_debug_with_default_cx!(ConstraintBuilder => "constraint_builder", PureCtxt<'_> => "pure_ctxt", Scope);
 }

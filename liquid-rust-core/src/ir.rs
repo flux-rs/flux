@@ -9,12 +9,11 @@ pub use rustc_middle::mir::{
 };
 use rustc_middle::{
     mir,
-    ty::{IntTy, UintTy},
+    ty::{FloatTy, IntTy, UintTy},
 };
 
 use crate::ty::Ty;
 
-#[derive(Debug)]
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
@@ -101,26 +100,20 @@ pub enum Operand {
     Constant(Constant),
 }
 
-pub enum Place {
-    /// x
-    Local(Local),
-    /// *x
-    Deref(Local),
+pub struct Place {
+    pub local: Local,
+    pub projection: Vec<PlaceElem>,
 }
 
-// pub struct Place {
-//     pub local: Local,
-//     pub projection: Vec<PlaceElem>,
-// }
-
-// #[derive(Debug)]
-// pub enum PlaceElem {
-//     Deref,
-// }
+#[derive(Debug)]
+pub enum PlaceElem {
+    Deref,
+}
 
 pub enum Constant {
     Int(i128, IntTy),
     Uint(u128, UintTy),
+    Float(u128, FloatTy),
     Bool(bool),
 }
 
@@ -160,20 +153,30 @@ impl Body<'_> {
     }
 }
 
-impl Place {
-    pub fn local(&self) -> Local {
-        match self {
-            Place::Local(local) | Place::Deref(local) => *local,
+impl fmt::Debug for Body<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (bb, data) in self.basic_blocks.iter_enumerated() {
+            writeln!(
+                f,
+                "{bb:?}: {{{}",
+                data.statements
+                    .iter()
+                    .filter(|stmt| !matches!(stmt.kind, StatementKind::Nop))
+                    .format_with("", |stmt, f| f(&format_args!("\n    {stmt:?};")))
+            )?;
+            if let Some(terminator) = &data.terminator {
+                writeln!(f, "    {terminator:?}", terminator = terminator)?;
+            }
+            writeln!(f, "}}\n")?;
         }
+        Ok(())
     }
 }
 
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            StatementKind::Assign(place, rvalue) => {
-                write!(f, "{:?} = {:?}", place, rvalue)
-            }
+            StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
             StatementKind::Nop => write!(f, "nop"),
         }
     }
@@ -232,16 +235,12 @@ impl fmt::Debug for Terminator {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Place::Local(local) => write!(f, "{local:?}"),
-            Place::Deref(local) => write!(f, "*{local:?}"),
+        for elem in &self.projection {
+            match elem {
+                PlaceElem::Deref => write!(f, "*")?,
+            }
         }
-        // for elem in &self.projection {
-        //     match elem {
-        //         PlaceElem::Deref => write!(f, "*")?,
-        //     }
-        // }
-        // write!(f, "{:?}", self.local)
+        write!(f, "{:?}", self.local)
     }
 }
 
@@ -272,6 +271,7 @@ impl fmt::Debug for Constant {
         match self {
             Self::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
             Self::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
+            Self::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
             Self::Bool(b) => write!(f, "{}", b),
         }
     }

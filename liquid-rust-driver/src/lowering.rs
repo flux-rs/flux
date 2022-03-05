@@ -3,8 +3,8 @@ use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, Operand, Place, Rvalue, Statement, StatementKind,
-        Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, Operand, Place, PlaceElem, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
 };
 use rustc_const_eval::interpret::ConstValue;
@@ -229,22 +229,17 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_place(&self, place: &mir::Place<'tcx>) -> Result<Place, ErrorReported> {
-        // let mut projection = vec![];
-        // for elem in place.projection {
-        //     match elem {
-        //         mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
-        //         _ => {
-        //             self.tcx.sess.err("place not supported");
-        //             return Err(ErrorReported);
-        //         }
-        //     }
-        // }
-        // Ok(Place { local: place.local, projection })
-        match &place.projection[..] {
-            [] => Ok(Place::Local(place.local)),
-            [mir::PlaceElem::Deref] => Ok(Place::Deref(place.local)),
-            _ => self.emit_err(None, format!("place not supported: `{place:?}`")),
+        let mut projection = vec![];
+        for elem in place.projection {
+            match elem {
+                mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+                _ => {
+                    self.tcx.sess.err("place not supported");
+                    return Err(ErrorReported);
+                }
+            }
         }
+        Ok(Place { local: place.local, projection })
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
@@ -259,6 +254,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
                     (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
                     (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
+                    (TyKind::Float(float_ty), Some(bits)) => Ok(Constant::Float(bits, *float_ty)),
                     (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
                     _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
                 }
@@ -291,6 +287,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_middle::ty::TyKind::Uint(uint_ty) => {
                 Ok(core::Ty::Exists(core::BaseTy::Uint(*uint_ty), core::Pred::Infer))
             }
+            rustc_middle::ty::TyKind::Float(float_ty) => Ok(core::Ty::Float(*float_ty)),
             rustc_middle::ty::TyKind::Param(param) => {
                 Ok(core::Ty::Param(core::ParamTy { index: param.index, name: param.name }))
             }

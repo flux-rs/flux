@@ -1,15 +1,9 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_typeck::{
-    self as typeck,
-    global_env::{FnSpec, GlobalEnv},
-    wf::Wf,
-};
+use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
-use rustc_hash::FxHashMap;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
-use typeck::global_env::AdtDefs;
 
 use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
 
@@ -38,10 +32,13 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
 
-    let adt_defs: AdtDefs = specs
+    let adt_defs = specs
         .adts
         .into_iter()
-        .map(|(def_id, spec)| Ok((def_id, Resolver::resolve_adt_def(tcx, spec.refined_by)?)))
+        .map(|(def_id, def)| {
+            let mut resolver = Resolver::from_adt(tcx, def_id)?;
+            Ok((def_id, resolver.resolve_adt_def(def)?))
+        })
         .try_collect_exhaust()?;
 
     let wf = Wf::new(sess, &adt_defs);
@@ -56,15 +53,26 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         })
         .try_collect_exhaust()?;
 
-    let fn_sigs: FxHashMap<_, _> = specs
+    adt_defs
+        .iter()
+        .try_for_each_exhaust(|(_, def)| wf.check_adt_def(def))?;
+
+    let fn_sigs = specs
         .fns
         .into_iter()
         .map(|(def_id, spec)| {
-            let fn_sig = Resolver::resolve(tcx, def_id, spec.fn_sig)?;
+            let mut resolver = Resolver::from_fn(tcx, def_id)?;
+            let fn_sig = resolver.resolve_fn_sig(def_id, spec.fn_sig)?;
             wf.check_fn_sig(&fn_sig)?;
-            Ok((def_id, FnSpec { fn_sig, assume: spec.assume }))
+            let fn_sig = typeck::lowering::LoweringCtxt::lower_fn_sig(fn_sig);
+            Ok((def_id, typeck::ty::FnSpec { fn_sig, assume: spec.assume }))
         })
         .try_collect_exhaust()?;
+
+    let adt_defs = adt_defs
+        .into_iter()
+        .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
+        .collect();
 
     let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
     genv.fn_specs

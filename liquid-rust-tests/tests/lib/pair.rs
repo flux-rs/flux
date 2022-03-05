@@ -1,3 +1,4 @@
+#[lr::opaque]
 #[lr::refined_by(a: int, b: int)]
 pub struct Pair {
     a: i32,

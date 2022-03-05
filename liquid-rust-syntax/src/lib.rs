@@ -6,8 +6,8 @@ extern crate rustc_span;
 
 pub mod ast;
 pub mod lexer;
+pub mod surface;
 
-use ast::{FnSig, Qualifier, RefinedByParam};
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
@@ -20,29 +20,44 @@ lalrpop_mod!(
     grammar
 );
 
+lalrpop_mod!(
+    #[allow(warnings)]
+    #[allow(clippy::all)]
+    surface_grammar
+);
+
 macro_rules! parse {
-    ($parser:ident, $tokens:expr, $span:expr) => {{
+    ($parser:path, $tokens:expr, $span:expr) => {{
         let offset = $span.lo();
         let ctx = $span.ctxt();
         let parent = $span.parent();
         let mk_span =
             |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
-        grammar::$parser::new()
+        <$parser>::new()
             .parse(&mk_span, Cursor::new($tokens, $span.lo()))
             .map_err(|err| map_err(err, offset, ctx, parent))
     }};
 }
 
-pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<FnSig> {
-    parse!(FnSigParser, tokens, span)
+pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
+    parse!(grammar::FnSigParser, tokens, span)
 }
 
-pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<Qualifier> {
-    parse!(QualifierParser, tokens, span)
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Generics> {
+    parse!(grammar::RefinedByParser, tokens, span)
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<Vec<RefinedByParam>> {
-    parse!(RefinedByParser, tokens, span)
+pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
+    let res = parse!(surface_grammar::FnSigParser, tokens, span);
+    res.map(surface::desugar)
+}
+
+pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<ast::Qualifier> {
+    parse!(grammar::QualifierParser, tokens, span)
+}
+
+pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<ast::Ty> {
+    parse!(grammar::TyParser, tokens, span)
 }
 
 pub enum UserParseError {

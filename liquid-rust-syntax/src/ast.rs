@@ -2,19 +2,38 @@ pub use rustc_ast::token::LitKind;
 pub use rustc_span::symbol::Ident;
 use rustc_span::{Span, Symbol};
 
-#[derive(Debug)]
-pub struct RefinedByParam {
-    pub name: Ident,
-    pub sort: Ident,
-}
+/* The concrete syntax for a function signature looks like
+
+        fn<generics>(requires;args) -> ret;ensures
+
+    For example, consider the signature
+
+        fn ref_join<n: int, m: int{m > n}>(bool, i32@n, i32@m) -> i32{v: v >= 0}
+
+        fn inc<n: int>(l: i32@n; ref<l>) -> (); l: i32 @ {n+1})
+
+    The `generics` refers to the value binders for `n` and `m`
+
+    The inputs are each a `Ty
+*/
 
 #[derive(Debug)]
 pub struct FnSig {
+    /// example: `<n: int>`
     pub generics: Generics,
+
+    /// example: `l: i32@n`
     pub requires: Vec<(Ident, Ty)>,
+
+    /// example: `bool, i32@n, i32@m`
     pub args: Vec<Ty>,
+
+    /// example `i32{v:v >= 0}`
     pub ret: Ty,
+
+    /// example: `l: i32 @ {n+1}`
     pub ensures: Vec<(Ident, Ty)>,
+
     pub span: Span,
 }
 
@@ -61,6 +80,7 @@ pub struct Path {
     pub span: Span,
 }
 
+/// `GenericParam` represents a "value" binder
 #[derive(Debug)]
 pub struct GenericParam {
     pub name: Ident,
@@ -107,6 +127,10 @@ pub enum BinOp {
 impl Generics {
     pub fn empty(span: Span) -> Generics {
         Generics { params: vec![], span }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &GenericParam> {
+        self.params.iter()
     }
 }
 

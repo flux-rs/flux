@@ -5,23 +5,43 @@ use liquid_rust_common::index::Idx;
 use liquid_rust_core::ir::Local;
 pub use liquid_rust_core::ty::ParamTy;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-pub use rustc_middle::ty::{IntTy, UintTy};
+pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
-use crate::intern::{impl_internable, Interned};
+use crate::{
+    intern::{impl_internable, Interned},
+    pure_ctxt::Scope,
+};
 
-pub struct AdtDef {
-    pub refined_by: Vec<(Name, Sort)>,
+pub enum AdtDef {
+    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
+    Opaque { refined_by: Vec<Param> },
+}
+
+#[derive(Debug)]
+pub struct FnSpec {
+    pub fn_sig: Binders<FnSig>,
+    pub assume: bool,
+}
+
+pub struct Binders<T> {
+    pub params: Vec<Param>,
+    pub value: T,
 }
 
 #[derive(Debug)]
 pub struct FnSig {
-    pub params: Vec<Param>,
-    pub requires: Vec<(Name, Ty)>,
+    pub requires: Vec<Constr>,
     pub args: Vec<Ty>,
     pub ret: Ty,
-    pub ensures: Vec<(Name, Ty)>,
+    pub ensures: Vec<Constr>,
+}
+
+pub enum Constr {
+    Type(Loc, Ty),
+    Pred(Expr),
 }
 
 #[derive(Debug)]
@@ -35,7 +55,6 @@ pub struct Qualifier {
 pub struct Param {
     pub name: Name,
     pub sort: Sort,
-    pub pred: Pred,
 }
 
 pub type Ty = Interned<TyS>;
@@ -49,6 +68,7 @@ pub struct TyS {
 pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
+    Float(FloatTy),
     Uninit,
     StrgRef(Loc),
     WeakRef(Ty),
@@ -123,8 +143,58 @@ newtype_index! {
     }
 }
 
+impl<T> Binders<T> {
+    pub fn new(params: Vec<Param>, value: T) -> Binders<T> {
+        Binders { params, value }
+    }
+}
+
+impl AdtDef {
+    pub fn refined_by(&self) -> &[Param] {
+        match self {
+            AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
+                refined_by
+            }
+        }
+    }
+}
+
+impl Ty {
+    pub fn strg_ref(loc: impl Into<Loc>) -> Ty {
+        TyKind::StrgRef(loc.into()).intern()
+    }
+
+    pub fn weak_ref(ty: Ty) -> Ty {
+        TyKind::WeakRef(ty).intern()
+    }
+
+    pub fn shr_ref(ty: Ty) -> Ty {
+        TyKind::ShrRef(ty).intern()
+    }
+
+    pub fn uninit() -> Ty {
+        TyKind::Uninit.intern()
+    }
+
+    pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
+        TyKind::Refine(bty, e.into()).intern()
+    }
+
+    pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
+        TyKind::Exists(bty, pred.into()).intern()
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        TyKind::Float(float_ty).intern()
+    }
+
+    pub fn param(param: ParamTy) -> Ty {
+        TyKind::Param(param).intern()
+    }
+}
+
 impl TyKind {
-    pub fn intern(self) -> Ty {
+    fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
     }
 }
@@ -221,10 +291,14 @@ impl SortS {
     pub fn kind(&self) -> &SortKind {
         &self.kind
     }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self.kind, SortKind::Loc)
+    }
 }
 
 impl ExprKind {
-    pub fn intern(self) -> Expr {
+    fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
     }
 }
@@ -240,6 +314,18 @@ impl Expr {
         static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
         ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
             .clone()
+    }
+
+    pub fn unit() -> Expr {
+        Expr::tuple([])
+    }
+
+    pub fn var(var: impl Into<Var>) -> Expr {
+        ExprKind::Var(var.into()).intern()
+    }
+
+    pub fn constant(c: Constant) -> Expr {
+        ExprKind::Constant(c).intern()
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -265,6 +351,18 @@ impl Expr {
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
             BaseTy::Adt(_, _) => panic!(),
         }
+    }
+
+    pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
+    }
+
+    pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
+        ExprKind::UnaryOp(op, e.into()).intern()
+    }
+
+    pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
+        ExprKind::Proj(e.into(), proj).intern()
     }
 
     pub fn not(&self) -> Expr {
@@ -312,6 +410,31 @@ impl ExprS {
                 Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(to.clone())))
             }
         }
+    }
+
+    pub fn vars(&self) -> FxHashSet<Name> {
+        fn go(e: &ExprS, vars: &mut FxHashSet<Name>) {
+            match e.kind() {
+                ExprKind::Var(Var::Free(name)) => {
+                    vars.insert(*name);
+                }
+                ExprKind::BinaryOp(_, e1, e2) => {
+                    go(e1, vars);
+                    go(e2, vars);
+                }
+                ExprKind::UnaryOp(_, e) => go(e, vars),
+                ExprKind::Proj(e, _) => go(e, vars),
+                ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| go(e, vars)),
+                ExprKind::Var(Var::Bound) | ExprKind::Constant(_) => {}
+            }
+        }
+        let mut vars = FxHashSet::default();
+        go(self, &mut vars);
+        vars
+    }
+
+    pub fn has_free_vars(&self, scope: &Scope) -> bool {
+        self.vars().into_iter().any(|name| !scope.contains(name))
     }
 
     /// Simplify expression applying some rules like removing double negation. This is used for pretty
@@ -386,6 +509,21 @@ impl From<Var> for Expr {
     }
 }
 
+impl Loc {
+    pub fn is_free(&self, scope: &Scope) -> bool {
+        match self {
+            Loc::Local(_) => false,
+            Loc::Abstract(name) => !scope.contains(*name),
+        }
+    }
+}
+
+impl From<Name> for Loc {
+    fn from(name: Name) -> Self {
+        Loc::Abstract(name)
+    }
+}
+
 impl PartialOrd for Loc {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -418,28 +556,85 @@ impl<'a> From<&'a Name> for Var {
 impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, SortS);
 
 mod pretty {
+    use liquid_rust_common::format::PadAdapter;
     use rustc_middle::ty::TyCtxt;
+    use std::fmt::Write;
 
     use super::*;
     use crate::pretty::*;
+
+    impl Pretty for Binders<FnSig> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let fn_sig = &self.value;
+            if f.alternate() {
+                let mut padded = PadAdapter::wrap_fmt(f, 4);
+                define_scoped!(cx, padded);
+                w!("(\nfn")?;
+                if !self.params.is_empty() {
+                    w!("<{}>",
+                        ^self.params.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        })
+                    )?;
+                }
+                w!("({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+                if !fn_sig.requires.is_empty() {
+                    w!("\nrequires {:?} ", join!(", ", &fn_sig.requires))?;
+                }
+                if !fn_sig.ensures.is_empty() {
+                    w!("\nensures {:?}", join!(", ", &fn_sig.ensures))?;
+                }
+                write!(f, "\n)")?;
+            } else {
+                define_scoped!(cx, f);
+                if !self.params.is_empty() {
+                    w!("for<{}> ",
+                        ^self.params.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        })
+                    )?;
+                }
+                if !fn_sig.requires.is_empty() {
+                    w!("[{:?}] ", join!(", ", &fn_sig.requires))?;
+                }
+                w!("fn({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+                if !fn_sig.ensures.is_empty() {
+                    w!("; [{:?}]", join!(", ", &fn_sig.ensures))?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    impl Pretty for Constr {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Constr::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+                Constr::Pred(e) => w!("{:?}", e),
+            }
+        }
+    }
 
     impl Pretty for TyS {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Refine(bty, e) => {
-                    if matches!(e.kind(), ExprKind::Constant(..) | ExprKind::Var(..)) {
-                        w!("{:?}@{:?}", bty, e)
+                TyKind::Refine(bty, e) => fmt_bty(bty, Some(e), cx, f),
+                TyKind::Exists(bty, p) => {
+                    if p.is_true() {
+                        w!("{:?}", bty)
                     } else {
-                        w!("{:?}@{{{:?}}}", bty, e)
+                        w!("{:?}{{{:?}}}", bty, p)
                     }
                 }
-                TyKind::Exists(bty, p) => w!("{:?}{{{:?}}}", bty, p),
+                TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
                 TyKind::ShrRef(ty) => w!("&{:?}", ty),
-                TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
+                TyKind::Param(param) => w!("{}", ^param),
             }
         }
 
@@ -450,20 +645,46 @@ mod pretty {
 
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
-                BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
-                BaseTy::Bool => w!("bool"),
-                BaseTy::Adt(did, args) => {
-                    w!("{:?}", did)?;
+            fmt_bty(self, None, cx, f)
+        }
+    }
+
+    fn fmt_bty(
+        bty: &BaseTy,
+        e: Option<&ExprS>,
+        cx: &PPrintCx,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        define_scoped!(cx, f);
+        match bty {
+            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
+            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
+            BaseTy::Bool => w!("bool")?,
+            BaseTy::Adt(did, _) => w!("{:?}", did)?,
+        }
+        match bty {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
+                if let Some(e) = e {
+                    w!("<{:?}>", e)?;
+                }
+            }
+            BaseTy::Adt(_, args) => {
+                if !args.is_empty() || e.is_some() {
+                    w!("<")?;
+                }
+                w!("{:?}", join!(", ", args))?;
+                if let Some(e) = e {
                     if !args.is_empty() {
-                        w!("<{:?}>", join!(", ", args))?;
+                        w!(", ")?;
                     }
-                    Ok(())
+                    w!("{:?}", e)?;
+                }
+                if !args.is_empty() || e.is_some() {
+                    w!(">")?;
                 }
             }
         }
+        Ok(())
     }
 
     impl Pretty for Pred {
@@ -608,11 +829,11 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
-
     impl fmt::Display for Sort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             fmt::Debug::fmt(self, f)
         }
     }
+
+    impl_debug_with_default_cx!(Constr, TyS, BaseTy, Pred, Sort, ExprS, Var, Loc, Binders<FnSig>);
 }
