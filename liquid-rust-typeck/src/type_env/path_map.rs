@@ -1,5 +1,3 @@
-use std::collections::hash_map;
-
 use liquid_rust_common::index::{Idx, IndexVec};
 use liquid_rust_core::ir::Field;
 use rustc_hash::FxHashMap;
@@ -65,19 +63,6 @@ impl<T> PathMap<T> {
 
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.iter_mut().map(|(_, value)| value)
-    }
-
-    pub fn merge_with(&mut self, other: PathMap<T>, f: impl Fn(&mut T, T) + Copy) {
-        for (loc, node) in other.map {
-            match self.map.entry(loc) {
-                hash_map::Entry::Occupied(mut entry) => {
-                    entry.get_mut().merge_with(node, f);
-                }
-                hash_map::Entry::Vacant(entry) => {
-                    entry.insert(node);
-                }
-            }
-        }
     }
 
     pub fn insert(&mut self, loc: Loc, value: T) {
@@ -146,23 +131,6 @@ impl<T> PathMap<T> {
             }
         }
         Some(node)
-    }
-}
-
-impl<T> Node<T> {
-    fn merge_with(&mut self, other: Node<T>, f: impl Fn(&mut T, T) + Copy) {
-        match (self, other) {
-            (Node::Leaf(val1), Node::Leaf(val2)) => {
-                f(val1, val2);
-            }
-            (Node::Internal(fields1), Node::Internal(fields2)) => {
-                assert!(fields1.len() == fields2.len());
-                for (child1, child2) in fields1.iter_mut().zip(fields2.into_iter()) {
-                    child1.merge_with(child2, f);
-                }
-            }
-            _ => panic!("merge of incompatible nodes"),
-        }
     }
 }
 
@@ -269,41 +237,10 @@ impl PathMap<crate::ty::Ty> {
     }
 }
 
-impl PathMap<Vec<crate::ty::Ty>> {
-    pub fn subst(self, subst: &Subst) -> Self {
-        let map = self
-            .map
-            .into_iter()
-            .map(|(loc, mut node)| {
-                node.subst_mut(subst);
-                (subst.subst_loc(loc), node)
-            })
-            .collect();
-        PathMap { map }
-    }
-}
-
 impl Node<crate::ty::Ty> {
     pub fn subst_mut(&mut self, subst: &Subst) {
         match self {
             Node::Leaf(ty) => *ty = subst.subst_ty(ty),
-            Node::Internal(fields) => {
-                for field in fields.iter_mut() {
-                    field.subst_mut(subst);
-                }
-            }
-        }
-    }
-}
-
-impl Node<Vec<crate::ty::Ty>> {
-    pub fn subst_mut(&mut self, subst: &Subst) {
-        match self {
-            Node::Leaf(tys) => {
-                for ty in tys {
-                    *ty = subst.subst_ty(ty)
-                }
-            }
             Node::Internal(fields) => {
                 for field in fields.iter_mut() {
                     field.subst_mut(subst);

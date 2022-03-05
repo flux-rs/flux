@@ -31,7 +31,7 @@ pub struct TypeEnv {
 
 #[derive(Clone, Default)]
 struct Pledges {
-    map: PathMap<Vec<Ty>>,
+    map: FxHashMap<Loc, Vec<Ty>>,
 }
 
 pub struct TypeEnvInfer {
@@ -407,15 +407,16 @@ impl TypeEnv {
 
 impl Pledges {
     fn remove(&mut self, loc: Loc) {
-        self.map.remove(loc);
+        self.map.remove(&loc);
     }
 
     fn insert(&mut self, loc: Loc, pledge: Ty) {
         self.map.insert(loc, vec![pledge]);
     }
 
-    fn check<'a>(&self, gen: &mut ConstraintGen, path: impl Into<PathRef<'a>>, ty: &Ty) {
-        if let Some(pledges) = self.map.get(path) {
+    fn check(&self, gen: &mut ConstraintGen, path: PathRef, ty: &Ty) {
+        if let Some(pledges) = self.map.get(&path.loc) {
+            assert!(path.projection.is_empty());
             for pledge in pledges.iter() {
                 gen.subtyping(ty, pledge);
             }
@@ -423,11 +424,23 @@ impl Pledges {
     }
 
     fn subst(self, subst: &Subst) -> Pledges {
-        Pledges { map: self.map.subst(subst) }
+        Pledges {
+            map: self
+                .map
+                .into_iter()
+                .map(|(loc, pledges)| {
+                    let loc = subst.subst_loc(loc);
+                    let pledges = pledges.into_iter().map(|ty| subst.subst_ty(&ty)).collect();
+                    (loc, pledges)
+                })
+                .collect(),
+        }
     }
 
-    fn merge_with(&mut self, pledges: Pledges) {
-        self.map.merge_with(pledges.map, Vec::extend);
+    fn merge_with(&mut self, other: Pledges) {
+        for (loc, pledges) in other.map {
+            self.map.entry(loc).or_default().extend(pledges);
+        }
     }
 }
 
