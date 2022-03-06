@@ -152,7 +152,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
             Tag::Goto(span, bb) => tcx.sess.emit_err(errors::GotoError { span, bb }),
-        }
+        };
     }
 
     Err(ErrorReported)

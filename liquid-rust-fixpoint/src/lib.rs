@@ -1,5 +1,6 @@
 #![feature(rustc_private, min_specialization, once_cell)]
 
+extern crate rustc_index;
 extern crate rustc_serialize;
 
 mod constraint;
