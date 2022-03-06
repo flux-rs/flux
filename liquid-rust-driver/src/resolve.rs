@@ -323,7 +323,7 @@ impl<'tcx> Resolver<'tcx> {
                     })
                     .raise()
             }
-            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy(..) => {
+            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy { .. } => {
                 self.diagnostics
                     .emit_err(errors::UnsupportedSignature {
                         span: path.span,

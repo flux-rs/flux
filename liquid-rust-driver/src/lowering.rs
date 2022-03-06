@@ -256,20 +256,28 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn lower_constant(&self, c: &mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
-        use rustc_middle::ty::{Const, ConstKind, TyKind};
+        use rustc_middle::ty::{ConstKind, TyKind};
         let tcx = self.tcx;
         let lit = &c.literal;
+        let span = c.span;
         match lit {
-            mir::ConstantKind::Ty(&Const {
-                ty,
-                val: ConstKind::Value(ConstValue::Scalar(scalar)),
-            }) => {
-                match (ty.kind(), scalar_to_bits(tcx, scalar, ty)) {
-                    (TyKind::Int(int_ty), Some(bits)) => Ok(Constant::Int(bits as i128, *int_ty)),
-                    (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
-                    (TyKind::Float(float_ty), Some(bits)) => Ok(Constant::Float(bits, *float_ty)),
-                    (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
-                    _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
+            mir::ConstantKind::Ty(c) => {
+                if let ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
+                    match (c.ty().kind(), scalar_to_bits(tcx, scalar, c.ty())) {
+                        (TyKind::Int(int_ty), Some(bits)) => {
+                            Ok(Constant::Int(bits as i128, *int_ty))
+                        }
+                        (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
+                        (TyKind::Float(float_ty), Some(bits)) => {
+                            Ok(Constant::Float(bits, *float_ty))
+                        }
+                        (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
+                        _ => {
+                            self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
+                        }
+                    }
+                } else {
+                    self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
                 }
             }
             _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
