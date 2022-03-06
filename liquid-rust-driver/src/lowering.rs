@@ -263,15 +263,20 @@ impl<'tcx> LoweringCtxt<'tcx> {
         match lit {
             mir::ConstantKind::Ty(c) => {
                 if let ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
-                    match (c.ty().kind(), scalar_to_bits(tcx, scalar, c.ty())) {
-                        (TyKind::Int(int_ty), Some(bits)) => {
-                            Ok(Constant::Int(bits as i128, *int_ty))
+                    let ty = c.ty();
+                    match ty.kind() {
+                        TyKind::Int(int_ty) => {
+                            Ok(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), *int_ty))
                         }
-                        (TyKind::Uint(uint_ty), Some(bits)) => Ok(Constant::Uint(bits, *uint_ty)),
-                        (TyKind::Float(float_ty), Some(bits)) => {
-                            Ok(Constant::Float(bits, *float_ty))
+                        TyKind::Uint(int_ty) => {
+                            Ok(Constant::Uint(scalar_to_uint(tcx, scalar, ty).unwrap(), *int_ty))
                         }
-                        (TyKind::Bool, Some(bits)) => Ok(Constant::Bool(bits != 0)),
+                        TyKind::Float(float_ty) => {
+                            Ok(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
+                        }
+                        TyKind::Bool => {
+                            Ok(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0))
+                        }
                         _ => {
                             self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
                         }
@@ -360,4 +365,28 @@ fn scalar_to_bits<'tcx>(
         .unwrap()
         .size;
     scalar.to_bits(size).ok()
+}
+
+fn scalar_to_int<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    scalar: mir::interpret::Scalar,
+    ty: rustc_middle::ty::Ty<'tcx>,
+) -> Option<i128> {
+    let size = tcx
+        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
+        .unwrap()
+        .size;
+    scalar.to_int(size).ok()
+}
+
+fn scalar_to_uint<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    scalar: mir::interpret::Scalar,
+    ty: rustc_middle::ty::Ty<'tcx>,
+) -> Option<u128> {
+    let size = tcx
+        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
+        .unwrap()
+        .size;
+    scalar.to_uint(size).ok()
 }
