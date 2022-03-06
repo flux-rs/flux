@@ -8,14 +8,16 @@ use rvec::RVec;
 
 /////////////////////////////////////////////////////////////
 
+#[lr::assume]
 #[lr::sig(fn() -> f32)]
 fn f32_max() -> f32 {
-    100000.0 // TODO: actual max!
+    f32::MAX
 }
 
+#[lr::assume]
 #[lr::sig(fn(n:f32, d:usize) -> f32)]
-fn f32_div(n:f32, _d:usize) -> f32 {
-    n // TODO: actual divide!
+fn f32_div(n:f32, d:usize) -> f32 {
+    n / (d as f32)
 }
 
 /////////////////////////////////////////////////////////////
