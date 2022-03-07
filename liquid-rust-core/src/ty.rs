@@ -39,6 +39,13 @@ pub enum Constr {
 }
 
 #[derive(Debug)]
+pub struct Qualifier {
+    pub name: String,
+    pub args: Vec<Param>,
+    pub expr: Expr,
+}
+
+#[derive(Debug)]
 pub enum Ty {
     Refine(BaseTy, Refine),
     Exists(BaseTy, Pred),

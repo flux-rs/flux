@@ -52,6 +52,10 @@ pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast:
     res.map(surface::desugar)
 }
 
+pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<ast::Qualifier> {
+    parse!(grammar::QualifierParser, tokens, span)
+}
+
 pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<ast::Ty> {
     parse!(grammar::TyParser, tokens, span)
 }

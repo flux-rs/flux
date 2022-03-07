@@ -38,6 +38,14 @@ pub struct FnSig {
 }
 
 #[derive(Debug)]
+pub struct Qualifier {
+    pub name: Ident,
+    pub args: Vec<QualifParam>,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
     pub span: Span,
@@ -78,6 +86,13 @@ pub struct GenericParam {
     pub name: Ident,
     pub sort: Ident,
     pub pred: Option<Expr>,
+}
+
+/// `QualifParam` represents an "argument" in a qualifier
+#[derive(Debug)]
+pub struct QualifParam {
+    pub name: Ident,
+    pub sort: Ident,
 }
 
 #[derive(Debug)]

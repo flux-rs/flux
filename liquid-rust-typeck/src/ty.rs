@@ -48,6 +48,13 @@ pub enum Constr {
 }
 
 #[derive(Debug)]
+pub struct Qualifier {
+    pub name: String,
+    pub args: Vec<(Name, Sort)>,
+    pub expr: Expr,
+}
+
+#[derive(Debug)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,

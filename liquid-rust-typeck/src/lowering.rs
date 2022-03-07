@@ -91,6 +91,24 @@ impl LoweringCtxt {
             .collect()
     }
 
+    pub fn lower_qualifer(qualifier: &core::Qualifier) -> ty::Qualifier {
+        let name_gen = IndexGen::new();
+        let mut args = Vec::new();
+
+        let mut cx = LoweringCtxt::empty();
+
+        for param in &qualifier.args {
+            let fresh = name_gen.fresh();
+            cx.name_map.insert(param.name.name, fresh);
+            let sort = lower_sort(param.sort);
+            args.push((fresh, sort));
+        }
+
+        let expr = cx.lower_expr(&qualifier.expr);
+
+        ty::Qualifier { name: qualifier.name.clone(), args, expr }
+    }
+
     pub fn lower_ty(
         &self,
         ty: &core::Ty,

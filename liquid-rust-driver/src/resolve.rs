@@ -59,6 +59,45 @@ impl<'tcx> Resolver<'tcx> {
         Ok(Resolver { tcx, diagnostics, name_res_table, parent })
     }
 
+    pub fn resolve_qualifier(
+        tcx: TyCtxt<'tcx>,
+        qualifier: ast::Qualifier,
+    ) -> Result<ty::Qualifier, ErrorReported> {
+        let name_gen = IndexGen::new();
+        let mut subst = Subst::new();
+        let mut diagnostics = Diagnostics::new(tcx.sess);
+
+        let name_res_table = FxHashMap::default();
+        let parent = None;
+
+        let args = qualifier
+            .args
+            .into_iter()
+            .map(|qualifparam| {
+                let loc = qualifparam.name;
+                let sort = qualifparam.sort;
+                let fresh = name_gen.fresh();
+                if subst.insert_expr(loc.name, ty::Var::Free(fresh)).is_some() {
+                    diagnostics
+                        .emit_err(errors::DuplicateParam::new(loc))
+                        .raise()?;
+                }
+                let sort = resolve_sort(&mut diagnostics, sort)?;
+
+                let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+                Ok(ty::Param { name: loc, sort })
+            })
+            .try_collect_exhaust();
+
+        let mut resolver = Self { tcx, diagnostics, parent, name_res_table };
+
+        let expr = resolver.resolve_expr(qualifier.expr, &subst)?;
+
+        let name = qualifier.name.name.to_ident_string();
+
+        Ok(ty::Qualifier { name, args: args?, expr })
+    }
+
     pub fn from_adt(
         tcx: TyCtxt<'tcx>,
         def_id: LocalDefId,
