@@ -1,10 +1,11 @@
 #![feature(register_tool)]
 #![register_tool(lr)]
 
-#[path = "../lib/rvec.rs"]
+#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
+//hola
 #[lr::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>) -> i32; vec:RVec<i32>@len)]
 pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     let len = vec.len();

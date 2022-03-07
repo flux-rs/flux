@@ -1,5 +1,6 @@
 #![feature(rustc_private, min_specialization, once_cell)]
 
+extern crate rustc_index;
 extern crate rustc_serialize;
 
 mod constraint;
@@ -23,6 +24,7 @@ use crate::constraint::DEFAULT_QUALIFIERS;
 pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
+    pub qualifiers: Vec<Qualifier>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -55,8 +57,8 @@ pub struct CrashInfo(Vec<serde_json::Value>);
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
-    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>) -> Self {
-        Task { kvars, constraint }
+    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>, qualifiers: Vec<Qualifier>) -> Self {
+        Task { kvars, constraint, qualifiers }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
@@ -91,6 +93,10 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
             writeln!(f, "{qualif}")?;
         }
 
+        for qualif in &self.qualifiers {
+            writeln!(f, "{qualif}")?;
+        }
+
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
@@ -99,7 +105,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         }
         writeln!(f)?;
         write!(f, "(constraint")?;
-        write!(PadAdapter::wrap_fmt(f), "\n{}", self.constraint)?;
+        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", self.constraint)?;
         writeln!(f, "\n)")
     }
 }

@@ -5,20 +5,19 @@ use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{
-    BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
+    BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
 };
 use rustc_middle::{
     mir,
-    ty::{IntTy, UintTy},
+    ty::{FloatTy, IntTy, UintTy},
 };
 
-use crate::ty::Ty;
+use crate::ty::{Layout, Ty};
 
-#[derive(Debug)]
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub arg_count: usize,
-    pub nlocals: usize,
+    pub local_decls: IndexVec<Local, LocalDecl>,
     pub mir: &'tcx mir::Body<'tcx>,
 }
 
@@ -26,6 +25,11 @@ pub struct Body<'tcx> {
 pub struct BasicBlockData {
     pub statements: Vec<Statement>,
     pub terminator: Option<Terminator>,
+}
+
+pub struct LocalDecl {
+    pub layout: Layout,
+    pub source_info: SourceInfo,
 }
 
 pub struct Terminator {
@@ -101,26 +105,21 @@ pub enum Operand {
     Constant(Constant),
 }
 
-pub enum Place {
-    /// x
-    Local(Local),
-    /// *x
-    Deref(Local),
+pub struct Place {
+    pub local: Local,
+    pub projection: Vec<PlaceElem>,
 }
 
-// pub struct Place {
-//     pub local: Local,
-//     pub projection: Vec<PlaceElem>,
-// }
-
-// #[derive(Debug)]
-// pub enum PlaceElem {
-//     Deref,
-// }
+#[derive(Debug, Clone)]
+pub enum PlaceElem {
+    Deref,
+    Field(Field),
+}
 
 pub enum Constant {
     Int(i128, IntTy),
     Uint(u128, UintTy),
+    Float(u128, FloatTy),
     Bool(bool),
 }
 
@@ -132,7 +131,7 @@ impl Body<'_> {
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.arg_count + 1..self.nlocals).map(Local::new)
+        (self.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
@@ -161,19 +160,46 @@ impl Body<'_> {
 }
 
 impl Place {
-    pub fn local(&self) -> Local {
+    pub const RETURN: &'static Place = &Place { local: RETURN_PLACE, projection: vec![] };
+
+    pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
+        Place { local, projection }
+    }
+}
+
+impl PlaceElem {
+    pub fn as_field(&self) -> Option<Field> {
         match self {
-            Place::Local(local) | Place::Deref(local) => *local,
+            PlaceElem::Field(field) => Some(*field),
+            _ => None,
         }
+    }
+}
+
+impl fmt::Debug for Body<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (bb, data) in self.basic_blocks.iter_enumerated() {
+            writeln!(
+                f,
+                "{bb:?}: {{{}",
+                data.statements
+                    .iter()
+                    .filter(|stmt| !matches!(stmt.kind, StatementKind::Nop))
+                    .format_with("", |stmt, f| f(&format_args!("\n    {stmt:?};")))
+            )?;
+            if let Some(terminator) = &data.terminator {
+                writeln!(f, "    {terminator:?}", terminator = terminator)?;
+            }
+            writeln!(f, "}}\n")?;
+        }
+        Ok(())
     }
 }
 
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            StatementKind::Assign(place, rvalue) => {
-                write!(f, "{:?} = {:?}", place, rvalue)
-            }
+            StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
             StatementKind::Nop => write!(f, "nop"),
         }
     }
@@ -232,16 +258,25 @@ impl fmt::Debug for Terminator {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Place::Local(local) => write!(f, "{local:?}"),
-            Place::Deref(local) => write!(f, "*{local:?}"),
+        let mut p = format!("{:?}", self.local);
+        let mut need_parens = false;
+        for elem in &self.projection {
+            match elem {
+                PlaceElem::Field(f) => {
+                    if need_parens {
+                        p = format!("({}).{}", p, u32::from(*f));
+                        need_parens = false;
+                    } else {
+                        p = format!("{}.{}", p, u32::from(*f));
+                    }
+                }
+                PlaceElem::Deref => {
+                    p = format!("*{}", p);
+                    need_parens = true;
+                }
+            }
         }
-        // for elem in &self.projection {
-        //     match elem {
-        //         PlaceElem::Deref => write!(f, "*")?,
-        //     }
-        // }
-        // write!(f, "{:?}", self.local)
+        write!(f, "{}", p)
     }
 }
 
@@ -272,6 +307,7 @@ impl fmt::Debug for Constant {
         match self {
             Self::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
             Self::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
+            Self::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
             Self::Bool(b) => write!(f, "{}", b),
         }
     }

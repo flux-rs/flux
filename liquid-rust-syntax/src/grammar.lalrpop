@@ -8,14 +8,16 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub RefinedBy: Vec<ast::RefinedByParam> = <Comma<RefinedByParam>>;
+pub RefinedBy: ast::Generics = {
+    <lo:@L> <params:Comma<RefinedByParam>> <hi:@R> => ast::Generics { params, span: mk_span(lo, hi) }
+}
 
-RefinedByParam: ast::RefinedByParam = <name: Ident> ":" <sort: Ident> => ast::RefinedByParam { <> };
+RefinedByParam: ast::GenericParam = <name: Ident> ":" <sort: Ident> => ast::GenericParam { <>, pred: None };
 
 pub FnSig: ast::FnSig = {
     <lo:@L>
     "fn"
-    <generics:Generics>
+    <generics:FnGenerics>
     "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
     "->"
     <ret:Ty> <ensures:(";" <Env>)?>
@@ -27,7 +29,18 @@ pub FnSig: ast::FnSig = {
     }
 }
 
-Ty: ast::Ty = {
+pub Qualifier: ast::Qualifier = {
+    <lo:@L>
+    <name:Ident>
+    "(" <args:Comma<QualifParam>> ")"
+    "->"
+    <expr:Level1>
+    <hi:@R> => {
+        ast::Qualifier { name: name, args: args, expr: expr, span: mk_span(lo, hi) }
+    }
+}
+
+pub Ty: ast::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => ast::Ty {
         kind,
         span: mk_span(lo, hi)
@@ -43,7 +56,7 @@ TyKind: ast::TyKind = {
     "&" <Ty>                                           => ast::TyKind::ShrRef(Box::new(<>)),
 }
 
-Generics: ast::Generics = {
+FnGenerics: ast::Generics = {
     <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => ast::Generics { params, span: mk_span(lo, hi) },
     <lo:@L> <hi:@R> => ast::Generics::empty(mk_span(lo, hi))
 }
@@ -53,6 +66,10 @@ Env = <Comma<(<Ident> ":" <Ty>)>>;
 GenericParam: ast::GenericParam = {
     <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam { name, sort, pred: Some(pred) },
     <name:Ident> ":" <sort:Ident>                       => ast::GenericParam { name, sort, pred: None },
+}
+
+QualifParam: ast::QualifParam = {
+    <name:Ident> ":" <sort:Ident> => ast::QualifParam { name, sort },
 }
 
 Path: ast::Path = {
@@ -90,7 +107,8 @@ Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
 Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
 Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
-Level7: ast::Expr = {
+Level7 = LeftAssoc<BinOp7, Level8>; // *, /
+Level8: ast::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
         ast::Expr {
             kind: ast::ExprKind::Literal(lit),
@@ -152,6 +170,10 @@ BinOp5: ast::BinOp = {
 BinOp6: ast::BinOp = {
     "+" => ast::BinOp::Add,
     "-" => ast::BinOp::Sub,
+}
+
+BinOp7: ast::BinOp = {
+    "*" => ast::BinOp::Mul,
     "%" => ast::BinOp::Mod,
 }
 
@@ -215,6 +237,7 @@ extern {
         "->" => Token::RArrow,
         "&"  => Token::And,
         "%" => Token::Percent,
+        "*" => Token::Star,
         "weak" => Token::Weak,
     }
 }

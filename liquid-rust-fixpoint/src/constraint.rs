@@ -1,10 +1,11 @@
 use itertools::Itertools;
+use rustc_index::newtype_index;
 use std::{
     fmt::{self, Write},
     lazy::SyncLazy,
 };
 
-use liquid_rust_common::{format::PadAdapter, index::newtype_index};
+use liquid_rust_common::format::PadAdapter;
 
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),
@@ -44,9 +45,9 @@ pub enum Proj {
 }
 
 pub struct Qualifier {
-    expr: Expr,
-    args: Vec<(Name, Sort)>,
-    name: String,
+    pub expr: Expr,
+    pub args: Vec<(Name, Sort)>,
+    pub name: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -144,20 +145,20 @@ impl<Tag: fmt::Display> fmt::Display for Constraint<Tag> {
             Constraint::Pred(pred, None) => write!(f, "({})", pred),
             Constraint::Conj(preds) => {
                 write!(f, "(and")?;
-                let mut w = PadAdapter::wrap_fmt(f);
+                let mut w = PadAdapter::wrap_fmt(f, 2);
                 for pred in preds {
                     write!(w, "\n{}", pred)?;
                 }
                 write!(f, "\n)")
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ int) ({}))", body)?;
-                write!(PadAdapter::wrap_fmt(f), "\n{}", head)?;
+                write!(f, "(forall ((_ Unit) ({}))", body)?;
+                write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
                 write!(f, "\n)")
             }
             Constraint::ForAll(x, sort, body, head) => {
                 write!(f, "(forall (({:?} {}) {})", x, sort, body)?;
-                write!(PadAdapter::wrap_fmt(f), "\n{}", head)?;
+                write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
                 write!(f, "\n)")
             }
         }
@@ -186,7 +187,7 @@ impl fmt::Display for Pred {
         match self {
             Pred::And(preds) => {
                 write!(f, "(and")?;
-                let mut w = PadAdapter::wrap_fmt(f);
+                let mut w = PadAdapter::wrap_fmt(f, 2);
                 for pred in preds {
                     write!(w, "\n{}", pred)?;
                 }
@@ -241,7 +242,7 @@ impl fmt::Display for Expr {
                     write!(f, "{}({})", op, e)
                 }
             }
-            Expr::Pair(e1, e2) => write!(f, "(Pair {e1} {e2})"),
+            Expr::Pair(e1, e2) => write!(f, "(Pair ({e1}) ({e2}))"),
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),

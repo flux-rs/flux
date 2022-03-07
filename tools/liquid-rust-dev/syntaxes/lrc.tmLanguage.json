@@ -1,0 +1,93 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Liquid Rust Constraint",
+    "patterns": [
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#names"
+        },
+        {
+            "include": "#kvars"
+        },
+        {
+            "include": "#sorts"
+        },
+        {
+            "include": "#constants"
+        },
+        {
+            "include": "#tags"
+        }
+    ],
+    "repository": {
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.other.lrc",
+                    "match": "\\x{2200}|\\bforall\\b"
+                }
+            ]
+        },
+        "names": {
+            "patterns": [
+                {
+                    "name": "variable.other.lrc",
+                    "match": "\\b(a\\d+)\\b"
+                }
+            ]
+        },
+        "kvars": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.kvar.lrc",
+                    "match": "\\x{0024}k\\d+"
+                }
+            ]
+        },
+        "sorts": {
+            "patterns": [
+                {
+                    "name": "entity.name.type.sort.lrc",
+                    "match": "\\b(int|bool|loc)\\b"
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                {
+                    "name": "constant.numeric",
+                    "match": "\\d+"
+                },
+                {
+                    "name": "constant.language.boolean.lrc",
+                    "match": "\\b(true|false)\\b"
+                }
+            ]
+        },
+        "tags": {
+            "patterns": [
+                {
+                    "name": "comment.line.tag.lrc",
+                    "match": "~.*$"
+                }
+            ]
+        },
+        "strings": {
+            "name": "string.quoted.double.lrc",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.lrc",
+                    "match": "\\\\."
+                }
+            ]
+        }
+    },
+    "scopeName": "lrc"
+}

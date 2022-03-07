@@ -1,34 +1,63 @@
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
-use liquid_rust_common::index::Idx;
-use liquid_rust_core::ir::Local;
-pub use liquid_rust_core::ty::ParamTy;
+use liquid_rust_common::index::IndexVec;
+// use liquid_rust_common::index::Idx;
+pub use liquid_rust_core::{ir::Field, ty::ParamTy};
+use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-pub use rustc_middle::ty::{IntTy, UintTy};
+pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
-use crate::intern::{impl_internable, Interned};
+use crate::{
+    global_env::GlobalEnv,
+    intern::{impl_internable, Interned},
+    pure_ctxt::Scope,
+    subst::Subst,
+};
 
-pub struct AdtDef {
-    pub refined_by: Vec<(Name, Sort)>,
+pub enum AdtDef {
+    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
+    Opaque { refined_by: Vec<Param> },
+}
+
+#[derive(Debug)]
+pub struct FnSpec {
+    pub fn_sig: Binders<FnSig>,
+    pub assume: bool,
+}
+
+pub struct Binders<T> {
+    pub params: Vec<Param>,
+    pub value: T,
 }
 
 #[derive(Debug)]
 pub struct FnSig {
-    pub params: Vec<Param>,
-    pub requires: Vec<(Name, Ty)>,
+    pub requires: Vec<Constr>,
     pub args: Vec<Ty>,
     pub ret: Ty,
-    pub ensures: Vec<(Name, Ty)>,
+    pub ensures: Vec<Constr>,
+}
+
+pub enum Constr {
+    Type(Loc, Ty),
+    Pred(Expr),
+}
+
+#[derive(Debug)]
+pub struct Qualifier {
+    pub name: String,
+    pub args: Vec<(Name, Sort)>,
+    pub expr: Expr,
 }
 
 #[derive(Debug)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,
-    pub pred: Pred,
 }
 
 pub type Ty = Interned<TyS>;
@@ -42,11 +71,18 @@ pub struct TyS {
 pub enum TyKind {
     Refine(BaseTy, Expr),
     Exists(BaseTy, Pred),
-    Uninit,
+    Float(FloatTy),
+    Uninit(Layout),
     StrgRef(Loc),
     WeakRef(Ty),
     ShrRef(Ty),
     Param(ParamTy),
+}
+
+#[derive(Clone)]
+pub struct Path {
+    pub loc: Loc,
+    projection: Interned<[Field]>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -64,11 +100,11 @@ pub enum BaseTy {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Substs(Interned<Vec<Ty>>);
+pub struct Substs(Interned<[Ty]>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    KVar(KVid, Interned<Vec<Expr>>),
+    KVar(KVid, Interned<[Expr]>),
     Expr(Expr),
 }
 
@@ -116,8 +152,108 @@ newtype_index! {
     }
 }
 
+impl<T> Binders<T> {
+    pub fn new(params: Vec<Param>, value: T) -> Binders<T> {
+        Binders { params, value }
+    }
+}
+
+impl AdtDef {
+    pub fn refined_by(&self) -> &[Param] {
+        match self {
+            AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
+                refined_by
+            }
+        }
+    }
+
+    pub fn sort(&self) -> Sort {
+        Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
+    }
+
+    pub fn unfold(&self, substs: &Substs, e: &Expr) -> IndexVec<Field, Ty> {
+        let mut subst = Subst::with_type_substs(substs.as_slice());
+        match (e.kind(), self.refined_by()) {
+            (ExprKind::Tuple(exprs), refined_by) => {
+                debug_assert_eq!(exprs.len(), self.refined_by().len());
+                for (e, param) in exprs.iter().zip(refined_by) {
+                    subst.insert_expr_subst(param.name, e.clone());
+                }
+            }
+            (_, [param]) => {
+                subst.insert_expr_subst(param.name, e.clone());
+            }
+            _ => panic!("invalid sort for expr: `{e:?}`"),
+        }
+        match self {
+            AdtDef::Transparent { fields, .. } => {
+                fields.iter().map(|ty| subst.subst_ty(ty)).collect()
+            }
+            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+        }
+    }
+
+    pub fn unfold_uninit(&self) -> IndexVec<Field, Ty> {
+        match self {
+            AdtDef::Transparent { fields, .. } => {
+                fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
+            }
+            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+        }
+    }
+
+    pub fn fold(&self, tys: &[Ty]) -> Expr {
+        match self {
+            AdtDef::Transparent { fields, refined_by } => {
+                debug_assert_eq!(fields.len(), tys.len());
+                let mut subst = Subst::empty();
+                let params = refined_by.iter().map(|param| param.name).collect();
+                for (ty, field) in tys.iter().zip(fields) {
+                    subst.infer_from_tys(&params, ty, field);
+                }
+                Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
+            }
+            AdtDef::Opaque { .. } => panic!("folding opaque adt"),
+        }
+    }
+}
+
+impl Ty {
+    pub fn strg_ref(loc: impl Into<Loc>) -> Ty {
+        TyKind::StrgRef(loc.into()).intern()
+    }
+
+    pub fn weak_ref(ty: Ty) -> Ty {
+        TyKind::WeakRef(ty).intern()
+    }
+
+    pub fn shr_ref(ty: Ty) -> Ty {
+        TyKind::ShrRef(ty).intern()
+    }
+
+    pub fn uninit(layout: Layout) -> Ty {
+        TyKind::Uninit(layout).intern()
+    }
+
+    pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
+        TyKind::Refine(bty, e.into()).intern()
+    }
+
+    pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
+        TyKind::Exists(bty, pred.into()).intern()
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        TyKind::Float(float_ty).intern()
+    }
+
+    pub fn param(param: ParamTy) -> Ty {
+        TyKind::Param(param).intern()
+    }
+}
+
 impl TyKind {
-    pub fn intern(self) -> Ty {
+    fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
     }
 }
@@ -128,7 +264,7 @@ impl TyS {
     }
 
     pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit)
+        matches!(self.kind(), TyKind::Uninit(..))
     }
 
     pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
@@ -139,11 +275,46 @@ impl TyS {
             _ => {}
         }
     }
+
+    pub fn layout(&self) -> Layout {
+        match self.kind() {
+            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.layout(),
+            TyKind::Float(float_ty) => Layout::Float(*float_ty),
+            TyKind::Uninit(layout) => *layout,
+            TyKind::StrgRef(_) | TyKind::WeakRef(_) | TyKind::ShrRef(_) => Layout::Ref,
+            TyKind::Param(_) => Layout::Param,
+        }
+    }
+
+    pub fn deref(&self, derefs: u32) -> Ty {
+        let mut ty = self;
+        for _ in 0..derefs {
+            match self.kind() {
+                TyKind::ShrRef(ref_ty) => ty = &*ref_ty,
+                _ => panic!("dereferencing non-reference type: `{:?}`", self),
+            }
+        }
+        Interned::new(ty.clone())
+    }
+
+    pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
+        match self.kind() {
+            TyKind::Refine(BaseTy::Adt(did, substs), e) => {
+                let adt_def = genv.adt_def(*did);
+                (*did, adt_def.unfold(substs, e))
+            }
+            TyKind::Uninit(Layout::Adt(did)) => {
+                let adt_def = genv.adt_def(*did);
+                (*did, adt_def.unfold_uninit())
+            }
+            _ => panic!("type cannot be unfolded: `{self:?}`"),
+        }
+    }
 }
 
 impl BaseTy {
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(def_id, Substs::from_iter(substs))
+        BaseTy::Adt(def_id, Substs::new(&substs.into_iter().collect_vec()))
     }
 
     fn walk(&self, f: &mut impl FnMut(&TyS)) {
@@ -151,9 +322,22 @@ impl BaseTy {
             substs.iter().for_each(|ty| ty.walk(f));
         }
     }
+
+    fn layout(&self) -> Layout {
+        match self {
+            BaseTy::Int(int_ty) => Layout::Int(*int_ty),
+            BaseTy::Uint(uint_ty) => Layout::Uint(*uint_ty),
+            BaseTy::Bool => Layout::Bool,
+            BaseTy::Adt(did, _) => Layout::Adt(*did),
+        }
+    }
 }
 
 impl Substs {
+    pub fn new(tys: &[Ty]) -> Substs {
+        Substs(Interned::new_slice(tys))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -165,6 +349,10 @@ impl Substs {
     pub fn iter(&self) -> std::slice::Iter<Ty> {
         self.0.iter()
     }
+
+    pub fn as_slice(&self) -> &[Ty] {
+        &self.0
+    }
 }
 
 impl<'a> IntoIterator for &'a Substs {
@@ -174,12 +362,6 @@ impl<'a> IntoIterator for &'a Substs {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
-    }
-}
-
-impl FromIterator<Ty> for Substs {
-    fn from_iter<T: IntoIterator<Item = Ty>>(iter: T) -> Self {
-        Substs(Interned::new(iter.into_iter().collect()))
     }
 }
 
@@ -214,10 +396,14 @@ impl SortS {
     pub fn kind(&self) -> &SortKind {
         &self.kind
     }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self.kind, SortKind::Loc)
+    }
 }
 
 impl ExprKind {
-    pub fn intern(self) -> Expr {
+    fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
     }
 }
@@ -233,6 +419,18 @@ impl Expr {
         static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
         ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
             .clone()
+    }
+
+    pub fn unit() -> Expr {
+        Expr::tuple([])
+    }
+
+    pub fn var(var: impl Into<Var>) -> Expr {
+        ExprKind::Var(var.into()).intern()
+    }
+
+    pub fn constant(c: Constant) -> Expr {
+        ExprKind::Constant(c).intern()
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -258,6 +456,18 @@ impl Expr {
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
             BaseTy::Adt(_, _) => panic!(),
         }
+    }
+
+    pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
+    }
+
+    pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
+        ExprKind::UnaryOp(op, e.into()).intern()
+    }
+
+    pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
+        ExprKind::Proj(e.into(), proj).intern()
     }
 
     pub fn not(&self) -> Expr {
@@ -307,6 +517,31 @@ impl ExprS {
         }
     }
 
+    pub fn vars(&self) -> FxHashSet<Name> {
+        fn go(e: &ExprS, vars: &mut FxHashSet<Name>) {
+            match e.kind() {
+                ExprKind::Var(Var::Free(name)) => {
+                    vars.insert(*name);
+                }
+                ExprKind::BinaryOp(_, e1, e2) => {
+                    go(e1, vars);
+                    go(e2, vars);
+                }
+                ExprKind::UnaryOp(_, e) => go(e, vars),
+                ExprKind::Proj(e, _) => go(e, vars),
+                ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| go(e, vars)),
+                ExprKind::Var(Var::Bound) | ExprKind::Constant(_) => {}
+            }
+        }
+        let mut vars = FxHashSet::default();
+        go(self, &mut vars);
+        vars
+    }
+
+    pub fn has_free_vars(&self, scope: &Scope) -> bool {
+        self.vars().into_iter().any(|name| !scope.contains(name))
+    }
+
     /// Simplify expression applying some rules like removing double negation. This is used for pretty
     /// printing.
     pub fn simplify(&self) -> Expr {
@@ -340,11 +575,11 @@ impl From<Expr> for Pred {
 
 impl Pred {
     pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
-        Pred::KVar(kvid, Interned::new(args.into_iter().collect()))
+        Pred::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec()))
     }
 
     pub fn dummy_kvar() -> Pred {
-        Pred::kvar(KVid::new(0), [])
+        Pred::kvar(KVid::from(0u32), [])
     }
 
     pub fn is_atom(&self) -> bool {
@@ -379,6 +614,37 @@ impl From<Var> for Expr {
     }
 }
 
+impl Path {
+    pub fn new(loc: Loc, projection: &[Field]) -> Path {
+        Path { loc, projection: Interned::new_slice(projection) }
+    }
+
+    pub fn projection(&self) -> &[Field] {
+        &self.projection[..]
+    }
+}
+
+impl Loc {
+    pub fn is_free(&self, scope: &Scope) -> bool {
+        match self {
+            Loc::Local(_) => false,
+            Loc::Abstract(name) => !scope.contains(*name),
+        }
+    }
+}
+
+impl From<Name> for Loc {
+    fn from(name: Name) -> Self {
+        Loc::Abstract(name)
+    }
+}
+
+impl From<Local> for Loc {
+    fn from(local: Local) -> Self {
+        Loc::Local(local)
+    }
+}
+
 impl PartialOrd for Loc {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -408,31 +674,88 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, SortS);
+impl_internable!(TyS, ExprS, [Expr], [Ty], [Field], SortS);
 
 mod pretty {
+    use liquid_rust_common::format::PadAdapter;
     use rustc_middle::ty::TyCtxt;
+    use std::fmt::Write;
 
     use super::*;
     use crate::pretty::*;
+
+    impl Pretty for Binders<FnSig> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let fn_sig = &self.value;
+            if f.alternate() {
+                let mut padded = PadAdapter::wrap_fmt(f, 4);
+                define_scoped!(cx, padded);
+                w!("(\nfn")?;
+                if !self.params.is_empty() {
+                    w!("<{}>",
+                        ^self.params.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        })
+                    )?;
+                }
+                w!("({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+                if !fn_sig.requires.is_empty() {
+                    w!("\nrequires {:?} ", join!(", ", &fn_sig.requires))?;
+                }
+                if !fn_sig.ensures.is_empty() {
+                    w!("\nensures {:?}", join!(", ", &fn_sig.ensures))?;
+                }
+                write!(f, "\n)")?;
+            } else {
+                define_scoped!(cx, f);
+                if !self.params.is_empty() {
+                    w!("for<{}> ",
+                        ^self.params.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        })
+                    )?;
+                }
+                if !fn_sig.requires.is_empty() {
+                    w!("[{:?}] ", join!(", ", &fn_sig.requires))?;
+                }
+                w!("fn({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+                if !fn_sig.ensures.is_empty() {
+                    w!("; [{:?}]", join!(", ", &fn_sig.ensures))?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    impl Pretty for Constr {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Constr::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+                Constr::Pred(e) => w!("{:?}", e),
+            }
+        }
+    }
 
     impl Pretty for TyS {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Refine(bty, e) => {
-                    if matches!(e.kind(), ExprKind::Constant(..) | ExprKind::Var(..)) {
-                        w!("{:?}@{:?}", bty, e)
+                TyKind::Refine(bty, e) => fmt_bty(bty, Some(e), cx, f),
+                TyKind::Exists(bty, p) => {
+                    if p.is_true() {
+                        w!("{:?}", bty)
                     } else {
-                        w!("{:?}@{{{:?}}}", bty, e)
+                        w!("{:?}{{{:?}}}", bty, p)
                     }
                 }
-                TyKind::Exists(bty, p) => w!("{:?}{{{:?}}}", bty, p),
-                TyKind::Uninit => w!("uninit"),
+                TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
+                TyKind::Uninit(_) => w!("uninit"),
                 TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
                 TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
                 TyKind::ShrRef(ty) => w!("&{:?}", ty),
-                TyKind::Param(ParamTy { name, .. }) => w!("{:?}", ^name),
+                TyKind::Param(param) => w!("{}", ^param),
             }
         }
 
@@ -443,20 +766,46 @@ mod pretty {
 
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
-                BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
-                BaseTy::Bool => w!("bool"),
-                BaseTy::Adt(did, args) => {
-                    w!("{:?}", did)?;
+            fmt_bty(self, None, cx, f)
+        }
+    }
+
+    fn fmt_bty(
+        bty: &BaseTy,
+        e: Option<&ExprS>,
+        cx: &PPrintCx,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        define_scoped!(cx, f);
+        match bty {
+            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
+            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
+            BaseTy::Bool => w!("bool")?,
+            BaseTy::Adt(did, _) => w!("{:?}", did)?,
+        }
+        match bty {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
+                if let Some(e) = e {
+                    w!("<{:?}>", e)?;
+                }
+            }
+            BaseTy::Adt(_, args) => {
+                if !args.is_empty() || e.is_some() {
+                    w!("<")?;
+                }
+                w!("{:?}", join!(", ", args))?;
+                if let Some(e) = e {
                     if !args.is_empty() {
-                        w!("<{:?}>", join!(", ", args))?;
+                        w!(", ")?;
                     }
-                    Ok(())
+                    w!("{:?}", e)?;
+                }
+                if !args.is_empty() || e.is_some() {
+                    w!(">")?;
                 }
             }
         }
+        Ok(())
     }
 
     impl Pretty for Pred {
@@ -546,6 +895,17 @@ mod pretty {
         }
     }
 
+    impl Pretty for Path {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?}", self.loc)?;
+            for field in self.projection.iter() {
+                w!(".{}", ^u32::from(*field))?;
+            }
+            Ok(())
+        }
+    }
+
     impl Pretty for Loc {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -601,11 +961,22 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TyS, BaseTy, Pred, Sort, ExprS, Var, Loc);
-
     impl fmt::Display for Sort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             fmt::Debug::fmt(self, f)
         }
     }
+
+    impl_debug_with_default_cx!(
+        Constr,
+        TyS,
+        BaseTy,
+        Pred,
+        Sort,
+        ExprS,
+        Var,
+        Loc,
+        Binders<FnSig>,
+        Path
+    );
 }

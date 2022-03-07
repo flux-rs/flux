@@ -49,9 +49,17 @@ pub trait IterExt: Iterator {
             None => Ok(()),
         }
     }
+
+    fn map_take_while<F, R>(&mut self, f: F) -> MapTakeWhile<Self, F>
+    where
+        Self: Clone,
+        F: FnMut(&Self::Item) -> Option<R>,
+    {
+        MapTakeWhile { iter: self, f }
+    }
 }
 
-impl<I> IterExt for I where I: Iterator {}
+impl<I: ?Sized> IterExt for I where I: Iterator {}
 
 struct ReportResiduals<I, F> {
     iter: I,
@@ -97,5 +105,33 @@ where
         }
 
         self.try_fold(init, ok(fold)).unwrap()
+    }
+}
+
+pub struct MapTakeWhile<'a, I: 'a, F> {
+    iter: &'a mut I,
+    f: F,
+}
+
+impl<'a, I, F, R> Iterator for MapTakeWhile<'a, I, F>
+where
+    I: 'a + Iterator + Clone,
+    F: FnMut(&I::Item) -> Option<R>,
+{
+    type Item = R;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let old = self.iter.clone();
+        match self.iter.next() {
+            None => None,
+            Some(elt) => {
+                if let Some(elt) = (self.f)(&elt) {
+                    Some(elt)
+                } else {
+                    *self.iter = old;
+                    None
+                }
+            }
+        }
     }
 }
