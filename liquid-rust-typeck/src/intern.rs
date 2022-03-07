@@ -368,6 +368,18 @@ impl<T: Internable> PartialEq for Interned<T> {
 
 impl<T: Internable> Eq for Interned<T> {}
 
+impl<T> PartialEq for Interned<[T]>
+where
+    [T]: Internable,
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.arc, &other.arc)
+    }
+}
+
+impl<T> Eq for Interned<[T]> where [T]: Internable {}
+
 impl<T: Internable + ?Sized> Hash for Interned<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // NOTE: Cast disposes vtable pointer / slice/str length.
@@ -409,9 +421,9 @@ impl<T: Display + Internable + ?Sized> Display for Interned<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a Interned<Vec<T>>
+impl<'a, T> IntoIterator for &'a Interned<[T]>
 where
-    Vec<T>: Internable,
+    [T]: Internable,
 {
     type Item = &'a T;
 

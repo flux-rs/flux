@@ -93,11 +93,11 @@ pub enum BaseTy {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Substs(Interned<Vec<Ty>>);
+pub struct Substs(Interned<[Ty]>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    KVar(KVid, Interned<Vec<Expr>>),
+    KVar(KVid, Interned<[Expr]>),
     Expr(Expr),
 }
 
@@ -307,7 +307,7 @@ impl TyS {
 
 impl BaseTy {
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(def_id, Substs::from_iter(substs))
+        BaseTy::Adt(def_id, Substs::new(&substs.into_iter().collect_vec()))
     }
 
     fn walk(&self, f: &mut impl FnMut(&TyS)) {
@@ -327,6 +327,10 @@ impl BaseTy {
 }
 
 impl Substs {
+    pub fn new(tys: &[Ty]) -> Substs {
+        Substs(Interned::new_slice(tys))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -340,7 +344,7 @@ impl Substs {
     }
 
     pub fn as_slice(&self) -> &[Ty] {
-        self.0.as_slice()
+        &self.0
     }
 }
 
@@ -351,12 +355,6 @@ impl<'a> IntoIterator for &'a Substs {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
-    }
-}
-
-impl FromIterator<Ty> for Substs {
-    fn from_iter<T: IntoIterator<Item = Ty>>(iter: T) -> Self {
-        Substs(Interned::new(iter.into_iter().collect()))
     }
 }
 
@@ -570,7 +568,7 @@ impl From<Expr> for Pred {
 
 impl Pred {
     pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
-        Pred::KVar(kvid, Interned::new(args.into_iter().collect()))
+        Pred::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec()))
     }
 
     pub fn dummy_kvar() -> Pred {
@@ -669,7 +667,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, Vec<Expr>, Vec<Ty>, [Field], SortS);
+impl_internable!(TyS, ExprS, [Expr], [Ty], [Field], SortS);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;

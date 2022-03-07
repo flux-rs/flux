@@ -63,10 +63,10 @@ fn normal(x:&mut RVec<f32>, n: usize) -> i32 {
 
 /// creating (empty) 0-center for each cluster
 #[lr::sig(fn(n: usize, k: usize{0 < k}) -> RVec<RVec<f32>[n]>[k])]
-fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> {
+fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> { //~ ERROR postcondition might not hold
   let mut res = RVec::new();
   let mut i = 0;
-  while i < k {
+  while i <= k {
       res.push(RVec::from_elem_n(0.0, n));
       i += 1;
   }
@@ -131,13 +131,12 @@ fn kmeans_step(n:usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec<
 }
 
 /// kmeans: iterating the center-update-steps
-#[lr::sig(fn(n:usize, cs: k@RVec<RVec<f32>[n]>, ps: &RVec<RVec<f32>[n]>, iters: i32) -> RVec<RVec<f32>[n]>[k]
-          where 0 < k)]
+#[lr::sig(fn(n:usize, cs: k@RVec<RVec<f32>[n]>, ps: &RVec<RVec<f32>[n]>, iters: i32) -> RVec<RVec<f32>[n]>[k])]
 pub fn kmeans(n:usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>, iters: i32) -> RVec<RVec<f32>> {
     let mut i = 0;
     let mut res = cs;
     while i < iters {
-        res = kmeans_step(n, res, ps);
+        res = kmeans_step(n, res, ps); //~ ERROR precondition might not hold
         i += 1;
     }
     res

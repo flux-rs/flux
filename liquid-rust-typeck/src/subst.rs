@@ -29,12 +29,12 @@ impl Subst<'_> {
         let mut subst = Self::empty();
         for param in params {
             let fresh = pcx.push_binding(param.sort.clone(), |_| Expr::tt());
-            subst.insert_param(param, fresh);
+            subst.insert_name_subst(param.name, &param.sort, fresh);
         }
         subst
     }
 
-    pub fn insert_name_subst(&mut self, name: Name, sort: Sort, to: Name) {
+    pub fn insert_name_subst(&mut self, name: Name, sort: &Sort, to: Name) {
         match sort.kind() {
             SortKind::Loc => {
                 self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(to)));
@@ -51,10 +51,6 @@ impl Subst<'_> {
 
     pub fn insert_loc_subst(&mut self, name: Name, to: impl Into<Loc>) {
         self.map.insert(name, LocOrExpr::Loc(to.into()));
-    }
-
-    pub fn insert_param(&mut self, param: &Param, to: Name) {
-        self.insert_name_subst(param.name, param.sort.clone(), to);
     }
 
     pub fn get_expr(&self, name: Name) -> Expr {
@@ -114,8 +110,8 @@ impl Subst<'_> {
     fn subst_base_ty(&self, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| self.subst_ty(ty)).collect();
-                BaseTy::Adt(*did, substs)
+                let substs = substs.iter().map(|ty| self.subst_ty(ty));
+                BaseTy::adt(*did, substs)
             }
             _ => bty.clone(),
         }

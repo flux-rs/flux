@@ -127,11 +127,8 @@ impl LoweringCtxt {
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
-                let substs = substs
-                    .iter()
-                    .map(|ty| self.lower_ty(ty, fresh_kvar))
-                    .collect();
-                ty::BaseTy::Adt(*did, substs)
+                let substs = substs.iter().map(|ty| self.lower_ty(ty, fresh_kvar));
+                ty::BaseTy::adt(*did, substs)
             }
         }
     }
