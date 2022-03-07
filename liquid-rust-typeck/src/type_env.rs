@@ -328,7 +328,7 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
             let fresh = pcx.push_binding(sort.clone(), |_| Pred::tt());
-            subst.insert_param(&Param { name: *name, sort: sort.clone() }, fresh);
+            subst.insert_name_subst(*name, sort, fresh);
         }
         self.env.clone().subst(&subst)
     }
@@ -356,7 +356,7 @@ impl TypeEnvInfer {
                 if !scope.contains(loc) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, Sort::loc());
-                    subst.insert_name_subst(loc, Sort::loc(), fresh);
+                    subst.insert_loc_subst(loc, fresh);
                 }
             }
         }
@@ -657,7 +657,7 @@ impl BasicBlockEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
             pcx.push_binding(param.sort.clone(), |fresh| {
-                subst.insert_param(param, fresh);
+                subst.insert_name_subst(param.name, &param.sort, fresh);
                 constr
                     .as_ref()
                     .map(|p| subst.subst_pred(p))
