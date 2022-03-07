@@ -92,7 +92,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
             writeln!(f, "{qualif}")?;
         }
 
-        for qualif in self.qualifiers.iter() {
+        for qualif in &self.qualifiers {
             writeln!(f, "{qualif}")?;
         }
 

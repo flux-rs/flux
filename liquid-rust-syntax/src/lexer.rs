@@ -38,7 +38,6 @@ pub enum Token {
     And,
     Percent,
     Weak,
-    Qualifier,
 }
 
 pub(crate) struct Cursor {

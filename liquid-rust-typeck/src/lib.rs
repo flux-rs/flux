@@ -35,7 +35,7 @@ use liquid_rust_common::{
     errors::ErrorReported,
     index::{IndexGen, IndexVec},
 };
-use liquid_rust_core::{self as core, ir::Body};
+use liquid_rust_core::ir::Body;
 use liquid_rust_fixpoint::{self as fixpoint, FixpointResult};
 use pure_ctxt::KVarStore;
 use rustc_hash::FxHashMap;
@@ -63,7 +63,7 @@ pub fn check<'tcx>(
     genv: &GlobalEnv<'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
-    qualifiers: &Vec<core::ty::Qualifier>,
+    qualifiers: &Vec<ty::Qualifier>,
 ) -> Result<(), ErrorReported> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
     let mut kvars = KVarStore::new();
@@ -76,11 +76,6 @@ pub fn check<'tcx>(
     let mut fcx = FixpointCtxt::new(kvars);
 
     let constraint = pure_cx.into_fixpoint(&mut fcx);
-
-    let qualifiers = qualifiers
-        .iter()
-        .map(|q| -> ty::Qualifier { lowering::LoweringCtxt::lower_qualifer(q) })
-        .collect();
 
     fcx.check(genv.tcx, def_id, body.mir.span, constraint, qualifiers)
 }
@@ -118,17 +113,13 @@ impl FixpointCtxt {
         did: DefId,
         body_span: Span,
         constraint: fixpoint::Constraint<TagIdx>,
-        qualifiers: Vec<ty::Qualifier>,
+        qualifiers: &Vec<ty::Qualifier>,
     ) -> Result<(), ErrorReported> {
         let kvars = self.kvars.into_fixpoint();
 
-        let mut fx_qualifiers = Vec::new();
+        let qualifiers = qualifiers.iter().map(qualifier_into_fixpoint).collect();
 
-        for qualifier in qualifiers {
-            fx_qualifiers.push(qualifier_into_fixpoint(&qualifier));
-        }
-
-        let task = fixpoint::Task::new(kvars, constraint, fx_qualifiers);
+        let task = fixpoint::Task::new(kvars, constraint, qualifiers);
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }

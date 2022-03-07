@@ -32,7 +32,7 @@ pub FnSig: ast::FnSig = {
 pub Qualifier: ast::Qualifier = {
     <lo:@L>
     <name:Ident>
-    "(" <args:Comma<(<Ident> ":" <Ident>)>> ")"
+    "(" <args:Comma<QualifParam>> ")"
     "->"
     <expr:Level1>
     <hi:@R> => {
@@ -66,6 +66,10 @@ Env = <Comma<(<Ident> ":" <Ty>)>>;
 GenericParam: ast::GenericParam = {
     <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam { name, sort, pred: Some(pred) },
     <name:Ident> ":" <sort:Ident>                       => ast::GenericParam { name, sort, pred: None },
+}
+
+QualifParam: ast::QualifParam = {
+    <name:Ident> ":" <sort:Ident> => ast::QualifParam { name, sort },
 }
 
 Path: ast::Path = {
@@ -203,7 +207,6 @@ extern {
     enum Token {
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
-        "qualifier" => Token::Qualifier,
         "fn" => Token::Fn,
         "ref" => Token::Ref,
         "@"  => Token::At,

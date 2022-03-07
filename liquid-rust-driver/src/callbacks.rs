@@ -43,13 +43,18 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
 
     let wf = Wf::new(sess, &adt_defs);
 
-    let qualifiers: Vec<liquid_rust_core::ty::Qualifier> = specs
+    // Starts as raw AST
+    let qualifiers: Vec<typeck::ty::Qualifier> = specs
         .qualifs
         .into_iter()
         .map(|qualifier| {
+            // Resolve into core::ty
             let resolved = Resolver::resolve_qualifier(tcx, qualifier)?;
+            // Check for well formedness errors
             wf.check_qualifier(&resolved)?;
-            Ok(resolved)
+            // Lower into typeck::ty
+            let lowered = typeck::lowering::LoweringCtxt::lower_qualifer(&resolved);
+            Ok(lowered)
         })
         .try_collect_exhaust()?;
 

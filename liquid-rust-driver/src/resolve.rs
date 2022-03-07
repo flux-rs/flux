@@ -73,7 +73,9 @@ impl<'tcx> Resolver<'tcx> {
         let args = qualifier
             .args
             .into_iter()
-            .map(|(loc, sort)| {
+            .map(|qualifparam| {
+                let loc = qualifparam.name;
+                let sort = qualifparam.sort;
                 let fresh = name_gen.fresh();
                 if subst.insert_expr(loc.name, ty::Var::Free(fresh)).is_some() {
                     diagnostics

@@ -73,9 +73,7 @@ impl Wf<'_> {
     pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorReported> {
         let mut env = Env::new(&qualifier.args);
 
-        let _ = self.check_expr(&mut env, &qualifier.expr, ty::Sort::bool())?;
-
-        Ok(())
+        self.check_expr(&mut env, &qualifier.expr, ty::Sort::bool())
     }
 
     pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
