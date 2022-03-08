@@ -111,10 +111,12 @@ pub struct PredS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum PredKind {
-    And(Interned<[Pred]>),
-    KVar(KVid, Interned<[Expr]>),
+    Infer(Interned<[KVar]>),
     Expr(Expr),
 }
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct KVar(pub KVid, pub Interned<[Expr]>);
 
 pub type Sort = Interned<SortS>;
 
@@ -343,7 +345,7 @@ impl BaseTy {
 
 impl Substs {
     pub fn new(tys: &[Ty]) -> Substs {
-        Substs(Interned::new_slice(tys))
+        Substs(Interned::from_slice(tys))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -586,16 +588,26 @@ impl Pred {
         PredKind::Expr(e).intern()
     }
 
-    pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
-        PredKind::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec())).intern()
+    pub fn infer(preds: Vec<KVar>) -> Pred {
+        PredKind::Infer(Interned::from_vec(preds)).intern()
     }
 
-    pub fn and(preds: &[Pred]) -> Pred {
-        PredKind::And(Interned::new_slice(preds)).intern()
-    }
-
-    pub fn dummy_kvar() -> Pred {
-        Pred::kvar(KVid::from(0u32), [])
+    pub fn dummy_infer(sort: &Sort) -> Pred {
+        fn go(sort: &Sort, kvars: &mut Vec<KVar>) {
+            match sort.kind() {
+                SortKind::Int | SortKind::Bool | SortKind::Loc => {
+                    kvars.push(KVar::dummy());
+                }
+                SortKind::Tuple(sorts) => {
+                    for sort in sorts {
+                        go(sort, kvars);
+                    }
+                }
+            }
+        }
+        let mut kvars = vec![];
+        go(sort, &mut kvars);
+        Pred::infer(kvars)
     }
 
     pub fn tt() -> Pred {
@@ -610,37 +622,28 @@ impl PredS {
 
     pub fn is_true(&self) -> bool {
         match self.kind() {
-            PredKind::And(..) | PredKind::KVar(..) => false,
+            PredKind::Infer(..) => false,
             PredKind::Expr(e) => e.is_true(),
         }
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self.kind(), PredKind::KVar(_, _))
+        matches!(self.kind(), PredKind::Infer(..))
             || matches!(self.kind(), PredKind::Expr(e) if e.is_atom())
-    }
-
-    pub fn is_dummy(&self) -> bool {
-        match self.kind() {
-            PredKind::KVar(kvid, args) => u32::from(*kvid) == 0 && args.is_empty(),
-            PredKind::And(_) | PredKind::Expr(_) => false,
-        }
     }
 
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
         let to = to.into();
         match self.kind() {
-            PredKind::KVar(kvid, args) => {
-                Pred::kvar(*kvid, args.iter().map(|arg| arg.subst_bound_vars(to.clone())))
+            PredKind::Infer(kvars) => {
+                Pred::infer(
+                    kvars
+                        .iter()
+                        .map(|kvar| kvar.subst_bound_vars(to.clone()))
+                        .collect_vec(),
+                )
             }
             PredKind::Expr(e) => Pred::expr(e.subst_bound_vars(to)),
-            PredKind::And(preds) => {
-                let preds = preds
-                    .iter()
-                    .map(|p| p.subst_bound_vars(to.clone()))
-                    .collect_vec();
-                Pred::and(&preds)
-            }
         }
     }
 }
@@ -648,6 +651,27 @@ impl PredS {
 impl PredKind {
     fn intern(self) -> Pred {
         Interned::new(PredS { kind: self })
+    }
+}
+
+impl KVar {
+    pub fn new(kvid: KVid, args: Vec<Expr>) -> Self {
+        KVar(kvid, Interned::from_vec(args))
+    }
+
+    pub fn dummy() -> KVar {
+        KVar::new(KVid::from(0usize), vec![])
+    }
+
+    fn subst_bound_vars(&self, bound: impl Into<Expr>) -> KVar {
+        let bound = bound.into();
+        KVar::new(
+            self.0,
+            self.1
+                .iter()
+                .map(|arg| arg.subst_bound_vars(bound.clone()))
+                .collect_vec(),
+        )
     }
 }
 
@@ -659,7 +683,7 @@ impl From<Var> for Expr {
 
 impl Path {
     pub fn new(loc: Loc, projection: &[Field]) -> Path {
-        Path { loc, projection: Interned::new_slice(projection) }
+        Path { loc, projection: Interned::from_slice(projection) }
     }
 
     pub fn projection(&self) -> &[Field] {
@@ -717,7 +741,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, PredS, ExprS, SortS, [Ty], [Pred], [Expr], [Field]);
+impl_internable!(TyS, PredS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -855,22 +879,28 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                PredKind::KVar(kvid, args) => {
-                    w!("{:?}", ^kvid)?;
-                    match cx.kvar_args {
-                        Visibility::Show => w!("({:?})", join!(", ", args))?,
-                        Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
-                        Visibility::Hide => {}
-                    }
-                    Ok(())
-                }
+                PredKind::Infer(kvars) => w!("{:?}", join!(" && ", kvars)),
                 PredKind::Expr(expr) => w!("{:?}", expr),
-                PredKind::And(preds) => w!("{:?}", join!(" ∧ ", preds)),
             }
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).fully_qualified_paths(true)
+        }
+    }
+
+    impl Pretty for KVar {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            let KVar(kvid, args) = self;
+
+            w!("{:?}", ^kvid)?;
+            match cx.kvar_args {
+                Visibility::Show => w!("({:?})", join!(", ", args))?,
+                Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
+                Visibility::Hide => {}
+            }
+            Ok(())
         }
     }
 
@@ -1021,6 +1051,7 @@ mod pretty {
         Var,
         Loc,
         Binders<FnSig>,
-        Path
+        Path,
+        KVar,
     );
 }

@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, PredKind, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -453,7 +453,7 @@ impl TypeEnvInfer {
             let ty2 = &other.bindings[path];
             match (ty1.kind(), ty2.kind()) {
                 (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let (fresh, pledge) = self.pledged_borrow(loc1);
+                    let (fresh, pledge) = self.pledged_borrow(genv, loc1);
                     self.env.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[&Path::new(loc2, &[])] = pledge.clone();
@@ -502,7 +502,8 @@ impl TypeEnvInfer {
             (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
-                Ty::exists(bty, Pred::dummy_kvar())
+                let sort = genv.sort(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sort))
             }
             (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
                 Ty::weak_ref(self.join_ty(genv, other, ty1, ty2))
@@ -549,38 +550,41 @@ impl TypeEnvInfer {
         fresh
     }
 
-    fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
+    fn pledged_borrow(&mut self, genv: &GlobalEnv, loc: Loc) -> (Loc, Ty) {
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
         let ty = self.env.bindings[&Path::new(loc, &[])].clone();
-        let pledge = self.weaken_ty(&ty);
+        let pledge = self.weaken_ty(genv, &ty);
         self.env.bindings.insert(loc, pledge.clone());
         self.env.bindings.insert(fresh, pledge.clone());
         (fresh, pledge)
     }
 
-    fn weaken_ty(&mut self, ty: &Ty) -> Ty {
+    fn weaken_ty(&mut self, genv: &GlobalEnv, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Param(_) | TyKind::Float(_) => ty.clone(),
             TyKind::Exists(bty, _) => {
-                let bty = self.weaken_bty(bty);
-                Ty::exists(bty, Pred::dummy_kvar())
+                let bty = self.weaken_bty(genv, bty);
+                let sort = genv.sort(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sort))
             }
             TyKind::Refine(bty, e) => {
                 match e.kind() {
                     ExprKind::Var(Var::Free(name)) if self.params.contains_key(name) => {
                         self.params.remove(name);
-                        let bty = self.weaken_bty(bty);
-                        Ty::exists(bty, Pred::dummy_kvar())
+                        let bty = self.weaken_bty(genv, bty);
+                        let sort = genv.sort(&bty);
+                        Ty::exists(bty, Pred::dummy_infer(&sort))
                     }
                     _ => {
-                        let bty = self.weaken_bty(bty);
-                        Ty::exists(bty, Pred::dummy_kvar())
+                        let bty = self.weaken_bty(genv, bty);
+                        let sort = genv.sort(&bty);
+                        Ty::exists(bty, Pred::dummy_infer(&sort))
                     }
                 }
             }
             TyKind::StrgRef(loc) => {
                 let ty = self.env.bindings[&Path::new(*loc, &[])].clone();
-                let ty = self.weaken_ty(&ty);
+                let ty = self.weaken_ty(genv, &ty);
                 self.env.bindings.insert(*loc, ty.clone());
                 Ty::weak_ref(ty)
             }
@@ -591,10 +595,10 @@ impl TypeEnvInfer {
         }
     }
 
-    fn weaken_bty(&mut self, bty: &BaseTy) -> BaseTy {
+    fn weaken_bty(&mut self, genv: &GlobalEnv, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| self.weaken_ty(ty));
+                let substs = substs.iter().map(|ty| self.weaken_ty(genv, ty));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -670,12 +674,11 @@ fn replace_dummy_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(So
             Ty::refine(replace_dummy_kvars_bty(genv, bty, fresh_kvar), e.clone())
         }
         TyKind::Exists(bty, p) => {
-            if p.is_dummy() {
-                let p = fresh_kvar(genv.sort(bty));
-                Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
-            } else {
-                ty.clone()
-            }
+            let p = match p.kind() {
+                PredKind::Infer(_) => fresh_kvar(genv.sort(bty)),
+                PredKind::Expr(e) => Pred::expr(e.clone()),
+            };
+            Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
         }
         TyKind::WeakRef(ty) => Ty::weak_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
         TyKind::ShrRef(ty) => Ty::shr_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),

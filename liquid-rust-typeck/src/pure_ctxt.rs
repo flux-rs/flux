@@ -10,7 +10,9 @@ use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     constraint_gen::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, PredKind, Sort, SortKind, Var},
+    ty::{
+        BinOp, Expr, ExprKind, ExprS, KVar, KVid, Loc, Name, Pred, PredKind, Sort, SortKind, Var,
+    },
     FixpointCtxt, TagIdx,
 };
 
@@ -93,10 +95,20 @@ impl KVarStore {
             .map(|(var, sort)| (Expr::var(Var::Free(var)), sort.clone()))
             .collect();
 
-        self.fresh_inner(Expr::var(Var::Bound), &sort, &mut args)
+        let mut kvars = vec![];
+
+        self.fresh_inner(&mut kvars, Expr::var(Var::Bound), &sort, &mut args);
+
+        Pred::infer(kvars)
     }
 
-    fn fresh_inner(&mut self, bound: Expr, sort: &Sort, args: &mut Vec<(Expr, Sort)>) -> Pred {
+    fn fresh_inner(
+        &mut self,
+        kvars: &mut Vec<KVar>,
+        bound: Expr,
+        sort: &Sort,
+        args: &mut Vec<(Expr, Sort)>,
+    ) {
         match sort.kind() {
             SortKind::Int | SortKind::Bool | SortKind::Loc => {
                 args.push((bound, sort.clone()));
@@ -107,21 +119,15 @@ impl KVarStore {
                         .map(|(_, s)| sort_to_fixpoint(s))
                         .collect(),
                 );
-                let pred = Pred::kvar(kvid, args.iter().rev().map(|(e, _)| e.clone()));
+                kvars
+                    .push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
 
                 args.pop();
-
-                pred
             }
             SortKind::Tuple(sorts) => {
-                let preds = sorts
-                    .iter()
-                    .enumerate()
-                    .map(|(i, sort)| {
-                        self.fresh_inner(Expr::proj(bound.clone(), i as u32), sort, args)
-                    })
-                    .collect_vec();
-                Pred::and(&preds)
+                for (i, sort) in sorts.iter().enumerate() {
+                    self.fresh_inner(kvars, Expr::proj(bound.clone(), i as u32), sort, args)
+                }
             }
         }
     }
@@ -161,12 +167,29 @@ impl PureCtxt<'_> {
 
     pub fn push_bindings(&mut self, sort: Sort, p: &Pred) -> Expr {
         let name_gen = self.name_gen();
-        let mut names = vec![];
-        let tuple = PureCtxt::destruct_sort(&name_gen, &mut names, &sort);
-        let mut preds = vec![];
-        PureCtxt::destruct_pred(&mut preds, p, &tuple);
-        for (name, p) in iter::zip(names, preds) {
-            self.ptr = self.push_node(NodeKind::Binding(name, sort.clone(), p));
+        let mut bindings = vec![];
+        let tuple = PureCtxt::destruct_sort(&name_gen, &mut bindings, &sort);
+
+        match p.kind() {
+            PredKind::Infer(kvars) => {
+                debug_assert_eq!(kvars.len(), bindings.len());
+                for ((name, sort), kvar) in iter::zip(bindings, kvars) {
+                    let p = Pred::infer(vec![kvar.clone()]);
+                    self.ptr = self.push_node(NodeKind::Binding(
+                        name,
+                        sort,
+                        p.subst_bound_vars(tuple.clone()),
+                    ));
+                }
+            }
+            PredKind::Expr(e) => {
+                for (name, sort) in bindings {
+                    self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::tt()));
+                }
+                if !e.is_true() {
+                    self.push_pred(e.subst_bound_vars(tuple.clone()));
+                }
+            }
         }
         tuple
     }
@@ -188,37 +211,22 @@ impl PureCtxt<'_> {
         }
     }
 
-    fn destruct_sort(name_gen: &IndexGen<Name>, names: &mut Vec<Name>, sort: &Sort) -> Expr {
+    fn destruct_sort(
+        name_gen: &IndexGen<Name>,
+        bindings: &mut Vec<(Name, Sort)>,
+        sort: &Sort,
+    ) -> Expr {
         match sort.kind() {
             SortKind::Int | SortKind::Bool | SortKind::Loc => {
                 let fresh = name_gen.fresh();
-                names.push(fresh);
+                bindings.push((fresh, sort.clone()));
                 Expr::var(Var::Free(fresh))
             }
             SortKind::Tuple(sorts) => {
                 let exprs = sorts
                     .iter()
-                    .map(|s| PureCtxt::destruct_sort(name_gen, names, s));
+                    .map(|s| PureCtxt::destruct_sort(name_gen, bindings, s));
                 Expr::tuple(exprs)
-            }
-        }
-    }
-
-    fn destruct_pred(accum: &mut Vec<Pred>, pred: &Pred, bound: &Expr) {
-        match pred.kind() {
-            PredKind::And(preds) => {
-                for p in preds {
-                    PureCtxt::destruct_pred(accum, p, bound);
-                }
-            }
-            PredKind::KVar(kvid, args) => {
-                accum.push(Pred::kvar(
-                    *kvid,
-                    args.iter().map(|arg| arg.subst_bound_vars(bound.clone())),
-                ));
-            }
-            PredKind::Expr(e) => {
-                accum.push(Pred::expr(e.subst_bound_vars(bound.clone())));
             }
         }
     }
@@ -368,39 +376,44 @@ fn pred_to_fixpoint(
 ) -> fixpoint::Pred {
     match pred.kind() {
         PredKind::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
-        PredKind::KVar(kvid, args) => {
-            let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
-                match arg.kind() {
-                    ExprKind::Var(Var::Free(name)) => {
-                        *cx.name_map
-                            .get(name)
-                            .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
-                    }
-                    ExprKind::Var(Var::Bound) => {
-                        unreachable!("unexpected free bound variable")
-                    }
-                    _ => {
-                        let fresh = cx.fresh_name();
-                        let pred = fixpoint::Expr::BinaryOp(
-                            BinOp::Eq,
-                            Box::new(fixpoint::Expr::Var(fresh)),
-                            Box::new(expr_to_fixpoint(cx, arg)),
-                        );
-                        bindings.push((fresh, sort.clone(), pred));
-                        fresh
-                    }
-                }
-            });
-            fixpoint::Pred::KVar(*kvid, args.collect())
-        }
-        PredKind::And(preds) => {
-            let preds = preds
+        PredKind::Infer(kvars) => {
+            let kvars = kvars
                 .iter()
-                .map(|pred| pred_to_fixpoint(cx, bindings, pred))
+                .map(|kvar| kvar_to_fixpoint(cx, bindings, kvar))
                 .collect();
-            fixpoint::Pred::And(preds)
+            fixpoint::Pred::And(kvars)
         }
     }
+}
+
+fn kvar_to_fixpoint(
+    cx: &mut FixpointCtxt,
+    bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    KVar(kvid, args): &KVar,
+) -> fixpoint::Pred {
+    let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
+        match arg.kind() {
+            ExprKind::Var(Var::Free(name)) => {
+                *cx.name_map
+                    .get(name)
+                    .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
+            }
+            ExprKind::Var(Var::Bound) => {
+                unreachable!("unexpected free bound variable")
+            }
+            _ => {
+                let fresh = cx.fresh_name();
+                let pred = fixpoint::Expr::BinaryOp(
+                    BinOp::Eq,
+                    Box::new(fixpoint::Expr::Var(fresh)),
+                    Box::new(expr_to_fixpoint(cx, arg)),
+                );
+                bindings.push((fresh, sort.clone(), pred));
+                fresh
+            }
+        }
+    });
+    fixpoint::Pred::KVar(*kvid, args.collect())
 }
 
 fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
@@ -605,7 +618,6 @@ mod pretty {
                         "{} ⇒{:?}",
                         ^exprs
                             .into_iter()
-                            .filter(|e| !e.is_true())
                             .format_with(" ∧ ", |e, f| {
                                 let e = if cx.simplify_exprs { e.simplify() } else { e };
                                 if e.is_atom() {

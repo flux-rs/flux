@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
@@ -104,16 +103,17 @@ impl Subst<'_> {
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred.kind() {
-            PredKind::KVar(kvid, args) => {
-                let args = args.iter().map(|arg| self.subst_expr(arg));
-                Pred::kvar(*kvid, args)
+            PredKind::Infer(kvars) => {
+                let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect();
+                Pred::infer(kvars)
             }
             PredKind::Expr(e) => self.subst_expr(e).into(),
-            PredKind::And(preds) => {
-                let preds = preds.iter().map(|pred| self.subst_pred(pred)).collect_vec();
-                Pred::and(&preds)
-            }
         }
+    }
+
+    fn subst_kvar(&self, KVar(kvid, args): &KVar) -> KVar {
+        let args = args.iter().map(|arg| self.subst_expr(arg)).collect();
+        KVar::new(*kvid, args)
     }
 
     fn subst_base_ty(&self, bty: &BaseTy) -> BaseTy {
