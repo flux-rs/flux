@@ -10,7 +10,7 @@ pub fn assert(_b: bool) -> i32 {
 }
 
 #[lr::ty(fn() -> i32@0)]
-pub fn foo() -> i32 {
+pub fn opaque_struct00() -> i32 {
     let p = Pair::new(0, 1);
     let fst = p.fst();
     let snd = p.snd();

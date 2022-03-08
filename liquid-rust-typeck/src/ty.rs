@@ -498,24 +498,35 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
-        let to = to.into();
+    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> Expr {
+        let bound = bound.into();
         match self.kind() {
             ExprKind::Var(var) => {
                 match var {
-                    Var::Bound => to,
-                    Var::Free(_) => ExprKind::Var(*var).intern(),
+                    Var::Bound => bound,
+                    Var::Free(_) => Expr::var(*var),
                 }
             }
-            ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
+            ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(*op, e1.subst_bound_vars(to.clone()), e2.subst_bound_vars(to))
-                    .intern()
+                ExprKind::BinaryOp(
+                    *op,
+                    e1.subst_bound_vars(bound.clone()),
+                    e2.subst_bound_vars(bound),
+                )
+                .intern()
             }
-            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
-            ExprKind::Proj(e, field) => ExprKind::Proj(e.subst_bound_vars(to), *field).intern(),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(bound)),
+            ExprKind::Proj(tup, field) => {
+                let tup = tup.subst_bound_vars(bound);
+                // Opportunistically eta reduce the tuple
+                match tup.kind() {
+                    ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
+                    _ => Expr::proj(tup, *field),
+                }
+            }
             ExprKind::Tuple(exprs) => {
-                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(to.clone())))
+                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(bound.clone())))
             }
         }
     }
@@ -639,7 +650,7 @@ impl KVar {
         KVar::new(KVid::from(0usize), vec![])
     }
 
-    fn subst_bound_vars(&self, bound: impl Into<Expr>) -> KVar {
+    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> KVar {
         let bound = bound.into();
         KVar::new(
             self.0,

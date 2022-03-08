@@ -119,8 +119,6 @@ impl KVarStore {
                 );
                 kvars
                     .push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
-
-                args.pop();
             }
             SortKind::Tuple(sorts) => {
                 for (i, sort) in sorts.iter().enumerate() {
@@ -172,12 +170,10 @@ impl PureCtxt<'_> {
             Pred::Infer(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
                 for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    let p = Pred::infer(vec![kvar.clone()]);
-                    self.ptr = self.push_node(NodeKind::Binding(
-                        name,
-                        sort,
-                        p.subst_bound_vars(tuple.clone()),
-                    ));
+                    // HACK(nilehmann) this relies on subst_bound_var eta reducting tuples,
+                    // otherwise this will result in names out of scope for the resulting predicate.
+                    let p = Pred::infer(vec![kvar.subst_bound_vars(tuple.clone())]);
+                    self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
                 }
             }
             Pred::Expr(e) => {
@@ -471,13 +467,6 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
 fn tuple_to_fixpoint(cx: &FixpointCtxt, exprs: &[Expr]) -> fixpoint::Expr {
     match exprs {
         [] => fixpoint::Expr::Unit,
-        [_] => unreachable!("1-tuple"),
-        [e1, e2] => {
-            fixpoint::Expr::Pair(
-                Box::new(expr_to_fixpoint(cx, e1)),
-                Box::new(expr_to_fixpoint(cx, e2)),
-            )
-        }
         [e, exprs @ ..] => {
             fixpoint::Expr::Pair(
                 Box::new(expr_to_fixpoint(cx, e)),

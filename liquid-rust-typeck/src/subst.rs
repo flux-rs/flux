@@ -134,7 +134,14 @@ impl Subst<'_> {
                 Expr::binary_op(*op, self.subst_expr(e1), self.subst_expr(e2))
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, self.subst_expr(e)),
-            ExprKind::Proj(e, field) => Expr::proj(self.subst_expr(e), *field),
+            ExprKind::Proj(tup, field) => {
+                let tup = self.subst_expr(tup);
+                // Opportunistically eta reduce the tuple
+                match tup.kind() {
+                    ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
+                    _ => Expr::proj(tup, *field),
+                }
+            }
             ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
         }
     }
