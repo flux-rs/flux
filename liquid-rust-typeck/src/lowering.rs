@@ -123,7 +123,7 @@ impl LoweringCtxt {
                 let bty = self.lower_base_ty(bty, fresh_kvar);
                 let pred = match pred {
                     core::Pred::Infer => fresh_kvar(&bty),
-                    core::Pred::Expr(e) => ty::Pred::expr(self.lower_expr(e)),
+                    core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
                 ty::Ty::exists(bty, pred)
             }

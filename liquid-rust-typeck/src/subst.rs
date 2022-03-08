@@ -102,12 +102,12 @@ impl Subst<'_> {
     }
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
-        match pred.kind() {
-            PredKind::Infer(kvars) => {
+        match pred {
+            Pred::Infer(kvars) => {
                 let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect();
                 Pred::infer(kvars)
             }
-            PredKind::Expr(e) => self.subst_expr(e).into(),
+            Pred::Expr(e) => self.subst_expr(e).into(),
         }
     }
 

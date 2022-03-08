@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, PredKind, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -674,9 +674,9 @@ fn replace_dummy_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(So
             Ty::refine(replace_dummy_kvars_bty(genv, bty, fresh_kvar), e.clone())
         }
         TyKind::Exists(bty, p) => {
-            let p = match p.kind() {
-                PredKind::Infer(_) => fresh_kvar(genv.sort(bty)),
-                PredKind::Expr(e) => Pred::expr(e.clone()),
+            let p = match p {
+                Pred::Infer(_) => fresh_kvar(genv.sort(bty)),
+                Pred::Expr(e) => Pred::Expr(e.clone()),
             };
             Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
         }

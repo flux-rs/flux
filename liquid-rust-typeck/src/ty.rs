@@ -102,15 +102,8 @@ pub enum BaseTy {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Substs(Interned<[Ty]>);
 
-pub type Pred = Interned<PredS>;
-
-#[derive(PartialEq, Eq, Hash)]
-pub struct PredS {
-    kind: PredKind,
-}
-
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum PredKind {
+pub enum Pred {
     Infer(Interned<[KVar]>),
     Expr(Expr),
 }
@@ -579,17 +572,13 @@ impl ExprS {
 
 impl From<Expr> for Pred {
     fn from(expr: Expr) -> Self {
-        Pred::expr(expr)
+        Pred::Expr(expr)
     }
 }
 
 impl Pred {
-    pub fn expr(e: Expr) -> Pred {
-        PredKind::Expr(e).intern()
-    }
-
     pub fn infer(preds: Vec<KVar>) -> Pred {
-        PredKind::Infer(Interned::from_vec(preds)).intern()
+        Pred::Infer(Interned::from_vec(preds))
     }
 
     pub fn dummy_infer(sort: &Sort) -> Pred {
@@ -611,31 +600,24 @@ impl Pred {
     }
 
     pub fn tt() -> Pred {
-        Pred::expr(Expr::tt())
-    }
-}
-
-impl PredS {
-    pub fn kind(&self) -> &PredKind {
-        &self.kind
+        Pred::Expr(Expr::tt())
     }
 
     pub fn is_true(&self) -> bool {
-        match self.kind() {
-            PredKind::Infer(..) => false,
-            PredKind::Expr(e) => e.is_true(),
+        match self {
+            Pred::Infer(..) => false,
+            Pred::Expr(e) => e.is_true(),
         }
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self.kind(), PredKind::Infer(..))
-            || matches!(self.kind(), PredKind::Expr(e) if e.is_atom())
+        matches!(self, Pred::Infer(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
         let to = to.into();
-        match self.kind() {
-            PredKind::Infer(kvars) => {
+        match self {
+            Pred::Infer(kvars) => {
                 Pred::infer(
                     kvars
                         .iter()
@@ -643,14 +625,8 @@ impl PredS {
                         .collect_vec(),
                 )
             }
-            PredKind::Expr(e) => Pred::expr(e.subst_bound_vars(to)),
+            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
         }
-    }
-}
-
-impl PredKind {
-    fn intern(self) -> Pred {
-        Interned::new(PredS { kind: self })
     }
 }
 
@@ -741,7 +717,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, PredS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar]);
+impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -878,9 +854,9 @@ mod pretty {
     impl Pretty for Pred {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self.kind() {
-                PredKind::Infer(kvars) => w!("{:?}", join!(" && ", kvars)),
-                PredKind::Expr(expr) => w!("{:?}", expr),
+            match self {
+                Pred::Infer(kvars) => w!("{:?}", join!(" && ", kvars)),
+                Pred::Expr(expr) => w!("{:?}", expr),
             }
         }
 

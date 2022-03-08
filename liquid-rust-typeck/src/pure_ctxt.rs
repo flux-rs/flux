@@ -10,9 +10,7 @@ use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     constraint_gen::Tag,
-    ty::{
-        BinOp, Expr, ExprKind, ExprS, KVar, KVid, Loc, Name, Pred, PredKind, Sort, SortKind, Var,
-    },
+    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Loc, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -170,8 +168,8 @@ impl PureCtxt<'_> {
         let mut bindings = vec![];
         let tuple = PureCtxt::destruct_sort(&name_gen, &mut bindings, &sort);
 
-        match p.kind() {
-            PredKind::Infer(kvars) => {
+        match p {
+            Pred::Infer(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
                 for ((name, sort), kvar) in iter::zip(bindings, kvars) {
                     let p = Pred::infer(vec![kvar.clone()]);
@@ -182,7 +180,7 @@ impl PureCtxt<'_> {
                     ));
                 }
             }
-            PredKind::Expr(e) => {
+            Pred::Expr(e) => {
                 for (name, sort) in bindings {
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::tt()));
                 }
@@ -374,9 +372,9 @@ fn pred_to_fixpoint(
     bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     pred: &Pred,
 ) -> fixpoint::Pred {
-    match pred.kind() {
-        PredKind::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
-        PredKind::Infer(kvars) => {
+    match pred {
+        Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
+        Pred::Infer(kvars) => {
             let kvars = kvars
                 .iter()
                 .map(|kvar| kvar_to_fixpoint(cx, bindings, kvar))
