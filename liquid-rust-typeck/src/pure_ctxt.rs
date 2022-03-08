@@ -87,21 +87,42 @@ impl KVarStore {
     {
         let scope = scope.into_iter();
 
-        let mut sorts = Vec::with_capacity(scope.size_hint().0 + 1);
-        let mut args = Vec::with_capacity(scope.size_hint().0);
-
-        sorts.push(sort_to_fixpoint(&sort));
-        args.push(Expr::var(Var::Bound));
-        scope
+        let mut args = scope
             .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
-            .map(|(var, sort)| (var, sort_to_fixpoint(&sort)))
-            .for_each(|(var, sort)| {
-                sorts.push(sort);
-                args.push(Var::Free(var).into());
-            });
+            .map(|(var, sort)| (Expr::var(Var::Free(var)), sort.clone()))
+            .collect();
 
-        let kvid = self.kvars.push(sorts);
-        Pred::kvar(kvid, args)
+        self.fresh_inner(Expr::var(Var::Bound), &sort, &mut args)
+    }
+
+    fn fresh_inner(&mut self, bound: Expr, sort: &Sort, args: &mut Vec<(Expr, Sort)>) -> Pred {
+        match sort.kind() {
+            SortKind::Int | SortKind::Bool | SortKind::Loc => {
+                args.push((bound, sort.clone()));
+
+                let kvid = self.kvars.push(
+                    args.iter()
+                        .rev()
+                        .map(|(_, s)| sort_to_fixpoint(s))
+                        .collect(),
+                );
+
+                let pred = Pred::kvar(kvid, args.iter().rev().map(|(e, _)| e.clone()));
+                args.pop();
+
+                pred
+            }
+            SortKind::Tuple(sorts) => {
+                let preds = sorts
+                    .iter()
+                    .enumerate()
+                    .map(|(i, sort)| {
+                        self.fresh_inner(Expr::proj(bound.clone(), i as u32), sort, args)
+                    })
+                    .collect_vec();
+                Pred::and(&preds)
+            }
+        }
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
@@ -235,7 +256,8 @@ impl Node {
             NodeKind::Binding(name, sort, pred) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
-                    let (bindings, pred) = pred_to_fixpoint(cx, Some(fresh), pred);
+                    let mut bindings = vec![];
+                    let pred = pred_to_fixpoint(cx, &mut bindings, Some(fresh), pred);
                     Some(stitch(
                         bindings,
                         fixpoint::Constraint::ForAll(
@@ -254,7 +276,8 @@ impl Node {
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                let (bindings, pred) = pred_to_fixpoint(cx, None, pred);
+                let mut bindings = vec![];
+                let pred = pred_to_fixpoint(cx, &mut bindings, None, pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
         }
@@ -292,11 +315,11 @@ fn children_to_fixpoint(
 
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
+    bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     bound: Option<fixpoint::Name>,
     pred: &Pred,
-) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
-    let mut bindings = vec![];
-    let pred = match pred.kind() {
+) -> fixpoint::Pred {
+    match pred.kind() {
         PredKind::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, bound, expr)),
         PredKind::KVar(kvid, args) => {
             let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
@@ -327,8 +350,14 @@ fn pred_to_fixpoint(
             });
             fixpoint::Pred::KVar(*kvid, args.collect())
         }
-    };
-    (bindings, pred)
+        PredKind::And(preds) => {
+            let preds = preds
+                .iter()
+                .map(|pred| pred_to_fixpoint(cx, bindings, bound, pred))
+                .collect();
+            fixpoint::Pred::And(preds)
+        }
+    }
 }
 
 fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {

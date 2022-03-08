@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, PredKind, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -624,7 +624,7 @@ impl TypeEnvInfer {
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
-            *ty = replace_kvars(genv, ty, fresh_kvar);
+            *ty = replace_dummy_kvars(genv, ty, fresh_kvar);
         }
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
@@ -664,32 +664,35 @@ impl BasicBlockEnv {
     }
 }
 
-fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Sort) -> Pred) -> Ty {
+fn replace_dummy_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Sort) -> Pred) -> Ty {
     match ty.kind() {
-        TyKind::Refine(bty, e) => Ty::refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()),
+        TyKind::Refine(bty, e) => {
+            Ty::refine(replace_dummy_kvars_bty(genv, bty, fresh_kvar), e.clone())
+        }
         TyKind::Exists(bty, p) => {
-            match p.kind() {
-                PredKind::KVar(_, _) => {
-                    let p = fresh_kvar(genv.sort(bty));
-                    Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
-                }
-                PredKind::Expr(_) => ty.clone(),
+            if p.is_dummy() {
+                let p = fresh_kvar(genv.sort(bty));
+                Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
+            } else {
+                ty.clone()
             }
         }
-        TyKind::WeakRef(ty) => Ty::weak_ref(replace_kvars(genv, ty, fresh_kvar)),
-        TyKind::ShrRef(ty) => Ty::shr_ref(replace_kvars(genv, ty, fresh_kvar)),
+        TyKind::WeakRef(ty) => Ty::weak_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
+        TyKind::ShrRef(ty) => Ty::shr_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
         TyKind::StrgRef(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
     }
 }
 
-fn replace_kvars_bty(
+fn replace_dummy_kvars_bty(
     genv: &GlobalEnv,
     bty: &BaseTy,
     fresh_kvar: &mut impl FnMut(Sort) -> Pred,
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
-            let substs = substs.iter().map(|ty| replace_kvars(genv, ty, fresh_kvar));
+            let substs = substs
+                .iter()
+                .map(|ty| replace_dummy_kvars(genv, ty, fresh_kvar));
             BaseTy::adt(*did, substs)
         }
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),

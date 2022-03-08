@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
@@ -104,6 +105,10 @@ impl Subst<'_> {
                 Pred::kvar(*kvid, args)
             }
             PredKind::Expr(e) => self.subst_expr(e).into(),
+            PredKind::And(preds) => {
+                let preds = preds.iter().map(|pred| self.subst_pred(pred)).collect_vec();
+                Pred::and(&preds)
+            }
         }
     }
 

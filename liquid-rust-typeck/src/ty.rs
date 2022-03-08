@@ -111,6 +111,7 @@ pub struct PredS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum PredKind {
+    And(Interned<[Pred]>),
     KVar(KVid, Interned<[Expr]>),
     Expr(Expr),
 }
@@ -589,6 +590,10 @@ impl Pred {
         PredKind::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec())).intern()
     }
 
+    pub fn and(preds: &[Pred]) -> Pred {
+        PredKind::And(Interned::new_slice(preds)).intern()
+    }
+
     pub fn dummy_kvar() -> Pred {
         Pred::kvar(KVid::from(0u32), [])
     }
@@ -605,7 +610,7 @@ impl PredS {
 
     pub fn is_true(&self) -> bool {
         match self.kind() {
-            PredKind::KVar(..) => false,
+            PredKind::And(..) | PredKind::KVar(..) => false,
             PredKind::Expr(e) => e.is_true(),
         }
     }
@@ -615,6 +620,13 @@ impl PredS {
             || matches!(self.kind(), PredKind::Expr(e) if e.is_atom())
     }
 
+    pub fn is_dummy(&self) -> bool {
+        match self.kind() {
+            PredKind::KVar(kvid, args) => u32::from(*kvid) == 0 && args.is_empty(),
+            PredKind::And(_) | PredKind::Expr(_) => false,
+        }
+    }
+
     pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
         let to = to.into();
         match self.kind() {
@@ -622,6 +634,13 @@ impl PredS {
                 Pred::kvar(*kvid, args.iter().map(|arg| arg.subst_bound_vars(to.clone())))
             }
             PredKind::Expr(e) => Pred::expr(e.subst_bound_vars(to)),
+            PredKind::And(preds) => {
+                let preds = preds
+                    .iter()
+                    .map(|p| p.subst_bound_vars(to.clone()))
+                    .collect_vec();
+                Pred::and(&preds)
+            }
         }
     }
 }
@@ -698,7 +717,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, PredS, ExprS, SortS, [Expr], [Ty], [Field]);
+impl_internable!(TyS, PredS, ExprS, SortS, [Ty], [Pred], [Expr], [Field]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -846,6 +865,7 @@ mod pretty {
                     Ok(())
                 }
                 PredKind::Expr(expr) => w!("{:?}", expr),
+                PredKind::And(preds) => w!("{:?}", join!(" ∧ ", preds)),
             }
         }
 
