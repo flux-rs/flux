@@ -158,12 +158,10 @@ impl PureCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_binding<F>(&mut self, sort: Sort, f: F) -> Name
-    where
-        F: FnOnce(Name) -> Pred,
-    {
+    pub fn push_binding(&mut self, sort: Sort, p: &Pred) -> Name {
         let fresh = Name::new(self.next_name_idx());
-        self.ptr = self.push_node(NodeKind::Binding(fresh, sort, f(fresh)));
+        self.ptr =
+            self.push_node(NodeKind::Binding(fresh, sort, p.subst_bound_vars(Var::Free(fresh))));
         fresh
     }
 

@@ -29,7 +29,7 @@ impl Subst<'_> {
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
         let mut subst = Self::empty();
         for param in params {
-            let fresh = pcx.push_binding(param.sort.clone(), |_| Pred::tt());
+            let fresh = pcx.push_binding(param.sort.clone(), &Pred::tt());
             subst.insert_name_subst(param.name, &param.sort, fresh);
         }
         subst
