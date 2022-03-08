@@ -21,6 +21,6 @@ impl Pair {
     #[lr::assume]
     #[lr::ty(fn<a: int, b: int>(&Pair @ {a, b}) -> i32@b)]
     pub fn snd(&self) -> i32 {
-        self.a
+        self.b
     }
 }

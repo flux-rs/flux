@@ -374,7 +374,7 @@ fn pred_to_fixpoint(
                     ExprKind::Var(Var::Free(name)) => {
                         *cx.name_map
                             .get(name)
-                            .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`",))
+                            .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
                     }
                     ExprKind::Var(Var::Bound) => {
                         unreachable!("unexpected free bound variable")
@@ -429,7 +429,13 @@ fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
 
 fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
-        ExprKind::Var(Var::Free(name)) => fixpoint::Expr::Var(cx.name_map[name]),
+        ExprKind::Var(Var::Free(name)) => {
+            let name = *cx
+                .name_map
+                .get(name)
+                .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
+            fixpoint::Expr::Var(name)
+        }
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ExprKind::BinaryOp(op, e1, e2) => {
             fixpoint::Expr::BinaryOp(
