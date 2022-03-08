@@ -9,7 +9,7 @@ use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     constraint_gen::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
+    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, PredKind, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -293,12 +293,12 @@ fn children_to_fixpoint(
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
     bound: Option<fixpoint::Name>,
-    refine: &Pred,
+    pred: &Pred,
 ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
     let mut bindings = vec![];
-    let pred = match refine {
-        Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, bound, expr)),
-        Pred::KVar(kvid, args) => {
+    let pred = match pred.kind() {
+        PredKind::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, bound, expr)),
+        PredKind::KVar(kvid, args) => {
             let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
                 match arg.kind() {
                     ExprKind::Var(Var::Free(name)) => {

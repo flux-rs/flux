@@ -98,12 +98,12 @@ impl Subst<'_> {
     }
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
-        match pred {
-            Pred::KVar(kvid, args) => {
+        match pred.kind() {
+            PredKind::KVar(kvid, args) => {
                 let args = args.iter().map(|arg| self.subst_expr(arg));
                 Pred::kvar(*kvid, args)
             }
-            Pred::Expr(e) => self.subst_expr(e).into(),
+            PredKind::Expr(e) => self.subst_expr(e).into(),
         }
     }
 

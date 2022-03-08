@@ -102,8 +102,15 @@ pub enum BaseTy {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Substs(Interned<[Ty]>);
 
+pub type Pred = Interned<PredS>;
+
+#[derive(PartialEq, Eq, Hash)]
+pub struct PredS {
+    kind: PredKind,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Pred {
+pub enum PredKind {
     KVar(KVid, Interned<[Expr]>),
     Expr(Expr),
 }
@@ -569,42 +576,59 @@ impl ExprS {
 
 impl From<Expr> for Pred {
     fn from(expr: Expr) -> Self {
-        Pred::Expr(expr)
+        Pred::expr(expr)
     }
 }
 
 impl Pred {
+    pub fn expr(e: Expr) -> Pred {
+        PredKind::Expr(e).intern()
+    }
+
     pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
-        Pred::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec()))
+        PredKind::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec())).intern()
     }
 
     pub fn dummy_kvar() -> Pred {
         Pred::kvar(KVid::from(0u32), [])
     }
 
-    pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::KVar(_, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
-    }
-
-    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Self {
-        let to = to.into();
-        match self {
-            Pred::KVar(kvid, args) => {
-                Pred::kvar(*kvid, args.iter().map(|arg| arg.subst_bound_vars(to.clone())))
-            }
-            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
-        }
-    }
-
     pub fn tt() -> Pred {
-        Pred::Expr(Expr::tt())
+        Pred::expr(Expr::tt())
+    }
+}
+
+impl PredS {
+    pub fn kind(&self) -> &PredKind {
+        &self.kind
     }
 
     pub fn is_true(&self) -> bool {
-        match self {
-            Pred::KVar(..) => false,
-            Pred::Expr(e) => e.is_true(),
+        match self.kind() {
+            PredKind::KVar(..) => false,
+            PredKind::Expr(e) => e.is_true(),
         }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        matches!(self.kind(), PredKind::KVar(_, _))
+            || matches!(self.kind(), PredKind::Expr(e) if e.is_atom())
+    }
+
+    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
+        let to = to.into();
+        match self.kind() {
+            PredKind::KVar(kvid, args) => {
+                Pred::kvar(*kvid, args.iter().map(|arg| arg.subst_bound_vars(to.clone())))
+            }
+            PredKind::Expr(e) => Pred::expr(e.subst_bound_vars(to)),
+        }
+    }
+}
+
+impl PredKind {
+    fn intern(self) -> Pred {
+        Interned::new(PredS { kind: self })
     }
 }
 
@@ -674,7 +698,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, [Expr], [Ty], [Field], SortS);
+impl_internable!(TyS, PredS, ExprS, SortS, [Expr], [Ty], [Field]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -811,8 +835,8 @@ mod pretty {
     impl Pretty for Pred {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self {
-                Self::KVar(kvid, args) => {
+            match self.kind() {
+                PredKind::KVar(kvid, args) => {
                     w!("{:?}", ^kvid)?;
                     match cx.kvar_args {
                         Visibility::Show => w!("({:?})", join!(", ", args))?,
@@ -821,7 +845,7 @@ mod pretty {
                     }
                     Ok(())
                 }
-                Self::Expr(expr) => w!("{:?}", expr),
+                PredKind::Expr(expr) => w!("{:?}", expr),
             }
         }
 

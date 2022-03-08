@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, PredKind, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -667,11 +667,15 @@ impl BasicBlockEnv {
 fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Sort) -> Pred) -> Ty {
     match ty.kind() {
         TyKind::Refine(bty, e) => Ty::refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()),
-        TyKind::Exists(bty, Pred::KVar(_, _)) => {
-            let p = fresh_kvar(genv.sort(bty));
-            Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
+        TyKind::Exists(bty, p) => {
+            match p.kind() {
+                PredKind::KVar(_, _) => {
+                    let p = fresh_kvar(genv.sort(bty));
+                    Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
+                }
+                PredKind::Expr(_) => ty.clone(),
+            }
         }
-        TyKind::Exists(bty, p) => Ty::exists(bty.clone(), p.clone()),
         TyKind::WeakRef(ty) => Ty::weak_ref(replace_kvars(genv, ty, fresh_kvar)),
         TyKind::ShrRef(ty) => Ty::shr_ref(replace_kvars(genv, ty, fresh_kvar)),
         TyKind::StrgRef(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
