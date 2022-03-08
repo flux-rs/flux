@@ -145,7 +145,7 @@ impl PathsTree {
                     }
                 }
                 Some(_) => unreachable!("expected deref"),
-                None => return f(Path::new(loc, path), M::to_result(ty)),
+                None => return f(Path::new(loc, &path[..]), M::to_result(ty)),
             }
         }
     }
@@ -281,7 +281,7 @@ impl LookupMode for Read {
                 _ => unreachable!(),
             }
         }
-        (Path::new(loc, path), ty)
+        (Path::new(loc, &path[..]), ty)
     }
 }
 
@@ -339,7 +339,7 @@ impl<'a> Iterator for PathsIter<'a> {
                             }
                             Node::Ty(ty) => {
                                 projection.push(Field::from(i));
-                                let path = Path::new(*loc, projection);
+                                let path = Path::new(*loc, projection.as_slice());
                                 projection.pop();
                                 return Some((path, ty));
                             }
@@ -351,7 +351,7 @@ impl<'a> Iterator for PathsIter<'a> {
                 }
                 None
             }
-            PathsIter::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, &[]), ty)),
+            PathsIter::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
         }
     }
 }
@@ -395,7 +395,7 @@ impl<'a> Iterator for PathsIterMut<'a> {
                             }
                             Node::Ty(ty) => {
                                 projection.push(Field::from(i));
-                                let path = Path::new(*loc, projection);
+                                let path = Path::new(*loc, projection.as_slice());
                                 projection.pop();
                                 return Some((path, ty));
                             }
@@ -407,7 +407,7 @@ impl<'a> Iterator for PathsIterMut<'a> {
                 }
                 None
             }
-            PathsIterMut::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, &[]), ty)),
+            PathsIterMut::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
         }
     }
 }

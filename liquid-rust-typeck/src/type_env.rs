@@ -90,7 +90,7 @@ impl TypeEnv {
 
     pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local);
-        let ty = &self.bindings[&Path::new(loc, &[])];
+        let ty = &self.bindings[&Path::new(loc, vec![])];
         let loc = match (&place.projection[..], ty.kind()) {
             ([], _) => loc,
             ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
@@ -107,11 +107,11 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
         let loc = Loc::Local(place.local);
-        let ty = self.bindings[&Path::new(loc, &[])].clone();
+        let ty = self.bindings[&Path::new(loc, vec![])].clone();
         match (&place.projection[..], ty.kind()) {
             ([], _) => Ty::shr_ref(ty),
             ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => {
-                let ty = self.bindings[&Path::new(*loc, &[])].clone();
+                let ty = self.bindings[&Path::new(*loc, vec![])].clone();
                 Ty::shr_ref(ty)
             }
             ([ir::PlaceElem::Deref], TyKind::ShrRef(ty)) => Ty::shr_ref(ty.clone()),
@@ -204,8 +204,8 @@ impl TypeEnv {
                 if !bb_env.scope.contains(*loc1) && !bb_env.scope.contains(*loc2) =>
             {
                 subst.insert_loc_subst(*loc2, *loc1);
-                let ty1 = &self.bindings[&Path::new(Loc::Abstract(*loc1), &[])];
-                let ty2 = &bb_env.env.bindings[&Path::new(Loc::Abstract(*loc2), &[])];
+                let ty1 = &self.bindings[&Path::new(Loc::Abstract(*loc1), vec![])];
+                let ty2 = &bb_env.env.bindings[&Path::new(Loc::Abstract(*loc2), vec![])];
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
@@ -242,7 +242,7 @@ impl TypeEnv {
             let ty2 = &goto_env.bindings[&path];
             match (ty1.kind(), ty2.kind()) {
                 (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let pledge = goto_env.bindings[&Path::new(loc2, &[])].clone();
+                    let pledge = goto_env.bindings[&Path::new(loc2, vec![])].clone();
                     let fresh = self.pledged_borrow(gen, loc1, pledge);
                     self.bindings[&path] = Ty::strg_ref(fresh);
                 }
@@ -266,9 +266,9 @@ impl TypeEnv {
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
         let fresh = gen.push_loc();
-        let ty = &self.bindings[&Path::new(loc, &[])];
+        let ty = &self.bindings[&Path::new(loc, vec![])];
         gen.subtyping(ty, &pledge);
-        self.bindings[&Path::new(loc, &[])] = pledge.clone();
+        self.bindings[&Path::new(loc, vec![])] = pledge.clone();
         self.bindings.insert(fresh, pledge.clone());
         self.pledges.insert(fresh, pledge);
         fresh
@@ -456,7 +456,7 @@ impl TypeEnvInfer {
                     let (fresh, pledge) = self.pledged_borrow(genv, loc1);
                     self.env.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[path] = Ty::strg_ref(fresh);
-                    other.bindings[&Path::new(loc2, &[])] = pledge.clone();
+                    other.bindings[&Path::new(loc2, vec![])] = pledge.clone();
                     other.bindings.insert(fresh, pledge);
                 }
                 _ => {}
@@ -552,7 +552,7 @@ impl TypeEnvInfer {
 
     fn pledged_borrow(&mut self, genv: &GlobalEnv, loc: Loc) -> (Loc, Ty) {
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
-        let ty = self.env.bindings[&Path::new(loc, &[])].clone();
+        let ty = self.env.bindings[&Path::new(loc, vec![])].clone();
         let pledge = self.weaken_ty(genv, &ty);
         self.env.bindings.insert(loc, pledge.clone());
         self.env.bindings.insert(fresh, pledge.clone());
@@ -583,7 +583,7 @@ impl TypeEnvInfer {
                 }
             }
             TyKind::StrgRef(loc) => {
-                let ty = self.env.bindings[&Path::new(*loc, &[])].clone();
+                let ty = self.env.bindings[&Path::new(*loc, vec![])].clone();
                 let ty = self.weaken_ty(genv, &ty);
                 self.env.bindings.insert(*loc, ty.clone());
                 Ty::weak_ref(ty)

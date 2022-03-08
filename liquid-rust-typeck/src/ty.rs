@@ -317,7 +317,7 @@ impl TyS {
 
 impl BaseTy {
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(def_id, Substs::new(&substs.into_iter().collect_vec()))
+        BaseTy::Adt(def_id, Substs::new(substs.into_iter().collect_vec()))
     }
 
     fn walk(&self, f: &mut impl FnMut(&TyS)) {
@@ -337,8 +337,11 @@ impl BaseTy {
 }
 
 impl Substs {
-    pub fn new(tys: &[Ty]) -> Substs {
-        Substs(Interned::from_slice(tys))
+    pub fn new<T>(tys: T) -> Substs
+    where
+        Interned<[Ty]>: From<T>,
+    {
+        Substs(Interned::from(tys))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -588,8 +591,11 @@ impl From<Expr> for Pred {
 }
 
 impl Pred {
-    pub fn infer(preds: Vec<KVar>) -> Pred {
-        Pred::Infer(Interned::from_vec(preds))
+    pub fn infer<T>(kvars: T) -> Pred
+    where
+        Interned<[KVar]>: From<T>,
+    {
+        Pred::Infer(Interned::from(kvars))
     }
 
     pub fn dummy_infer(sort: &Sort) -> Pred {
@@ -642,8 +648,11 @@ impl Pred {
 }
 
 impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>) -> Self {
-        KVar(kvid, Interned::from_vec(args))
+    pub fn new<T>(kvid: KVid, args: T) -> Self
+    where
+        Interned<[Expr]>: From<T>,
+    {
+        KVar(kvid, Interned::from(args))
     }
 
     pub fn dummy() -> KVar {
@@ -669,8 +678,11 @@ impl From<Var> for Expr {
 }
 
 impl Path {
-    pub fn new(loc: Loc, projection: &[Field]) -> Path {
-        Path { loc, projection: Interned::from_slice(projection) }
+    pub fn new<T>(loc: Loc, projection: T) -> Path
+    where
+        Interned<[Field]>: From<T>,
+    {
+        Path { loc, projection: Interned::from(projection) }
     }
 
     pub fn projection(&self) -> &[Field] {

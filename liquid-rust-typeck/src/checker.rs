@@ -356,7 +356,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                         pcx.breadcrumb(),
                         Tag::Call(source_info.span),
                     );
-                    env.update_path(gen, &Path::new(*loc, &[]), updated_ty);
+                    env.update_path(gen, &Path::new(*loc, vec![]), updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }

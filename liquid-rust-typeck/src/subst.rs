@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
@@ -104,7 +105,7 @@ impl Subst<'_> {
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred {
             Pred::Infer(kvars) => {
-                let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect();
+                let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect_vec();
                 Pred::infer(kvars)
             }
             Pred::Expr(e) => self.subst_expr(e).into(),
@@ -112,7 +113,7 @@ impl Subst<'_> {
     }
 
     fn subst_kvar(&self, KVar(kvid, args): &KVar) -> KVar {
-        let args = args.iter().map(|arg| self.subst_expr(arg)).collect();
+        let args = args.iter().map(|arg| self.subst_expr(arg)).collect_vec();
         KVar::new(*kvid, args)
     }
 
@@ -198,7 +199,7 @@ impl Subst<'_> {
 
         for constr in &fn_sig.value.requires {
             if let Constr::Type(loc, required) = constr {
-                let actual = env.lookup_path(&Path::new(self.subst_loc(*loc), &[]));
+                let actual = env.lookup_path(&Path::new(self.subst_loc(*loc), vec![]));
                 self.infer_from_tys(&params, &actual, required);
             }
         }

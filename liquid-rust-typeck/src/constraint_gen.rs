@@ -37,7 +37,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
         match constr {
             Constr::Type(loc, ty) => {
-                let actual_ty = env.lookup_path(&Path::new(*loc, &[]));
+                let actual_ty = env.lookup_path(&Path::new(*loc, vec![]));
                 self.subtyping(&actual_ty, ty);
             }
             Constr::Pred(e) => {
