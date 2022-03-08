@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    iter,
     rc::{Rc, Weak},
 };
 
@@ -9,7 +10,7 @@ use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     constraint_gen::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVid, Loc, Name, Pred, Sort, SortKind, Var},
+    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Loc, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -81,27 +82,50 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    pub fn fresh<S>(&mut self, var: Var, sort: Sort, scope: S) -> Pred
+    pub fn fresh<S>(&mut self, sort: Sort, scope: S) -> Pred
     where
         S: IntoIterator<Item = (Name, Sort)>,
     {
         let scope = scope.into_iter();
 
-        let mut sorts = Vec::with_capacity(scope.size_hint().0 + 1);
-        let mut args = Vec::with_capacity(scope.size_hint().0);
-
-        sorts.push(sort_to_fixpoint(&sort));
-        args.push(Expr::from(var));
-        scope
+        let mut args = scope
             .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
-            .map(|(var, sort)| (var, sort_to_fixpoint(&sort)))
-            .for_each(|(var, sort)| {
-                sorts.push(sort);
-                args.push(Var::Free(var).into());
-            });
+            .map(|(var, sort)| (Expr::var(Var::Free(var)), sort.clone()))
+            .collect();
 
-        let kvid = self.kvars.push(sorts);
-        Pred::kvar(kvid, args)
+        let mut kvars = vec![];
+
+        self.fresh_inner(&mut kvars, Expr::var(Var::Bound), &sort, &mut args);
+
+        Pred::infer(kvars)
+    }
+
+    fn fresh_inner(
+        &mut self,
+        kvars: &mut Vec<KVar>,
+        bound: Expr,
+        sort: &Sort,
+        args: &mut Vec<(Expr, Sort)>,
+    ) {
+        match sort.kind() {
+            SortKind::Int | SortKind::Bool | SortKind::Loc => {
+                args.push((bound, sort.clone()));
+
+                let kvid = self.kvars.push(
+                    args.iter()
+                        .rev()
+                        .map(|(_, s)| sort_to_fixpoint(s))
+                        .collect(),
+                );
+                kvars
+                    .push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
+            }
+            SortKind::Tuple(sorts) => {
+                for (i, sort) in sorts.iter().enumerate() {
+                    self.fresh_inner(kvars, Expr::proj(bound.clone(), i as u32), sort, args)
+                }
+            }
+        }
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
@@ -137,14 +161,31 @@ impl PureCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_binding<F, P>(&mut self, sort: Sort, f: F) -> Name
-    where
-        F: FnOnce(Name) -> P,
-        P: Into<Pred>,
-    {
-        let fresh = Name::new(self.next_name_idx());
-        self.ptr = self.push_node(NodeKind::Binding(fresh, sort, f(fresh).into()));
-        fresh
+    pub fn push_bindings(&mut self, sort: Sort, p: &Pred) -> Expr {
+        let name_gen = self.name_gen();
+        let mut bindings = vec![];
+        let tuple = PureCtxt::destruct_sort(&name_gen, &mut bindings, &sort);
+
+        match p {
+            Pred::Infer(kvars) => {
+                debug_assert_eq!(kvars.len(), bindings.len());
+                for ((name, sort), kvar) in iter::zip(bindings, kvars) {
+                    // HACK(nilehmann) this relies on subst_bound_var eta reducting tuples,
+                    // otherwise this will result in names out of scope for the resulting predicate.
+                    let p = Pred::infer(vec![kvar.subst_bound_vars(tuple.clone())]);
+                    self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
+                }
+            }
+            Pred::Expr(e) => {
+                for (name, sort) in bindings {
+                    self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::tt()));
+                }
+                if !e.is_true() {
+                    self.push_pred(e.subst_bound_vars(tuple.clone()));
+                }
+            }
+        }
+        tuple
     }
 
     pub fn push_pred(&mut self, expr: impl Into<Expr>) {
@@ -162,6 +203,32 @@ impl PureCtxt<'_> {
         if !pred.is_true() {
             self.push_node(NodeKind::Head(pred, tag));
         }
+    }
+
+    fn destruct_sort(
+        name_gen: &IndexGen<Name>,
+        bindings: &mut Vec<(Name, Sort)>,
+        sort: &Sort,
+    ) -> Expr {
+        match sort.kind() {
+            SortKind::Int | SortKind::Bool | SortKind::Loc => {
+                let fresh = name_gen.fresh();
+                bindings.push((fresh, sort.clone()));
+                Expr::var(Var::Free(fresh))
+            }
+            SortKind::Tuple(sorts) => {
+                let exprs = sorts
+                    .iter()
+                    .map(|s| PureCtxt::destruct_sort(name_gen, bindings, s));
+                Expr::tuple(exprs)
+            }
+        }
+    }
+
+    fn name_gen(&self) -> IndexGen<Name> {
+        let gen = IndexGen::new();
+        gen.skip(self.next_name_idx());
+        gen
     }
 
     fn next_name_idx(&self) -> usize {
@@ -239,7 +306,8 @@ impl Node {
             NodeKind::Binding(name, sort, pred) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
-                    let (bindings, pred) = pred_to_fixpoint(cx, pred);
+                    let mut bindings = vec![];
+                    let pred = pred_to_fixpoint(cx, &mut bindings, pred);
                     Some(stitch(
                         bindings,
                         fixpoint::Constraint::ForAll(
@@ -258,7 +326,8 @@ impl Node {
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                let (bindings, pred) = pred_to_fixpoint(cx, pred);
+                let mut bindings = vec![];
+                let pred = pred_to_fixpoint(cx, &mut bindings, pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
         }
@@ -296,32 +365,49 @@ fn children_to_fixpoint(
 
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
-    refine: &Pred,
-) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
-    let mut bindings = vec![];
-    let pred = match refine {
+    bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    pred: &Pred,
+) -> fixpoint::Pred {
+    match pred {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
-        Pred::KVar(kvid, args) => {
-            let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
-                if let ExprKind::Var(Var::Free(name)) = arg.kind() {
-                    *cx.name_map
-                        .get(name)
-                        .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`",))
-                } else {
-                    let fresh = cx.fresh_name();
-                    let pred = fixpoint::Expr::BinaryOp(
-                        BinOp::Eq,
-                        Box::new(fixpoint::Expr::Var(fresh)),
-                        Box::new(expr_to_fixpoint(cx, arg)),
-                    );
-                    bindings.push((fresh, sort.clone(), pred));
-                    fresh
-                }
-            });
-            fixpoint::Pred::KVar(*kvid, args.collect())
+        Pred::Infer(kvars) => {
+            let kvars = kvars
+                .iter()
+                .map(|kvar| kvar_to_fixpoint(cx, bindings, kvar))
+                .collect();
+            fixpoint::Pred::And(kvars)
         }
-    };
-    (bindings, pred)
+    }
+}
+
+fn kvar_to_fixpoint(
+    cx: &mut FixpointCtxt,
+    bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    KVar(kvid, args): &KVar,
+) -> fixpoint::Pred {
+    let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
+        match arg.kind() {
+            ExprKind::Var(Var::Free(name)) => {
+                *cx.name_map
+                    .get(name)
+                    .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
+            }
+            ExprKind::Var(Var::Bound) => {
+                unreachable!("unexpected free bound variable")
+            }
+            _ => {
+                let fresh = cx.fresh_name();
+                let pred = fixpoint::Expr::BinaryOp(
+                    BinOp::Eq,
+                    Box::new(fixpoint::Expr::Var(fresh)),
+                    Box::new(expr_to_fixpoint(cx, arg)),
+                );
+                bindings.push((fresh, sort.clone(), pred));
+                fresh
+            }
+        }
+    });
+    fixpoint::Pred::KVar(*kvid, args.collect())
 }
 
 fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
@@ -350,7 +436,13 @@ fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
 
 fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
-        ExprKind::Var(Var::Free(name)) => fixpoint::Expr::Var(cx.name_map[name]),
+        ExprKind::Var(Var::Free(name)) => {
+            let name = *cx
+                .name_map
+                .get(name)
+                .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
+            fixpoint::Expr::Var(name)
+        }
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ExprKind::BinaryOp(op, e1, e2) => {
             fixpoint::Expr::BinaryOp(
@@ -361,7 +453,7 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
         }
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
         ExprKind::Var(Var::Bound) => {
-            unreachable!("unexpected bound variable")
+            unreachable!("unexpected free bound variable")
         }
         ExprKind::Proj(e, field) => {
             repeat_n(fixpoint::Proj::Snd, *field as usize)
@@ -375,13 +467,6 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
 fn tuple_to_fixpoint(cx: &FixpointCtxt, exprs: &[Expr]) -> fixpoint::Expr {
     match exprs {
         [] => fixpoint::Expr::Unit,
-        [_] => unreachable!("1-tuple"),
-        [e1, e2] => {
-            fixpoint::Expr::Pair(
-                Box::new(expr_to_fixpoint(cx, e1)),
-                Box::new(expr_to_fixpoint(cx, e2)),
-            )
-        }
         [e, exprs @ ..] => {
             fixpoint::Expr::Pair(
                 Box::new(expr_to_fixpoint(cx, e)),
@@ -520,7 +605,6 @@ mod pretty {
                         "{} ⇒{:?}",
                         ^exprs
                             .into_iter()
-                            .filter(|e| !e.is_true())
                             .format_with(" ∧ ", |e, f| {
                                 let e = if cx.simplify_exprs { e.simplify() } else { e };
                                 if e.is_atom() {

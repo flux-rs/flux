@@ -28,19 +28,23 @@ impl Subst<'_> {
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
         let mut subst = Self::empty();
         for param in params {
-            let fresh = pcx.push_binding(param.sort.clone(), |_| Expr::tt());
-            subst.insert_name_subst(param.name, &param.sort, fresh);
+            let e = pcx.push_bindings(param.sort.clone(), &Pred::tt());
+            subst.insert(param.name, &param.sort, e);
         }
         subst
     }
 
-    pub fn insert_name_subst(&mut self, name: Name, sort: &Sort, to: Name) {
+    pub fn insert(&mut self, name: Name, sort: &Sort, to: Expr) {
         match sort.kind() {
             SortKind::Loc => {
-                self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(to)));
+                if let ExprKind::Var(Var::Free(to)) = to.kind() {
+                    self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(*to)));
+                } else {
+                    panic!("invalid loc substitution: {name:?} -> {to:?}");
+                }
             }
             _ => {
-                self.map.insert(name, LocOrExpr::Expr(Var::Free(to).into()));
+                self.map.insert(name, LocOrExpr::Expr(to));
             }
         }
     }
@@ -99,12 +103,17 @@ impl Subst<'_> {
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred {
-            Pred::KVar(kvid, args) => {
-                let args = args.iter().map(|arg| self.subst_expr(arg));
-                Pred::kvar(*kvid, args)
+            Pred::Infer(kvars) => {
+                let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect();
+                Pred::infer(kvars)
             }
             Pred::Expr(e) => self.subst_expr(e).into(),
         }
+    }
+
+    fn subst_kvar(&self, KVar(kvid, args): &KVar) -> KVar {
+        let args = args.iter().map(|arg| self.subst_expr(arg)).collect();
+        KVar::new(*kvid, args)
     }
 
     fn subst_base_ty(&self, bty: &BaseTy) -> BaseTy {
@@ -125,7 +134,14 @@ impl Subst<'_> {
                 Expr::binary_op(*op, self.subst_expr(e1), self.subst_expr(e2))
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, self.subst_expr(e)),
-            ExprKind::Proj(e, field) => Expr::proj(self.subst_expr(e), *field),
+            ExprKind::Proj(tup, field) => {
+                let tup = self.subst_expr(tup);
+                // Opportunistically eta reduce the tuple
+                match tup.kind() {
+                    ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
+                    _ => Expr::proj(tup, *field),
+                }
+            }
             ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
         }
     }

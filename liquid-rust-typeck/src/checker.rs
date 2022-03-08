@@ -744,11 +744,11 @@ impl Mode for Inference<'_> {
         modified
     }
 
-    fn fresh_kvar<I>(&mut self, _sort: Sort, _scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, sort: Sort, _scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        Pred::dummy_kvar()
+        Pred::dummy_infer(&sort)
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -769,9 +769,8 @@ impl Mode for Check<'_> {
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        let fresh_kvar = &mut |var, sort, params: &[Param]| {
+        let fresh_kvar = &mut |sort, params: &[Param]| {
             ck.mode.kvars.fresh(
-                var,
                 sort,
                 scope
                     .iter()
@@ -801,7 +800,7 @@ impl Mode for Check<'_> {
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        self.kvars.fresh(Var::Bound, sort, scope)
+        self.kvars.fresh(sort, scope)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {

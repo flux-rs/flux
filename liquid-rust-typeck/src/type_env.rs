@@ -1,5 +1,7 @@
 pub mod paths_tree;
 
+use std::iter;
+
 use crate::{
     constraint_gen::ConstraintGen,
     global_env::GlobalEnv,
@@ -38,7 +40,7 @@ pub struct TypeEnvInfer {
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
-    constrs: Vec<Option<Pred>>,
+    constrs: Vec<Pred>,
     scope: Scope,
     pub env: TypeEnv,
 }
@@ -139,9 +141,8 @@ impl TypeEnv {
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let fresh =
-                    pcx.push_binding(genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
-                Ty::refine(bty.clone(), Var::Free(fresh))
+                let e = pcx.push_bindings(genv.sort(bty), p);
+                Ty::refine(bty.clone(), e)
             }
             TyKind::WeakRef(pledge) => {
                 let fresh = pcx.push_loc();
@@ -219,8 +220,8 @@ impl TypeEnv {
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        for constr in bb_env.constrs() {
-            gen.check_pred(subst.subst_pred(constr));
+        for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
+            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(Var::Free(param.name))));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);
@@ -264,7 +265,7 @@ impl TypeEnv {
     }
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
-        let fresh = Loc::Abstract(gen.push_binding(Sort::loc()));
+        let fresh = gen.push_loc();
         let ty = &self.bindings[&Path::new(loc, &[])];
         gen.subtyping(ty, &pledge);
         self.bindings[&Path::new(loc, &[])] = pledge.clone();
@@ -327,8 +328,8 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same than
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let fresh = pcx.push_binding(sort.clone(), |_| Pred::tt());
-            subst.insert_name_subst(*name, sort, fresh);
+            let e = pcx.push_bindings(sort.clone(), &Pred::tt());
+            subst.insert(*name, sort, e);
         }
         self.env.clone().subst(&subst)
     }
@@ -452,7 +453,7 @@ impl TypeEnvInfer {
             let ty2 = &other.bindings[path];
             match (ty1.kind(), ty2.kind()) {
                 (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let (fresh, pledge) = self.pledged_borrow(loc1);
+                    let (fresh, pledge) = self.pledged_borrow(genv, loc1);
                     self.env.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[&Path::new(loc2, &[])] = pledge.clone();
@@ -501,7 +502,8 @@ impl TypeEnvInfer {
             (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
-                Ty::exists(bty, Pred::dummy_kvar())
+                let sort = genv.sort(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sort))
             }
             (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
                 Ty::weak_ref(self.join_ty(genv, other, ty1, ty2))
@@ -548,38 +550,41 @@ impl TypeEnvInfer {
         fresh
     }
 
-    fn pledged_borrow(&mut self, loc: Loc) -> (Loc, Ty) {
+    fn pledged_borrow(&mut self, genv: &GlobalEnv, loc: Loc) -> (Loc, Ty) {
         let fresh = Loc::Abstract(self.fresh(Sort::loc()));
         let ty = self.env.bindings[&Path::new(loc, &[])].clone();
-        let pledge = self.weaken_ty(&ty);
+        let pledge = self.weaken_ty(genv, &ty);
         self.env.bindings.insert(loc, pledge.clone());
         self.env.bindings.insert(fresh, pledge.clone());
         (fresh, pledge)
     }
 
-    fn weaken_ty(&mut self, ty: &Ty) -> Ty {
+    fn weaken_ty(&mut self, genv: &GlobalEnv, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Param(_) | TyKind::Float(_) => ty.clone(),
             TyKind::Exists(bty, _) => {
-                let bty = self.weaken_bty(bty);
-                Ty::exists(bty, Pred::dummy_kvar())
+                let bty = self.weaken_bty(genv, bty);
+                let sort = genv.sort(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sort))
             }
             TyKind::Refine(bty, e) => {
                 match e.kind() {
                     ExprKind::Var(Var::Free(name)) if self.params.contains_key(name) => {
                         self.params.remove(name);
-                        let bty = self.weaken_bty(bty);
-                        Ty::exists(bty, Pred::dummy_kvar())
+                        let bty = self.weaken_bty(genv, bty);
+                        let sort = genv.sort(&bty);
+                        Ty::exists(bty, Pred::dummy_infer(&sort))
                     }
                     _ => {
-                        let bty = self.weaken_bty(bty);
-                        Ty::exists(bty, Pred::dummy_kvar())
+                        let bty = self.weaken_bty(genv, bty);
+                        let sort = genv.sort(&bty);
+                        Ty::exists(bty, Pred::dummy_infer(&sort))
                     }
                 }
             }
             TyKind::StrgRef(loc) => {
                 let ty = self.env.bindings[&Path::new(*loc, &[])].clone();
-                let ty = self.weaken_ty(&ty);
+                let ty = self.weaken_ty(genv, &ty);
                 self.env.bindings.insert(*loc, ty.clone());
                 Ty::weak_ref(ty)
             }
@@ -590,10 +595,10 @@ impl TypeEnvInfer {
         }
     }
 
-    fn weaken_bty(&mut self, bty: &BaseTy) -> BaseTy {
+    fn weaken_bty(&mut self, genv: &GlobalEnv, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| self.weaken_ty(ty));
+                let substs = substs.iter().map(|ty| self.weaken_ty(genv, ty));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -603,7 +608,7 @@ impl TypeEnvInfer {
     pub fn into_bb_env(
         self,
         genv: &GlobalEnv,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        fresh_kvar: &mut impl FnMut(Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
         let mut params = vec![];
@@ -612,18 +617,18 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
             if sort != Sort::loc() {
-                constrs.push(Some(fresh_kvar(name.into(), sort.clone(), &params)));
+                constrs.push(fresh_kvar(sort.clone(), &params));
             } else {
-                constrs.push(None)
+                constrs.push(Pred::tt())
             }
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
+        let fresh_kvar = &mut |sort| fresh_kvar(sort, &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
-            *ty = replace_kvars(genv, ty, fresh_kvar);
+            *ty = replace_dummy_kvars(genv, ty, fresh_kvar);
         }
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
@@ -656,44 +661,41 @@ impl BasicBlockEnv {
     pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            pcx.push_binding(param.sort.clone(), |fresh| {
-                subst.insert_name_subst(param.name, &param.sort, fresh);
-                constr
-                    .as_ref()
-                    .map(|p| subst.subst_pred(p))
-                    .unwrap_or_else(Pred::tt)
-            });
+            let e = pcx.push_bindings(param.sort.clone(), &subst.subst_pred(constr));
+            subst.insert(param.name, &param.sort, e);
         }
         self.env.clone().subst(&subst)
     }
-
-    pub fn constrs(&self) -> impl Iterator<Item = &Pred> {
-        self.constrs.iter().filter_map(|c| c.as_ref())
-    }
 }
 
-fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
+fn replace_dummy_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Sort) -> Pred) -> Ty {
     match ty.kind() {
-        TyKind::Refine(bty, e) => Ty::refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()),
-        TyKind::Exists(bty, Pred::KVar(_, _)) => {
-            let p = fresh_kvar(Var::Bound, genv.sort(bty));
-            Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
+        TyKind::Refine(bty, e) => {
+            Ty::refine(replace_dummy_kvars_bty(genv, bty, fresh_kvar), e.clone())
         }
-        TyKind::Exists(bty, p) => Ty::exists(bty.clone(), p.clone()),
-        TyKind::WeakRef(ty) => Ty::weak_ref(replace_kvars(genv, ty, fresh_kvar)),
-        TyKind::ShrRef(ty) => Ty::shr_ref(replace_kvars(genv, ty, fresh_kvar)),
+        TyKind::Exists(bty, p) => {
+            let p = match p {
+                Pred::Infer(_) => fresh_kvar(genv.sort(bty)),
+                Pred::Expr(e) => Pred::Expr(e.clone()),
+            };
+            Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
+        }
+        TyKind::WeakRef(ty) => Ty::weak_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
+        TyKind::ShrRef(ty) => Ty::shr_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
         TyKind::StrgRef(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
     }
 }
 
-fn replace_kvars_bty(
+fn replace_dummy_kvars_bty(
     genv: &GlobalEnv,
     bty: &BaseTy,
-    fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred,
+    fresh_kvar: &mut impl FnMut(Sort) -> Pred,
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
-            let substs = substs.iter().map(|ty| replace_kvars(genv, ty, fresh_kvar));
+            let substs = substs
+                .iter()
+                .map(|ty| replace_dummy_kvars(genv, ty, fresh_kvar));
             BaseTy::adt(*did, substs)
         }
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -773,10 +775,10 @@ mod pretty {
                     .iter()
                     .zip(&self.constrs)
                     .format_with(", ", |(param, constr), f| {
-                        if let Some(constr) = constr {
-                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr))
-                        } else {
+                        if constr.is_true() {
                             f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        } else {
+                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr))
                         }
                     }),
                 &self.env

@@ -104,9 +104,12 @@ pub struct Substs(Interned<[Ty]>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    KVar(KVid, Interned<[Expr]>),
+    Infer(Interned<[KVar]>),
     Expr(Expr),
 }
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct KVar(pub KVid, pub Interned<[Expr]>);
 
 pub type Sort = Interned<SortS>;
 
@@ -335,7 +338,7 @@ impl BaseTy {
 
 impl Substs {
     pub fn new(tys: &[Ty]) -> Substs {
-        Substs(Interned::new_slice(tys))
+        Substs(Interned::from_slice(tys))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -495,24 +498,35 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Expr {
-        let to = to.into();
+    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> Expr {
+        let bound = bound.into();
         match self.kind() {
             ExprKind::Var(var) => {
                 match var {
-                    Var::Bound => to,
-                    Var::Free(_) => ExprKind::Var(*var).intern(),
+                    Var::Bound => bound,
+                    Var::Free(_) => Expr::var(*var),
                 }
             }
-            ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
+            ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(*op, e1.subst_bound_vars(to.clone()), e2.subst_bound_vars(to))
-                    .intern()
+                ExprKind::BinaryOp(
+                    *op,
+                    e1.subst_bound_vars(bound.clone()),
+                    e2.subst_bound_vars(bound),
+                )
+                .intern()
             }
-            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.subst_bound_vars(to)).intern(),
-            ExprKind::Proj(e, field) => ExprKind::Proj(e.subst_bound_vars(to), *field).intern(),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(bound)),
+            ExprKind::Proj(tup, field) => {
+                let tup = tup.subst_bound_vars(bound);
+                // Opportunistically eta reduce the tuple
+                match tup.kind() {
+                    ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
+                    _ => Expr::proj(tup, *field),
+                }
+            }
             ExprKind::Tuple(exprs) => {
-                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(to.clone())))
+                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(bound.clone())))
             }
         }
     }
@@ -574,26 +588,26 @@ impl From<Expr> for Pred {
 }
 
 impl Pred {
-    pub fn kvar(kvid: KVid, args: impl IntoIterator<Item = Expr>) -> Self {
-        Pred::KVar(kvid, Interned::new_slice(&args.into_iter().collect_vec()))
+    pub fn infer(preds: Vec<KVar>) -> Pred {
+        Pred::Infer(Interned::from_vec(preds))
     }
 
-    pub fn dummy_kvar() -> Pred {
-        Pred::kvar(KVid::from(0u32), [])
-    }
-
-    pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::KVar(_, _)) || matches!(self, Pred::Expr(e) if e.is_atom())
-    }
-
-    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Self {
-        let to = to.into();
-        match self {
-            Pred::KVar(kvid, args) => {
-                Pred::kvar(*kvid, args.iter().map(|arg| arg.subst_bound_vars(to.clone())))
+    pub fn dummy_infer(sort: &Sort) -> Pred {
+        fn go(sort: &Sort, kvars: &mut Vec<KVar>) {
+            match sort.kind() {
+                SortKind::Int | SortKind::Bool | SortKind::Loc => {
+                    kvars.push(KVar::dummy());
+                }
+                SortKind::Tuple(sorts) => {
+                    for sort in sorts {
+                        go(sort, kvars);
+                    }
+                }
             }
-            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
         }
+        let mut kvars = vec![];
+        go(sort, &mut kvars);
+        Pred::infer(kvars)
     }
 
     pub fn tt() -> Pred {
@@ -602,9 +616,49 @@ impl Pred {
 
     pub fn is_true(&self) -> bool {
         match self {
-            Pred::KVar(..) => false,
+            Pred::Infer(..) => false,
             Pred::Expr(e) => e.is_true(),
         }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        matches!(self, Pred::Infer(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+    }
+
+    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
+        let to = to.into();
+        match self {
+            Pred::Infer(kvars) => {
+                Pred::infer(
+                    kvars
+                        .iter()
+                        .map(|kvar| kvar.subst_bound_vars(to.clone()))
+                        .collect_vec(),
+                )
+            }
+            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
+        }
+    }
+}
+
+impl KVar {
+    pub fn new(kvid: KVid, args: Vec<Expr>) -> Self {
+        KVar(kvid, Interned::from_vec(args))
+    }
+
+    pub fn dummy() -> KVar {
+        KVar::new(KVid::from(0usize), vec![])
+    }
+
+    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> KVar {
+        let bound = bound.into();
+        KVar::new(
+            self.0,
+            self.1
+                .iter()
+                .map(|arg| arg.subst_bound_vars(bound.clone()))
+                .collect_vec(),
+        )
     }
 }
 
@@ -616,7 +670,7 @@ impl From<Var> for Expr {
 
 impl Path {
     pub fn new(loc: Loc, projection: &[Field]) -> Path {
-        Path { loc, projection: Interned::new_slice(projection) }
+        Path { loc, projection: Interned::from_slice(projection) }
     }
 
     pub fn projection(&self) -> &[Field] {
@@ -674,7 +728,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, [Expr], [Ty], [Field], SortS);
+impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -812,21 +866,34 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Self::KVar(kvid, args) => {
-                    w!("{:?}", ^kvid)?;
-                    match cx.kvar_args {
-                        Visibility::Show => w!("({:?})", join!(", ", args))?,
-                        Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
-                        Visibility::Hide => {}
+                Pred::Infer(kvars) => {
+                    if let [kvar] = &kvars[..] {
+                        w!("{:?}", kvar)
+                    } else {
+                        w!("({:?})", join!(" ∧ ", kvars))
                     }
-                    Ok(())
                 }
-                Self::Expr(expr) => w!("{:?}", expr),
+                Pred::Expr(expr) => w!("{:?}", expr),
             }
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).fully_qualified_paths(true)
+        }
+    }
+
+    impl Pretty for KVar {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            let KVar(kvid, args) = self;
+
+            w!("{:?}", ^kvid)?;
+            match cx.kvar_args {
+                Visibility::Show => w!("({:?})", join!(", ", args))?,
+                Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
+                Visibility::Hide => {}
+            }
+            Ok(())
         }
     }
 
@@ -977,6 +1044,7 @@ mod pretty {
         Var,
         Loc,
         Binders<FnSig>,
-        Path
+        Path,
+        KVar,
     );
 }
