@@ -141,8 +141,8 @@ impl TypeEnv {
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let fresh = pcx.push_binding(genv.sort(bty), p);
-                Ty::refine(bty.clone(), Var::Free(fresh))
+                let e = pcx.push_bindings(genv.sort(bty), p);
+                Ty::refine(bty.clone(), e)
             }
             TyKind::WeakRef(pledge) => {
                 let fresh = pcx.push_loc();
@@ -265,7 +265,7 @@ impl TypeEnv {
     }
 
     fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
-        let fresh = Loc::Abstract(gen.push_binding(Sort::loc()));
+        let fresh = gen.push_loc();
         let ty = &self.bindings[&Path::new(loc, &[])];
         gen.subtyping(ty, &pledge);
         self.bindings[&Path::new(loc, &[])] = pledge.clone();
@@ -328,8 +328,8 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same than
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let fresh = pcx.push_binding(sort.clone(), &Pred::tt());
-            subst.insert_name_subst(*name, sort, fresh);
+            let e = pcx.push_bindings(sort.clone(), &Pred::tt());
+            subst.insert(*name, sort, e);
         }
         self.env.clone().subst(&subst)
     }
@@ -657,8 +657,8 @@ impl BasicBlockEnv {
     pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let fresh = pcx.push_binding(param.sort.clone(), &subst.subst_pred(constr));
-            subst.insert_name_subst(param.name, &param.sort, fresh);
+            let e = pcx.push_bindings(param.sort.clone(), &subst.subst_pred(constr));
+            subst.insert(param.name, &param.sort, e);
         }
         self.env.clone().subst(&subst)
     }

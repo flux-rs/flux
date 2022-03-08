@@ -5,7 +5,7 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, Name, Path, Pred, Sort, Ty, TyKind, Var},
+    ty::{BaseTy, BinOp, Constr, Expr, Loc, Path, Pred, Ty, TyKind},
     type_env::TypeEnv,
 };
 
@@ -50,8 +50,8 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
         self.pcx.push_head(pred, self.tag);
     }
 
-    pub fn push_binding(&mut self, sort: Sort) -> Name {
-        self.pcx.push_binding(sort, &Pred::tt())
+    pub fn push_loc(&mut self) -> Loc {
+        self.pcx.push_loc()
     }
 
     pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
@@ -66,8 +66,8 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 return;
             }
             (TyKind::Exists(bty, p), _) => {
-                let fresh = ck.pcx.push_binding(ck.genv.sort(bty), p);
-                let ty1 = Ty::refine(bty.clone(), Var::Free(fresh));
+                let e = ck.pcx.push_bindings(ck.genv.sort(bty), p);
+                let ty1 = Ty::refine(bty.clone(), e);
                 ck.subtyping(&ty1, ty2);
                 return;
             }

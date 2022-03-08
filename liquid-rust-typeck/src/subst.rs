@@ -29,19 +29,23 @@ impl Subst<'_> {
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
         let mut subst = Self::empty();
         for param in params {
-            let fresh = pcx.push_binding(param.sort.clone(), &Pred::tt());
-            subst.insert_name_subst(param.name, &param.sort, fresh);
+            let e = pcx.push_bindings(param.sort.clone(), &Pred::tt());
+            subst.insert(param.name, &param.sort, e);
         }
         subst
     }
 
-    pub fn insert_name_subst(&mut self, name: Name, sort: &Sort, to: Name) {
+    pub fn insert(&mut self, name: Name, sort: &Sort, to: Expr) {
         match sort.kind() {
             SortKind::Loc => {
-                self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(to)));
+                if let ExprKind::Var(Var::Free(to)) = to.kind() {
+                    self.map.insert(name, LocOrExpr::Loc(Loc::Abstract(*to)));
+                } else {
+                    panic!("invalid loc substitution: {name:?} -> {to:?}");
+                }
             }
             _ => {
-                self.map.insert(name, LocOrExpr::Expr(Var::Free(to).into()));
+                self.map.insert(name, LocOrExpr::Expr(to));
             }
         }
     }

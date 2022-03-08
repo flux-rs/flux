@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    iter,
     rc::{Rc, Weak},
 };
 
@@ -158,11 +159,16 @@ impl PureCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_binding(&mut self, sort: Sort, p: &Pred) -> Name {
-        let fresh = Name::new(self.next_name_idx());
-        self.ptr =
-            self.push_node(NodeKind::Binding(fresh, sort, p.subst_bound_vars(Var::Free(fresh))));
-        fresh
+    pub fn push_bindings(&mut self, sort: Sort, p: &Pred) -> Expr {
+        let name_gen = self.name_gen();
+        let mut names = vec![];
+        let tuple = PureCtxt::destruct_sort(&name_gen, &mut names, &sort);
+        let mut preds = vec![];
+        PureCtxt::destruct_pred(&mut preds, p, &tuple);
+        for (name, p) in iter::zip(names, preds) {
+            self.ptr = self.push_node(NodeKind::Binding(name, sort.clone(), p));
+        }
+        tuple
     }
 
     pub fn push_pred(&mut self, expr: impl Into<Expr>) {
@@ -180,6 +186,47 @@ impl PureCtxt<'_> {
         if !pred.is_true() {
             self.push_node(NodeKind::Head(pred, tag));
         }
+    }
+
+    fn destruct_sort(name_gen: &IndexGen<Name>, names: &mut Vec<Name>, sort: &Sort) -> Expr {
+        match sort.kind() {
+            SortKind::Int | SortKind::Bool | SortKind::Loc => {
+                let fresh = name_gen.fresh();
+                names.push(fresh);
+                Expr::var(Var::Free(fresh))
+            }
+            SortKind::Tuple(sorts) => {
+                let exprs = sorts
+                    .iter()
+                    .map(|s| PureCtxt::destruct_sort(name_gen, names, s));
+                Expr::tuple(exprs)
+            }
+        }
+    }
+
+    fn destruct_pred(accum: &mut Vec<Pred>, pred: &Pred, bound: &Expr) {
+        match pred.kind() {
+            PredKind::And(preds) => {
+                for p in preds {
+                    PureCtxt::destruct_pred(accum, p, bound);
+                }
+            }
+            PredKind::KVar(kvid, args) => {
+                accum.push(Pred::kvar(
+                    *kvid,
+                    args.iter().map(|arg| arg.subst_bound_vars(bound.clone())),
+                ));
+            }
+            PredKind::Expr(e) => {
+                accum.push(Pred::expr(e.subst_bound_vars(bound.clone())));
+            }
+        }
+    }
+
+    fn name_gen(&self) -> IndexGen<Name> {
+        let gen = IndexGen::new();
+        gen.skip(self.next_name_idx());
+        gen
     }
 
     fn next_name_idx(&self) -> usize {
