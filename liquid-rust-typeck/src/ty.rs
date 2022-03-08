@@ -866,7 +866,13 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Pred::Infer(kvars) => w!("{:?}", join!(" && ", kvars)),
+                Pred::Infer(kvars) => {
+                    if let [kvar] = &kvars[..] {
+                        w!("{:?}", kvar)
+                    } else {
+                        w!("({:?})", join!(" ∧ ", kvars))
+                    }
+                }
                 Pred::Expr(expr) => w!("{:?}", expr),
             }
         }
