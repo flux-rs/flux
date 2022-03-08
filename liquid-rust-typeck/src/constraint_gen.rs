@@ -51,7 +51,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     }
 
     pub fn push_binding(&mut self, sort: Sort) -> Name {
-        self.pcx.push_binding(sort, Pred::tt())
+        self.pcx.push_binding(sort, |_| Pred::tt())
     }
 
     pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
@@ -66,7 +66,9 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 return;
             }
             (TyKind::Exists(bty, p), _) => {
-                let fresh = ck.pcx.push_binding(ck.genv.sort(bty), p.clone());
+                let fresh = ck
+                    .pcx
+                    .push_binding(ck.genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
                 let ty1 = Ty::refine(bty.clone(), Var::Free(fresh));
                 ck.subtyping(&ty1, ty2);
                 return;

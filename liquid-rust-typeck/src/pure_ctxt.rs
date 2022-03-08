@@ -106,8 +106,8 @@ impl KVarStore {
                         .map(|(_, s)| sort_to_fixpoint(s))
                         .collect(),
                 );
-
                 let pred = Pred::kvar(kvid, args.iter().rev().map(|(e, _)| e.clone()));
+
                 args.pop();
 
                 pred
@@ -158,9 +158,12 @@ impl PureCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_binding(&mut self, sort: Sort, p: Pred) -> Name {
+    pub fn push_binding<F>(&mut self, sort: Sort, f: F) -> Name
+    where
+        F: FnOnce(Name) -> Pred,
+    {
         let fresh = Name::new(self.next_name_idx());
-        self.ptr = self.push_node(NodeKind::Binding(fresh, sort, p));
+        self.ptr = self.push_node(NodeKind::Binding(fresh, sort, f(fresh)));
         fresh
     }
 
@@ -257,7 +260,7 @@ impl Node {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
                     let mut bindings = vec![];
-                    let pred = pred_to_fixpoint(cx, &mut bindings, Some(fresh), pred);
+                    let pred = pred_to_fixpoint(cx, &mut bindings, pred);
                     Some(stitch(
                         bindings,
                         fixpoint::Constraint::ForAll(
@@ -271,13 +274,13 @@ impl Node {
             }
             NodeKind::Pred(expr) => {
                 Some(fixpoint::Constraint::Guard(
-                    expr_to_fixpoint(cx, None, expr),
+                    expr_to_fixpoint(cx, expr),
                     Box::new(children_to_fixpoint(cx, &self.children)?),
                 ))
             }
             NodeKind::Head(pred, tag) => {
                 let mut bindings = vec![];
-                let pred = pred_to_fixpoint(cx, &mut bindings, None, pred);
+                let pred = pred_to_fixpoint(cx, &mut bindings, pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
         }
@@ -316,11 +319,10 @@ fn children_to_fixpoint(
 fn pred_to_fixpoint(
     cx: &mut FixpointCtxt,
     bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    bound: Option<fixpoint::Name>,
     pred: &Pred,
 ) -> fixpoint::Pred {
     match pred.kind() {
-        PredKind::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, bound, expr)),
+        PredKind::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
         PredKind::KVar(kvid, args) => {
             let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
                 match arg.kind() {
@@ -330,18 +332,14 @@ fn pred_to_fixpoint(
                             .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`",))
                     }
                     ExprKind::Var(Var::Bound) => {
-                        if let Some(bound) = bound {
-                            bound
-                        } else {
-                            unreachable!("unexpected free bound variable")
-                        }
+                        unreachable!("unexpected free bound variable")
                     }
                     _ => {
                         let fresh = cx.fresh_name();
                         let pred = fixpoint::Expr::BinaryOp(
                             BinOp::Eq,
                             Box::new(fixpoint::Expr::Var(fresh)),
-                            Box::new(expr_to_fixpoint(cx, bound, arg)),
+                            Box::new(expr_to_fixpoint(cx, arg)),
                         );
                         bindings.push((fresh, sort.clone(), pred));
                         fresh
@@ -353,7 +351,7 @@ fn pred_to_fixpoint(
         PredKind::And(preds) => {
             let preds = preds
                 .iter()
-                .map(|pred| pred_to_fixpoint(cx, bindings, bound, pred))
+                .map(|pred| pred_to_fixpoint(cx, bindings, pred))
                 .collect();
             fixpoint::Pred::And(preds)
         }
@@ -384,60 +382,44 @@ fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
     }
 }
 
-fn expr_to_fixpoint(
-    cx: &FixpointCtxt,
-    bound: Option<fixpoint::Name>,
-    expr: &ExprS,
-) -> fixpoint::Expr {
+fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
         ExprKind::Var(Var::Free(name)) => fixpoint::Expr::Var(cx.name_map[name]),
         ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
         ExprKind::BinaryOp(op, e1, e2) => {
             fixpoint::Expr::BinaryOp(
                 *op,
-                Box::new(expr_to_fixpoint(cx, bound, e1)),
-                Box::new(expr_to_fixpoint(cx, bound, e2)),
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
             )
         }
-        ExprKind::UnaryOp(op, e) => {
-            fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, bound, e)))
-        }
+        ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
         ExprKind::Var(Var::Bound) => {
-            if let Some(name) = bound {
-                fixpoint::Expr::Var(name)
-            } else {
-                unreachable!("unexpected free bound variable")
-            }
+            unreachable!("unexpected free bound variable")
         }
         ExprKind::Proj(e, field) => {
             repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])
-                .fold(expr_to_fixpoint(cx, bound, e), |e, proj| {
-                    fixpoint::Expr::Proj(Box::new(e), proj)
-                })
+                .fold(expr_to_fixpoint(cx, e), |e, proj| fixpoint::Expr::Proj(Box::new(e), proj))
         }
-        ExprKind::Tuple(exprs) => tuple_to_fixpoint(cx, bound, exprs),
+        ExprKind::Tuple(exprs) => tuple_to_fixpoint(cx, exprs),
     }
 }
 
-fn tuple_to_fixpoint(
-    cx: &FixpointCtxt,
-    bound: Option<fixpoint::Name>,
-    exprs: &[Expr],
-) -> fixpoint::Expr {
+fn tuple_to_fixpoint(cx: &FixpointCtxt, exprs: &[Expr]) -> fixpoint::Expr {
     match exprs {
         [] => fixpoint::Expr::Unit,
         [_] => unreachable!("1-tuple"),
         [e1, e2] => {
             fixpoint::Expr::Pair(
-                Box::new(expr_to_fixpoint(cx, bound, e1)),
-                Box::new(expr_to_fixpoint(cx, bound, e2)),
+                Box::new(expr_to_fixpoint(cx, e1)),
+                Box::new(expr_to_fixpoint(cx, e2)),
             )
         }
         [e, exprs @ ..] => {
             fixpoint::Expr::Pair(
-                Box::new(expr_to_fixpoint(cx, bound, e)),
-                Box::new(tuple_to_fixpoint(cx, bound, exprs)),
+                Box::new(expr_to_fixpoint(cx, e)),
+                Box::new(tuple_to_fixpoint(cx, exprs)),
             )
         }
     }

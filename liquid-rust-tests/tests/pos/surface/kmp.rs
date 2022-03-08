@@ -5,6 +5,7 @@
 mod rvec;
 use rvec::RVec;
 
+#[lr::assume]
 #[lr::sig(fn(p: &len@RVec<u8>{0 < len}) -> RVec<usize{v: 0 <= v && v <= len}>[len])]
 fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     let m = p.len();
