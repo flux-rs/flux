@@ -104,13 +104,17 @@ class Buff:
                 self.print()
                 self.print_bb_header(fields['bb'])
                 self.print_context(fields['pcx'], fields['env'])
-            elif fields['event'] == 'statement_end':
+            elif fields['event'] == 'statement_start':
                 if fields['stmt'] == 'nop':
                     continue
                 self.print_stmt(fields['stmt'])
+            elif fields['event'] == 'statement_end':
+                if fields['stmt'] == 'nop':
+                    continue
                 self.print_context(fields['pcx'], fields['env'])
-            elif fields['event'] == 'terminator_end':
+            elif fields['event'] == 'terminator_start':
                 self.print_terminator(fields['terminator'])
+            elif fields['event'] == 'terminator_end':
                 self.print_context(fields['pcx'], fields['env'])
                 self.print_rule()
             elif fields['event'] == 'check_goto':

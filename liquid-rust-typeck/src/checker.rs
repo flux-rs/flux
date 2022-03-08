@@ -233,13 +233,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
+            dbg::statement!("start", stmt, pcx, env);
             self.check_statement(&mut pcx, &mut env, stmt);
-
-            dbg::statement_end!(stmt, pcx, env);
+            dbg::statement!("end", stmt, pcx, env);
         }
         if let Some(terminator) = &data.terminator {
+            dbg::terminator!("start", terminator, pcx, env);
             let successors = self.check_terminator(&mut pcx, &mut env, terminator)?;
-            dbg::terminator_end!(terminator, pcx, env);
+            dbg::terminator!("end", terminator, pcx, env);
 
             self.snapshots[bb] = Some(pcx.snapshot());
             self.check_successors(pcx, env, terminator.source_info, successors)?;
