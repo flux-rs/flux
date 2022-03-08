@@ -1,5 +1,7 @@
 pub mod paths_tree;
 
+use std::iter;
+
 use crate::{
     constraint_gen::ConstraintGen,
     global_env::GlobalEnv,
@@ -38,7 +40,7 @@ pub struct TypeEnvInfer {
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
-    constrs: Vec<Option<Pred>>,
+    constrs: Vec<Pred>,
     scope: Scope,
     pub env: TypeEnv,
 }
@@ -139,8 +141,7 @@ impl TypeEnv {
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let fresh =
-                    pcx.push_binding(genv.sort(bty), |fresh| p.subst_bound_vars(Var::Free(fresh)));
+                let fresh = pcx.push_binding(genv.sort(bty), p.clone());
                 Ty::refine(bty.clone(), Var::Free(fresh))
             }
             TyKind::WeakRef(pledge) => {
@@ -219,8 +220,8 @@ impl TypeEnv {
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        for constr in bb_env.constrs() {
-            gen.check_pred(subst.subst_pred(constr));
+        for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
+            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(Var::Free(param.name))));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);
@@ -327,7 +328,7 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same than
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let fresh = pcx.push_binding(sort.clone(), |_| Pred::tt());
+            let fresh = pcx.push_binding(sort.clone(), Pred::tt());
             subst.insert_name_subst(*name, sort, fresh);
         }
         self.env.clone().subst(&subst)
@@ -603,7 +604,7 @@ impl TypeEnvInfer {
     pub fn into_bb_env(
         self,
         genv: &GlobalEnv,
-        fresh_kvar: &mut impl FnMut(Var, Sort, &[Param]) -> Pred,
+        fresh_kvar: &mut impl FnMut(Sort, &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
         let mut params = vec![];
@@ -612,14 +613,14 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
             if sort != Sort::loc() {
-                constrs.push(Some(fresh_kvar(name.into(), sort.clone(), &params)));
+                constrs.push(fresh_kvar(sort.clone(), &params));
             } else {
-                constrs.push(None)
+                constrs.push(Pred::tt())
             }
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |var, sort| fresh_kvar(var, sort, &params);
+        let fresh_kvar = &mut |sort| fresh_kvar(sort, &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
@@ -656,27 +657,18 @@ impl BasicBlockEnv {
     pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            pcx.push_binding(param.sort.clone(), |fresh| {
-                subst.insert_name_subst(param.name, &param.sort, fresh);
-                constr
-                    .as_ref()
-                    .map(|p| subst.subst_pred(p))
-                    .unwrap_or_else(Pred::tt)
-            });
+            let fresh = pcx.push_binding(param.sort.clone(), subst.subst_pred(constr));
+            subst.insert_name_subst(param.name, &param.sort, fresh);
         }
         self.env.clone().subst(&subst)
     }
-
-    pub fn constrs(&self) -> impl Iterator<Item = &Pred> {
-        self.constrs.iter().filter_map(|c| c.as_ref())
-    }
 }
 
-fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred) -> Ty {
+fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Sort) -> Pred) -> Ty {
     match ty.kind() {
         TyKind::Refine(bty, e) => Ty::refine(replace_kvars_bty(genv, bty, fresh_kvar), e.clone()),
         TyKind::Exists(bty, Pred::KVar(_, _)) => {
-            let p = fresh_kvar(Var::Bound, genv.sort(bty));
+            let p = fresh_kvar(genv.sort(bty));
             Ty::exists(replace_kvars_bty(genv, bty, fresh_kvar), p)
         }
         TyKind::Exists(bty, p) => Ty::exists(bty.clone(), p.clone()),
@@ -689,7 +681,7 @@ fn replace_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Var, Sor
 fn replace_kvars_bty(
     genv: &GlobalEnv,
     bty: &BaseTy,
-    fresh_kvar: &mut impl FnMut(Var, Sort) -> Pred,
+    fresh_kvar: &mut impl FnMut(Sort) -> Pred,
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
@@ -773,10 +765,10 @@ mod pretty {
                     .iter()
                     .zip(&self.constrs)
                     .format_with(", ", |(param, constr), f| {
-                        if let Some(constr) = constr {
-                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr))
-                        } else {
+                        if constr.is_true() {
                             f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
+                        } else {
+                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr))
                         }
                     }),
                 &self.env
