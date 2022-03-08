@@ -63,7 +63,7 @@ pub fn check<'tcx>(
     genv: &GlobalEnv<'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
-    qualifiers: &Vec<ty::Qualifier>,
+    qualifiers: &[ty::Qualifier],
 ) -> Result<(), ErrorReported> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
     let mut kvars = KVarStore::new();
@@ -113,7 +113,7 @@ impl FixpointCtxt {
         did: DefId,
         body_span: Span,
         constraint: fixpoint::Constraint<TagIdx>,
-        qualifiers: &Vec<ty::Qualifier>,
+        qualifiers: &[ty::Qualifier],
     ) -> Result<(), ErrorReported> {
         let kvars = self.kvars.into_fixpoint();
 
@@ -299,7 +299,7 @@ fn expr_to_fixpoint(
                             name
                         );
                     });
-                    fixpoint::Expr::Var(name.clone())
+                    fixpoint::Expr::Var(*name)
                 }
                 ty::Var::Bound => {
                     unreachable!("Internal error: Bound variable in qualifier");

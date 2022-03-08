@@ -90,7 +90,7 @@ impl KVarStore {
 
         let mut args = scope
             .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
-            .map(|(var, sort)| (Expr::var(Var::Free(var)), sort.clone()))
+            .map(|(var, sort)| (Expr::var(Var::Free(var)), sort))
             .collect();
 
         let mut kvars = vec![];
