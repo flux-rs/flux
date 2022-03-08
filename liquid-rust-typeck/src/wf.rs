@@ -56,6 +56,11 @@ impl Wf<'_> {
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
 
+        let requires = fn_sig
+            .requires
+            .iter()
+            .try_for_each_exhaust(|constr| self.check_constr(&mut env, constr));
+
         let ensures = fn_sig
             .ensures
             .iter()
@@ -66,6 +71,7 @@ impl Wf<'_> {
         args?;
         ret?;
         ensures?;
+        requires?;
 
         Ok(())
     }

@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub use rustc_ast::token::LitKind;
 pub use rustc_span::symbol::Ident;
 use rustc_span::{Span, Symbol};
@@ -115,7 +117,7 @@ pub struct Lit {
     pub span: Span,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -149,5 +151,25 @@ impl IntoIterator for Generics {
 
     fn into_iter(self) -> Self::IntoIter {
         self.params.into_iter()
+    }
+}
+
+impl fmt::Debug for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Iff => write!(f, "<=>"),
+            BinOp::Imp => write!(f, "=>"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Ge => write!(f, ">="),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mod => write!(f, "mod"),
+            BinOp::Mul => write!(f, "*"),
+        }
     }
 }
