@@ -69,7 +69,7 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Refine(BaseTy, Expr),
+    Refine(BaseTy, Interned<[Expr]>),
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
@@ -170,26 +170,21 @@ impl AdtDef {
         }
     }
 
-    pub fn sort(&self) -> Sort {
-        Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
+    pub fn sorts(&self) -> Vec<Sort> {
+        self.refined_by()
+            .iter()
+            .map(|param| param.sort.clone())
+            .collect()
     }
 
-    pub fn unfold(&self, substs: &Substs, e: &Expr) -> IndexVec<Field, Ty> {
-        let mut subst = Subst::with_type_substs(substs.as_slice());
-        match (e.kind(), self.refined_by()) {
-            (ExprKind::Tuple(exprs), refined_by) => {
+    pub fn unfold(&self, substs: &Substs, exprs: &[Expr]) -> IndexVec<Field, Ty> {
+        match self {
+            AdtDef::Transparent { fields, refined_by } => {
+                let mut subst = Subst::with_type_substs(substs.as_slice());
                 debug_assert_eq!(exprs.len(), self.refined_by().len());
                 for (e, param) in exprs.iter().zip(refined_by) {
                     subst.insert_expr_subst(param.name, e.clone());
                 }
-            }
-            (_, [param]) => {
-                subst.insert_expr_subst(param.name, e.clone());
-            }
-            _ => panic!("invalid sort for expr: `{e:?}`"),
-        }
-        match self {
-            AdtDef::Transparent { fields, .. } => {
                 fields.iter().map(|ty| subst.subst_ty(ty)).collect()
             }
             AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
@@ -205,21 +200,21 @@ impl AdtDef {
         }
     }
 
-    pub fn fold(&self, tys: &[Ty]) -> Expr {
-        println!("{:?} {:?}", self.refined_by(), tys);
-        match self {
-            AdtDef::Transparent { fields, refined_by } => {
-                debug_assert_eq!(fields.len(), tys.len());
-                let mut subst = Subst::empty();
-                let params = refined_by.iter().map(|param| param.name).collect();
-                for (ty, field) in tys.iter().zip(fields) {
-                    subst.infer_from_tys(&params, ty, field);
-                }
-                println!("{subst:?}");
-                Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
-            }
-            AdtDef::Opaque { .. } => panic!("folding opaque adt"),
-        }
+    pub fn fold(&self, tys: &[Ty]) -> Ty {
+        todo!()
+        // match self {
+        //     AdtDef::Transparent { fields, refined_by } => {
+        //         debug_assert_eq!(fields.len(), tys.len());
+        //         let mut subst = Subst::empty();
+        //         let params = refined_by.iter().map(|param| param.name).collect();
+        //         for (ty, field) in tys.iter().zip(fields) {
+        //             subst.infer_from_tys(&params, ty, field);
+        //         }
+        //         println!("{subst:?}");
+        //         Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
+        //     }
+        //     AdtDef::Opaque { .. } => panic!("folding opaque adt"),
+        // }
     }
 }
 
@@ -240,8 +235,11 @@ impl Ty {
         TyKind::Uninit(layout).intern()
     }
 
-    pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
-        TyKind::Refine(bty, e.into()).intern()
+    pub fn refine<T>(bty: BaseTy, exprs: T) -> Ty
+    where
+        Interned<[Expr]>: From<T>,
+    {
+        TyKind::Refine(bty, Interned::from(exprs)).intern()
     }
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
@@ -304,9 +302,9 @@ impl TyS {
 
     pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
         match self.kind() {
-            TyKind::Refine(BaseTy::Adt(did, substs), e) => {
+            TyKind::Refine(BaseTy::Adt(did, substs), exprs) => {
                 let adt_def = genv.adt_def(*did);
-                (*did, adt_def.unfold(substs, e))
+                (*did, adt_def.unfold(substs, exprs))
             }
             TyKind::Uninit(Layout::Adt(did)) => {
                 let adt_def = genv.adt_def(*did);
@@ -600,21 +598,8 @@ impl Pred {
         Pred::Infer(Interned::from(kvars))
     }
 
-    pub fn dummy_infer(sort: &Sort) -> Pred {
-        fn go(sort: &Sort, kvars: &mut Vec<KVar>) {
-            match sort.kind() {
-                SortKind::Int | SortKind::Bool | SortKind::Loc => {
-                    kvars.push(KVar::dummy());
-                }
-                SortKind::Tuple(sorts) => {
-                    for sort in sorts {
-                        go(sort, kvars);
-                    }
-                }
-            }
-        }
-        let mut kvars = vec![];
-        go(sort, &mut kvars);
+    pub fn dummy_infer(sorts: &[Sort]) -> Pred {
+        let kvars = sorts.iter().map(|_| KVar::dummy()).collect_vec();
         Pred::infer(kvars)
     }
 
@@ -810,7 +795,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Refine(bty, e) => fmt_bty(bty, Some(e), cx, f),
+                TyKind::Refine(bty, exprs) => fmt_bty(bty, Some(exprs), cx, f),
                 TyKind::Exists(bty, p) => {
                     if p.is_true() {
                         w!("{:?}", bty)
@@ -840,7 +825,7 @@ mod pretty {
 
     fn fmt_bty(
         bty: &BaseTy,
-        e: Option<&ExprS>,
+        exprs: Option<&[Expr]>,
         cx: &PPrintCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
@@ -853,22 +838,22 @@ mod pretty {
         }
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
-                if let Some(e) = e {
-                    w!("<{:?}>", e)?;
+                if let Some(exprs) = exprs {
+                    w!("<{:?}>", join!(", ", exprs))?;
                 }
             }
             BaseTy::Adt(_, args) => {
-                if !args.is_empty() || e.is_some() {
+                if !args.is_empty() || exprs.is_some() {
                     w!("<")?;
                 }
                 w!("{:?}", join!(", ", args))?;
-                if let Some(e) = e {
+                if let Some(exprs) = exprs {
                     if !args.is_empty() {
                         w!(", ")?;
                     }
-                    w!("{:?}", e)?;
+                    w!("{:?}", join!(", ", exprs))?;
                 }
-                if !args.is_empty() || e.is_some() {
+                if !args.is_empty() || exprs.is_some() {
                     w!(">")?;
                 }
             }

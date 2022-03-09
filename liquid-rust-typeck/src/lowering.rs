@@ -1,4 +1,5 @@
 use crate::ty;
+use itertools::Itertools;
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
@@ -116,8 +117,12 @@ impl LoweringCtxt {
     ) -> ty::Ty {
         match ty {
             core::Ty::Refine(bty, refine) => {
-                let refine = ty::Expr::tuple(refine.exprs.iter().map(|e| self.lower_expr(e)));
-                ty::Ty::refine(self.lower_base_ty(bty, fresh_kvar), refine)
+                let exprs = refine
+                    .exprs
+                    .iter()
+                    .map(|e| self.lower_expr(e))
+                    .collect_vec();
+                ty::Ty::refine(self.lower_base_ty(bty, fresh_kvar), exprs)
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty, fresh_kvar);

@@ -9,7 +9,7 @@ use rustc_hir::def_id::DefId;
 use crate::{
     global_env::GlobalEnv,
     subst::Subst,
-    ty::{BaseTy, Loc, Path, Ty, TyKind},
+    ty::{Loc, Path, Ty, TyKind},
 };
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -248,9 +248,7 @@ impl Node {
                     .iter_mut()
                     .map(|n| n.fold(genv).clone())
                     .collect_vec();
-                let e = adt_def.fold(&fields);
-
-                *self = Node::Ty(Ty::refine(BaseTy::adt(*did, []), e));
+                *self = Node::Ty(adt_def.fold(&fields));
                 if let Node::Ty(ty) = self {
                     ty
                 } else {
