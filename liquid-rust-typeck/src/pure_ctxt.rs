@@ -95,7 +95,7 @@ impl KVarStore {
 
         let mut kvars = vec![];
         for (i, sort) in sorts.iter().enumerate() {
-            args.push((Expr::proj(Expr::var(Var::Bound), i as u32), sort.clone()));
+            args.push((Expr::var(Var::Bound(i as u32)), sort.clone()));
 
             let kvid = self.kvars.push(
                 args.iter()
@@ -152,7 +152,6 @@ impl PureCtxt<'_> {
             bindings.push((fresh, sort.clone()));
             exprs.push(Expr::var(Var::Free(fresh)));
         }
-        let tuple = Expr::tuple(exprs.iter().cloned());
 
         match p {
             Pred::Infer(kvars) => {
@@ -160,7 +159,7 @@ impl PureCtxt<'_> {
                 for ((name, sort), kvar) in iter::zip(bindings, kvars) {
                     // HACK(nilehmann) this relies on subst_bound_var eta reducting tuples,
                     // otherwise this will result in names out of scope for the resulting predicate.
-                    let p = Pred::infer(vec![kvar.subst_bound_vars(tuple.clone())]);
+                    let p = Pred::infer(vec![kvar.subst_bound_vars(&exprs)]);
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
                 }
             }
@@ -169,7 +168,7 @@ impl PureCtxt<'_> {
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::tt()));
                 }
                 if !e.is_true() {
-                    self.push_pred(e.subst_bound_vars(tuple.clone()));
+                    self.push_pred(e.subst_bound_vars(&exprs));
                 }
             }
         }
@@ -360,9 +359,7 @@ fn kvar_to_fixpoint(
                     .get(name)
                     .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
             }
-            ExprKind::Var(Var::Bound) => {
-                unreachable!("unexpected free bound variable")
-            }
+            ExprKind::Var(Var::Bound(_)) => panic!("unexpected free bound variable"),
             _ => {
                 let fresh = cx.fresh_name();
                 let pred = fixpoint::Expr::BinaryOp(
@@ -420,9 +417,7 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
             )
         }
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
-        ExprKind::Var(Var::Bound) => {
-            unreachable!("unexpected free bound variable")
-        }
+        ExprKind::Var(Var::Bound(_)) => panic!("unexpected free bound variable"),
         ExprKind::Proj(e, field) => {
             repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])

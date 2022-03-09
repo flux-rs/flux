@@ -145,7 +145,7 @@ pub enum ExprKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Var {
-    Bound,
+    Bound(u32),
     Free(Name),
 }
 
@@ -440,12 +440,8 @@ impl Expr {
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
-        let mut exprs = exprs.into_iter().collect_vec();
-        if exprs.len() == 1 {
-            exprs.remove(0)
-        } else {
-            ExprKind::Tuple(exprs).intern()
-        }
+        let exprs = exprs.into_iter().collect_vec();
+        ExprKind::Tuple(exprs).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -501,12 +497,11 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> Expr {
-        let bound = bound.into();
+    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Expr {
         match self.kind() {
             ExprKind::Var(var) => {
                 match var {
-                    Var::Bound => bound,
+                    Var::Bound(idx) => exprs[*idx as usize].clone(),
                     Var::Free(_) => Expr::var(*var),
                 }
             }
@@ -514,23 +509,21 @@ impl ExprS {
             ExprKind::BinaryOp(op, e1, e2) => {
                 ExprKind::BinaryOp(
                     *op,
-                    e1.subst_bound_vars(bound.clone()),
-                    e2.subst_bound_vars(bound),
+                    e1.subst_bound_vars(exprs.clone()),
+                    e2.subst_bound_vars(exprs),
                 )
                 .intern()
             }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(bound)),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(exprs)),
             ExprKind::Proj(tup, field) => {
-                let tup = tup.subst_bound_vars(bound);
+                let tup = tup.subst_bound_vars(exprs);
                 // Opportunistically eta reduce the tuple
                 match tup.kind() {
                     ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
                     _ => Expr::proj(tup, *field),
                 }
             }
-            ExprKind::Tuple(exprs) => {
-                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(bound.clone())))
-            }
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(exprs))),
         }
     }
 
@@ -547,7 +540,7 @@ impl ExprS {
                 ExprKind::UnaryOp(_, e) => go(e, vars),
                 ExprKind::Proj(e, _) => go(e, vars),
                 ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| go(e, vars)),
-                ExprKind::Var(Var::Bound) | ExprKind::Constant(_) => {}
+                ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
             }
         }
         let mut vars = FxHashSet::default();
@@ -618,18 +611,17 @@ impl Pred {
         matches!(self, Pred::Infer(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
-    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
-        let to = to.into();
+    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Pred {
         match self {
             Pred::Infer(kvars) => {
                 Pred::infer(
                     kvars
                         .iter()
-                        .map(|kvar| kvar.subst_bound_vars(to.clone()))
+                        .map(|kvar| kvar.subst_bound_vars(exprs))
                         .collect_vec(),
                 )
             }
-            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
+            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(exprs)),
         }
     }
 }
@@ -646,13 +638,12 @@ impl KVar {
         KVar::new(KVid::from(0usize), vec![])
     }
 
-    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> KVar {
-        let bound = bound.into();
+    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> KVar {
         KVar::new(
             self.0,
             self.1
                 .iter()
-                .map(|arg| arg.subst_bound_vars(bound.clone()))
+                .map(|arg| arg.subst_bound_vars(exprs))
                 .collect_vec(),
         )
     }
@@ -955,7 +946,7 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::Bound => w!("ν"),
+                Var::Bound(idx) => w!("ν{}", ^idx),
                 Var::Free(var) => w!("{:?}", ^var),
             }
         }

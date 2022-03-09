@@ -226,7 +226,7 @@ impl TypeEnv {
 
         // Check constraints
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(Var::Free(param.name))));
+            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::var(param.name)])));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);

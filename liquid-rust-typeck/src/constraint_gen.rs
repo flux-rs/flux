@@ -83,10 +83,9 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                     ck.check_pred(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()));
                 }
             }
-            (TyKind::Refine(bty1, e), TyKind::Exists(bty2, p)) => {
+            (TyKind::Refine(bty1, exprs), TyKind::Exists(bty2, p)) => {
                 ck.bty_subtyping(bty1, bty2);
-                todo!()
-                // ck.check_pred(p.subst_bound_vars(e.clone()));
+                ck.check_pred(p.subst_bound_vars(exprs));
             }
             (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
                 assert_eq!(loc1, loc2);

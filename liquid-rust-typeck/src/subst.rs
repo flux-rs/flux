@@ -157,7 +157,7 @@ impl Subst<'_> {
 
     pub fn subst_var(&self, var: Var) -> Expr {
         match var {
-            Var::Bound => var.into(),
+            Var::Bound(_) => var.into(),
             Var::Free(name) => {
                 match self.map.get(&name) {
                     Some(LocOrExpr::Loc(loc)) => {

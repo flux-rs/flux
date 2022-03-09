@@ -555,7 +555,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = Expr::binary_op(
                     BinOp::Eq,
-                    Var::Bound,
+                    Var::Bound(0),
                     Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
                 );
                 let guard = Expr::binary_op(

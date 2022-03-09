@@ -301,7 +301,7 @@ fn expr_to_fixpoint(
                     });
                     fixpoint::Expr::Var(*name)
                 }
-                ty::Var::Bound => {
+                ty::Var::Bound(_) => {
                     unreachable!("Internal error: Bound variable in qualifier");
                 }
             }
