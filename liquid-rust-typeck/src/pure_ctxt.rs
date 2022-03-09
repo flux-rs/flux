@@ -157,8 +157,6 @@ impl PureCtxt<'_> {
             Pred::Infer(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
                 for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    // HACK(nilehmann) this relies on subst_bound_var eta reducting tuples,
-                    // otherwise this will result in names out of scope for the resulting predicate.
                     let p = Pred::infer(vec![kvar.subst_bound_vars(&exprs)]);
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
                 }
@@ -173,6 +171,10 @@ impl PureCtxt<'_> {
             }
         }
         exprs
+    }
+
+    pub fn push_binding(&mut self, sort: Sort, p: &Pred) -> Expr {
+        self.push_bindings(&[sort], p).pop().unwrap()
     }
 
     pub fn push_pred(&mut self, expr: impl Into<Expr>) {

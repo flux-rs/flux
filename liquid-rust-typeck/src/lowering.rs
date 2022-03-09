@@ -168,7 +168,7 @@ impl LoweringCtxt {
 
     fn lower_var(&self, var: core::Var) -> ty::Var {
         match var {
-            core::Var::Bound => ty::Var::Bound(0),
+            core::Var::Bound(idx) => ty::Var::Bound(idx),
             core::Var::Free(name) => ty::Var::Free(self.name_map[&name]),
         }
     }

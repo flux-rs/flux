@@ -112,7 +112,7 @@ pub enum ExprKind {
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum Var {
-    Bound,
+    Bound(u32),
     Free(Name),
 }
 
@@ -340,7 +340,7 @@ impl fmt::Debug for Lit {
 impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Var::Bound => write!(f, "ν"),
+            Var::Bound(idx) => write!(f, "ν{idx}"),
             Var::Free(name) => write!(f, "{name:?}"),
         }
     }

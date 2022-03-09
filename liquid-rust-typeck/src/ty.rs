@@ -385,12 +385,8 @@ impl Sort {
     }
 
     pub fn tuple(sorts: impl IntoIterator<Item = Sort>) -> Self {
-        let mut sorts = sorts.into_iter().collect_vec();
-        if sorts.len() == 1 {
-            sorts.remove(0)
-        } else {
-            Interned::new(SortS { kind: SortKind::Tuple(sorts.into_iter().collect()) })
-        }
+        let sorts = sorts.into_iter().collect_vec();
+        Interned::new(SortS { kind: SortKind::Tuple(sorts.into_iter().collect()) })
     }
 
     pub fn unit() -> Self {

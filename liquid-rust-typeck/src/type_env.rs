@@ -333,8 +333,8 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same than
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let mut exprs = pcx.push_bindings(&[sort.clone()], &Pred::tt());
-            subst.insert(*name, sort, exprs.pop().unwrap());
+            let e = pcx.push_binding(sort.clone(), &Pred::tt());
+            subst.insert(*name, sort, e);
         }
         self.env.clone().subst(&subst)
     }
@@ -678,8 +678,8 @@ impl BasicBlockEnv {
     pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let mut exprs = pcx.push_bindings(&[param.sort.clone()], &subst.subst_pred(constr));
-            subst.insert(param.name, &param.sort, exprs.pop().unwrap());
+            let e = pcx.push_binding(param.sort.clone(), &subst.subst_pred(constr));
+            subst.insert(param.name, &param.sort, e);
         }
         self.env.clone().subst(&subst)
     }

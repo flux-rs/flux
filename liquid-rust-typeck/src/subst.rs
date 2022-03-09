@@ -31,8 +31,8 @@ impl Subst<'_> {
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
         let mut subst = Self::empty();
         for param in params {
-            let mut exprs = pcx.push_bindings(&[param.sort.clone()], &Pred::tt());
-            subst.insert(param.name, &param.sort, exprs.pop().unwrap());
+            let e = pcx.push_binding(param.sort.clone(), &Pred::tt());
+            subst.insert(param.name, &param.sort, e);
         }
         subst
     }
