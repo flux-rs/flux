@@ -63,6 +63,7 @@ pub fn check<'tcx>(
     genv: &GlobalEnv<'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
+    qualifiers: &[ty::Qualifier],
 ) -> Result<(), ErrorReported> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
     let mut kvars = KVarStore::new();
@@ -76,7 +77,7 @@ pub fn check<'tcx>(
 
     let constraint = pure_cx.into_fixpoint(&mut fcx);
 
-    fcx.check(genv.tcx, def_id, body.mir.span, constraint)
+    fcx.check(genv.tcx, def_id, body.mir.span, constraint, qualifiers)
 }
 
 impl FixpointCtxt {
@@ -112,9 +113,13 @@ impl FixpointCtxt {
         did: DefId,
         body_span: Span,
         constraint: fixpoint::Constraint<TagIdx>,
+        qualifiers: &[ty::Qualifier],
     ) -> Result<(), ErrorReported> {
         let kvars = self.kvars.into_fixpoint();
-        let task = fixpoint::Task::new(kvars, constraint);
+
+        let qualifiers = qualifiers.iter().map(qualifier_into_fixpoint).collect();
+
+        let task = fixpoint::Task::new(kvars, constraint, qualifiers);
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }
@@ -235,5 +240,94 @@ mod errors {
         #[message = "possible reminder with a divisor of zero"]
         #[label = "divisor might not be zero"]
         pub span: Span,
+    }
+}
+
+fn qualifier_into_fixpoint(qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
+    let name_gen = IndexGen::new();
+    let mut name_map = FxHashMap::default();
+    let name = qualifier.name.clone();
+    let args = qualifier
+        .args
+        .iter()
+        .map(|(name, sort)| {
+            let fresh_name = name_gen.fresh();
+            name_map.insert(*name, fresh_name);
+            let sort = sort_to_fixpoint(sort);
+            (fresh_name, sort)
+        })
+        .collect();
+
+    let expr = expr_to_fixpoint(&qualifier.expr, &name_map);
+    fixpoint::Qualifier { name, args, expr }
+}
+
+fn sort_to_fixpoint(sort: &ty::Sort) -> fixpoint::Sort {
+    match sort.kind() {
+        ty::SortKind::Bool => fixpoint::Sort::Bool,
+        ty::SortKind::Int => fixpoint::Sort::Int,
+        _ => {
+            unreachable!("Internal error: Bad sort kind in qualifier");
+        }
+    }
+}
+
+fn expr_to_fixpoint(
+    expr: &ty::Expr,
+    name_map: &FxHashMap<ty::Name, fixpoint::Name>,
+) -> fixpoint::Expr {
+    match expr.kind() {
+        ty::ExprKind::BinaryOp(bop, expr1, expr2) => {
+            let bop = bop_to_fixpoint(bop);
+            let expr1 = expr_to_fixpoint(expr1, name_map);
+            let expr2 = expr_to_fixpoint(expr2, name_map);
+            fixpoint::Expr::BinaryOp(bop, Box::new(expr1), Box::new(expr2))
+        }
+        ty::ExprKind::Constant(constant) => {
+            let constant = match constant {
+                ty::Constant::Bool(b) => fixpoint::Constant::Bool(*b),
+                ty::Constant::Int(sign, i) => fixpoint::Constant::Int(*sign, *i),
+            };
+            fixpoint::Expr::Constant(constant)
+        }
+        ty::ExprKind::Var(var) => {
+            match var {
+                ty::Var::Free(name) => {
+                    let name = name_map.get(name).unwrap_or_else(|| {
+                        unreachable!(
+                            "Internal error: Undeclared variable in qualifier: {:?}",
+                            name
+                        );
+                    });
+                    fixpoint::Expr::Var(*name)
+                }
+                ty::Var::Bound => {
+                    unreachable!("Internal error: Bound variable in qualifier");
+                }
+            }
+        }
+        _ => {
+            unreachable!("Internal error: Bad ExprKind variable in qualifier");
+        }
+    }
+}
+
+fn bop_to_fixpoint(bop: &ty::BinOp) -> fixpoint::BinOp {
+    match bop {
+        ty::BinOp::Add => fixpoint::BinOp::Add,
+        ty::BinOp::And => fixpoint::BinOp::And,
+        ty::BinOp::Div => fixpoint::BinOp::Div,
+        ty::BinOp::Eq => fixpoint::BinOp::Eq,
+        ty::BinOp::Ge => fixpoint::BinOp::Ge,
+        ty::BinOp::Gt => fixpoint::BinOp::Gt,
+        ty::BinOp::Iff => fixpoint::BinOp::Iff,
+        ty::BinOp::Imp => fixpoint::BinOp::Imp,
+        ty::BinOp::Le => fixpoint::BinOp::Le,
+        ty::BinOp::Lt => fixpoint::BinOp::Lt,
+        ty::BinOp::Mod => fixpoint::BinOp::Mod,
+        ty::BinOp::Mul => fixpoint::BinOp::Mul,
+        ty::BinOp::Ne => fixpoint::BinOp::Ne,
+        ty::BinOp::Or => fixpoint::BinOp::Or,
+        ty::BinOp::Sub => fixpoint::BinOp::Sub,
     }
 }

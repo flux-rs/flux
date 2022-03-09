@@ -27,20 +27,20 @@ macro_rules! _basic_block_start {
 pub use crate::_basic_block_start as basic_block_start;
 
 #[macro_export]
-macro_rules! _statement_end {
-    ($stmt:expr, $pcx:expr, $env:expr) => {{
-        tracing::debug!(event = "statement_end", stmt = ?$stmt, pcx = ?$pcx, env = ?$env)
+macro_rules! _statement{
+    ($pos:literal, $stmt:expr, $pcx:expr, $env:expr) => {{
+        tracing::debug!(event = concat!("statement_", $pos), stmt = ?$stmt, pcx = ?$pcx, env = ?$env)
     }};
 }
-pub use crate::_statement_end as statement_end;
+pub use crate::_statement as statement;
 
 #[macro_export]
-macro_rules! _terminator_end {
-    ($terminator:expr, $pcx:expr, $env:expr) => {{
-        tracing::debug!(event = "terminator_end", terminator = ?$terminator, pcx = ?$pcx, env = ?$env)
+macro_rules! _terminator{
+    ($pos:literal, $terminator:expr, $pcx:expr, $env:expr) => {{
+        tracing::debug!(event = concat!("terminator_", $pos), terminator = ?$terminator, pcx = ?$pcx, env = ?$env)
     }};
 }
-pub use crate::_terminator_end as terminator_end;
+pub use crate::_terminator as terminator;
 
 #[macro_export]
 macro_rules! _check_goto {

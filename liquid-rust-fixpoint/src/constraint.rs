@@ -45,9 +45,9 @@ pub enum Proj {
 }
 
 pub struct Qualifier {
-    expr: Expr,
-    args: Vec<(Name, Sort)>,
-    name: String,
+    pub expr: Expr,
+    pub args: Vec<(Name, Sort)>,
+    pub name: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -138,28 +138,59 @@ impl Precedence {
     }
 }
 
-impl<Tag: fmt::Display> fmt::Display for Constraint<Tag> {
+impl<Tag> fmt::Display for Constraint<Tag>
+where
+    Tag: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Pred(pred, Some(tag)) => write!(f, "(tag {} \"{}\")", pred, tag),
-            Constraint::Pred(pred, None) => write!(f, "({})", pred),
+            Constraint::Pred(pred, tag) => write!(f, "{}", PredTag(pred, tag)),
             Constraint::Conj(preds) => {
                 write!(f, "(and")?;
-                let mut w = PadAdapter::wrap_fmt(f, 2);
-                for pred in preds {
-                    write!(w, "\n{}", pred)?;
-                }
+                write!(PadAdapter::wrap_fmt(f, 2), "{}", preds.iter().join("\n"))?;
                 write!(f, "\n)")
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ Unit) ({}))", body)?;
-                write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
+                write!(f, "(forall ((_ Unit) ({body}))")?;
+                write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
             Constraint::ForAll(x, sort, body, head) => {
-                write!(f, "(forall (({:?} {}) {})", x, sort, body)?;
+                write!(f, "(forall (({x:?} {sort}) {body})")?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
                 write!(f, "\n)")
+            }
+        }
+    }
+}
+
+struct PredTag<'a, Tag>(&'a Pred, &'a Option<Tag>);
+
+impl<Tag> fmt::Display for PredTag<'_, Tag>
+where
+    Tag: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let PredTag(pred, tag) = self;
+        match pred {
+            Pred::And(preds) => {
+                if let [pred] = &preds[..] {
+                    write!(f, "{}", PredTag(pred, tag))
+                } else {
+                    write!(f, "(and")?;
+                    let mut w = PadAdapter::wrap_fmt(f, 2);
+                    for pred in preds {
+                        write!(w, "\n{}", PredTag(pred, tag))?;
+                    }
+                    write!(f, "\n)")
+                }
+            }
+            Pred::Expr(_) | Pred::KVar(..) => {
+                if let Some(tag) = tag {
+                    write!(f, "(tag {pred} \"{tag}\")")
+                } else {
+                    write!(f, "({pred})")
+                }
             }
         }
     }
@@ -186,12 +217,11 @@ impl fmt::Display for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Pred::And(preds) => {
-                write!(f, "(and")?;
-                let mut w = PadAdapter::wrap_fmt(f, 2);
-                for pred in preds {
-                    write!(w, "\n{}", pred)?;
+                if let [pred] = &preds[..] {
+                    write!(f, "{}", pred)
+                } else {
+                    write!(f, "(and {})", preds.iter().join(" "))
                 }
-                write!(f, "\n)")
             }
             Pred::KVar(kvid, vars) => {
                 write!(f, "({:?} {:?})", kvid, vars.iter().format(" "))

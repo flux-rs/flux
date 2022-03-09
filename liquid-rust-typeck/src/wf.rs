@@ -56,6 +56,11 @@ impl Wf<'_> {
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
 
+        let requires = fn_sig
+            .requires
+            .iter()
+            .try_for_each_exhaust(|constr| self.check_constr(&mut env, constr));
+
         let ensures = fn_sig
             .ensures
             .iter()
@@ -66,8 +71,15 @@ impl Wf<'_> {
         args?;
         ret?;
         ensures?;
+        requires?;
 
         Ok(())
+    }
+
+    pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorReported> {
+        let env = Env::new(&qualifier.args);
+
+        self.check_expr(&env, &qualifier.expr, ty::Sort::bool())
     }
 
     pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {

@@ -29,6 +29,17 @@ pub FnSig: ast::FnSig = {
     }
 }
 
+pub Qualifier: ast::Qualifier = {
+    <lo:@L>
+    <name:Ident>
+    "(" <args:Comma<QualifParam>> ")"
+    "->"
+    <expr:Level1>
+    <hi:@R> => {
+        ast::Qualifier { name: name, args: args, expr: expr, span: mk_span(lo, hi) }
+    }
+}
+
 pub Ty: ast::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => ast::Ty {
         kind,
@@ -55,6 +66,10 @@ Env = <Comma<(<Ident> ":" <Ty>)>>;
 GenericParam: ast::GenericParam = {
     <name:Ident> ":" <sort:Ident> "{" <pred:Level1> "}" => ast::GenericParam { name, sort, pred: Some(pred) },
     <name:Ident> ":" <sort:Ident>                       => ast::GenericParam { name, sort, pred: None },
+}
+
+QualifParam: ast::QualifParam = {
+    <name:Ident> ":" <sort:Ident> => ast::QualifParam { name, sort },
 }
 
 Path: ast::Path = {

@@ -1,3 +1,8 @@
+use core::fmt;
+use std::fmt::Write;
+
+use itertools::Itertools;
+use liquid_rust_common::format::PadAdapter;
 pub use liquid_rust_syntax::ast::BinOp;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -20,7 +25,6 @@ pub struct FnSpec {
     pub assume: bool,
 }
 
-#[derive(Debug)]
 pub struct FnSig {
     pub params: Vec<Param>,
     pub requires: Vec<Constr>,
@@ -30,7 +34,6 @@ pub struct FnSig {
 }
 
 /// A *constr*aint
-#[derive(Debug)]
 pub enum Constr {
     /// A type constraint on a location
     Type(Ident, Ty),
@@ -39,6 +42,12 @@ pub enum Constr {
 }
 
 #[derive(Debug)]
+pub struct Qualifier {
+    pub name: String,
+    pub args: Vec<Param>,
+    pub expr: Expr,
+}
+
 pub enum Ty {
     Refine(BaseTy, Refine),
     Exists(BaseTy, Pred),
@@ -59,20 +68,16 @@ pub enum Layout {
     Ref,
     Param,
 }
-
-#[derive(Debug)]
 pub struct Refine {
     pub exprs: Vec<Expr>,
     pub span: Span,
 }
 
-#[derive(Debug)]
 pub enum Pred {
     Infer,
     Expr(Expr),
 }
 
-#[derive(Debug)]
 pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
@@ -86,14 +91,13 @@ pub struct Param {
     pub sort: Sort,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Sort {
     Bool,
     Int,
     Loc,
 }
 
-#[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Option<Span>,
@@ -106,19 +110,19 @@ pub enum ExprKind {
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum Var {
     Bound,
     Free(Name),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub enum Lit {
     Int(i128),
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Ident {
     pub name: Name,
     pub source_info: (Span, Symbol),
@@ -182,5 +186,172 @@ impl IntoIterator for AdtDefs {
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.into_iter()
+    }
+}
+
+impl fmt::Debug for FnSig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if f.alternate() {
+            let mut p = PadAdapter::wrap_fmt(f, 4);
+            write!(p, "(\nfn")?;
+            if !self.params.is_empty() {
+                write!(
+                    p,
+                    "<{}>",
+                    self.params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                    })
+                )?;
+            }
+            write!(p, "({:?}) -> {:?}", self.args.iter().format(", "), self.ret)?;
+            if !self.requires.is_empty() {
+                write!(p, "\nrequires {:?} ", self.requires.iter().format(", "))?;
+            }
+            if !self.ensures.is_empty() {
+                write!(p, "\nensures {:?}", self.ensures.iter().format(", "))?;
+            }
+            write!(f, "\n)")?;
+        } else {
+            if !self.params.is_empty() {
+                write!(
+                    f,
+                    "for<{}> ",
+                    self.params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                    })
+                )?;
+            }
+            if !self.requires.is_empty() {
+                write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
+            }
+            write!(f, "fn({:?}) -> {:?}", self.args.iter().format(", "), self.ret)?;
+            if !self.ensures.is_empty() {
+                write!(f, "; [{:?}]", self.ensures.iter().format(", "))?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Constr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Constr::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
+            Constr::Pred(e) => write!(f, "{e:?}"),
+        }
+    }
+}
+
+impl fmt::Debug for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ty::Refine(bty, e) => fmt_bty(bty, Some(e), f),
+            Ty::Exists(bty, p) => {
+                write!(f, "{bty:?}{{{p:?}}}")
+            }
+            Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
+            Ty::StrgRef(loc) => write!(f, "ref<{loc:?}>"),
+            Ty::WeakRef(ty) => write!(f, "&weak {ty:?}"),
+            Ty::ShrRef(ty) => write!(f, "&{ty:?}"),
+            Ty::Param(param) => write!(f, "{param}"),
+        }
+    }
+}
+
+impl fmt::Debug for BaseTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_bty(self, None, f)
+    }
+}
+
+fn fmt_bty(bty: &BaseTy, e: Option<&Refine>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match bty {
+        BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
+        BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
+        BaseTy::Bool => write!(f, "bool")?,
+        BaseTy::Adt(did, _) => write!(f, "{did:?}")?,
+    }
+    match bty {
+        BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
+            if let Some(e) = e {
+                write!(f, "<{e:?}>")?;
+            }
+        }
+        BaseTy::Adt(_, args) => {
+            if !args.is_empty() || e.is_some() {
+                write!(f, "<")?;
+            }
+            write!(f, "{:?}", args.iter().format(", "))?;
+            if let Some(e) = e {
+                if !args.is_empty() {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{:?}", e)?;
+            }
+            if !args.is_empty() || e.is_some() {
+                write!(f, ">")?;
+            }
+        }
+    }
+    Ok(())
+}
+
+impl fmt::Debug for Refine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{:?}}}", self.exprs.iter().format(", "))
+    }
+}
+
+impl fmt::Debug for Pred {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Infer => write!(f, "Infer"),
+            Self::Expr(e) => write!(f, "{e:?}"),
+        }
+    }
+}
+
+impl fmt::Debug for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            ExprKind::Var(x, ..) => write!(f, "{x:?}"),
+            ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::Literal(lit) => write!(f, "{lit:?}"),
+        }
+    }
+}
+
+impl fmt::Debug for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.name)
+    }
+}
+
+impl fmt::Debug for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Lit::Int(i) => write!(f, "{i}"),
+            Lit::Bool(b) => write!(f, "{b}"),
+        }
+    }
+}
+
+impl fmt::Debug for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Var::Bound => write!(f, "ν"),
+            Var::Free(name) => write!(f, "{name:?}"),
+        }
+    }
+}
+
+impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Sort::Bool => write!(f, "bool"),
+            Sort::Int => write!(f, "int"),
+            Sort::Loc => write!(f, "loc"),
+        }
     }
 }
