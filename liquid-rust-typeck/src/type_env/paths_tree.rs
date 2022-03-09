@@ -23,7 +23,7 @@ impl PathsTree {
         M: LookupMode,
         F: for<'a> FnOnce(Path, M::Result<'a>) -> R,
     {
-        self.place_proj_iter(
+        self.lookup_place_iter(
             mode,
             genv,
             Loc::Local(place.local),
@@ -109,7 +109,23 @@ impl PathsTree {
         PathsTree { map }
     }
 
-    fn place_proj_iter<M, R, F>(
+    pub fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut PathsTree) {
+        for (loc, node1) in &mut self.map {
+            if let Some(node2) = other.map.get_mut(loc) {
+                node1.unfold_with(genv, node2);
+            }
+        }
+    }
+
+    pub fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, other: &PathsTree) {
+        for (loc, node1) in &mut self.map {
+            if let Some(node2) = other.map.get(loc) {
+                node1.fold_unfold_to_match(genv, node2);
+            }
+        }
+    }
+
+    fn lookup_place_iter<M, R, F>(
         &mut self,
         _mode: M,
         genv: &GlobalEnv,
@@ -178,6 +194,35 @@ enum Node {
 }
 
 impl Node {
+    fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut Node) {
+        let (fields1, fields2) = match (&mut *self, &mut *other) {
+            (Node::Ty(_), Node::Ty(_)) => return,
+            (Node::Ty(_), Node::Adt(_, fields2)) => (self.unfold(genv), fields2),
+            (Node::Adt(_, fields1), Node::Ty(_)) => (fields1, other.unfold(genv)),
+            (Node::Adt(_, fields1), Node::Adt(_, fields2)) => (fields1, fields2),
+        };
+        debug_assert_eq!(fields1.len(), fields2.len());
+        for (field1, field2) in fields1.iter_mut().zip(fields2.iter_mut()) {
+            field1.unfold_with(genv, field2);
+        }
+    }
+
+    fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, other: &Node) {
+        let (fields1, fields2) = match (&mut *self, other) {
+            (Node::Ty(_), Node::Ty(_)) => return,
+            (Node::Adt(_, _), Node::Ty(_)) => {
+                self.fold(genv);
+                return;
+            }
+            (Node::Ty(_), Node::Adt(_, fields2)) => (self.unfold(genv), fields2),
+            (Node::Adt(_, fields1), Node::Adt(_, fields2)) => (fields1, fields2),
+        };
+        debug_assert_eq!(fields1.len(), fields2.len());
+        for (field1, field2) in fields1.iter_mut().zip(fields2) {
+            field1.fold_unfold_to_match(genv, field2);
+        }
+    }
+
     fn unfold(&mut self, genv: &GlobalEnv) -> &mut IndexVec<Field, Node> {
         match self {
             Node::Ty(ty) => {
@@ -215,7 +260,7 @@ impl Node {
         }
     }
 
-    pub fn subst_mut(&mut self, subst: &Subst) {
+    fn subst_mut(&mut self, subst: &Subst) {
         match self {
             Node::Ty(ty) => *ty = subst.subst_ty(ty),
             Node::Adt(_, fields) => {
@@ -271,7 +316,7 @@ impl LookupMode for Read {
                 (PlaceElem::Deref, TyKind::StrgRef(loc)) => {
                     path.clear();
                     return paths
-                        .place_proj_iter(Read, genv, *loc, path, proj, |path, ty| (path, ty));
+                        .lookup_place_iter(Read, genv, *loc, path, proj, |path, ty| (path, ty));
                 }
                 (PlaceElem::Field(f), _) => {
                     path.push(*f);

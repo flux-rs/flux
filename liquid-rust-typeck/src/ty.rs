@@ -206,6 +206,7 @@ impl AdtDef {
     }
 
     pub fn fold(&self, tys: &[Ty]) -> Expr {
+        println!("{:?} {:?}", self.refined_by(), tys);
         match self {
             AdtDef::Transparent { fields, refined_by } => {
                 debug_assert_eq!(fields.len(), tys.len());
@@ -214,6 +215,7 @@ impl AdtDef {
                 for (ty, field) in tys.iter().zip(fields) {
                     subst.infer_from_tys(&params, ty, field);
                 }
+                println!("{subst:?}");
                 Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
             }
             AdtDef::Opaque { .. } => panic!("folding opaque adt"),

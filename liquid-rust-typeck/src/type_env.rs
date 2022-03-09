@@ -216,6 +216,9 @@ impl TypeEnv {
     }
 
     pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &mut BasicBlockEnv) {
+        self.bindings
+            .fold_unfold_to_match(gen.genv, &bb_env.env.bindings);
+
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
 
@@ -412,7 +415,10 @@ impl TypeEnvInfer {
         }
     }
 
-    pub fn join(&mut self, genv: &GlobalEnv, other: TypeEnv) -> bool {
+    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
+        // Unfold
+        self.env.bindings.unfold_with(genv, &mut other.bindings);
+
         // Infer subst
         let mut subst = Subst::empty();
         for (path, ty1) in self.env.bindings.iter() {

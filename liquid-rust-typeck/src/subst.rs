@@ -61,7 +61,8 @@ impl Subst<'_> {
     pub fn get_expr(&self, name: Name) -> Expr {
         match self.map.get(&name) {
             Some(LocOrExpr::Expr(expr)) => expr.clone(),
-            _ => panic!("expected expr"),
+            Some(LocOrExpr::Loc(_)) => panic!("expected expr"),
+            None => panic!("no entry found for: {name:?}"),
         }
     }
 
