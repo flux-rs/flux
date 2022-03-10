@@ -12,7 +12,7 @@ pub struct Wf<'a> {
 
 struct Env {
     sorts: FxHashMap<core::Name, ty::Sort>,
-    bound_var_sort: Option<ty::Sort>,
+    bound_var_sorts: Option<Vec<ty::Sort>>,
 }
 
 impl Env {
@@ -21,13 +21,13 @@ impl Env {
             .iter()
             .map(|param| (param.name.name, lower_sort(param.sort)))
             .collect();
-        Env { sorts, bound_var_sort: None }
+        Env { sorts, bound_var_sorts: None }
     }
 
-    fn with_bound<R>(&mut self, sort: ty::Sort, f: impl FnOnce(&Self) -> R) -> R {
-        self.bound_var_sort = Some(sort);
+    fn with_bound_var<R>(&mut self, sorts: Vec<ty::Sort>, f: impl FnOnce(&Self) -> R) -> R {
+        self.bound_var_sorts = Some(sorts);
         let r = f(self);
-        self.bound_var_sort = None;
+        self.bound_var_sorts = None;
         r
     }
 }
@@ -37,7 +37,7 @@ impl std::ops::Index<&'_ core::Var> for Env {
 
     fn index(&self, var: &core::Var) -> &Self::Output {
         match var {
-            core::Var::Bound => self.bound_var_sort.as_ref().unwrap(),
+            core::Var::Bound(idx) => &self.bound_var_sorts.as_ref().unwrap()[*idx as usize],
             core::Var::Free(name) => &self.sorts[name],
         }
     }
@@ -106,9 +106,11 @@ impl Wf<'_> {
 
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
-            core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sort(bty)),
+            core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
             core::Ty::Exists(bty, pred) => {
-                env.with_bound(self.sort(bty), |env| self.check_pred(env, pred, ty::Sort::bool()))
+                env.with_bound_var(self.sorts(bty), |env| {
+                    self.check_pred(env, pred, ty::Sort::bool())
+                })
             }
             core::Ty::StrgRef(loc) => self.check_loc(env, *loc),
             core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
@@ -120,14 +122,27 @@ impl Wf<'_> {
         &self,
         env: &Env,
         refine: &core::Refine,
-        expected: ty::Sort,
+        expected: Vec<ty::Sort>,
     ) -> Result<(), ErrorReported> {
         let found = self.synth_refine(env, refine)?;
-        if found == expected {
-            Ok(())
-        } else {
-            self.emit_err(errors::SortMismatch::new(Some(refine.span), expected, found))
+        if expected.len() != found.len() {
+            return self.emit_err(errors::GenericCountMismatch::new(
+                Some(refine.span),
+                expected.len(),
+                found.len(),
+            ));
         }
+        expected
+            .into_iter()
+            .zip(found)
+            .map(|(expected, found)| {
+                if found == expected {
+                    Ok(())
+                } else {
+                    self.emit_err(errors::SortMismatch::new(Some(refine.span), expected, found))
+                }
+            })
+            .try_collect_exhaust()
     }
 
     fn check_pred(
@@ -169,13 +184,17 @@ impl Wf<'_> {
         }
     }
 
-    fn synth_refine(&self, env: &Env, refine: &core::Refine) -> Result<ty::Sort, ErrorReported> {
+    fn synth_refine(
+        &self,
+        env: &Env,
+        refine: &core::Refine,
+    ) -> Result<Vec<ty::Sort>, ErrorReported> {
         let sorts: Vec<ty::Sort> = refine
             .exprs
             .iter()
             .map(|e| self.synth_expr(env, e))
             .try_collect_exhaust()?;
-        Ok(ty::Sort::tuple(sorts))
+        Ok(sorts)
     }
 
     fn synth_expr(&self, env: &Env, e: &core::Expr) -> Result<ty::Sort, ErrorReported> {
@@ -224,16 +243,19 @@ impl Wf<'_> {
         }
     }
 
-    fn sort(&self, bty: &core::BaseTy) -> ty::Sort {
+    fn sorts(&self, bty: &core::BaseTy) -> Vec<ty::Sort> {
         match bty {
-            core::BaseTy::Int(_) => ty::Sort::int(),
-            core::BaseTy::Uint(_) => ty::Sort::int(),
-            core::BaseTy::Bool => ty::Sort::bool(),
+            core::BaseTy::Int(_) => vec![ty::Sort::int()],
+            core::BaseTy::Uint(_) => vec![ty::Sort::int()],
+            core::BaseTy::Bool => vec![ty::Sort::bool()],
             core::BaseTy::Adt(def_id, _) => {
                 if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
-                    ty::Sort::tuple(def.refined_by().iter().map(|param| lower_sort(param.sort)))
+                    def.refined_by()
+                        .iter()
+                        .map(|param| lower_sort(param.sort))
+                        .collect()
                 } else {
-                    ty::Sort::unit()
+                    vec![]
                 }
             }
         }
@@ -263,6 +285,22 @@ mod errors {
 
     impl SortMismatch {
         pub fn new(span: Option<Span>, expected: ty::Sort, found: ty::Sort) -> Self {
+            Self { span, expected, found }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct GenericCountMismatch {
+        #[message = "this type takes {expected} value parameters but {found} were supplied"]
+        #[label = "expected `{expected}` value arguments, found `{found}`"]
+        pub span: Option<Span>,
+        pub expected: usize,
+        pub found: usize,
+    }
+
+    impl GenericCountMismatch {
+        pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
         }
     }

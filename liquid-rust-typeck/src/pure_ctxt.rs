@@ -82,7 +82,7 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    pub fn fresh<S>(&mut self, sort: Sort, scope: S) -> Pred
+    pub fn fresh<S>(&mut self, sorts: &[Sort], scope: S) -> Pred
     where
         S: IntoIterator<Item = (Name, Sort)>,
     {
@@ -91,41 +91,22 @@ impl KVarStore {
         let mut args = scope
             .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
             .map(|(var, sort)| (Expr::var(Var::Free(var)), sort))
-            .collect();
+            .collect_vec();
 
         let mut kvars = vec![];
+        for (i, sort) in sorts.iter().enumerate() {
+            args.push((Expr::var(Var::Bound(i as u32)), sort.clone()));
 
-        self.fresh_inner(&mut kvars, Expr::var(Var::Bound), &sort, &mut args);
+            let kvid = self.kvars.push(
+                args.iter()
+                    .rev()
+                    .map(|(_, s)| sort_to_fixpoint(s))
+                    .collect(),
+            );
+            kvars.push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
+        }
 
         Pred::infer(kvars)
-    }
-
-    fn fresh_inner(
-        &mut self,
-        kvars: &mut Vec<KVar>,
-        bound: Expr,
-        sort: &Sort,
-        args: &mut Vec<(Expr, Sort)>,
-    ) {
-        match sort.kind() {
-            SortKind::Int | SortKind::Bool | SortKind::Loc => {
-                args.push((bound, sort.clone()));
-
-                let kvid = self.kvars.push(
-                    args.iter()
-                        .rev()
-                        .map(|(_, s)| sort_to_fixpoint(s))
-                        .collect(),
-                );
-                kvars
-                    .push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
-            }
-            SortKind::Tuple(sorts) => {
-                for (i, sort) in sorts.iter().enumerate() {
-                    self.fresh_inner(kvars, Expr::proj(bound.clone(), i as u32), sort, args)
-                }
-            }
-        }
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
@@ -161,18 +142,22 @@ impl PureCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_bindings(&mut self, sort: Sort, p: &Pred) -> Expr {
+    pub fn push_bindings(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Expr> {
         let name_gen = self.name_gen();
+
         let mut bindings = vec![];
-        let tuple = PureCtxt::destruct_sort(&name_gen, &mut bindings, &sort);
+        let mut exprs = vec![];
+        for sort in sorts {
+            let fresh = name_gen.fresh();
+            bindings.push((fresh, sort.clone()));
+            exprs.push(Expr::var(Var::Free(fresh)));
+        }
 
         match p {
             Pred::Infer(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
                 for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    // HACK(nilehmann) this relies on subst_bound_var eta reducting tuples,
-                    // otherwise this will result in names out of scope for the resulting predicate.
-                    let p = Pred::infer(vec![kvar.subst_bound_vars(tuple.clone())]);
+                    let p = Pred::infer(vec![kvar.subst_bound_vars(&exprs)]);
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
                 }
             }
@@ -181,11 +166,15 @@ impl PureCtxt<'_> {
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::tt()));
                 }
                 if !e.is_true() {
-                    self.push_pred(e.subst_bound_vars(tuple.clone()));
+                    self.push_pred(e.subst_bound_vars(&exprs));
                 }
             }
         }
-        tuple
+        exprs
+    }
+
+    pub fn push_binding(&mut self, sort: Sort, p: &Pred) -> Expr {
+        self.push_bindings(&[sort], p).pop().unwrap()
     }
 
     pub fn push_pred(&mut self, expr: impl Into<Expr>) {
@@ -202,26 +191,6 @@ impl PureCtxt<'_> {
         let pred = pred.into();
         if !pred.is_true() {
             self.push_node(NodeKind::Head(pred, tag));
-        }
-    }
-
-    fn destruct_sort(
-        name_gen: &IndexGen<Name>,
-        bindings: &mut Vec<(Name, Sort)>,
-        sort: &Sort,
-    ) -> Expr {
-        match sort.kind() {
-            SortKind::Int | SortKind::Bool | SortKind::Loc => {
-                let fresh = name_gen.fresh();
-                bindings.push((fresh, sort.clone()));
-                Expr::var(Var::Free(fresh))
-            }
-            SortKind::Tuple(sorts) => {
-                let exprs = sorts
-                    .iter()
-                    .map(|s| PureCtxt::destruct_sort(name_gen, bindings, s));
-                Expr::tuple(exprs)
-            }
         }
     }
 
@@ -392,9 +361,7 @@ fn kvar_to_fixpoint(
                     .get(name)
                     .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
             }
-            ExprKind::Var(Var::Bound) => {
-                unreachable!("unexpected free bound variable")
-            }
+            ExprKind::Var(Var::Bound(_)) => panic!("unexpected free bound variable"),
             _ => {
                 let fresh = cx.fresh_name();
                 let pred = fixpoint::Expr::BinaryOp(
@@ -452,9 +419,7 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
             )
         }
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
-        ExprKind::Var(Var::Bound) => {
-            unreachable!("unexpected free bound variable")
-        }
+        ExprKind::Var(Var::Bound(_)) => panic!("unexpected free bound variable"),
         ExprKind::Proj(e, field) => {
             repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])

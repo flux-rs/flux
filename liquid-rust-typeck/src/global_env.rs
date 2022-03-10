@@ -32,15 +32,15 @@ impl<'tcx> GlobalEnv<'tcx> {
         &self.adt_defs[&did.as_local().unwrap()]
     }
 
-    pub fn sort(&self, bty: &BaseTy) -> Sort {
+    pub fn sorts(&self, bty: &BaseTy) -> Vec<Sort> {
         match bty {
-            BaseTy::Int(_) | BaseTy::Uint(_) => Sort::int(),
-            BaseTy::Bool => Sort::bool(),
+            BaseTy::Int(_) | BaseTy::Uint(_) => vec![Sort::int()],
+            BaseTy::Bool => vec![Sort::bool()],
             BaseTy::Adt(def_id, _) => {
                 if let Some(adt_def) = def_id.as_local().and_then(|did| self.adt_defs.get(&did)) {
-                    adt_def.sort()
+                    adt_def.sorts()
                 } else {
-                    Sort::unit()
+                    vec![]
                 }
             }
         }

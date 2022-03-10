@@ -1,3 +1,5 @@
+use std::iter;
+
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -29,7 +31,7 @@ impl Subst<'_> {
     pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
         let mut subst = Self::empty();
         for param in params {
-            let e = pcx.push_bindings(param.sort.clone(), &Pred::tt());
+            let e = pcx.push_binding(param.sort.clone(), &Pred::tt());
             subst.insert(param.name, &param.sort, e);
         }
         subst
@@ -58,14 +60,6 @@ impl Subst<'_> {
         self.map.insert(name, LocOrExpr::Loc(to.into()));
     }
 
-    pub fn get_expr(&self, name: Name) -> Expr {
-        match self.map.get(&name) {
-            Some(LocOrExpr::Expr(expr)) => expr.clone(),
-            Some(LocOrExpr::Loc(_)) => panic!("expected expr"),
-            None => panic!("no entry found for: {name:?}"),
-        }
-    }
-
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
         FnSig {
             requires: sig
@@ -92,7 +86,12 @@ impl Subst<'_> {
 
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Refine(bty, e) => Ty::refine(self.subst_base_ty(bty), self.subst_expr(e)),
+            TyKind::Refine(bty, exprs) => {
+                Ty::refine(
+                    self.subst_base_ty(bty),
+                    exprs.iter().map(|e| self.subst_expr(e)).collect_vec(),
+                )
+            }
             TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
             TyKind::Float(float_ty) => Ty::float(*float_ty),
             TyKind::StrgRef(loc) => Ty::strg_ref(self.subst_loc(*loc)),
@@ -150,7 +149,7 @@ impl Subst<'_> {
 
     pub fn subst_var(&self, var: Var) -> Expr {
         match var {
-            Var::Bound => var.into(),
+            Var::Bound(_) => var.into(),
             Var::Free(name) => {
                 match self.map.get(&name) {
                     Some(LocOrExpr::Loc(loc)) => {
@@ -222,8 +221,10 @@ impl Subst<'_> {
 
     pub fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(_bty1, e1), TyKind::Refine(_bty2, e2)) => {
-                self.infer_from_exprs(params, e1, e2);
+            (TyKind::Refine(_bty1, exprs1), TyKind::Refine(_bty2, exprs2)) => {
+                for (e1, e2) in iter::zip(exprs1, exprs2) {
+                    self.infer_from_exprs(params, e1, e2);
+                }
             }
             (TyKind::StrgRef(loc), TyKind::StrgRef(Loc::Abstract(name))) => {
                 match self.map.insert(*name, LocOrExpr::Loc(*loc)) {

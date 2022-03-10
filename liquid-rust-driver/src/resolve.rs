@@ -271,7 +271,7 @@ impl<'tcx> Resolver<'tcx> {
                 match self.resolve_path(path, subst)? {
                     ResolvedPath::BaseTy(bty) => {
                         subst.push_expr_layer();
-                        subst.insert_expr(bind.name, ty::Var::Bound);
+                        subst.insert_expr(bind.name, ty::Var::Bound(0));
                         let e = self.resolve_expr(pred, subst);
                         subst.pop_expr_layer();
                         Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))

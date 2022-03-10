@@ -3,7 +3,7 @@ pub mod paths_tree;
 use std::iter;
 
 use crate::{
-    constraint_gen::ConstraintGen,
+    constraint_gen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
@@ -75,8 +75,9 @@ impl TypeEnv {
         self.pledges.remove(loc);
     }
 
-    pub fn lookup_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(Read, genv, place, |_, ty| ty)
+    pub fn lookup_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(Read, genv, pcx, place, |_, _, ty| ty)
     }
 
     pub fn lookup_path(&self, path: &Path) -> Ty {
@@ -122,27 +123,36 @@ impl TypeEnv {
         }
     }
 
-    pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
+    pub fn write_place(
+        &mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
+        place: &ir::Place,
+        new_ty: Ty,
+        tag: Tag,
+    ) {
         self.bindings
-            .lookup_place(Write, gen.genv, place, |path, ty| {
-                self.pledges.check(gen, &path, &new_ty);
+            .lookup_place(Write, genv, pcx, place, |pcx, path, ty| {
+                let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                self.pledges.check(&mut gen, &path, &new_ty);
                 *ty = new_ty;
             });
     }
 
-    pub fn move_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(Write, genv, place, |_, ty| {
-            let old = ty.clone();
-            *ty = Ty::uninit(ty.layout());
-            old
-        })
+    pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(Write, genv, pcx, place, |_, _, ty| {
+                let old = ty.clone();
+                *ty = Ty::uninit(ty.layout());
+                old
+            })
     }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let e = pcx.push_bindings(genv.sort(bty), p);
-                Ty::refine(bty.clone(), e)
+                let exprs = pcx.push_bindings(&genv.sorts(bty), p);
+                Ty::refine(bty.clone(), exprs)
             }
             TyKind::WeakRef(pledge) => {
                 let fresh = pcx.push_loc();
@@ -197,8 +207,10 @@ impl TypeEnv {
         subst: &mut Subst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(_, e1), TyKind::Refine(_, e2)) => {
-                subst.infer_from_exprs(params, e1, e2);
+            (TyKind::Refine(_, exprs1), TyKind::Refine(_, exprs2)) => {
+                for (e1, e2) in iter::zip(exprs1, exprs2) {
+                    subst.infer_from_exprs(params, e1, e2);
+                }
             }
             (TyKind::StrgRef(Loc::Abstract(loc1)), TyKind::StrgRef(Loc::Abstract(loc2)))
                 if !bb_env.scope.contains(*loc1) && !bb_env.scope.contains(*loc2) =>
@@ -215,16 +227,23 @@ impl TypeEnv {
         }
     }
 
-    pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &mut BasicBlockEnv) {
+    pub fn check_goto(
+        mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
+        bb_env: &mut BasicBlockEnv,
+        tag: Tag,
+    ) {
         self.bindings
-            .fold_unfold_to_match(gen.genv, &bb_env.env.bindings);
+            .fold_unfold_to_match(genv, pcx, &bb_env.env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
+        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(Var::Free(param.name))));
+            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::var(param.name)])));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);
@@ -246,7 +265,7 @@ impl TypeEnv {
             match (ty1.kind(), ty2.kind()) {
                 (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
                     let pledge = goto_env.bindings[&Path::new(loc2, vec![])].clone();
-                    let fresh = self.pledged_borrow(gen, loc1, pledge);
+                    let fresh = self.pledged_borrow(&mut gen, loc1, pledge);
                     self.bindings[&path] = Ty::strg_ref(fresh);
                 }
                 _ => {}
@@ -331,7 +350,7 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same than
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let e = pcx.push_bindings(sort.clone(), &Pred::tt());
+            let e = pcx.push_binding(sort.clone(), &Pred::tt());
             subst.insert(*name, sort, e);
         }
         self.env.clone().subst(&subst)
@@ -375,16 +394,23 @@ impl TypeEnvInfer {
         ty: &Ty,
     ) -> Ty {
         match ty.kind() {
-            TyKind::Refine(bty, e) => {
-                let e = if e.has_free_vars(scope) {
-                    let fresh = name_gen.fresh();
-                    params.insert(fresh, genv.sort(bty));
-                    Expr::var(fresh)
-                } else {
-                    e.clone()
-                };
+            TyKind::Refine(bty, exprs) => {
+                let sorts = genv.sorts(bty);
+                let exprs = exprs
+                    .iter()
+                    .zip(sorts)
+                    .map(|(e, sort)| {
+                        if e.has_free_vars(scope) {
+                            let fresh = name_gen.fresh();
+                            params.insert(fresh, sort);
+                            Expr::var(fresh)
+                        } else {
+                            e.clone()
+                        }
+                    })
+                    .collect_vec();
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
-                Ty::refine(bty, e)
+                Ty::refine(bty, exprs)
             }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
@@ -496,20 +522,24 @@ impl TypeEnvInfer {
                 debug_assert_eq!(loc1, loc2);
                 Ty::strg_ref(*loc1)
             }
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
+            (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
-                let e = if !self.is_packed_expr(e1) && (e2.has_free_vars(&self.scope) || e1 != e2) {
-                    Expr::var(self.fresh(genv.sort(&bty)))
-                } else {
-                    e1.clone()
-                };
-                Ty::refine(bty, e)
+                let exprs = izip!(exprs1, exprs2, genv.sorts(&bty))
+                    .map(|(e1, e2, sort)| {
+                        if !self.is_packed_expr(e1) && (e2.has_free_vars(&self.scope) || e1 != e2) {
+                            Expr::var(self.fresh(sort))
+                        } else {
+                            e1.clone()
+                        }
+                    })
+                    .collect_vec();
+                Ty::refine(bty, exprs)
             }
             (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
-                let sort = genv.sort(&bty);
-                Ty::exists(bty, Pred::dummy_infer(&sort))
+                let sorts = genv.sorts(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sorts))
             }
             (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
                 Ty::weak_ref(self.join_ty(genv, other, ty1, ty2))
@@ -570,23 +600,21 @@ impl TypeEnvInfer {
             TyKind::Param(_) | TyKind::Float(_) => ty.clone(),
             TyKind::Exists(bty, _) => {
                 let bty = self.weaken_bty(genv, bty);
-                let sort = genv.sort(&bty);
-                Ty::exists(bty, Pred::dummy_infer(&sort))
+                let sorts = genv.sorts(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sorts))
             }
-            TyKind::Refine(bty, e) => {
-                match e.kind() {
-                    ExprKind::Var(Var::Free(name)) if self.params.contains_key(name) => {
-                        self.params.remove(name);
-                        let bty = self.weaken_bty(genv, bty);
-                        let sort = genv.sort(&bty);
-                        Ty::exists(bty, Pred::dummy_infer(&sort))
-                    }
-                    _ => {
-                        let bty = self.weaken_bty(genv, bty);
-                        let sort = genv.sort(&bty);
-                        Ty::exists(bty, Pred::dummy_infer(&sort))
+            TyKind::Refine(bty, exprs) => {
+                for e in exprs {
+                    match e.kind() {
+                        ExprKind::Var(Var::Free(name)) if self.params.contains_key(name) => {
+                            self.params.remove(name);
+                        }
+                        _ => {}
                     }
                 }
+                let bty = self.weaken_bty(genv, bty);
+                let sort = genv.sorts(&bty);
+                Ty::exists(bty, Pred::dummy_infer(&sort))
             }
             TyKind::StrgRef(loc) => {
                 let ty = self.env.bindings[&Path::new(*loc, vec![])].clone();
@@ -614,7 +642,7 @@ impl TypeEnvInfer {
     pub fn into_bb_env(
         self,
         genv: &GlobalEnv,
-        fresh_kvar: &mut impl FnMut(Sort, &[Param]) -> Pred,
+        fresh_kvar: &mut impl FnMut(&[Sort], &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
         let mut params = vec![];
@@ -623,14 +651,14 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
             if sort != Sort::loc() {
-                constrs.push(fresh_kvar(sort.clone(), &params));
+                constrs.push(fresh_kvar(&[sort.clone()], &params));
             } else {
                 constrs.push(Pred::tt())
             }
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |sort| fresh_kvar(sort, &params);
+        let fresh_kvar = &mut |sorts: &[Sort]| fresh_kvar(sorts, &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
@@ -667,21 +695,25 @@ impl BasicBlockEnv {
     pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let e = pcx.push_bindings(param.sort.clone(), &subst.subst_pred(constr));
+            let e = pcx.push_binding(param.sort.clone(), &subst.subst_pred(constr));
             subst.insert(param.name, &param.sort, e);
         }
         self.env.clone().subst(&subst)
     }
 }
 
-fn replace_dummy_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(Sort) -> Pred) -> Ty {
+fn replace_dummy_kvars(
+    genv: &GlobalEnv,
+    ty: &Ty,
+    fresh_kvar: &mut impl FnMut(&[Sort]) -> Pred,
+) -> Ty {
     match ty.kind() {
         TyKind::Refine(bty, e) => {
             Ty::refine(replace_dummy_kvars_bty(genv, bty, fresh_kvar), e.clone())
         }
         TyKind::Exists(bty, p) => {
             let p = match p {
-                Pred::Infer(_) => fresh_kvar(genv.sort(bty)),
+                Pred::Infer(_) => fresh_kvar(&genv.sorts(bty)),
                 Pred::Expr(e) => Pred::Expr(e.clone()),
             };
             Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
@@ -695,7 +727,7 @@ fn replace_dummy_kvars(genv: &GlobalEnv, ty: &Ty, fresh_kvar: &mut impl FnMut(So
 fn replace_dummy_kvars_bty(
     genv: &GlobalEnv,
     bty: &BaseTy,
-    fresh_kvar: &mut impl FnMut(Sort) -> Pred,
+    fresh_kvar: &mut impl FnMut(&[Sort]) -> Pred,
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(did, substs) => {
