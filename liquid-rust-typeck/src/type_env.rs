@@ -3,7 +3,7 @@ pub mod paths_tree;
 use std::iter;
 
 use crate::{
-    constraint_gen::ConstraintGen,
+    constraint_gen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
@@ -75,8 +75,9 @@ impl TypeEnv {
         self.pledges.remove(loc);
     }
 
-    pub fn lookup_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(Read, genv, place, |_, ty| ty)
+    pub fn lookup_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(Read, genv, pcx, place, |_, _, ty| ty)
     }
 
     pub fn lookup_path(&self, path: &Path) -> Ty {
@@ -122,20 +123,29 @@ impl TypeEnv {
         }
     }
 
-    pub fn write_place(&mut self, gen: &mut ConstraintGen, place: &ir::Place, new_ty: Ty) {
+    pub fn write_place(
+        &mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
+        place: &ir::Place,
+        new_ty: Ty,
+        tag: Tag,
+    ) {
         self.bindings
-            .lookup_place(Write, gen.genv, place, |path, ty| {
-                self.pledges.check(gen, &path, &new_ty);
+            .lookup_place(Write, genv, pcx, place, |pcx, path, ty| {
+                let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                self.pledges.check(&mut gen, &path, &new_ty);
                 *ty = new_ty;
             });
     }
 
-    pub fn move_place(&mut self, genv: &GlobalEnv, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(Write, genv, place, |_, ty| {
-            let old = ty.clone();
-            *ty = Ty::uninit(ty.layout());
-            old
-        })
+    pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(Write, genv, pcx, place, |_, _, ty| {
+                let old = ty.clone();
+                *ty = Ty::uninit(ty.layout());
+                old
+            })
     }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
@@ -217,14 +227,21 @@ impl TypeEnv {
         }
     }
 
-    pub fn check_goto(mut self, gen: &mut ConstraintGen, bb_env: &mut BasicBlockEnv) {
+    pub fn check_goto(
+        mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
+        bb_env: &mut BasicBlockEnv,
+        tag: Tag,
+    ) {
         self.bindings
-            .fold_unfold_to_match(gen.genv, &bb_env.env.bindings);
+            .fold_unfold_to_match(genv, pcx, &bb_env.env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
+        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
             gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::var(param.name)])));
         }
@@ -248,7 +265,7 @@ impl TypeEnv {
             match (ty1.kind(), ty2.kind()) {
                 (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
                     let pledge = goto_env.bindings[&Path::new(loc2, vec![])].clone();
-                    let fresh = self.pledged_borrow(gen, loc1, pledge);
+                    let fresh = self.pledged_borrow(&mut gen, loc1, pledge);
                     self.bindings[&path] = Ty::strg_ref(fresh);
                 }
                 _ => {}

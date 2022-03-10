@@ -199,23 +199,6 @@ impl AdtDef {
             AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
         }
     }
-
-    pub fn fold(&self, tys: &[Ty]) -> Ty {
-        todo!()
-        // match self {
-        //     AdtDef::Transparent { fields, refined_by } => {
-        //         debug_assert_eq!(fields.len(), tys.len());
-        //         let mut subst = Subst::empty();
-        //         let params = refined_by.iter().map(|param| param.name).collect();
-        //         for (ty, field) in tys.iter().zip(fields) {
-        //             subst.infer_from_tys(&params, ty, field);
-        //         }
-        //         println!("{subst:?}");
-        //         Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
-        //     }
-        //     AdtDef::Opaque { .. } => panic!("folding opaque adt"),
-        // }
-    }
 }
 
 impl Ty {

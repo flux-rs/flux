@@ -60,14 +60,6 @@ impl Subst<'_> {
         self.map.insert(name, LocOrExpr::Loc(to.into()));
     }
 
-    pub fn get_expr(&self, name: Name) -> Expr {
-        match self.map.get(&name) {
-            Some(LocOrExpr::Expr(expr)) => expr.clone(),
-            Some(LocOrExpr::Loc(_)) => panic!("expected expr"),
-            None => panic!("no entry found for: {name:?}"),
-        }
-    }
-
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
         FnSig {
             requires: sig

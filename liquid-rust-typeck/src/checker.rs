@@ -253,12 +253,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
-                let gen = &mut ConstraintGen::new(
-                    self.genv,
-                    pcx.breadcrumb(),
-                    Tag::Assign(stmt.source_info.span),
-                );
-                env.write_place(gen, p, ty);
+                env.write_place(self.genv, pcx, p, ty, Tag::Assign(stmt.source_info.span));
             }
             StatementKind::Nop => {}
         }
@@ -274,16 +269,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => self.check_ret(pcx, env),
             TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.check_switch_int(env, discr, targets)
+                self.check_switch_int(pcx, env, discr, targets)
             }
             TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(pcx, env, terminator.source_info, *func, substs, args, destination)
             }
             TerminatorKind::Assert { cond, expected, target } => {
-                self.check_assert(env, cond, *expected, *target)
+                self.check_assert(pcx, env, cond, *expected, *target)
             }
             TerminatorKind::Drop { place, target } => {
-                let _ = env.move_place(self.genv, place);
+                let _ = env.move_place(self.genv, pcx, place);
                 Ok(vec![(*target, None)])
             }
         }
@@ -294,7 +289,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let ret_place_ty = env.lookup_place(self.genv, Place::RETURN);
+        let ret_place_ty = env.lookup_place(self.genv, pcx, Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -319,7 +314,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let actuals = args
             .iter()
-            .map(|arg| self.check_operand(env, arg))
+            .map(|arg| self.check_operand(pcx, env, arg))
             .collect_vec();
 
         let cx = LoweringCtxt::empty();
@@ -367,9 +362,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
             let ret = env.unpack_ty(self.genv, pcx, &fn_sig.ret);
-            let mut gen =
-                ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-            env.write_place(&mut gen, p, ret);
+            env.write_place(self.genv, pcx, p, ret, Tag::Call(source_info.span));
             successors.push((*bb, None));
         }
         Ok(successors)
@@ -377,12 +370,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_assert(
         &mut self,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         cond: &Operand,
         expected: bool,
         target: BasicBlock,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let cond_ty = self.check_operand(env, cond);
+        let cond_ty = self.check_operand(pcx, env, cond);
 
         let pred = match cond_ty.kind() {
             TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
@@ -396,11 +390,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_switch_int(
         &mut self,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         discr: &Operand,
         targets: &mir::SwitchTargets,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let discr_ty = self.check_operand(env, discr);
+        let discr_ty = self.check_operand(pcx, env, discr);
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Refine(BaseTy::Bool, exprs) => {
@@ -475,7 +470,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         rvalue: &Rvalue,
     ) -> Ty {
         match rvalue {
-            Rvalue::Use(operand) => self.check_operand(env, operand),
+            Rvalue::Use(operand) => self.check_operand(pcx, env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 self.check_binary_op(pcx, env, source_info, *bin_op, op1, op2)
             }
@@ -487,7 +482,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 // OWNERSHIP SAFETY CHECK
                 env.borrow_shr(place)
             }
-            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, *un_op, op),
+            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(pcx, env, *un_op, op),
         }
     }
 
@@ -500,8 +495,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
-        let ty1 = self.check_operand(env, op1);
-        let ty2 = self.check_operand(env, op2);
+        let ty1 = self.check_operand(pcx, env, op1);
+        let ty2 = self.check_operand(pcx, env, op2);
 
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
@@ -662,8 +657,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_unary_op(&self, env: &mut TypeEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
-        let ty = self.check_operand(env, op);
+    fn check_unary_op(
+        &self,
+        pcx: &mut PureCtxt,
+        env: &mut TypeEnv,
+        un_op: ir::UnOp,
+        op: &Operand,
+    ) -> Ty {
+        let ty = self.check_operand(pcx, env, op);
         match un_op {
             ir::UnOp::Not => {
                 match ty.kind() {
@@ -685,15 +686,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_operand(&self, env: &mut TypeEnv, operand: &Operand) -> Ty {
+    fn check_operand(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
         match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(self.genv, p)
+                env.lookup_place(self.genv, pcx, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(self.genv, p)
+                env.move_place(self.genv, pcx, p)
             }
             Operand::Constant(c) => self.check_constant(c),
         }
@@ -798,8 +799,7 @@ impl Mode for Check<'_> {
         dbg::check_goto!(target, pcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);
-        env.check_goto(&mut gen, bb_env);
+        env.check_goto(ck.genv, &mut pcx, bb_env, tag);
 
         first
     }

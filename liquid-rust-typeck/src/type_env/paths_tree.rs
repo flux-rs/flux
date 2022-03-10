@@ -1,4 +1,4 @@
-use std::hint::unreachable_unchecked;
+use std::{hint::unreachable_unchecked, iter};
 
 use itertools::Itertools;
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
@@ -8,8 +8,9 @@ use rustc_hir::def_id::DefId;
 
 use crate::{
     global_env::GlobalEnv,
+    pure_ctxt::PureCtxt,
     subst::Subst,
-    ty::{Loc, Path, Ty, TyKind},
+    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, Ty, TyKind, Var},
 };
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -18,14 +19,22 @@ pub struct PathsTree {
 }
 
 impl PathsTree {
-    pub fn lookup_place<M, F, R>(&mut self, mode: M, genv: &GlobalEnv, place: &Place, f: F) -> R
+    pub fn lookup_place<M, F, R>(
+        &mut self,
+        mode: M,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
+        place: &Place,
+        f: F,
+    ) -> R
     where
         M: LookupMode,
-        F: for<'a> FnOnce(Path, M::Result<'a>) -> R,
+        F: for<'a> FnOnce(&mut PureCtxt, Path, M::Result<'a>) -> R,
     {
         self.lookup_place_iter(
             mode,
             genv,
+            pcx,
             Loc::Local(place.local),
             &mut vec![],
             &mut place.projection.iter(),
@@ -117,10 +126,15 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, other: &PathsTree) {
+    pub fn fold_unfold_to_match(
+        &mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
+        other: &PathsTree,
+    ) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_to_match(genv, node2);
+                node1.fold_unfold_to_match(genv, pcx, node2);
             }
         }
     }
@@ -129,6 +143,7 @@ impl PathsTree {
         &mut self,
         _mode: M,
         genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
         mut loc: Loc,
         path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
@@ -136,7 +151,7 @@ impl PathsTree {
     ) -> R
     where
         M: LookupMode,
-        F: for<'a> FnOnce(Path, M::Result<'a>) -> R,
+        F: for<'a> FnOnce(&mut PureCtxt, Path, M::Result<'a>) -> R,
     {
         loop {
             let mut node = self.map.get_mut(&loc).unwrap();
@@ -144,7 +159,7 @@ impl PathsTree {
                 path.push(f);
                 node = &mut node.unfold(genv)[f];
             }
-            let ty = node.fold(genv);
+            let ty = node.fold(genv, pcx);
 
             match proj.next() {
                 Some(PlaceElem::Deref) => {
@@ -153,15 +168,16 @@ impl PathsTree {
                         TyKind::StrgRef(ref_loc) => loc = *ref_loc,
                         TyKind::ShrRef(ty) => {
                             let ty = ty.clone();
-                            let (path, ty) = M::place_proj_ty(self, genv, &ty, loc, path, proj);
-                            return f(path, ty);
+                            let (path, ty) =
+                                M::place_proj_ty(self, genv, pcx, &ty, loc, path, proj);
+                            return f(pcx, path, ty);
                         }
                         TyKind::WeakRef(_) => todo!(),
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
                 Some(_) => unreachable!("expected deref"),
-                None => return f(Path::new(loc, &path[..]), M::to_result(ty)),
+                None => return f(pcx, Path::new(loc, &path[..]), M::to_result(ty)),
             }
         }
     }
@@ -207,11 +223,11 @@ impl Node {
         }
     }
 
-    fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, other: &Node) {
+    fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(_, _), Node::Ty(_)) => {
-                self.fold(genv);
+                self.fold(genv, pcx);
                 return;
             }
             (Node::Ty(_), Node::Adt(_, fields2)) => (self.unfold(genv), fields2),
@@ -219,7 +235,7 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_to_match(genv, field2);
+            field1.fold_unfold_to_match(genv, pcx, field2);
         }
     }
 
@@ -239,16 +255,19 @@ impl Node {
         }
     }
 
-    fn fold(&mut self, genv: &GlobalEnv) -> &mut Ty {
+    fn fold(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) -> &mut Ty {
         match self {
             Node::Ty(ty) => ty,
             Node::Adt(did, fields) => {
-                let adt_def = genv.adt_def(*did);
                 let fields = fields
                     .iter_mut()
-                    .map(|n| n.fold(genv).clone())
+                    .map(|n| n.fold(genv, pcx).clone())
                     .collect_vec();
-                *self = Node::Ty(adt_def.fold(&fields));
+                let adt_def = genv.adt_def(*did);
+                let exprs = fold(genv, pcx, adt_def, &fields[..]);
+                let adt = BaseTy::adt(*did, vec![]);
+                let ty = Ty::refine(adt, exprs);
+                *self = Node::Ty(ty);
                 if let Node::Ty(ty) = self {
                     ty
                 } else {
@@ -270,6 +289,102 @@ impl Node {
     }
 }
 
+type ParamInst = FxHashMap<Name, Expr>;
+
+fn fold(genv: &GlobalEnv, pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty]) -> Vec<Expr> {
+    match adt_def {
+        AdtDef::Transparent { refined_by, fields } => {
+            let mut params = FxHashMap::default();
+            for (ty1, ty2) in iter::zip(tys, fields) {
+                infer_folding_ty(genv, pcx, &mut params, ty1, ty2);
+            }
+            refined_by
+                .iter()
+                .map(|param| params.remove(&param.name).unwrap())
+                .collect()
+        }
+        AdtDef::Opaque { .. } => panic!("folding opaque adt"),
+    }
+}
+
+fn infer_folding_ty(
+    genv: &GlobalEnv,
+    pcx: &mut PureCtxt,
+    params: &mut ParamInst,
+    ty1: &Ty,
+    ty2: &Ty,
+) {
+    match (ty1.kind(), ty2.kind()) {
+        (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
+            infer_folding_bty(genv, pcx, params, bty1, bty2);
+            for (e1, e2) in iter::zip(exprs1, exprs2) {
+                infer_folding_expr(params, e1, e2);
+            }
+        }
+        (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
+            infer_folding_bty(genv, pcx, params, bty1, bty2);
+            let sorts = genv.sorts(&bty1);
+            let exprs1 = pcx.push_bindings(&sorts, p);
+            for (e1, e2) in iter::zip(exprs1, exprs2) {
+                infer_folding_expr(params, &e1, e2)
+            }
+        }
+        (TyKind::StrgRef(_), TyKind::StrgRef(Loc::Abstract(_))) => {
+            todo!()
+        }
+        (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+            infer_folding_ty(genv, pcx, params, ty1, ty2);
+        }
+        _ => {}
+    }
+}
+
+fn infer_folding_bty(
+    genv: &GlobalEnv,
+    pcx: &mut PureCtxt,
+    params: &mut ParamInst,
+    bty1: &BaseTy,
+    bty2: &BaseTy,
+) {
+    match (bty1, bty2) {
+        (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
+            debug_assert_eq!(did1, did2);
+            debug_assert_eq!(substs1.len(), substs2.len());
+            for (ty1, ty2) in iter::zip(substs1, substs2) {
+                infer_folding_ty(genv, pcx, params, ty1, ty2);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn infer_folding_expr(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
+    match (e1.kind(), e2.kind()) {
+        (_, ExprKind::Var(Var::Free(name))) => {
+            match params.insert(*name, e1.clone()) {
+                Some(old_e) => {
+                    if &old_e != e2 {
+                        todo!(
+                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                            *name,
+                            old_e,
+                            e1
+                        )
+                    }
+                }
+                None => {}
+            }
+        }
+        (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
+            debug_assert_eq!(exprs1.len(), exprs2.len());
+            for (e1, e2) in exprs1.iter().zip(exprs2) {
+                infer_folding_expr(params, e1, e2);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub trait LookupMode {
     type Result<'a>;
 
@@ -278,6 +393,7 @@ pub trait LookupMode {
     fn place_proj_ty<'a>(
         paths: &'a mut PathsTree,
         genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
         ty: &Ty,
         loc: Loc,
         path: &mut Vec<Field>,
@@ -299,6 +415,7 @@ impl LookupMode for Read {
     fn place_proj_ty<'a>(
         paths: &'a mut PathsTree,
         genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
         ty: &Ty,
         loc: Loc,
         path: &mut Vec<Field>,
@@ -313,8 +430,15 @@ impl LookupMode for Read {
                 }
                 (PlaceElem::Deref, TyKind::StrgRef(loc)) => {
                     path.clear();
-                    return paths
-                        .lookup_place_iter(Read, genv, *loc, path, proj, |path, ty| (path, ty));
+                    return paths.lookup_place_iter(
+                        Read,
+                        genv,
+                        pcx,
+                        *loc,
+                        path,
+                        proj,
+                        |_, path, ty| (path, ty),
+                    );
                 }
                 (PlaceElem::Field(f), _) => {
                     path.push(*f);
@@ -338,6 +462,7 @@ impl LookupMode for Write {
     fn place_proj_ty<'a>(
         _paths: &'a mut PathsTree,
         _genv: &GlobalEnv,
+        _pcx: &mut PureCtxt,
         _ty: &Ty,
         _loc: Loc,
         _path: &mut Vec<Field>,
