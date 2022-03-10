@@ -296,7 +296,7 @@ fn fold(genv: &GlobalEnv, pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty]) -> V
         AdtDef::Transparent { refined_by, fields } => {
             let mut params = FxHashMap::default();
             for (ty1, ty2) in iter::zip(tys, fields) {
-                infer_folding_ty(genv, pcx, &mut params, ty1, ty2);
+                ty_infer_folding(genv, pcx, &mut params, ty1, ty2);
             }
             refined_by
                 .iter()
@@ -307,7 +307,7 @@ fn fold(genv: &GlobalEnv, pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty]) -> V
     }
 }
 
-fn infer_folding_ty(
+fn ty_infer_folding(
     genv: &GlobalEnv,
     pcx: &mut PureCtxt,
     params: &mut ParamInst,
@@ -316,30 +316,32 @@ fn infer_folding_ty(
 ) {
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
-            infer_folding_bty(genv, pcx, params, bty1, bty2);
+            bty_infer_folding(genv, pcx, params, bty1, bty2);
             for (e1, e2) in iter::zip(exprs1, exprs2) {
-                infer_folding_expr(params, e1, e2);
+                expr_infer_folding(params, e1, e2);
             }
         }
         (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
-            infer_folding_bty(genv, pcx, params, bty1, bty2);
+            bty_infer_folding(genv, pcx, params, bty1, bty2);
             let sorts = genv.sorts(&bty1);
             let exprs1 = pcx.push_bindings(&sorts, p);
             for (e1, e2) in iter::zip(exprs1, exprs2) {
-                infer_folding_expr(params, &e1, e2)
+                expr_infer_folding(params, &e1, e2)
             }
         }
+        (TyKind::Exists(..), TyKind::Exists(..)) => todo!(),
+        (TyKind::Refine(..), TyKind::Exists(..)) => todo!(),
         (TyKind::StrgRef(_), TyKind::StrgRef(Loc::Abstract(_))) => {
             todo!()
         }
         (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
-            infer_folding_ty(genv, pcx, params, ty1, ty2);
+            ty_infer_folding(genv, pcx, params, ty1, ty2);
         }
         _ => {}
     }
 }
 
-fn infer_folding_bty(
+fn bty_infer_folding(
     genv: &GlobalEnv,
     pcx: &mut PureCtxt,
     params: &mut ParamInst,
@@ -351,14 +353,14 @@ fn infer_folding_bty(
             debug_assert_eq!(did1, did2);
             debug_assert_eq!(substs1.len(), substs2.len());
             for (ty1, ty2) in iter::zip(substs1, substs2) {
-                infer_folding_ty(genv, pcx, params, ty1, ty2);
+                ty_infer_folding(genv, pcx, params, ty1, ty2);
             }
         }
         _ => {}
     }
 }
 
-fn infer_folding_expr(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
+fn expr_infer_folding(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
         (_, ExprKind::Var(Var::Free(name))) => {
             match params.insert(*name, e1.clone()) {
@@ -378,7 +380,7 @@ fn infer_folding_expr(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
         (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
             debug_assert_eq!(exprs1.len(), exprs2.len());
             for (e1, e2) in exprs1.iter().zip(exprs2) {
-                infer_folding_expr(params, e1, e2);
+                expr_infer_folding(params, e1, e2);
             }
         }
         _ => {}

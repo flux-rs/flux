@@ -292,8 +292,8 @@ mod errors {
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
     pub struct GenericCountMismatch {
-        #[message = "this type takes {expected} generic values but {found} generic value was supplied"]
-        #[label = "expected `{expected}` arguments, found `{found}`"]
+        #[message = "this type takes {expected} value parameters but {found} were supplied"]
+        #[label = "expected `{expected}` value arguments, found `{found}`"]
         pub span: Option<Span>,
         pub expected: usize,
         pub found: usize,
