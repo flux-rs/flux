@@ -106,21 +106,9 @@ impl TypeEnv {
         Ty::strg_ref(loc)
     }
 
-    pub fn borrow_shr(&mut self, place: &ir::Place) -> Ty {
-        let loc = Loc::Local(place.local);
-        let ty = self.bindings[&Path::new(loc, vec![])].clone();
-        match (&place.projection[..], ty.kind()) {
-            ([], _) => Ty::shr_ref(ty),
-            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => {
-                let ty = self.bindings[&Path::new(*loc, vec![])].clone();
-                Ty::shr_ref(ty)
-            }
-            ([ir::PlaceElem::Deref], TyKind::ShrRef(ty)) => Ty::shr_ref(ty.clone()),
-            ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
-                unreachable!("shared borrow with unpacked weak ref")
-            }
-            _ => unreachable!("unxepected place `{place:?}`"),
-        }
+    pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(Read, genv, pcx, place, |_, _, ty| Ty::shr_ref(ty.clone()))
     }
 
     pub fn write_place(

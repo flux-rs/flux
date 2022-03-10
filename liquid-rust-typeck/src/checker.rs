@@ -480,7 +480,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::ShrRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow_shr(place)
+                env.borrow_shr(self.genv, pcx, place)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(pcx, env, *un_op, op),
         }
