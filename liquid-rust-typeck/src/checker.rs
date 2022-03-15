@@ -476,7 +476,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow_mut(place)
+                env.borrow_mut(self.genv, pcx, place)
             }
             Rvalue::ShrRef(place) => {
                 // OWNERSHIP SAFETY CHECK
@@ -687,7 +687,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn check_operand(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
-        match operand {
+        let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
                 env.lookup_place(self.genv, pcx, p)
@@ -697,7 +697,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.move_place(self.genv, pcx, p)
             }
             Operand::Constant(c) => self.check_constant(c),
-        }
+        };
+        env.unpack_ty(self.genv, pcx, &ty)
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
