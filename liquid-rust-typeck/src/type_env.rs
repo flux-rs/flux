@@ -15,7 +15,7 @@ use liquid_rust_core::{ir, ty::Layout};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
-use self::paths_tree::{PathsTree, Read, Write};
+use self::paths_tree::{LookupKind, PathsTree, Read, Write};
 
 use super::ty::{Loc, Name, Pred, Sort};
 
@@ -75,11 +75,17 @@ impl TypeEnv {
         self.pledges.remove(loc);
     }
 
-    pub fn lookup_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
-        self.bindings
-            .lookup_place(Read, genv, pcx, place, |_, _, ty| ty)
+    pub fn contains_loc(&self, loc: Loc) -> bool {
+        self.bindings.contains_loc(loc)
     }
 
+    #[track_caller]
+    pub fn lookup_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(genv, pcx, place, |_, _, lookup| lookup.ty())
+    }
+
+    #[track_caller]
     pub fn lookup_path(&self, path: &Path) -> Ty {
         self.bindings[path].clone()
     }
@@ -89,26 +95,27 @@ impl TypeEnv {
         self.bindings[path] = new_ty;
     }
 
-    pub fn borrow_mut(&mut self, place: &ir::Place) -> Ty {
-        let loc = Loc::Local(place.local);
-        let ty = &self.bindings[&Path::new(loc, vec![])];
-        let loc = match (&place.projection[..], ty.kind()) {
-            ([], _) => loc,
-            ([ir::PlaceElem::Deref], TyKind::StrgRef(loc)) => *loc,
-            ([ir::PlaceElem::Deref], TyKind::WeakRef(_)) => {
-                unreachable!("mutable borrow with unpacked weak ref")
-            }
-            ([ir::PlaceElem::Deref], TyKind::ShrRef(_)) => {
-                unreachable!("cannot borrow mutably from a shared ref")
-            }
-            _ => unreachable!("unxepected place `{place:?}`"),
-        };
-        Ty::strg_ref(loc)
+    pub fn borrow_mut(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings
+            .lookup_place(genv, pcx, place, |_, path, result| {
+                match result {
+                    LookupKind::Strg(_) => {
+                        assert!(path.projection().is_empty());
+                        Ty::strg_ref(path.loc)
+                    }
+                    LookupKind::Weak(ty) => Ty::weak_ref(ty),
+                    LookupKind::Shr(_) => {
+                        panic!(
+                            "cannot borrow `{place:?}` as mutable, as it is behind a `&` reference"
+                        )
+                    }
+                }
+            })
     }
 
     pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(Read, genv, pcx, place, |_, _, ty| Ty::shr_ref(ty.clone()))
+            .lookup_place(genv, pcx, place, |_, _, lookup| Ty::shr_ref(lookup.ty()))
     }
 
     pub fn write_place(
@@ -120,19 +127,42 @@ impl TypeEnv {
         tag: Tag,
     ) {
         self.bindings
-            .lookup_place(Write, genv, pcx, place, |pcx, path, ty| {
-                let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
-                self.pledges.check(&mut gen, &path, &new_ty);
-                *ty = new_ty;
+            .lookup_place(genv, pcx, place, |pcx, path, lookup| {
+                match lookup {
+                    LookupKind::Strg(ty) => {
+                        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                        self.pledges.check(&mut gen, &path, &new_ty);
+                        *ty = new_ty;
+                    }
+                    LookupKind::Weak(ty) => {
+                        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                        gen.subtyping(&new_ty, &ty);
+                    }
+                    LookupKind::Shr(_) => {
+                        panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
+                    }
+                }
             });
     }
 
     pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(Write, genv, pcx, place, |_, _, ty| {
-                let old = ty.clone();
-                *ty = Ty::uninit(ty.layout());
-                old
+            .lookup_place(genv, pcx, place, |_, _, lookup| {
+                match lookup {
+                    LookupKind::Strg(ty) => {
+                        let old = ty.clone();
+                        *ty = Ty::uninit(ty.layout());
+                        old
+                    }
+                    LookupKind::Shr(_) => {
+                        panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
+                    }
+                    LookupKind::Weak(_) => {
+                        panic!(
+                            "cannot move out of `{place:?}`, which is behind a `&weak` reference"
+                        )
+                    }
+                }
             })
     }
 
@@ -143,11 +173,12 @@ impl TypeEnv {
                 Ty::refine(bty.clone(), exprs)
             }
             TyKind::WeakRef(pledge) => {
-                let fresh = pcx.push_loc();
-                let ty = self.unpack_ty(genv, pcx, pledge);
-                self.bindings.insert(fresh, ty);
-                self.pledges.insert(fresh, pledge.clone());
-                Ty::strg_ref(fresh)
+                ty.clone()
+                // let fresh = pcx.push_loc();
+                // let ty = self.unpack_ty(genv, pcx, pledge);
+                // self.bindings.insert(fresh, ty);
+                // self.pledges.insert(fresh, pledge.clone());
+                // Ty::strg_ref(fresh)
             }
             TyKind::ShrRef(ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);

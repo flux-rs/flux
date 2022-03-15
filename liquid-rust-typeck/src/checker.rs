@@ -476,7 +476,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow_mut(place)
+                env.borrow_mut(self.genv, pcx, place)
             }
             Rvalue::ShrRef(place) => {
                 // OWNERSHIP SAFETY CHECK

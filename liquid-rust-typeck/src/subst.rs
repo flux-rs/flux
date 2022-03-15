@@ -198,9 +198,16 @@ impl Subst<'_> {
         }
 
         for constr in &fn_sig.value.requires {
-            if let Constr::Type(loc, required) = constr {
-                let actual = env.lookup_path(&Path::new(self.subst_loc(*loc), vec![]));
-                self.infer_from_tys(&params, &actual, required);
+            if let Constr::Type(Loc::Abstract(loc), required) = constr {
+                let loc = if self.map.contains_key(loc) {
+                    self.subst_loc(Loc::Abstract(*loc))
+                } else {
+                    Loc::Abstract(*loc)
+                };
+                if env.contains_loc(loc) {
+                    let actual = env.lookup_path(&Path::new(self.subst_loc(loc), vec![]));
+                    self.infer_from_tys(&params, &actual, required);
+                }
             }
         }
 
