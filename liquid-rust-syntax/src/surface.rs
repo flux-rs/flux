@@ -206,7 +206,7 @@ impl BindIn {
             TyKind::Ref(RefKind::Weak, t) => {
                 let b = BindIn::from_ty(x, false, *t);
                 let ty = ast::Ty { kind: ast::TyKind::WeakRef(Box::new(b.ty)), span: ty.span };
-                BindIn { gen: None, ty, loc: None }
+                BindIn { gen: b.gen, ty, loc: None }
             }
         }
     }
