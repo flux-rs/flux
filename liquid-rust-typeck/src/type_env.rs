@@ -15,7 +15,7 @@ use liquid_rust_core::{ir, ty::Layout};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
-use self::paths_tree::{LookupKind, PathsTree, Read, Write};
+use self::paths_tree::{LookupKind, PathsTree};
 
 use super::ty::{Loc, Name, Pred, Sort};
 
@@ -73,10 +73,6 @@ impl TypeEnv {
     fn remove(&mut self, loc: Loc) {
         self.bindings.remove(loc);
         self.pledges.remove(loc);
-    }
-
-    pub fn contains_loc(&self, loc: Loc) -> bool {
-        self.bindings.contains_loc(loc)
     }
 
     #[track_caller]
@@ -173,12 +169,11 @@ impl TypeEnv {
                 Ty::refine(bty.clone(), exprs)
             }
             TyKind::WeakRef(pledge) => {
-                ty.clone()
-                // let fresh = pcx.push_loc();
-                // let ty = self.unpack_ty(genv, pcx, pledge);
-                // self.bindings.insert(fresh, ty);
-                // self.pledges.insert(fresh, pledge.clone());
-                // Ty::strg_ref(fresh)
+                let fresh = pcx.push_loc();
+                let ty = self.unpack_ty(genv, pcx, pledge);
+                self.bindings.insert(fresh, ty);
+                self.pledges.insert(fresh, pledge.clone());
+                Ty::strg_ref(fresh)
             }
             TyKind::ShrRef(ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);

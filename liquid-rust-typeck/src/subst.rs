@@ -193,22 +193,21 @@ impl Subst<'_> {
         assert!(actuals.len() == fn_sig.value.args.len());
         let params = fn_sig.params.iter().map(|param| param.name).collect();
 
-        for (actual, formal) in actuals.iter().zip(fn_sig.value.args.iter()) {
-            self.infer_from_tys(&params, actual, formal);
-        }
-
-        for constr in &fn_sig.value.requires {
-            if let Constr::Type(Loc::Abstract(loc), required) = constr {
-                let loc = if self.map.contains_key(loc) {
-                    self.subst_loc(Loc::Abstract(*loc))
+        let requires = fn_sig
+            .value
+            .requires
+            .iter()
+            .filter_map(|constr| {
+                if let Constr::Type(loc, ty) = constr {
+                    Some((*loc, ty.clone()))
                 } else {
-                    Loc::Abstract(*loc)
-                };
-                if env.contains_loc(loc) {
-                    let actual = env.lookup_path(&Path::new(self.subst_loc(loc), vec![]));
-                    self.infer_from_tys(&params, &actual, required);
+                    None
                 }
-            }
+            })
+            .collect();
+
+        for (actual, formal) in actuals.iter().zip(fn_sig.value.args.iter()) {
+            self.infer_from_tys(&params, env, actual, &requires, formal);
         }
 
         self.check_inference(params.into_iter())
@@ -226,24 +225,39 @@ impl Subst<'_> {
         Ok(())
     }
 
-    pub fn infer_from_tys(&mut self, params: &FxHashSet<Name>, ty1: &TyS, ty2: &TyS) {
+    fn infer_from_tys(
+        &mut self,
+        params: &FxHashSet<Name>,
+        env: &TypeEnv,
+        ty1: &TyS,
+        requires: &FxHashMap<Loc, Ty>,
+        ty2: &TyS,
+    ) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(_bty1, exprs1), TyKind::Refine(_bty2, exprs2)) => {
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     self.infer_from_exprs(params, e1, e2);
                 }
             }
-            (TyKind::StrgRef(loc), TyKind::StrgRef(Loc::Abstract(name))) => {
-                match self.map.insert(*name, LocOrExpr::Loc(*loc)) {
-                    Some(LocOrExpr::Loc(old_loc)) if &old_loc != loc => {
+            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2 @ Loc::Abstract(name))) => {
+                match self.map.insert(*name, LocOrExpr::Loc(*loc1)) {
+                    Some(LocOrExpr::Loc(old_loc)) if &old_loc != loc1 => {
                         todo!("ambiguous instantiation for location parameter`",);
                     }
                     Some(_) => panic!("subsitution of expression for loc"),
                     _ => {}
                 }
+                self.infer_from_tys(
+                    params,
+                    env,
+                    &env.lookup_path(&Path::new(*loc1, vec![])),
+                    requires,
+                    &requires[loc2],
+                );
             }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
-                self.infer_from_tys(params, ty1, ty2);
+            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2))
+            | (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+                self.infer_from_tys(params, env, ty1, requires, ty2);
             }
             _ => {}
         }

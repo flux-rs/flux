@@ -486,12 +486,8 @@ impl ExprS {
             }
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(
-                    *op,
-                    e1.subst_bound_vars(exprs.clone()),
-                    e2.subst_bound_vars(exprs),
-                )
-                .intern()
+                ExprKind::BinaryOp(*op, e1.subst_bound_vars(exprs), e2.subst_bound_vars(exprs))
+                    .intern()
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(exprs)),
             ExprKind::Proj(tup, field) => {

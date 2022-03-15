@@ -439,7 +439,7 @@ fn ty_infer_folding(
         }
         (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
             bty_infer_folding(genv, pcx, params, bty1, bty2);
-            let sorts = genv.sorts(&bty1);
+            let sorts = genv.sorts(bty1);
             let exprs1 = pcx.push_bindings(&sorts, p);
             for (e1, e2) in iter::zip(exprs1, exprs2) {
                 expr_infer_folding(params, &e1, e2)
@@ -464,15 +464,12 @@ fn bty_infer_folding(
     bty1: &BaseTy,
     bty2: &BaseTy,
 ) {
-    match (bty1, bty2) {
-        (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
-            debug_assert_eq!(did1, did2);
-            debug_assert_eq!(substs1.len(), substs2.len());
-            for (ty1, ty2) in iter::zip(substs1, substs2) {
-                ty_infer_folding(genv, pcx, params, ty1, ty2);
-            }
+    if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
+        debug_assert_eq!(did1, did2);
+        debug_assert_eq!(substs1.len(), substs2.len());
+        for (ty1, ty2) in iter::zip(substs1, substs2) {
+            ty_infer_folding(genv, pcx, params, ty1, ty2);
         }
-        _ => {}
     }
 }
 
@@ -517,77 +514,6 @@ pub trait LookupMode {
         path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
     ) -> (Path, Self::Result<'a>);
-}
-
-pub struct Read;
-
-pub struct Write;
-
-// impl LookupMode for Read {
-//     type Result<'a> = Ty;
-
-//     fn to_result(ty: &mut Ty) -> Ty {
-//         ty.clone()
-//     }
-
-//     fn place_proj_ty<'a>(
-//         paths: &'a mut PathsTree,
-//         genv: &GlobalEnv,
-//         pcx: &mut PureCtxt,
-//         ty: &Ty,
-//         loc: Loc,
-//         path: &mut Vec<Field>,
-//         proj: &mut std::slice::Iter<PlaceElem>,
-//     ) -> (Path, Ty) {
-//         let mut ty = ty.clone();
-//         while let Some(elem) = proj.next() {
-//             match (elem, ty.kind()) {
-//                 (PlaceElem::Deref, TyKind::ShrRef(ref_ty) | TyKind::WeakRef(ref_ty)) => {
-//                     path.clear();
-//                     ty = ref_ty.clone();
-//                 }
-//                 (PlaceElem::Deref, TyKind::StrgRef(loc)) => {
-//                     path.clear();
-//                     return paths.lookup_place_iter(
-//                         Read,
-//                         genv,
-//                         pcx,
-//                         *loc,
-//                         path,
-//                         proj,
-//                         |_, path, ty| (path, ty),
-//                     );
-//                 }
-//                 (PlaceElem::Field(f), _) => {
-//                     path.push(*f);
-//                     let (_, fields) = ty.unfold(genv);
-//                     ty = fields[*f].clone()
-//                 }
-//                 _ => unreachable!(),
-//             }
-//         }
-//         (Path::new(loc, &path[..]), ty)
-//     }
-// }
-
-impl LookupMode for Write {
-    type Result<'a> = &'a mut Ty;
-
-    fn to_result(ty: &mut Ty) -> &mut Ty {
-        ty
-    }
-
-    fn place_proj_ty<'a>(
-        _paths: &'a mut PathsTree,
-        _genv: &GlobalEnv,
-        _pcx: &mut PureCtxt,
-        _ty: &Ty,
-        _loc: Loc,
-        _path: &mut Vec<Field>,
-        _proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> (Path, &'a mut Ty) {
-        panic!()
-    }
 }
 
 enum PathsIter<'a> {
