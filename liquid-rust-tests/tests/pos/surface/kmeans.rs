@@ -36,7 +36,7 @@ fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
 }
 
 /// adding two points (updates the first)
-#[lr::sig(fn(x:&weak n@RVec<f32>, y:&RVec<f32>{v:v==n}) -> i32)]
+#[lr::sig(fn(x: &mut n@RVec<f32>, y: &RVec<f32>{v:v==n}) -> i32)]
 fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
     let mut i = 0;
     let n = x.len();

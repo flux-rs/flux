@@ -18,17 +18,17 @@ pub struct PathsTree {
     map: FxHashMap<Loc, Node>,
 }
 
-pub enum LookupKind<'a> {
+pub enum LookupResult<'a> {
     Strg(&'a mut Ty),
     Shr(Ty),
     Weak(Ty),
 }
 
-impl LookupKind<'_> {
+impl LookupResult<'_> {
     pub fn ty(&self) -> Ty {
         match self {
-            LookupKind::Strg(ty) => (*ty).clone(),
-            LookupKind::Shr(ty) | LookupKind::Weak(ty) => ty.clone(),
+            LookupResult::Strg(ty) => (*ty).clone(),
+            LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty.clone(),
         }
     }
 }
@@ -42,7 +42,7 @@ impl PathsTree {
         f: F,
     ) -> R
     where
-        F: for<'a> FnOnce(&mut PureCtxt, Path, LookupKind<'a>) -> R,
+        F: for<'a> FnOnce(&mut PureCtxt, Path, LookupResult<'a>) -> R,
     {
         self.lookup_place_iter(
             genv,
@@ -151,49 +151,6 @@ impl PathsTree {
         }
     }
 
-    // fn lookup_place_iter<M, R, F>(
-    //     &mut self,
-    //     _mode: M,
-    //     genv: &GlobalEnv,
-    //     pcx: &mut PureCtxt,
-    //     mut loc: Loc,
-    //     path: &mut Vec<Field>,
-    //     proj: &mut std::slice::Iter<PlaceElem>,
-    //     f: F,
-    // ) -> R
-    // where
-    //     M: LookupMode,
-    //     F: for<'a> FnOnce(&mut PureCtxt, Path, M::Result<'a>) -> R,
-    // {
-    //     loop {
-    //         let mut node = self.map.get_mut(&loc).unwrap();
-    //         for f in proj.map_take_while(|p| PlaceElem::as_field(p)) {
-    //             path.push(f);
-    //             node = &mut node.unfold(genv)[f];
-    //         }
-    //         let ty = node.fold(genv, pcx);
-
-    //         match proj.next() {
-    //             Some(PlaceElem::Deref) => {
-    //                 path.clear();
-    //                 match ty.kind() {
-    //                     TyKind::StrgRef(ref_loc) => loc = *ref_loc,
-    //                     TyKind::ShrRef(ty) => {
-    //                         let ty = ty.clone();
-    //                         let (path, ty) =
-    //                             M::place_proj_ty(self, genv, pcx, &ty, loc, path, proj);
-    //                         return f(pcx, path, ty);
-    //                     }
-    //                     TyKind::WeakRef(_) => todo!(),
-    //                     _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
-    //                 }
-    //             }
-    //             Some(_) => unreachable!("expected deref"),
-    //             None => return f(pcx, Path::new(loc, &path[..]), M::to_result(ty)),
-    //         }
-    //     }
-    // }
-
     fn lookup_place_iter<R, F>(
         &mut self,
         genv: &GlobalEnv,
@@ -204,7 +161,7 @@ impl PathsTree {
         f: F,
     ) -> R
     where
-        F: for<'a> FnOnce(&mut PureCtxt, Path, LookupKind<'a>) -> R,
+        F: for<'a> FnOnce(&mut PureCtxt, Path, LookupResult<'a>) -> R,
     {
         loop {
             let mut node = self.map.get_mut(&loc).unwrap();
@@ -235,7 +192,7 @@ impl PathsTree {
                     }
                 }
                 Some(_) => unreachable!("expected deref"),
-                None => return f(pcx, Path::new(loc, &path[..]), LookupKind::Strg(ty)),
+                None => return f(pcx, Path::new(loc, &path[..]), LookupResult::Strg(ty)),
             }
         }
     }
@@ -249,7 +206,7 @@ impl PathsTree {
         loc: Loc,
         path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> (Path, LookupKind<'a>) {
+    ) -> (Path, LookupResult<'a>) {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
@@ -272,13 +229,13 @@ impl PathsTree {
                         proj,
                         |_, path, lookup| {
                             let ty = match lookup {
-                                LookupKind::Strg(ty) => ty.clone(),
-                                LookupKind::Shr(ty) | LookupKind::Weak(ty) => ty,
+                                LookupResult::Strg(ty) => ty.clone(),
+                                LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty,
                             };
                             if weak {
-                                (path, LookupKind::Weak(ty))
+                                (path, LookupResult::Weak(ty))
                             } else {
-                                (path, LookupKind::Shr(ty))
+                                (path, LookupResult::Shr(ty))
                             }
                         },
                     );
@@ -292,9 +249,9 @@ impl PathsTree {
             }
         }
         if weak {
-            (Path::new(loc, &path[..]), LookupKind::Weak(ty))
+            (Path::new(loc, &path[..]), LookupResult::Weak(ty))
         } else {
-            (Path::new(loc, &path[..]), LookupKind::Shr(ty))
+            (Path::new(loc, &path[..]), LookupResult::Shr(ty))
         }
     }
 }
