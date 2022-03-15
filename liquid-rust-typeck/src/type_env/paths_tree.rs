@@ -19,7 +19,7 @@ pub struct PathsTree {
 }
 
 pub enum LookupResult<'a> {
-    Strg(&'a mut Ty),
+    Strg(Path, &'a mut Ty),
     Shr(Ty),
     Weak(Ty),
 }
@@ -27,7 +27,7 @@ pub enum LookupResult<'a> {
 impl LookupResult<'_> {
     pub fn ty(&self) -> Ty {
         match self {
-            LookupResult::Strg(ty) => (*ty).clone(),
+            LookupResult::Strg(_, ty) => (*ty).clone(),
             LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty.clone(),
         }
     }
@@ -42,16 +42,9 @@ impl PathsTree {
         f: F,
     ) -> R
     where
-        F: for<'a> FnOnce(&mut PureCtxt, Path, LookupResult<'a>) -> R,
+        F: for<'a> FnOnce(&mut PureCtxt, LookupResult<'a>) -> R,
     {
-        self.lookup_place_iter(
-            genv,
-            pcx,
-            Loc::Local(place.local),
-            &mut vec![],
-            &mut place.projection.iter(),
-            f,
-        )
+        self.lookup_place_iter(genv, pcx, Loc::Local(place.local), &mut place.projection.iter(), f)
     }
 
     pub fn get(&self, path: &Path) -> Option<&Ty> {
@@ -156,14 +149,14 @@ impl PathsTree {
         genv: &GlobalEnv,
         pcx: &mut PureCtxt,
         mut loc: Loc,
-        path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
         f: F,
     ) -> R
     where
-        F: for<'a> FnOnce(&mut PureCtxt, Path, LookupResult<'a>) -> R,
+        F: for<'a> FnOnce(&mut PureCtxt, LookupResult<'a>) -> R,
     {
         loop {
+            let mut path = vec![];
             let mut node = self.map.get_mut(&loc).unwrap();
             for f in proj.map_take_while(|p| PlaceElem::as_field(p)) {
                 path.push(f);
@@ -173,75 +166,59 @@ impl PathsTree {
 
             match proj.next() {
                 Some(PlaceElem::Deref) => {
-                    path.clear();
                     match ty.kind() {
                         TyKind::StrgRef(ref_loc) => loc = *ref_loc,
                         TyKind::ShrRef(ty) => {
                             let ty = ty.clone();
-                            let (path, result) =
-                                self.place_proj_ty(genv, pcx, false, &ty, loc, path, proj);
-                            return f(pcx, path, result);
+                            let result = self.place_proj_ty(genv, pcx, false, &ty, proj);
+                            return f(pcx, result);
                         }
                         TyKind::WeakRef(ty) => {
                             let ty = ty.clone();
-                            let (path, result) =
-                                self.place_proj_ty(genv, pcx, true, &ty, loc, path, proj);
-                            return f(pcx, path, result);
+                            let result = self.place_proj_ty(genv, pcx, true, &ty, proj);
+                            return f(pcx, result);
                         }
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
                 Some(_) => unreachable!("expected deref"),
-                None => return f(pcx, Path::new(loc, &path[..]), LookupResult::Strg(ty)),
+                None => return f(pcx, LookupResult::Strg(Path::new(loc, &path[..]), ty)),
             }
         }
     }
 
-    fn place_proj_ty<'a>(
+    fn place_proj_ty(
         &mut self,
         genv: &GlobalEnv,
         pcx: &mut PureCtxt,
         mut weak: bool,
         ty: &Ty,
-        loc: Loc,
-        path: &mut Vec<Field>,
         proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> (Path, LookupResult<'a>) {
+    ) -> LookupResult {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
                 (PlaceElem::Deref, TyKind::ShrRef(ref_ty)) => {
                     weak = false;
-                    path.clear();
                     ty = ref_ty.clone();
                 }
                 (PlaceElem::Deref, TyKind::WeakRef(ref_ty)) => {
-                    path.clear();
                     ty = ref_ty.clone();
                 }
                 (PlaceElem::Deref, TyKind::StrgRef(loc)) => {
-                    path.clear();
-                    return self.lookup_place_iter(
-                        genv,
-                        pcx,
-                        *loc,
-                        path,
-                        proj,
-                        |_, path, lookup| {
-                            let ty = match lookup {
-                                LookupResult::Strg(ty) => ty.clone(),
-                                LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty,
-                            };
-                            if weak {
-                                (path, LookupResult::Weak(ty))
-                            } else {
-                                (path, LookupResult::Shr(ty))
-                            }
-                        },
-                    );
+                    return self.lookup_place_iter(genv, pcx, *loc, proj, |_, lookup| {
+                        let ty = match lookup {
+                            LookupResult::Strg(_, ty) => ty.clone(),
+                            LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty,
+                        };
+                        if weak {
+                            LookupResult::Weak(ty)
+                        } else {
+                            LookupResult::Shr(ty)
+                        }
+                    });
                 }
                 (PlaceElem::Field(f), _) => {
-                    path.push(*f);
                     let (_, fields) = ty.unfold(genv);
                     ty = fields[*f].clone();
                 }
@@ -249,9 +226,9 @@ impl PathsTree {
             }
         }
         if weak {
-            (Path::new(loc, &path[..]), LookupResult::Weak(ty))
+            LookupResult::Weak(ty)
         } else {
-            (Path::new(loc, &path[..]), LookupResult::Shr(ty))
+            LookupResult::Shr(ty)
         }
     }
 }

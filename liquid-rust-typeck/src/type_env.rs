@@ -78,7 +78,7 @@ impl TypeEnv {
     #[track_caller]
     pub fn lookup_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, _, result| result.ty())
+            .lookup_place(genv, pcx, place, |_, result| result.ty())
     }
 
     #[track_caller]
@@ -92,26 +92,23 @@ impl TypeEnv {
     }
 
     pub fn borrow_mut(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
-        self.bindings
-            .lookup_place(genv, pcx, place, |_, path, result| {
-                match result {
-                    LookupResult::Strg(_) => {
-                        assert!(path.projection().is_empty());
-                        Ty::strg_ref(path.loc)
-                    }
-                    LookupResult::Weak(ty) => Ty::weak_ref(ty),
-                    LookupResult::Shr(_) => {
-                        panic!(
-                            "cannot borrow `{place:?}` as mutable, as it is behind a `&` reference"
-                        )
-                    }
+        self.bindings.lookup_place(genv, pcx, place, |_, result| {
+            match result {
+                LookupResult::Strg(path, _) => {
+                    assert!(path.projection().is_empty());
+                    Ty::strg_ref(path.loc)
                 }
-            })
+                LookupResult::Weak(ty) => Ty::weak_ref(ty),
+                LookupResult::Shr(_) => {
+                    panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
+                }
+            }
+        })
     }
 
     pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, _, result| Ty::shr_ref(result.ty()))
+            .lookup_place(genv, pcx, place, |_, result| Ty::shr_ref(result.ty()))
     }
 
     pub fn write_place(
@@ -122,44 +119,40 @@ impl TypeEnv {
         new_ty: Ty,
         tag: Tag,
     ) {
-        self.bindings
-            .lookup_place(genv, pcx, place, |pcx, path, result| {
-                match result {
-                    LookupResult::Strg(ty) => {
-                        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
-                        self.pledges.check(&mut gen, &path, &new_ty);
-                        *ty = new_ty;
-                    }
-                    LookupResult::Weak(ty) => {
-                        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
-                        gen.subtyping(&new_ty, &ty);
-                    }
-                    LookupResult::Shr(_) => {
-                        panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
-                    }
+        self.bindings.lookup_place(genv, pcx, place, |pcx, result| {
+            match result {
+                LookupResult::Strg(path, ty) => {
+                    let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                    self.pledges.check(&mut gen, &path, &new_ty);
+                    *ty = new_ty;
                 }
-            });
+                LookupResult::Weak(ty) => {
+                    let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                    gen.subtyping(&new_ty, &ty);
+                }
+                LookupResult::Shr(_) => {
+                    panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
+                }
+            }
+        });
     }
 
     pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
-        self.bindings
-            .lookup_place(genv, pcx, place, |_, _, result| {
-                match result {
-                    LookupResult::Strg(ty) => {
-                        let old = ty.clone();
-                        *ty = Ty::uninit(ty.layout());
-                        old
-                    }
-                    LookupResult::Shr(_) => {
-                        panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
-                    }
-                    LookupResult::Weak(_) => {
-                        panic!(
-                            "cannot move out of `{place:?}`, which is behind a `&weak` reference"
-                        )
-                    }
+        self.bindings.lookup_place(genv, pcx, place, |_, result| {
+            match result {
+                LookupResult::Strg(_, ty) => {
+                    let old = ty.clone();
+                    *ty = Ty::uninit(ty.layout());
+                    old
                 }
-            })
+                LookupResult::Shr(_) => {
+                    panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
+                }
+                LookupResult::Weak(_) => {
+                    panic!("cannot move out of `{place:?}`, which is behind a `&weak` reference")
+                }
+            }
+        })
     }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
