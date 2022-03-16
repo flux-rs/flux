@@ -9,7 +9,7 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub FnSig: surface::FnSig = {
+pub FnSig: surface::BareFnSig = {
     <lo:@L>
     "fn"
     "(" <requires:Store> ")"
@@ -33,14 +33,14 @@ pub FnSig: surface::FnSig = {
 Env   = <Comma<(<Ident> "@" <Ty>)>>;
 Store = <Comma<(<Ident> ":" <Ty>)>>;
 
-Ty: surface::Ty = {
+Ty: surface::BareTy = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
         span: mk_span(lo, hi)
     }
 }
 
-TyKind: surface::TyKind = {
+TyKind: surface::BareTyKind = {
     "&" "mut"         <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
     "&" "weak"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Weak, Box::new(ty)),
     "&"               <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Immut, Box::new(ty)),
@@ -55,13 +55,13 @@ TyKind: surface::TyKind = {
 
 
 
-GenericArgs: Vec<surface::Ty> = {
+GenericArgs: Vec<surface::BareTy> = {
     "<" <Comma<Ty>> ">"
 }
 
 // The code below is duplicated from grammar.lalrpop ---------------------------------
 
-Path: surface::Path = {
+Path: surface::BarePath = {
     <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args, span: mk_span(lo, hi) }
 }
 

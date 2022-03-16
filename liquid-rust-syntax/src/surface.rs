@@ -5,13 +5,13 @@ use rustc_span::Span;
 use crate::ast::{self, Expr, GenericParam, Refine};
 
 #[derive(Debug)]
-pub struct FnSig {
+pub struct FnSig<T> {
     /// example: `l: i32@n`
-    pub requires: Vec<(Ident, Ty)>,
+    pub requires: Vec<(Ident, Ty<T>)>,
     /// example `i32{v:v >= 0}`
-    pub returns: Ty,
+    pub returns: Ty<T>,
     /// example: `*x: i32{v:v = n+1}`
-    pub ensures: Vec<(Ident, Ty)>,
+    pub ensures: Vec<(Ident, Ty<T>)>,
     /// example: `where n > 0`
     pub wherep: Option<Expr>,
     /// source span
@@ -19,38 +19,39 @@ pub struct FnSig {
 }
 
 #[derive(Debug)]
-pub struct Ty {
-    pub kind: TyKind,
+pub struct Ty<T> {
+    pub kind: TyKind<T>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum TyKind {
+pub enum TyKind<T> {
     /// ty
-    Base(Path),
+    Base(Path<T>),
 
     /// t[e]
-    Refine { path: Path, refine: Refine },
+    Refine { path: Path<T>, refine: Refine },
 
     /// ty{b:e}
-    Exists { bind: Ident, path: Path, pred: Expr },
+    Exists { bind: Ident, path: Path<T>, pred: Expr },
 
     /// ty{e}, the param binder is used e.g. x: i32{0 < x}
-    AnonEx { path: Path, pred: Expr },
+    AnonEx { path: Path<T>, pred: Expr },
 
     /// named: n@t
-    Named(Ident, Box<Ty>),
+    Named(Ident, Box<Ty<T>>),
 
     /// reference
-    Ref(RefKind, Box<Ty>),
+    Ref(RefKind, Box<Ty<T>>),
 }
 
 #[derive(Debug)]
-pub struct Path {
+pub struct Path<T> {
     /// vec
-    pub ident: Ident,
+    // pub ident: Ident,
+    pub ident: T,
     /// <nat>
-    pub args: Option<Vec<Ty>>,
+    pub args: Option<Vec<Ty<T>>>,
     pub span: Span,
 }
 
@@ -75,7 +76,12 @@ struct BindIn {
     loc: Option<(Ident, ast::Ty)>,
 }
 
-fn convert_path(p: Path) -> ast::Path {
+pub type BarePath = Path<Ident>;
+pub type BareTyKind = TyKind<Ident>;
+pub type BareTy = Ty<Ident>;
+pub type BareFnSig = FnSig<Ident>;
+
+fn convert_path(p: BarePath) -> ast::Path {
     ast::Path {
         ident: p.ident,
         span: p.span,
@@ -83,7 +89,7 @@ fn convert_path(p: Path) -> ast::Path {
     }
 }
 
-fn convert_tykind(t: TyKind) -> ast::TyKind {
+fn convert_tykind(t: BareTyKind) -> ast::TyKind {
     match t {
         TyKind::Base(p) => ast::TyKind::BaseTy(convert_path(p)),
         TyKind::Exists { bind, path, pred } => {
@@ -105,16 +111,16 @@ fn convert_tykind(t: TyKind) -> ast::TyKind {
     }
 }
 
-fn convert_ty(t: Ty) -> ast::Ty {
+fn convert_ty(t: BareTy) -> ast::Ty {
     ast::Ty { kind: convert_tykind(t.kind), span: t.span }
 }
 
-fn is_bool(path: &Path) -> bool {
+fn is_bool(path: &BarePath) -> bool {
     path.ident.as_str() == "bool"
 }
 
 // HACK(ranjitjhala) need better way to determine if Path is a Type-Param
-fn is_generic(path: &Path) -> bool {
+fn is_generic(path: &BarePath) -> bool {
     let str = path.ident.as_str();
     if let Some(c) = str.chars().next() {
         c.is_uppercase() && str.len() == 1
@@ -123,16 +129,16 @@ fn is_generic(path: &Path) -> bool {
     }
 }
 
-fn is_float(path: &Path) -> bool {
+fn is_float(path: &BarePath) -> bool {
     path.ident.as_str() == "f32" || path.ident.as_str() == "f64"
 }
 
-fn is_refinable(path: &Path) -> bool {
+fn is_refinable(path: &BarePath) -> bool {
     !is_generic(path) && !is_float(path)
 }
 
 // HACK(ranjitjhala) need better way to "embed" rust types to sort
-fn mk_sort(path: &Path, span: Span) -> Ident {
+fn mk_sort(path: &BarePath, span: Span) -> Ident {
     let sort_name = if is_bool(path) { "bool" } else { "int" };
     Ident { name: rustc_span::Symbol::intern(sort_name), span }
 }
@@ -142,7 +148,7 @@ fn mk_singleton(x: Ident) -> ast::Refine {
     ast::Refine { exprs: vec![e], span: x.span }
 }
 
-fn mk_generic(x: Ident, path: &Path, pred: Option<Expr>) -> ast::GenericParam {
+fn mk_generic(x: Ident, path: &BarePath, pred: Option<Expr>) -> ast::GenericParam {
     ast::GenericParam { name: x, sort: mk_sort(path, x.span), pred }
 }
 
@@ -158,7 +164,7 @@ fn strengthen_pred(p: Option<Expr>, e: Expr) -> Expr {
 }
 
 impl BindIn {
-    fn from_path(x: Ident, single: bool, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
+    fn from_path(x: Ident, single: bool, p: BarePath, span: Span, pred: Option<Expr>) -> BindIn {
         if single && is_refinable(&p) {
             let gen = Some(mk_generic(x, &p, pred));
             let path = convert_path(p);
@@ -174,7 +180,7 @@ impl BindIn {
         }
     }
 
-    fn from_ty(x: Ident, single: bool, ty: Ty) -> BindIn {
+    fn from_ty(x: Ident, single: bool, ty: BareTy) -> BindIn {
         match ty.kind {
             TyKind::AnonEx { path, pred } => {
                 BindIn::from_path(x, single, path, ty.span, Some(pred))
@@ -213,7 +219,7 @@ impl BindIn {
 }
 
 impl Desugar {
-    fn desugar_inputs(&mut self, in_sigs: Vec<(Ident, Ty)>) {
+    fn desugar_inputs(&mut self, in_sigs: Vec<(Ident, BareTy)>) {
         for (x, ty) in in_sigs {
             let b_in = BindIn::from_ty(x, true, ty);
             if let Some(g) = b_in.gen {
@@ -226,7 +232,7 @@ impl Desugar {
         }
     }
 
-    pub fn desugar(ssig: FnSig) -> ast::FnSig {
+    pub fn desugar(ssig: BareFnSig) -> ast::FnSig {
         let mut me = Self { generics: vec![], args: vec![], reqs: vec![] };
 
         // walk over the input types
@@ -260,6 +266,6 @@ impl Desugar {
     }
 }
 
-pub fn desugar(ssig: FnSig) -> ast::FnSig {
+pub fn desugar(ssig: BareFnSig) -> ast::FnSig {
     Desugar::desugar(ssig)
 }

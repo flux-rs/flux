@@ -21,6 +21,10 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn lookup_fn_sig(&self, did: DefId) -> &ty::Binders<ty::FnSig> {
+        // RJ:TODO -- make it cry when function is missing, THEN populate function from rust-sig.
+        // Missing -- due to EXTERNAL crate OR because its LOCAL but had no annotations.
+        // do this: https://ucsd-progsys.slack.com/archives/DU17X62Q5/p1647450667607229
+        // see resolve Result<Resolver<'tcx>, ErrorReported> for error handling
         &self.fn_specs[&did.as_local().unwrap()].fn_sig
     }
 
