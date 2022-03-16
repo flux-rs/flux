@@ -53,7 +53,7 @@ pub struct Checker<'a, 'tcx, M> {
 }
 
 pub trait Mode: Sized {
-    fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, sorts: &[Sort], scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>;
 
@@ -253,12 +253,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(p, rvalue) => {
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue);
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
-                let gen = &mut ConstraintGen::new(
-                    self.genv,
-                    pcx.breadcrumb(),
-                    Tag::Assign(stmt.source_info.span),
-                );
-                env.write_place(gen, p, ty);
+                env.write_place(self.genv, pcx, p, ty, Tag::Assign(stmt.source_info.span));
             }
             StatementKind::Nop => {}
         }
@@ -274,16 +269,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => self.check_ret(pcx, env),
             TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.check_switch_int(env, discr, targets)
+                self.check_switch_int(pcx, env, discr, targets)
             }
             TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(pcx, env, terminator.source_info, *func, substs, args, destination)
             }
             TerminatorKind::Assert { cond, expected, target } => {
-                self.check_assert(env, cond, *expected, *target)
+                self.check_assert(pcx, env, cond, *expected, *target)
             }
             TerminatorKind::Drop { place, target } => {
-                let _ = env.move_place(self.genv, place);
+                let _ = env.move_place(self.genv, pcx, place);
                 Ok(vec![(*target, None)])
             }
         }
@@ -294,7 +289,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let ret_place_ty = env.lookup_place(self.genv, Place::RETURN);
+        let ret_place_ty = env.lookup_place(self.genv, pcx, Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -319,12 +314,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let actuals = args
             .iter()
-            .map(|arg| self.check_operand(env, arg))
+            .map(|arg| self.check_operand(pcx, env, arg))
             .collect_vec();
 
         let cx = LoweringCtxt::empty();
         let scope = pcx.scope();
-        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(self.genv.sort(bty), scope.iter());
+        let mut fresh_kvar =
+            |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
@@ -366,9 +362,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
             let ret = env.unpack_ty(self.genv, pcx, &fn_sig.ret);
-            let mut gen =
-                ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-            env.write_place(&mut gen, p, ret);
+            env.write_place(self.genv, pcx, p, ret, Tag::Call(source_info.span));
             successors.push((*bb, None));
         }
         Ok(successors)
@@ -376,15 +370,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_assert(
         &mut self,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         cond: &Operand,
         expected: bool,
         target: BasicBlock,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let cond_ty = self.check_operand(env, cond);
+        let cond_ty = self.check_operand(pcx, env, cond);
 
         let pred = match cond_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, e) => e.clone(),
+            TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
             _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
         };
 
@@ -395,22 +390,23 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_switch_int(
         &mut self,
+        pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         discr: &Operand,
         targets: &mir::SwitchTargets,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let discr_ty = self.check_operand(env, discr);
+        let discr_ty = self.check_operand(pcx, env, discr);
         let mk = |bits| {
             match discr_ty.kind() {
-                TyKind::Refine(BaseTy::Bool, e) => {
+                TyKind::Refine(BaseTy::Bool, exprs) => {
                     if bits == 0 {
-                        e.not()
+                        exprs[0].not()
                     } else {
-                        e.clone()
+                        exprs[0].clone()
                     }
                 }
-                TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), e) => {
-                    Expr::binary_op(BinOp::Eq, e.clone(), Expr::from_bits(bty, bits))
+                TyKind::Refine(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), exprs) => {
+                    Expr::binary_op(BinOp::Eq, exprs[0].clone(), Expr::from_bits(bty, bits))
                 }
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -474,19 +470,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         rvalue: &Rvalue,
     ) -> Ty {
         match rvalue {
-            Rvalue::Use(operand) => self.check_operand(env, operand),
+            Rvalue::Use(operand) => self.check_operand(pcx, env, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 self.check_binary_op(pcx, env, source_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow_mut(place)
+                env.borrow_mut(self.genv, pcx, place)
             }
             Rvalue::ShrRef(place) => {
                 // OWNERSHIP SAFETY CHECK
-                env.borrow_shr(place)
+                env.borrow_shr(self.genv, pcx, place)
             }
-            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(env, *un_op, op),
+            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(pcx, env, *un_op, op),
         }
     }
 
@@ -499,8 +495,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
-        let ty1 = self.check_operand(env, op1);
-        let ty2 = self.check_operand(env, op2);
+        let ty1 = self.check_operand(pcx, env, op1);
+        let ty2 = self.check_operand(pcx, env, op2);
 
         match bin_op {
             ir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
@@ -531,8 +527,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 debug_assert_eq!(uint_ty1, uint_ty2);
                 Ty::exists(BaseTy::Uint(*uint_ty1), Pred::tt())
             }
-            (TyKind::Refine(BaseTy::Bool, e1), TyKind::Refine(BaseTy::Bool, e2)) => {
-                Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1.clone(), e2.clone()))
+            (TyKind::Refine(BaseTy::Bool, exprs1), TyKind::Refine(BaseTy::Bool, exprs2)) => {
+                let e = Expr::binary_op(op, exprs1[0].clone(), exprs2[0].clone());
+                Ty::refine(BaseTy::Bool, vec![e])
             }
             _ => unreachable!("non-boolean arguments to bitwise op: `{:?}` `{:?}`", ty1, ty2),
         }
@@ -543,16 +540,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Rem(source_info.span));
         let ty = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Refine(BaseTy::Int(int_ty1), e1),
-                TyKind::Refine(BaseTy::Int(int_ty2), e2),
+                TyKind::Refine(BaseTy::Int(int_ty1), exprs1),
+                TyKind::Refine(BaseTy::Int(int_ty2), exprs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
+                let (e1, e2) = (&exprs1[0], &exprs2[0]);
                 gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = Expr::binary_op(
                     BinOp::Eq,
-                    Var::Bound,
+                    Var::Bound(0),
                     Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
                 );
                 let guard = Expr::binary_op(
@@ -564,15 +562,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ty::exists(bty, pred)
             }
             (
-                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
-                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+                TyKind::Refine(BaseTy::Uint(uint_ty1), exprs1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), exprs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
+                let (e1, e2) = (&exprs1[0], &exprs2[0]);
                 gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
                 Ty::refine(
                     BaseTy::Uint(*uint_ty1),
-                    Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
+                    vec![Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone())],
                 )
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
@@ -591,18 +590,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Ty {
         let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Refine(BaseTy::Int(int_ty1), e1),
-                TyKind::Refine(BaseTy::Int(int_ty2), e2),
+                TyKind::Refine(BaseTy::Int(int_ty1), exprs1),
+                TyKind::Refine(BaseTy::Int(int_ty2), exprs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (BaseTy::Int(*int_ty1), e1.clone(), e2.clone())
+                (BaseTy::Int(*int_ty1), exprs1[0].clone(), exprs2[0].clone())
             }
             (
-                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
-                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+                TyKind::Refine(BaseTy::Uint(uint_ty1), exprs1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), exprs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (BaseTy::Uint(*uint_ty1), e1.clone(), e2.clone())
+                (BaseTy::Uint(*uint_ty1), exprs1[0].clone(), exprs2[0].clone())
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -615,24 +614,24 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Div(source_info.span));
             gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
         }
-        Ty::refine(bty, Expr::binary_op(op, e1, e2))
+        Ty::refine(bty, vec![Expr::binary_op(op, e1, e2)])
     }
 
     fn check_cmp_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Refine(BaseTy::Int(int_ty1), e1),
-                TyKind::Refine(BaseTy::Int(int_ty2), e2),
+                TyKind::Refine(BaseTy::Int(int_ty1), exprs1),
+                TyKind::Refine(BaseTy::Int(int_ty2), exprs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (e1.clone(), e2.clone())
+                (exprs1[0].clone(), exprs2[0].clone())
             }
             (
-                TyKind::Refine(BaseTy::Uint(uint_ty1), e1),
-                TyKind::Refine(BaseTy::Uint(uint_ty2), e2),
+                TyKind::Refine(BaseTy::Uint(uint_ty1), exprs1),
+                TyKind::Refine(BaseTy::Uint(uint_ty2), exprs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (e1.clone(), e2.clone())
+                (exprs1[0].clone(), exprs2[0].clone())
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -640,14 +639,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
-        Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1, e2))
+        Ty::refine(BaseTy::Bool, vec![Expr::binary_op(op, e1, e2)])
     }
 
     fn check_eq(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) => {
+            (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
                 debug_assert_eq!(bty1, bty2);
-                Ty::refine(BaseTy::Bool, Expr::binary_op(op, e1.clone(), e2.clone()))
+                let e = Expr::binary_op(op, exprs1[0].clone(), exprs2[0].clone());
+                Ty::refine(BaseTy::Bool, vec![e])
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -657,19 +657,27 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_unary_op(&self, env: &mut TypeEnv, un_op: ir::UnOp, op: &Operand) -> Ty {
-        let ty = self.check_operand(env, op);
+    fn check_unary_op(
+        &self,
+        pcx: &mut PureCtxt,
+        env: &mut TypeEnv,
+        un_op: ir::UnOp,
+        op: &Operand,
+    ) -> Ty {
+        let ty = self.check_operand(pcx, env, op);
         match un_op {
             ir::UnOp::Not => {
                 match ty.kind() {
-                    TyKind::Refine(BaseTy::Bool, e) => Ty::refine(BaseTy::Bool, e.not()),
+                    TyKind::Refine(BaseTy::Bool, exprs) => {
+                        Ty::refine(BaseTy::Bool, vec![exprs[0].not()])
+                    }
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
             }
             ir::UnOp::Neg => {
                 match ty.kind() {
-                    TyKind::Refine(BaseTy::Int(int_ty), e) => {
-                        Ty::refine(BaseTy::Int(*int_ty), e.neg())
+                    TyKind::Refine(BaseTy::Int(int_ty), exprs) => {
+                        Ty::refine(BaseTy::Int(*int_ty), vec![exprs[0].neg()])
                     }
                     TyKind::Float(float_ty) => Ty::float(*float_ty),
                     _ => unreachable!("incompatible type: `{:?}`", ty),
@@ -678,33 +686,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_operand(&self, env: &mut TypeEnv, operand: &Operand) -> Ty {
-        match operand {
+    fn check_operand(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
+        let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(self.genv, p)
+                env.lookup_place(self.genv, pcx, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(self.genv, p)
+                env.move_place(self.genv, pcx, p)
             }
             Operand::Constant(c) => self.check_constant(c),
-        }
+        };
+        env.unpack_ty(self.genv, pcx, &ty)
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
-                let expr = Expr::constant(ty::Constant::from(*n));
-                Ty::refine(BaseTy::Int(*int_ty), expr)
+                let e = Expr::constant(ty::Constant::from(*n));
+                Ty::refine(BaseTy::Int(*int_ty), vec![e])
             }
             Constant::Uint(n, uint_ty) => {
-                let expr = Expr::constant(ty::Constant::from(*n));
-                Ty::refine(BaseTy::Uint(*uint_ty), expr)
+                let e = Expr::constant(ty::Constant::from(*n));
+                Ty::refine(BaseTy::Uint(*uint_ty), vec![e])
             }
             Constant::Bool(b) => {
-                let expr = Expr::constant(ty::Constant::from(*b));
-                Ty::refine(BaseTy::Bool, expr)
+                let e = Expr::constant(ty::Constant::from(*b));
+                Ty::refine(BaseTy::Bool, vec![e])
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
         }
@@ -745,11 +754,11 @@ impl Mode for Inference<'_> {
         modified
     }
 
-    fn fresh_kvar<I>(&mut self, sort: Sort, _scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, sorts: &[Sort], _scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        Pred::dummy_infer(&sort)
+        Pred::dummy_infer(sorts)
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -770,9 +779,9 @@ impl Mode for Check<'_> {
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        let fresh_kvar = &mut |sort, params: &[Param]| {
+        let fresh_kvar = &mut |sorts: &[Sort], params: &[Param]| {
             ck.mode.kvars.fresh(
-                sort,
+                sorts,
                 scope
                     .iter()
                     .chain(params.iter().map(|param| (param.name, param.sort.clone()))),
@@ -791,17 +800,16 @@ impl Mode for Check<'_> {
         dbg::check_goto!(target, pcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        let mut gen = ConstraintGen::new(ck.genv, pcx.breadcrumb(), tag);
-        env.check_goto(&mut gen, bb_env);
+        env.check_goto(ck.genv, &mut pcx, bb_env, tag);
 
         first
     }
 
-    fn fresh_kvar<I>(&mut self, sort: Sort, scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, sorts: &[Sort], scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        self.kvars.fresh(sort, scope)
+        self.kvars.fresh(sorts, scope)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {

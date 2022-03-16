@@ -68,6 +68,7 @@ struct Desugar {
 }
 
 /// A `BindIn` is the information obtained from a single input-param binding
+#[derive(Debug)]
 struct BindIn {
     gen: Option<GenericParam>,
     ty: ast::Ty,
@@ -157,8 +158,8 @@ fn strengthen_pred(p: Option<Expr>, e: Expr) -> Expr {
 }
 
 impl BindIn {
-    fn from_path(x: Ident, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
-        if is_refinable(&p) {
+    fn from_path(x: Ident, single: bool, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
+        if single && is_refinable(&p) {
             let gen = Some(mk_generic(x, &p, pred));
             let path = convert_path(p);
             let refine = mk_singleton(x);
@@ -173,10 +174,12 @@ impl BindIn {
         }
     }
 
-    fn from_ty(x: Ident, ty: Ty) -> BindIn {
+    fn from_ty(x: Ident, single: bool, ty: Ty) -> BindIn {
         match ty.kind {
-            TyKind::AnonEx { path, pred } => BindIn::from_path(x, path, ty.span, Some(pred)),
-            TyKind::Base(path) => BindIn::from_path(x, path, ty.span, None),
+            TyKind::AnonEx { path, pred } => {
+                BindIn::from_path(x, single, path, ty.span, Some(pred))
+            }
+            TyKind::Base(path) => BindIn::from_path(x, single, path, ty.span, None),
             TyKind::Refine { path, refine } => {
                 let path = convert_path(path);
                 let kind = ast::TyKind::RefineTy { path, refine };
@@ -189,21 +192,21 @@ impl BindIn {
                 let ty = ast::Ty { kind, span: ty.span };
                 BindIn { gen: None, ty, loc: None }
             }
-            TyKind::Named(n, t) => BindIn::from_ty(n, *t),
+            TyKind::Named(n, t) => BindIn::from_ty(n, true, *t),
             TyKind::Ref(RefKind::Mut, t) => {
-                let b = BindIn::from_ty(x, *t);
+                let b = BindIn::from_ty(x, false, *t);
                 let ty = ast::Ty { kind: ast::TyKind::StrgRef(x), span: ty.span };
                 BindIn { gen: b.gen, ty, loc: Some((x, b.ty)) }
             }
             TyKind::Ref(RefKind::Immut, t) => {
-                let b = BindIn::from_ty(x, *t);
+                let b = BindIn::from_ty(x, false, *t);
                 let ty = ast::Ty { kind: ast::TyKind::ShrRef(Box::new(b.ty)), span: ty.span };
                 BindIn { gen: b.gen, ty, loc: None }
             }
             TyKind::Ref(RefKind::Weak, t) => {
-                let b = BindIn::from_ty(x, *t);
+                let b = BindIn::from_ty(x, false, *t);
                 let ty = ast::Ty { kind: ast::TyKind::WeakRef(Box::new(b.ty)), span: ty.span };
-                BindIn { gen: None, ty, loc: None }
+                BindIn { gen: b.gen, ty, loc: None }
             }
         }
     }
@@ -212,7 +215,7 @@ impl BindIn {
 impl Desugar {
     fn desugar_inputs(&mut self, in_sigs: Vec<(Ident, Ty)>) {
         for (x, ty) in in_sigs {
-            let b_in = BindIn::from_ty(x, ty);
+            let b_in = BindIn::from_ty(x, true, ty);
             if let Some(g) = b_in.gen {
                 self.generics.push(g);
             }

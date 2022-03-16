@@ -69,7 +69,7 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Refine(BaseTy, Expr),
+    Refine(BaseTy, Interned<[Expr]>),
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
@@ -145,7 +145,7 @@ pub enum ExprKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Var {
-    Bound,
+    Bound(u32),
     Free(Name),
 }
 
@@ -170,26 +170,21 @@ impl AdtDef {
         }
     }
 
-    pub fn sort(&self) -> Sort {
-        Sort::tuple(self.refined_by().iter().map(|param| param.sort.clone()))
+    pub fn sorts(&self) -> Vec<Sort> {
+        self.refined_by()
+            .iter()
+            .map(|param| param.sort.clone())
+            .collect()
     }
 
-    pub fn unfold(&self, substs: &Substs, e: &Expr) -> IndexVec<Field, Ty> {
-        let mut subst = Subst::with_type_substs(substs.as_slice());
-        match (e.kind(), self.refined_by()) {
-            (ExprKind::Tuple(exprs), refined_by) => {
+    pub fn unfold(&self, substs: &Substs, exprs: &[Expr]) -> IndexVec<Field, Ty> {
+        match self {
+            AdtDef::Transparent { fields, refined_by } => {
+                let mut subst = Subst::with_type_substs(substs.as_slice());
                 debug_assert_eq!(exprs.len(), self.refined_by().len());
                 for (e, param) in exprs.iter().zip(refined_by) {
                     subst.insert_expr_subst(param.name, e.clone());
                 }
-            }
-            (_, [param]) => {
-                subst.insert_expr_subst(param.name, e.clone());
-            }
-            _ => panic!("invalid sort for expr: `{e:?}`"),
-        }
-        match self {
-            AdtDef::Transparent { fields, .. } => {
                 fields.iter().map(|ty| subst.subst_ty(ty)).collect()
             }
             AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
@@ -202,21 +197,6 @@ impl AdtDef {
                 fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
             }
             AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
-        }
-    }
-
-    pub fn fold(&self, tys: &[Ty]) -> Expr {
-        match self {
-            AdtDef::Transparent { fields, refined_by } => {
-                debug_assert_eq!(fields.len(), tys.len());
-                let mut subst = Subst::empty();
-                let params = refined_by.iter().map(|param| param.name).collect();
-                for (ty, field) in tys.iter().zip(fields) {
-                    subst.infer_from_tys(&params, ty, field);
-                }
-                Expr::tuple(refined_by.iter().map(|param| subst.get_expr(param.name)))
-            }
-            AdtDef::Opaque { .. } => panic!("folding opaque adt"),
         }
     }
 }
@@ -238,8 +218,11 @@ impl Ty {
         TyKind::Uninit(layout).intern()
     }
 
-    pub fn refine(bty: BaseTy, e: impl Into<Expr>) -> Ty {
-        TyKind::Refine(bty, e.into()).intern()
+    pub fn refine<T>(bty: BaseTy, exprs: T) -> Ty
+    where
+        Interned<[Expr]>: From<T>,
+    {
+        TyKind::Refine(bty, Interned::from(exprs)).intern()
     }
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
@@ -302,9 +285,9 @@ impl TyS {
 
     pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
         match self.kind() {
-            TyKind::Refine(BaseTy::Adt(did, substs), e) => {
+            TyKind::Refine(BaseTy::Adt(did, substs), exprs) => {
                 let adt_def = genv.adt_def(*did);
-                (*did, adt_def.unfold(substs, e))
+                (*did, adt_def.unfold(substs, exprs))
             }
             TyKind::Uninit(Layout::Adt(did)) => {
                 let adt_def = genv.adt_def(*did);
@@ -385,12 +368,8 @@ impl Sort {
     }
 
     pub fn tuple(sorts: impl IntoIterator<Item = Sort>) -> Self {
-        let mut sorts = sorts.into_iter().collect_vec();
-        if sorts.len() == 1 {
-            sorts.remove(0)
-        } else {
-            Interned::new(SortS { kind: SortKind::Tuple(sorts.into_iter().collect()) })
-        }
+        let sorts = sorts.into_iter().collect_vec();
+        Interned::new(SortS { kind: SortKind::Tuple(sorts.into_iter().collect()) })
     }
 
     pub fn unit() -> Self {
@@ -440,12 +419,8 @@ impl Expr {
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
-        let mut exprs = exprs.into_iter().collect_vec();
-        if exprs.len() == 1 {
-            exprs.remove(0)
-        } else {
-            ExprKind::Tuple(exprs).intern()
-        }
+        let exprs = exprs.into_iter().collect_vec();
+        ExprKind::Tuple(exprs).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -501,36 +476,29 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> Expr {
-        let bound = bound.into();
+    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Expr {
         match self.kind() {
             ExprKind::Var(var) => {
                 match var {
-                    Var::Bound => bound,
+                    Var::Bound(idx) => exprs[*idx as usize].clone(),
                     Var::Free(_) => Expr::var(*var),
                 }
             }
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(
-                    *op,
-                    e1.subst_bound_vars(bound.clone()),
-                    e2.subst_bound_vars(bound),
-                )
-                .intern()
+                ExprKind::BinaryOp(*op, e1.subst_bound_vars(exprs), e2.subst_bound_vars(exprs))
+                    .intern()
             }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(bound)),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(exprs)),
             ExprKind::Proj(tup, field) => {
-                let tup = tup.subst_bound_vars(bound);
+                let tup = tup.subst_bound_vars(exprs);
                 // Opportunistically eta reduce the tuple
                 match tup.kind() {
                     ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
                     _ => Expr::proj(tup, *field),
                 }
             }
-            ExprKind::Tuple(exprs) => {
-                Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(bound.clone())))
-            }
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(exprs))),
         }
     }
 
@@ -547,7 +515,7 @@ impl ExprS {
                 ExprKind::UnaryOp(_, e) => go(e, vars),
                 ExprKind::Proj(e, _) => go(e, vars),
                 ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| go(e, vars)),
-                ExprKind::Var(Var::Bound) | ExprKind::Constant(_) => {}
+                ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
             }
         }
         let mut vars = FxHashSet::default();
@@ -598,21 +566,8 @@ impl Pred {
         Pred::Infer(Interned::from(kvars))
     }
 
-    pub fn dummy_infer(sort: &Sort) -> Pred {
-        fn go(sort: &Sort, kvars: &mut Vec<KVar>) {
-            match sort.kind() {
-                SortKind::Int | SortKind::Bool | SortKind::Loc => {
-                    kvars.push(KVar::dummy());
-                }
-                SortKind::Tuple(sorts) => {
-                    for sort in sorts {
-                        go(sort, kvars);
-                    }
-                }
-            }
-        }
-        let mut kvars = vec![];
-        go(sort, &mut kvars);
+    pub fn dummy_infer(sorts: &[Sort]) -> Pred {
+        let kvars = sorts.iter().map(|_| KVar::dummy()).collect_vec();
         Pred::infer(kvars)
     }
 
@@ -631,18 +586,17 @@ impl Pred {
         matches!(self, Pred::Infer(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
-    pub fn subst_bound_vars(&self, to: impl Into<Expr>) -> Pred {
-        let to = to.into();
+    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Pred {
         match self {
             Pred::Infer(kvars) => {
                 Pred::infer(
                     kvars
                         .iter()
-                        .map(|kvar| kvar.subst_bound_vars(to.clone()))
+                        .map(|kvar| kvar.subst_bound_vars(exprs))
                         .collect_vec(),
                 )
             }
-            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(to)),
+            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(exprs)),
         }
     }
 }
@@ -659,13 +613,12 @@ impl KVar {
         KVar::new(KVid::from(0usize), vec![])
     }
 
-    pub fn subst_bound_vars(&self, bound: impl Into<Expr>) -> KVar {
-        let bound = bound.into();
+    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> KVar {
         KVar::new(
             self.0,
             self.1
                 .iter()
-                .map(|arg| arg.subst_bound_vars(bound.clone()))
+                .map(|arg| arg.subst_bound_vars(exprs))
                 .collect_vec(),
         )
     }
@@ -808,7 +761,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Refine(bty, e) => fmt_bty(bty, Some(e), cx, f),
+                TyKind::Refine(bty, exprs) => fmt_bty(bty, Some(exprs), cx, f),
                 TyKind::Exists(bty, p) => {
                     if p.is_true() {
                         w!("{:?}", bty)
@@ -838,7 +791,7 @@ mod pretty {
 
     fn fmt_bty(
         bty: &BaseTy,
-        e: Option<&ExprS>,
+        exprs: Option<&[Expr]>,
         cx: &PPrintCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
@@ -851,22 +804,22 @@ mod pretty {
         }
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
-                if let Some(e) = e {
-                    w!("<{:?}>", e)?;
+                if let Some(exprs) = exprs {
+                    w!("<{:?}>", join!(", ", exprs))?;
                 }
             }
             BaseTy::Adt(_, args) => {
-                if !args.is_empty() || e.is_some() {
+                if !args.is_empty() || exprs.is_some() {
                     w!("<")?;
                 }
                 w!("{:?}", join!(", ", args))?;
-                if let Some(e) = e {
+                if let Some(exprs) = exprs {
                     if !args.is_empty() {
                         w!(", ")?;
                     }
-                    w!("{:?}", e)?;
+                    w!("{:?}", join!(", ", exprs))?;
                 }
-                if !args.is_empty() || e.is_some() {
+                if !args.is_empty() || exprs.is_some() {
                     w!(">")?;
                 }
             }
@@ -968,7 +921,7 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::Bound => w!("ν"),
+                Var::Bound(idx) => w!("ν{}", ^idx),
                 Var::Free(var) => w!("{:?}", ^var),
             }
         }
