@@ -23,18 +23,19 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct FnSpec {
     pub fn_sig: Binders<FnSig>,
     pub assume: bool,
 }
 
+#[derive(Debug,Clone)]
 pub struct Binders<T> {
     pub params: Vec<Param>,
     pub value: T,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct FnSig {
     pub requires: Vec<Constr>,
     pub args: Vec<Ty>,
@@ -42,6 +43,7 @@ pub struct FnSig {
     pub ensures: Vec<Constr>,
 }
 
+#[derive(Clone)]
 pub enum Constr {
     Type(Loc, Ty),
     Pred(Expr),
@@ -54,7 +56,7 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,

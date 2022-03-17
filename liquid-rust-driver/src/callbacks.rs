@@ -79,8 +79,9 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
         .collect();
 
-    let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
-    genv.fn_specs
+    let genv = GlobalEnv::new(tcx, std::cell::RefCell::new(fn_sigs), adt_defs);
+    let genv_specs = genv.fn_specs.borrow();
+    genv_specs
         .iter()
         .map(|(def_id, spec)| {
             if spec.assume {
