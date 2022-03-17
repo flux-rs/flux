@@ -531,6 +531,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-core",
  "liquid-rust-fixpoint",
+ "liquid-rust-syntax",
  "quickscope",
  "tracing",
 ]

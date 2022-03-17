@@ -76,10 +76,10 @@ struct BindIn {
     loc: Option<(Ident, ast::Ty)>,
 }
 
-pub type BarePath = Path<Ident>;
+pub type BarePath   = Path<Ident>;
 pub type BareTyKind = TyKind<Ident>;
-pub type BareTy = Ty<Ident>;
-pub type BareFnSig = FnSig<Ident>;
+pub type BareTy     = Ty<Ident>;
+pub type BareFnSig  = FnSig<Ident>;
 
 fn convert_path(p: BarePath) -> ast::Path {
     ast::Path {
