@@ -38,7 +38,7 @@ struct Subst {
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
+    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported>{
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
         let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
