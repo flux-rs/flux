@@ -47,10 +47,9 @@ pub enum TyKind<T> {
 
 #[derive(Debug)]
 pub struct Path<T> {
-    /// vec
-    // pub ident: Ident,
+    /// e.g. vec
     pub ident: T,
-    /// <nat>
+    /// e.g. <nat>
     pub args: Option<Vec<Ty<T>>>,
     pub span: Span,
 }
