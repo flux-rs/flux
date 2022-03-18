@@ -90,7 +90,7 @@ fn default_defn_sig(rust_sig: rustc_middle::ty::FnSig, span: Span) -> ty::DefFnS
 }
 
 fn desugar_defn_sig(defn_sig: ty::DefFnSig) -> ty::FnSig {
-    todo!()
+    todo!() // <<<<<<< HEREHEREHERE
 }
 
 fn default_fn_spec(rust_sig: rustc_middle::ty::FnSig, span: Span) -> ty::FnSpec {
