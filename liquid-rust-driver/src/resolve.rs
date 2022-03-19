@@ -1,7 +1,7 @@
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_core::ty::{self, Name, ParamTy};
-use liquid_rust_syntax::ast;
+use liquid_rust_syntax::{ast, surface};
 use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
@@ -38,7 +38,7 @@ struct Subst {
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported>{
+    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
         let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
@@ -141,7 +141,7 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    pub fn resolve_fn_sig(
+    fn resolve_ast_fn_sig(
         &mut self,
         def_id: LocalDefId,
         fn_sig: ast::FnSig,
@@ -198,6 +198,26 @@ impl<'tcx> Resolver<'tcx> {
         let ret = self.resolve_ty(fn_sig.ret, &mut subst);
 
         Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
+    }
+
+    fn resolve_sur_fn_sig(
+        &mut self,
+        def_id: LocalDefId,
+        ssig: surface::BareFnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
+        let ast_sig = surface::desugar(ssig);
+        self.resolve_ast_fn_sig(def_id, ast_sig)
+    }
+
+    pub fn resolve_fn_sig(
+        &mut self,
+        def_id: LocalDefId,
+        fn_sig: surface::BareSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
+        match fn_sig {
+            surface::BareSig::AstSig(sig) => self.resolve_ast_fn_sig(def_id, sig),
+            surface::BareSig::SurSig(sig) => self.resolve_sur_fn_sig(def_id, sig),
+        }
     }
 
     fn resolve_generic_values(

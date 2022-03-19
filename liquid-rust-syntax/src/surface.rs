@@ -5,6 +5,12 @@ use rustc_span::Span;
 use crate::ast::{self, Expr, GenericParam, Refine};
 
 #[derive(Debug)]
+pub enum BareSig {
+    AstSig(ast::FnSig),
+    SurSig(BareFnSig),
+}
+
+#[derive(Debug)]
 pub struct FnSig<T> {
     /// example: `l: i32@n`
     pub requires: Vec<(Ident, Ty<T>)>,
@@ -75,10 +81,10 @@ struct BindIn {
     loc: Option<(Ident, ast::Ty)>,
 }
 
-pub type BarePath   = Path<Ident>;
+pub type BarePath = Path<Ident>;
 pub type BareTyKind = TyKind<Ident>;
-pub type BareTy     = Ty<Ident>;
-pub type BareFnSig  = FnSig<Ident>;
+pub type BareTy = Ty<Ident>;
+pub type BareFnSig = FnSig<Ident>;
 
 fn convert_path(p: BarePath) -> ast::Path {
     ast::Path {
