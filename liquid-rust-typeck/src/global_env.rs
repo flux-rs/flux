@@ -89,7 +89,7 @@ fn default_defn_sig(rust_sig: rustc_middle::ty::FnSig, span: Span) -> ty::DefFnS
     ty::surface::FnSig { requires, returns, ensures, wherep, span }
 }
 
-fn desugar_defn_sig(defn_sig: ty::DefFnSig) -> ty::FnSig {
+fn desugar_defn_sig(_defn_sig: ty::DefFnSig) -> ty::FnSig {
     todo!() // <<<<<<< HEREHEREHERE
 }
 
