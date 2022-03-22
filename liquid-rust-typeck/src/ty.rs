@@ -25,13 +25,13 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct FnSpec {
     pub fn_sig: Binders<FnSig>,
     pub assume: bool,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Binders<T> {
     pub params: Vec<Param>,
     pub value: T,
@@ -103,20 +103,22 @@ pub enum BaseTy {
     Adt(DefId, Substs),
 }
 
-/// A resolved "name" to use at the surface level
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum DefIdent {
-    DInt(IntTy),
-    DUint(UintTy),
-    DBool,
-    DAdt(DefId),
-}
+// /// A resolved "name" to use at the surface level
+// #[derive(Clone, PartialEq, Eq, Hash)]
+// pub enum DefIdent {
+//     DInt(IntTy),
+//     DUint(UintTy),
+//     DBool,
+//     DAdt(DefId),
+// }
+
+pub type DefIdent = Layout;
 
 /// Resolved versions of surface signatures
-pub type DefPath   = liquid_rust_syntax::surface::Path<DefIdent>;
+pub type DefPath = liquid_rust_syntax::surface::Path<DefIdent>;
 pub type DefTyKind = liquid_rust_syntax::surface::TyKind<DefIdent>;
-pub type DefTy     = liquid_rust_syntax::surface::Ty<DefIdent>;
-pub type DefFnSig  = liquid_rust_syntax::surface::FnSig<DefIdent>;
+pub type DefTy = liquid_rust_syntax::surface::Ty<DefIdent>;
+pub type DefFnSig = liquid_rust_syntax::surface::FnSig<DefIdent>;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Substs(Interned<[Ty]>);

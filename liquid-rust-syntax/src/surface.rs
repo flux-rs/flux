@@ -1,4 +1,5 @@
 pub use rustc_ast::token::LitKind;
+use rustc_middle::ty;
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
@@ -34,6 +35,9 @@ pub struct Ty<T> {
 pub enum TyKind<T> {
     /// ty
     Base(Path<T>),
+
+    /// type parameters (not used in `Bare` but will show up after zipping)
+    Param(ty::ParamTy),
 
     /// t[e]
     Refine { path: Path<T>, refine: Refine },
@@ -113,6 +117,7 @@ fn convert_tykind(t: BareTyKind) -> ast::TyKind {
             let path = convert_path(path);
             ast::TyKind::RefineTy { path, refine }
         }
+        TyKind::Param(_) => panic!("impossible: Param in BareTyKind"),
     }
 }
 
@@ -219,6 +224,7 @@ impl BindIn {
                 let ty = ast::Ty { kind: ast::TyKind::WeakRef(Box::new(b.ty)), span: ty.span };
                 BindIn { gen: b.gen, ty, loc: None }
             }
+            TyKind::Param(_) => panic!("IMPOSSIBLE: Param in BareTy"),
         }
     }
 }

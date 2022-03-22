@@ -1,17 +1,20 @@
-use hir::{def_id::DefId, Impl, ItemId, ItemKind};
+use hir::{Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
-use liquid_rust_core::ty::{self, Name, ParamTy};
+use liquid_rust_core::{
+    ir::LocalDecl,
+    ty::{self, Name},
+};
 use liquid_rust_syntax::{ast, surface};
-use quickscope::ScopeMap;
+// use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
-use rustc_session::{Session, SessionDiagnostic};
-use rustc_span::{sym, symbol::kw, Symbol};
+// use rustc_session::{Session, SessionDiagnostic};
+use rustc_span::{sym, Symbol};
 
 use crate::{
     collector::AdtDef,
-    desugar::{self, desugar_expr},
+    desugar::{desugar_exists, desugar_expr, desugar_loc, desugar_pure, desugar_refine},
     diagnostics::{errors, Diagnostics},
     subst::Subst,
 };
@@ -135,17 +138,10 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    fn resolve_ast_fn_sig(
-        &mut self,
-        def_id: LocalDefId,
-        fn_sig: ast::FnSig,
-    ) -> Result<ty::FnSig, ErrorReported> {
+    /// Resolve rust-generics from parent
+    fn resolve_rust_generics(&mut self, def_id: LocalDefId) -> Subst {
         let mut subst = Subst::new();
 
-        // 1. Fresh name generator
-        let name_gen = IndexGen::new();
-
-        // 2. Resolve rust-generics from parent
         if let Some(parent) = self.parent {
             subst.insert_generic_types(self.tcx, &parent.generics);
             subst.push_type_layer();
@@ -153,16 +149,30 @@ impl<'tcx> Resolver<'tcx> {
         let hir_generics = self.tcx.hir().get_generics(def_id).unwrap();
         subst.insert_generic_types(self.tcx, hir_generics);
 
+        subst
+    }
+
+    fn resolve_ast_fn_sig(
+        &mut self,
+        def_id: LocalDefId,
+        fn_sig: ast::FnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
+        // 1. Initialize `subst` with rust-generics
+        let mut subst = self.resolve_rust_generics(def_id);
+
+        // 2. Fresh name generator
+        let name_gen = IndexGen::new();
+
         // 3. Resolve pure-binders and constraints
         let (mut params, mut requires) =
             self.resolve_generic_values(fn_sig.generics, &name_gen, &mut subst)?;
 
         // 4. Resolve INPUT locations
         for (loc, ty) in fn_sig.requires {
-            let fresh = name_gen.fresh();
-            subst.insert_loc(loc.name, fresh);
-
-            let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+            // let fresh = name_gen.fresh();
+            // subst.insert_loc(loc.name, fresh);
+            // let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+            let loc = desugar_loc(loc, &name_gen, &mut subst);
             let ty = self.resolve_ty(ty, &mut subst)?;
 
             params.push(ty::Param { name: loc, sort: ty::Sort::Loc });
@@ -214,7 +224,9 @@ impl<'tcx> Resolver<'tcx> {
         ssig: surface::BareFnSig,
     ) -> Result<ty::FnSig, ErrorReported> {
         let dsig = crate::desugar::resolve(def_id, ssig)?;
-        crate::desugar::desugar(dsig, &mut self.diagnostics)
+        let mut subst = self.resolve_rust_generics(def_id);
+        let name_gen = IndexGen::new();
+        crate::desugar::desugar(dsig, &name_gen, &mut subst, &mut self.diagnostics)
     }
 
     pub fn resolve_fn_sig(
@@ -237,21 +249,23 @@ impl<'tcx> Resolver<'tcx> {
         let params = generics
             .iter()
             .map(|param| {
-                let fresh = name_gen.fresh();
-                if subst
-                    .insert_expr(param.name.name, ty::Var::Free(fresh))
-                    .is_some()
-                {
-                    self.diagnostics
-                        .emit_err(errors::DuplicateParam::new(param.name))
-                        .raise()
-                } else {
-                    let name =
-                        ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-                    let sort = resolve_sort(&mut self.diagnostics, param.sort)?;
+                let sort = resolve_sort(&mut self.diagnostics, param.sort)?;
+                desugar_pure(param.name, sort, name_gen, subst, &mut self.diagnostics)
 
-                    Ok(ty::Param { name, sort })
-                }
+                // let fresh = name_gen.fresh();
+                // if subst
+                //     .insert_expr(param.name.name, ty::Var::Free(fresh))
+                //     .is_some()
+                // {
+                //     self.diagnostics
+                //         .emit_err(errors::DuplicateParam::new(param.name))
+                //         .raise()
+                // } else {
+                //     let name =
+                //         ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
+
+                //     Ok(ty::Param { name, sort })
+                // }
             })
             .try_collect_exhaust()?;
 
@@ -276,12 +290,8 @@ impl<'tcx> Resolver<'tcx> {
             ast::TyKind::RefineTy { path, refine } => {
                 match self.resolve_path(path, subst)? {
                     ResolvedPath::BaseTy(bty) => {
-                        let exprs = refine
-                            .exprs
-                            .into_iter()
-                            .map(|e| desugar_expr(e, subst, &mut self.diagnostics))
-                            .try_collect_exhaust()?;
-                        Ok(ty::Ty::Refine(bty, ty::Refine { exprs, span: refine.span }))
+                        let refine = desugar_refine(refine, subst, &mut self.diagnostics)?;
+                        Ok(ty::Ty::Refine(bty, refine))
                     }
                     ResolvedPath::ParamTy(_) => {
                         self.diagnostics
@@ -298,11 +308,8 @@ impl<'tcx> Resolver<'tcx> {
             ast::TyKind::Exists { bind, path, pred } => {
                 match self.resolve_path(path, subst)? {
                     ResolvedPath::BaseTy(bty) => {
-                        subst.push_expr_layer();
-                        subst.insert_expr(bind.name, ty::Var::Bound(0));
-                        let e = desugar_expr(pred, subst, &mut self.diagnostics);
-                        subst.pop_expr_layer();
-                        Ok(ty::Ty::Exists(bty, ty::Pred::Expr(e?)))
+                        let pred = desugar_exists(bind, pred, subst, &mut self.diagnostics)?;
+                        Ok(ty::Ty::Exists(bty, pred))
                     }
                     ResolvedPath::ParamTy(_) => {
                         self.diagnostics

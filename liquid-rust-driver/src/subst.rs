@@ -1,14 +1,10 @@
-use hir::{def_id::DefId, Impl, ItemId, ItemKind};
-use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
+use hir::def_id::DefId;
 use liquid_rust_core::ty::{self, Name, ParamTy};
-use liquid_rust_syntax::{ast, surface};
 use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
-use rustc_hir::{self as hir, def_id::LocalDefId};
+use rustc_hir::{self as hir};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Symbol;
-
-type NameResTable = FxHashMap<Symbol, hir::def::Res>;
 
 /* [NOTE:Subst] <via Nico on slack>
    One assumption in `core::ty` is that **every binder is fresh**.

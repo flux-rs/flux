@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use liquid_rust_core::ty::Layout;
 use liquid_rust_syntax::surface::Path;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -29,10 +30,10 @@ fn default_refkind(m: &Mutability) -> RefKind {
 
 fn kind_def_ident(k: &rustc_middle::ty::TyKind) -> DefIdent {
     match k {
-        rustc_middle::ty::TyKind::Bool => DefIdent::DBool,
-        rustc_middle::ty::TyKind::Int(i) => DefIdent::DInt(*i),
-        rustc_middle::ty::TyKind::Uint(u) => DefIdent::DUint(*u),
-        rustc_middle::ty::TyKind::Adt(adt, _) => DefIdent::DAdt(adt.did),
+        rustc_middle::ty::TyKind::Bool => Layout::Bool,
+        rustc_middle::ty::TyKind::Int(i) => Layout::Int(*i),
+        rustc_middle::ty::TyKind::Uint(u) => Layout::Uint(*u),
+        rustc_middle::ty::TyKind::Adt(adt, _) => Layout::Adt(adt.did),
         _ => panic!("kind_def_ident  : {:?}", k),
     }
 }
