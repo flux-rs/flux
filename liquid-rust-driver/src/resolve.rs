@@ -1,9 +1,6 @@
 use hir::{Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
-use liquid_rust_core::{
-    ir::LocalDecl,
-    ty::{self, Name},
-};
+use liquid_rust_core::ty::{self, Name};
 use liquid_rust_syntax::{ast, surface};
 // use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
@@ -14,7 +11,9 @@ use rustc_span::{sym, Symbol};
 
 use crate::{
     collector::AdtDef,
-    desugar::{desugar_exists, desugar_expr, desugar_loc, desugar_pure, desugar_refine},
+    desugar::{
+        convert_loc, desugar_exists, desugar_expr, desugar_loc, desugar_pure, desugar_refine,
+    },
     diagnostics::{errors, Diagnostics},
     subst::Subst,
 };
@@ -191,15 +190,17 @@ impl<'tcx> Resolver<'tcx> {
             .ensures
             .into_iter()
             .map(|(loc, ty)| {
-                if let Some(name) = subst.get_loc(loc.name) {
-                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
-                    let ty = self.resolve_ty(ty, &mut subst)?;
-                    Ok(ty::Constr::Type(loc, ty))
-                } else {
-                    self.diagnostics
-                        .emit_err(errors::UnresolvedVar::new(loc))
-                        .raise()
-                }
+                let loc = convert_loc(loc, &subst, &mut self.diagnostics)?;
+                let ty = self.resolve_ty(ty, &mut subst)?;
+                Ok(ty::Constr::Type(loc, ty))
+                // if let Some(name) = subst.get_loc(loc.name) {
+                //     let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+
+                // } else {
+                //     self.diagnostics
+                //         .emit_err(errors::UnresolvedVar::new(loc))
+                //         .raise()
+                // }
             })
             .try_collect_exhaust();
 
@@ -209,7 +210,7 @@ impl<'tcx> Resolver<'tcx> {
         Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
     }
 
-    fn resolve_sur_fn_sig_old(
+    fn _resolve_sur_fn_sig_old(
         &mut self,
         def_id: LocalDefId,
         ssig: surface::BareFnSig,
