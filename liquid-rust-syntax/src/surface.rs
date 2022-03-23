@@ -80,7 +80,7 @@ pub enum Layout {
     Param,
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum RefKind {
     Weak,
     Mut,
@@ -377,4 +377,134 @@ pub fn default_fn_sig(rust_sig: rustc_middle::ty::FnSig, span: Span) -> DefFnSig
     let ensures = vec![];
     let wherep = None;
     FnSig { requires, returns, ensures, wherep, span }
+}
+
+mod erase {
+    use super::{Path, Ty, TyKind};
+
+    /// `erase::ty(t)` removes all refinements, so no `Refine` , `Exists`, `AnonEx` or `Named` constructors
+    pub fn erase_ty<T>(ty: Ty<T>) -> Ty<T> {
+        Ty { kind: erase_ty_kind(ty.kind), span: ty.span }
+    }
+
+    fn erase_ty_kind<T>(k: TyKind<T>) -> TyKind<T> {
+        match k {
+            TyKind::Base(_) => k,
+            TyKind::Param(_) => k,
+            TyKind::Refine { path, .. } => TyKind::Base(erase_path(path)),
+            TyKind::Exists { path, .. } => TyKind::Base(erase_path(path)),
+            TyKind::AnonEx { path, .. } => TyKind::Base(erase_path(path)),
+            TyKind::Named(_, t) => erase_ty(*t).kind,
+            TyKind::Ref(r, t) => TyKind::Ref(r, Box::new(erase_ty(*t))),
+        }
+    }
+
+    fn erase_path<T>(p: Path<T>) -> Path<T> {
+        let args = match p.args {
+            None => None,
+            Some(ts) => Some(ts.into_iter().map(erase_ty).collect()),
+        };
+        Path { ident: p.ident, args, span: p.span }
+    }
+}
+
+mod zip {
+    use rustc_span::Span;
+
+    use super::{BarePath, BareTy, BareTyKind, DefPath, DefTy, DefTyKind, Ident, Path, Ty, TyKind};
+
+    pub fn zip_ty(bty: BareTy, dty: DefTy) -> DefTy {
+        let dty = super::erase::erase_ty(dty);
+        Ty { kind: zip_ty_kind(bty.kind, dty.kind, bty.span), span: bty.span }
+    }
+
+    pub fn zip_ty_binds(bs: Vec<(Ident, BareTy)>, ds: Vec<(Ident, DefTy)>) -> Vec<(Ident, DefTy)> {
+        let mut res = vec![];
+        for ((x, bt), (_, dt)) in itertools::zip_eq(bs, ds) {
+            res.push((x, zip_ty(bt, dt)));
+        }
+        return res;
+    }
+    fn zip_tys(bts: Vec<BareTy>, dts: Vec<DefTy>) -> Vec<DefTy> {
+        let mut res = vec![];
+        for (bt, dt) in itertools::zip_eq(bts, dts) {
+            res.push(zip_ty(bt, dt))
+        }
+        return res;
+    }
+
+    fn zip_path(bp: BarePath, dp: DefPath) -> DefPath {
+        let ident = dp.ident;
+        let span = bp.span;
+        let args = match (bp.args, dp.args) {
+            (Some(bts), Some(dts)) => Some(zip_tys(bts, dts)),
+            (None, None) => None,
+            _ => panic!("zip_path: incompatible args!"),
+        };
+        Path { ident, args, span }
+    }
+
+    fn zip_ty_kind(bty: BareTyKind, dty: DefTyKind, span: Span) -> DefTyKind {
+        match bty {
+            TyKind::Base(bp) => {
+                match dty {
+                    TyKind::Base(dp) => TyKind::Base(zip_path(bp, dp)),
+                    TyKind::Param(a) => TyKind::Param(a),
+                    _ => panic!("zip_ty_kind: incompatible types"),
+                }
+            }
+            TyKind::Refine { path, refine } => {
+                match dty {
+                    TyKind::Base(dp) => TyKind::Refine { path: zip_path(path, dp), refine },
+                    TyKind::Param(_) => {
+                        panic!("zip_ty_kind: cannot refine type variable! (singleton)")
+                    }
+                    _ => panic!("zip_ty_kind: incompatible types"),
+                }
+            }
+            TyKind::Exists { bind, path, pred } => {
+                match dty {
+                    TyKind::Base(dp) => TyKind::Exists { bind, path: zip_path(path, dp), pred },
+                    TyKind::Param(_) => panic!("zip_ty_kind: tyvar refined by existential!"),
+                    _ => panic!("zip_ty_kind: incompatible types"),
+                }
+            }
+            TyKind::AnonEx { path, pred } => {
+                match dty {
+                    TyKind::Base(dp) => TyKind::AnonEx { path: zip_path(path, dp), pred },
+                    TyKind::Param(_) => panic!("zip_ty_kind: tyvar refined by (anon-existential)"),
+                    _ => panic!("zip_ty_kind: incompatible types"),
+                }
+            }
+            TyKind::Named(n, bt) => {
+                let dt = zip_ty(*bt, Ty { kind: dty, span });
+                TyKind::Named(n, Box::new(dt))
+            }
+            TyKind::Ref(bk, bt) => {
+                match dty {
+                    TyKind::Ref(dk, dt) => {
+                        if bk != dk {
+                            panic!("zip_ty: incompatible reference kinds!");
+                        } else {
+                            TyKind::Ref(bk, Box::new(zip_ty(*bt, *dt)))
+                        }
+                    }
+                    _ => panic!("zip_ty_kind: incompatible types"),
+                }
+            }
+            TyKind::Param(_) => panic!("impossible: zip_ty_kind with param in bare"),
+        }
+    }
+}
+
+/// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
+/// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
+pub fn zip_bare_def(b_sig: BareFnSig, d_sig: DefFnSig) -> DefFnSig {
+    FnSig {
+        requires: zip::zip_ty_binds(b_sig.requires, d_sig.requires),
+        returns: zip::zip_ty(b_sig.returns, d_sig.returns),
+        ensures: zip::zip_ty_binds(b_sig.ensures, d_sig.ensures),
+        wherep: b_sig.wherep,
+        span: b_sig.span,
+    }
 }

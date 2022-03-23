@@ -33,7 +33,8 @@ impl<'tcx> GlobalEnv<'tcx> {
     ) -> Result<ty::FnSpec, ErrorReported> {
         let mut resolver = Resolver::from_fn(self.tcx, local_def)?;
         let fn_sig = resolver.default_sig(local_def, span)?;
-        // TODO -- wf needs a bunch of stuff not in scope here ... (?)
+        // TODO -- wf needs a bunch of stuff not in scope here.
+        // of course "default" sigs SHOULD be well-formed so perhaps redundant
         // wf.check_fn_sig(&fn_sig)?;
         let fn_sig = crate::lowering::LoweringCtxt::lower_fn_sig(fn_sig);
         Ok(ty::FnSpec { fn_sig, assume: true })

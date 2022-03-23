@@ -98,7 +98,7 @@ impl<'tcx> Resolver<'tcx> {
         sig: surface::BareFnSig,
     ) -> Result<surface::DefFnSig, ErrorReported> {
         let dsig = self.default_fn_sig(def_id, sig.span)?;
-        crate::desugar::zip_bare_def(sig, dsig)
+        Ok(surface::zip_bare_def(sig, dsig))
     }
 
     /// `desugar_bare_sig(f, sig)` resolves the `sig:BareSig` and then desugars into a `core::FnSig`

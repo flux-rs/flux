@@ -8,7 +8,7 @@ use crate::{
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_syntax::{
     ast,
-    surface::{self, BareFnSig, DefFnSig, DefPath, DefTy, Layout},
+    surface::{self, DefFnSig, DefPath, DefTy, Layout},
 };
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
@@ -445,8 +445,4 @@ pub(crate) fn desugar(
     let ret = convert_ty(dsig.returns, subst, diag)?;
 
     Ok(FnSig { params: me.prms, requires: me.reqs, args: me.args, ret, ensures })
-}
-
-pub(crate) fn zip_bare_def(sig: BareFnSig, dsig: DefFnSig) -> Result<DefFnSig, ErrorReported> {
-    todo!()
 }
