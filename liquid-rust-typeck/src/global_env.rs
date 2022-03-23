@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
-use liquid_rust_syntax::surface;
+use liquid_rust_common::errors::ErrorReported;
+use liquid_rust_core::resolve::Resolver;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::TyCtxt;
@@ -16,19 +17,6 @@ pub struct GlobalEnv<'tcx> {
     pub tcx: TyCtxt<'tcx>,
 }
 
-fn desugar_defn_sig(_defn_sig: surface::DefFnSig) -> ty::FnSig {
-    todo!() // <<<<<<< HEREHEREHERE
-}
-
-pub fn default_fn_spec(rust_sig: rustc_middle::ty::FnSig, span: Span) -> ty::FnSpec {
-    let params = vec![];
-    let defn_sig = surface::default_fn_sig(rust_sig, span);
-    let value = desugar_defn_sig(defn_sig);
-    let fn_sig = ty::Binders { params, value };
-    let assume = true;
-    ty::FnSpec { fn_sig, assume }
-}
-
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(
         tcx: TyCtxt<'tcx>,
@@ -36,6 +24,19 @@ impl<'tcx> GlobalEnv<'tcx> {
         adt_defs: FxHashMap<LocalDefId, ty::AdtDef>,
     ) -> Self {
         GlobalEnv { fn_specs, adt_defs, tcx }
+    }
+
+    fn lookup_default_spec(
+        &self,
+        local_def: LocalDefId,
+        span: Span,
+    ) -> Result<ty::FnSpec, ErrorReported> {
+        let mut resolver = Resolver::from_fn(self.tcx, local_def)?;
+        let fn_sig = resolver.default_sig(local_def, span)?;
+        // TODO -- wf needs a bunch of stuff not in scope here ... (?)
+        // wf.check_fn_sig(&fn_sig)?;
+        let fn_sig = crate::lowering::LoweringCtxt::lower_fn_sig(fn_sig);
+        Ok(ty::FnSpec { fn_sig, assume: true })
     }
 
     pub fn lookup_fn_sig(&self, did: DefId, span: Span) -> ty::Binders<ty::FnSig> {
@@ -48,15 +49,19 @@ impl<'tcx> GlobalEnv<'tcx> {
             let z = fn_spec.fn_sig.clone();
             return z;
         }
-        if let Some(rust_sig) = self.tcx.fn_sig(did).no_bound_vars() {
-            let fn_spec = default_fn_spec(rust_sig, span);
-            print!("Using default spec for function {:?} : {:?}", did, fn_spec);
-            self.fn_specs
-                .borrow_mut()
-                .insert(local_def, fn_spec.clone());
-            return fn_spec.fn_sig;
+
+        match self.lookup_default_spec(local_def, span) {
+            Ok(fn_spec) => {
+                print!("Using default spec for function {:?} : {:?}", did, fn_spec);
+                self.fn_specs
+                    .borrow_mut()
+                    .insert(local_def, fn_spec.clone());
+                return fn_spec.fn_sig;
+            }
+            Err(e) => {
+                panic!("Oh no! lookup_fn_sig {:?}", e)
+            }
         }
-        panic!("Oh no! lookup_fn_sig {:?}", did)
     }
 
     pub fn variances_of(&self, did: DefId) -> &[Variance] {

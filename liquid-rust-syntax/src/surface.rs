@@ -378,16 +378,3 @@ pub fn default_fn_sig(rust_sig: rustc_middle::ty::FnSig, span: Span) -> DefFnSig
     let wherep = None;
     FnSig { requires, returns, ensures, wherep, span }
 }
-
-// fn desugar_defn_sig(_defn_sig: DefFnSig) -> ty::FnSig {
-//     todo!() // <<<<<<< HEREHEREHERE
-// }
-
-// pub fn defaultTy(rust_sig: rustc_middle::ty::FnSig, span: Span) -> ty::FnSpec {
-//     let params = vec![];
-//     let defn_sig = default_defn_sig(rust_sig, span);
-//     let value = desugar_defn_sig(defn_sig);
-//     let fn_sig = ty::Binders { params, value };
-//     let assume = true;
-//     ty::FnSpec { fn_sig, assume }
-// }

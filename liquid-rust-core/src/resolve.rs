@@ -1,13 +1,20 @@
-use crate::ty::{self, Name};
+use crate::{
+    desugar::desugar,
+    ty::{self, Name},
+};
 use hir::{Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
-use liquid_rust_syntax::{ast, ast::AdtDef, surface};
+use liquid_rust_syntax::{
+    ast,
+    ast::AdtDef,
+    surface::{self, DefFnSig},
+};
 // use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 // use rustc_session::{Session, SessionDiagnostic};
-use rustc_span::{sym, Symbol};
+use rustc_span::{sym, Span, Symbol};
 
 use crate::{
     desugar::{
@@ -52,6 +59,66 @@ impl<'tcx> Resolver<'tcx> {
         collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
 
         Ok(Resolver { tcx, diagnostics, name_res_table, parent })
+    }
+
+    /// `desugar_def_sig(sig)` translates a `DefFnSig` into a `core::FnSig`, and is used by
+    ///  * functions with specs whose `BareFnSig` is first resolved by `resolve_bare_sig` and
+    ///  * functions without specs whose `rust::FnSig` is used to generate a default `DefFnSig`
+    fn desugar(
+        &mut self,
+        def_id: LocalDefId,
+        dsig: surface::DefFnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
+        let mut subst = self.resolve_rust_generics(def_id);
+        let name_gen = IndexGen::new();
+        desugar(dsig, &name_gen, &mut subst, &mut self.diagnostics)
+    }
+
+    /// `default_fn_sig(f, span)` uses the type-context to generate a default `DefFnSig` for `f`
+    fn default_fn_sig(
+        &mut self,
+        def_id: LocalDefId,
+        span: Span,
+    ) -> Result<DefFnSig, ErrorReported> {
+        if let Some(rust_sig) = self.tcx.fn_sig(def_id).no_bound_vars() {
+            Ok(surface::default_fn_sig(rust_sig, span))
+        } else {
+            self.diagnostics
+                .emit_err(errors::DesugarError { span })
+                .raise()
+        }
+    }
+
+    /// `resolve_bare_sig(f, sig)` uses the rust-type sig for `f` to
+    /// 1. generate a "default" signature for `f`
+    /// 2. zip that default sig with `sig` to get a resolved `DefFnSig` for `f`.
+    fn resolve_bare_sig(
+        &mut self,
+        def_id: LocalDefId,
+        sig: surface::BareFnSig,
+    ) -> Result<surface::DefFnSig, ErrorReported> {
+        let dsig = self.default_fn_sig(def_id, sig.span)?;
+        crate::desugar::zip_bare_def(sig, dsig)
+    }
+
+    /// `desugar_bare_sig(f, sig)` resolves the `sig:BareSig` and then desugars into a `core::FnSig`
+    fn desugar_bare_sig(
+        &mut self,
+        def_id: LocalDefId,
+        ssig: surface::BareFnSig,
+    ) -> Result<ty::FnSig, ErrorReported> {
+        let dsig = self.resolve_bare_sig(def_id, ssig)?;
+        self.desugar(def_id, dsig)
+    }
+
+    /// `default_sig(f)` produces a "default" (trivial) `core::FnSig` for `f`
+    pub fn default_sig(
+        &mut self,
+        def_id: LocalDefId,
+        span: Span,
+    ) -> Result<ty::FnSig, ErrorReported> {
+        let dsig = self.default_fn_sig(def_id, span)?;
+        self.desugar(def_id, dsig)
     }
 
     pub fn resolve_qualifier(
@@ -207,17 +274,6 @@ impl<'tcx> Resolver<'tcx> {
         self.resolve_ast_fn_sig(def_id, ast_sig)
     }
 
-    fn resolve_sur_fn_sig(
-        &mut self,
-        def_id: LocalDefId,
-        ssig: surface::BareFnSig,
-    ) -> Result<ty::FnSig, ErrorReported> {
-        let dsig = crate::desugar::resolve(def_id, ssig)?;
-        let mut subst = self.resolve_rust_generics(def_id);
-        let name_gen = IndexGen::new();
-        crate::desugar::desugar(dsig, &name_gen, &mut subst, &mut self.diagnostics)
-    }
-
     pub fn resolve_fn_sig(
         &mut self,
         def_id: LocalDefId,
@@ -225,7 +281,7 @@ impl<'tcx> Resolver<'tcx> {
     ) -> Result<ty::FnSig, ErrorReported> {
         match fn_sig {
             surface::BareSig::AstSig(sig) => self.resolve_ast_fn_sig(def_id, sig),
-            surface::BareSig::SurSig(sig) => self.resolve_sur_fn_sig(def_id, sig),
+            surface::BareSig::SurSig(sig) => self.desugar_bare_sig(def_id, sig),
         }
     }
 

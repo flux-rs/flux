@@ -10,7 +10,6 @@ use liquid_rust_syntax::{
     ast,
     surface::{self, BareFnSig, DefFnSig, DefPath, DefTy, Layout},
 };
-use rustc_hir::def_id::LocalDefId;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
 use rustc_span::{
@@ -413,53 +412,41 @@ impl Desugar {
         }
         Ok(())
     }
-
-    pub fn desugar(
-        dsig: DefFnSig,
-        name_gen: &IndexGen<crate::ty::Name>,
-        subst: &mut Subst,
-        diag: &mut Diagnostics,
-    ) -> Result<FnSig, ErrorReported> {
-        let mut me = Self { prms: vec![], args: vec![], reqs: vec![] };
-
-        // walk over the input types
-        me.desugar_inputs(dsig.requires, name_gen, subst, diag)?;
-
-        // add the "where" clause
-        if let Some(e) = dsig.wherep {
-            let e_ = desugar_expr(e, &subst, diag)?;
-            me.reqs.push(Constr::Pred(e_));
-        }
-
-        // translate the output store
-        let ensures = dsig
-            .ensures
-            .into_iter()
-            .map(|(loc, ty)| {
-                let loc = convert_loc(loc, subst, diag)?;
-                let ty = convert_ty(ty, subst, diag)?;
-                Ok(Constr::Type(loc, ty))
-            })
-            .try_collect_exhaust()?;
-
-        let ret = convert_ty(dsig.returns, subst, diag)?;
-
-        Ok(FnSig { params: me.prms, requires: me.reqs, args: me.args, ret, ensures })
-    }
 }
 
 pub(crate) fn desugar(
-    ssig: DefFnSig,
+    dsig: DefFnSig,
     name_gen: &IndexGen<crate::ty::Name>,
     subst: &mut Subst,
     diag: &mut Diagnostics,
 ) -> Result<FnSig, ErrorReported> {
-    Desugar::desugar(ssig, name_gen, subst, diag)
+    let mut me = Desugar { prms: vec![], args: vec![], reqs: vec![] };
+
+    // walk over the input types
+    me.desugar_inputs(dsig.requires, name_gen, subst, diag)?;
+
+    // add the "where" clause
+    if let Some(e) = dsig.wherep {
+        let e_ = desugar_expr(e, &subst, diag)?;
+        me.reqs.push(Constr::Pred(e_));
+    }
+
+    // translate the output store
+    let ensures = dsig
+        .ensures
+        .into_iter()
+        .map(|(loc, ty)| {
+            let loc = convert_loc(loc, subst, diag)?;
+            let ty = convert_ty(ty, subst, diag)?;
+            Ok(Constr::Type(loc, ty))
+        })
+        .try_collect_exhaust()?;
+
+    let ret = convert_ty(dsig.returns, subst, diag)?;
+
+    Ok(FnSig { params: me.prms, requires: me.reqs, args: me.args, ret, ensures })
 }
 
-/// `resolve(f, sig)` uses the rust-type sig for `f` to
-/// 1. generate a "default" signature for `f`
-/// 2. zip that default sig with `sig` to get a resolved `DefFnSig` for `f`.
-pub fn resolve(_def_id: LocalDefId, _sig: BareFnSig) -> Result<DefFnSig, ErrorReported> {
+pub(crate) fn zip_bare_def(sig: BareFnSig, dsig: DefFnSig) -> Result<DefFnSig, ErrorReported> {
     todo!()
 }
