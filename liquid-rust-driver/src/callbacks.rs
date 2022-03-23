@@ -1,11 +1,12 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_core::resolve::Resolver;
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 
-use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
+use crate::{collector::SpecCollector, lowering::LoweringCtxt};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]

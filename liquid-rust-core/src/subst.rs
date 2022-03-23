@@ -1,5 +1,5 @@
+use crate::ty::{self, Name, ParamTy};
 use hir::def_id::DefId;
-use liquid_rust_core::ty::{self, Name, ParamTy};
 use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir};

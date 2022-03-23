@@ -6,8 +6,9 @@ use liquid_rust_common::index::IndexVec;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 pub use liquid_rust_syntax::surface;
 
-use liquid_rust_core::{ir::Local, ty::Layout};
+use liquid_rust_core::ir::Local;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
+use liquid_rust_syntax::surface::Layout;
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -102,23 +103,6 @@ pub enum BaseTy {
     Bool,
     Adt(DefId, Substs),
 }
-
-// /// A resolved "name" to use at the surface level
-// #[derive(Clone, PartialEq, Eq, Hash)]
-// pub enum DefIdent {
-//     DInt(IntTy),
-//     DUint(UintTy),
-//     DBool,
-//     DAdt(DefId),
-// }
-
-pub type DefIdent = Layout;
-
-/// Resolved versions of surface signatures
-pub type DefPath = liquid_rust_syntax::surface::Path<DefIdent>;
-pub type DefTyKind = liquid_rust_syntax::surface::TyKind<DefIdent>;
-pub type DefTy = liquid_rust_syntax::surface::Ty<DefIdent>;
-pub type DefFnSig = liquid_rust_syntax::surface::FnSig<DefIdent>;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Substs(Interned<[Ty]>);

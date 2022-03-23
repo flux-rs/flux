@@ -1,5 +1,8 @@
 pub use rustc_ast::token::LitKind;
+use rustc_ast::Mutability;
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty;
+pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
@@ -64,6 +67,19 @@ pub struct Path<T> {
     pub span: Span,
 }
 
+// -- Types moved over from `liquid-rust-core`
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Layout {
+    Bool,
+    Int(IntTy),
+    Uint(UintTy),
+    Float(FloatTy),
+    Adt(DefId),
+    Ref,
+    Param,
+}
+
 #[derive(Debug)]
 pub enum RefKind {
     Weak,
@@ -85,10 +101,19 @@ struct BindIn {
     loc: Option<(Ident, ast::Ty)>,
 }
 
+/// Bare (parsed) versions of surface signatures
 pub type BarePath = Path<Ident>;
 pub type BareTyKind = TyKind<Ident>;
 pub type BareTy = Ty<Ident>;
 pub type BareFnSig = FnSig<Ident>;
+
+pub type DefIdent = Layout;
+
+/// Resolved versions of surface signatures (generated from rust-sigs)
+pub type DefPath = Path<DefIdent>;
+pub type DefTyKind = TyKind<DefIdent>;
+pub type DefTy = Ty<DefIdent>;
+pub type DefFnSig = FnSig<DefIdent>;
 
 fn convert_path(p: BarePath) -> ast::Path {
     ast::Path {
@@ -280,3 +305,89 @@ impl Desugar {
 pub fn desugar(ssig: BareFnSig) -> ast::FnSig {
     Desugar::desugar(ssig)
 }
+
+// ---------------------------------------------------------------------------
+// -------------------------- DEFAULT Signatures -----------------------------
+// ---------------------------------------------------------------------------
+
+fn default_refkind(m: &Mutability) -> RefKind {
+    match m {
+        Mutability::Mut => RefKind::Mut,
+        Mutability::Not => RefKind::Immut,
+    }
+}
+
+fn kind_def_ident(k: &rustc_middle::ty::TyKind) -> DefIdent {
+    match k {
+        rustc_middle::ty::TyKind::Bool => Layout::Bool,
+        rustc_middle::ty::TyKind::Int(i) => Layout::Int(*i),
+        rustc_middle::ty::TyKind::Uint(u) => Layout::Uint(*u),
+        rustc_middle::ty::TyKind::Adt(adt, _) => Layout::Adt(adt.did),
+        _ => panic!("kind_def_ident  : {:?}", k),
+    }
+}
+
+fn default_base_path(k: &rustc_middle::ty::TyKind, span: Span) -> DefPath {
+    Path { ident: kind_def_ident(k), args: None, span }
+}
+
+fn default_path(k: &rustc_middle::ty::TyKind, span: Span) -> DefPath {
+    match k {
+        rustc_middle::ty::TyKind::Bool => default_base_path(k, span),
+        rustc_middle::ty::TyKind::Int(_) => default_base_path(k, span),
+        rustc_middle::ty::TyKind::Uint(_) => default_base_path(k, span),
+        rustc_middle::ty::TyKind::Adt(_, args) => {
+            let ts = args.types().map(|arg| default_ty(&arg, span)).collect();
+            Path { ident: kind_def_ident(k), args: Some(ts), span }
+        }
+        _ => panic!("default_path fails on: {:?}", k),
+    }
+}
+
+fn default_ty_kind(k: &rustc_middle::ty::TyKind, span: Span) -> DefTyKind {
+    match k {
+        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
+            let ref_kind = default_refkind(m);
+            let tgt_ty = default_ty(ty, span);
+            TyKind::Ref(ref_kind, Box::new(tgt_ty))
+        }
+        _ => TyKind::Base(default_path(k, span)),
+    }
+}
+fn default_ty(t: &rustc_middle::ty::Ty, span: Span) -> DefTy {
+    let kind = default_ty_kind(t.kind(), span);
+    Ty { kind, span }
+}
+
+fn mk_ident(i: i32, span: Span) -> Ident {
+    let xstr = format!("def_x_{}", i);
+    Ident::from_str_and_span(&xstr, span)
+}
+
+pub fn default_fn_sig(rust_sig: rustc_middle::ty::FnSig, span: Span) -> DefFnSig {
+    let mut requires = Vec::new();
+    let mut i = 0;
+    for t in rust_sig.inputs().iter() {
+        let xi = mk_ident(i, span);
+        let ti = default_ty(t, span);
+        requires.push((xi, ti));
+        i += 1
+    }
+    let returns = default_ty(&rust_sig.output(), span);
+    let ensures = vec![];
+    let wherep = None;
+    FnSig { requires, returns, ensures, wherep, span }
+}
+
+// fn desugar_defn_sig(_defn_sig: DefFnSig) -> ty::FnSig {
+//     todo!() // <<<<<<< HEREHEREHERE
+// }
+
+// pub fn defaultTy(rust_sig: rustc_middle::ty::FnSig, span: Span) -> ty::FnSpec {
+//     let params = vec![];
+//     let defn_sig = default_defn_sig(rust_sig, span);
+//     let value = desugar_defn_sig(defn_sig);
+//     let fn_sig = ty::Binders { params, value };
+//     let assume = true;
+//     ty::FnSpec { fn_sig, assume }
+// }

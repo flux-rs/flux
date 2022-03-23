@@ -2,6 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 use liquid_rust_common::index::{Idx, IndexVec};
+use liquid_rust_syntax::surface::Layout;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::mir::{
@@ -12,7 +13,7 @@ use rustc_middle::{
     ty::{FloatTy, IntTy, UintTy},
 };
 
-use crate::ty::{Layout, Ty};
+use crate::ty::Ty;
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,

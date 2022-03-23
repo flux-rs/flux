@@ -1,7 +1,7 @@
+use crate::ty::{self, Name};
 use hir::{Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
-use liquid_rust_core::ty::{self, Name};
-use liquid_rust_syntax::{ast, surface};
+use liquid_rust_syntax::{ast, ast::AdtDef, surface};
 // use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
@@ -10,7 +10,6 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, Symbol};
 
 use crate::{
-    collector::AdtDef,
     desugar::{
         convert_loc, desugar_exists, desugar_expr, desugar_loc, desugar_pure, desugar_refine,
     },
@@ -168,9 +167,6 @@ impl<'tcx> Resolver<'tcx> {
 
         // 4. Resolve INPUT locations
         for (loc, ty) in fn_sig.requires {
-            // let fresh = name_gen.fresh();
-            // subst.insert_loc(loc.name, fresh);
-            // let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
             let loc = desugar_loc(loc, &name_gen, &mut subst);
             let ty = self.resolve_ty(ty, &mut subst)?;
 
@@ -193,14 +189,6 @@ impl<'tcx> Resolver<'tcx> {
                 let loc = convert_loc(loc, &subst, &mut self.diagnostics)?;
                 let ty = self.resolve_ty(ty, &mut subst)?;
                 Ok(ty::Constr::Type(loc, ty))
-                // if let Some(name) = subst.get_loc(loc.name) {
-                //     let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
-
-                // } else {
-                //     self.diagnostics
-                //         .emit_err(errors::UnresolvedVar::new(loc))
-                //         .raise()
-                // }
             })
             .try_collect_exhaust();
 
@@ -252,21 +240,6 @@ impl<'tcx> Resolver<'tcx> {
             .map(|param| {
                 let sort = resolve_sort(&mut self.diagnostics, param.sort)?;
                 desugar_pure(param.name, sort, name_gen, subst, &mut self.diagnostics)
-
-                // let fresh = name_gen.fresh();
-                // if subst
-                //     .insert_expr(param.name.name, ty::Var::Free(fresh))
-                //     .is_some()
-                // {
-                //     self.diagnostics
-                //         .emit_err(errors::DuplicateParam::new(param.name))
-                //         .raise()
-                // } else {
-                //     let name =
-                //         ty::Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-
-                //     Ok(ty::Param { name, sort })
-                // }
             })
             .try_collect_exhaust()?;
 

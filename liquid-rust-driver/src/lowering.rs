@@ -6,8 +6,8 @@ use liquid_rust_core::{
         BasicBlockData, BinOp, Body, Constant, LocalDecl, Operand, Place, PlaceElem, Rvalue,
         Statement, StatementKind, Terminator, TerminatorKind,
     },
-    ty::Layout,
 };
+use liquid_rust_syntax::surface::Layout;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::DiagnosticId;
 use rustc_middle::{

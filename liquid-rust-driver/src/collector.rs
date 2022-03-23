@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
-    ast, parse_fn_sig, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface,
+    ast::{self, AdtDef},
+    parse_fn_sig, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface,
     ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
@@ -32,13 +33,6 @@ pub struct Specs {
 pub struct FnSpec {
     pub fn_sig: surface::BareSig,
     pub assume: bool,
-}
-
-#[derive(Debug)]
-pub struct AdtDef {
-    pub refined_by: Option<ast::Generics>,
-    pub fields: Vec<Option<ast::Ty>>,
-    pub opaque: bool,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
