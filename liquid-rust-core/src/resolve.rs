@@ -80,13 +80,11 @@ impl<'tcx> Resolver<'tcx> {
         def_id: LocalDefId,
         span: Span,
     ) -> Result<DefFnSig, ErrorReported> {
-        if let Some(rust_sig) = self.tcx.fn_sig(def_id).no_bound_vars() {
-            Ok(surface::default_fn_sig(rust_sig, span))
-        } else {
-            self.diagnostics
-                .emit_err(errors::DesugarError { span })
-                .raise()
-        }
+        let binder_sig = self.tcx.fn_sig(def_id);
+        // let Some(rust_sig) = self.tcx.fn_sig(def_id).no_bound_vars();
+        let rust_sig = self.tcx.erase_late_bound_regions(binder_sig);
+        print!("default_sig: {:?}", rust_sig);
+        Ok(surface::default_fn_sig(rust_sig, span))
     }
 
     /// `resolve_bare_sig(f, sig)` uses the rust-type sig for `f` to
@@ -98,7 +96,7 @@ impl<'tcx> Resolver<'tcx> {
         sig: surface::BareFnSig,
     ) -> Result<surface::DefFnSig, ErrorReported> {
         let dsig = self.default_fn_sig(def_id, sig.span)?;
-        Ok(surface::zip_bare_def(sig, dsig))
+        Ok(surface::zip::zip_bare_def(sig, dsig))
     }
 
     /// `desugar_bare_sig(f, sig)` resolves the `sig:BareSig` and then desugars into a `core::FnSig`

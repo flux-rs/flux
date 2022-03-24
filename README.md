@@ -1,18 +1,11 @@
 # LiquidRust
 
 
+## TODO(RJ)
 
-```rust
-type DefTy                           // liquid-rust-syntax
-fn resolveTy(BareTy) -> DefTy        // liquid-rust-syntax
-fn defaultTy(rust::Ty) -> DefTy        // liquid-rust-syntax
-fn zipTy(DefTy, DefTy) -> DefTy        // liquid-rust-syntax
-
-pub fn default(rust::Ty) -> ty::Ty
-pub fn desugar(DefTy)    -> ty::Ty       // liquid-rust-driver -> liquid-rust-core
-pub fn resolve(ast::Ty)  -> ty::Ty       // liquid-rust-driver -> liquid-rust-core
 ```
-
+$ liquid-rust --crate-type=rlib liquid-rust-tests/tests/pos/surface/test03.rs
+```
 
 ## Requirements
 

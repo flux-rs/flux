@@ -80,7 +80,7 @@ pub enum Layout {
     Param,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum RefKind {
     Weak,
     Mut,
@@ -383,48 +383,99 @@ mod erase {
     use super::{Path, Ty, TyKind};
 
     /// `erase::ty(t)` removes all refinements, so no `Refine` , `Exists`, `AnonEx` or `Named` constructors
-    pub fn erase_ty<T>(ty: Ty<T>) -> Ty<T> {
-        Ty { kind: erase_ty_kind(ty.kind), span: ty.span }
+    pub fn erase_ty<T: Copy>(ty: &Ty<T>) -> Ty<T> {
+        Ty { kind: erase_ty_kind(&ty.kind), span: ty.span }
     }
 
-    fn erase_ty_kind<T>(k: TyKind<T>) -> TyKind<T> {
+    fn erase_ty_kind<T: Copy>(k: &TyKind<T>) -> TyKind<T> {
         match k {
-            TyKind::Base(_) => k,
-            TyKind::Param(_) => k,
+            TyKind::Base(p) => TyKind::Base(erase_path(p)),
+            TyKind::Param(a) => TyKind::Param(*a),
             TyKind::Refine { path, .. } => TyKind::Base(erase_path(path)),
             TyKind::Exists { path, .. } => TyKind::Base(erase_path(path)),
             TyKind::AnonEx { path, .. } => TyKind::Base(erase_path(path)),
-            TyKind::Named(_, t) => erase_ty(*t).kind,
-            TyKind::Ref(r, t) => TyKind::Ref(r, Box::new(erase_ty(*t))),
+            TyKind::Named(_, t) => erase_ty(t).kind,
+            TyKind::Ref(r, t) => TyKind::Ref(*r, Box::new(erase_ty(t))),
         }
     }
 
-    fn erase_path<T>(p: Path<T>) -> Path<T> {
-        let args = match p.args {
+    fn erase_path<T: Copy>(p: &Path<T>) -> Path<T> {
+        let args = match &p.args {
             None => None,
-            Some(ts) => Some(ts.into_iter().map(erase_ty).collect()),
+            Some(ts) => Some(ts.into_iter().map(|t| erase_ty(&t)).collect()),
         };
         Path { ident: p.ident, args, span: p.span }
     }
 }
 
-mod zip {
+pub mod zip {
+
+    use std::collections::HashMap;
+
     use rustc_span::Span;
 
-    use super::{BarePath, BareTy, BareTyKind, DefPath, DefTy, DefTyKind, Ident, Path, Ty, TyKind};
+    use super::{
+        erase::erase_ty, BareFnSig, BarePath, BareTy, BareTyKind, DefFnSig, DefPath, DefTy,
+        DefTyKind, FnSig, Ident, Path, Ty, TyKind,
+    };
 
-    pub fn zip_ty(bty: BareTy, dty: DefTy) -> DefTy {
-        let dty = super::erase::erase_ty(dty);
+    type Locs = HashMap<Ident, DefTy>;
+
+    /// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
+    /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
+    pub fn zip_bare_def(b_sig: BareFnSig, d_sig: DefFnSig) -> DefFnSig {
+        let mut locs: Locs = HashMap::new();
+        FnSig {
+            requires: zip_ty_binds(b_sig.requires, d_sig.requires, &mut locs),
+            returns: zip_ty(b_sig.returns, d_sig.returns),
+            ensures: zip_ty_locs(b_sig.ensures, &locs),
+            wherep: b_sig.wherep,
+            span: b_sig.span,
+        }
+    }
+
+    /// `zip_ty_locs` traverses the bare-outputs and zips with the location-types saved in `locs`
+    fn zip_ty_locs(bs: Vec<(Ident, BareTy)>, locs: &Locs) -> Vec<(Ident, DefTy)> {
+        let mut res = vec![];
+        for (x, bt) in bs.into_iter() {
+            if let Some(dt) = locs.get(&x) {
+                let dt = erase_ty(dt);
+                let dt = zip_ty(bt, dt);
+                res.push((x, dt))
+            }
+        }
+        res
+    }
+
+    fn zip_ty(bty: BareTy, dty: DefTy) -> DefTy {
+        let dty = erase_ty(&dty);
         Ty { kind: zip_ty_kind(bty.kind, dty.kind, bty.span), span: bty.span }
     }
 
-    pub fn zip_ty_binds(bs: Vec<(Ident, BareTy)>, ds: Vec<(Ident, DefTy)>) -> Vec<(Ident, DefTy)> {
+    /// `zip_ty_binds` traverses the inputs `bs` and `ds` and
+    /// saves the types of the references in `locs`
+    fn zip_ty_binds(
+        bs: Vec<(Ident, BareTy)>,
+        ds: Vec<(Ident, DefTy)>,
+        locs: &mut Locs,
+    ) -> Vec<(Ident, DefTy)> {
         let mut res = vec![];
         for ((x, bt), (_, dt)) in itertools::zip_eq(bs, ds) {
-            res.push((x, zip_ty(bt, dt)));
+            let dt_ = zip_ty_bind(x, bt, dt, locs);
+            res.push((x, dt_));
         }
         return res;
     }
+
+    fn zip_ty_bind(x: Ident, bt: BareTy, dt: DefTy, locs: &mut Locs) -> DefTy {
+        if let TyKind::Ref(ref rk, ref dtt) = dt.kind {
+            if *rk == super::RefKind::Mut {
+                locs.insert(x, erase_ty(dtt));
+            }
+        }
+        zip_ty(bt, dt)
+    }
+
     fn zip_tys(bts: Vec<BareTy>, dts: Vec<DefTy>) -> Vec<DefTy> {
         let mut res = vec![];
         for (bt, dt) in itertools::zip_eq(bts, dts) {
@@ -494,17 +545,5 @@ mod zip {
             }
             TyKind::Param(_) => panic!("impossible: zip_ty_kind with param in bare"),
         }
-    }
-}
-
-/// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
-/// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-pub fn zip_bare_def(b_sig: BareFnSig, d_sig: DefFnSig) -> DefFnSig {
-    FnSig {
-        requires: zip::zip_ty_binds(b_sig.requires, d_sig.requires),
-        returns: zip::zip_ty(b_sig.returns, d_sig.returns),
-        ensures: zip::zip_ty_binds(b_sig.ensures, d_sig.ensures),
-        wherep: b_sig.wherep,
-        span: b_sig.span,
     }
 }

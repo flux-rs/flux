@@ -77,7 +77,11 @@ fn convert_path(
             };
             Ok(ResolvedPath::Base(BaseTy::Adt(a, args?)))
         }
-        _ => diag.emit_err(errors::DesugarError { span: p.span }).raise(),
+        _ => {
+            let msg = "convert_path".to_string();
+            diag.emit_err(errors::DesugarError { span: p.span, msg })
+                .raise()
+        }
     }
 }
 
@@ -129,7 +133,9 @@ fn convert_ty(t: DefTy, subst: &mut Subst, diag: &mut Diagnostics) -> Result<Ty,
             convert_exists(bind, path, pred, t.span, subst, diag)
         }
         surface::TyKind::AnonEx { .. } => {
-            diag.emit_err(errors::DesugarError { span: t.span }).raise()
+            let msg = "convert_ty".to_string();
+            diag.emit_err(errors::DesugarError { span: t.span, msg })
+                .raise()
         }
         surface::TyKind::Named(_, t) => convert_ty(*t, subst, diag),
 

@@ -100,9 +100,10 @@ pub(crate) mod errors {
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
     pub struct DesugarError {
-        #[message = "cannot desugar this type"]
+        #[message = "cannot desugar this type because {msg}"]
         #[label = "desugar"]
         pub span: Span,
+        pub msg: String,
     }
 
     #[derive(SessionDiagnostic)]
