@@ -139,14 +139,6 @@ impl<'tcx> Resolver<'tcx> {
                 let loc = qualifparam.name;
                 let sort = resolve_sort(&mut diagnostics, qualifparam.sort)?;
                 desugar_pure(loc, sort, &name_gen, &mut subst, &mut diagnostics)
-                // let fresh = name_gen.fresh();
-                // if subst.insert_expr(loc.name, ty::Var::Free(fresh)).is_some() {
-                //     diagnostics
-                //         .emit_err(errors::DuplicateParam::new(loc))
-                //         .raise()?;
-                // }
-                // let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
-                // Ok(ty::Param { name: loc, sort })
             })
             .try_collect_exhaust();
 

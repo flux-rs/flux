@@ -41,22 +41,14 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn lookup_fn_sig(&self, did: DefId, span: Span) -> ty::Binders<ty::FnSig> {
-        // RJ:TODO -- make it cry when function is missing, THEN populate function from rust-sig.
-        // Missing -- due to EXTERNAL crate OR because its LOCAL but had no annotations.
-        // do this: https://ucsd-progsys.slack.com/archives/DU17X62Q5/p1647450667607229
-        // see resolve Result<Resolver<'tcx>, ErrorReported> for error handling
         let local_def = did.as_local().unwrap();
         if let Some(fn_spec) = self.fn_specs.borrow().get(&local_def) {
-            let z = fn_spec.fn_sig.clone();
-            return z;
+            return fn_spec.fn_sig.clone();
         }
-
         match self.lookup_default_spec(local_def, span) {
             Ok(fn_spec) => {
-                print!("Using default spec for function {:?} : {:?}", did, fn_spec);
-                self.fn_specs
-                    .borrow_mut()
-                    .insert(local_def, fn_spec.clone());
+                let mut tmp = self.fn_specs.borrow_mut();
+                tmp.insert(local_def, fn_spec.clone());
                 return fn_spec.fn_sig;
             }
             Err(e) => {

@@ -81,7 +81,8 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .collect();
 
     let genv = GlobalEnv::new(tcx, std::cell::RefCell::new(fn_sigs), adt_defs);
-    let genv_specs = genv.fn_specs.borrow();
+    let genv_specs = genv.fn_specs.borrow().clone();
+
     genv_specs
         .iter()
         .map(|(def_id, spec)| {
