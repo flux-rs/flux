@@ -8,7 +8,7 @@ use crate::{
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_syntax::{
     ast,
-    surface::{self, DefFnSig, DefPath, DefTy, Layout},
+    surface::{self, erase::erase_ty, DefFnSig, DefPath, DefTy, Layout},
 };
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
@@ -28,6 +28,15 @@ struct BindIn {
     typ: Ty,
     /// location corresponding to (reference) binder
     loc: Option<(crate::ty::Ident, Ty)>,
+}
+
+/// [NOTE:Resolve-Phase] As some pure-names may be "used" before they are "defined",
+/// e.g. see `tests/pos/surface/scope00.rs`, we structure the resolving into two phases.
+///   1. Use an erased-DefFnSig to `Gather` generics and build `Subst`
+///   2. Use the refined-DefFnSig to `Translate` into a `core::FnSig` using `Subst`
+enum Phase {
+    Gather,
+    Translate,
 }
 
 enum ResolvedPath {
@@ -185,15 +194,38 @@ pub(crate) fn desugar_pure(
 ) -> Result<Param, ErrorReported> {
     let fresh = name_gen.fresh();
     if subst.insert_expr(sym.name, Var::Free(fresh)).is_some() {
-        diag.emit_err(errors::DuplicateParam::new(sym)).raise()
+        let msg = "already used".to_string();
+        diag.emit_err(errors::BadParam::new(sym, msg)).raise()
     } else {
         let name = crate::ty::Ident { name: fresh, source_info: (sym.span, sym.name) };
         Ok(Param { name, sort })
     }
 }
 
-/// Code to desugar ast::Expr into Expr, see [NOTE:Subst] for the enforced invariants
+/// `desugar_pure_translate` is used in the `Translate` phase *after*
+/// we have `Gather`ed all the pure-names in the `Subst`.
+/// See [NOTE:Resolve-Phase]
+fn desugar_pure_translate(
+    sym: symbol::Ident,
+    sort: Sort,
+    name_gen: &IndexGen<crate::ty::Name>,
+    subst: &mut Subst,
+    diag: &mut Diagnostics,
+) -> Result<Param, ErrorReported> {
+    let fresh_cand = name_gen.fresh();
+    match subst.insert_expr(sym.name, Var::Free(fresh_cand)) {
+        Some(Var::Free(fresh)) => {
+            let name = crate::ty::Ident { name: fresh, source_info: (sym.span, sym.name) };
+            Ok(Param { name, sort })
+        }
+        _ => {
+            let msg = "not defined".to_string();
+            diag.emit_err(errors::BadParam::new(sym, msg)).raise()
+        }
+    }
+}
 
+/// Code to desugar ast::Expr into Expr, see [NOTE:Subst] for the enforced invariants
 pub(crate) fn desugar_expr(
     expr: ast::Expr,
     subst: &Subst,
@@ -286,6 +318,7 @@ pub(crate) fn desugar_loc(
 }
 
 fn mk_generic(
+    phase: Phase,
     x: symbol::Ident,
     path: &DefPath,
     pred: Option<ast::Expr>,
@@ -294,7 +327,10 @@ fn mk_generic(
     diag: &mut Diagnostics,
 ) -> Result<(Param, Option<Expr>), ErrorReported> {
     let sort = mk_sort(path);
-    let param = desugar_pure(x, sort, name_gen, subst, diag)?;
+    let param = match phase {
+        Phase::Gather => desugar_pure(x, sort, name_gen, subst, diag)?,
+        Phase::Translate => desugar_pure_translate(x, sort, name_gen, subst, diag)?,
+    };
     let expr = match pred {
         None => None,
         Some(p) => Some(desugar_expr(p, subst, diag)?),
@@ -319,6 +355,7 @@ fn err_refined_float<T>(span: Span, diag: &mut Diagnostics) -> Result<T, ErrorRe
 
 impl BindIn {
     fn from_path(
+        phase: Phase,
         x: symbol::Ident,
         single: bool,
         p: DefPath,
@@ -328,13 +365,14 @@ impl BindIn {
         diag: &mut Diagnostics,
     ) -> Result<BindIn, ErrorReported> {
         if single && is_refinable(&p) {
-            let (param, exp) = mk_generic(x, &p, pred, name_gen, subst, diag)?;
+            let (param, exp) = mk_generic(phase, x, &p, pred, name_gen, subst, diag)?;
             let refine = mk_singleton(x, subst, diag)?;
             let typ = match convert_path(p, subst, diag)? {
                 ResolvedPath::Float(fty) => Ty::Float(fty),
                 ResolvedPath::Base(bty) => Ty::Refine(bty, refine),
             };
-            Ok(BindIn { gen: Some(param), exp, typ, loc: None })
+            let res = Ok(BindIn { gen: Some(param), exp, typ, loc: None });
+            res
         } else {
             let typ = convert_base(p, subst, diag)?;
             Ok(BindIn { gen: None, exp: None, typ, loc: None })
@@ -342,6 +380,7 @@ impl BindIn {
     }
 
     fn from_ty(
+        phase: Phase,
         x: symbol::Ident,
         single: bool,
         ty: DefTy,
@@ -351,11 +390,10 @@ impl BindIn {
     ) -> Result<BindIn, ErrorReported> {
         match ty.kind {
             surface::TyKind::AnonEx { path, pred } => {
-                BindIn::from_path(x, single, path, Some(pred), name_gen, subst, diag)
+                BindIn::from_path(phase, x, single, path, Some(pred), name_gen, subst, diag)
             }
-
             surface::TyKind::Base(path) => {
-                BindIn::from_path(x, single, path, None, name_gen, subst, diag)
+                BindIn::from_path(phase, x, single, path, None, name_gen, subst, diag)
             }
             surface::TyKind::Refine { path, refine } => {
                 let refine = desugar_refine(refine, subst, diag)?;
@@ -369,20 +407,22 @@ impl BindIn {
                 let typ = convert_exists(bind, path, pred, ty.span, subst, diag)?;
                 Ok(BindIn { gen: None, exp: None, typ, loc: None })
             }
-            surface::TyKind::Named(n, t) => BindIn::from_ty(n, true, *t, name_gen, subst, diag),
+            surface::TyKind::Named(n, t) => {
+                BindIn::from_ty(phase, n, true, *t, name_gen, subst, diag)
+            }
             surface::TyKind::Ref(surface::RefKind::Mut, t) => {
                 let loc = desugar_loc(x, name_gen, subst);
-                let b = BindIn::from_ty(x, false, *t, name_gen, subst, diag)?;
+                let b = BindIn::from_ty(phase, x, false, *t, name_gen, subst, diag)?;
                 let typ = Ty::StrgRef(loc);
                 Ok(BindIn { gen: b.gen, exp: b.exp, typ, loc: Some((loc, b.typ)) })
             }
             surface::TyKind::Ref(surface::RefKind::Immut, t) => {
-                let b = BindIn::from_ty(x, false, *t, name_gen, subst, diag)?;
+                let b = BindIn::from_ty(phase, x, false, *t, name_gen, subst, diag)?;
                 let typ = Ty::ShrRef(Box::new(b.typ));
                 Ok(BindIn { gen: b.gen, exp: b.exp, typ, loc: None })
             }
             surface::TyKind::Ref(surface::RefKind::Weak, t) => {
-                let b = BindIn::from_ty(x, false, *t, name_gen, subst, diag)?;
+                let b = BindIn::from_ty(phase, x, false, *t, name_gen, subst, diag)?;
                 let typ = Ty::WeakRef(Box::new(b.typ));
                 Ok(BindIn { gen: b.gen, exp: b.exp, typ, loc: None })
             }
@@ -402,8 +442,13 @@ impl Desugar {
         subst: &mut Subst,
         diag: &mut Diagnostics,
     ) -> Result<(), ErrorReported> {
+        // See [NOTE:Resolve-Phase]
+        for (x, ty) in in_sigs.iter() {
+            BindIn::from_ty(Phase::Gather, *x, true, erase_ty(ty), name_gen, subst, diag)?;
+        }
+
         for (x, ty) in in_sigs {
-            let b_in = BindIn::from_ty(x, true, ty, name_gen, subst, diag)?;
+            let b_in = BindIn::from_ty(Phase::Translate, x, true, ty, name_gen, subst, diag)?;
             if let Some(g) = b_in.gen {
                 self.prms.push(g);
             }

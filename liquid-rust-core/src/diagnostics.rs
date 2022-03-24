@@ -84,16 +84,17 @@ pub(crate) mod errors {
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
-    pub struct DuplicateParam {
-        #[message = "the name `{name}` is already used as a parameter"]
-        #[label = "already used"]
+    pub struct BadParam {
+        #[message = "the name `{name}` is {msg} as a parameter"]
+        #[label = "{msg}"]
         span: Span,
         name: Ident,
+        msg: String,
     }
 
-    impl DuplicateParam {
-        pub fn new(name: Ident) -> Self {
-            Self { span: name.span, name }
+    impl BadParam {
+        pub fn new(name: Ident, msg: String) -> Self {
+            Self { span: name.span, name, msg }
         }
     }
 

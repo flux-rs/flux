@@ -383,7 +383,7 @@ pub fn default_fn_sig(rust_sig: rustc_middle::ty::FnSig, span: Span) -> DefFnSig
     FnSig { requires, returns, ensures, wherep, span }
 }
 
-mod erase {
+pub mod erase {
     use super::{Path, Ty, TyKind};
 
     /// `erase::ty(t)` removes all refinements, so no `Refine` , `Exists`, `AnonEx` or `Named` constructors
@@ -398,7 +398,7 @@ mod erase {
             TyKind::Refine { path, .. } => TyKind::Base(erase_path(path)),
             TyKind::Exists { path, .. } => TyKind::Base(erase_path(path)),
             TyKind::AnonEx { path, .. } => TyKind::Base(erase_path(path)),
-            TyKind::Named(_, t) => erase_ty(t).kind,
+            TyKind::Named(n, t) => TyKind::Named(*n, Box::new(erase_ty(t))),
             TyKind::Ref(r, t) => TyKind::Ref(*r, Box::new(erase_ty(t))),
         }
     }

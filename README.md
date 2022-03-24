@@ -4,8 +4,19 @@
 ## TODO(RJ)
 
 ```
-$ liquid-rust --crate-type=rlib liquid-rust-tests/tests/pos/surface/test03.rs
+$ liquid-rust --crate-type=rlib liquid-rust-tests/tests/pos/surface/scope.rs
 ```
+
+```
+
+
+
+process param: pat#0 with type Ty { kind: AnonEx { path: Path { ident: Adt(DefId(0:9 ~ debug[8825]::rvec::RVec)), args: Some([Ty { kind: Base(Path { ident: Uint(U8), args: None, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:24: 8:26 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:24: 8:26 (#0) }]), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:19: 8:27 (#0) }, pred: Expr { kind: BinaryOp(<=, Expr { kind: Var(pat#0), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:28: 8:31 (#0) }, Expr { kind: Var(n#0), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:33: 8:34 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:28: 8:34 (#0) } }, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:19: 8:35 (#0) }
+
+resolve_bare_sig FnSig { requires: [(pat#0, Ty { kind: AnonEx { path: Path { ident: Adt(DefId(0:9 ~ debug[8825]::rvec::RVec)), args: Some([Ty { kind: Base(Path { ident: Uint(U8), args: None, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:24: 8:26 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:24: 8:26 (#0) }]), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:19: 8:27 (#0) }, pred: Expr { kind: BinaryOp(<=, Expr { kind: Var(pat#0), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:28: 8:31 (#0) }, Expr { kind: Var(n#0), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:33: 8:34 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:28: 8:34 (#0) } }, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:19: 8:35 (#0) }), (target#0, Ty { kind: Ref(Immut, Ty { kind: Named(n#0, Ty { kind: Base(Path { ident: Adt(DefId(0:9 ~ debug[8825]::rvec::RVec)), args: Some([Ty { kind: Base(Path { ident: Uint(U8), args: None, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:53: 8:55 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:53: 8:55 (#0) }]), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:48: 8:56 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:48: 8:56 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:46: 8:56 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:45: 8:56 (#0) })], returns: Ty { kind: Base(Path { ident: Uint(Usize), args: None, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:61: 8:66 (#0) }), span: liquid-rust-tests/tests/pos/surface/debug.rs:8:61: 8:66 (#0) }, ensures: [], wherep: None, span: liquid-rust-tests/tests/pos/surface/debug.rs:8:11: 8:66 (#0) }
+```
+
+
 
 ## Requirements
 

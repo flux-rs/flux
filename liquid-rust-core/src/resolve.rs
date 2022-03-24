@@ -96,7 +96,9 @@ impl<'tcx> Resolver<'tcx> {
         sig: surface::BareFnSig,
     ) -> Result<surface::DefFnSig, ErrorReported> {
         let dsig = self.default_fn_sig(def_id, sig.span)?;
-        Ok(surface::zip::zip_bare_def(sig, dsig))
+        let res = surface::zip::zip_bare_def(sig, dsig);
+        // print!("resolve_bare_sig {:?}", res);
+        Ok(res)
     }
 
     /// `desugar_bare_sig(f, sig)` resolves the `sig:BareSig` and then desugars into a `core::FnSig`
@@ -135,17 +137,16 @@ impl<'tcx> Resolver<'tcx> {
             .into_iter()
             .map(|qualifparam| {
                 let loc = qualifparam.name;
-                let sort = qualifparam.sort;
-                let fresh = name_gen.fresh();
-                if subst.insert_expr(loc.name, ty::Var::Free(fresh)).is_some() {
-                    diagnostics
-                        .emit_err(errors::DuplicateParam::new(loc))
-                        .raise()?;
-                }
-                let sort = resolve_sort(&mut diagnostics, sort)?;
-
-                let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
-                Ok(ty::Param { name: loc, sort })
+                let sort = resolve_sort(&mut diagnostics, qualifparam.sort)?;
+                desugar_pure(loc, sort, &name_gen, &mut subst, &mut diagnostics)
+                // let fresh = name_gen.fresh();
+                // if subst.insert_expr(loc.name, ty::Var::Free(fresh)).is_some() {
+                //     diagnostics
+                //         .emit_err(errors::DuplicateParam::new(loc))
+                //         .raise()?;
+                // }
+                // let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+                // Ok(ty::Param { name: loc, sort })
             })
             .try_collect_exhaust();
 
