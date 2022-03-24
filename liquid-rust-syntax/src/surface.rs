@@ -322,6 +322,7 @@ fn kind_def_ident(k: &rustc_middle::ty::TyKind) -> DefIdent {
         rustc_middle::ty::TyKind::Bool => Layout::Bool,
         rustc_middle::ty::TyKind::Int(i) => Layout::Int(*i),
         rustc_middle::ty::TyKind::Uint(u) => Layout::Uint(*u),
+        rustc_middle::ty::TyKind::Float(f) => Layout::Float(*f),
         rustc_middle::ty::TyKind::Adt(adt, _) => Layout::Adt(adt.did),
         _ => panic!("kind_def_ident  : {:?}", k),
     }
@@ -336,11 +337,13 @@ fn default_path(k: &rustc_middle::ty::TyKind, span: Span) -> DefPath {
         rustc_middle::ty::TyKind::Bool => default_base_path(k, span),
         rustc_middle::ty::TyKind::Int(_) => default_base_path(k, span),
         rustc_middle::ty::TyKind::Uint(_) => default_base_path(k, span),
+        rustc_middle::ty::TyKind::Float(_) => default_base_path(k, span),
         rustc_middle::ty::TyKind::Adt(_, args) => {
             let ts = args.types().map(|arg| default_ty(&arg, span)).collect();
             Path { ident: kind_def_ident(k), args: Some(ts), span }
         }
-        _ => panic!("default_path fails on: {:?}", k),
+
+        _ => panic!("default_path fails on: {:?} at {:?}", k, span),
     }
 }
 
@@ -351,6 +354,7 @@ fn default_ty_kind(k: &rustc_middle::ty::TyKind, span: Span) -> DefTyKind {
             let tgt_ty = default_ty(ty, span);
             TyKind::Ref(ref_kind, Box::new(tgt_ty))
         }
+        rustc_middle::ty::TyKind::Param(a) => TyKind::Param(*a),
         _ => TyKind::Base(default_path(k, span)),
     }
 }
@@ -416,7 +420,7 @@ pub mod zip {
 
     use super::{
         erase::erase_ty, BareFnSig, BarePath, BareTy, BareTyKind, DefFnSig, DefPath, DefTy,
-        DefTyKind, FnSig, Ident, Path, Ty, TyKind,
+        DefTyKind, FnSig, Ident, Path, RefKind, Ty, TyKind,
     };
 
     type Locs = HashMap<Ident, DefTy>;
@@ -495,6 +499,14 @@ pub mod zip {
         Path { ident, args, span }
     }
 
+    fn ref_compat(bk: RefKind, dk: RefKind) -> bool {
+        match bk {
+            RefKind::Mut => dk == RefKind::Mut,
+            RefKind::Immut => dk == RefKind::Immut,
+            RefKind::Weak => dk == RefKind::Mut,
+        }
+    }
+
     fn zip_ty_kind(bty: BareTyKind, dty: DefTyKind, span: Span) -> DefTyKind {
         match bty {
             TyKind::Base(bp) => {
@@ -534,10 +546,10 @@ pub mod zip {
             TyKind::Ref(bk, bt) => {
                 match dty {
                     TyKind::Ref(dk, dt) => {
-                        if bk != dk {
-                            panic!("zip_ty: incompatible reference kinds!");
-                        } else {
+                        if ref_compat(bk, dk) {
                             TyKind::Ref(bk, Box::new(zip_ty(*bt, *dt)))
+                        } else {
+                            panic!("zip_ty: incompatible reference kinds at {:?}", span);
                         }
                     }
                     _ => panic!("zip_ty_kind: incompatible types"),

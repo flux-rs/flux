@@ -511,6 +511,7 @@ version = "0.1.0"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
+ "liquid-rust-common",
 ]
 
 [[package]]
