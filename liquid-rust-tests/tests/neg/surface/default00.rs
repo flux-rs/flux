@@ -7,8 +7,7 @@ fn silly(x: i32) -> i32 {
 }
 
 #[lr::sig(fn(x: i32) -> i32{v: x < v})]
-pub fn inc(x: i32) -> i32 {
-    //~ ERROR postcondition might not hold
+pub fn inc(x: i32) -> i32 { //~ ERROR postcondition might not hold
     let y = silly(x);
     if x <= y {
         y
