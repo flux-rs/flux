@@ -83,7 +83,7 @@ impl<'tcx> Resolver<'tcx> {
         let binder_sig = self.tcx.fn_sig(def_id);
         // let Some(rust_sig) = self.tcx.fn_sig(def_id).no_bound_vars();
         let rust_sig = self.tcx.erase_late_bound_regions(binder_sig);
-        print!("default_sig: {:?}", rust_sig);
+        // print!("default_sig: {:?}", rust_sig);
         Ok(surface::default_fn_sig(rust_sig, span))
     }
 
