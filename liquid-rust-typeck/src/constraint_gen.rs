@@ -7,7 +7,7 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, Loc, Path, Pred, Ty, TyKind},
+    ty::{BaseTy, BinOp, Constr, Expr, Loc, Pred, Ty, TyKind},
     type_env::TypeEnv,
 };
 
@@ -38,8 +38,8 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
 
     pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
         match constr {
-            Constr::Type(loc, ty) => {
-                let actual_ty = env.lookup_path(&Path::new(*loc, vec![]));
+            Constr::Type(path, ty) => {
+                let actual_ty = env.lookup_path(path);
                 self.subtyping(&actual_ty, ty);
             }
             Constr::Pred(e) => {

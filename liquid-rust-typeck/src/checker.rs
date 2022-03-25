@@ -16,9 +16,7 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{
-        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Path, Pred, Sort, Ty, TyKind, Var,
-    },
+    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, Sort, Ty, TyKind, Var},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
@@ -187,9 +185,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut env = TypeEnv::new();
         for constr in &fn_sig.requires {
             match constr {
-                ty::Constr::Type(loc, ty) => {
+                ty::Constr::Type(path, ty) => {
+                    assert!(path.projection().is_empty());
                     let ty = env.unpack_ty(genv, pcx, ty);
-                    env.alloc_with_ty(*loc, ty);
+                    env.alloc_with_ty(path.loc, ty);
                 }
                 ty::Constr::Pred(e) => {
                     pcx.push_pred(e.clone());
@@ -346,14 +345,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in &fn_sig.ensures {
             match constr {
-                Constr::Type(loc, updated_ty) => {
+                Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
                     let gen = &mut ConstraintGen::new(
                         self.genv,
                         pcx.breadcrumb(),
                         Tag::Call(source_info.span),
                     );
-                    env.update_path(gen, &Path::new(*loc, vec![]), updated_ty);
+                    env.update_path(gen, path, updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }

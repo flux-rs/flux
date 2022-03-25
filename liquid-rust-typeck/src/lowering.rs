@@ -1,4 +1,4 @@
-use crate::ty;
+use crate::ty::{self, Path};
 use itertools::Itertools;
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_core::ty as core;
@@ -69,7 +69,7 @@ impl LoweringCtxt {
         match constr {
             core::Constr::Type(loc, ty) => {
                 ty::Constr::Type(
-                    ty::Loc::Abstract(self.name_map[&loc.name]),
+                    Path::from(ty::Loc::Free(self.name_map[&loc.name])),
                     self.lower_ty(ty, fresh_kvar),
                 )
             }
@@ -132,7 +132,7 @@ impl LoweringCtxt {
                 };
                 ty::Ty::exists(bty, pred)
             }
-            core::Ty::StrgRef(loc) => ty::Ty::strg_ref(ty::Loc::Abstract(self.name_map[&loc.name])),
+            core::Ty::StrgRef(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),
             core::Ty::WeakRef(ty) => ty::Ty::weak_ref(self.lower_ty(ty, fresh_kvar)),
             core::Ty::ShrRef(ty) => ty::Ty::shr_ref(self.lower_ty(ty, fresh_kvar)),
             core::Ty::Param(param) => ty::Ty::param(*param),

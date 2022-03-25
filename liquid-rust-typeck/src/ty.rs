@@ -43,7 +43,7 @@ pub struct FnSig {
 }
 
 pub enum Constr {
-    Type(Loc, Ty),
+    Type(Path, Ty),
     Pred(Expr),
 }
 
@@ -73,13 +73,13 @@ pub enum TyKind {
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
-    StrgRef(Loc),
+    StrgRef(Path),
     WeakRef(Ty),
     ShrRef(Ty),
     Param(ParamTy),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub loc: Loc,
     projection: Interned<[Field]>,
@@ -88,7 +88,7 @@ pub struct Path {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Loc {
     Local(Local),
-    Abstract(Name),
+    Free(Name),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -202,8 +202,8 @@ impl AdtDef {
 }
 
 impl Ty {
-    pub fn strg_ref(loc: impl Into<Loc>) -> Ty {
-        TyKind::StrgRef(loc.into()).intern()
+    pub fn strg_ref(path: impl Into<Path>) -> Ty {
+        TyKind::StrgRef(path.into()).intern()
     }
 
     pub fn weak_ref(ty: Ty) -> Ty {
@@ -643,18 +643,24 @@ impl Path {
     }
 }
 
+impl From<Loc> for Path {
+    fn from(loc: Loc) -> Self {
+        Path::new(loc, vec![])
+    }
+}
+
 impl Loc {
     pub fn is_free(&self, scope: &Scope) -> bool {
         match self {
             Loc::Local(_) => false,
-            Loc::Abstract(name) => !scope.contains(*name),
+            Loc::Free(name) => !scope.contains(*name),
         }
     }
 }
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Abstract(name)
+        Loc::Free(name)
     }
 }
 
@@ -668,9 +674,9 @@ impl PartialOrd for Loc {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
             (Loc::Local(local1), Loc::Local(local2)) => local1.partial_cmp(local2),
-            (Loc::Local(_), Loc::Abstract(_)) => Some(std::cmp::Ordering::Less),
-            (Loc::Abstract(_), Loc::Local(_)) => Some(std::cmp::Ordering::Greater),
-            (Loc::Abstract(loc1), Loc::Abstract(loc2)) => loc1.partial_cmp(loc2),
+            (Loc::Local(_), Loc::Free(_)) => Some(std::cmp::Ordering::Less),
+            (Loc::Free(_), Loc::Local(_)) => Some(std::cmp::Ordering::Greater),
+            (Loc::Free(loc1), Loc::Free(loc2)) => loc1.partial_cmp(loc2),
         }
     }
 }
@@ -943,7 +949,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Abstract(name) => w!("{:?}", ^name),
+                Loc::Free(name) => w!("{:?}", ^name),
             }
         }
     }
