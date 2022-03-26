@@ -74,7 +74,7 @@ fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> {
 }
 
 /// finding the nearest center to a point
-#[lr::sig(fn(p:&n@RVec<f32>, cs: &k@RVec<RVec<f32>[n]>{0 < k}) -> usize{v:0 <= v && v < k})]
+#[lr::sig(fn(p:&n@RVec<f32>, cs: &k@RVec<RVec<f32>{v : v == n}>{0 < k}) -> usize{v:0 <= v && v < k})]
 fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
     // let n = p.len();
     let k = cs.len();

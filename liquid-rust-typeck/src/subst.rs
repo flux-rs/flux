@@ -261,7 +261,8 @@ impl Subst<'_> {
         ty2: &TyS,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(_bty1, exprs1), TyKind::Refine(_bty2, exprs2)) => {
+            (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
+                self.infer_from_btys(params, env, bty1, requires, bty2);
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     self.infer_from_exprs(params, e1, e2);
                 }
@@ -281,6 +282,22 @@ impl Subst<'_> {
                 self.infer_from_tys(params, env, ty1, requires, ty2);
             }
             _ => {}
+        }
+    }
+
+    fn infer_from_btys(
+        &mut self,
+        params: &FxHashSet<Name>,
+        env: &TypeEnv,
+        bty1: &BaseTy,
+        requires: &FxHashMap<Path, Ty>,
+        bty2: &BaseTy,
+    ) {
+        if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
+            debug_assert_eq!(did1, did2);
+            for (ty1, ty2) in iter::zip(substs1, substs2) {
+                self.infer_from_tys(params, env, ty1, requires, ty2);
+            }
         }
     }
 
