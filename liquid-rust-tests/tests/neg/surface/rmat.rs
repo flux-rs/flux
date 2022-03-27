@@ -32,6 +32,6 @@ impl RMat {
 
     #[lr::ty(fn<m:int,n:int>(&weak RMat@{m,n}, usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &weak f32)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut f32 {
-        self.inner.get_mut(i - 1).get_mut(j) // ~ERROR precondition might not hold
+        self.inner.get_mut(i - 1).get_mut(j) //~ ERROR precondition might not hold
     }
 }
