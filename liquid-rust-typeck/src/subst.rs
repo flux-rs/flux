@@ -95,10 +95,9 @@ impl Subst<'_> {
             }
             TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
             TyKind::Float(float_ty) => Ty::float(*float_ty),
-            TyKind::StrgRef(path) => Ty::strg_ref(self.subst_path(path)),
+            TyKind::Ptr(path) => Ty::strg_ref(self.subst_path(path)),
             TyKind::Param(param) => self.subst_ty_param(*param),
-            TyKind::WeakRef(ty) => Ty::weak_ref(self.subst_ty(ty)),
-            TyKind::ShrRef(ty) => Ty::shr_ref(self.subst_ty(ty)),
+            TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, self.subst_ty(ty)),
             TyKind::Uninit(_) => ty.clone(),
         }
     }
@@ -280,10 +279,10 @@ impl Subst<'_> {
                     self.infer_from_exprs(params, &e1, e2);
                 }
             }
-            (TyKind::StrgRef(path1), TyKind::WeakRef(ty2)) => {
+            (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
                 self.infer_from_tys(genv, pcx, params, env, &env.lookup_path(path1), requires, ty2);
             }
-            (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) => {
+            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 self.infer_from_paths(params, path1, path2);
                 self.infer_from_tys(
                     genv,
@@ -295,8 +294,8 @@ impl Subst<'_> {
                     &requires[path2],
                 );
             }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2))
-            | (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
+                debug_assert_eq!(mode1, mode2);
                 self.infer_from_tys(genv, pcx, params, env, ty1, requires, ty2);
             }
             _ => {}

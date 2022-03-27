@@ -133,8 +133,10 @@ impl LoweringCtxt {
                 ty::Ty::exists(bty, pred)
             }
             core::Ty::StrgRef(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),
-            core::Ty::WeakRef(ty) => ty::Ty::weak_ref(self.lower_ty(ty, fresh_kvar)),
-            core::Ty::ShrRef(ty) => ty::Ty::shr_ref(self.lower_ty(ty, fresh_kvar)),
+            core::Ty::WeakRef(ty) => {
+                ty::Ty::mk_ref(ty::RefMode::Mut, self.lower_ty(ty, fresh_kvar))
+            }
+            core::Ty::ShrRef(ty) => ty::Ty::mk_ref(ty::RefMode::Shr, self.lower_ty(ty, fresh_kvar)),
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
         }

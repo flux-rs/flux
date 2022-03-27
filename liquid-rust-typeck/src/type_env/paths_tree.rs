@@ -10,7 +10,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::PureCtxt,
     subst::Subst,
-    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, Ty, TyKind, Var},
+    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefMode, Ty, TyKind, Var},
 };
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -19,16 +19,15 @@ pub struct PathsTree {
 }
 
 pub enum LookupResult<'a> {
-    Strg(Path, &'a mut Ty),
-    Shr(Ty),
-    Weak(Ty),
+    Ptr(Path, &'a mut Ty),
+    Ref(RefMode, Ty),
 }
 
 impl LookupResult<'_> {
     pub fn ty(&self) -> Ty {
         match self {
-            LookupResult::Strg(_, ty) => (*ty).clone(),
-            LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty.clone(),
+            LookupResult::Ptr(_, ty) => (*ty).clone(),
+            LookupResult::Ref(_, ty) => ty.clone(),
         }
     }
 }
@@ -174,22 +173,18 @@ impl PathsTree {
             match place_proj.next() {
                 Some(PlaceElem::Deref) => {
                     match ty.kind() {
-                        TyKind::StrgRef(ref_path) => path = ref_path.clone(),
-                        TyKind::ShrRef(ty) => {
+                        TyKind::Ptr(ref_path) => path = ref_path.clone(),
+                        TyKind::Ref(mode, ty) => {
                             let ty = ty.clone();
-                            let result = self.place_proj_ty(genv, pcx, false, &ty, place_proj);
-                            return f(pcx, result);
-                        }
-                        TyKind::WeakRef(ty) => {
-                            let ty = ty.clone();
-                            let result = self.place_proj_ty(genv, pcx, true, &ty, place_proj);
+                            let mode = *mode;
+                            let result = self.place_proj_ty(genv, pcx, mode, &ty, place_proj);
                             return f(pcx, result);
                         }
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
                 Some(_) => unreachable!("expected deref"),
-                None => return f(pcx, LookupResult::Strg(Path::new(loc, proj), ty)),
+                None => return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty)),
             }
         }
     }
@@ -198,30 +193,24 @@ impl PathsTree {
         &mut self,
         genv: &GlobalEnv,
         pcx: &mut PureCtxt,
-        mut weak: bool,
+        mut mode: RefMode,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
     ) -> LookupResult {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
-                (PlaceElem::Deref, TyKind::ShrRef(ref_ty)) => {
-                    weak = false;
-                    ty = ref_ty.clone();
+                (PlaceElem::Deref, TyKind::Ref(mode2, ty2)) => {
+                    mode = mode.min(*mode2);
+                    ty = ty2.clone();
                 }
-                (PlaceElem::Deref, TyKind::WeakRef(ref_ty)) => {
-                    ty = ref_ty.clone();
-                }
-                (PlaceElem::Deref, TyKind::StrgRef(path)) => {
+                (PlaceElem::Deref, TyKind::Ptr(path)) => {
                     return self.lookup_place_iter(genv, pcx, path.clone(), proj, |_, lookup| {
-                        let ty = match lookup {
-                            LookupResult::Strg(_, ty) => ty.clone(),
-                            LookupResult::Shr(ty) | LookupResult::Weak(ty) => ty,
-                        };
-                        if weak {
-                            LookupResult::Weak(ty)
-                        } else {
-                            LookupResult::Shr(ty)
+                        match lookup {
+                            LookupResult::Ptr(_, ty) => LookupResult::Ref(mode, ty.clone()),
+                            LookupResult::Ref(mode2, ty2) => {
+                                LookupResult::Ref(mode.min(mode2), ty2)
+                            }
                         }
                     });
                 }
@@ -232,11 +221,7 @@ impl PathsTree {
                 _ => unreachable!(),
             }
         }
-        if weak {
-            LookupResult::Weak(ty)
-        } else {
-            LookupResult::Shr(ty)
-        }
+        LookupResult::Ref(mode, ty)
     }
 }
 
@@ -388,10 +373,10 @@ fn ty_infer_folding(
         }
         (TyKind::Exists(..), TyKind::Exists(..)) => todo!(),
         (TyKind::Refine(..), TyKind::Exists(..)) => todo!(),
-        (TyKind::StrgRef(_), TyKind::StrgRef(_)) => {
+        (TyKind::Ptr(_), TyKind::Ptr(_)) => {
             todo!()
         }
-        (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+        (TyKind::Ref(RefMode::Shr, ty1), TyKind::Ref(RefMode::Shr, ty2)) => {
             ty_infer_folding(genv, pcx, params, ty1, ty2);
         }
         _ => {}
