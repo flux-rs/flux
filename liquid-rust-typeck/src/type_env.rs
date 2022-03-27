@@ -91,6 +91,8 @@ impl TypeEnv {
         self.bindings[path] = new_ty;
     }
 
+    // TODO(nilehmann) find a better name for borrow in this context
+    // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
     pub fn borrow_mut(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings.lookup_place(genv, pcx, place, |_, result| {
             match result {
@@ -152,18 +154,17 @@ impl TypeEnv {
         })
     }
 
+    pub fn weaken_ty_at_path(&mut self, gen: &mut ConstraintGen, path: &Path, bound: Ty) {
+        let ty = &mut self.bindings[path];
+        gen.subtyping(ty, &bound);
+        *ty = bound;
+    }
+
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
                 let exprs = pcx.push_bindings(&genv.sorts(bty), p);
                 Ty::refine(bty.clone(), exprs)
-            }
-            TyKind::WeakRef(pledge) => {
-                let fresh = pcx.push_loc();
-                let ty = self.unpack_ty(genv, pcx, pledge);
-                self.bindings.insert(fresh, ty);
-                self.pledges.insert(fresh, pledge.clone());
-                Ty::strg_ref(fresh)
             }
             TyKind::ShrRef(ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);

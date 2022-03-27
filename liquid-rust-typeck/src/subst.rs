@@ -3,7 +3,7 @@ use std::iter;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::{pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
+use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
 
 #[derive(Debug)]
 pub struct Subst<'a> {
@@ -213,6 +213,8 @@ impl Subst<'_> {
 
     pub fn infer_from_fn_call(
         &mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
         env: &TypeEnv,
         actuals: &[Ty],
         fn_sig: &Binders<FnSig>,
@@ -234,7 +236,7 @@ impl Subst<'_> {
             .collect();
 
         for (actual, formal) in actuals.iter().zip(fn_sig.value.args.iter()) {
-            self.infer_from_tys(&params, env, actual, &requires, formal);
+            self.infer_from_tys(genv, pcx, &params, env, actual, &requires, formal);
         }
 
         self.check_inference(params.into_iter())
@@ -254,6 +256,8 @@ impl Subst<'_> {
 
     fn infer_from_tys(
         &mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
         params: &FxHashSet<Name>,
         env: &TypeEnv,
         ty1: &TyS,
@@ -262,14 +266,28 @@ impl Subst<'_> {
     ) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
-                self.infer_from_btys(params, env, bty1, requires, bty2);
+                self.infer_from_btys(genv, pcx, params, env, bty1, requires, bty2);
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     self.infer_from_exprs(params, e1, e2);
                 }
             }
+            (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
+                // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
+                self.infer_from_btys(genv, pcx, params, env, bty1, requires, bty2);
+                let sorts = genv.sorts(bty1);
+                let exprs1 = pcx.push_bindings(&sorts, p);
+                for (e1, e2) in iter::zip(exprs1, exprs2) {
+                    self.infer_from_exprs(params, &e1, e2);
+                }
+            }
+            (TyKind::StrgRef(path1), TyKind::WeakRef(ty2)) => {
+                self.infer_from_tys(genv, pcx, params, env, &env.lookup_path(path1), requires, ty2);
+            }
             (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) => {
                 self.infer_from_paths(params, path1, path2);
                 self.infer_from_tys(
+                    genv,
+                    pcx,
                     params,
                     env,
                     &env.lookup_path(path1),
@@ -279,7 +297,7 @@ impl Subst<'_> {
             }
             (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2))
             | (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
-                self.infer_from_tys(params, env, ty1, requires, ty2);
+                self.infer_from_tys(genv, pcx, params, env, ty1, requires, ty2);
             }
             _ => {}
         }
@@ -287,6 +305,8 @@ impl Subst<'_> {
 
     fn infer_from_btys(
         &mut self,
+        genv: &GlobalEnv,
+        pcx: &mut PureCtxt,
         params: &FxHashSet<Name>,
         env: &TypeEnv,
         bty1: &BaseTy,
@@ -296,7 +316,7 @@ impl Subst<'_> {
         if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
             debug_assert_eq!(did1, did2);
             for (ty1, ty2) in iter::zip(substs1, substs2) {
-                self.infer_from_tys(params, env, ty1, requires, ty2);
+                self.infer_from_tys(genv, pcx, params, env, ty1, requires, ty2);
             }
         }
     }
