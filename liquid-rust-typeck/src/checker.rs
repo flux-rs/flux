@@ -19,7 +19,9 @@ use crate::{
     lowering::LoweringCtxt,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
-    ty::{self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, Sort, Ty, TyKind, Var},
+    ty::{
+        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, RefMode, Sort, Ty, TyKind, Var,
+    },
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
@@ -343,7 +345,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
         for (actual, formal) in iter::zip(actuals, &fn_sig.args) {
-            if let (TyKind::StrgRef(path), TyKind::WeakRef(bound)) = (actual.kind(), formal.kind())
+            if let (TyKind::Ptr(path), TyKind::Ref(RefMode::Mut, bound)) =
+                (actual.kind(), formal.kind())
             {
                 env.weaken_ty_at_path(&mut gen, path, bound.clone());
             } else {

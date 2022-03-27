@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, RefMode, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -96,9 +96,9 @@ impl TypeEnv {
     pub fn borrow_mut(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings.lookup_place(genv, pcx, place, |_, result| {
             match result {
-                LookupResult::Strg(path, _) => Ty::strg_ref(path),
-                LookupResult::Weak(ty) => Ty::weak_ref(ty),
-                LookupResult::Shr(_) => {
+                LookupResult::Ptr(path, _) => Ty::strg_ref(path),
+                LookupResult::Ref(RefMode::Mut, ty) => Ty::mk_ref(RefMode::Mut, ty),
+                LookupResult::Ref(RefMode::Shr, _) => {
                     panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
                 }
             }
@@ -107,7 +107,7 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, result| Ty::shr_ref(result.ty()))
+            .lookup_place(genv, pcx, place, |_, result| Ty::mk_ref(RefMode::Shr, result.ty()))
     }
 
     pub fn write_place(
@@ -120,16 +120,16 @@ impl TypeEnv {
     ) {
         self.bindings.lookup_place(genv, pcx, place, |pcx, result| {
             match result {
-                LookupResult::Strg(path, ty) => {
+                LookupResult::Ptr(path, ty) => {
                     let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
                     self.pledges.check(&mut gen, &path, &new_ty);
                     *ty = new_ty;
                 }
-                LookupResult::Weak(ty) => {
+                LookupResult::Ref(RefMode::Mut, ty) => {
                     let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
                     gen.subtyping(&new_ty, &ty);
                 }
-                LookupResult::Shr(_) => {
+                LookupResult::Ref(RefMode::Shr, _) => {
                     panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
                 }
             }
@@ -139,16 +139,16 @@ impl TypeEnv {
     pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings.lookup_place(genv, pcx, place, |_, result| {
             match result {
-                LookupResult::Strg(_, ty) => {
+                LookupResult::Ptr(_, ty) => {
                     let old = ty.clone();
                     *ty = Ty::uninit(ty.layout());
                     old
                 }
-                LookupResult::Shr(_) => {
+                LookupResult::Ref(RefMode::Mut, _) => {
                     panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
                 }
-                LookupResult::Weak(_) => {
-                    panic!("cannot move out of `{place:?}`, which is behind a `&weak` reference")
+                LookupResult::Ref(RefMode::Shr, _) => {
+                    panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
                 }
             }
         })
@@ -166,9 +166,9 @@ impl TypeEnv {
                 let exprs = pcx.push_bindings(&genv.sorts(bty), p);
                 Ty::refine(bty.clone(), exprs)
             }
-            TyKind::ShrRef(ty) => {
+            TyKind::Ref(RefMode::Shr, ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);
-                Ty::shr_ref(ty)
+                Ty::mk_ref(RefMode::Shr, ty)
             }
             _ => ty.clone(),
         }
@@ -217,13 +217,14 @@ impl TypeEnv {
                     subst.infer_from_exprs(params, e1, e2);
                 }
             }
-            (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) => {
+            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 self.infer_subst_for_bb_env_paths(bb_env, params, path1, path2, subst);
                 let ty1 = &self.bindings[path1];
                 let ty2 = &bb_env.env.bindings[path2];
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
+                debug_assert_eq!(mode1, mode2);
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             _ => {}
@@ -285,7 +286,7 @@ impl TypeEnv {
             let ty1 = self.bindings[&path].clone();
             let ty2 = goto_env.bindings[&path].clone();
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) if path1 != path2 => {
+                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
                     let pledge = goto_env.bindings[path2].clone();
                     let fresh = self.pledged_borrow(&mut gen, path1, pledge);
                     self.bindings[&path] = Ty::strg_ref(fresh);
@@ -437,10 +438,9 @@ impl TypeEnvInfer {
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::Float(_)
-            | TyKind::StrgRef(_)
+            | TyKind::Ptr(_)
             | TyKind::Uninit(_)
-            | TyKind::WeakRef(_)
-            | TyKind::ShrRef(_)
+            | TyKind::Ref(..)
             | TyKind::Param(_) => ty.clone(),
         }
     }
@@ -472,7 +472,7 @@ impl TypeEnvInfer {
         for (path, ty1) in self.env.bindings.iter() {
             if other.bindings.contains_loc(path.loc) {
                 let ty2 = &other.bindings[&path];
-                if let (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) = (ty1.kind(), ty2.kind()) {
+                if let (TyKind::Ptr(path1), TyKind::Ptr(path2)) = (ty1.kind(), ty2.kind()) {
                     if !path1.projection().is_empty() || !path2.projection().is_empty() {
                         continue;
                     }
@@ -508,7 +508,7 @@ impl TypeEnvInfer {
             let ty1 = self.env.bindings[path].clone();
             let ty2 = other.bindings[path].clone();
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) if path1 != path2 => {
+                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
                     let (fresh, pledge) = self.pledged_borrow(genv, path1);
                     self.env.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[path] = Ty::strg_ref(fresh);
@@ -542,7 +542,7 @@ impl TypeEnvInfer {
                 debug_assert_eq!(layout, &ty1.layout());
                 Ty::uninit(*layout)
             }
-            (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) => {
+            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
                 Ty::strg_ref(path1.clone())
             }
@@ -565,11 +565,9 @@ impl TypeEnvInfer {
                 let sorts = genv.sorts(&bty);
                 Ty::exists(bty, Pred::dummy_infer(&sorts))
             }
-            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
-                Ty::weak_ref(self.join_ty(genv, other, ty1, ty2))
-            }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
-                Ty::shr_ref(self.join_ty(genv, other, ty1, ty2))
+            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
+                debug_assert_eq!(mode1, mode2);
+                Ty::mk_ref(*mode1, self.join_ty(genv, other, ty1, ty2))
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -640,10 +638,9 @@ impl TypeEnvInfer {
                 let sort = genv.sorts(&bty);
                 Ty::exists(bty, Pred::dummy_infer(&sort))
             }
-            TyKind::StrgRef(_) => {
-                todo!();
+            TyKind::Ptr(_) | TyKind::Ref(..) => {
+                todo!("{ty:?}");
             }
-            TyKind::ShrRef(_) | TyKind::WeakRef(_) => todo!(),
             TyKind::Uninit(_) => {
                 unreachable!()
             }
@@ -739,9 +736,8 @@ fn replace_dummy_kvars(
             };
             Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
         }
-        TyKind::WeakRef(ty) => Ty::weak_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
-        TyKind::ShrRef(ty) => Ty::shr_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
-        TyKind::StrgRef(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
+        TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, replace_dummy_kvars(genv, ty, fresh_kvar)),
+        TyKind::Ptr(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
     }
 }
 

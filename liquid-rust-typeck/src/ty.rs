@@ -73,10 +73,15 @@ pub enum TyKind {
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
-    StrgRef(Path),
-    WeakRef(Ty),
-    ShrRef(Ty),
+    Ptr(Path),
+    Ref(RefMode, Ty),
     Param(ParamTy),
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum RefMode {
+    Shr,
+    Mut,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -203,15 +208,11 @@ impl AdtDef {
 
 impl Ty {
     pub fn strg_ref(path: impl Into<Path>) -> Ty {
-        TyKind::StrgRef(path.into()).intern()
+        TyKind::Ptr(path.into()).intern()
     }
 
-    pub fn weak_ref(ty: Ty) -> Ty {
-        TyKind::WeakRef(ty).intern()
-    }
-
-    pub fn shr_ref(ty: Ty) -> Ty {
-        TyKind::ShrRef(ty).intern()
+    pub fn mk_ref(mode: RefMode, ty: Ty) -> Ty {
+        TyKind::Ref(mode, ty).intern()
     }
 
     pub fn uninit(layout: Layout) -> Ty {
@@ -253,34 +254,14 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit(..))
     }
 
-    pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
-        f(self);
-        match self.kind() {
-            TyKind::WeakRef(ty) => ty.walk(f),
-            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.walk(f),
-            _ => {}
-        }
-    }
-
     pub fn layout(&self) -> Layout {
         match self.kind() {
             TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.layout(),
             TyKind::Float(float_ty) => Layout::Float(*float_ty),
             TyKind::Uninit(layout) => *layout,
-            TyKind::StrgRef(_) | TyKind::WeakRef(_) | TyKind::ShrRef(_) => Layout::Ref,
+            TyKind::Ptr(_) | TyKind::Ref(..) => Layout::Ref,
             TyKind::Param(_) => Layout::Param,
         }
-    }
-
-    pub fn deref(&self, derefs: u32) -> Ty {
-        let mut ty = self;
-        for _ in 0..derefs {
-            match self.kind() {
-                TyKind::ShrRef(ref_ty) => ty = &*ref_ty,
-                _ => panic!("dereferencing non-reference type: `{:?}`", self),
-            }
-        }
-        Interned::new(ty.clone())
     }
 
     pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
@@ -301,12 +282,6 @@ impl TyS {
 impl BaseTy {
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(def_id, Substs::new(substs.into_iter().collect_vec()))
-    }
-
-    fn walk(&self, f: &mut impl FnMut(&TyS)) {
-        if let BaseTy::Adt(_, substs) = self {
-            substs.iter().for_each(|ty| ty.walk(f));
-        }
     }
 
     fn layout(&self) -> Layout {
@@ -777,9 +752,9 @@ mod pretty {
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit(_) => w!("uninit"),
-                TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
-                TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
-                TyKind::ShrRef(ty) => w!("&{:?}", ty),
+                TyKind::Ptr(loc) => w!("ptr({:?})", loc),
+                TyKind::Ref(RefMode::Mut, ty) => w!("&mut {:?}", ty),
+                TyKind::Ref(RefMode::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
             }
         }
