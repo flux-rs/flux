@@ -323,16 +323,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut fresh_kvar =
             |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
 
-        // // Borrow pointers
-        // for (actual, formal) in iter::zip(&mut actuals, &fn_sig.value.args) {
-        //     if let (TyKind::StrgRef(path), TyKind::WeakRef(_)) = (actual.kind(), formal.kind()) {
-        //         let mut gen =
-        //             ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-        //         let _ = env.borrow_path(&mut gen, path, &mut fresh_kvar);
-        //     }
-        // }
-        // env.unpack(self.genv, pcx);
-
         // Infer substitution
         let cx = LoweringCtxt::empty();
         let substs = substs

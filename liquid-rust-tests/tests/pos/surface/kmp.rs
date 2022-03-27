@@ -29,7 +29,6 @@ fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     t
 }
 
-#[lr::assume]
 #[lr::sig(fn(pat: RVec<u8>{0 < pat && pat <= n}, target: &n@RVec<u8>{0 < n}) -> usize)]
 pub fn kmp_search(mut pat: RVec<u8>, target: &RVec<u8>) -> usize {
     let mut t_i = 0;
