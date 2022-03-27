@@ -280,6 +280,9 @@ impl Subst<'_> {
                     self.infer_from_exprs(params, &e1, e2);
                 }
             }
+            (TyKind::StrgRef(path1), TyKind::WeakRef(ty2)) => {
+                self.infer_from_tys(genv, pcx, params, env, &env.lookup_path(path1), requires, ty2);
+            }
             (TyKind::StrgRef(path1), TyKind::StrgRef(path2)) => {
                 self.infer_from_paths(params, path1, path2);
                 self.infer_from_tys(

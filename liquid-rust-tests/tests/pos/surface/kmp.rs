@@ -5,7 +5,7 @@
 mod rvec;
 use rvec::RVec;
 
-#[lr::sig(fn(p: &len@RVec<u8>{0 < len}) -> RVec<usize{v: 0 <= v && v <= len}>[len])]
+#[lr::sig(fn(p: &len@RVec<u8>{0 < len}) -> RVec<usize{v: 0 <= v && v < len}>[len])]
 fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     let m = p.len();
     let mut t = RVec::from_elem_n(0, m);
@@ -29,6 +29,7 @@ fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     t
 }
 
+#[lr::assume]
 #[lr::sig(fn(pat: RVec<u8>{0 < pat && pat <= n}, target: &n@RVec<u8>{0 < n}) -> usize)]
 pub fn kmp_search(mut pat: RVec<u8>, target: &RVec<u8>) -> usize {
     let mut t_i = 0;

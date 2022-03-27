@@ -36,7 +36,7 @@ fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
 }
 
 /// adding two points (updates the first)
-#[lr::sig(fn(x:&mut n@RVec<f32>, y:&RVec<f32>{v:v==n}) -> i32)]
+#[lr::sig(fn(x:&weak n@RVec<f32>, y:&RVec<f32>{v:v==n}) -> i32)]
 fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
     let mut i = 0;
     let n = x.len();
@@ -50,12 +50,12 @@ fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
 }
 
 /// normalizing a point (cluster) by size
-#[lr::sig(fn(x:&mut RVec<f32>, n: usize) -> i32)]
-fn normal(x: &mut RVec<f32>, n: usize) -> i32 {
+#[lr::sig(fn(x:&weak n@RVec<f32>, w: usize) -> i32)]
+fn normal(x: &mut RVec<f32>, w: usize) -> i32 {
     let mut i = 0;
     while i < x.len() {
         let xi = *x.get(i);
-        *x.get_mut(i) = f32_div(xi, n);
+        *x.get_mut(i) = f32_div(xi, w);
         i += 1;
     }
     0
@@ -94,7 +94,7 @@ fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
 }
 
 // TODO: the `n` is not needed, except to prevent a silly parse error!
-#[lr::sig(fn(n: usize, cs: &mut k@RVec<RVec<f32>[n]>, weights: &RVec<usize>[k]) -> i32)]
+#[lr::sig(fn(n: usize, cs: &weak k@RVec<RVec<f32>[n]>, weights: &RVec<usize>[k]) -> i32)]
 fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>) -> i32 {
     let k = cs.len();
     let mut i = 0;

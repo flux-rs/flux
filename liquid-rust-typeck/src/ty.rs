@@ -1007,7 +1007,7 @@ mod pretty {
 
     impl_debug_with_default_cx!(
         Constr,
-        TyS,
+        TyS => "ty",
         BaseTy,
         Pred,
         Sort,

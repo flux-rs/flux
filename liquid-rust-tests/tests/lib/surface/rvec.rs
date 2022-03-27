@@ -39,7 +39,7 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &mut n@RVec<T>, i:usize{0 <= i && i < n}) -> &weak T; self: RVec<T>[n])]
+    #[lr::sig(fn(self: &weak n@RVec<T>, i:usize{0 <= i && i < n}) -> &weak T)]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]
     }

@@ -7,7 +7,10 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::collections::{hash_map::Entry, BinaryHeap};
+use std::{
+    collections::{hash_map::Entry, BinaryHeap},
+    iter,
+};
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
@@ -316,15 +319,26 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|arg| self.check_operand(pcx, env, arg))
             .collect_vec();
 
-        let cx = LoweringCtxt::empty();
         let scope = pcx.scope();
         let mut fresh_kvar =
             |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
+
+        // // Borrow pointers
+        // for (actual, formal) in iter::zip(&mut actuals, &fn_sig.value.args) {
+        //     if let (TyKind::StrgRef(path), TyKind::WeakRef(_)) = (actual.kind(), formal.kind()) {
+        //         let mut gen =
+        //             ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
+        //         let _ = env.borrow_path(&mut gen, path, &mut fresh_kvar);
+        //     }
+        // }
+        // env.unpack(self.genv, pcx);
+
+        // Infer substitution
+        let cx = LoweringCtxt::empty();
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
             .collect_vec();
-
         let mut subst = Subst::with_type_substs(&substs);
         if subst
             .infer_from_fn_call(self.genv, pcx, env, &actuals, fn_sig)
@@ -336,16 +350,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
         let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
+        // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-
-        for (actual, formal) in actuals.iter().zip(&fn_sig.args) {
-            gen.subtyping(actual, formal);
+        for (actual, formal) in iter::zip(actuals, &fn_sig.args) {
+            if let (TyKind::StrgRef(path), TyKind::WeakRef(bound)) = (actual.kind(), formal.kind())
+            {
+                env.weaken_ty_at_path(&mut gen, path, bound.clone());
+            } else {
+                gen.subtyping(&actual, formal);
+            }
         }
-
         for constr in &fn_sig.requires {
             gen.check_constr(env, constr);
         }
 
+        // Update postconditions
         for constr in &fn_sig.ensures {
             match constr {
                 Constr::Type(path, updated_ty) => {
