@@ -1,6 +1,5 @@
 # LiquidRust
 
-
 ## Requirements
 
 * [rustup](https://rustup.rs/)

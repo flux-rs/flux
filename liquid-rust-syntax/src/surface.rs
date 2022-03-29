@@ -499,7 +499,7 @@ pub mod zip {
             }
             (None, Some(dts)) => {
                 if dts.len() == 0 {
-                    Some(zip_tys(vec![], dts))
+                    Some(vec![])
                 } else {
                     panic!("zip_path: [2] incompatible args! {:?} at {:?}: {:?}", ident, span, dts)
                 }
