@@ -260,7 +260,6 @@ struct LiquidAttr {
 enum LiquidAttrKind {
     Assume,
     Opaque,
-    // FnSig(ast::FnSig),
     FnSig(surface::BareSig),
     RefinedBy(ast::Generics),
     Qualifier(ast::Qualifier),
