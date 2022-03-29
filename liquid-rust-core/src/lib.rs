@@ -1,5 +1,6 @@
 #![feature(rustc_private)]
 #![feature(min_specialization)]
+#![feature(box_patterns, once_cell)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -14,3 +15,8 @@ extern crate rustc_span;
 
 pub mod ir;
 pub mod ty;
+
+pub mod desugar;
+mod diagnostics;
+pub mod resolve;
+mod subst;

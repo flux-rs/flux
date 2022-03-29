@@ -115,7 +115,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
-
             let mut bb_envs = FxHashMap::default();
             Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
@@ -156,7 +155,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
-        let fn_sig = genv.lookup_fn_sig(def_id);
+        let span = body.mir.span;
+        let fn_sig = genv.lookup_fn_sig(def_id, span);
 
         let mut pcx = constraint.pure_context_at_root();
         let subst = Subst::with_fresh_names(&mut pcx, &fn_sig.params);
@@ -314,7 +314,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let fn_sig = self.genv.lookup_fn_sig(func);
+        let fn_sig = self.genv.lookup_fn_sig(func, source_info.span);
 
         let actuals = args
             .iter()
@@ -333,7 +333,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if subst
-            .infer_from_fn_call(self.genv, pcx, env, &actuals, fn_sig)
+            .infer_from_fn_call(self.genv, pcx, env, &actuals, &fn_sig)
             .is_err()
         {
             self.sess

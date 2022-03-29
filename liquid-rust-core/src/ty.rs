@@ -26,10 +26,15 @@ pub struct FnSpec {
 }
 
 pub struct FnSig {
+    /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<Param>,
+    /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constr>,
+    /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
+    /// example: i32
     pub ret: Ty,
+    /// example: vec![(l: i32{v:n < v})]
     pub ensures: Vec<Constr>,
 }
 
@@ -58,16 +63,6 @@ pub enum Ty {
     Param(ParamTy),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Layout {
-    Bool,
-    Int(IntTy),
-    Uint(UintTy),
-    Float(FloatTy),
-    Adt(DefId),
-    Ref,
-    Param,
-}
 pub struct Refine {
     pub exprs: Vec<Expr>,
     pub span: Span,

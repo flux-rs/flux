@@ -4,8 +4,11 @@ use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
 // use liquid_rust_common::index::Idx;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
-use liquid_rust_core::{ir::Local, ty::Layout};
+pub use liquid_rust_syntax::surface;
+
+use liquid_rust_core::ir::Local;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
+use liquid_rust_syntax::surface::Layout;
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -23,18 +26,19 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FnSpec {
     pub fn_sig: Binders<FnSig>,
     pub assume: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct Binders<T> {
     pub params: Vec<Param>,
     pub value: T,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct FnSig {
     pub requires: Vec<Constr>,
     pub args: Vec<Ty>,
@@ -42,6 +46,7 @@ pub struct FnSig {
     pub ensures: Vec<Constr>,
 }
 
+#[derive(Clone)]
 pub enum Constr {
     Type(Path, Ty),
     Pred(Expr),
@@ -54,7 +59,7 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,

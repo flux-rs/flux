@@ -1,6 +1,5 @@
 # LiquidRust
 
-
 ## Requirements
 
 * [rustup](https://rustup.rs/)
@@ -50,8 +49,8 @@ You could for example check a file as a library instead of a binary like so
 cargo run -- --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment liquid-rust passes some 
-default flags (like `-O` and `-Cpanic=abort`) because 
+Additionally, at the moment liquid-rust passes some
+default flags (like `-O` and `-Cpanic=abort`) because
 otherwise the resulting mir will have features
 not yet supported.
 

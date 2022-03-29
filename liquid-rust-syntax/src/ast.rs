@@ -134,6 +134,13 @@ pub enum BinOp {
     Mul,
 }
 
+#[derive(Debug)]
+pub struct AdtDef {
+    pub refined_by: Option<Generics>,
+    pub fields: Vec<Option<Ty>>,
+    pub opaque: bool,
+}
+
 impl Generics {
     pub fn empty(span: Span) -> Generics {
         Generics { params: vec![], span }

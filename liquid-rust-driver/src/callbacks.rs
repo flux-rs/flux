@@ -1,11 +1,12 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_core::resolve::Resolver;
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 
-use crate::{collector::SpecCollector, lowering::LoweringCtxt, resolve::Resolver};
+use crate::{collector::SpecCollector, lowering::LoweringCtxt};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
@@ -79,8 +80,10 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
         .collect();
 
-    let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
-    genv.fn_specs
+    let genv = GlobalEnv::new(tcx, std::cell::RefCell::new(fn_sigs), adt_defs);
+    let genv_specs = genv.fn_specs.borrow().clone();
+
+    genv_specs
         .iter()
         .map(|(def_id, spec)| {
             if spec.assume {

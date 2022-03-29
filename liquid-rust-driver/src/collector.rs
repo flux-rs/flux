@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
-    ast, parse_fn_sig, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    ast::{self, AdtDef},
+    parse_fn_sig, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface,
     ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
@@ -30,15 +31,8 @@ pub struct Specs {
 }
 
 pub struct FnSpec {
-    pub fn_sig: ast::FnSig,
+    pub fn_sig: surface::BareSig,
     pub assume: bool,
-}
-
-#[derive(Debug)]
-pub struct AdtDef {
-    pub refined_by: Option<ast::Generics>,
-    pub fields: Vec<Option<ast::Ty>>,
-    pub opaque: bool,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -144,12 +138,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
                 // print!("LR::SIG {:#?} \n", fn_sig);
-                LiquidAttrKind::FnSig(fn_sig)
+                LiquidAttrKind::FnSig(surface::BareSig::SurSig(fn_sig))
             }
             ("ty", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_sig)?;
                 // print!("LR::TY {:#?} \n", fn_sig);
-                LiquidAttrKind::FnSig(fn_sig)
+                LiquidAttrKind::FnSig(surface::BareSig::AstSig(fn_sig))
             }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
@@ -266,7 +260,7 @@ struct LiquidAttr {
 enum LiquidAttrKind {
     Assume,
     Opaque,
-    FnSig(ast::FnSig),
+    FnSig(surface::BareSig),
     RefinedBy(ast::Generics),
     Qualifier(ast::Qualifier),
     Field(ast::Ty),
@@ -320,7 +314,7 @@ impl LiquidAttrs {
         self.map.get("opaque").is_some()
     }
 
-    fn fn_sig(&mut self) -> Option<ast::FnSig> {
+    fn fn_sig(&mut self) -> Option<surface::BareSig> {
         read_attr!(self, "ty", FnSig)
     }
 

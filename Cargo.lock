@@ -511,6 +511,7 @@ version = "0.1.0"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
+ "liquid-rust-common",
 ]
 
 [[package]]
@@ -531,6 +532,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-core",
  "liquid-rust-fixpoint",
+ "liquid-rust-syntax",
  "quickscope",
  "tracing",
 ]
