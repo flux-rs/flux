@@ -494,7 +494,16 @@ pub mod zip {
         let args = match (bp.args, dp.args) {
             (Some(bts), Some(dts)) => Some(zip_tys(bts, dts)),
             (None, None) => None,
-            _ => panic!("zip_path: incompatible args!"),
+            (Some(bts), None) => {
+                panic!("zip_path: [1] incompatible args! {:?} at {:?}: {:?}", ident, span, bts)
+            }
+            (None, Some(dts)) => {
+                if dts.len() == 0 {
+                    Some(zip_tys(vec![], dts))
+                } else {
+                    panic!("zip_path: [2] incompatible args! {:?} at {:?}: {:?}", ident, span, dts)
+                }
+            }
         };
         Path { ident, args, span }
     }

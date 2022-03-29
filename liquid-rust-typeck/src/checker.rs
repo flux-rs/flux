@@ -333,7 +333,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if subst
-            .infer_from_fn_call(self.genv, pcx, env, &actuals, fn_sig)
+            .infer_from_fn_call(self.genv, pcx, env, &actuals, &fn_sig)
             .is_err()
         {
             self.sess
