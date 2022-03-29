@@ -7,7 +7,7 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, Loc, Path, Pred, Ty, TyKind},
+    ty::{BaseTy, BinOp, Constr, Expr, Loc, Pred, RefMode, Ty, TyKind},
     type_env::TypeEnv,
 };
 
@@ -38,8 +38,8 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
 
     pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
         match constr {
-            Constr::Type(loc, ty) => {
-                let actual_ty = env.lookup_path(&Path::new(*loc, vec![]));
+            Constr::Type(path, ty) => {
+                let actual_ty = env.lookup_path(path);
                 self.subtyping(&actual_ty, ty);
             }
             Constr::Pred(e) => {
@@ -87,14 +87,14 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 ck.bty_subtyping(bty1, bty2);
                 ck.check_pred(p.subst_bound_vars(exprs));
             }
-            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
+            (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
                 assert_eq!(loc1, loc2);
             }
-            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
+            (TyKind::Ref(RefMode::Mut, ty1), TyKind::Ref(RefMode::Mut, ty2)) => {
                 ck.subtyping(ty1, ty2);
                 ck.subtyping(ty2, ty1);
             }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+            (TyKind::Ref(RefMode::Shr, ty1), TyKind::Ref(RefMode::Shr, ty2)) => {
                 ck.subtyping(ty1, ty2);
             }
             (_, TyKind::Uninit(_)) => {

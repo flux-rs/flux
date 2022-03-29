@@ -16,7 +16,7 @@ fn f32_max() -> f32 {
 
 #[lr::assume]
 #[lr::sig(fn(n:f32, d:usize) -> f32)]
-fn f32_div(n:f32, d:usize) -> f32 {
+fn f32_div(n: f32, d: usize) -> f32 {
     n / (d as f32)
 }
 
@@ -24,20 +24,20 @@ fn f32_div(n:f32, d:usize) -> f32 {
 
 /// distance between two points
 #[lr::sig(fn(x:&n@RVec<f32>, y:&RVec<f32>{v:v == n}) -> f32)]
-fn dist(x:&RVec<f32>, y:&RVec<f32>) -> f32 {
+fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
     let mut res = 0.0;
     let mut i = 0;
     while i < x.len() {
         let di = *x.get(i) - *y.get(i);
-        res += di*di;
+        res += di * di;
         i += 1;
     }
     res
 }
 
 /// adding two points (updates the first)
-#[lr::sig(fn(x:&mut n@RVec<f32>, y:&RVec<f32>{v:v==n}) -> i32)]
-fn add(x:&mut RVec<f32>, y:&RVec<f32>) -> i32 {
+#[lr::sig(fn(x:&weak n@RVec<f32>, y:&RVec<f32>{v:v==n}) -> i32)]
+fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
     let mut i = 0;
     let n = x.len();
     while i < n {
@@ -50,12 +50,12 @@ fn add(x:&mut RVec<f32>, y:&RVec<f32>) -> i32 {
 }
 
 /// normalizing a point (cluster) by size
-#[lr::sig(fn(x:&mut RVec<f32>, n: usize) -> i32)]
-fn normal(x:&mut RVec<f32>, n: usize) -> i32 {
+#[lr::sig(fn(x:&weak n@RVec<f32>, w: usize) -> i32)]
+fn normal(x: &mut RVec<f32>, w: usize) -> i32 {
     let mut i = 0;
     while i < x.len() {
         let xi = *x.get(i);
-        *x.get_mut(i) = f32_div(xi,n);
+        *x.get_mut(i) = f32_div(xi, w);
         i += 1;
     }
     0
@@ -64,20 +64,18 @@ fn normal(x:&mut RVec<f32>, n: usize) -> i32 {
 /// creating (empty) 0-center for each cluster
 #[lr::sig(fn(n: usize, k: usize{0 < k}) -> RVec<RVec<f32>[n]>[k])]
 fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> { //~ ERROR postcondition might not hold
-  let mut res = RVec::new();
-  let mut i = 0;
-  while i <= k {
-      res.push(RVec::from_elem_n(0.0, n));
-      i += 1;
-  }
-  res
+    let mut res = RVec::new();
+    let mut i = 0;
+    while i <= k {
+        res.push(RVec::from_elem_n(0.0, n));
+        i += 1;
+    }
+    res
 }
 
-
-
 /// finding the nearest center to a point
-#[lr::sig(fn(p:&n@RVec<f32>, cs: &k@RVec<RVec<f32>[n]>{0 < k}) -> usize{v:0 <= v && v < k})]
-fn nearest(p:&RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
+#[lr::sig(fn(p:&n@RVec<f32>, cs: &k@RVec<RVec<f32>{v : v == n}>{0 < k}) -> usize{v:0 <= v && v < k})]
+fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
     // let n = p.len();
     let k = cs.len();
     let mut res = 0;
@@ -96,7 +94,7 @@ fn nearest(p:&RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
 }
 
 // TODO: the `n` is not needed, except to prevent a silly parse error!
-#[lr::sig(fn(n: usize, cs: &mut k@RVec<RVec<f32>[n]>, weights: &RVec<usize>[k]) -> i32)]
+#[lr::sig(fn(n: usize, cs: &weak k@RVec<RVec<f32>[n]>, weights: &RVec<usize>[k]) -> i32)]
 fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>) -> i32 {
     let k = cs.len();
     let mut i = 0;
@@ -109,7 +107,7 @@ fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>)
 
 /// updating the centers
 #[lr::sig(fn(n:usize, cs: k@RVec<RVec<f32>[n]>{0 < k}, ps: &RVec<RVec<f32>[n]>) -> RVec<RVec<f32>[n]>[k])]
-fn kmeans_step(n:usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec<f32>> {
+fn kmeans_step(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec<f32>> {
     let k = cs.len();
 
     let mut res_points = init_centers(n, k);
@@ -119,7 +117,7 @@ fn kmeans_step(n:usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec<
     let mut i = 0;
     while i < ps.len() {
         let p = ps.get(i);
-        let j= nearest(p, &cs);
+        let j = nearest(p, &cs);
         add(res_points.get_mut(j), p);
         *res_size.get_mut(j) += 1;
         i += 1;
@@ -132,7 +130,7 @@ fn kmeans_step(n:usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec<
 
 /// kmeans: iterating the center-update-steps
 #[lr::sig(fn(n:usize, cs: k@RVec<RVec<f32>[n]>, ps: &RVec<RVec<f32>[n]>, iters: i32) -> RVec<RVec<f32>[n]>[k])]
-pub fn kmeans(n:usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>, iters: i32) -> RVec<RVec<f32>> {
+pub fn kmeans(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>, iters: i32) -> RVec<RVec<f32>> {
     let mut i = 0;
     let mut res = cs;
     while i < iters {
