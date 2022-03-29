@@ -43,7 +43,7 @@ pub struct FnSig {
 }
 
 pub enum Constr {
-    Type(Loc, Ty),
+    Type(Path, Ty),
     Pred(Expr),
 }
 
@@ -73,13 +73,18 @@ pub enum TyKind {
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
-    StrgRef(Loc),
-    WeakRef(Ty),
-    ShrRef(Ty),
+    Ptr(Path),
+    Ref(RefMode, Ty),
     Param(ParamTy),
 }
 
-#[derive(Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum RefMode {
+    Shr,
+    Mut,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub loc: Loc,
     projection: Interned<[Field]>,
@@ -88,7 +93,7 @@ pub struct Path {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Loc {
     Local(Local),
-    Abstract(Name),
+    Free(Name),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -202,16 +207,12 @@ impl AdtDef {
 }
 
 impl Ty {
-    pub fn strg_ref(loc: impl Into<Loc>) -> Ty {
-        TyKind::StrgRef(loc.into()).intern()
+    pub fn strg_ref(path: impl Into<Path>) -> Ty {
+        TyKind::Ptr(path.into()).intern()
     }
 
-    pub fn weak_ref(ty: Ty) -> Ty {
-        TyKind::WeakRef(ty).intern()
-    }
-
-    pub fn shr_ref(ty: Ty) -> Ty {
-        TyKind::ShrRef(ty).intern()
+    pub fn mk_ref(mode: RefMode, ty: Ty) -> Ty {
+        TyKind::Ref(mode, ty).intern()
     }
 
     pub fn uninit(layout: Layout) -> Ty {
@@ -253,34 +254,14 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit(..))
     }
 
-    pub fn walk(&self, f: &mut impl FnMut(&TyS)) {
-        f(self);
-        match self.kind() {
-            TyKind::WeakRef(ty) => ty.walk(f),
-            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.walk(f),
-            _ => {}
-        }
-    }
-
     pub fn layout(&self) -> Layout {
         match self.kind() {
             TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.layout(),
             TyKind::Float(float_ty) => Layout::Float(*float_ty),
             TyKind::Uninit(layout) => *layout,
-            TyKind::StrgRef(_) | TyKind::WeakRef(_) | TyKind::ShrRef(_) => Layout::Ref,
+            TyKind::Ptr(_) | TyKind::Ref(..) => Layout::Ref,
             TyKind::Param(_) => Layout::Param,
         }
-    }
-
-    pub fn deref(&self, derefs: u32) -> Ty {
-        let mut ty = self;
-        for _ in 0..derefs {
-            match self.kind() {
-                TyKind::ShrRef(ref_ty) => ty = &*ref_ty,
-                _ => panic!("dereferencing non-reference type: `{:?}`", self),
-            }
-        }
-        Interned::new(ty.clone())
     }
 
     pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
@@ -301,12 +282,6 @@ impl TyS {
 impl BaseTy {
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(def_id, Substs::new(substs.into_iter().collect_vec()))
-    }
-
-    fn walk(&self, f: &mut impl FnMut(&TyS)) {
-        if let BaseTy::Adt(_, substs) = self {
-            substs.iter().for_each(|ty| ty.walk(f));
-        }
     }
 
     fn layout(&self) -> Layout {
@@ -643,18 +618,24 @@ impl Path {
     }
 }
 
+impl From<Loc> for Path {
+    fn from(loc: Loc) -> Self {
+        Path::new(loc, vec![])
+    }
+}
+
 impl Loc {
     pub fn is_free(&self, scope: &Scope) -> bool {
         match self {
             Loc::Local(_) => false,
-            Loc::Abstract(name) => !scope.contains(*name),
+            Loc::Free(name) => !scope.contains(*name),
         }
     }
 }
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Abstract(name)
+        Loc::Free(name)
     }
 }
 
@@ -668,9 +649,9 @@ impl PartialOrd for Loc {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
             (Loc::Local(local1), Loc::Local(local2)) => local1.partial_cmp(local2),
-            (Loc::Local(_), Loc::Abstract(_)) => Some(std::cmp::Ordering::Less),
-            (Loc::Abstract(_), Loc::Local(_)) => Some(std::cmp::Ordering::Greater),
-            (Loc::Abstract(loc1), Loc::Abstract(loc2)) => loc1.partial_cmp(loc2),
+            (Loc::Local(_), Loc::Free(_)) => Some(std::cmp::Ordering::Less),
+            (Loc::Free(_), Loc::Local(_)) => Some(std::cmp::Ordering::Greater),
+            (Loc::Free(loc1), Loc::Free(loc2)) => loc1.partial_cmp(loc2),
         }
     }
 }
@@ -771,9 +752,9 @@ mod pretty {
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit(_) => w!("uninit"),
-                TyKind::StrgRef(loc) => w!("ref<{:?}>", loc),
-                TyKind::WeakRef(ty) => w!("&weak {:?}", ty),
-                TyKind::ShrRef(ty) => w!("&{:?}", ty),
+                TyKind::Ptr(loc) => w!("ptr({:?})", loc),
+                TyKind::Ref(RefMode::Mut, ty) => w!("&mut {:?}", ty),
+                TyKind::Ref(RefMode::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
             }
         }
@@ -943,7 +924,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Abstract(name) => w!("{:?}", ^name),
+                Loc::Free(name) => w!("{:?}", ^name),
             }
         }
     }
@@ -1001,7 +982,7 @@ mod pretty {
 
     impl_debug_with_default_cx!(
         Constr,
-        TyS,
+        TyS => "ty",
         BaseTy,
         Pred,
         Sort,

@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, RefMode, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -91,15 +91,14 @@ impl TypeEnv {
         self.bindings[path] = new_ty;
     }
 
+    // TODO(nilehmann) find a better name for borrow in this context
+    // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
     pub fn borrow_mut(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings.lookup_place(genv, pcx, place, |_, result| {
             match result {
-                LookupResult::Strg(path, _) => {
-                    assert!(path.projection().is_empty());
-                    Ty::strg_ref(path.loc)
-                }
-                LookupResult::Weak(ty) => Ty::weak_ref(ty),
-                LookupResult::Shr(_) => {
+                LookupResult::Ptr(path, _) => Ty::strg_ref(path),
+                LookupResult::Ref(RefMode::Mut, ty) => Ty::mk_ref(RefMode::Mut, ty),
+                LookupResult::Ref(RefMode::Shr, _) => {
                     panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
                 }
             }
@@ -108,7 +107,7 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, result| Ty::shr_ref(result.ty()))
+            .lookup_place(genv, pcx, place, |_, result| Ty::mk_ref(RefMode::Shr, result.ty()))
     }
 
     pub fn write_place(
@@ -121,16 +120,16 @@ impl TypeEnv {
     ) {
         self.bindings.lookup_place(genv, pcx, place, |pcx, result| {
             match result {
-                LookupResult::Strg(path, ty) => {
+                LookupResult::Ptr(path, ty) => {
                     let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
                     self.pledges.check(&mut gen, &path, &new_ty);
                     *ty = new_ty;
                 }
-                LookupResult::Weak(ty) => {
+                LookupResult::Ref(RefMode::Mut, ty) => {
                     let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
                     gen.subtyping(&new_ty, &ty);
                 }
-                LookupResult::Shr(_) => {
+                LookupResult::Ref(RefMode::Shr, _) => {
                     panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
                 }
             }
@@ -140,19 +139,25 @@ impl TypeEnv {
     pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings.lookup_place(genv, pcx, place, |_, result| {
             match result {
-                LookupResult::Strg(_, ty) => {
+                LookupResult::Ptr(_, ty) => {
                     let old = ty.clone();
                     *ty = Ty::uninit(ty.layout());
                     old
                 }
-                LookupResult::Shr(_) => {
+                LookupResult::Ref(RefMode::Mut, _) => {
                     panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
                 }
-                LookupResult::Weak(_) => {
-                    panic!("cannot move out of `{place:?}`, which is behind a `&weak` reference")
+                LookupResult::Ref(RefMode::Shr, _) => {
+                    panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
                 }
             }
         })
+    }
+
+    pub fn weaken_ty_at_path(&mut self, gen: &mut ConstraintGen, path: &Path, bound: Ty) {
+        let ty = &mut self.bindings[path];
+        gen.subtyping(ty, &bound);
+        *ty = bound;
     }
 
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
@@ -161,16 +166,9 @@ impl TypeEnv {
                 let exprs = pcx.push_bindings(&genv.sorts(bty), p);
                 Ty::refine(bty.clone(), exprs)
             }
-            TyKind::WeakRef(pledge) => {
-                let fresh = pcx.push_loc();
-                let ty = self.unpack_ty(genv, pcx, pledge);
-                self.bindings.insert(fresh, ty);
-                self.pledges.insert(fresh, pledge.clone());
-                Ty::strg_ref(fresh)
-            }
-            TyKind::ShrRef(ty) => {
+            TyKind::Ref(RefMode::Shr, ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);
-                Ty::shr_ref(ty)
+                Ty::mk_ref(RefMode::Shr, ty)
             }
             _ => ty.clone(),
         }
@@ -219,18 +217,36 @@ impl TypeEnv {
                     subst.infer_from_exprs(params, e1, e2);
                 }
             }
-            (TyKind::StrgRef(Loc::Abstract(loc1)), TyKind::StrgRef(Loc::Abstract(loc2)))
-                if !bb_env.scope.contains(*loc1) && !bb_env.scope.contains(*loc2) =>
-            {
-                subst.insert_loc_subst(*loc2, *loc1);
-                let ty1 = &self.bindings[&Path::new(Loc::Abstract(*loc1), vec![])];
-                let ty2 = &bb_env.env.bindings[&Path::new(Loc::Abstract(*loc2), vec![])];
+            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+                self.infer_subst_for_bb_env_paths(bb_env, params, path1, path2, subst);
+                let ty1 = &self.bindings[path1];
+                let ty2 = &bb_env.env.bindings[path2];
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
+            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
+                debug_assert_eq!(mode1, mode2);
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             _ => {}
+        }
+    }
+
+    fn infer_subst_for_bb_env_paths(
+        &self,
+        bb_env: &BasicBlockEnv,
+        _params: &FxHashSet<Name>,
+        path1: &Path,
+        path2: &Path,
+        subst: &mut Subst,
+    ) {
+        // TODO(nilehmann) we should probably do something with _params
+        if !path1.projection().is_empty() || !path2.projection().is_empty() {
+            return;
+        }
+        if let (Loc::Free(loc1), Loc::Free(loc2)) = (path1.loc, path2.loc) {
+            if !bb_env.scope.contains(loc1) && !bb_env.scope.contains(loc2) {
+                subst.insert_loc_subst(loc2, Loc::Free(loc1));
+            }
         }
     }
 
@@ -267,12 +283,12 @@ impl TypeEnv {
 
         // Create pledged borrows
         for path in self.bindings.paths().collect_vec() {
-            let ty1 = &self.bindings[&path];
-            let ty2 = &goto_env.bindings[&path];
+            let ty1 = self.bindings[&path].clone();
+            let ty2 = goto_env.bindings[&path].clone();
             match (ty1.kind(), ty2.kind()) {
-                (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let pledge = goto_env.bindings[&Path::new(loc2, vec![])].clone();
-                    let fresh = self.pledged_borrow(&mut gen, loc1, pledge);
+                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
+                    let pledge = goto_env.bindings[path2].clone();
+                    let fresh = self.pledged_borrow(&mut gen, path1, pledge);
                     self.bindings[&path] = Ty::strg_ref(fresh);
                 }
                 _ => {}
@@ -293,11 +309,11 @@ impl TypeEnv {
         debug_assert_eq!(self.bindings, goto_env.bindings);
     }
 
-    fn pledged_borrow(&mut self, gen: &mut ConstraintGen, loc: Loc, pledge: Ty) -> Loc {
+    fn pledged_borrow(&mut self, gen: &mut ConstraintGen, path: &Path, pledge: Ty) -> Loc {
         let fresh = gen.push_loc();
-        let ty = &self.bindings[&Path::new(loc, vec![])];
+        let ty = &self.bindings[path];
         gen.subtyping(ty, &pledge);
-        self.bindings[&Path::new(loc, vec![])] = pledge.clone();
+        self.bindings[path] = pledge.clone();
         self.bindings.insert(fresh, pledge.clone());
         self.pledges.insert(fresh, pledge);
         fresh
@@ -382,11 +398,11 @@ impl TypeEnvInfer {
         let mut subst = Subst::empty();
 
         for loc in env.bindings.locs() {
-            if let Loc::Abstract(loc) = loc {
+            if let Loc::Free(loc) = loc {
                 if !scope.contains(loc) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, Sort::loc());
-                    subst.insert_loc_subst(loc, fresh);
+                    subst.insert_loc_subst(loc, Loc::Free(fresh));
                 }
             }
         }
@@ -422,10 +438,9 @@ impl TypeEnvInfer {
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::Float(_)
-            | TyKind::StrgRef(_)
+            | TyKind::Ptr(_)
             | TyKind::Uninit(_)
-            | TyKind::WeakRef(_)
-            | TyKind::ShrRef(_)
+            | TyKind::Ref(..)
             | TyKind::Param(_) => ty.clone(),
         }
     }
@@ -457,13 +472,15 @@ impl TypeEnvInfer {
         for (path, ty1) in self.env.bindings.iter() {
             if other.bindings.contains_loc(path.loc) {
                 let ty2 = &other.bindings[&path];
-                match (ty1.kind(), ty2.kind()) {
-                    (TyKind::StrgRef(loc1), TyKind::StrgRef(Loc::Abstract(loc2)))
-                        if self.packed_loc(*loc1).is_some() && !self.scope.contains(*loc2) =>
-                    {
-                        subst.insert_loc_subst(*loc2, *loc1);
+                if let (TyKind::Ptr(path1), TyKind::Ptr(path2)) = (ty1.kind(), ty2.kind()) {
+                    if !path1.projection().is_empty() || !path2.projection().is_empty() {
+                        continue;
                     }
-                    _ => {}
+                    if let (Loc::Free(loc1), Loc::Free(loc2)) = (path1.loc, path2.loc) {
+                        if !self.scope.contains(loc1) && !self.scope.contains(loc2) {
+                            subst.insert_loc_subst(loc2, Loc::Free(loc1));
+                        }
+                    }
                 }
             }
         }
@@ -488,14 +505,14 @@ impl TypeEnvInfer {
 
         // Create pledged borrows
         for path in &paths {
-            let ty1 = &self.env.bindings[path];
-            let ty2 = &other.bindings[path];
+            let ty1 = self.env.bindings[path].clone();
+            let ty2 = other.bindings[path].clone();
             match (ty1.kind(), ty2.kind()) {
-                (&TyKind::StrgRef(loc1), &TyKind::StrgRef(loc2)) if loc1 != loc2 => {
-                    let (fresh, pledge) = self.pledged_borrow(genv, loc1);
+                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
+                    let (fresh, pledge) = self.pledged_borrow(genv, path1);
                     self.env.bindings[path] = Ty::strg_ref(fresh);
                     other.bindings[path] = Ty::strg_ref(fresh);
-                    other.bindings[&Path::new(loc2, vec![])] = pledge.clone();
+                    other.bindings[path2] = pledge.clone();
                     other.bindings.insert(fresh, pledge);
                 }
                 _ => {}
@@ -525,9 +542,9 @@ impl TypeEnvInfer {
                 debug_assert_eq!(layout, &ty1.layout());
                 Ty::uninit(*layout)
             }
-            (TyKind::StrgRef(loc1), TyKind::StrgRef(loc2)) => {
-                debug_assert_eq!(loc1, loc2);
-                Ty::strg_ref(*loc1)
+            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+                debug_assert_eq!(path1, path2);
+                Ty::strg_ref(path1.clone())
             }
             (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
                 let bty = self.join_bty(genv, other, bty1, bty2);
@@ -548,11 +565,9 @@ impl TypeEnvInfer {
                 let sorts = genv.sorts(&bty);
                 Ty::exists(bty, Pred::dummy_infer(&sorts))
             }
-            (TyKind::WeakRef(ty1), TyKind::WeakRef(ty2)) => {
-                Ty::weak_ref(self.join_ty(genv, other, ty1, ty2))
-            }
-            (TyKind::ShrRef(ty1), TyKind::ShrRef(ty2)) => {
-                Ty::shr_ref(self.join_ty(genv, other, ty1, ty2))
+            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
+                debug_assert_eq!(mode1, mode2);
+                Ty::mk_ref(*mode1, self.join_ty(genv, other, ty1, ty2))
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -593,11 +608,11 @@ impl TypeEnvInfer {
         fresh
     }
 
-    fn pledged_borrow(&mut self, genv: &GlobalEnv, loc: Loc) -> (Loc, Ty) {
-        let fresh = Loc::Abstract(self.fresh(Sort::loc()));
-        let ty = self.env.bindings[&Path::new(loc, vec![])].clone();
+    fn pledged_borrow(&mut self, genv: &GlobalEnv, path: &Path) -> (Loc, Ty) {
+        let fresh = Loc::Free(self.fresh(Sort::loc()));
+        let ty = self.env.bindings[path].clone();
         let pledge = self.weaken_ty(genv, &ty);
-        self.env.bindings.insert(loc, pledge.clone());
+        self.env.bindings[path] = pledge.clone();
         self.env.bindings.insert(fresh, pledge.clone());
         (fresh, pledge)
     }
@@ -623,13 +638,9 @@ impl TypeEnvInfer {
                 let sort = genv.sorts(&bty);
                 Ty::exists(bty, Pred::dummy_infer(&sort))
             }
-            TyKind::StrgRef(loc) => {
-                let ty = self.env.bindings[&Path::new(*loc, vec![])].clone();
-                let ty = self.weaken_ty(genv, &ty);
-                self.env.bindings.insert(*loc, ty.clone());
-                Ty::weak_ref(ty)
+            TyKind::Ptr(_) | TyKind::Ref(..) => {
+                todo!("{ty:?}");
             }
-            TyKind::ShrRef(_) | TyKind::WeakRef(_) => todo!(),
             TyKind::Uninit(_) => {
                 unreachable!()
             }
@@ -692,7 +703,7 @@ impl TypeEnvInfer {
 
     fn packed_loc(&self, loc: Loc) -> Option<Name> {
         match loc {
-            Loc::Abstract(name) if self.params.contains_key(&name) => Some(name),
+            Loc::Free(name) if self.params.contains_key(&name) => Some(name),
             _ => None,
         }
     }
@@ -725,9 +736,8 @@ fn replace_dummy_kvars(
             };
             Ty::exists(replace_dummy_kvars_bty(genv, bty, fresh_kvar), p)
         }
-        TyKind::WeakRef(ty) => Ty::weak_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
-        TyKind::ShrRef(ty) => Ty::shr_ref(replace_dummy_kvars(genv, ty, fresh_kvar)),
-        TyKind::StrgRef(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
+        TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, replace_dummy_kvars(genv, ty, fresh_kvar)),
+        TyKind::Ptr(_) | TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Float(_) => ty.clone(),
     }
 }
 

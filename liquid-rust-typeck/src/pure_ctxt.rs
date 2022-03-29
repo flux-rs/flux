@@ -184,7 +184,7 @@ impl PureCtxt<'_> {
     pub fn push_loc(&mut self) -> Loc {
         let fresh = Name::new(self.next_name_idx());
         self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
-        Loc::Abstract(fresh)
+        Loc::Free(fresh)
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {

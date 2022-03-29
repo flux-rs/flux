@@ -7,7 +7,10 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::collections::{hash_map::Entry, BinaryHeap};
+use std::{
+    collections::{hash_map::Entry, BinaryHeap},
+    iter,
+};
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
@@ -17,7 +20,7 @@ use crate::{
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
     ty::{
-        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Path, Pred, Sort, Ty, TyKind, Var,
+        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, RefMode, Sort, Ty, TyKind, Var,
     },
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
@@ -187,9 +190,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut env = TypeEnv::new();
         for constr in &fn_sig.requires {
             match constr {
-                ty::Constr::Type(loc, ty) => {
+                ty::Constr::Type(path, ty) => {
+                    assert!(path.projection().is_empty());
                     let ty = env.unpack_ty(genv, pcx, ty);
-                    env.alloc_with_ty(*loc, ty);
+                    env.alloc_with_ty(path.loc, ty);
                 }
                 ty::Constr::Pred(e) => {
                     pcx.push_pred(e.clone());
@@ -317,43 +321,53 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|arg| self.check_operand(pcx, env, arg))
             .collect_vec();
 
-        let cx = LoweringCtxt::empty();
         let scope = pcx.scope();
         let mut fresh_kvar =
             |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
+
+        // Infer substitution
+        let cx = LoweringCtxt::empty();
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
             .collect_vec();
-
         let mut subst = Subst::with_type_substs(&substs);
-        if subst.infer_from_fn_call(env, &actuals, fn_sig).is_err() {
+        if subst
+            .infer_from_fn_call(self.genv, pcx, env, &actuals, fn_sig)
+            .is_err()
+        {
             self.sess
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
             return Err(ErrorReported);
         };
         let fn_sig = subst.subst_fn_sig(&fn_sig.value);
 
+        // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-
-        for (actual, formal) in actuals.iter().zip(&fn_sig.args) {
-            gen.subtyping(actual, formal);
+        for (actual, formal) in iter::zip(actuals, &fn_sig.args) {
+            if let (TyKind::Ptr(path), TyKind::Ref(RefMode::Mut, bound)) =
+                (actual.kind(), formal.kind())
+            {
+                env.weaken_ty_at_path(&mut gen, path, bound.clone());
+            } else {
+                gen.subtyping(&actual, formal);
+            }
         }
-
         for constr in &fn_sig.requires {
             gen.check_constr(env, constr);
         }
 
+        // Update postconditions
         for constr in &fn_sig.ensures {
             match constr {
-                Constr::Type(loc, updated_ty) => {
+                Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
                     let gen = &mut ConstraintGen::new(
                         self.genv,
                         pcx.breadcrumb(),
                         Tag::Call(source_info.span),
                     );
-                    env.update_path(gen, &Path::new(*loc, vec![]), updated_ty);
+                    env.update_path(gen, path, updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }

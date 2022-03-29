@@ -5,9 +5,9 @@ pub struct RMat<T> {
 }
 
 impl<T> RMat<T> {
-
-    fn clone(n:usize, elem: T) -> Vec<T>
-    where T: Copy
+    fn clone(n: usize, elem: T) -> Vec<T>
+    where
+        T: Copy,
     {
         let mut res = Vec::new();
         for _i in 0..n {
@@ -19,7 +19,8 @@ impl<T> RMat<T> {
     #[lr::assume]
     #[lr::sig(fn(rows: usize, cols: usize, elem: T) -> RMat<T>[rows, cols])]
     pub fn new(rows: usize, cols: usize, elem: T) -> RMat<T>
-    where T: Copy
+    where
+        T: Copy,
     {
         let mut inner = Vec::new();
         for _i in 0..rows {
@@ -31,7 +32,7 @@ impl<T> RMat<T> {
 
     #[lr::assume]
     #[lr::ty(fn<m:int,n:int>(&RMat<T>@{m,n}, usize{v: 0 <= v && v < m}, usize{v:0 <= v && v < n}) -> &T)]
-    pub fn get(&self, i: usize, j:usize) -> &T {
+    pub fn get(&self, i: usize, j: usize) -> &T {
         &self.inner[i][j]
     }
 
@@ -40,11 +41,10 @@ impl<T> RMat<T> {
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {
         &mut self.inner[i][j]
     }
-
 }
 
 #[lr::assume]
 #[lr::sig(fn() -> usize{v:false})]
 pub fn die() -> usize {
-  panic!("die")
+    panic!("die")
 }
