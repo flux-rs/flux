@@ -9,11 +9,9 @@ use liquid_rust_syntax::{
     ast::AdtDef,
     surface::{self, DefFnSig},
 };
-// use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
-// use rustc_session::{Session, SessionDiagnostic};
 use rustc_span::{sym, Span, Symbol};
 
 use crate::{

@@ -47,8 +47,9 @@ impl<'tcx> GlobalEnv<'tcx> {
         }
         match self.lookup_default_spec(local_def, span) {
             Ok(fn_spec) => {
-                let mut tmp = self.fn_specs.borrow_mut();
-                tmp.insert(local_def, fn_spec.clone());
+                self.fn_specs
+                    .borrow_mut()
+                    .insert(local_def, fn_spec.clone());
                 return fn_spec.fn_sig;
             }
             Err(e) => {
