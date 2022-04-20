@@ -6,7 +6,7 @@ pub fn toss() -> bool {
     true
 }
 
-#[lr::sig(fn(k: i32{v: 0 <= v}) -> i32[0])]
+#[lr::sig(fn(k: i32{0 <= k}) -> i32[0])]
 pub fn test(mut k: i32) -> i32 {
     while toss() && k < i32::MAX - 1 {
         k += 1;

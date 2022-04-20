@@ -52,7 +52,7 @@ TyKind: ast::TyKind = {
     <path:Path> "@" <refine:Refinement>                => ast::TyKind::RefineTy { <> },
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => ast::TyKind::Exists { <> },
     "ref" "<" <ident:Ident> ">"                        => ast::TyKind::StrgRef(<>),
-    "&" "weak" <Ty>                                    => ast::TyKind::WeakRef(Box::new(<>)),
+    "&" "mut" <Ty>                                     => ast::TyKind::WeakRef(Box::new(<>)),
     "&" <Ty>                                           => ast::TyKind::ShrRef(Box::new(<>)),
 }
 
@@ -238,6 +238,6 @@ extern {
         "&"  => Token::And,
         "%" => Token::Percent,
         "*" => Token::Star,
-        "weak" => Token::Weak,
+        "mut" => Token::Mut,
     }
 }

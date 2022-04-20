@@ -6,7 +6,7 @@ pub fn toss() -> bool {
     true
 }
 
-#[lr::sig(fn(k: i32) -> i32[0])]
+#[lr::sig(fn(i32) -> i32[0])]
 pub fn test(mut k: i32) -> i32 { //~ ERROR postcondition might not hold
     while toss() && k < i32::MAX - 1 {
         k += 1;

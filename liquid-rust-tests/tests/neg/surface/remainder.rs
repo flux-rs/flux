@@ -3,7 +3,7 @@
 
 // Test of `mod` support
 // usize preserves mod semantics
-#[lr::sig(fn(a:usize{a % 2 == 1}) -> usize[1])]
+#[lr::sig(fn(a: usize{a % 2 == 1}) -> usize[1])]
 pub fn input_must_be_odd(a: usize) -> usize {
     a % 2
 }
@@ -17,7 +17,7 @@ pub fn test_mod() -> usize {
 }
 
 // Error because a and b may be < 0 and which doesn't preserve mod semantics
-#[lr::sig(fn(a:i32, b:i32) -> i32[a % b])]
+#[lr::sig(fn(a: i32, b: i32) -> i32[a % b])]
 pub fn mod_signed(a: i32, b: i32) -> i32 { //~ ERROR postcondition might not hold
     a % b
 }
