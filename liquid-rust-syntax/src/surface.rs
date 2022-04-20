@@ -5,7 +5,7 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
-use crate::ast::{self};
+use crate::ast;
 pub use crate::ast::{Expr, ExprKind, Lit};
 
 #[derive(Debug)]
@@ -194,7 +194,7 @@ fn default_ty(ty: rustc_middle::ty::Ty) -> ResTy {
 pub fn default_fn_sig(rust_sig: rustc_middle::ty::FnSig) -> ResFnSig {
     let args = rust_sig
         .inputs()
-        .into_iter()
+        .iter()
         .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
         .collect();
     let returns = default_ty(rust_sig.output());
