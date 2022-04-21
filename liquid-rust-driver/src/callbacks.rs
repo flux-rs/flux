@@ -74,7 +74,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
                 surface::BareSig::SurSig(fn_sig) => {
                     let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
                     let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
-                    Desugar::desugar(fn_sig)
+                    Desugar::desugar(&adt_defs, fn_sig)
                 }
             };
             wf.check_fn_sig(&fn_sig)?;
@@ -83,12 +83,12 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         })
         .try_collect_exhaust()?;
 
-    let adt_defs = adt_defs
-        .into_iter()
-        .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
-        .collect();
+    // let adt_defs = adt_defs
+    //     .into_iter()
+    //     .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
+    //     .collect();
 
-    let genv = GlobalEnv::new(tcx, std::cell::RefCell::new(fn_sigs), adt_defs);
+    let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
     let genv_specs = genv.fn_specs.borrow().clone();
 
     genv_specs

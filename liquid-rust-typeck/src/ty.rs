@@ -20,6 +20,7 @@ use crate::{
     subst::Subst,
 };
 
+#[derive(Clone)]
 pub enum AdtDef {
     Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
     Opaque { refined_by: Vec<Param> },

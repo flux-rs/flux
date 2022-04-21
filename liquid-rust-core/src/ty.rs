@@ -167,6 +167,10 @@ impl AdtDef {
             Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
         }
     }
+
+    pub fn sorts(&self) -> Vec<Sort> {
+        self.refined_by().iter().map(|param| param.sort).collect()
+    }
 }
 
 impl AdtDefs {

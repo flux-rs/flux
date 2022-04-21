@@ -1,3 +1,5 @@
+use std::iter;
+
 use itertools::Itertools;
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_syntax::surface::{self, ResArg, ResFnSig, ResPath, ResPathKind, ResTy};
@@ -5,19 +7,22 @@ use rustc_hash::FxHashMap;
 use rustc_span::{symbol::kw, Symbol};
 
 use crate::ty::{
-    BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Lit, Name, Param, Pred, Refine, Sort, Ty, Var,
+    AdtDefs, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Lit, Name, Param, Pred, Refine, Sort,
+    Ty, Var,
 };
 
-pub struct Desugar {
+pub struct Desugar<'a> {
+    adt_defs: &'a AdtDefs,
     map: FxHashMap<Symbol, Name>,
     params: Vec<Param>,
     name_gen: IndexGen<Name>,
     requires: Vec<Constr>,
 }
 
-impl Desugar {
-    pub fn desugar(fn_sig: ResFnSig) -> FnSig {
+impl Desugar<'_> {
+    pub fn desugar(adt_defs: &AdtDefs, fn_sig: ResFnSig) -> FnSig {
         let mut desugar = Desugar {
+            adt_defs,
             map: FxHashMap::default(),
             params: vec![],
             name_gen: IndexGen::new(),
@@ -198,8 +203,9 @@ impl Desugar {
     fn arg_gather_params(&mut self, arg: &ResArg) {
         match arg {
             surface::Arg::Indexed(bind, path, _) => {
-                let sort = guess_sort(path);
-                self.push_param(*bind, sort);
+                let sorts = self.sorts(path);
+                assert_eq!(sorts.len(), 1);
+                self.push_param(*bind, sorts[0]);
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.push_param(*loc, Sort::Loc);
@@ -212,8 +218,9 @@ impl Desugar {
     fn ty_gather_params(&mut self, ty: &ResTy) {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
-                let sort = guess_sort(path);
-                for index in &indices.indices {
+                let sorts = self.sorts(path);
+                assert_eq!(indices.indices.len(), sorts.len());
+                for (index, sort) in iter::zip(&indices.indices, sorts) {
                     if let surface::Index::Bind(bind) = index {
                         self.push_param(*bind, sort);
                     }
@@ -234,16 +241,21 @@ impl Desugar {
         self.params
             .push(Param { name: Ident { name: fresh, source_info }, sort });
     }
-}
 
-// HACK(nilehmann) use sort as declared in GlobalEnv
-fn guess_sort(path: &ResPath) -> Sort {
-    match path.kind {
-        ResPathKind::Bool => Sort::Bool,
-        ResPathKind::Int(_) => Sort::Int,
-        ResPathKind::Uint(_) => Sort::Int,
-        ResPathKind::Adt(_) => Sort::Int,
-        ResPathKind::Float(_) => todo!("refined float"),
-        ResPathKind::Param(_) => todo!("refined param"),
+    fn sorts(&self, path: &ResPath) -> Vec<Sort> {
+        match path.kind {
+            ResPathKind::Bool => vec![Sort::Bool],
+            ResPathKind::Int(_) => vec![Sort::Int],
+            ResPathKind::Uint(_) => vec![Sort::Int],
+            ResPathKind::Adt(def_id) => {
+                if let Some(adt_def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
+                    adt_def.sorts()
+                } else {
+                    vec![]
+                }
+            }
+            ResPathKind::Float(_) => todo!("refined float"),
+            ResPathKind::Param(_) => todo!("refined param"),
+        }
     }
 }
