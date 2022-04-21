@@ -98,7 +98,7 @@ impl Desugar {
                 let pred = self.desugar_expr(pred, Some(bind.name));
                 Ty::Exists(bty, Pred::Expr(pred))
             }
-            surface::TyKind::Ref(surface::RefKind::Immut, ty) => {
+            surface::TyKind::Ref(surface::RefKind::Shr, ty) => {
                 Ty::ShrRef(Box::new(self.desugar_ty(*ty)))
             }
             surface::TyKind::Ref(surface::RefKind::Mut, ty) => {

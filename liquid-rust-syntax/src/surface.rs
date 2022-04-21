@@ -16,14 +16,14 @@ pub enum BareSig {
 
 #[derive(Debug)]
 pub struct FnSig<P> {
-    /// example: `l: i32@n`
+    /// example: `requires n > 0`
+    pub requires: Option<Expr>,
+    /// example: `i32<@n>`
     pub args: Vec<Arg<P>>,
     /// example `i32{v:v >= 0}`
     pub returns: Ty<P>,
     /// example: `*x: i32{v. v = n+1}`
     pub ensures: Vec<(Ident, Ty<P>)>,
-    /// example: `where n > 0`
-    pub requires: Option<Expr>,
     /// source span
     pub span: Span,
 }
@@ -101,23 +101,10 @@ pub enum ResPathKind {
     Param(ParamTy),
 }
 
-// -- Types moved over from `liquid-rust-core`
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Layout {
-    Bool,
-    Int(IntTy),
-    Uint(UintTy),
-    Float(FloatTy),
-    Adt(DefId),
-    Ref,
-    Param,
-}
-
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum RefKind {
     Mut,
-    Immut,
+    Shr,
 }
 
 /// Bare (parsed) versions of surface signatures
@@ -159,7 +146,7 @@ impl<P> Arg<P> {
 fn default_refkind(m: &Mutability) -> RefKind {
     match m {
         Mutability::Mut => RefKind::Mut,
-        Mutability::Not => RefKind::Immut,
+        Mutability::Not => RefKind::Shr,
     }
 }
 

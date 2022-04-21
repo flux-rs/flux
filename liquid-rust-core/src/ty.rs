@@ -63,6 +63,17 @@ pub enum Ty {
     Param(ParamTy),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Layout {
+    Bool,
+    Int(IntTy),
+    Uint(UintTy),
+    Float(FloatTy),
+    Adt(DefId),
+    Ref,
+    Param,
+}
+
 pub struct Refine {
     pub exprs: Vec<Expr>,
     pub span: Span,
