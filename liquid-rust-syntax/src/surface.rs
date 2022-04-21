@@ -1,7 +1,7 @@
 pub use rustc_ast::token::LitKind;
 use rustc_ast::Mutability;
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
+pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
@@ -178,7 +178,8 @@ fn default_ty(ty: rustc_middle::ty::Ty) -> ResTy {
     Ty { kind, span: rustc_span::DUMMY_SP }
 }
 
-pub fn default_fn_sig(rust_sig: rustc_middle::ty::FnSig) -> ResFnSig {
+pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> ResFnSig {
+    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
     let args = rust_sig
         .inputs()
         .iter()

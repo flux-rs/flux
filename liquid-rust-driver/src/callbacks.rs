@@ -72,8 +72,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
             let fn_sig = match spec.fn_sig {
                 surface::BareSig::AstSig(fn_sig) => resolver.resolve_fn_sig(def_id, fn_sig)?,
                 surface::BareSig::SurSig(fn_sig) => {
-                    let default_sig =
-                        surface::default_fn_sig(tcx.erase_late_bound_regions(tcx.fn_sig(def_id)));
+                    let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
                     let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
                     Desugar::desugar(fn_sig)
                 }

@@ -28,20 +28,6 @@ impl<'tcx> GlobalEnv<'tcx> {
         GlobalEnv { fn_specs, adt_defs, tcx }
     }
 
-    // fn lookup_default_spec(
-    //     &self,
-    //     local_def: LocalDefId,
-    //     span: Span,
-    // ) -> Result<ty::FnSpec, ErrorReported> {
-    //     let mut resolver = Resolver::from_fn(self.tcx, local_def)?;
-    //     let fn_sig = resolver.default_sig(local_def, span)?;
-    //     // TODO -- wf needs a bunch of stuff not in scope here.
-    //     // of course "default" sigs SHOULD be well-formed so perhaps redundant
-    //     // wf.check_fn_sig(&fn_sig)?;
-    //     let fn_sig = crate::lowering::LoweringCtxt::lower_fn_sig(fn_sig);
-    //     Ok(ty::FnSpec { fn_sig, assume: true })
-    // }
-
     pub fn lookup_fn_sig(&self, did: DefId) -> ty::Binders<ty::FnSig> {
         let local_def = did.as_local().unwrap();
 
@@ -49,7 +35,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .borrow_mut()
             .entry(local_def)
             .or_insert_with(|| {
-                let fn_sig = surface::default_fn_sig(self.tcx.fn_sig(did).no_bound_vars().unwrap());
+                let fn_sig = surface::default_fn_sig(self.tcx, did);
                 let fn_sig = Desugar::desugar(fn_sig);
                 let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
                 ty::FnSpec { fn_sig, assume: true }
