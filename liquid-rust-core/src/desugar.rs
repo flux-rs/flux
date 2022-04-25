@@ -4,58 +4,109 @@ use itertools::Itertools;
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_syntax::surface::{self, Res};
 use rustc_hash::FxHashMap;
-use rustc_span::{symbol::kw, Symbol};
+use rustc_span::{sym, symbol::kw, Symbol};
 
 use crate::ty::{
-    AdtDefs, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param, Pred, Sort,
-    Ty, Var,
+    AdtDef, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param, Pred,
+    RefinedByMap, Sort, Ty, Var,
 };
 
-pub struct Desugar<'a> {
-    adt_defs: &'a AdtDefs,
+pub fn desugar_params(params: &surface::Params) -> Vec<Param> {
+    let name_gen = IndexGen::new();
+    params
+        .params
+        .iter()
+        .map(|param| {
+            let fresh = name_gen.fresh();
+            let name = Ident { name: fresh, source_info: (param.name.span, param.name.name) };
+            Param { name, sort: resolve_sort(param.sort) }
+        })
+        .collect_vec()
+}
+
+pub fn desugar_adt<T>(refined_by: &T, adt_def: surface::AdtDef<Res>) -> AdtDef
+where
+    T: RefinedByMap,
+{
+    let mut cx = DesugarCtxt::new(refined_by);
+
+    for param in adt_def.refined_by.into_iter().flat_map(|params| params) {
+        cx.push_param(param.name, resolve_sort(param.sort));
+    }
+
+    if adt_def.opaque {
+        AdtDef::Opaque { refined_by: cx.params }
+    } else {
+        let fields = adt_def
+            .fields
+            .into_iter()
+            .map(|ty| cx.desugar_ty(ty.unwrap()))
+            .collect();
+        AdtDef::Transparent { refined_by: cx.params, fields }
+    }
+}
+
+pub fn desugar_fn_sig<T>(refined_by: &T, fn_sig: surface::FnSig<Res>) -> FnSig
+where
+    T: RefinedByMap,
+{
+    let mut desugar = DesugarCtxt {
+        refined_by,
+        map: FxHashMap::default(),
+        params: vec![],
+        name_gen: IndexGen::new(),
+        requires: vec![],
+    };
+
+    desugar.gather_params(&fn_sig);
+
+    let args = fn_sig
+        .args
+        .into_iter()
+        .map(|arg| desugar.desugar_arg(arg))
+        .collect_vec();
+
+    if let Some(e) = fn_sig.requires {
+        let e = desugar.desugar_expr(e, None);
+        desugar.requires.push(Constr::Pred(e));
+    }
+
+    let ret = desugar.desugar_ty(fn_sig.returns);
+
+    let ensures = fn_sig
+        .ensures
+        .into_iter()
+        .map(|(bind, ty)| {
+            let source_info = (bind.span, bind.name);
+            let loc = Ident { name: desugar.map[&bind.name], source_info };
+            let ty = desugar.desugar_ty(ty);
+            Constr::Type(loc, ty)
+        })
+        .collect_vec();
+
+    FnSig { params: desugar.params, requires: desugar.requires, args, ret, ensures }
+}
+
+struct DesugarCtxt<'a, T> {
+    refined_by: &'a T,
+    name_gen: IndexGen<Name>,
     map: FxHashMap<Symbol, Name>,
     params: Vec<Param>,
-    name_gen: IndexGen<Name>,
     requires: Vec<Constr>,
 }
 
-impl Desugar<'_> {
-    pub fn desugar_fn_sig(adt_defs: &AdtDefs, fn_sig: surface::FnSig<Res>) -> FnSig {
-        let mut desugar = Desugar {
-            adt_defs,
+impl<T> DesugarCtxt<'_, T>
+where
+    T: RefinedByMap,
+{
+    fn new(refined_by: &T) -> DesugarCtxt<T> {
+        DesugarCtxt {
+            refined_by,
+            name_gen: IndexGen::new(),
             map: FxHashMap::default(),
             params: vec![],
-            name_gen: IndexGen::new(),
             requires: vec![],
-        };
-
-        desugar.gather_params(&fn_sig);
-
-        let args = fn_sig
-            .args
-            .into_iter()
-            .map(|arg| desugar.desugar_arg(arg))
-            .collect_vec();
-
-        if let Some(e) = fn_sig.requires {
-            let e = desugar.desugar_expr(e, None);
-            desugar.requires.push(Constr::Pred(e));
         }
-
-        let ret = desugar.desugar_ty(fn_sig.returns);
-
-        let ensures = fn_sig
-            .ensures
-            .into_iter()
-            .map(|(bind, ty)| {
-                let source_info = (bind.span, bind.name);
-                let loc = Ident { name: desugar.map[&bind.name], source_info };
-                let ty = desugar.desugar_ty(ty);
-                Constr::Type(loc, ty)
-            })
-            .collect_vec();
-
-        FnSig { params: desugar.params, requires: desugar.requires, args, ret, ensures }
     }
 
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Ty {
@@ -243,8 +294,8 @@ impl Desugar<'_> {
             Res::Int(_) => vec![Sort::Int],
             Res::Uint(_) => vec![Sort::Int],
             Res::Adt(def_id) => {
-                if let Some(adt_def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
-                    adt_def.sorts()
+                if let Some(params) = self.refined_by.get(def_id) {
+                    params.iter().map(|param| param.sort).collect()
                 } else {
                     vec![]
                 }
@@ -254,3 +305,20 @@ impl Desugar<'_> {
         }
     }
 }
+
+fn resolve_sort(sort: surface::Ident) -> Sort {
+    if sort.name == SORTS.int {
+        Sort::Int
+    } else if sort.name == sym::bool {
+        Sort::Bool
+    } else {
+        todo!("cannot resolve sort")
+    }
+}
+
+struct Sorts {
+    int: Symbol,
+}
+
+static SORTS: std::lazy::SyncLazy<Sorts> =
+    std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });

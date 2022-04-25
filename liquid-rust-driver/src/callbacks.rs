@@ -1,6 +1,6 @@
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::{desugar::Desugar, resolve::Resolver};
-use liquid_rust_syntax::surface;
+use liquid_rust_core::{self as core, desugar, resolve::Resolver};
+use liquid_rust_syntax::{self as syntax, surface};
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorReported;
@@ -35,52 +35,47 @@ impl Callbacks for LiquidCallbacks {
 fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     let specs = SpecCollector::collect(tcx, sess)?;
 
-    let adt_defs = specs
-        .adts
-        .into_iter()
-        .map(|(def_id, def)| {
-            let mut resolver = Resolver::from_adt(tcx, def_id)?;
-            Ok((def_id, resolver.resolve_adt_def(def)?))
-        })
-        .try_collect_exhaust()?;
+    let mut genv = GlobalEnv::new(tcx);
 
-    let wf = Wf::new(sess, &adt_defs);
+    // Register structs parameters
+    for (def_id, def) in &specs.adts {
+        if let Some(refined_by) = &def.refined_by {
+            genv.register_refined_by(def_id.to_def_id(), desugar::desugar_params(refined_by));
+        }
+    }
 
-    // Starts as raw AST
+    // Qualifiers
     let qualifiers: Vec<typeck::ty::Qualifier> = specs
         .qualifs
         .into_iter()
         .map(|qualifier| {
-            // Resolve into core::ty
             let resolved = Resolver::resolve_qualifier(tcx, qualifier)?;
-            // Check for well formedness errors
-            wf.check_qualifier(&resolved)?;
-            // Lower into typeck::ty
-            let lowered = typeck::lowering::LoweringCtxt::lower_qualifer(&resolved);
-            Ok(lowered)
+            Wf::new(sess, &genv).check_qualifier(&resolved)?;
+            Ok(typeck::lowering::LoweringCtxt::lower_qualifer(&resolved))
         })
         .try_collect_exhaust()?;
 
-    adt_defs
-        .iter()
-        .try_for_each_exhaust(|(_, def)| wf.check_adt_def(def))?;
+    // Adt definitions
+    for (def_id, adt_def) in specs.adts {
+        let mut resolver = syntax::resolve::Resolver::from_adt(tcx, def_id)?;
+        let adt_def = resolver.resolve_adt_def(adt_def)?;
+        let adt_def = desugar::desugar_adt(&genv, adt_def);
+        Wf::new(sess, &genv).check_adt_def(&adt_def)?;
+        genv.register_adt_def(def_id.to_def_id(), adt_def);
+    }
 
-    let fn_sigs = specs
-        .fns
-        .into_iter()
-        .map(|(def_id, spec)| {
-            let fn_sig = {
-                let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
-                let fn_sig = surface::zip::zip_bare_def(spec.fn_sig, default_sig);
-                Desugar::desugar_fn_sig(&adt_defs, fn_sig)
-            };
-            wf.check_fn_sig(&fn_sig)?;
-            let fn_sig = typeck::lowering::LoweringCtxt::lower_fn_sig(fn_sig);
-            Ok((def_id, typeck::ty::FnSpec { fn_sig, assume: spec.assume }))
-        })
-        .try_collect_exhaust()?;
+    // Function signatures
+    for (def_id, spec) in specs.fns {
+        let fn_sig = {
+            let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
+            let fn_sig = surface::zip::zip_bare_def(spec.fn_sig, default_sig);
+            desugar::desugar_fn_sig(&genv, fn_sig)
+        };
+        Wf::new(sess, &genv).check_fn_sig(&fn_sig)?;
+        let spec = core::ty::FnSpec { fn_sig, assume: spec.assume };
+        genv.register_fn_spec(def_id.to_def_id(), spec);
+    }
 
-    let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
     let genv_specs = genv.fn_specs.borrow().clone();
 
     genv_specs
@@ -90,7 +85,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
                 return Ok(());
             }
             let body = LoweringCtxt::lower(tcx, tcx.optimized_mir(*def_id))?;
-            typeck::check(&genv, def_id.to_def_id(), &body, &qualifiers)
+            typeck::check(&genv, *def_id, &body, &qualifiers)
         })
         .try_collect_exhaust()
 }

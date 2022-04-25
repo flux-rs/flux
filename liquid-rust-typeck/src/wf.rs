@@ -1,14 +1,14 @@
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::ty as core;
+use liquid_rust_core::ty::{self as core, RefinedByMap};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
 
 use crate::{lowering::lower_sort, ty};
 
-pub struct Wf<'a> {
+pub struct Wf<'a, T> {
     sess: &'a Session,
-    adt_defs: &'a core::AdtDefs,
+    refined_by: &'a T,
 }
 
 struct Env {
@@ -44,9 +44,9 @@ impl std::ops::Index<&'_ core::Var> for Env {
     }
 }
 
-impl Wf<'_> {
-    pub fn new<'a>(sess: &'a Session, adt_defs: &'a core::AdtDefs) -> Wf<'a> {
-        Wf { sess, adt_defs }
+impl<T: RefinedByMap> Wf<'_, T> {
+    pub fn new<'a>(sess: &'a Session, refined_by: &'a T) -> Wf<'a, T> {
+        Wf { sess, refined_by }
     }
 
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorReported> {
@@ -250,11 +250,8 @@ impl Wf<'_> {
             core::BaseTy::Uint(_) => vec![ty::Sort::int()],
             core::BaseTy::Bool => vec![ty::Sort::bool()],
             core::BaseTy::Adt(def_id, _) => {
-                if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
-                    def.refined_by()
-                        .iter()
-                        .map(|param| lower_sort(param.sort))
-                        .collect()
+                if let Some(params) = self.refined_by.get(*def_id) {
+                    params.iter().map(|param| lower_sort(param.sort)).collect()
                 } else {
                     vec![]
                 }
@@ -262,7 +259,7 @@ impl Wf<'_> {
         }
     }
 
-    fn emit_err<'a, T>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorReported> {
+    fn emit_err<'a, R>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<R, ErrorReported> {
         self.sess.emit_err(err);
         Err(ErrorReported)
     }
