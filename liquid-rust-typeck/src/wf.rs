@@ -106,14 +106,14 @@ impl Wf<'_> {
 
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
-            core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
+            core::Ty::Indexed(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
             core::Ty::Exists(bty, pred) => {
                 env.with_bound_var(self.sorts(bty), |env| {
                     self.check_pred(env, pred, ty::Sort::bool())
                 })
             }
-            core::Ty::StrgRef(loc) => self.check_loc(env, *loc),
-            core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
+            core::Ty::Ptr(loc) => self.check_loc(env, *loc),
+            core::Ty::Ref(_, ty) => self.check_type(env, ty),
             core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
         }
     }
@@ -121,7 +121,7 @@ impl Wf<'_> {
     fn check_refine(
         &self,
         env: &Env,
-        refine: &core::Refine,
+        refine: &core::Indices,
         expected: Vec<ty::Sort>,
     ) -> Result<(), ErrorReported> {
         let found = self.synth_refine(env, refine)?;
@@ -187,7 +187,7 @@ impl Wf<'_> {
     fn synth_refine(
         &self,
         env: &Env,
-        refine: &core::Refine,
+        refine: &core::Indices,
     ) -> Result<Vec<ty::Sort>, ErrorReported> {
         let sorts: Vec<ty::Sort> = refine
             .exprs

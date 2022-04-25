@@ -10,7 +10,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::PureCtxt,
     subst::Subst,
-    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefMode, Ty, TyKind, Var},
+    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var},
 };
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -20,7 +20,7 @@ pub struct PathsTree {
 
 pub enum LookupResult<'a> {
     Ptr(Path, &'a mut Ty),
-    Ref(RefMode, Ty),
+    Ref(RefKind, Ty),
 }
 
 impl LookupResult<'_> {
@@ -193,7 +193,7 @@ impl PathsTree {
         &mut self,
         genv: &GlobalEnv,
         pcx: &mut PureCtxt,
-        mut mode: RefMode,
+        mut mode: RefKind,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
     ) -> LookupResult {
@@ -376,7 +376,7 @@ fn ty_infer_folding(
         (TyKind::Ptr(_), TyKind::Ptr(_)) => {
             todo!()
         }
-        (TyKind::Ref(RefMode::Shr, ty1), TyKind::Ref(RefMode::Shr, ty2)) => {
+        (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
             ty_infer_folding(genv, pcx, params, ty1, ty2);
         }
         _ => {}

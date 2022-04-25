@@ -7,7 +7,7 @@ use rustc_span::Span;
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, Loc, Pred, RefMode, Ty, TyKind},
+    ty::{BaseTy, BinOp, Constr, Expr, Loc, Pred, RefKind, Ty, TyKind},
     type_env::TypeEnv,
 };
 
@@ -90,11 +90,11 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
             (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
                 assert_eq!(loc1, loc2);
             }
-            (TyKind::Ref(RefMode::Mut, ty1), TyKind::Ref(RefMode::Mut, ty2)) => {
+            (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
                 ck.subtyping(ty1, ty2);
                 ck.subtyping(ty2, ty1);
             }
-            (TyKind::Ref(RefMode::Shr, ty1), TyKind::Ref(RefMode::Shr, ty2)) => {
+            (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
                 ck.subtyping(ty1, ty2);
             }
             (_, TyKind::Uninit(_)) => {

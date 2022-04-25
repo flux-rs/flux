@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use rustc_span::{symbol::kw, Symbol};
 
 use crate::ty::{
-    AdtDefs, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Lit, Name, Param, Pred, Refine, Sort,
+    AdtDefs, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param, Pred, Sort,
     Ty, Var,
 };
 
@@ -67,15 +67,15 @@ impl Desugar<'_> {
                 }
                 let bty = self.desugar_path_into_bty(path);
                 let var = self.desugar_var(bind, None);
-                let indices = Refine { exprs: vec![var], span: bind.span };
-                Ty::Refine(bty, indices)
+                let indices = Indices { exprs: vec![var], span: bind.span };
+                Ty::Indexed(bty, indices)
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let source_info = (loc.span, loc.name);
                 let loc = Ident { name: self.map[&loc.name], source_info };
                 let ty = self.desugar_ty(ty);
                 self.requires.push(Constr::Type(loc, ty));
-                Ty::StrgRef(loc)
+                Ty::Ptr(loc)
             }
             surface::Arg::Ty(ty) => self.desugar_ty(ty),
         }
@@ -96,30 +96,25 @@ impl Desugar<'_> {
             surface::TyKind::Indexed { path, indices } => {
                 let bty = self.desugar_path_into_bty(path);
                 let indices = self.desugar_indices(indices);
-                Ty::Refine(bty, indices)
+                Ty::Indexed(bty, indices)
             }
             surface::TyKind::Exists { bind, path, pred } => {
                 let bty = self.desugar_path_into_bty(path);
                 let pred = self.desugar_expr(pred, Some(bind.name));
                 Ty::Exists(bty, Pred::Expr(pred))
             }
-            surface::TyKind::Ref(surface::RefKind::Shr, ty) => {
-                Ty::ShrRef(Box::new(self.desugar_ty(*ty)))
-            }
-            surface::TyKind::Ref(surface::RefKind::Mut, ty) => {
-                Ty::WeakRef(Box::new(self.desugar_ty(*ty)))
-            }
+            surface::TyKind::Ref(rk, ty) => Ty::Ref(rk, Box::new(self.desugar_ty(*ty))),
             surface::TyKind::StrgRef(loc, ty) => {
                 let source_info = (loc.span, loc.name);
                 let loc = Ident { name: self.map[&loc.name], source_info };
                 let ty = self.desugar_ty(*ty);
                 self.requires.push(Constr::Type(loc, ty));
-                Ty::StrgRef(loc)
+                Ty::Ptr(loc)
             }
         }
     }
 
-    pub fn desugar_indices(&self, indices: surface::Indices) -> Refine {
+    pub fn desugar_indices(&self, indices: surface::Indices) -> Indices {
         let exprs = indices
             .indices
             .into_iter()
@@ -131,7 +126,7 @@ impl Desugar<'_> {
                 }
             })
             .collect();
-        Refine { exprs, span: indices.span }
+        Indices { exprs, span: indices.span }
     }
 
     fn desugar_path_into_bty(&mut self, path: surface::Path<Res>) -> BaseTy {

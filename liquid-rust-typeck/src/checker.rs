@@ -20,7 +20,7 @@ use crate::{
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
     ty::{
-        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, RefMode, Sort, Ty, TyKind, Var,
+        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, RefKind, Sort, Ty, TyKind, Var,
     },
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
@@ -344,7 +344,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
         for (actual, formal) in iter::zip(actuals, &fn_sig.args) {
-            if let (TyKind::Ptr(path), TyKind::Ref(RefMode::Mut, bound)) =
+            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
                 env.weaken_ty_at_path(&mut gen, path, bound.clone());

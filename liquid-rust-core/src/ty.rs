@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
-pub use liquid_rust_syntax::ast::BinOp;
+pub use liquid_rust_syntax::{ast::BinOp, surface::RefKind};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
@@ -54,12 +54,11 @@ pub struct Qualifier {
 }
 
 pub enum Ty {
-    Refine(BaseTy, Refine),
+    Indexed(BaseTy, Indices),
     Exists(BaseTy, Pred),
     Float(FloatTy),
-    StrgRef(Ident),
-    WeakRef(Box<Ty>),
-    ShrRef(Box<Ty>),
+    Ptr(Ident),
+    Ref(RefKind, Box<Ty>),
     Param(ParamTy),
 }
 
@@ -74,7 +73,7 @@ pub enum Layout {
     Param,
 }
 
-pub struct Refine {
+pub struct Indices {
     pub exprs: Vec<Expr>,
     pub span: Span,
 }
@@ -256,14 +255,14 @@ impl fmt::Debug for Constr {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Refine(bty, e) => fmt_bty(bty, Some(e), f),
+            Ty::Indexed(bty, e) => fmt_bty(bty, Some(e), f),
             Ty::Exists(bty, p) => {
                 write!(f, "{bty:?}{{{p:?}}}")
             }
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
-            Ty::StrgRef(loc) => write!(f, "ref<{loc:?}>"),
-            Ty::WeakRef(ty) => write!(f, "&weak {ty:?}"),
-            Ty::ShrRef(ty) => write!(f, "&{ty:?}"),
+            Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
+            Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
+            Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
             Ty::Param(param) => write!(f, "{param}"),
         }
     }
@@ -275,7 +274,7 @@ impl fmt::Debug for BaseTy {
     }
 }
 
-fn fmt_bty(bty: &BaseTy, e: Option<&Refine>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match bty {
         BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
         BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
@@ -307,7 +306,7 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Refine>, f: &mut fmt::Formatter<'_>) -> fmt:
     Ok(())
 }
 
-impl fmt::Debug for Refine {
+impl fmt::Debug for Indices {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{{:?}}}", self.exprs.iter().format(", "))
     }

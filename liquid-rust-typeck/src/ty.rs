@@ -79,12 +79,12 @@ pub enum TyKind {
     Float(FloatTy),
     Uninit(Layout),
     Ptr(Path),
-    Ref(RefMode, Ty),
+    Ref(RefKind, Ty),
     Param(ParamTy),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
-pub enum RefMode {
+pub enum RefKind {
     Shr,
     Mut,
 }
@@ -216,7 +216,7 @@ impl Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
-    pub fn mk_ref(mode: RefMode, ty: Ty) -> Ty {
+    pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
         TyKind::Ref(mode, ty).intern()
     }
 
@@ -758,8 +758,8 @@ mod pretty {
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit(_) => w!("uninit"),
                 TyKind::Ptr(loc) => w!("ptr({:?})", loc),
-                TyKind::Ref(RefMode::Mut, ty) => w!("&mut {:?}", ty),
-                TyKind::Ref(RefMode::Shr, ty) => w!("&{:?}", ty),
+                TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
+                TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
             }
         }

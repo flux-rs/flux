@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, RefMode, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -97,8 +97,8 @@ impl TypeEnv {
         self.bindings.lookup_place(genv, pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(path, _) => Ty::strg_ref(path),
-                LookupResult::Ref(RefMode::Mut, ty) => Ty::mk_ref(RefMode::Mut, ty),
-                LookupResult::Ref(RefMode::Shr, _) => {
+                LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
+                LookupResult::Ref(RefKind::Shr, _) => {
                     panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
                 }
             }
@@ -107,7 +107,7 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, result| Ty::mk_ref(RefMode::Shr, result.ty()))
+            .lookup_place(genv, pcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
     }
 
     pub fn write_place(
@@ -125,11 +125,11 @@ impl TypeEnv {
                     self.pledges.check(&mut gen, &path, &new_ty);
                     *ty = new_ty;
                 }
-                LookupResult::Ref(RefMode::Mut, ty) => {
+                LookupResult::Ref(RefKind::Mut, ty) => {
                     let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
                     gen.subtyping(&new_ty, &ty);
                 }
-                LookupResult::Ref(RefMode::Shr, _) => {
+                LookupResult::Ref(RefKind::Shr, _) => {
                     panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
                 }
             }
@@ -144,10 +144,10 @@ impl TypeEnv {
                     *ty = Ty::uninit(ty.layout());
                     old
                 }
-                LookupResult::Ref(RefMode::Mut, _) => {
+                LookupResult::Ref(RefKind::Mut, _) => {
                     panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
                 }
-                LookupResult::Ref(RefMode::Shr, _) => {
+                LookupResult::Ref(RefKind::Shr, _) => {
                     panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
                 }
             }
@@ -166,9 +166,9 @@ impl TypeEnv {
                 let exprs = pcx.push_bindings(&genv.sorts(bty), p);
                 Ty::refine(bty.clone(), exprs)
             }
-            TyKind::Ref(RefMode::Shr, ty) => {
+            TyKind::Ref(RefKind::Shr, ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);
-                Ty::mk_ref(RefMode::Shr, ty)
+                Ty::mk_ref(RefKind::Shr, ty)
             }
             _ => ty.clone(),
         }

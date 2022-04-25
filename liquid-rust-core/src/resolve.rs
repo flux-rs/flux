@@ -1,4 +1,4 @@
-use crate::ty::{self, Name, ParamTy};
+use crate::ty::{self, Name, ParamTy, RefKind};
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
 use liquid_rust_syntax::ast;
@@ -251,7 +251,7 @@ impl<'tcx> Resolver<'tcx> {
                             .into_iter()
                             .map(|e| self.resolve_expr(e, subst))
                             .try_collect_exhaust()?;
-                        Ok(ty::Ty::Refine(bty, ty::Refine { exprs, span: refine.span }))
+                        Ok(ty::Ty::Indexed(bty, ty::Indices { exprs, span: refine.span }))
                     }
                     ResolvedPath::ParamTy(_) => {
                         self.diagnostics
@@ -289,20 +289,20 @@ impl<'tcx> Resolver<'tcx> {
             ast::TyKind::StrgRef(loc) => {
                 if let Some(name) = subst.get_loc(loc.name) {
                     let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
-                    Ok(ty::Ty::StrgRef(loc))
+                    Ok(ty::Ty::Ptr(loc))
                 } else {
                     self.diagnostics
                         .emit_err(errors::UnresolvedLoc::new(loc))
                         .raise()
                 }
             }
-            ast::TyKind::WeakRef(ty) => {
+            ast::TyKind::MutRef(ty) => {
                 let ty = self.resolve_ty(*ty, subst)?;
-                Ok(ty::Ty::WeakRef(Box::new(ty)))
+                Ok(ty::Ty::Ref(RefKind::Mut, Box::new(ty)))
             }
             ast::TyKind::ShrRef(ty) => {
                 let ty = self.resolve_ty(*ty, subst)?;
-                Ok(ty::Ty::ShrRef(Box::new(ty)))
+                Ok(ty::Ty::Ref(RefKind::Shr, Box::new(ty)))
             }
         }
     }
