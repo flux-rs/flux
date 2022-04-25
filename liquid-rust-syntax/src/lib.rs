@@ -41,10 +41,6 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
-    parse!(grammar::FnSigParser, tokens, span)
-}
-
 pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Generics> {
     parse!(grammar::RefinedByParser, tokens, span)
 }
