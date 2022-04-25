@@ -42,7 +42,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .entry(local_def)
             .or_insert_with(|| {
                 let fn_sig = surface::default_fn_sig(self.tcx, did);
-                let fn_sig = Desugar::desugar(&self.adt_defs, fn_sig);
+                let fn_sig = Desugar::desugar_fn_sig(&self.adt_defs, fn_sig);
                 let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
                 ty::FnSpec { fn_sig, assume: true }
             })

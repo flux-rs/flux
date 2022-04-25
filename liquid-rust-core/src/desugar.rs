@@ -20,7 +20,7 @@ pub struct Desugar<'a> {
 }
 
 impl Desugar<'_> {
-    pub fn desugar(adt_defs: &AdtDefs, fn_sig: surface::FnSig<Res>) -> FnSig {
+    pub fn desugar_fn_sig(adt_defs: &AdtDefs, fn_sig: surface::FnSig<Res>) -> FnSig {
         let mut desugar = Desugar {
             adt_defs,
             map: FxHashMap::default(),
@@ -58,7 +58,7 @@ impl Desugar<'_> {
         FnSig { params: desugar.params, requires: desugar.requires, args, ret, ensures }
     }
 
-    pub fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Ty {
+    fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Ty {
         match arg {
             surface::Arg::Indexed(bind, path, pred) => {
                 if let Some(pred) = pred {
@@ -81,7 +81,7 @@ impl Desugar<'_> {
         }
     }
 
-    pub fn desugar_ty(&mut self, ty: surface::Ty<Res>) -> Ty {
+    fn desugar_ty(&mut self, ty: surface::Ty<Res>) -> Ty {
         match ty.kind {
             surface::TyKind::Path(surface::Path { ident: Res::Float(float_ty), .. }) => {
                 Ty::Float(float_ty)
@@ -114,7 +114,7 @@ impl Desugar<'_> {
         }
     }
 
-    pub fn desugar_indices(&self, indices: surface::Indices) -> Indices {
+    fn desugar_indices(&self, indices: surface::Indices) -> Indices {
         let exprs = indices
             .indices
             .into_iter()

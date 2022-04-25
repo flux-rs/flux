@@ -72,7 +72,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
             let fn_sig = {
                 let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
                 let fn_sig = surface::zip::zip_bare_def(spec.fn_sig, default_sig);
-                Desugar::desugar(&adt_defs, fn_sig)
+                Desugar::desugar_fn_sig(&adt_defs, fn_sig)
             };
             wf.check_fn_sig(&fn_sig)?;
             let fn_sig = typeck::lowering::LoweringCtxt::lower_fn_sig(fn_sig);

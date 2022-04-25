@@ -1,5 +1,5 @@
 use crate::ty::{self, Name, ParamTy};
-use hir::{def_id::DefId, Impl, ItemId, ItemKind};
+use hir::{def_id::DefId, ItemKind};
 use liquid_rust_common::{index::IndexGen, iter::IterExt};
 use liquid_rust_syntax::{ast, surface};
 use quickscope::ScopeMap;
@@ -13,10 +13,8 @@ use rustc_span::{sym, symbol::kw, Symbol};
 type NameResTable = FxHashMap<Symbol, hir::def::Res>;
 
 pub struct Resolver<'tcx> {
-    tcx: TyCtxt<'tcx>,
     diagnostics: Diagnostics<'tcx>,
     name_res_table: NameResTable,
-    parent: Option<&'tcx Impl<'tcx>>,
 }
 
 enum ResolvedPath {
@@ -32,31 +30,30 @@ struct Diagnostics<'tcx> {
 
 struct Subst {
     exprs: ScopeMap<Symbol, ty::Var>,
-    locs: FxHashMap<Symbol, Name>,
     types: ScopeMap<DefId, ParamTy>,
 }
 
 impl<'tcx> Resolver<'tcx> {
-    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
-        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-        let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
+    // pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
+    //     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+    //     let hir_fn_sig = tcx.hir().fn_sig_by_hir_id(hir_id).unwrap();
 
-        let mut diagnostics = Diagnostics::new(tcx.sess);
+    //     let mut diagnostics = Diagnostics::new(tcx.sess);
 
-        let mut name_res_table = FxHashMap::default();
-        let mut parent = None;
-        if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
-            let item_id = ItemId { def_id: impl_did.expect_local() };
-            let item = tcx.hir().item(item_id);
-            if let ItemKind::Impl(impl_parent) = &item.kind {
-                parent = Some(impl_parent);
-                collect_res_ty(&mut diagnostics, impl_parent.self_ty, &mut name_res_table)?;
-            }
-        }
-        collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
+    //     let mut name_res_table = FxHashMap::default();
+    //     let mut parent = None;
+    //     if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
+    //         let item_id = ItemId { def_id: impl_did.expect_local() };
+    //         let item = tcx.hir().item(item_id);
+    //         if let ItemKind::Impl(impl_parent) = &item.kind {
+    //             parent = Some(impl_parent);
+    //             collect_res_ty(&mut diagnostics, impl_parent.self_ty, &mut name_res_table)?;
+    //         }
+    //     }
+    //     collect_res(&mut diagnostics, hir_fn_sig, &mut name_res_table)?;
 
-        Ok(Resolver { tcx, diagnostics, name_res_table, parent })
-    }
+    //     Ok(Resolver { tcx, diagnostics, name_res_table, parent })
+    // }
 
     pub fn resolve_qualifier(
         tcx: TyCtxt<'tcx>,
@@ -67,7 +64,6 @@ impl<'tcx> Resolver<'tcx> {
         let mut diagnostics = Diagnostics::new(tcx.sess);
 
         let name_res_table = FxHashMap::default();
-        let parent = None;
 
         let args = qualifier
             .args
@@ -88,7 +84,7 @@ impl<'tcx> Resolver<'tcx> {
             })
             .try_collect_exhaust();
 
-        let mut resolver = Self { tcx, diagnostics, parent, name_res_table };
+        let mut resolver = Self { diagnostics, name_res_table };
 
         let expr = resolver.resolve_expr(qualifier.expr, &subst)?;
 
@@ -114,7 +110,7 @@ impl<'tcx> Resolver<'tcx> {
             collect_res_ty(&mut diagnostics, field.ty, &mut name_res_table)?;
         }
 
-        Ok(Self { tcx, diagnostics, parent: None, name_res_table })
+        Ok(Self { diagnostics, name_res_table })
     }
 
     pub fn resolve_adt_def(&mut self, spec: surface::AdtDef) -> Result<ty::AdtDef, ErrorReported> {
@@ -424,7 +420,7 @@ impl<'tcx> Resolver<'tcx> {
 
 impl Subst {
     fn new() -> Self {
-        Self { exprs: ScopeMap::new(), locs: FxHashMap::default(), types: ScopeMap::new() }
+        Self { exprs: ScopeMap::new(), types: ScopeMap::new() }
     }
 
     fn push_expr_layer(&mut self) {
@@ -444,37 +440,8 @@ impl Subst {
         }
     }
 
-    fn insert_loc(&mut self, symb: Symbol, name: Name) -> Option<Name> {
-        self.locs.insert(symb, name)
-    }
-
-    fn insert_type(&mut self, did: DefId, name: Symbol) {
-        let index = self.types.len() as u32;
-        let param_ty = ty::ParamTy { index, name };
-        assert!(!self.types.contains_key_at_top(&did));
-        self.types.define(did, param_ty);
-    }
-
-    fn insert_generic_types(&mut self, tcx: TyCtxt, generics: &hir::Generics) {
-        for param in generics.params {
-            if let hir::GenericParamKind::Type { .. } = param.kind {
-                let def_id = tcx.hir().local_def_id(param.hir_id).to_def_id();
-                let name = param.name.ident().name;
-                self.insert_type(def_id, name);
-            }
-        }
-    }
-
-    fn push_type_layer(&mut self) {
-        self.types.push_layer();
-    }
-
     fn get_expr(&self, symb: Symbol) -> Option<ty::Var> {
         self.exprs.get(&symb).copied()
-    }
-
-    fn get_loc(&self, symb: Symbol) -> Option<Name> {
-        self.locs.get(&symb).copied()
     }
 
     fn get_param_ty(&self, did: DefId) -> Option<ParamTy> {
@@ -530,33 +497,33 @@ fn resolve_sort(
     }
 }
 
-fn collect_res(
-    diagnostics: &mut Diagnostics,
-    fn_sig: &hir::FnSig,
-    table: &mut NameResTable,
-) -> Result<(), ErrorReported> {
-    fn_sig
-        .decl
-        .inputs
-        .iter()
-        .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
+// fn collect_res(
+//     diagnostics: &mut Diagnostics,
+//     fn_sig: &hir::FnSig,
+//     table: &mut NameResTable,
+// ) -> Result<(), ErrorReported> {
+//     fn_sig
+//         .decl
+//         .inputs
+//         .iter()
+//         .try_for_each_exhaust(|ty| collect_res_ty(diagnostics, ty, table))?;
 
-    match fn_sig.decl.output {
-        hir::FnRetTy::DefaultReturn(span) => {
-            return diagnostics
-                .emit_err(errors::UnsupportedSignature {
-                    span,
-                    msg: "default return types are not supported yet",
-                })
-                .raise();
-        }
-        hir::FnRetTy::Return(ty) => {
-            collect_res_ty(diagnostics, ty, table)?;
-        }
-    }
+//     match fn_sig.decl.output {
+//         hir::FnRetTy::DefaultReturn(span) => {
+//             return diagnostics
+//                 .emit_err(errors::UnsupportedSignature {
+//                     span,
+//                     msg: "default return types are not supported yet",
+//                 })
+//                 .raise();
+//         }
+//         hir::FnRetTy::Return(ty) => {
+//             collect_res_ty(diagnostics, ty, table)?;
+//         }
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 fn collect_res_ty(
     diagnostics: &mut Diagnostics,
@@ -679,19 +646,19 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct UnresolvedLoc {
-        #[message = "cannot find location parameter `{loc}` in this scope"]
-        span: Span,
-        loc: Ident,
-    }
+    // #[derive(SessionDiagnostic)]
+    // #[error = "LIQUID"]
+    // pub struct UnresolvedLoc {
+    //     #[message = "cannot find location parameter `{loc}` in this scope"]
+    //     span: Span,
+    //     loc: Ident,
+    // }
 
-    impl UnresolvedLoc {
-        pub fn new(loc: Ident) -> Self {
-            Self { span: loc.span, loc }
-        }
-    }
+    // impl UnresolvedLoc {
+    //     pub fn new(loc: Ident) -> Self {
+    //         Self { span: loc.span, loc }
+    //     }
+    // }
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]

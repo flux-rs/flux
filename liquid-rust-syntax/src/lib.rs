@@ -2,12 +2,17 @@
 
 extern crate itertools;
 extern crate rustc_ast;
+extern crate rustc_errors;
+extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_macros;
 extern crate rustc_middle;
+extern crate rustc_session;
 extern crate rustc_span;
 
 pub mod ast;
 pub mod lexer;
+pub mod resolve;
 pub mod surface;
 
 use lalrpop_util::lalrpop_mod;
