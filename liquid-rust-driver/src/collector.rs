@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_common::iter::IterExt;
 use liquid_rust_syntax::{
     ast, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface,
     ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, ImplItemKind, Item,

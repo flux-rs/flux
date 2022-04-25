@@ -1,8 +1,9 @@
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_common::iter::IterExt;
 use liquid_rust_core::{desugar::Desugar, resolve::Resolver};
 use liquid_rust_syntax::surface;
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
+use rustc_errors::ErrorReported;
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;

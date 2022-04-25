@@ -1,8 +1,9 @@
 use crate::ty::{self, Name, ParamTy};
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
-use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
+use liquid_rust_common::{index::IndexGen, iter::IterExt};
 use liquid_rust_syntax::{ast, surface};
 use quickscope::ScopeMap;
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;

@@ -1,5 +1,6 @@
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_common::iter::IterExt;
 use liquid_rust_core::ty as core;
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
 

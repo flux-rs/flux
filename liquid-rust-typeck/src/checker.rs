@@ -25,7 +25,7 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
-use liquid_rust_common::{errors::ErrorReported, index::IndexVec};
+use liquid_rust_common::index::IndexVec;
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -34,6 +34,7 @@ use liquid_rust_core::{
     ty as core,
 };
 use rustc_data_structures::graph::dominators::Dominators;
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
