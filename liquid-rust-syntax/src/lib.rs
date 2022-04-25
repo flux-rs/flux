@@ -41,8 +41,8 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Generics> {
-    parse!(grammar::RefinedByParser, tokens, span)
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::Params> {
+    parse!(surface_grammar::RefinedByParser, tokens, span)
 }
 
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
@@ -53,8 +53,8 @@ pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<ast::Qual
     parse!(grammar::QualifierParser, tokens, span)
 }
 
-pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<ast::Ty> {
-    parse!(grammar::TyParser, tokens, span)
+pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
+    parse!(surface_grammar::TyParser, tokens, span)
 }
 
 pub enum UserParseError {

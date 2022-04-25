@@ -1,7 +1,7 @@
-use crate::ty::{self, Name, ParamTy, RefKind};
+use crate::ty::{self, Name, ParamTy};
 use hir::{def_id::DefId, Impl, ItemId, ItemKind};
 use liquid_rust_common::{errors::ErrorReported, index::IndexGen, iter::IterExt};
-use liquid_rust_syntax::ast;
+use liquid_rust_syntax::{ast, surface};
 use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
@@ -116,15 +116,14 @@ impl<'tcx> Resolver<'tcx> {
         Ok(Self { tcx, diagnostics, parent: None, name_res_table })
     }
 
-    pub fn resolve_adt_def(&mut self, spec: ast::AdtDef) -> Result<ty::AdtDef, ErrorReported> {
+    pub fn resolve_adt_def(&mut self, spec: surface::AdtDef) -> Result<ty::AdtDef, ErrorReported> {
         let name_gen = IndexGen::new();
         let mut subst = Subst::new();
 
-        let (refined_by, constrs) = match spec.refined_by {
-            Some(refined_by) => self.resolve_generic_values(refined_by, &name_gen, &mut subst)?,
-            None => (vec![], vec![]),
+        let refined_by = match spec.refined_by {
+            Some(refined_by) => self.resolve_params(refined_by, &name_gen, &mut subst)?,
+            None => vec![],
         };
-        assert!(constrs.is_empty());
 
         if spec.opaque {
             Ok(ty::AdtDef::Opaque { refined_by })
@@ -139,72 +138,72 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    pub fn resolve_fn_sig(
+    // pub fn resolve_fn_sig(
+    //     &mut self,
+    //     def_id: LocalDefId,
+    //     fn_sig: surface::FnSig,
+    // ) -> Result<ty::FnSig, ErrorReported> {
+    //     let mut subst = Subst::new();
+
+    //     let name_gen = IndexGen::new();
+
+    //     if let Some(parent) = self.parent {
+    //         subst.insert_generic_types(self.tcx, &parent.generics);
+    //         subst.push_type_layer();
+    //     }
+
+    //     let hir_generics = self.tcx.hir().get_generics(def_id).unwrap();
+
+    //     subst.insert_generic_types(self.tcx, hir_generics);
+
+    //     let (mut params, mut requires) =
+    //         self.resolve_params(fn_sig.generics, &name_gen, &mut subst)?;
+
+    //     for (loc, ty) in fn_sig.requires {
+    //         let fresh = name_gen.fresh();
+    //         subst.insert_loc(loc.name, fresh);
+
+    //         let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
+    //         let ty = self.resolve_ty(ty, &mut subst)?;
+
+    //         params.push(ty::Param { name: loc, sort: ty::Sort::Loc });
+    //         requires.push(ty::Constr::Type(loc, ty));
+    //     }
+
+    //     let args = fn_sig
+    //         .args
+    //         .into_iter()
+    //         .map(|ty| self.resolve_ty(ty, &mut subst))
+    //         .try_collect_exhaust();
+
+    //     let ensures = fn_sig
+    //         .ensures
+    //         .into_iter()
+    //         .map(|(loc, ty)| {
+    //             if let Some(name) = subst.get_loc(loc.name) {
+    //                 let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+    //                 let ty = self.resolve_ty(ty, &mut subst)?;
+    //                 Ok(ty::Constr::Type(loc, ty))
+    //             } else {
+    //                 self.diagnostics
+    //                     .emit_err(errors::UnresolvedVar::new(loc))
+    //                     .raise()
+    //             }
+    //         })
+    //         .try_collect_exhaust();
+
+    //     let ret = self.resolve_ty(fn_sig.ret, &mut subst);
+
+    //     Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
+    // }
+
+    fn resolve_params(
         &mut self,
-        def_id: LocalDefId,
-        fn_sig: ast::FnSig,
-    ) -> Result<ty::FnSig, ErrorReported> {
-        let mut subst = Subst::new();
-
-        let name_gen = IndexGen::new();
-
-        if let Some(parent) = self.parent {
-            subst.insert_generic_types(self.tcx, &parent.generics);
-            subst.push_type_layer();
-        }
-
-        let hir_generics = self.tcx.hir().get_generics(def_id).unwrap();
-
-        subst.insert_generic_types(self.tcx, hir_generics);
-
-        let (mut params, mut requires) =
-            self.resolve_generic_values(fn_sig.generics, &name_gen, &mut subst)?;
-
-        for (loc, ty) in fn_sig.requires {
-            let fresh = name_gen.fresh();
-            subst.insert_loc(loc.name, fresh);
-
-            let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
-            let ty = self.resolve_ty(ty, &mut subst)?;
-
-            params.push(ty::Param { name: loc, sort: ty::Sort::Loc });
-            requires.push(ty::Constr::Type(loc, ty));
-        }
-
-        let args = fn_sig
-            .args
-            .into_iter()
-            .map(|ty| self.resolve_ty(ty, &mut subst))
-            .try_collect_exhaust();
-
-        let ensures = fn_sig
-            .ensures
-            .into_iter()
-            .map(|(loc, ty)| {
-                if let Some(name) = subst.get_loc(loc.name) {
-                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
-                    let ty = self.resolve_ty(ty, &mut subst)?;
-                    Ok(ty::Constr::Type(loc, ty))
-                } else {
-                    self.diagnostics
-                        .emit_err(errors::UnresolvedVar::new(loc))
-                        .raise()
-                }
-            })
-            .try_collect_exhaust();
-
-        let ret = self.resolve_ty(fn_sig.ret, &mut subst);
-
-        Ok(ty::FnSig { params, requires, args: args?, ret: ret?, ensures: ensures? })
-    }
-
-    fn resolve_generic_values(
-        &mut self,
-        generics: ast::Generics,
+        params: surface::Params,
         name_gen: &IndexGen<Name>,
         subst: &mut Subst,
-    ) -> Result<(Vec<ty::Param>, Vec<ty::Constr>), ErrorReported> {
-        let params = generics
+    ) -> Result<Vec<ty::Param>, ErrorReported> {
+        params
             .iter()
             .map(|param| {
                 let fresh = name_gen.fresh();
@@ -223,35 +222,27 @@ impl<'tcx> Resolver<'tcx> {
                     Ok(ty::Param { name, sort })
                 }
             })
-            .try_collect_exhaust()?;
-
-        let constrs = generics
-            .into_iter()
-            .filter_map(|param| param.pred)
-            .map(|pred| Ok(ty::Constr::Pred(self.resolve_expr(pred, subst)?)))
-            .try_collect_exhaust()?;
-
-        Ok((params, constrs))
+            .try_collect_exhaust()
     }
 
-    fn resolve_ty(&mut self, ty: ast::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
+    fn resolve_ty(&mut self, ty: surface::Ty, subst: &mut Subst) -> Result<ty::Ty, ErrorReported> {
         match ty.kind {
-            ast::TyKind::BaseTy(path) => {
+            surface::TyKind::Path(path) => {
                 match self.resolve_path(path, subst)? {
                     ResolvedPath::BaseTy(bty) => Ok(ty::Ty::Exists(bty, ty::Pred::TRUE)),
                     ResolvedPath::ParamTy(param_ty) => Ok(ty::Ty::Param(param_ty)),
                     ResolvedPath::Float(float_ty) => Ok(ty::Ty::Float(float_ty)),
                 }
             }
-            ast::TyKind::RefineTy { path, refine } => {
+            surface::TyKind::Indexed { path, indices } => {
                 match self.resolve_path(path, subst)? {
                     ResolvedPath::BaseTy(bty) => {
-                        let exprs = refine
-                            .exprs
+                        let exprs = indices
+                            .indices
                             .into_iter()
-                            .map(|e| self.resolve_expr(e, subst))
+                            .map(|idx| self.resolve_index(idx, subst))
                             .try_collect_exhaust()?;
-                        Ok(ty::Ty::Indexed(bty, ty::Indices { exprs, span: refine.span }))
+                        Ok(ty::Ty::Indexed(bty, ty::Indices { exprs, span: indices.span }))
                     }
                     ResolvedPath::ParamTy(_) => {
                         self.diagnostics
@@ -265,7 +256,7 @@ impl<'tcx> Resolver<'tcx> {
                     }
                 }
             }
-            ast::TyKind::Exists { bind, path, pred } => {
+            surface::TyKind::Exists { bind, path, pred } => {
                 match self.resolve_path(path, subst)? {
                     ResolvedPath::BaseTy(bty) => {
                         subst.push_expr_layer();
@@ -286,30 +277,41 @@ impl<'tcx> Resolver<'tcx> {
                     }
                 }
             }
-            ast::TyKind::StrgRef(loc) => {
-                if let Some(name) = subst.get_loc(loc.name) {
-                    let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
-                    Ok(ty::Ty::Ptr(loc))
-                } else {
-                    self.diagnostics
-                        .emit_err(errors::UnresolvedLoc::new(loc))
-                        .raise()
-                }
+            surface::TyKind::StrgRef(_loc, _ty) => {
+                todo!()
+                // if let Some(name) = subst.get_loc(loc.name) {
+                //     let loc = ty::Ident { name, source_info: (loc.span, loc.name) };
+                //     Ok(ty::Ty::Ptr(loc))
+                // } else {
+                //     self.diagnostics
+                //         .emit_err(errors::UnresolvedLoc::new(loc))
+                //         .raise()
+                // }
             }
-            ast::TyKind::MutRef(ty) => {
+            surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty, subst)?;
-                Ok(ty::Ty::Ref(RefKind::Mut, Box::new(ty)))
+                Ok(ty::Ty::Ref(rk, Box::new(ty)))
             }
-            ast::TyKind::ShrRef(ty) => {
-                let ty = self.resolve_ty(*ty, subst)?;
-                Ok(ty::Ty::Ref(RefKind::Shr, Box::new(ty)))
+        }
+    }
+
+    fn resolve_index(
+        &mut self,
+        index: surface::Index,
+        subst: &Subst,
+    ) -> Result<ty::Expr, ErrorReported> {
+        match index {
+            surface::Index::Bind(bind) => {
+                let kind = ty::ExprKind::Var(self.resolve_var(bind, subst)?, bind.name, bind.span);
+                Ok(ty::Expr { kind, span: Some(bind.span) })
             }
+            surface::Index::Expr(e) => self.resolve_expr(e, subst),
         }
     }
 
     fn resolve_path(
         &mut self,
-        path: ast::Path,
+        path: surface::Path,
         subst: &mut Subst,
     ) -> Result<ResolvedPath, ErrorReported> {
         let res = if let Some(res) = self.name_res_table.get(&path.ident.name) {
@@ -329,7 +331,6 @@ impl<'tcx> Resolver<'tcx> {
                 let args = path
                     .args
                     .into_iter()
-                    .flatten()
                     .map(|ty| self.resolve_ty(ty, subst))
                     .try_collect_exhaust()?;
                 Ok(ResolvedPath::BaseTy(ty::BaseTy::Adt(did, args)))
@@ -649,7 +650,7 @@ static SORTS: std::lazy::SyncLazy<Sorts> =
     std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use liquid_rust_syntax::ast;
+    use liquid_rust_syntax::surface;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 
@@ -672,7 +673,7 @@ mod errors {
     }
 
     impl UnresolvedPath {
-        pub fn new(path: &ast::Path) -> Self {
+        pub fn new(path: &surface::Path) -> Self {
             Self { span: path.span, path: path.ident }
         }
     }

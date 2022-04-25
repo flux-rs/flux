@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
 use liquid_rust_syntax::{
-    ast::{self, AdtDef},
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface, ParseErrorKind,
-    ParseResult,
+    ast, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface,
+    ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_hash::FxHashMap;
@@ -26,7 +25,7 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 
 pub struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
-    pub adts: FxHashMap<LocalDefId, AdtDef>,
+    pub adts: FxHashMap<LocalDefId, surface::AdtDef>,
     pub qualifs: Vec<ast::Qualifier>,
 }
 
@@ -91,7 +90,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .adts
-            .insert(def_id, AdtDef { refined_by, fields, opaque });
+            .insert(def_id, surface::AdtDef { refined_by, fields, opaque });
 
         Ok(())
     }
@@ -103,7 +102,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_field_spec(&mut self, attrs: &[Attribute]) -> Result<Option<ast::Ty>, ErrorReported> {
+    fn parse_field_spec(
+        &mut self,
+        attrs: &[Attribute],
+    ) -> Result<Option<surface::Ty>, ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
         Ok(attrs.field())
@@ -256,9 +258,9 @@ enum LiquidAttrKind {
     Assume,
     Opaque,
     FnSig(surface::FnSig),
-    RefinedBy(ast::Generics),
+    RefinedBy(surface::Params),
     Qualifier(ast::Qualifier),
-    Field(ast::Ty),
+    Field(surface::Ty),
 }
 
 macro_rules! read_attr {
@@ -317,11 +319,11 @@ impl LiquidAttrs {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 
-    fn refined_by(&mut self) -> Option<ast::Generics> {
+    fn refined_by(&mut self) -> Option<surface::Params> {
         read_attr!(self, "refined_by", RefinedBy)
     }
 
-    fn field(&mut self) -> Option<ast::Ty> {
+    fn field(&mut self) -> Option<surface::Ty> {
         read_attr!(self, "field", Field)
     }
 }

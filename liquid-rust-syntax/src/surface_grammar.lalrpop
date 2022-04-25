@@ -9,6 +9,12 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
+pub RefinedBy: surface::Params = {
+    <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
+}
+
+Param: surface::Param = <name: Ident> ":" <sort: Ident> => surface::Param { <> };
+
 pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
@@ -43,7 +49,7 @@ Arg: surface::Arg = {
     <ty:Ty>                                            => surface::Arg::Ty(<>)
 }
 
-Ty: surface::Ty = {
+pub Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
         span: mk_span(lo, hi)
