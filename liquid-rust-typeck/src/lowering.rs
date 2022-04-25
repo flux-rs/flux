@@ -42,7 +42,7 @@ impl LoweringCtxt {
         ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures })
     }
 
-    pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
+    pub fn lower_adt_def(adt_def: &core::AdtDef) -> ty::AdtDef {
         let mut fresh_kvar = |_: &ty::BaseTy| panic!("inference predicate in top item");
         let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::empty();
@@ -52,8 +52,8 @@ impl LoweringCtxt {
         match adt_def {
             core::AdtDef::Transparent { fields, .. } => {
                 let fields = fields
-                    .into_iter()
-                    .map(|ty| cx.lower_ty(&ty, &mut fresh_kvar))
+                    .iter()
+                    .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
                     .collect();
                 ty::AdtDef::Transparent { refined_by, fields }
             }

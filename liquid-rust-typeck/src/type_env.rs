@@ -11,8 +11,7 @@ use crate::{
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::ir;
-use liquid_rust_syntax::surface::Layout;
+use liquid_rust_core::{ir, ty::Layout};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 

@@ -306,7 +306,7 @@ impl Node {
                     .map(|n| n.fold(genv, pcx).clone())
                     .collect_vec();
                 let adt_def = genv.adt_def(*did);
-                let exprs = fold(genv, pcx, adt_def, &fields[..]);
+                let exprs = fold(genv, pcx, &adt_def, &fields[..]);
                 let adt = BaseTy::adt(*did, vec![]);
                 let ty = Ty::refine(adt, exprs);
                 *self = Node::Ty(ty);

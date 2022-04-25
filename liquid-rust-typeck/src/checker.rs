@@ -155,8 +155,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
-        let span = body.mir.span;
-        let fn_sig = genv.lookup_fn_sig(def_id, span);
+        let fn_sig = genv.lookup_fn_sig(def_id);
 
         let mut pcx = constraint.pure_context_at_root();
         let subst = Subst::with_fresh_names(&mut pcx, &fn_sig.params);
@@ -314,7 +313,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
         destination: &Option<(Place, BasicBlock)>,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let fn_sig = self.genv.lookup_fn_sig(func, source_info.span);
+        let fn_sig = self.genv.lookup_fn_sig(func);
 
         let actuals = args
             .iter()

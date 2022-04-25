@@ -6,9 +6,8 @@ use liquid_rust_common::index::IndexVec;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 pub use liquid_rust_syntax::surface;
 
-use liquid_rust_core::ir::Local;
+use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
-use liquid_rust_syntax::surface::Layout;
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -21,6 +20,7 @@ use crate::{
     subst::Subst,
 };
 
+#[derive(Clone)]
 pub enum AdtDef {
     Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
     Opaque { refined_by: Vec<Param> },

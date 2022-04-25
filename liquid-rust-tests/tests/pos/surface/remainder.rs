@@ -3,7 +3,7 @@
 
 // Test of `mod` support
 // Uses usize instead of i32 to avoid subtleties with negative numbers
-#[lr::sig(fn(a:usize{a % 2 == 1}) -> usize[1])]
+#[lr::sig(fn(usize{v : v % 2 == 1}) -> usize[1])]
 pub fn input_must_be_odd(a: usize) -> usize {
     a % 2
 }
@@ -16,7 +16,7 @@ pub fn test_mod() -> i32 {
     0
 }
 
-#[lr::sig(fn(a:i32{0 <= a}, b:i32{0 <= b}) -> i32[a % b])]
+#[lr::sig(fn(a: i32{a >= 0}, b: i32{b >= 0}) -> i32[a % b])]
 pub fn mod_signed_pos(a: i32, b: i32) -> i32 {
     a % b
 }

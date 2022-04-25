@@ -5,7 +5,10 @@
 mod rvec;
 use rvec::RVec;
 
-#[lr::sig(fn(vec: &mut n@RVec<i32>, b:bool) -> i32[0]; vec: RVec<i32>[n] where 1 <= n)]
+#[lr::sig(
+fn(&mut RVec<i32>[@n], bool) -> i32[0]
+requires 1 <= n
+)]
 pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     let r;
     if b {
@@ -16,4 +19,3 @@ pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     *r = 12;
     0
 }
-

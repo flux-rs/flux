@@ -49,9 +49,8 @@ pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Gen
     parse!(grammar::RefinedByParser, tokens, span)
 }
 
-pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::BareFnSig> {
-    let res = parse!(surface_grammar::FnSigParser, tokens, span);
-    res
+pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
+    parse!(surface_grammar::FnSigParser, tokens, span)
 }
 
 pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<ast::Qualifier> {

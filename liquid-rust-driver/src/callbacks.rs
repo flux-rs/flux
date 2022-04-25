@@ -1,5 +1,6 @@
 use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_core::resolve::Resolver;
+use liquid_rust_core::{desugar::Desugar, resolve::Resolver};
+use liquid_rust_syntax::surface;
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::{interface::Compiler, Queries};
@@ -68,19 +69,21 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .into_iter()
         .map(|(def_id, spec)| {
             let mut resolver = Resolver::from_fn(tcx, def_id)?;
-            let fn_sig = resolver.resolve_fn_sig(def_id, spec.fn_sig)?;
+            let fn_sig = match spec.fn_sig {
+                surface::BareSig::AstSig(fn_sig) => resolver.resolve_fn_sig(def_id, fn_sig)?,
+                surface::BareSig::SurSig(fn_sig) => {
+                    let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
+                    let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
+                    Desugar::desugar(&adt_defs, fn_sig)
+                }
+            };
             wf.check_fn_sig(&fn_sig)?;
             let fn_sig = typeck::lowering::LoweringCtxt::lower_fn_sig(fn_sig);
             Ok((def_id, typeck::ty::FnSpec { fn_sig, assume: spec.assume }))
         })
         .try_collect_exhaust()?;
 
-    let adt_defs = adt_defs
-        .into_iter()
-        .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
-        .collect();
-
-    let genv = GlobalEnv::new(tcx, std::cell::RefCell::new(fn_sigs), adt_defs);
+    let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
     let genv_specs = genv.fn_specs.borrow().clone();
 
     genv_specs

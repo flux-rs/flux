@@ -19,7 +19,10 @@ pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     *r - n
 }
 
-#[lr::sig(fn(vec: &mut n@RVec<i32>{2 <= n}, b:bool) -> i32[0]; vec: RVec<i32>[n])]
+#[lr::sig(
+fn(&mut RVec<i32>[@n], bool) -> i32[0]
+requires n >= 2
+)]
 pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     let r;
     if b {
@@ -31,7 +34,7 @@ pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     0
 }
 
-#[lr::sig(fn(b: bool) -> i32{v: v > 0})]
+#[lr::sig(fn(bool) -> i32{v: v > 0})]
 pub fn test2(b: bool) -> i32 {
     let mut x = 1;
     let mut y = 1;
@@ -45,7 +48,7 @@ pub fn test2(b: bool) -> i32 {
     x + y
 }
 
-#[lr::sig(fn(b: bool) -> i32{v: v > 0})]
+#[lr::sig(fn(bool) -> i32{v: v > 0})]
 pub fn test3(b: bool) -> i32 {
     let mut x = 1;
     let mut y = 2;

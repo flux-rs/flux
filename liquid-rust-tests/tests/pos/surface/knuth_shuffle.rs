@@ -7,14 +7,12 @@
 mod rvec;
 use rvec::RVec;
 
-#[lr::assume]
-#[lr::ty(fn<lo: int, hi: int{lo < hi}>(usize@lo, usize@hi) -> usize{x: lo <= x && x < hi})]
+#[lr::sig(fn(lo: usize, hi: usize{lo < hi}) -> usize{v: lo <= v && v < hi})]
 fn gen_range(low: usize, _high: usize) -> usize {
     low
 }
 
-
-#[lr::ty(fn<n: int>(v: RVec<i32>@n; ref<v>) -> usize; v: RVec<i32>@n)]
+#[lr::sig(fn(&mut RVec<i32>[@n]) -> usize)]
 pub fn knuth_shuffle(v: &mut RVec<i32>) -> usize {
     let l = v.len();
 

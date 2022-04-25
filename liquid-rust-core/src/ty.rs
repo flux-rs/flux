@@ -63,6 +63,17 @@ pub enum Ty {
     Param(ParamTy),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Layout {
+    Bool,
+    Int(IntTy),
+    Uint(UintTy),
+    Float(FloatTy),
+    Adt(DefId),
+    Ref,
+    Param,
+}
+
 pub struct Refine {
     pub exprs: Vec<Expr>,
     pub span: Span,
@@ -155,6 +166,10 @@ impl AdtDef {
         match self {
             Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
         }
+    }
+
+    pub fn sorts(&self) -> Vec<Sort> {
+        self.refined_by().iter().map(|param| param.sort).collect()
     }
 }
 

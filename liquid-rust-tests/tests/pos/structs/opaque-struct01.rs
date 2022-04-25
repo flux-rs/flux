@@ -4,12 +4,12 @@
 mod pair;
 use pair::Pair;
 
-#[lr::ty(fn(bool @ true) -> i32@0)]
+#[lr::sig(fn(bool[true]) -> i32[0])]
 pub fn assert(_b: bool) -> i32 {
     0
 }
 
-#[lr::ty(fn(Pair, bool) -> i32@0)]
+#[lr::sig(fn(Pair, bool) -> i32[0])]
 pub fn opaque_struct01(mut p: Pair, b: bool) -> i32 {
     if b {
         p.set_fst(0);

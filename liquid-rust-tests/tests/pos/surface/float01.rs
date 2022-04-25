@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(lr)]
 
-#[lr::sig(fn(x: f32) -> f32)]
+#[lr::sig(fn(f32) -> f32)]
 pub fn float01(x: f32) -> f32 {
     let y = x + 0.1;
     if x > 0.0 {
