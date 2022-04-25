@@ -2,7 +2,7 @@ use std::iter;
 
 use itertools::Itertools;
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_syntax::surface::{self, ResArg, ResFnSig, ResPath, ResPathKind, ResTy};
+use liquid_rust_syntax::surface::{self, Res};
 use rustc_hash::FxHashMap;
 use rustc_span::{symbol::kw, Symbol};
 
@@ -20,7 +20,7 @@ pub struct Desugar<'a> {
 }
 
 impl Desugar<'_> {
-    pub fn desugar(adt_defs: &AdtDefs, fn_sig: ResFnSig) -> FnSig {
+    pub fn desugar(adt_defs: &AdtDefs, fn_sig: surface::FnSig<Res>) -> FnSig {
         let mut desugar = Desugar {
             adt_defs,
             map: FxHashMap::default(),
@@ -58,7 +58,7 @@ impl Desugar<'_> {
         FnSig { params: desugar.params, requires: desugar.requires, args, ret, ensures }
     }
 
-    pub fn desugar_arg(&mut self, arg: ResArg) -> Ty {
+    pub fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Ty {
         match arg {
             surface::Arg::Indexed(bind, path, pred) => {
                 if let Some(pred) = pred {
@@ -81,12 +81,12 @@ impl Desugar<'_> {
         }
     }
 
-    pub fn desugar_ty(&mut self, ty: ResTy) -> Ty {
+    pub fn desugar_ty(&mut self, ty: surface::Ty<Res>) -> Ty {
         match ty.kind {
-            surface::TyKind::Path(ResPath { kind: ResPathKind::Float(float_ty), .. }) => {
+            surface::TyKind::Path(surface::Path { ident: Res::Float(float_ty), .. }) => {
                 Ty::Float(float_ty)
             }
-            surface::TyKind::Path(ResPath { kind: ResPathKind::Param(param_ty), .. }) => {
+            surface::TyKind::Path(surface::Path { ident: Res::Param(param_ty), .. }) => {
                 Ty::Param(param_ty)
             }
             surface::TyKind::Path(path) => {
@@ -134,12 +134,12 @@ impl Desugar<'_> {
         Refine { exprs, span: indices.span }
     }
 
-    fn desugar_path_into_bty(&mut self, path: ResPath) -> BaseTy {
-        match path.kind {
-            ResPathKind::Bool => BaseTy::Bool,
-            ResPathKind::Int(int_ty) => BaseTy::Int(int_ty),
-            ResPathKind::Uint(uint_ty) => BaseTy::Uint(uint_ty),
-            ResPathKind::Adt(def_id) => {
+    fn desugar_path_into_bty(&mut self, path: surface::Path<Res>) -> BaseTy {
+        match path.ident {
+            Res::Bool => BaseTy::Bool,
+            Res::Int(int_ty) => BaseTy::Int(int_ty),
+            Res::Uint(uint_ty) => BaseTy::Uint(uint_ty),
+            Res::Adt(def_id) => {
                 let substs = path
                     .args
                     .into_iter()
@@ -147,7 +147,7 @@ impl Desugar<'_> {
                     .collect();
                 BaseTy::Adt(def_id, substs)
             }
-            ResPathKind::Float(..) | ResPathKind::Param(..) => {
+            Res::Float(..) | Res::Param(..) => {
                 panic!("invalid")
             }
         }
@@ -194,13 +194,13 @@ impl Desugar<'_> {
 
     // Gather parameters
 
-    fn gather_params(&mut self, fn_sig: &ResFnSig) {
+    fn gather_params(&mut self, fn_sig: &surface::FnSig<Res>) {
         for arg in &fn_sig.args {
             self.arg_gather_params(arg);
         }
     }
 
-    fn arg_gather_params(&mut self, arg: &ResArg) {
+    fn arg_gather_params(&mut self, arg: &surface::Arg<Res>) {
         match arg {
             surface::Arg::Indexed(bind, path, _) => {
                 let sorts = self.sorts(path);
@@ -215,7 +215,7 @@ impl Desugar<'_> {
         }
     }
 
-    fn ty_gather_params(&mut self, ty: &ResTy) {
+    fn ty_gather_params(&mut self, ty: &surface::Ty<Res>) {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
                 let sorts = self.sorts(path);
@@ -242,20 +242,20 @@ impl Desugar<'_> {
             .push(Param { name: Ident { name: fresh, source_info }, sort });
     }
 
-    fn sorts(&self, path: &ResPath) -> Vec<Sort> {
-        match path.kind {
-            ResPathKind::Bool => vec![Sort::Bool],
-            ResPathKind::Int(_) => vec![Sort::Int],
-            ResPathKind::Uint(_) => vec![Sort::Int],
-            ResPathKind::Adt(def_id) => {
+    fn sorts(&self, path: &surface::Path<Res>) -> Vec<Sort> {
+        match path.ident {
+            Res::Bool => vec![Sort::Bool],
+            Res::Int(_) => vec![Sort::Int],
+            Res::Uint(_) => vec![Sort::Int],
+            Res::Adt(def_id) => {
                 if let Some(adt_def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
                     adt_def.sorts()
                 } else {
                     vec![]
                 }
             }
-            ResPathKind::Float(_) => todo!("refined float"),
-            ResPathKind::Param(_) => todo!("refined param"),
+            Res::Float(_) => todo!("refined float"),
+            Res::Param(_) => todo!("refined param"),
         }
     }
 }

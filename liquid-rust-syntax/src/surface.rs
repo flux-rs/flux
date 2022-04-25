@@ -11,55 +11,55 @@ pub use crate::ast::{Expr, ExprKind, Lit};
 #[derive(Debug)]
 pub enum BareSig {
     AstSig(ast::FnSig),
-    SurSig(UnresFnSig),
+    SurSig(FnSig),
 }
 
 #[derive(Debug)]
-pub struct FnSig<P> {
+pub struct FnSig<T = Ident> {
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
-    pub args: Vec<Arg<P>>,
+    pub args: Vec<Arg<T>>,
     /// example `i32{v:v >= 0}`
-    pub returns: Ty<P>,
+    pub returns: Ty<T>,
     /// example: `*x: i32{v. v = n+1}`
-    pub ensures: Vec<(Ident, Ty<P>)>,
+    pub ensures: Vec<(Ident, Ty<T>)>,
     /// source span
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum Arg<P> {
+pub enum Arg<T = Ident> {
     /// example `a: i32{a > 0}`
-    Indexed(Ident, P, Option<Expr>),
+    Indexed(Ident, Path<T>, Option<Expr>),
     /// example `v: &strg i32`
-    StrgRef(Ident, Ty<P>),
+    StrgRef(Ident, Ty<T>),
     /// example `i32`
-    Ty(Ty<P>),
+    Ty(Ty<T>),
 }
 
 #[derive(Debug)]
-pub struct Ty<T> {
-    pub kind: TyKind<T>,
+pub struct Ty<R = Ident> {
+    pub kind: TyKind<R>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum TyKind<P> {
+pub enum TyKind<T = Ident> {
     /// ty
-    Path(P),
+    Path(Path<T>),
 
     /// t[e]
-    Indexed { path: P, indices: Indices },
+    Indexed { path: Path<T>, indices: Indices },
 
     /// ty{b:e}
-    Exists { bind: Ident, path: P, pred: Expr },
+    Exists { bind: Ident, path: Path<T>, pred: Expr },
 
     /// Mutable or shared reference
-    Ref(RefKind, Box<Ty<P>>),
+    Ref(RefKind, Box<Ty<T>>),
 
     /// Strong reference, &strg<self: i32>
-    StrgRef(Ident, Box<Ty<P>>),
+    StrgRef(Ident, Box<Ty<T>>),
 }
 
 #[derive(Debug)]
@@ -76,23 +76,16 @@ pub enum Index {
 }
 
 #[derive(Debug)]
-pub struct UnresPath {
+pub struct Path<R = Ident> {
     /// e.g. vec
-    pub ident: Ident,
+    pub ident: R,
     /// e.g. <nat>
-    pub args: Option<Vec<Ty<Self>>>,
+    pub args: Vec<Ty<R>>,
     pub span: Span,
 }
 
-#[derive(Debug)]
-pub struct ResPath {
-    pub kind: ResPathKind,
-    pub args: Vec<Ty<Self>>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ResPathKind {
+#[derive(Debug, Copy, Clone)]
+pub enum Res {
     Bool,
     Int(IntTy),
     Uint(UintTy),
@@ -107,31 +100,19 @@ pub enum RefKind {
     Shr,
 }
 
-/// Bare (parsed) versions of surface signatures
-pub type UnresTyKind = TyKind<UnresPath>;
-pub type UnresTy = Ty<UnresPath>;
-pub type UnresFnSig = FnSig<UnresPath>;
-pub type UnresArg = Arg<UnresPath>;
-
-/// Resolved versions of surface signatures (generated from rust-sigs)
-pub type ResTyKind = TyKind<ResPath>;
-pub type ResTy = Ty<ResPath>;
-pub type ResFnSig = FnSig<ResPath>;
-pub type ResArg = Arg<ResPath>;
-
-impl ResPath {
+impl Path<Res> {
     pub fn is_bool(&self) -> bool {
-        matches!(self.kind, ResPathKind::Bool)
+        matches!(self.ident, Res::Bool)
     }
 
     pub fn is_float(&self) -> bool {
-        matches!(self.kind, ResPathKind::Float(_))
+        matches!(self.ident, Res::Float(_))
     }
 }
 
-impl<P> Arg<P> {
+impl<R> Arg<R> {
     #[track_caller]
-    fn assert_ty(self) -> Ty<P> {
+    fn assert_ty(self) -> Ty<R> {
         match self {
             Arg::Ty(ty) => ty,
             Arg::Indexed(..) | Arg::StrgRef(..) => panic!("not a type"),
@@ -150,23 +131,23 @@ fn default_refkind(m: &Mutability) -> RefKind {
     }
 }
 
-fn default_path(ty: rustc_middle::ty::Ty) -> ResPath {
-    let (kind, args) = match ty.kind() {
-        rustc_middle::ty::TyKind::Bool => (ResPathKind::Bool, vec![]),
-        rustc_middle::ty::TyKind::Int(int_ty) => (ResPathKind::Int(*int_ty), vec![]),
-        rustc_middle::ty::TyKind::Uint(uint_ty) => (ResPathKind::Uint(*uint_ty), vec![]),
-        rustc_middle::ty::TyKind::Float(float_ty) => (ResPathKind::Float(*float_ty), vec![]),
-        rustc_middle::ty::TyKind::Param(param_ty) => (ResPathKind::Param(*param_ty), vec![]),
+fn default_path(ty: rustc_middle::ty::Ty) -> Path<Res> {
+    let (ident, args) = match ty.kind() {
+        rustc_middle::ty::TyKind::Bool => (Res::Bool, vec![]),
+        rustc_middle::ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), vec![]),
+        rustc_middle::ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), vec![]),
+        rustc_middle::ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), vec![]),
+        rustc_middle::ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), vec![]),
         rustc_middle::ty::TyKind::Adt(adt, substs) => {
             let substs = substs.types().map(default_ty).collect();
-            (ResPathKind::Adt(adt.did), substs)
+            (Res::Adt(adt.did), substs)
         }
         _ => todo!("`{ty:?}`"),
     };
-    ResPath { kind, args, span: rustc_span::DUMMY_SP }
+    Path { ident, args, span: rustc_span::DUMMY_SP }
 }
 
-fn default_ty(ty: rustc_middle::ty::Ty) -> ResTy {
+fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
     let kind = match ty.kind() {
         rustc_middle::ty::TyKind::Ref(_, ty, m) => {
             let ref_kind = default_refkind(m);
@@ -178,7 +159,7 @@ fn default_ty(ty: rustc_middle::ty::Ty) -> ResTy {
     Ty { kind, span: rustc_span::DUMMY_SP }
 }
 
-pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> ResFnSig {
+pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
     let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
     let args = rust_sig
         .inputs()
@@ -196,16 +177,13 @@ pub mod zip {
     use itertools::Itertools;
     use rustc_span::Symbol;
 
-    use super::{
-        FnSig, Ident, RefKind, ResArg, ResFnSig, ResPath, ResTy, Ty, TyKind, UnresArg, UnresFnSig,
-        UnresPath, UnresTy,
-    };
+    use super::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 
-    type Locs = HashMap<Symbol, ResTy>;
+    type Locs = HashMap<Symbol, Ty<Res>>;
 
     /// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
     /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-    pub fn zip_bare_def(b_sig: UnresFnSig, d_sig: ResFnSig) -> ResFnSig {
+    pub fn zip_bare_def(b_sig: FnSig, d_sig: FnSig<Res>) -> FnSig<Res> {
         let mut locs: Locs = HashMap::new();
         let default_args = d_sig.args.into_iter().map(|arg| arg.assert_ty()).collect();
         FnSig {
@@ -218,7 +196,7 @@ pub mod zip {
     }
 
     /// `zip_ty_locs` traverses the bare-outputs and zips with the location-types saved in `locs`
-    fn zip_ty_locs(bindings: Vec<(Ident, UnresTy)>, locs: &Locs) -> Vec<(Ident, ResTy)> {
+    fn zip_ty_locs(bindings: Vec<(Ident, Ty)>, locs: &Locs) -> Vec<(Ident, Ty<Res>)> {
         let mut res = vec![];
         for (ident, ty) in bindings {
             if let Some(default) = locs.get(&ident.name) {
@@ -233,7 +211,7 @@ pub mod zip {
 
     /// `zip_ty_binds` traverses the inputs `bs` and `ds` and
     /// saves the types of the references in `locs`
-    fn zip_args(binds: Vec<UnresArg>, defaults: Vec<ResTy>, locs: &mut Locs) -> Vec<ResArg> {
+    fn zip_args(binds: Vec<Arg>, defaults: Vec<Ty<Res>>, locs: &mut Locs) -> Vec<Arg<Res>> {
         if binds.len() != defaults.len() {
             panic!(
                 "bind count mismatch, expected: {:?},  found: {:?}",
@@ -245,8 +223,7 @@ pub mod zip {
             .map(|(arg, default)| zip_arg(arg, default))
             .collect_vec();
         for (arg, default) in iter::zip(&binds, defaults) {
-            if let (ResArg::StrgRef(bind, _), TyKind::Ref(RefKind::Mut, default)) =
-                (arg, default.kind)
+            if let (Arg::StrgRef(bind, _), TyKind::Ref(RefKind::Mut, default)) = (arg, default.kind)
             {
                 locs.insert(bind.name, *default);
             }
@@ -254,21 +231,20 @@ pub mod zip {
         binds
     }
 
-    fn zip_arg(arg: UnresArg, default: &ResTy) -> ResArg {
+    fn zip_arg(arg: Arg, default: &Ty<Res>) -> Arg<Res> {
         match (arg, &default.kind) {
-            (UnresArg::Ty(ty), _) => ResArg::Ty(zip_ty(ty, default)),
-            (UnresArg::Indexed(bind, path, pred), TyKind::Path(default)) => {
-                ResArg::Indexed(bind, zip_path(path, default), pred)
+            (Arg::Ty(ty), _) => Arg::Ty(zip_ty(ty, default)),
+            (Arg::Indexed(bind, path, pred), TyKind::Path(default)) => {
+                Arg::Indexed(bind, zip_path(path, default), pred)
             }
-            (UnresArg::StrgRef(bind, ty), TyKind::Ref(RefKind::Mut, default)) => {
-                ResArg::StrgRef(bind, zip_ty(ty, default))
+            (Arg::StrgRef(bind, ty), TyKind::Ref(RefKind::Mut, default)) => {
+                Arg::StrgRef(bind, zip_ty(ty, default))
             }
             _ => panic!("incompatible types `{default:?}`"),
         }
     }
 
-    fn zip_ty(ty: UnresTy, default: &ResTy) -> ResTy {
-        // we are assuming
+    fn zip_ty(ty: Ty, default: &Ty<Res>) -> Ty<Res> {
         let kind = match (ty.kind, &default.kind) {
             (TyKind::Path(path), TyKind::Path(default)) => TyKind::Path(zip_path(path, default)),
             (TyKind::Indexed { path, indices }, TyKind::Path(default)) => {
@@ -288,19 +264,18 @@ pub mod zip {
         Ty { kind, span: ty.span }
     }
 
-    fn zip_path(path: UnresPath, default: &ResPath) -> ResPath {
-        let args = path.args.unwrap_or_default();
-        if args.len() != default.args.len() {
+    fn zip_path(path: Path, default: &Path<Res>) -> Path<Res> {
+        if path.args.len() != default.args.len() {
             panic!(
                 "argument count mismatch, expected: {:?},  found: {:?}",
                 default.args.len(),
-                args.len()
+                path.args.len()
             );
         }
-        let args = iter::zip(args, &default.args)
+        let args = iter::zip(path.args, &default.args)
             .map(|(ty, default)| zip_ty(ty, default))
             .collect();
 
-        ResPath { kind: default.kind, args, span: path.span }
+        Path { ident: default.ident, args, span: path.span }
     }
 }

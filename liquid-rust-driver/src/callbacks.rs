@@ -83,11 +83,6 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         })
         .try_collect_exhaust()?;
 
-    // let adt_defs = adt_defs
-    //     .into_iter()
-    //     .map(|(did, def)| (did, typeck::lowering::LoweringCtxt::lower_adt_def(def)))
-    //     .collect();
-
     let genv = GlobalEnv::new(tcx, fn_sigs, adt_defs);
     let genv_specs = genv.fn_specs.borrow().clone();
 

@@ -9,7 +9,7 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub FnSig: surface::UnresFnSig = {
+pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
     "(" <args:Args> ")"
@@ -36,21 +36,21 @@ Args    = <Comma<Arg>>;
 Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 
-Arg: surface::UnresArg = {
+Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>                => surface::Arg::StrgRef(bind, ty),
     <bind:Ident> ":" <path:Path>                       => surface::Arg::Indexed(bind, path, None),
     <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Indexed(bind, path, Some(pred)),
     <ty:Ty>                                            => surface::Arg::Ty(<>)
 }
 
-Ty: surface::UnresTy = {
+Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
         span: mk_span(lo, hi)
     }
 }
 
-TyKind: surface::UnresTyKind = {
+TyKind: surface::TyKind = {
     "&" "strg" "<" <loc:Ident> ":" <ty:Ty> ">"  => surface::TyKind::StrgRef(loc, Box::new(ty)),
 
     "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
@@ -61,14 +61,14 @@ TyKind: surface::UnresTyKind = {
     <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },
 }
 
-GenericArgs: Vec<surface::UnresTy> = {
+GenericArgs: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">"
 }
 
 // The code below is duplicated from grammar.lalrpop ---------------------------------
 
-Path: surface::UnresPath = {
-    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::UnresPath { ident, args, span: mk_span(lo, hi) }
+Path: surface::Path = {
+    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args: args.unwrap_or_default(), span: mk_span(lo, hi) }
 }
 
 Refinement: ast::Expr = {
