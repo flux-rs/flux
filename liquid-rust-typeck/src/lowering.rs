@@ -52,7 +52,7 @@ impl LoweringCtxt {
         match adt_def {
             core::AdtDef::Transparent { fields, .. } => {
                 let fields = fields
-                    .into_iter()
+                    .iter()
                     .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
                     .collect();
                 ty::AdtDef::Transparent { refined_by, fields }
