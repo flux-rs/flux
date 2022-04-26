@@ -27,16 +27,12 @@ pub enum AdtDef {
 }
 
 #[derive(Debug, Clone)]
-pub struct FnSpec {
-    pub fn_sig: Binders<FnSig>,
-    pub assume: bool,
-}
-
-#[derive(Debug, Clone)]
 pub struct Binders<T> {
     pub params: Vec<Param>,
     pub value: T,
 }
+
+pub type PolySig = Binders<FnSig>;
 
 #[derive(Clone)]
 pub struct FnSig {

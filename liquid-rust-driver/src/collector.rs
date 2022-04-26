@@ -24,14 +24,14 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     error_reported: bool,
 }
 
-pub struct Specs {
+pub(crate) struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
     pub adts: FxHashMap<LocalDefId, surface::AdtDef>,
     pub qualifs: Vec<surface::Qualifier>,
 }
 
-pub struct FnSpec {
-    pub fn_sig: surface::FnSig,
+pub(crate) struct FnSpec {
+    pub fn_sig: Option<surface::FnSig>,
     pub assume: bool,
 }
 
@@ -62,9 +62,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
 
-        if let Some(fn_sig) = fn_sig {
-            self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
-        }
+        self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
         Ok(())
     }
 

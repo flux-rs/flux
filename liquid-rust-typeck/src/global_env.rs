@@ -18,16 +18,16 @@ use crate::{
 };
 
 pub struct GlobalEnv<'tcx> {
-    pub fn_specs: RefCell<FxHashMap<DefId, ty::FnSpec>>,
+    pub tcx: TyCtxt<'tcx>,
+    fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
     adt_defs: FxHashMap<DefId, ty::AdtDef>,
-    pub tcx: TyCtxt<'tcx>,
 }
 
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         GlobalEnv {
-            fn_specs: RefCell::new(FxHashMap::default()),
+            fn_sigs: RefCell::new(FxHashMap::default()),
             adt_sorts: FxHashMap::default(),
             adt_defs: FxHashMap::default(),
             tcx,
@@ -38,10 +38,9 @@ impl<'tcx> GlobalEnv<'tcx> {
         self.adt_sorts.insert(def_id, sorts);
     }
 
-    pub fn register_fn_spec(&mut self, def_id: DefId, spec: core::FnSpec) {
-        let fn_sig = LoweringCtxt::lower_fn_sig(spec.fn_sig);
-        let spec = ty::FnSpec { fn_sig, assume: spec.assume };
-        self.fn_specs.get_mut().insert(def_id, spec);
+    pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
+        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
     pub fn register_adt_def(&mut self, def_id: DefId, adt_def: core::AdtDef) {
@@ -49,18 +48,16 @@ impl<'tcx> GlobalEnv<'tcx> {
         self.adt_defs.insert(def_id, adt_def);
     }
 
-    pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::Binders<ty::FnSig> {
-        self.fn_specs
+    pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
+        self.fn_sigs
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
                 let fn_sig = surface::default_fn_sig(self.tcx, def_id);
                 let fn_sig = desugar::desugar_fn_sig(self.tcx.sess, self, fn_sig).unwrap();
                 debug_assert!(Wf::new(self.tcx.sess, self).check_fn_sig(&fn_sig).is_ok());
-                let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
-                ty::FnSpec { fn_sig, assume: true }
+                LoweringCtxt::lower_fn_sig(fn_sig)
             })
-            .fn_sig
             .clone()
     }
 

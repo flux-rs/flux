@@ -19,11 +19,6 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
-pub struct FnSpec {
-    pub fn_sig: FnSig,
-    pub assume: bool,
-}
-
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<Param>,

@@ -5,6 +5,7 @@ pub struct RMat<T> {
 }
 
 impl<T> RMat<T> {
+    #[lr::assume]
     fn clone(n: usize, elem: T) -> Vec<T>
     where
         T: Copy,
