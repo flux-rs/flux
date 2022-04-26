@@ -8,6 +8,25 @@ use rustc_span::Span;
 pub use crate::ast::{Expr, ExprKind, Lit};
 
 #[derive(Debug)]
+pub struct AdtDef<T = Ident> {
+    pub refined_by: Option<Params>,
+    pub fields: Vec<Option<Ty<T>>>,
+    pub opaque: bool,
+}
+
+#[derive(Debug)]
+pub struct Params {
+    pub params: Vec<Param>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: Ident,
+    pub sort: Ident,
+}
+
+#[derive(Debug)]
 pub struct FnSig<T = Ident> {
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
@@ -110,6 +129,26 @@ impl<R> Arg<R> {
             Arg::Ty(ty) => ty,
             Arg::Indexed(..) | Arg::StrgRef(..) => panic!("not a type"),
         }
+    }
+}
+
+impl Params {
+    pub fn empty(span: Span) -> Params {
+        Params { params: vec![], span }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+        self.params.iter()
+    }
+}
+
+impl IntoIterator for Params {
+    type Item = Param;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.params.into_iter()
     }
 }
 

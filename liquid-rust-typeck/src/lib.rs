@@ -32,12 +32,12 @@ use global_env::GlobalEnv;
 use itertools::Itertools;
 use liquid_rust_common::{
     config::CONFIG,
-    errors::ErrorReported,
     index::{IndexGen, IndexVec},
 };
 use liquid_rust_core::ir::Body;
 use liquid_rust_fixpoint::{self as fixpoint, FixpointResult};
 use pure_ctxt::KVarStore;
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;

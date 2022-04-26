@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use liquid_rust_common::errors::ErrorReported;
 use liquid_rust_core::{
     self as core,
     ir::{
@@ -9,7 +8,7 @@ use liquid_rust_core::{
     ty::Layout,
 };
 use rustc_const_eval::interpret::ConstValue;
-use rustc_errors::DiagnosticId;
+use rustc_errors::{DiagnosticId, ErrorReported};
 use rustc_middle::{
     mir,
     ty::{subst::GenericArgKind, ParamEnv, TyCtxt},

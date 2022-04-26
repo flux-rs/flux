@@ -3,21 +3,20 @@ use std::{
     ops::{ControlFlow, FromResidual, Try},
 };
 
-use crate::SemiGroup;
+use rustc_errors::ErrorReported;
 
 pub trait IterExt: Iterator {
-    fn try_collect_exhaust<T, V, E>(self) -> Result<V, E>
+    fn try_collect_exhaust<T, V>(self) -> Result<V, ErrorReported>
     where
-        E: SemiGroup,
         V: FromIterator<T>,
-        Self: Iterator<Item = Result<T, E>> + Sized,
+        Self: Iterator<Item = Result<T, ErrorReported>> + Sized,
     {
-        let mut acc: Option<E> = None;
+        let mut acc: Option<ErrorReported> = None;
         let v = ReportResiduals {
             iter: self,
-            f: |residual: Result<Infallible, E>| {
+            f: |residual: Result<Infallible, ErrorReported>| {
                 match acc.take() {
-                    Some(curr) => acc = Some(curr.append(residual.unwrap_err())),
+                    Some(_) => acc = Some(ErrorReported),
                     None => acc = Some(residual.unwrap_err()),
                 }
             },
@@ -29,17 +28,16 @@ pub trait IterExt: Iterator {
         }
     }
 
-    fn try_for_each_exhaust<T, E, F>(self, mut f: F) -> Result<(), E>
+    fn try_for_each_exhaust<T, F>(self, mut f: F) -> Result<(), ErrorReported>
     where
         Self: Iterator<Item = T> + Sized,
-        E: SemiGroup,
-        F: FnMut(T) -> Result<(), E>,
+        F: FnMut(T) -> Result<(), ErrorReported>,
     {
-        let mut acc: Option<E> = None;
+        let mut acc: Option<ErrorReported> = None;
         for v in self {
             if let Err(e) = f(v) {
                 match acc.take() {
-                    Some(curr) => acc = Some(curr.append(e)),
+                    Some(_) => acc = Some(ErrorReported),
                     None => acc = Some(e),
                 }
             }

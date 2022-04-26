@@ -18,4 +18,3 @@ pub mod ty;
 
 pub mod desugar;
 mod diagnostics;
-pub mod resolve;

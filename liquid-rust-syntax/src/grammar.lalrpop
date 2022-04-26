@@ -14,20 +14,20 @@ pub RefinedBy: ast::Generics = {
 
 RefinedByParam: ast::GenericParam = <name: Ident> ":" <sort: Ident> => ast::GenericParam { <>, pred: None };
 
-pub FnSig: ast::FnSig = {
-    <lo:@L>
-    "fn"
-    <generics:FnGenerics>
-    "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
-    "->"
-    <ret:Ty> <ensures:(";" <Env>)?>
-    <hi:@R>
-    => {
-        let requires = requires.unwrap_or_else(|| vec![]);
-        let ensures = ensures.unwrap_or_else(|| vec![]);
-        ast::FnSig { generics, requires, args, ret, ensures, span: mk_span(lo, hi) }
-    }
-}
+// pub FnSig: ast::FnSig = {
+//     <lo:@L>
+//     "fn"
+//     <generics:FnGenerics>
+//     "(" <requires:(<Env> ";")?> <args:Comma<Ty>> ")"
+//     "->"
+//     <ret:Ty> <ensures:(";" <Env>)?>
+//     <hi:@R>
+//     => {
+//         let requires = requires.unwrap_or_else(|| vec![]);
+//         let ensures = ensures.unwrap_or_else(|| vec![]);
+//         ast::FnSig { generics, requires, args, ret, ensures, span: mk_span(lo, hi) }
+//     }
+// }
 
 pub Qualifier: ast::Qualifier = {
     <lo:@L>

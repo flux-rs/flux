@@ -19,25 +19,25 @@ use rustc_span::{Span, Symbol};
     The inputs are each a `Ty
 */
 
-#[derive(Debug)]
-pub struct FnSig {
-    /// example: `<n: int>`
-    pub generics: Generics,
+// #[derive(Debug)]
+// pub struct FnSig {
+//     /// example: `<n: int>`
+//     pub generics: Generics,
 
-    /// example: `l: i32@n`
-    pub requires: Vec<(Ident, Ty)>,
+//     /// example: `l: i32@n`
+//     pub requires: Vec<(Ident, Ty)>,
 
-    /// example: `bool, i32@n, i32@m`
-    pub args: Vec<Ty>,
+//     /// example: `bool, i32@n, i32@m`
+//     pub args: Vec<Ty>,
 
-    /// example `i32{v:v >= 0}`
-    pub ret: Ty,
+//     /// example `i32{v:v >= 0}`
+//     pub ret: Ty,
 
-    /// example: `l: i32 @ {n+1}`
-    pub ensures: Vec<(Ident, Ty)>,
+//     /// example: `l: i32 @ {n+1}`
+//     pub ensures: Vec<(Ident, Ty)>,
 
-    pub span: Span,
-}
+//     pub span: Span,
+// }
 
 #[derive(Debug)]
 pub struct Qualifier {

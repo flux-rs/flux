@@ -4,14 +4,13 @@ use std::fmt::Write;
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 pub use liquid_rust_syntax::{ast::BinOp, surface::RefKind};
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 
-pub struct AdtDefs {
-    map: FxHashMap<LocalDefId, AdtDef>,
+pub trait RefinedByMap {
+    fn get(&self, def_id: DefId) -> Option<&[Param]>;
 }
 
 #[derive(Debug)]
@@ -90,7 +89,7 @@ pub enum BaseTy {
     Adt(DefId, Vec<Ty>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Param {
     pub name: Ident,
     pub sort: Sort,
@@ -169,32 +168,6 @@ impl AdtDef {
 
     pub fn sorts(&self) -> Vec<Sort> {
         self.refined_by().iter().map(|param| param.sort).collect()
-    }
-}
-
-impl AdtDefs {
-    pub fn get(&self, did: LocalDefId) -> Option<&AdtDef> {
-        self.map.get(&did)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&LocalDefId, &AdtDef)> {
-        self.map.iter()
-    }
-}
-
-impl FromIterator<(LocalDefId, AdtDef)> for AdtDefs {
-    fn from_iter<T: IntoIterator<Item = (LocalDefId, AdtDef)>>(iter: T) -> Self {
-        AdtDefs { map: iter.into_iter().collect() }
-    }
-}
-
-impl IntoIterator for AdtDefs {
-    type Item = (LocalDefId, AdtDef);
-
-    type IntoIter = std::collections::hash_map::IntoIter<LocalDefId, AdtDef>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map.into_iter()
     }
 }
 

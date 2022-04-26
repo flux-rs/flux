@@ -8,7 +8,7 @@ use rvec::RVec;
 
 #[lr::refined_by(rows: int, cols: int)]
 pub struct RMat {
-    #[lr::field(RVec<RVec<f32>@cols>@rows)]
+    #[lr::field(RVec<RVec<f32>[cols]>[rows])]
     inner: RVec<RVec<f32>>,
 }
 
