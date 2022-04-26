@@ -1,6 +1,5 @@
 use crate::{
     UserParseError,
-    ast,
     surface,
     lexer::{Lit, Location, Token, DelimToken, BinOpToken}
 };
@@ -11,6 +10,17 @@ grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
 pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
+}
+
+pub Qualifier: surface::Qualifier = {
+    <lo:@L>
+    <name:Ident>
+    "(" <args:Comma<Param>> ")"
+    "->"
+    <expr:Level1>
+    <hi:@R> => {
+        surface::Qualifier { name: name, args: args, expr: expr, span: mk_span(lo, hi) }
+    }
 }
 
 Param: surface::Param = <name: Ident> ":" <sort: Ident> => surface::Param { <> };
@@ -77,15 +87,15 @@ Path: surface::Path = {
     <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args: args.unwrap_or_default(), span: mk_span(lo, hi) }
 }
 
-Refinement: ast::Expr = {
+Refinement: surface::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
-        ast::Expr {
-            kind: ast::ExprKind::Literal(lit),
+        surface::Expr {
+            kind: surface::ExprKind::Literal(lit),
             span: mk_span(lo, hi),
         }
     },
-    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
-        kind: ast::ExprKind::Var(var),
+    <lo:@L> <var:Ident> <hi:@R> => surface::Expr {
+        kind: surface::ExprKind::Var(var),
         span: mk_span(lo, hi),
     },
     "{" <Level1> "}" => <>
@@ -107,32 +117,32 @@ Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
 Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
 Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
-Level7: ast::Expr = {
+Level7: surface::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
-        ast::Expr {
-            kind: ast::ExprKind::Literal(lit),
+        surface::Expr {
+            kind: surface::ExprKind::Literal(lit),
             span: mk_span(lo, hi),
         }
     },
-    <lo:@L> <var:Ident> <hi:@R> => ast::Expr {
-        kind: ast::ExprKind::Var(var),
+    <lo:@L> <var:Ident> <hi:@R> => surface::Expr {
+        kind: surface::ExprKind::Var(var),
         span: mk_span(lo, hi),
     },
     "(" <Level1> ")" => <>
 }
 
 
-NonAssoc<Op, NextLevel>: ast::Expr = {
-    <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => ast::Expr {
-        kind: ast::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
+NonAssoc<Op, NextLevel>: surface::Expr = {
+    <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => surface::Expr {
+        kind: surface::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
         span: mk_span(lo, hi)
     },
     NextLevel
 }
-LeftAssoc<Op, NextLevel>: ast::Expr = {
+LeftAssoc<Op, NextLevel>: surface::Expr = {
     <lo:@L> <e1:LeftAssoc<Op, NextLevel>> <op:Op> <e2:NextLevel> <hi:@R> =>
-        ast::Expr {
-            kind: ast::ExprKind::BinaryOp(
+        surface::Expr {
+            kind: surface::ExprKind::BinaryOp(
                 op,
                 Box::new(e1),
                 Box::new(e2)
@@ -142,38 +152,38 @@ LeftAssoc<Op, NextLevel>: ast::Expr = {
     NextLevel
 }
 
-BinOp1: ast::BinOp = {
-    "<=>" => ast::BinOp::Iff
+BinOp1: surface::BinOp = {
+    "<=>" => surface::BinOp::Iff
 }
 
-BinOp2: ast::BinOp = {
-    "=>" => ast::BinOp::Imp
+BinOp2: surface::BinOp = {
+    "=>" => surface::BinOp::Imp
 }
 
-BinOp3: ast::BinOp = {
-    "||" => ast::BinOp::Or,
+BinOp3: surface::BinOp = {
+    "||" => surface::BinOp::Or,
 }
 
-BinOp4: ast::BinOp = {
-    "&&" => ast::BinOp::And,
+BinOp4: surface::BinOp = {
+    "&&" => surface::BinOp::And,
 }
 
-BinOp5: ast::BinOp = {
-    "==" => ast::BinOp::Eq,
-    ">" => ast::BinOp::Gt,
-    ">=" => ast::BinOp::Ge,
-    "<" => ast::BinOp::Lt,
-    "<=" => ast::BinOp::Le,
+BinOp5: surface::BinOp = {
+    "==" => surface::BinOp::Eq,
+    ">" => surface::BinOp::Gt,
+    ">=" => surface::BinOp::Ge,
+    "<" => surface::BinOp::Lt,
+    "<=" => surface::BinOp::Le,
 }
 
-BinOp6: ast::BinOp = {
-    "+" => ast::BinOp::Add,
-    "-" => ast::BinOp::Sub,
-    "%" => ast::BinOp::Mod,
+BinOp6: surface::BinOp = {
+    "+" => surface::BinOp::Add,
+    "-" => surface::BinOp::Sub,
+    "%" => surface::BinOp::Mod,
 }
 
-Lit: ast::Lit = {
-    <lo:@L> <lit:"literal"> <hi:@R> => ast::Lit {
+Lit: surface::Lit = {
+    <lo:@L> <lit:"literal"> <hi:@R> => surface::Lit {
         kind: lit.kind,
         span: mk_span(lo, hi),
         symbol: lit.symbol
@@ -181,9 +191,9 @@ Lit: ast::Lit = {
 }
 
 
-Ident: ast::Ident = {
+Ident: surface::Ident = {
     <lo:@L> <name:"ident"> <hi:@R> => {
-        ast::Ident { name, span: mk_span(lo, hi) }
+        surface::Ident { name, span: mk_span(lo, hi) }
     }
 }
 

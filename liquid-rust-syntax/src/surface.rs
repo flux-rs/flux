@@ -1,11 +1,19 @@
+use std::fmt;
+
 pub use rustc_ast::token::LitKind;
 use rustc_ast::Mutability;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 
-pub use crate::ast::{Expr, ExprKind, Lit};
+#[derive(Debug)]
+pub struct Qualifier {
+    pub name: Ident,
+    pub args: Vec<Param>,
+    pub expr: Expr,
+    pub span: Span,
+}
 
 #[derive(Debug)]
 pub struct AdtDef<T = Ident> {
@@ -112,6 +120,43 @@ pub enum RefKind {
     Shr,
 }
 
+#[derive(Debug)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum ExprKind {
+    Var(Ident),
+    Literal(Lit),
+    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+}
+
+#[derive(Debug)]
+pub struct Lit {
+    pub kind: LitKind,
+    pub symbol: Symbol,
+    pub span: Span,
+}
+
+#[derive(Copy, Clone)]
+pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Eq,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Add,
+    Sub,
+    Mod,
+    Mul,
+}
+
 impl Path<Res> {
     pub fn is_bool(&self) -> bool {
         matches!(self.ident, Res::Bool)
@@ -149,6 +194,26 @@ impl IntoIterator for Params {
 
     fn into_iter(self) -> Self::IntoIter {
         self.params.into_iter()
+    }
+}
+
+impl fmt::Debug for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Iff => write!(f, "<=>"),
+            BinOp::Imp => write!(f, "=>"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Ge => write!(f, ">="),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mod => write!(f, "mod"),
+            BinOp::Mul => write!(f, "*"),
+        }
     }
 }
 

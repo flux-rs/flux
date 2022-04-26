@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_syntax::{
-    ast, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface,
-    ParseErrorKind, ParseResult,
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface, ParseErrorKind,
+    ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_errors::ErrorReported;
@@ -27,7 +27,7 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 pub struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
     pub adts: FxHashMap<LocalDefId, surface::AdtDef>,
-    pub qualifs: Vec<ast::Qualifier>,
+    pub qualifs: Vec<surface::Qualifier>,
 }
 
 pub struct FnSpec {
@@ -260,7 +260,7 @@ enum LiquidAttrKind {
     Opaque,
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
-    Qualifier(ast::Qualifier),
+    Qualifier(surface::Qualifier),
     Field(surface::Ty),
 }
 
@@ -316,7 +316,7 @@ impl LiquidAttrs {
         read_attr!(self, "ty", FnSig)
     }
 
-    fn qualifiers(&mut self) -> Vec<ast::Qualifier> {
+    fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 

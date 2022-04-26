@@ -1,10 +1,7 @@
 use std::iter;
 
 use liquid_rust_common::{index::IndexGen, iter::IterExt};
-use liquid_rust_syntax::{
-    ast,
-    surface::{self, Res},
-};
+use liquid_rust_syntax::surface::{self, Res};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::Session;
@@ -17,7 +14,7 @@ use crate::ty::{
 
 pub fn desugar_qualifier(
     sess: &Session,
-    qualifier: ast::Qualifier,
+    qualifier: surface::Qualifier,
 ) -> Result<Qualifier, ErrorReported> {
     let mut cx = DesugarCtxt::new(sess);
     for param in qualifier.args {
