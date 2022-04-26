@@ -46,7 +46,7 @@ pub fn desugar_params(params: &surface::Params) -> Vec<Param> {
 pub fn desugar_adt(sess: &Session, adt_def: surface::AdtDef<Res>) -> Result<AdtDef, ErrorReported> {
     let mut cx = DesugarCtxt::new(sess);
 
-    for param in adt_def.refined_by.into_iter().flat_map(|params| params) {
+    for param in adt_def.refined_by.into_iter().flatten() {
         cx.push_param(param.name, resolve_sort(param.sort));
     }
 
