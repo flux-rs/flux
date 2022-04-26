@@ -1,5 +1,5 @@
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::{self as core, desugar, resolve::Resolver};
+use liquid_rust_core::{self as core, desugar};
 use liquid_rust_syntax::{self as syntax, surface};
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
@@ -49,32 +49,40 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
         .qualifs
         .into_iter()
         .map(|qualifier| {
-            let resolved = Resolver::resolve_qualifier(tcx, qualifier)?;
-            Wf::new(sess, &genv).check_qualifier(&resolved)?;
-            Ok(typeck::lowering::LoweringCtxt::lower_qualifer(&resolved))
+            let qualifier = desugar::desugar_qualifier(sess, qualifier)?;
+            Wf::new(sess, &genv).check_qualifier(&qualifier)?;
+            Ok(typeck::lowering::LoweringCtxt::lower_qualifer(&qualifier))
         })
         .try_collect_exhaust()?;
 
     // Adt definitions
-    for (def_id, adt_def) in specs.adts {
-        let mut resolver = syntax::resolve::Resolver::from_adt(tcx, def_id)?;
-        let adt_def = resolver.resolve_adt_def(adt_def)?;
-        let adt_def = desugar::desugar_adt(&genv, adt_def);
-        Wf::new(sess, &genv).check_adt_def(&adt_def)?;
-        genv.register_adt_def(def_id.to_def_id(), adt_def);
-    }
+    specs
+        .adts
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, adt_def)| {
+            let mut resolver = syntax::resolve::Resolver::from_adt(tcx, def_id)?;
+            let adt_def = resolver.resolve_adt_def(adt_def)?;
+            let adt_def = desugar::desugar_adt(sess, adt_def)?;
+            Wf::new(sess, &genv).check_adt_def(&adt_def)?;
+            genv.register_adt_def(def_id.to_def_id(), adt_def);
+            Ok(())
+        })?;
 
     // Function signatures
-    for (def_id, spec) in specs.fns {
-        let fn_sig = {
-            let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
-            let fn_sig = surface::zip::zip_bare_def(spec.fn_sig, default_sig);
-            desugar::desugar_fn_sig(&genv, fn_sig)
-        };
-        Wf::new(sess, &genv).check_fn_sig(&fn_sig)?;
-        let spec = core::ty::FnSpec { fn_sig, assume: spec.assume };
-        genv.register_fn_spec(def_id.to_def_id(), spec);
-    }
+    specs
+        .fns
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, spec)| {
+            let fn_sig = {
+                let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
+                let fn_sig = surface::zip::zip_bare_def(spec.fn_sig, default_sig);
+                desugar::desugar_fn_sig(sess, &genv, fn_sig)?
+            };
+            Wf::new(sess, &genv).check_fn_sig(&fn_sig)?;
+            let spec = core::ty::FnSpec { fn_sig, assume: spec.assume };
+            genv.register_fn_spec(def_id.to_def_id(), spec);
+            Ok(())
+        })?;
 
     let genv_specs = genv.fn_specs.borrow().clone();
 

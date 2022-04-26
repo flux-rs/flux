@@ -1,10 +1,10 @@
 use core::fmt;
-use std::{collections::HashMap, fmt::Write};
+use std::fmt::Write;
 
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
 pub use liquid_rust_syntax::{ast::BinOp, surface::RefKind};
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};

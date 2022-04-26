@@ -14,6 +14,7 @@ pub use rustc_span::symbol::Ident;
 use crate::{
     lowering::LoweringCtxt,
     ty::{self, BaseTy, Sort},
+    wf::Wf,
 };
 
 pub struct GlobalEnv<'tcx> {
@@ -54,7 +55,8 @@ impl<'tcx> GlobalEnv<'tcx> {
             .entry(def_id)
             .or_insert_with(|| {
                 let fn_sig = surface::default_fn_sig(self.tcx, def_id);
-                let fn_sig = desugar::desugar_fn_sig(self, fn_sig);
+                let fn_sig = desugar::desugar_fn_sig(self.tcx.sess, self, fn_sig).unwrap();
+                debug_assert!(Wf::new(self.tcx.sess, self).check_fn_sig(&fn_sig).is_ok());
                 let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
                 ty::FnSpec { fn_sig, assume: true }
             })
