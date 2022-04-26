@@ -9,8 +9,8 @@ use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 
-pub trait RefinedByMap {
-    fn get(&self, def_id: DefId) -> Option<&[Param]>;
+pub trait AdtSortsMap {
+    fn get(&self, def_id: DefId) -> Option<&[Sort]>;
 }
 
 #[derive(Debug)]

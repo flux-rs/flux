@@ -40,10 +40,7 @@ fn check_crate(tcx: TyCtxt, sess: &Session) -> Result<(), ErrorReported> {
     // Register structs parameters
     specs.adts.iter().try_for_each_exhaust(|(def_id, def)| {
         if let Some(refined_by) = &def.refined_by {
-            genv.register_refined_by(
-                def_id.to_def_id(),
-                desugar::desugar_params(sess, refined_by)?,
-            );
+            genv.register_adt_sorts(def_id.to_def_id(), desugar::resolve_sorts(sess, refined_by)?);
         }
         Ok(())
     })?;

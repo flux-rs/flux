@@ -8,8 +8,8 @@ use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use crate::ty::{
-    AdtDef, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param, Pred,
-    Qualifier, RefinedByMap, Sort, Ty, Var,
+    AdtDef, AdtSortsMap, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param,
+    Pred, Qualifier, Sort, Ty, Var,
 };
 
 pub fn desugar_qualifier(
@@ -26,19 +26,11 @@ pub fn desugar_qualifier(
     Ok(Qualifier { name, args: cx.params, expr: expr? })
 }
 
-pub fn desugar_params(
-    sess: &Session,
-    params: &surface::Params,
-) -> Result<Vec<Param>, ErrorReported> {
-    let name_gen = IndexGen::new();
+pub fn resolve_sorts(sess: &Session, params: &surface::Params) -> Result<Vec<Sort>, ErrorReported> {
     params
         .params
         .iter()
-        .map(|param| {
-            let fresh = name_gen.fresh();
-            let name = Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-            Ok(Param { name, sort: resolve_sort(sess, param.sort)? })
-        })
+        .map(|param| resolve_sort(sess, param.sort))
         .try_collect_exhaust()
 }
 
@@ -63,7 +55,7 @@ pub fn desugar_adt(sess: &Session, adt_def: surface::AdtDef<Res>) -> Result<AdtD
 
 pub fn desugar_fn_sig(
     sess: &Session,
-    refined_by: &impl RefinedByMap,
+    refined_by: &impl AdtSortsMap,
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorReported> {
     let mut desugar = DesugarCtxt::new(sess);
@@ -280,7 +272,7 @@ impl DesugarCtxt<'_> {
     fn gather_params(
         &mut self,
         fn_sig: &surface::FnSig<Res>,
-        refined_by: &impl RefinedByMap,
+        refined_by: &impl AdtSortsMap,
     ) -> Result<(), ErrorReported> {
         for arg in &fn_sig.args {
             self.arg_gather_params(arg, refined_by)?;
@@ -291,7 +283,7 @@ impl DesugarCtxt<'_> {
     fn arg_gather_params(
         &mut self,
         arg: &surface::Arg<Res>,
-        refined_by: &impl RefinedByMap,
+        refined_by: &impl AdtSortsMap,
     ) -> Result<(), ErrorReported> {
         match arg {
             surface::Arg::Indexed(bind, path, _) => {
@@ -311,7 +303,7 @@ impl DesugarCtxt<'_> {
     fn ty_gather_params(
         &mut self,
         ty: &surface::Ty<Res>,
-        refined_by: &impl RefinedByMap,
+        refined_by: &impl AdtSortsMap,
     ) -> Result<(), ErrorReported> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
@@ -319,7 +311,7 @@ impl DesugarCtxt<'_> {
                 assert_eq!(indices.indices.len(), sorts.len());
                 for (index, sort) in iter::zip(&indices.indices, sorts) {
                     if let surface::Index::Bind(bind) = index {
-                        self.push_param(*bind, sort)?;
+                        self.push_param(*bind, *sort)?;
                     }
                 }
                 Ok(())
@@ -331,18 +323,12 @@ impl DesugarCtxt<'_> {
         }
     }
 
-    fn sorts(&self, path: &surface::Path<Res>, refined_by: &impl RefinedByMap) -> Vec<Sort> {
+    fn sorts<'a>(&self, path: &surface::Path<Res>, refined_by: &'a impl AdtSortsMap) -> &'a [Sort] {
         match path.ident {
-            Res::Bool => vec![Sort::Bool],
-            Res::Int(_) => vec![Sort::Int],
-            Res::Uint(_) => vec![Sort::Int],
-            Res::Adt(def_id) => {
-                if let Some(params) = refined_by.get(def_id) {
-                    params.iter().map(|param| param.sort).collect()
-                } else {
-                    vec![]
-                }
-            }
+            Res::Bool => &[Sort::Bool],
+            Res::Int(_) => &[Sort::Int],
+            Res::Uint(_) => &[Sort::Int],
+            Res::Adt(def_id) => refined_by.get(def_id).unwrap_or(&[]),
             Res::Float(_) => todo!("refined float"),
             Res::Param(_) => todo!("refined param"),
         }

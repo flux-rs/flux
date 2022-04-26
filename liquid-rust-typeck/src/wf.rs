@@ -1,5 +1,5 @@
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::ty::{self as core, RefinedByMap};
+use liquid_rust_core::ty::{self as core, AdtSortsMap};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
@@ -8,7 +8,7 @@ use crate::{lowering::lower_sort, ty};
 
 pub struct Wf<'a, T> {
     sess: &'a Session,
-    refined_by: &'a T,
+    adt_sorts: &'a T,
 }
 
 struct Env {
@@ -44,9 +44,9 @@ impl std::ops::Index<&'_ core::Var> for Env {
     }
 }
 
-impl<T: RefinedByMap> Wf<'_, T> {
+impl<T: AdtSortsMap> Wf<'_, T> {
     pub fn new<'a>(sess: &'a Session, refined_by: &'a T) -> Wf<'a, T> {
-        Wf { sess, refined_by }
+        Wf { sess, adt_sorts: refined_by }
     }
 
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorReported> {
@@ -250,8 +250,8 @@ impl<T: RefinedByMap> Wf<'_, T> {
             core::BaseTy::Uint(_) => vec![ty::Sort::int()],
             core::BaseTy::Bool => vec![ty::Sort::bool()],
             core::BaseTy::Adt(def_id, _) => {
-                if let Some(params) = self.refined_by.get(*def_id) {
-                    params.iter().map(|param| lower_sort(param.sort)).collect()
+                if let Some(params) = self.adt_sorts.get(*def_id) {
+                    params.iter().map(|sort| lower_sort(*sort)).collect()
                 } else {
                     vec![]
                 }

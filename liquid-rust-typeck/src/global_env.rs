@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use liquid_rust_core::{
     desugar,
-    ty::{self as core, RefinedByMap},
+    ty::{self as core, AdtSortsMap},
 };
 use liquid_rust_syntax::surface;
 use rustc_hash::FxHashMap;
@@ -19,7 +19,7 @@ use crate::{
 
 pub struct GlobalEnv<'tcx> {
     pub fn_specs: RefCell<FxHashMap<DefId, ty::FnSpec>>,
-    refined_by: FxHashMap<DefId, Vec<core::Param>>,
+    adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
     adt_defs: FxHashMap<DefId, ty::AdtDef>,
     pub tcx: TyCtxt<'tcx>,
 }
@@ -28,14 +28,14 @@ impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         GlobalEnv {
             fn_specs: RefCell::new(FxHashMap::default()),
-            refined_by: FxHashMap::default(),
+            adt_sorts: FxHashMap::default(),
             adt_defs: FxHashMap::default(),
             tcx,
         }
     }
 
-    pub fn register_refined_by(&mut self, def_id: DefId, params: Vec<core::Param>) {
-        self.refined_by.insert(def_id, params);
+    pub fn register_adt_sorts(&mut self, def_id: DefId, sorts: Vec<core::Sort>) {
+        self.adt_sorts.insert(def_id, sorts);
     }
 
     pub fn register_fn_spec(&mut self, def_id: DefId, spec: core::FnSpec) {
@@ -81,8 +81,8 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 }
 
-impl RefinedByMap for GlobalEnv<'_> {
-    fn get(&self, def_id: DefId) -> Option<&[core::Param]> {
-        Some(self.refined_by.get(&def_id)?)
+impl AdtSortsMap for GlobalEnv<'_> {
+    fn get(&self, def_id: DefId) -> Option<&[core::Sort]> {
+        Some(self.adt_sorts.get(&def_id)?)
     }
 }
