@@ -15,20 +15,20 @@ pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
 use crate::{
     global_env::GlobalEnv,
-    intern::{impl_internable, Interned},
+    intern::{impl_internable, Interned, List},
     pure_ctxt::Scope,
     subst::Subst,
 };
 
 #[derive(Clone)]
 pub enum AdtDef {
-    Transparent { refined_by: Interned<[Param]>, fields: Interned<[Ty]> },
-    Opaque { refined_by: Interned<[Param]> },
+    Transparent { refined_by: List<Param>, fields: List<Ty> },
+    Opaque { refined_by: List<Param> },
 }
 
 #[derive(Debug, Clone)]
 pub struct Binders<T> {
-    params: Interned<[Param]>,
+    params: List<Param>,
     value: T,
 }
 
@@ -36,13 +36,13 @@ pub type PolySig = Binders<FnSig>;
 
 #[derive(Clone)]
 pub struct FnSig {
-    requires: Interned<[Constr]>,
-    args: Interned<[Ty]>,
+    requires: List<Constr>,
+    args: List<Ty>,
     ret: Ty,
-    ensures: Interned<[Constr]>,
+    ensures: List<Constr>,
 }
 
-pub type Constrs = Interned<[Constr]>;
+pub type Constrs = List<Constr>;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constr {
@@ -72,7 +72,7 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Refine(BaseTy, Interned<[Expr]>),
+    Refine(BaseTy, List<Expr>),
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
@@ -90,7 +90,7 @@ pub enum RefKind {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub loc: Loc,
-    projection: Interned<[Field]>,
+    projection: List<Field>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -108,16 +108,16 @@ pub enum BaseTy {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Substs(Interned<[Ty]>);
+pub struct Substs(List<Ty>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    Infer(Interned<[KVar]>),
+    Infer(List<KVar>),
     Expr(Expr),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar(pub KVid, pub Interned<[Expr]>);
+pub struct KVar(pub KVid, pub List<Expr>);
 
 pub type Sort = Interned<SortS>;
 
@@ -166,7 +166,7 @@ newtype_index! {
 impl<T> Binders<T> {
     pub fn new<P>(params: P, value: T) -> Binders<T>
     where
-        Interned<[Param]>: From<P>,
+        List<Param>: From<P>,
     {
         Binders { params: Interned::from(params), value }
     }
@@ -183,9 +183,9 @@ impl<T> Binders<T> {
 impl FnSig {
     pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
     where
-        Interned<[Constr]>: From<A>,
-        Interned<[Ty]>: From<B>,
-        Interned<[Constr]>: From<C>,
+        List<Constr>: From<A>,
+        List<Ty>: From<B>,
+        List<Constr>: From<C>,
     {
         FnSig {
             requires: Interned::from(requires),
@@ -214,14 +214,14 @@ impl FnSig {
 impl AdtDef {
     pub fn opaque<P>(refined_by: P) -> Self
     where
-        Interned<[Param]>: From<P>,
+        List<Param>: From<P>,
     {
         AdtDef::Opaque { refined_by: Interned::from(refined_by) }
     }
     pub fn transparent<P, F>(refined_by: P, fields: F) -> Self
     where
-        Interned<[Param]>: From<P>,
-        Interned<[Ty]>: From<F>,
+        List<Param>: From<P>,
+        List<Ty>: From<F>,
     {
         AdtDef::Transparent {
             refined_by: Interned::from(refined_by),
@@ -283,7 +283,7 @@ impl Ty {
 
     pub fn refine<T>(bty: BaseTy, exprs: T) -> Ty
     where
-        Interned<[Expr]>: From<T>,
+        List<Expr>: From<T>,
     {
         TyKind::Refine(bty, Interned::from(exprs)).intern()
     }
@@ -359,7 +359,7 @@ impl BaseTy {
 impl Substs {
     pub fn new<T>(tys: T) -> Substs
     where
-        Interned<[Ty]>: From<T>,
+        List<Ty>: From<T>,
     {
         Substs(Interned::from(tys))
     }
@@ -598,7 +598,7 @@ impl From<Expr> for Pred {
 impl Pred {
     pub fn infer<T>(kvars: T) -> Pred
     where
-        Interned<[KVar]>: From<T>,
+        List<KVar>: From<T>,
     {
         Pred::Infer(Interned::from(kvars))
     }
@@ -641,7 +641,7 @@ impl Pred {
 impl KVar {
     pub fn new<T>(kvid: KVid, args: T) -> Self
     where
-        Interned<[Expr]>: From<T>,
+        List<Expr>: From<T>,
     {
         KVar(kvid, Interned::from(args))
     }
@@ -670,7 +670,7 @@ impl From<Var> for Expr {
 impl Path {
     pub fn new<T>(loc: Loc, projection: T) -> Path
     where
-        Interned<[Field]>: From<T>,
+        List<Field>: From<T>,
     {
         Path { loc, projection: Interned::from(projection) }
     }
