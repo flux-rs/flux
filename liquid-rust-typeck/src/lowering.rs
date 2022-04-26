@@ -39,7 +39,7 @@ impl LoweringCtxt {
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures })
+        ty::Binders::new(params, ty::FnSig::new(requires, args, ret, ensures))
     }
 
     pub fn lower_adt_def(adt_def: &core::AdtDef) -> ty::AdtDef {
@@ -54,10 +54,10 @@ impl LoweringCtxt {
                 let fields = fields
                     .iter()
                     .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
-                    .collect();
-                ty::AdtDef::Transparent { refined_by, fields }
+                    .collect_vec();
+                ty::AdtDef::transparent(refined_by, fields)
             }
-            core::AdtDef::Opaque { .. } => ty::AdtDef::Opaque { refined_by },
+            core::AdtDef::Opaque { .. } => ty::AdtDef::opaque(refined_by),
         }
     }
 

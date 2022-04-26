@@ -62,20 +62,18 @@ impl Subst<'_> {
     }
 
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
-        FnSig {
-            requires: sig
-                .requires
+        FnSig::new(
+            sig.requires()
                 .iter()
                 .map(|constr| self.subst_constr(constr))
-                .collect(),
-            args: sig.args.iter().map(|ty| self.subst_ty(ty)).collect(),
-            ret: self.subst_ty(&sig.ret),
-            ensures: sig
-                .ensures
+                .collect_vec(),
+            sig.args().iter().map(|ty| self.subst_ty(ty)).collect_vec(),
+            self.subst_ty(sig.ret()),
+            sig.ensures()
                 .iter()
                 .map(|constr| self.subst_constr(constr))
-                .collect(),
-        }
+                .collect_vec(),
+        )
     }
 
     fn subst_constr(&self, constr: &Constr) -> Constr {
@@ -218,12 +216,12 @@ impl Subst<'_> {
         actuals: &[Ty],
         fn_sig: &Binders<FnSig>,
     ) -> Result<(), InferenceError> {
-        assert!(actuals.len() == fn_sig.value.args.len());
-        let params = fn_sig.params.iter().map(|param| param.name).collect();
+        assert!(actuals.len() == fn_sig.value().args().len());
+        let params = fn_sig.params().iter().map(|param| param.name).collect();
 
         let requires = fn_sig
-            .value
-            .requires
+            .value()
+            .requires()
             .iter()
             .filter_map(|constr| {
                 if let Constr::Type(path, ty) = constr {
@@ -234,7 +232,7 @@ impl Subst<'_> {
             })
             .collect();
 
-        for (actual, formal) in actuals.iter().zip(fn_sig.value.args.iter()) {
+        for (actual, formal) in actuals.iter().zip(fn_sig.value().args().iter()) {
             self.infer_from_tys(genv, pcx, &params, env, actual, &requires, formal);
         }
 

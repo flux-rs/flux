@@ -22,27 +22,29 @@ use crate::{
 
 #[derive(Clone)]
 pub enum AdtDef {
-    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
-    Opaque { refined_by: Vec<Param> },
+    Transparent { refined_by: Interned<[Param]>, fields: Interned<[Ty]> },
+    Opaque { refined_by: Interned<[Param]> },
 }
 
 #[derive(Debug, Clone)]
 pub struct Binders<T> {
-    pub params: Vec<Param>,
-    pub value: T,
+    params: Interned<[Param]>,
+    value: T,
 }
 
 pub type PolySig = Binders<FnSig>;
 
 #[derive(Clone)]
 pub struct FnSig {
-    pub requires: Vec<Constr>,
-    pub args: Vec<Ty>,
-    pub ret: Ty,
-    pub ensures: Vec<Constr>,
+    requires: Interned<[Constr]>,
+    args: Interned<[Ty]>,
+    ret: Ty,
+    ensures: Interned<[Constr]>,
 }
 
-#[derive(Clone)]
+pub type Constrs = Interned<[Constr]>;
+
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constr {
     Type(Path, Ty),
     Pred(Expr),
@@ -55,7 +57,7 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,
@@ -162,12 +164,71 @@ newtype_index! {
 }
 
 impl<T> Binders<T> {
-    pub fn new(params: Vec<Param>, value: T) -> Binders<T> {
-        Binders { params, value }
+    pub fn new<P>(params: P, value: T) -> Binders<T>
+    where
+        Interned<[Param]>: From<P>,
+    {
+        Binders { params: Interned::from(params), value }
+    }
+
+    pub fn params(&self) -> &[Param] {
+        &self.params
+    }
+
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+}
+
+impl FnSig {
+    pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
+    where
+        Interned<[Constr]>: From<A>,
+        Interned<[Ty]>: From<B>,
+        Interned<[Constr]>: From<C>,
+    {
+        FnSig {
+            requires: Interned::from(requires),
+            args: Interned::from(args),
+            ret,
+            ensures: Interned::from(ensures),
+        }
+    }
+    pub fn requires(&self) -> &Constrs {
+        &self.requires
+    }
+
+    pub fn args(&self) -> &[Ty] {
+        &self.args
+    }
+
+    pub fn ret(&self) -> &Ty {
+        &self.ret
+    }
+
+    pub fn ensures(&self) -> &Constrs {
+        &self.ensures
     }
 }
 
 impl AdtDef {
+    pub fn opaque<P>(refined_by: P) -> Self
+    where
+        Interned<[Param]>: From<P>,
+    {
+        AdtDef::Opaque { refined_by: Interned::from(refined_by) }
+    }
+    pub fn transparent<P, F>(refined_by: P, fields: F) -> Self
+    where
+        Interned<[Param]>: From<P>,
+        Interned<[Ty]>: From<F>,
+    {
+        AdtDef::Transparent {
+            refined_by: Interned::from(refined_by),
+            fields: Interned::from(fields),
+        }
+    }
+
     pub fn refined_by(&self) -> &[Param] {
         match self {
             AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
@@ -675,7 +736,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar]);
+impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar], [Constr], [Param]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
