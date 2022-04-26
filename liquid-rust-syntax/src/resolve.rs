@@ -1,8 +1,6 @@
 use hir::{def_id::DefId, ItemId, ItemKind};
 use liquid_rust_common::iter::IterExt;
 use rustc_errors::ErrorReported;
-// use liquid_rust_syntax::{ast, surface};
-// use quickscope::ScopeMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
@@ -60,45 +58,6 @@ impl<'tcx> Resolver<'tcx> {
 
         Ok(Resolver { sess: tcx.sess, table })
     }
-
-    // pub fn resolve_qualifier(
-    //     tcx: TyCtxt<'tcx>,
-    //     qualifier: ast::Qualifier,
-    // ) -> Result<ty::Qualifier, ErrorReported> {
-    //     let name_gen = IndexGen::new();
-    //     let mut subst = Subst::new();
-    //     let mut diagnostics = Diagnostics::new(tcx.sess);
-
-    //     let name_res_table = FxHashMap::default();
-    //     let parent = None;
-
-    //     let args = qualifier
-    //         .args
-    //         .into_iter()
-    //         .map(|qualifparam| {
-    //             let loc = qualifparam.name;
-    //             let sort = qualifparam.sort;
-    //             let fresh = name_gen.fresh();
-    //             if subst.insert_expr(loc.name, ty::Var::Free(fresh)).is_some() {
-    //                 diagnostics
-    //                     .emit_err(errors::DuplicateParam::new(loc))
-    //                     .raise()?;
-    //             }
-    //             let sort = resolve_sort(&mut diagnostics, sort)?;
-
-    //             let loc = ty::Ident { name: fresh, source_info: (loc.span, loc.name) };
-    //             Ok(ty::Param { name: loc, sort })
-    //         })
-    //         .try_collect_exhaust();
-
-    //     let mut resolver = Self { tcx, diagnostics, parent, name_res_table };
-
-    //     let expr = resolver.resolve_expr(qualifier.expr, &subst)?;
-
-    //     let name = qualifier.name.name.to_ident_string();
-
-    //     Ok(ty::Qualifier { name, args: args?, expr })
-    // }
 
     pub fn resolve_adt_def(
         &mut self,
@@ -393,21 +352,6 @@ mod errors {
     //     }
     // }
 
-    // #[derive(SessionDiagnostic)]
-    // #[error = "LIQUID"]
-    // pub struct DuplicateParam {
-    //     #[message = "the name `{name}` is already used as a parameter"]
-    //     #[label = "already used"]
-    //     span: Span,
-    //     name: Ident,
-    // }
-
-    // impl DuplicateParam {
-    //     pub fn new(name: Ident) -> Self {
-    //         Self { span: name.span, name }
-    //     }
-    // }
-
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
     pub struct RefinedTypeParam {
@@ -423,36 +367,6 @@ mod errors {
         #[label = "refined float"]
         pub span: Span,
     }
-
-    // #[derive(SessionDiagnostic)]
-    // #[error = "LIQUID"]
-    // pub struct UnresolvedSort {
-    //     #[message = "cannot find sort `{sort}` in this scope"]
-    //     #[label = "not found in this scope"]
-    //     pub span: Span,
-    //     pub sort: Ident,
-    // }
-
-    // impl UnresolvedSort {
-    //     pub fn new(sort: Ident) -> Self {
-    //         Self { span: sort.span, sort }
-    //     }
-    // }
-
-    // #[derive(SessionDiagnostic)]
-    // #[error = "LIQUID"]
-    // pub struct UnresolvedVar {
-    //     #[message = "cannot find value `{var}` in this scope"]
-    //     #[label = "not found in this scope"]
-    //     pub span: Span,
-    //     pub var: Ident,
-    // }
-
-    // impl UnresolvedVar {
-    //     pub fn new(var: Ident) -> Self {
-    //         Self { span: var.span, var }
-    //     }
-    // }
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]

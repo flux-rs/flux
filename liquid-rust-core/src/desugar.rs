@@ -1,6 +1,5 @@
 use std::iter;
 
-use itertools::Itertools;
 use liquid_rust_common::{index::IndexGen, iter::IterExt};
 use liquid_rust_syntax::{
     ast,
@@ -22,7 +21,7 @@ pub fn desugar_qualifier(
 ) -> Result<Qualifier, ErrorReported> {
     let mut cx = DesugarCtxt::new(sess);
     for param in qualifier.args {
-        cx.push_param(param.name, resolve_sort(param.sort));
+        cx.push_param(param.name, resolve_sort(sess, param.sort)?)?;
     }
     let name = qualifier.name.name.to_ident_string();
     let expr = cx.desugar_expr(qualifier.expr, None);
@@ -30,7 +29,10 @@ pub fn desugar_qualifier(
     Ok(Qualifier { name, args: cx.params, expr: expr? })
 }
 
-pub fn desugar_params(params: &surface::Params) -> Vec<Param> {
+pub fn desugar_params(
+    sess: &Session,
+    params: &surface::Params,
+) -> Result<Vec<Param>, ErrorReported> {
     let name_gen = IndexGen::new();
     params
         .params
@@ -38,16 +40,16 @@ pub fn desugar_params(params: &surface::Params) -> Vec<Param> {
         .map(|param| {
             let fresh = name_gen.fresh();
             let name = Ident { name: fresh, source_info: (param.name.span, param.name.name) };
-            Param { name, sort: resolve_sort(param.sort) }
+            Ok(Param { name, sort: resolve_sort(sess, param.sort)? })
         })
-        .collect_vec()
+        .try_collect_exhaust()
 }
 
 pub fn desugar_adt(sess: &Session, adt_def: surface::AdtDef<Res>) -> Result<AdtDef, ErrorReported> {
     let mut cx = DesugarCtxt::new(sess);
 
     for param in adt_def.refined_by.into_iter().flatten() {
-        cx.push_param(param.name, resolve_sort(param.sort));
+        cx.push_param(param.name, resolve_sort(sess, param.sort)?)?;
     }
 
     if adt_def.opaque {
@@ -69,7 +71,7 @@ pub fn desugar_fn_sig(
 ) -> Result<FnSig, ErrorReported> {
     let mut desugar = DesugarCtxt::new(sess);
 
-    desugar.gather_params(&fn_sig, refined_by);
+    desugar.gather_params(&fn_sig, refined_by)?;
 
     if let Some(e) = fn_sig.requires {
         let e = desugar.desugar_expr(e, None)?;
@@ -263,54 +265,72 @@ impl DesugarCtxt<'_> {
         Ok(Expr { kind, span: Some(ident.span) })
     }
 
-    fn push_param(&mut self, ident: surface::Ident, sort: Sort) {
-        // TODO(nilehmann) report error if param already exists
+    fn push_param(&mut self, ident: surface::Ident, sort: Sort) -> Result<(), ErrorReported> {
         let fresh = self.name_gen.fresh();
         let source_info = (ident.span, ident.name);
 
-        self.map.insert(ident.name, fresh);
+        if self.map.insert(ident.name, fresh).is_some() {
+            return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
+        };
         self.params
             .push(Param { name: Ident { name: fresh, source_info }, sort });
+
+        Ok(())
     }
 
     // Gather parameters
 
-    fn gather_params(&mut self, fn_sig: &surface::FnSig<Res>, refined_by: &impl RefinedByMap) {
+    fn gather_params(
+        &mut self,
+        fn_sig: &surface::FnSig<Res>,
+        refined_by: &impl RefinedByMap,
+    ) -> Result<(), ErrorReported> {
         for arg in &fn_sig.args {
-            self.arg_gather_params(arg, refined_by);
+            self.arg_gather_params(arg, refined_by)?;
         }
+        Ok(())
     }
 
-    fn arg_gather_params(&mut self, arg: &surface::Arg<Res>, refined_by: &impl RefinedByMap) {
+    fn arg_gather_params(
+        &mut self,
+        arg: &surface::Arg<Res>,
+        refined_by: &impl RefinedByMap,
+    ) -> Result<(), ErrorReported> {
         match arg {
             surface::Arg::Indexed(bind, path, _) => {
                 let sorts = self.sorts(path, refined_by);
                 assert_eq!(sorts.len(), 1);
-                self.push_param(*bind, sorts[0]);
+                self.push_param(*bind, sorts[0])?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                self.push_param(*loc, Sort::Loc);
-                self.ty_gather_params(ty, refined_by);
+                self.push_param(*loc, Sort::Loc)?;
+                self.ty_gather_params(ty, refined_by)?;
             }
-            surface::Arg::Ty(ty) => self.ty_gather_params(ty, refined_by),
+            surface::Arg::Ty(ty) => self.ty_gather_params(ty, refined_by)?,
         }
+        Ok(())
     }
 
-    fn ty_gather_params(&mut self, ty: &surface::Ty<Res>, refined_by: &impl RefinedByMap) {
+    fn ty_gather_params(
+        &mut self,
+        ty: &surface::Ty<Res>,
+        refined_by: &impl RefinedByMap,
+    ) -> Result<(), ErrorReported> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
                 let sorts = self.sorts(path, refined_by);
                 assert_eq!(indices.indices.len(), sorts.len());
                 for (index, sort) in iter::zip(&indices.indices, sorts) {
                     if let surface::Index::Bind(bind) = index {
-                        self.push_param(*bind, sort);
+                        self.push_param(*bind, sort)?;
                     }
                 }
+                Ok(())
             }
             surface::TyKind::StrgRef(_, ty) | surface::TyKind::Ref(_, ty) => {
-                self.ty_gather_params(ty, refined_by);
+                self.ty_gather_params(ty, refined_by)
             }
-            surface::TyKind::Path(_) | surface::TyKind::Exists { .. } => {}
+            surface::TyKind::Path(_) | surface::TyKind::Exists { .. } => Ok(()),
         }
     }
 
@@ -332,13 +352,13 @@ impl DesugarCtxt<'_> {
     }
 }
 
-fn resolve_sort(sort: surface::Ident) -> Sort {
+fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorReported> {
     if sort.name == SORTS.int {
-        Sort::Int
+        Ok(Sort::Int)
     } else if sort.name == sym::bool {
-        Sort::Bool
+        Ok(Sort::Bool)
     } else {
-        todo!("cannot resolve sort")
+        Err(sess.emit_err(errors::UnresolvedSort::new(sort)))
     }
 }
 
@@ -350,7 +370,6 @@ static SORTS: std::lazy::SyncLazy<Sorts> =
     std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    // use crate::surface;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 
@@ -366,6 +385,35 @@ mod errors {
     impl UnresolvedVar {
         pub fn new(var: Ident) -> Self {
             Self { span: var.span, var }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct DuplicateParam {
+        #[message = "the name `{name}` is already used as a parameter"]
+        #[label = "already used"]
+        span: Span,
+        name: Ident,
+    }
+
+    impl DuplicateParam {
+        pub fn new(name: Ident) -> Self {
+            Self { span: name.span, name }
+        }
+    }
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct UnresolvedSort {
+        #[message = "cannot find sort `{sort}` in this scope"]
+        #[label = "not found in this scope"]
+        pub span: Span,
+        pub sort: Ident,
+    }
+
+    impl UnresolvedSort {
+        pub fn new(sort: Ident) -> Self {
+            Self { span: sort.span, sort }
         }
     }
 }
