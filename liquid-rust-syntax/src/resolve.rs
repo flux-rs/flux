@@ -340,45 +340,17 @@ mod errors {
 
     // #[derive(SessionDiagnostic)]
     // #[error = "LIQUID"]
-    // pub struct UnresolvedLoc {
-    //     #[message = "cannot find location parameter `{loc}` in this scope"]
-    //     span: Span,
-    //     loc: Ident,
+    // pub struct RefinedTypeParam {
+    //     #[message = "type parameters cannot be refined"]
+    //     #[label = "refined type parameter"]
+    //     pub span: Span,
     // }
-
-    // impl UnresolvedLoc {
-    //     pub fn new(loc: Ident) -> Self {
-    //         Self { span: loc.span, loc }
-    //     }
-    // }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct RefinedTypeParam {
-        #[message = "type parameters cannot be refined"]
-        #[label = "refined type parameter"]
-        pub span: Span,
-    }
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
     pub struct RefinedFloat {
         #[message = "float cannot be refined"]
         #[label = "refined float"]
-        pub span: Span,
-    }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct IntTooLarge {
-        #[message = "integer literal is too large"]
-        pub span: Span,
-    }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct UnexpectedLiteral {
-        #[message = "unexpected literal"]
         pub span: Span,
     }
 }
