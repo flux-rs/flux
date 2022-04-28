@@ -9,8 +9,7 @@ fn some<T>(x: T) -> Option<T> {
 }
 
 #[lr::sig(fn() -> i32{v:0 < v})]
-pub fn test2() -> i32 {
-    //~ ERROR postcondition might not hold
+pub fn test2() -> i32 { //~ ERROR postcondition might not hold
     let opt = some(0);
     opt.unwrap()
 }
