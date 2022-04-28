@@ -66,7 +66,11 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
-        self.adt_defs[&def_id].clone()
+        // ORIG self.adt_defs[&def_id].clone()
+        self.adt_defs
+            .get(&def_id)
+            .unwrap_or_else(|| panic!("Unknown adt: {:?}", def_id))
+            .clone()
     }
 
     pub fn sorts(&self, bty: &BaseTy) -> Vec<Sort> {
