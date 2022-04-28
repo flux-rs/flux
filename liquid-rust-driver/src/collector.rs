@@ -26,7 +26,8 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 
 pub(crate) struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
-    pub adts: FxHashMap<LocalDefId, surface::AdtDef>,
+    pub structs: FxHashMap<LocalDefId, surface::StructDef>,
+    pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
 }
 
@@ -66,6 +67,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
+    fn parse_enum_def(
+        &mut self,
+        def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+        let opaque = attrs.opaque();
+        let refined_by = attrs.refined_by();
+        self.specs
+            .enums
+            .insert(def_id, surface::EnumDef { refined_by, opaque });
+        Ok(())
+    }
+
     fn parse_struct_def(
         &mut self,
         def_id: LocalDefId,
@@ -88,8 +104,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .try_collect_exhaust()?;
 
         self.specs
-            .adts
-            .insert(def_id, surface::AdtDef { refined_by, fields, opaque });
+            .structs
+            .insert(def_id, surface::StructDef { refined_by, fields, opaque });
 
         Ok(())
     }
@@ -217,6 +233,11 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
                 let attrs = self.tcx.hir().attrs(hir_id);
                 let _ = self.parse_struct_def(item.def_id, attrs, data);
             }
+            ItemKind::Enum(..) => {
+                let hir_id = item.hir_id();
+                let attrs = self.tcx.hir().attrs(hir_id);
+                let _ = self.parse_enum_def(item.def_id, attrs);
+            }
             ItemKind::Mod(..) => {
                 // TODO: Parse mod level attributes
             }
@@ -237,7 +258,12 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
 
 impl Specs {
     fn new() -> Specs {
-        Specs { fns: FxHashMap::default(), adts: FxHashMap::default(), qualifs: Vec::default() }
+        Specs {
+            fns: FxHashMap::default(),
+            structs: FxHashMap::default(),
+            enums: FxHashMap::default(),
+            qualifs: Vec::default(),
+        }
     }
 }
 

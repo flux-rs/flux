@@ -59,17 +59,17 @@ impl<'tcx> Resolver<'tcx> {
         Ok(Resolver { sess: tcx.sess, table })
     }
 
-    pub fn resolve_adt_def(
+    pub fn resolve_struct_def(
         &mut self,
-        spec: surface::AdtDef,
-    ) -> Result<surface::AdtDef<Res>, ErrorReported> {
+        spec: surface::StructDef,
+    ) -> Result<surface::StructDef<Res>, ErrorReported> {
         let fields = spec
             .fields
             .into_iter()
             .map(|ty| ty.map(|ty| self.resolve_ty(ty)).transpose())
             .try_collect_exhaust()?;
 
-        Ok(surface::AdtDef { refined_by: spec.refined_by, fields, opaque: spec.opaque })
+        Ok(surface::StructDef { refined_by: spec.refined_by, fields, opaque: spec.opaque })
     }
 
     pub fn resolve_fn_sig(

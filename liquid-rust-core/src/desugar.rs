@@ -32,7 +32,10 @@ pub fn resolve_sorts(sess: &Session, params: &surface::Params) -> Result<Vec<Sor
         .try_collect_exhaust()
 }
 
-pub fn desugar_adt(sess: &Session, adt_def: surface::AdtDef<Res>) -> Result<AdtDef, ErrorReported> {
+pub fn desugar_struct_def(
+    sess: &Session,
+    adt_def: surface::StructDef<Res>,
+) -> Result<AdtDef, ErrorReported> {
     let mut params = ParamsCtxt::new(sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
@@ -47,6 +50,20 @@ pub fn desugar_adt(sess: &Session, adt_def: surface::AdtDef<Res>) -> Result<AdtD
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
         Ok(AdtDef::Transparent { refined_by: cx.params.params, fields })
+    }
+}
+
+pub fn desugar_enum_def(
+    sess: &Session,
+    adt_def: surface::EnumDef,
+) -> Result<AdtDef, ErrorReported> {
+    let mut params = ParamsCtxt::new(sess);
+    params.insert_params(adt_def.refined_by.into_iter().flatten())?;
+
+    if adt_def.opaque {
+        Ok(AdtDef::Opaque { refined_by: params.params })
+    } else {
+        panic!("transparent enums are not supported yet")
     }
 }
 

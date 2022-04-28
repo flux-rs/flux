@@ -60,8 +60,17 @@ impl<'tcx> CrateChecker<'tcx> {
         let mut assume = FxHashSet::default();
         let mut genv = GlobalEnv::new(tcx);
 
-        // Register structs parameters
-        specs.adts.iter().try_for_each_exhaust(|(def_id, def)| {
+        // Register adt sorts
+        specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
+            if let Some(refined_by) = &def.refined_by {
+                genv.register_adt_sorts(
+                    def_id.to_def_id(),
+                    desugar::resolve_sorts(sess, refined_by)?,
+                );
+            }
+            Ok(())
+        })?;
+        specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
                 genv.register_adt_sorts(
                     def_id.to_def_id(),
@@ -84,12 +93,21 @@ impl<'tcx> CrateChecker<'tcx> {
 
         // Adt definitions
         specs
-            .adts
+            .structs
             .into_iter()
-            .try_for_each_exhaust(|(def_id, adt_def)| {
+            .try_for_each_exhaust(|(def_id, struct_def)| {
                 let mut resolver = syntax::resolve::Resolver::from_adt(tcx, def_id)?;
-                let adt_def = resolver.resolve_adt_def(adt_def)?;
-                let adt_def = desugar::desugar_adt(sess, adt_def)?;
+                let struct_def = resolver.resolve_struct_def(struct_def)?;
+                let adt_def = desugar::desugar_struct_def(sess, struct_def)?;
+                Wf::new(sess, &genv).check_adt_def(&adt_def)?;
+                genv.register_adt_def(def_id.to_def_id(), adt_def);
+                Ok(())
+            })?;
+        specs
+            .enums
+            .into_iter()
+            .try_for_each_exhaust(|(def_id, enum_def)| {
+                let adt_def = desugar::desugar_enum_def(sess, enum_def)?;
                 Wf::new(sess, &genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())

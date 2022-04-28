@@ -16,9 +16,15 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
-pub struct AdtDef<T = Ident> {
+pub struct StructDef<T = Ident> {
     pub refined_by: Option<Params>,
     pub fields: Vec<Option<Ty<T>>>,
+    pub opaque: bool,
+}
+
+#[derive(Debug)]
+pub struct EnumDef {
+    pub refined_by: Option<Params>,
     pub opaque: bool,
 }
 
