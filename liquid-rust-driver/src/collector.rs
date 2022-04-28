@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
+use liquid_rust_common::iter::IterExt;
 use liquid_rust_syntax::{
-    ast, parse_fn_sig, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
-    ParseErrorKind, ParseResult,
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface, ParseErrorKind,
+    ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, ImplItemKind, Item,
@@ -23,22 +24,16 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     error_reported: bool,
 }
 
-pub struct Specs {
+pub(crate) struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
-    pub adts: FxHashMap<LocalDefId, AdtDef>,
-    pub qualifs: Vec<ast::Qualifier>,
+    pub structs: FxHashMap<LocalDefId, surface::StructDef>,
+    pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
+    pub qualifs: Vec<surface::Qualifier>,
 }
 
-pub struct FnSpec {
-    pub fn_sig: ast::FnSig,
+pub(crate) struct FnSpec {
+    pub fn_sig: Option<surface::FnSig>,
     pub assume: bool,
-}
-
-#[derive(Debug)]
-pub struct AdtDef {
-    pub refined_by: Option<ast::Generics>,
-    pub fields: Vec<Option<ast::Ty>>,
-    pub opaque: bool,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -68,9 +63,22 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
 
-        if let Some(fn_sig) = fn_sig {
-            self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
-        }
+        self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
+        Ok(())
+    }
+
+    fn parse_enum_def(
+        &mut self,
+        def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+        let opaque = attrs.opaque();
+        let refined_by = attrs.refined_by();
+        self.specs
+            .enums
+            .insert(def_id, surface::EnumDef { refined_by, opaque });
         Ok(())
     }
 
@@ -96,8 +104,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .try_collect_exhaust()?;
 
         self.specs
-            .adts
-            .insert(def_id, AdtDef { refined_by, fields, opaque });
+            .structs
+            .insert(def_id, surface::StructDef { refined_by, fields, opaque });
 
         Ok(())
     }
@@ -109,7 +117,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_field_spec(&mut self, attrs: &[Attribute]) -> Result<Option<ast::Ty>, ErrorReported> {
+    fn parse_field_spec(
+        &mut self,
+        attrs: &[Attribute],
+    ) -> Result<Option<surface::Ty>, ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
         Ok(attrs.field())
@@ -144,11 +155,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
                 // print!("LR::SIG {:#?} \n", fn_sig);
-                LiquidAttrKind::FnSig(fn_sig)
-            }
-            ("ty", MacArgs::Delimited(span, _, tokens)) => {
-                let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_sig)?;
-                // print!("LR::TY {:#?} \n", fn_sig);
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
@@ -227,6 +233,11 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
                 let attrs = self.tcx.hir().attrs(hir_id);
                 let _ = self.parse_struct_def(item.def_id, attrs, data);
             }
+            ItemKind::Enum(..) => {
+                let hir_id = item.hir_id();
+                let attrs = self.tcx.hir().attrs(hir_id);
+                let _ = self.parse_enum_def(item.def_id, attrs);
+            }
             ItemKind::Mod(..) => {
                 // TODO: Parse mod level attributes
             }
@@ -247,7 +258,12 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
 
 impl Specs {
     fn new() -> Specs {
-        Specs { fns: FxHashMap::default(), adts: FxHashMap::default(), qualifs: Vec::default() }
+        Specs {
+            fns: FxHashMap::default(),
+            structs: FxHashMap::default(),
+            enums: FxHashMap::default(),
+            qualifs: Vec::default(),
+        }
     }
 }
 
@@ -266,10 +282,10 @@ struct LiquidAttr {
 enum LiquidAttrKind {
     Assume,
     Opaque,
-    FnSig(ast::FnSig),
-    RefinedBy(ast::Generics),
-    Qualifier(ast::Qualifier),
-    Field(ast::Ty),
+    FnSig(surface::FnSig),
+    RefinedBy(surface::Params),
+    Qualifier(surface::Qualifier),
+    Field(surface::Ty),
 }
 
 macro_rules! read_attr {
@@ -320,19 +336,19 @@ impl LiquidAttrs {
         self.map.get("opaque").is_some()
     }
 
-    fn fn_sig(&mut self) -> Option<ast::FnSig> {
+    fn fn_sig(&mut self) -> Option<surface::FnSig> {
         read_attr!(self, "ty", FnSig)
     }
 
-    fn qualifiers(&mut self) -> Vec<ast::Qualifier> {
+    fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 
-    fn refined_by(&mut self) -> Option<ast::Generics> {
+    fn refined_by(&mut self) -> Option<surface::Params> {
         read_attr!(self, "refined_by", RefinedBy)
     }
 
-    fn field(&mut self) -> Option<ast::Ty> {
+    fn field(&mut self) -> Option<surface::Ty> {
         read_attr!(self, "field", Field)
     }
 }

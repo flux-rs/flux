@@ -5,6 +5,7 @@ pub struct RMat<T> {
 }
 
 impl<T> RMat<T> {
+    #[lr::assume]
     fn clone(n: usize, elem: T) -> Vec<T>
     where
         T: Copy,
@@ -17,7 +18,7 @@ impl<T> RMat<T> {
     }
 
     #[lr::assume]
-    #[lr::sig(fn(rows: usize, cols: usize, elem: T) -> RMat<T>[rows, cols])]
+    #[lr::sig(fn(rows: usize, cols: usize, T) -> RMat<T>[rows, cols])]
     pub fn new(rows: usize, cols: usize, elem: T) -> RMat<T>
     where
         T: Copy,
@@ -31,13 +32,13 @@ impl<T> RMat<T> {
     }
 
     #[lr::assume]
-    #[lr::ty(fn<m:int,n:int>(&RMat<T>@{m,n}, usize{v: 0 <= v && v < m}, usize{v:0 <= v && v < n}) -> &T)]
+    #[lr::sig(fn(&RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v:0 <= v && v < n}) -> &T)]
     pub fn get(&self, i: usize, j: usize) -> &T {
         &self.inner[i][j]
     }
 
     #[lr::assume]
-    #[lr::ty(fn<m:int,n:int>(self: RMat<T>@{m,n}; ref<self>, usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &weak T; self: RMat<T>@{m,n})]
+    #[lr::sig(fn(&mut RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {
         &mut self.inner[i][j]
     }

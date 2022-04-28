@@ -14,52 +14,58 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &mut n@RVec<T>, item: T) -> i32[0]; self: RVec<T>[n+1])]
+    #[lr::sig(
+    fn(self: &strg RVec<T>[@n], T) -> i32[0]
+    ensures self: RVec<T>[n+1]
+    )]
     pub fn push(&mut self, item: T) -> i32 {
         self.inner.push(item);
         0
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: & n@RVec<T>) -> usize[n])]
+    #[lr::sig(fn(&RVec<T>[@n]) -> usize[n])]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: & len@RVec<T>) -> bool[len == 0])]
+    #[lr::sig(fn(&RVec<T>[@n]) -> bool[n == 0])]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self:& len@RVec<T>, i:usize{0 <= i && i < len}) -> &T)]
+    #[lr::sig(fn(&RVec<T>[@n], i: usize{0 <= i && i < n}) -> &T)]
     pub fn get(&self, i: usize) -> &T {
         &self.inner[i]
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &weak n@RVec<T>, i:usize{0 <= i && i < n}) -> &weak T)]
+    #[lr::sig(fn(&mut RVec<T>[@n], i: usize{ 0 <= i && i < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &mut n@RVec<T>{0 < n}) -> T; self: RVec<T>[n-1])]
+    #[lr::sig(
+    fn(self: &strg RVec<T>[@n]) -> T
+    requires n > 0
+    ensures self: RVec<T>[n-1]
+    )]
     pub fn pop(&mut self) -> T {
         self.inner.pop().unwrap()
     }
 
     #[lr::assume]
-    #[lr::sig(fn(self: &mut n@RVec<T>, a:usize{0<=a && a<n}, b:usize{0<=b && b<n})
-              -> i32[0]; self: RVec<T>[n])]
+    #[lr::sig(fn(&mut RVec<T>[@n], a: usize{0 <= a && a < n}, b: usize{0 <= b && b < n}) -> i32[0])]
     pub fn swap(&mut self, a: usize, b: usize) -> i32 {
         self.inner.swap(a, b);
         0
     }
 
     #[lr::assume]
-    #[lr::sig(fn(elem:T, n:usize) -> RVec<T>[n])]
+    #[lr::sig(fn(T, n: usize) -> RVec<T>[n])]
     pub fn from_elem_n(elem: T, n: usize) -> Self
     where
         T: Copy,

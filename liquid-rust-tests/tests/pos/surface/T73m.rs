@@ -6,7 +6,7 @@
 pub mod rmat;
 use rmat::RMat;
 
-#[lr::sig(fn (arr2: &mut RMat<f32>) -> bool)]
+#[lr::sig(fn(&mut RMat<f32>) -> bool)]
 pub fn is_neg(_arr2: &mut RMat<f32>) -> bool {
-  true
+    true
 }

@@ -1,11 +1,17 @@
 #![feature(rustc_private)]
 
+extern crate itertools;
 extern crate rustc_ast;
+extern crate rustc_errors;
+extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_macros;
+extern crate rustc_middle;
+extern crate rustc_session;
 extern crate rustc_span;
 
-pub mod ast;
 pub mod lexer;
+pub mod resolve;
 pub mod surface;
 
 use lalrpop_util::lalrpop_mod;
@@ -13,12 +19,6 @@ use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{BytePos, Span, SyntaxContext};
-
-lalrpop_mod!(
-    #[allow(warnings)]
-    #[allow(clippy::all)]
-    grammar
-);
 
 lalrpop_mod!(
     #[allow(warnings)]
@@ -39,25 +39,20 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_fn_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
-    parse!(grammar::FnSigParser, tokens, span)
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::Params> {
+    parse!(surface_grammar::RefinedByParser, tokens, span)
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<ast::Generics> {
-    parse!(grammar::RefinedByParser, tokens, span)
+pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
+    parse!(surface_grammar::FnSigParser, tokens, span)
 }
 
-pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<ast::FnSig> {
-    let res = parse!(surface_grammar::FnSigParser, tokens, span);
-    res.map(surface::desugar)
+pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::Qualifier> {
+    parse!(surface_grammar::QualifierParser, tokens, span)
 }
 
-pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<ast::Qualifier> {
-    parse!(grammar::QualifierParser, tokens, span)
-}
-
-pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<ast::Ty> {
-    parse!(grammar::TyParser, tokens, span)
+pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
+    parse!(surface_grammar::TyParser, tokens, span)
 }
 
 pub enum UserParseError {

@@ -3,15 +3,14 @@ use std::fmt::Write;
 
 use itertools::Itertools;
 use liquid_rust_common::format::PadAdapter;
-pub use liquid_rust_syntax::ast::BinOp;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::{DefId, LocalDefId};
+pub use liquid_rust_syntax::surface::{BinOp, RefKind};
+use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 
-pub struct AdtDefs {
-    map: FxHashMap<LocalDefId, AdtDef>,
+pub trait AdtSortsMap {
+    fn get(&self, def_id: DefId) -> Option<&[Sort]>;
 }
 
 #[derive(Debug)]
@@ -20,16 +19,16 @@ pub enum AdtDef {
     Opaque { refined_by: Vec<Param> },
 }
 
-pub struct FnSpec {
-    pub fn_sig: FnSig,
-    pub assume: bool,
-}
-
 pub struct FnSig {
+    /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<Param>,
+    /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constr>,
+    /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
+    /// example: i32
     pub ret: Ty,
+    /// example: vec![(l: i32{v:n < v})]
     pub ensures: Vec<Constr>,
 }
 
@@ -49,12 +48,11 @@ pub struct Qualifier {
 }
 
 pub enum Ty {
-    Refine(BaseTy, Refine),
+    Indexed(BaseTy, Indices),
     Exists(BaseTy, Pred),
     Float(FloatTy),
-    StrgRef(Ident),
-    WeakRef(Box<Ty>),
-    ShrRef(Box<Ty>),
+    Ptr(Ident),
+    Ref(RefKind, Box<Ty>),
     Param(ParamTy),
 }
 
@@ -68,7 +66,8 @@ pub enum Layout {
     Ref,
     Param,
 }
-pub struct Refine {
+
+pub struct Indices {
     pub exprs: Vec<Expr>,
     pub span: Span,
 }
@@ -85,7 +84,7 @@ pub enum BaseTy {
     Adt(DefId, Vec<Ty>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Param {
     pub name: Ident,
     pub sort: Sort,
@@ -161,31 +160,9 @@ impl AdtDef {
             Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
         }
     }
-}
 
-impl AdtDefs {
-    pub fn get(&self, did: LocalDefId) -> Option<&AdtDef> {
-        self.map.get(&did)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&LocalDefId, &AdtDef)> {
-        self.map.iter()
-    }
-}
-
-impl FromIterator<(LocalDefId, AdtDef)> for AdtDefs {
-    fn from_iter<T: IntoIterator<Item = (LocalDefId, AdtDef)>>(iter: T) -> Self {
-        AdtDefs { map: iter.into_iter().collect() }
-    }
-}
-
-impl IntoIterator for AdtDefs {
-    type Item = (LocalDefId, AdtDef);
-
-    type IntoIter = std::collections::hash_map::IntoIter<LocalDefId, AdtDef>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map.into_iter()
+    pub fn sorts(&self) -> Vec<Sort> {
+        self.refined_by().iter().map(|param| param.sort).collect()
     }
 }
 
@@ -246,14 +223,14 @@ impl fmt::Debug for Constr {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Refine(bty, e) => fmt_bty(bty, Some(e), f),
+            Ty::Indexed(bty, e) => fmt_bty(bty, Some(e), f),
             Ty::Exists(bty, p) => {
                 write!(f, "{bty:?}{{{p:?}}}")
             }
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
-            Ty::StrgRef(loc) => write!(f, "ref<{loc:?}>"),
-            Ty::WeakRef(ty) => write!(f, "&weak {ty:?}"),
-            Ty::ShrRef(ty) => write!(f, "&{ty:?}"),
+            Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
+            Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
+            Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
             Ty::Param(param) => write!(f, "{param}"),
         }
     }
@@ -265,7 +242,7 @@ impl fmt::Debug for BaseTy {
     }
 }
 
-fn fmt_bty(bty: &BaseTy, e: Option<&Refine>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match bty {
         BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
         BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
@@ -297,7 +274,7 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Refine>, f: &mut fmt::Formatter<'_>) -> fmt:
     Ok(())
 }
 
-impl fmt::Debug for Refine {
+impl fmt::Debug for Indices {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{{:?}}}", self.exprs.iter().format(", "))
     }

@@ -20,12 +20,13 @@ use crate::{
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
     ty::{
-        self, BaseTy, BinOp, Constr, Expr, FnSig, Name, Param, Pred, RefMode, Sort, Ty, TyKind, Var,
+        self, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, Pred, RefKind, Sort, Ty,
+        TyKind, Var,
     },
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
-use liquid_rust_common::{errors::ErrorReported, index::IndexVec};
+use liquid_rust_common::index::IndexVec;
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -34,6 +35,7 @@ use liquid_rust_core::{
     ty as core,
 };
 use rustc_data_structures::graph::dominators::Dominators;
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
@@ -47,7 +49,7 @@ pub struct Checker<'a, 'tcx, M> {
     genv: &'a GlobalEnv<'tcx>,
     mode: M,
     ret: Ty,
-    ensures: Vec<Constr>,
+    ensures: Constrs,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
@@ -88,7 +90,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
-        ensures: Vec<Constr>,
+        ensures: Constrs,
         dominators: &'a Dominators<BasicBlock>,
         mode: M,
     ) -> Self {
@@ -115,7 +117,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
             let mut constraint = ConstraintBuilder::new();
-
             let mut bb_envs = FxHashMap::default();
             Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
 
@@ -159,14 +160,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let fn_sig = genv.lookup_fn_sig(def_id);
 
         let mut pcx = constraint.pure_context_at_root();
-        let subst = Subst::with_fresh_names(&mut pcx, &fn_sig.params);
+        let subst = Subst::with_fresh_names(&mut pcx, fn_sig.params());
 
-        let fn_sig = subst.subst_fn_sig(&fn_sig.value);
+        let fn_sig = subst.subst_fn_sig(fn_sig.value());
 
         let env = Self::init(genv, &mut pcx, body, &fn_sig);
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(genv, body, fn_sig.ret, fn_sig.ensures, &dominators, mode);
+        let mut ck = Checker::new(
+            genv,
+            body,
+            fn_sig.ret().clone(),
+            fn_sig.ensures().clone(),
+            &dominators,
+            mode,
+        );
 
         ck.check_goto(pcx, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -188,7 +196,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn init(genv: &GlobalEnv, pcx: &mut PureCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
-        for constr in &fn_sig.requires {
+        for constr in fn_sig.requires() {
             match constr {
                 ty::Constr::Type(path, ty) => {
                     assert!(path.projection().is_empty());
@@ -201,7 +209,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
 
-        for (local, ty) in body.args_iter().zip(&fn_sig.args) {
+        for (local, ty) in body.args_iter().zip(fn_sig.args()) {
             let ty = env.unpack_ty(genv, pcx, ty);
             env.alloc_with_ty(local, ty);
         }
@@ -333,19 +341,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if subst
-            .infer_from_fn_call(self.genv, pcx, env, &actuals, fn_sig)
+            .infer_from_fn_call(self.genv, pcx, env, &actuals, &fn_sig)
             .is_err()
         {
             self.sess
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
             return Err(ErrorReported);
         };
-        let fn_sig = subst.subst_fn_sig(&fn_sig.value);
+        let fn_sig = subst.subst_fn_sig(fn_sig.value());
 
         // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
-        for (actual, formal) in iter::zip(actuals, &fn_sig.args) {
-            if let (TyKind::Ptr(path), TyKind::Ref(RefMode::Mut, bound)) =
+        for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
+            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
                 env.weaken_ty_at_path(&mut gen, path, bound.clone());
@@ -353,12 +361,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 gen.subtyping(&actual, formal);
             }
         }
-        for constr in &fn_sig.requires {
+        for constr in fn_sig.requires() {
             gen.check_constr(env, constr);
         }
 
         // Update postconditions
-        for constr in &fn_sig.ensures {
+        for constr in fn_sig.ensures() {
             match constr {
                 Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
@@ -375,7 +383,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut successors = vec![];
         if let Some((p, bb)) = destination {
-            let ret = env.unpack_ty(self.genv, pcx, &fn_sig.ret);
+            let ret = env.unpack_ty(self.genv, pcx, fn_sig.ret());
             env.write_place(self.genv, pcx, p, ret, Tag::Call(source_info.span));
             successors.push((*bb, None));
         }

@@ -9,9 +9,9 @@ version = "0.1.0"
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-core = { path = "../liquid-rust-core" }
+liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 liquid-rust-syntax = { path = "../liquid-rust-syntax" }
 liquid-rust-typeck = { path = "../liquid-rust-typeck" }
-liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 quickscope = "0.1"
 
 [package.metadata.rust-analyzer]

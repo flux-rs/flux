@@ -5,11 +5,6 @@ extern crate rustc_hash;
 extern crate rustc_index;
 
 pub mod config;
-pub mod errors;
 pub mod format;
 pub mod index;
 pub mod iter;
-
-pub trait SemiGroup {
-    fn append(self, b: Self) -> Self;
-}

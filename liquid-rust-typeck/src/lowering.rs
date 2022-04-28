@@ -39,10 +39,10 @@ impl LoweringCtxt {
 
         let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
 
-        ty::Binders::new(params, ty::FnSig { requires, args, ret, ensures })
+        ty::Binders::new(params, ty::FnSig::new(requires, args, ret, ensures))
     }
 
-    pub fn lower_adt_def(adt_def: core::AdtDef) -> ty::AdtDef {
+    pub fn lower_adt_def(adt_def: &core::AdtDef) -> ty::AdtDef {
         let mut fresh_kvar = |_: &ty::BaseTy| panic!("inference predicate in top item");
         let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::empty();
@@ -52,12 +52,12 @@ impl LoweringCtxt {
         match adt_def {
             core::AdtDef::Transparent { fields, .. } => {
                 let fields = fields
-                    .into_iter()
-                    .map(|ty| cx.lower_ty(&ty, &mut fresh_kvar))
-                    .collect();
-                ty::AdtDef::Transparent { refined_by, fields }
+                    .iter()
+                    .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+                    .collect_vec();
+                ty::AdtDef::transparent(refined_by, fields)
             }
-            core::AdtDef::Opaque { .. } => ty::AdtDef::Opaque { refined_by },
+            core::AdtDef::Opaque { .. } => ty::AdtDef::opaque(refined_by),
         }
     }
 
@@ -116,7 +116,7 @@ impl LoweringCtxt {
         fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
     ) -> ty::Ty {
         match ty {
-            core::Ty::Refine(bty, refine) => {
+            core::Ty::Indexed(bty, refine) => {
                 let exprs = refine
                     .exprs
                     .iter()
@@ -132,13 +132,19 @@ impl LoweringCtxt {
                 };
                 ty::Ty::exists(bty, pred)
             }
-            core::Ty::StrgRef(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),
-            core::Ty::WeakRef(ty) => {
-                ty::Ty::mk_ref(ty::RefMode::Mut, self.lower_ty(ty, fresh_kvar))
+            core::Ty::Ptr(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),
+            core::Ty::Ref(rk, ty) => {
+                ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty, fresh_kvar))
             }
-            core::Ty::ShrRef(ty) => ty::Ty::mk_ref(ty::RefMode::Shr, self.lower_ty(ty, fresh_kvar)),
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
+        }
+    }
+
+    fn lower_ref_kind(rk: core::RefKind) -> ty::RefKind {
+        match rk {
+            core::RefKind::Mut => ty::RefKind::Mut,
+            core::RefKind::Shr => ty::RefKind::Shr,
         }
     }
 

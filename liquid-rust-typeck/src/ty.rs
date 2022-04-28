@@ -4,6 +4,8 @@ use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
 // use liquid_rust_common::index::Idx;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
+pub use liquid_rust_syntax::surface;
+
 use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
@@ -13,35 +15,36 @@ pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
 use crate::{
     global_env::GlobalEnv,
-    intern::{impl_internable, Interned},
+    intern::{impl_internable, Interned, List},
     pure_ctxt::Scope,
     subst::Subst,
 };
 
+#[derive(Clone)]
 pub enum AdtDef {
-    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
-    Opaque { refined_by: Vec<Param> },
+    Transparent { refined_by: List<Param>, fields: List<Ty> },
+    Opaque { refined_by: List<Param> },
 }
 
-#[derive(Debug)]
-pub struct FnSpec {
-    pub fn_sig: Binders<FnSig>,
-    pub assume: bool,
-}
-
+#[derive(Debug, Clone)]
 pub struct Binders<T> {
-    pub params: Vec<Param>,
-    pub value: T,
+    params: List<Param>,
+    value: T,
 }
 
-#[derive(Debug)]
+pub type PolySig = Binders<FnSig>;
+
+#[derive(Clone)]
 pub struct FnSig {
-    pub requires: Vec<Constr>,
-    pub args: Vec<Ty>,
-    pub ret: Ty,
-    pub ensures: Vec<Constr>,
+    requires: List<Constr>,
+    args: List<Ty>,
+    ret: Ty,
+    ensures: List<Constr>,
 }
 
+pub type Constrs = List<Constr>;
+
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constr {
     Type(Path, Ty),
     Pred(Expr),
@@ -54,7 +57,7 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Param {
     pub name: Name,
     pub sort: Sort,
@@ -69,17 +72,17 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Refine(BaseTy, Interned<[Expr]>),
+    Refine(BaseTy, List<Expr>),
     Exists(BaseTy, Pred),
     Float(FloatTy),
     Uninit(Layout),
     Ptr(Path),
-    Ref(RefMode, Ty),
+    Ref(RefKind, Ty),
     Param(ParamTy),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
-pub enum RefMode {
+pub enum RefKind {
     Shr,
     Mut,
 }
@@ -87,7 +90,7 @@ pub enum RefMode {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub loc: Loc,
-    projection: Interned<[Field]>,
+    projection: List<Field>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -105,16 +108,16 @@ pub enum BaseTy {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Substs(Interned<[Ty]>);
+pub struct Substs(List<Ty>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    Infer(Interned<[KVar]>),
+    Infer(List<KVar>),
     Expr(Expr),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar(pub KVid, pub Interned<[Expr]>);
+pub struct KVar(pub KVid, pub List<Expr>);
 
 pub type Sort = Interned<SortS>;
 
@@ -161,12 +164,71 @@ newtype_index! {
 }
 
 impl<T> Binders<T> {
-    pub fn new(params: Vec<Param>, value: T) -> Binders<T> {
-        Binders { params, value }
+    pub fn new<P>(params: P, value: T) -> Binders<T>
+    where
+        List<Param>: From<P>,
+    {
+        Binders { params: Interned::from(params), value }
+    }
+
+    pub fn params(&self) -> &[Param] {
+        &self.params
+    }
+
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+}
+
+impl FnSig {
+    pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
+    where
+        List<Constr>: From<A>,
+        List<Ty>: From<B>,
+        List<Constr>: From<C>,
+    {
+        FnSig {
+            requires: Interned::from(requires),
+            args: Interned::from(args),
+            ret,
+            ensures: Interned::from(ensures),
+        }
+    }
+    pub fn requires(&self) -> &Constrs {
+        &self.requires
+    }
+
+    pub fn args(&self) -> &[Ty] {
+        &self.args
+    }
+
+    pub fn ret(&self) -> &Ty {
+        &self.ret
+    }
+
+    pub fn ensures(&self) -> &Constrs {
+        &self.ensures
     }
 }
 
 impl AdtDef {
+    pub fn opaque<P>(refined_by: P) -> Self
+    where
+        List<Param>: From<P>,
+    {
+        AdtDef::Opaque { refined_by: Interned::from(refined_by) }
+    }
+    pub fn transparent<P, F>(refined_by: P, fields: F) -> Self
+    where
+        List<Param>: From<P>,
+        List<Ty>: From<F>,
+    {
+        AdtDef::Transparent {
+            refined_by: Interned::from(refined_by),
+            fields: Interned::from(fields),
+        }
+    }
+
     pub fn refined_by(&self) -> &[Param] {
         match self {
             AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
@@ -211,7 +273,7 @@ impl Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
-    pub fn mk_ref(mode: RefMode, ty: Ty) -> Ty {
+    pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
         TyKind::Ref(mode, ty).intern()
     }
 
@@ -221,7 +283,7 @@ impl Ty {
 
     pub fn refine<T>(bty: BaseTy, exprs: T) -> Ty
     where
-        Interned<[Expr]>: From<T>,
+        List<Expr>: From<T>,
     {
         TyKind::Refine(bty, Interned::from(exprs)).intern()
     }
@@ -297,7 +359,7 @@ impl BaseTy {
 impl Substs {
     pub fn new<T>(tys: T) -> Substs
     where
-        Interned<[Ty]>: From<T>,
+        List<Ty>: From<T>,
     {
         Substs(Interned::from(tys))
     }
@@ -536,7 +598,7 @@ impl From<Expr> for Pred {
 impl Pred {
     pub fn infer<T>(kvars: T) -> Pred
     where
-        Interned<[KVar]>: From<T>,
+        List<KVar>: From<T>,
     {
         Pred::Infer(Interned::from(kvars))
     }
@@ -579,7 +641,7 @@ impl Pred {
 impl KVar {
     pub fn new<T>(kvid: KVid, args: T) -> Self
     where
-        Interned<[Expr]>: From<T>,
+        List<Expr>: From<T>,
     {
         KVar(kvid, Interned::from(args))
     }
@@ -608,7 +670,7 @@ impl From<Var> for Expr {
 impl Path {
     pub fn new<T>(loc: Loc, projection: T) -> Path
     where
-        Interned<[Field]>: From<T>,
+        List<Field>: From<T>,
     {
         Path { loc, projection: Interned::from(projection) }
     }
@@ -674,7 +736,7 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar]);
+impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar], [Constr], [Param]);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -753,8 +815,8 @@ mod pretty {
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit(_) => w!("uninit"),
                 TyKind::Ptr(loc) => w!("ptr({:?})", loc),
-                TyKind::Ref(RefMode::Mut, ty) => w!("&mut {:?}", ty),
-                TyKind::Ref(RefMode::Shr, ty) => w!("&{:?}", ty),
+                TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
+                TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
             }
         }

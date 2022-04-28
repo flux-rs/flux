@@ -1,265 +1,384 @@
-pub use rustc_ast::token::LitKind;
-pub use rustc_span::symbol::Ident;
-use rustc_span::Span;
+use std::fmt;
 
-use crate::ast::{self, Expr, GenericParam, Refine};
+pub use rustc_ast::token::LitKind;
+use rustc_ast::Mutability;
+use rustc_hir::def_id::DefId;
+pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
+pub use rustc_span::symbol::Ident;
+use rustc_span::{Span, Symbol};
 
 #[derive(Debug)]
-pub struct FnSig {
-    /// example: `l: i32@n`
-    pub requires: Vec<(Ident, Ty)>,
+pub struct Qualifier {
+    pub name: Ident,
+    pub args: Vec<Param>,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct StructDef<T = Ident> {
+    pub refined_by: Option<Params>,
+    pub fields: Vec<Option<Ty<T>>>,
+    pub opaque: bool,
+}
+
+#[derive(Debug)]
+pub struct EnumDef {
+    pub refined_by: Option<Params>,
+    pub opaque: bool,
+}
+
+#[derive(Debug)]
+pub struct Params {
+    pub params: Vec<Param>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub name: Ident,
+    pub sort: Ident,
+}
+
+#[derive(Debug)]
+pub struct FnSig<T = Ident> {
+    /// example: `requires n > 0`
+    pub requires: Option<Expr>,
+    /// example: `i32<@n>`
+    pub args: Vec<Arg<T>>,
     /// example `i32{v:v >= 0}`
-    pub returns: Ty,
-    /// example: `*x: i32{v:v = n+1}`
-    pub ensures: Vec<(Ident, Ty)>,
-    /// example: `where n > 0`
-    pub wherep: Option<Expr>,
+    pub returns: Ty<T>,
+    /// example: `*x: i32{v. v = n+1}`
+    pub ensures: Vec<(Ident, Ty<T>)>,
     /// source span
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct Ty {
-    pub kind: TyKind,
+pub enum Arg<T = Ident> {
+    /// example `a: i32{a > 0}`
+    Indexed(Ident, Path<T>, Option<Expr>),
+    /// example `v: &strg i32`
+    StrgRef(Ident, Ty<T>),
+    /// example `i32`
+    Ty(Ty<T>),
+}
+
+#[derive(Debug)]
+pub struct Ty<R = Ident> {
+    pub kind: TyKind<R>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum TyKind {
+pub enum TyKind<T = Ident> {
     /// ty
-    Base(Path),
+    Path(Path<T>),
 
     /// t[e]
-    Refine { path: Path, refine: Refine },
+    Indexed { path: Path<T>, indices: Indices },
 
     /// ty{b:e}
-    Exists { bind: Ident, path: Path, pred: Expr },
+    Exists { bind: Ident, path: Path<T>, pred: Expr },
 
-    /// ty{e}, the param binder is used e.g. x: i32{0 < x}
-    AnonEx { path: Path, pred: Expr },
+    /// Mutable or shared reference
+    Ref(RefKind, Box<Ty<T>>),
 
-    /// named: n@t
-    Named(Ident, Box<Ty>),
-
-    /// reference
-    Ref(RefKind, Box<Ty>),
+    /// Strong reference, &strg<self: i32>
+    StrgRef(Ident, Box<Ty<T>>),
 }
 
 #[derive(Debug)]
-pub struct Path {
-    /// vec
-    pub ident: Ident,
-    /// <nat>
-    pub args: Option<Vec<Ty>>,
+pub struct Indices {
+    pub indices: Vec<Index>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum RefKind {
-    Weak,
-    Mut,
-    Immut,
+pub enum Index {
+    /// @n
+    Bind(Ident),
+    Expr(Expr),
 }
 
-struct Desugar {
-    generics: Vec<ast::GenericParam>,
-    args: Vec<ast::Ty>,
-    reqs: Vec<(Ident, ast::Ty)>,
-}
-
-/// A `BindIn` is the information obtained from a single input-param binding
 #[derive(Debug)]
-struct BindIn {
-    gen: Option<GenericParam>,
-    ty: ast::Ty,
-    loc: Option<(Ident, ast::Ty)>,
+pub struct Path<R = Ident> {
+    /// e.g. vec
+    pub ident: R,
+    /// e.g. <nat>
+    pub args: Vec<Ty<R>>,
+    pub span: Span,
 }
 
-fn convert_path(p: Path) -> ast::Path {
-    ast::Path {
-        ident: p.ident,
-        span: p.span,
-        args: p.args.map(|ts| ts.into_iter().map(convert_ty).collect()),
+#[derive(Debug, Copy, Clone)]
+pub enum Res {
+    Bool,
+    Int(IntTy),
+    Uint(UintTy),
+    Float(FloatTy),
+    Adt(DefId),
+    Param(ParamTy),
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum RefKind {
+    Mut,
+    Shr,
+}
+
+#[derive(Debug)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum ExprKind {
+    Var(Ident),
+    Literal(Lit),
+    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+}
+
+#[derive(Debug)]
+pub struct Lit {
+    pub kind: LitKind,
+    pub symbol: Symbol,
+    pub span: Span,
+}
+
+#[derive(Copy, Clone)]
+pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Eq,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Add,
+    Sub,
+    Mod,
+    Mul,
+}
+
+impl Path<Res> {
+    pub fn is_bool(&self) -> bool {
+        matches!(self.ident, Res::Bool)
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self.ident, Res::Float(_))
     }
 }
 
-fn convert_tykind(t: TyKind) -> ast::TyKind {
-    match t {
-        TyKind::Base(p) => ast::TyKind::BaseTy(convert_path(p)),
-        TyKind::Exists { bind, path, pred } => {
-            ast::TyKind::Exists { bind, path: convert_path(path), pred }
-        }
-        TyKind::AnonEx { .. } => {
-            panic!("Unexpected input in convert_tykind!")
-        }
-        TyKind::Named(_, t) => {
-            let ty = convert_ty(*t);
-            ty.kind
-        }
-        TyKind::Ref(RefKind::Immut, t) => ast::TyKind::ShrRef(Box::new(convert_ty(*t))),
-        TyKind::Ref(_, t) => ast::TyKind::WeakRef(Box::new(convert_ty(*t))),
-        TyKind::Refine { path, refine } => {
-            let path = convert_path(path);
-            ast::TyKind::RefineTy { path, refine }
-        }
-    }
-}
-
-fn convert_ty(t: Ty) -> ast::Ty {
-    ast::Ty { kind: convert_tykind(t.kind), span: t.span }
-}
-
-fn is_bool(path: &Path) -> bool {
-    path.ident.as_str() == "bool"
-}
-
-// HACK(ranjitjhala) need better way to determine if Path is a Type-Param
-fn is_generic(path: &Path) -> bool {
-    let str = path.ident.as_str();
-    if let Some(c) = str.chars().next() {
-        c.is_uppercase() && str.len() == 1
-    } else {
-        false
-    }
-}
-
-fn is_float(path: &Path) -> bool {
-    path.ident.as_str() == "f32" || path.ident.as_str() == "f64"
-}
-
-fn is_refinable(path: &Path) -> bool {
-    !is_generic(path) && !is_float(path)
-}
-
-// HACK(ranjitjhala) need better way to "embed" rust types to sort
-fn mk_sort(path: &Path, span: Span) -> Ident {
-    let sort_name = if is_bool(path) { "bool" } else { "int" };
-    Ident { name: rustc_span::Symbol::intern(sort_name), span }
-}
-
-fn mk_singleton(x: Ident) -> ast::Refine {
-    let e = Expr { kind: ast::ExprKind::Var(x), span: x.span };
-    ast::Refine { exprs: vec![e], span: x.span }
-}
-
-fn mk_generic(x: Ident, path: &Path, pred: Option<Expr>) -> ast::GenericParam {
-    ast::GenericParam { name: x, sort: mk_sort(path, x.span), pred }
-}
-
-fn strengthen_pred(p: Option<Expr>, e: Expr) -> Expr {
-    match p {
-        None => e,
-        Some(pe) => {
-            let span = pe.span;
-            let kind = ast::ExprKind::BinaryOp(ast::BinOp::And, Box::new(pe), Box::new(e));
-            Expr { kind, span }
+impl<R> Arg<R> {
+    #[track_caller]
+    fn assert_ty(self) -> Ty<R> {
+        match self {
+            Arg::Ty(ty) => ty,
+            Arg::Indexed(..) | Arg::StrgRef(..) => panic!("not a type"),
         }
     }
 }
 
-impl BindIn {
-    fn from_path(x: Ident, single: bool, p: Path, span: Span, pred: Option<Expr>) -> BindIn {
-        if single && is_refinable(&p) {
-            let gen = Some(mk_generic(x, &p, pred));
-            let path = convert_path(p);
-            let refine = mk_singleton(x);
-            let kind = ast::TyKind::RefineTy { path, refine };
-            let ty = ast::Ty { kind, span };
-            BindIn { gen, ty, loc: None }
-        } else {
-            let path = convert_path(p);
-            let kind = ast::TyKind::BaseTy(path);
-            let ty = ast::Ty { kind, span };
-            BindIn { gen: None, ty, loc: None }
-        }
+impl Params {
+    pub fn empty(span: Span) -> Params {
+        Params { params: vec![], span }
     }
 
-    fn from_ty(x: Ident, single: bool, ty: Ty) -> BindIn {
-        match ty.kind {
-            TyKind::AnonEx { path, pred } => {
-                BindIn::from_path(x, single, path, ty.span, Some(pred))
-            }
-            TyKind::Base(path) => BindIn::from_path(x, single, path, ty.span, None),
-            TyKind::Refine { path, refine } => {
-                let path = convert_path(path);
-                let kind = ast::TyKind::RefineTy { path, refine };
-                let ty = ast::Ty { kind, span: ty.span };
-                BindIn { gen: None, ty, loc: None }
-            }
-            TyKind::Exists { bind, path, pred } => {
-                let path = convert_path(path);
-                let kind = ast::TyKind::Exists { bind, path, pred };
-                let ty = ast::Ty { kind, span: ty.span };
-                BindIn { gen: None, ty, loc: None }
-            }
-            TyKind::Named(n, t) => BindIn::from_ty(n, true, *t),
-            TyKind::Ref(RefKind::Mut, t) => {
-                let b = BindIn::from_ty(x, false, *t);
-                let ty = ast::Ty { kind: ast::TyKind::StrgRef(x), span: ty.span };
-                BindIn { gen: b.gen, ty, loc: Some((x, b.ty)) }
-            }
-            TyKind::Ref(RefKind::Immut, t) => {
-                let b = BindIn::from_ty(x, false, *t);
-                let ty = ast::Ty { kind: ast::TyKind::ShrRef(Box::new(b.ty)), span: ty.span };
-                BindIn { gen: b.gen, ty, loc: None }
-            }
-            TyKind::Ref(RefKind::Weak, t) => {
-                let b = BindIn::from_ty(x, false, *t);
-                let ty = ast::Ty { kind: ast::TyKind::WeakRef(Box::new(b.ty)), span: ty.span };
-                BindIn { gen: b.gen, ty, loc: None }
-            }
+    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+        self.params.iter()
+    }
+}
+
+impl IntoIterator for Params {
+    type Item = Param;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.params.into_iter()
+    }
+}
+
+impl fmt::Debug for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Iff => write!(f, "<=>"),
+            BinOp::Imp => write!(f, "=>"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Ge => write!(f, ">="),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mod => write!(f, "mod"),
+            BinOp::Mul => write!(f, "*"),
         }
     }
 }
 
-impl Desugar {
-    fn desugar_inputs(&mut self, in_sigs: Vec<(Ident, Ty)>) {
-        for (x, ty) in in_sigs {
-            let b_in = BindIn::from_ty(x, true, ty);
-            if let Some(g) = b_in.gen {
-                self.generics.push(g);
-            }
-            if let Some(l) = b_in.loc {
-                self.reqs.push(l);
-            }
-            self.args.push(b_in.ty);
+// ---------------------------------------------------------------------------
+// -------------------------- DEFAULT Signatures -----------------------------
+// ---------------------------------------------------------------------------
+
+fn default_refkind(m: &Mutability) -> RefKind {
+    match m {
+        Mutability::Mut => RefKind::Mut,
+        Mutability::Not => RefKind::Shr,
+    }
+}
+
+fn default_path(ty: rustc_middle::ty::Ty) -> Path<Res> {
+    let (ident, args) = match ty.kind() {
+        rustc_middle::ty::TyKind::Bool => (Res::Bool, vec![]),
+        rustc_middle::ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), vec![]),
+        rustc_middle::ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), vec![]),
+        rustc_middle::ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), vec![]),
+        rustc_middle::ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), vec![]),
+        rustc_middle::ty::TyKind::Adt(adt, substs) => {
+            let substs = substs.types().map(default_ty).collect();
+            (Res::Adt(adt.did), substs)
+        }
+        _ => todo!("`{ty:?}`"),
+    };
+    Path { ident, args, span: rustc_span::DUMMY_SP }
+}
+
+fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
+    let kind = match ty.kind() {
+        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
+            let ref_kind = default_refkind(m);
+            let tgt_ty = default_ty(*ty);
+            TyKind::Ref(ref_kind, Box::new(tgt_ty))
+        }
+        _ => TyKind::Path(default_path(ty)),
+    };
+    Ty { kind, span: rustc_span::DUMMY_SP }
+}
+
+pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
+    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
+    let args = rust_sig
+        .inputs()
+        .iter()
+        .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
+        .collect();
+    let returns = default_ty(rust_sig.output());
+    FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
+}
+
+pub mod zip {
+
+    use std::{collections::HashMap, iter};
+
+    use itertools::Itertools;
+    use rustc_span::Symbol;
+
+    use super::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
+
+    type Locs = HashMap<Symbol, Ty<Res>>;
+
+    /// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
+    /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
+    pub fn zip_bare_def(b_sig: FnSig, d_sig: FnSig<Res>) -> FnSig<Res> {
+        let mut locs: Locs = HashMap::new();
+        let default_args = d_sig.args.into_iter().map(|arg| arg.assert_ty()).collect();
+        FnSig {
+            args: zip_args(b_sig.args, default_args, &mut locs),
+            returns: zip_ty(b_sig.returns, &d_sig.returns),
+            ensures: zip_ty_locs(b_sig.ensures, &locs),
+            requires: b_sig.requires,
+            span: b_sig.span,
         }
     }
 
-    pub fn desugar(ssig: FnSig) -> ast::FnSig {
-        let mut me = Self { generics: vec![], args: vec![], reqs: vec![] };
-
-        // walk over the input types
-        me.desugar_inputs(ssig.requires);
-
-        // Add the "where" clause to the last GenericParam
-        if let Some(e) = ssig.wherep {
-            if let Some(mut g) = me.generics.pop() {
-                g.pred = Some(strengthen_pred(g.pred, e));
-                me.generics.push(g);
+    /// `zip_ty_locs` traverses the bare-outputs and zips with the location-types saved in `locs`
+    fn zip_ty_locs(bindings: Vec<(Ident, Ty)>, locs: &Locs) -> Vec<(Ident, Ty<Res>)> {
+        let mut res = vec![];
+        for (ident, ty) in bindings {
+            if let Some(default) = locs.get(&ident.name) {
+                let dt = zip_ty(ty, default);
+                res.push((ident, dt))
             } else {
-                panic!("'where' clause without generic params! {:?}", e.span);
+                panic!("missing location type for `{}`", ident)
             }
         }
+        res
+    }
 
-        // translate the output store
-        let ensures = ssig
-            .ensures
-            .into_iter()
-            .map(|(x, ty)| (x, convert_ty(ty)))
+    /// `zip_ty_binds` traverses the inputs `bs` and `ds` and
+    /// saves the types of the references in `locs`
+    fn zip_args(binds: Vec<Arg>, defaults: Vec<Ty<Res>>, locs: &mut Locs) -> Vec<Arg<Res>> {
+        if binds.len() != defaults.len() {
+            panic!(
+                "bind count mismatch, expected: {:?},  found: {:?}",
+                binds.len(),
+                defaults.len()
+            );
+        }
+        let binds = iter::zip(binds, &defaults)
+            .map(|(arg, default)| zip_arg(arg, default))
+            .collect_vec();
+        for (arg, default) in iter::zip(&binds, defaults) {
+            if let (Arg::StrgRef(bind, _), TyKind::Ref(RefKind::Mut, default)) = (arg, default.kind)
+            {
+                locs.insert(bind.name, *default);
+            }
+        }
+        binds
+    }
+
+    fn zip_arg(arg: Arg, default: &Ty<Res>) -> Arg<Res> {
+        match (arg, &default.kind) {
+            (Arg::Ty(ty), _) => Arg::Ty(zip_ty(ty, default)),
+            (Arg::Indexed(bind, path, pred), TyKind::Path(default)) => {
+                Arg::Indexed(bind, zip_path(path, default), pred)
+            }
+            (Arg::StrgRef(bind, ty), TyKind::Ref(RefKind::Mut, default)) => {
+                Arg::StrgRef(bind, zip_ty(ty, default))
+            }
+            _ => panic!("incompatible types `{default:?}`"),
+        }
+    }
+
+    fn zip_ty(ty: Ty, default: &Ty<Res>) -> Ty<Res> {
+        let kind = match (ty.kind, &default.kind) {
+            (TyKind::Path(path), TyKind::Path(default)) => TyKind::Path(zip_path(path, default)),
+            (TyKind::Indexed { path, indices }, TyKind::Path(default)) => {
+                TyKind::Indexed { path: zip_path(path, default), indices }
+            }
+            (TyKind::Exists { bind, path, pred }, TyKind::Path(default)) => {
+                TyKind::Exists { bind, path: zip_path(path, default), pred }
+            }
+            (TyKind::StrgRef(loc, ty), TyKind::Ref(RefKind::Mut, default)) => {
+                TyKind::StrgRef(loc, Box::new(zip_ty(*ty, default)))
+            }
+            (TyKind::Ref(rk, ty), TyKind::Ref(default_rk, default)) if rk == *default_rk => {
+                TyKind::Ref(rk, Box::new(zip_ty(*ty, default)))
+            }
+            _ => panic!("incompatible types `{default:?}`"),
+        };
+        Ty { kind, span: ty.span }
+    }
+
+    fn zip_path(path: Path, default: &Path<Res>) -> Path<Res> {
+        if path.args.len() != default.args.len() {
+            panic!(
+                "argument count mismatch, expected: {:?},  found: {:?}",
+                default.args.len(),
+                path.args.len()
+            );
+        }
+        let args = iter::zip(path.args, &default.args)
+            .map(|(ty, default)| zip_ty(ty, default))
             .collect();
 
-        ast::FnSig {
-            generics: ast::Generics { params: me.generics, span: ssig.span },
-            args: me.args,
-            requires: me.reqs,
-            ret: convert_ty(ssig.returns),
-            ensures,
-            span: ssig.span,
-        }
+        Path { ident: default.ident, args, span: path.span }
     }
-}
-
-pub fn desugar(ssig: FnSig) -> ast::FnSig {
-    Desugar::desugar(ssig)
 }

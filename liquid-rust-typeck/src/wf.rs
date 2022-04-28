@@ -1,13 +1,14 @@
-use liquid_rust_common::{errors::ErrorReported, iter::IterExt};
-use liquid_rust_core::ty as core;
+use liquid_rust_common::iter::IterExt;
+use liquid_rust_core::ty::{self as core, AdtSortsMap};
+use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
 
 use crate::{lowering::lower_sort, ty};
 
-pub struct Wf<'a> {
+pub struct Wf<'a, T> {
     sess: &'a Session,
-    adt_defs: &'a core::AdtDefs,
+    adt_sorts: &'a T,
 }
 
 struct Env {
@@ -43,9 +44,9 @@ impl std::ops::Index<&'_ core::Var> for Env {
     }
 }
 
-impl Wf<'_> {
-    pub fn new<'a>(sess: &'a Session, adt_defs: &'a core::AdtDefs) -> Wf<'a> {
-        Wf { sess, adt_defs }
+impl<T: AdtSortsMap> Wf<'_, T> {
+    pub fn new<'a>(sess: &'a Session, refined_by: &'a T) -> Wf<'a, T> {
+        Wf { sess, adt_sorts: refined_by }
     }
 
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorReported> {
@@ -106,14 +107,14 @@ impl Wf<'_> {
 
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
-            core::Ty::Refine(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
+            core::Ty::Indexed(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
             core::Ty::Exists(bty, pred) => {
                 env.with_bound_var(self.sorts(bty), |env| {
                     self.check_pred(env, pred, ty::Sort::bool())
                 })
             }
-            core::Ty::StrgRef(loc) => self.check_loc(env, *loc),
-            core::Ty::WeakRef(ty) | core::Ty::ShrRef(ty) => self.check_type(env, ty),
+            core::Ty::Ptr(loc) => self.check_loc(env, *loc),
+            core::Ty::Ref(_, ty) => self.check_type(env, ty),
             core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
         }
     }
@@ -121,7 +122,7 @@ impl Wf<'_> {
     fn check_refine(
         &self,
         env: &Env,
-        refine: &core::Refine,
+        refine: &core::Indices,
         expected: Vec<ty::Sort>,
     ) -> Result<(), ErrorReported> {
         let found = self.synth_refine(env, refine)?;
@@ -187,7 +188,7 @@ impl Wf<'_> {
     fn synth_refine(
         &self,
         env: &Env,
-        refine: &core::Refine,
+        refine: &core::Indices,
     ) -> Result<Vec<ty::Sort>, ErrorReported> {
         let sorts: Vec<ty::Sort> = refine
             .exprs
@@ -249,11 +250,8 @@ impl Wf<'_> {
             core::BaseTy::Uint(_) => vec![ty::Sort::int()],
             core::BaseTy::Bool => vec![ty::Sort::bool()],
             core::BaseTy::Adt(def_id, _) => {
-                if let Some(def) = def_id.as_local().and_then(|did| self.adt_defs.get(did)) {
-                    def.refined_by()
-                        .iter()
-                        .map(|param| lower_sort(param.sort))
-                        .collect()
+                if let Some(params) = self.adt_sorts.get(*def_id) {
+                    params.iter().map(|sort| lower_sort(*sort)).collect()
                 } else {
                     vec![]
                 }
@@ -261,7 +259,7 @@ impl Wf<'_> {
         }
     }
 
-    fn emit_err<'a, T>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorReported> {
+    fn emit_err<'a, R>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<R, ErrorReported> {
         self.sess.emit_err(err);
         Err(ErrorReported)
     }

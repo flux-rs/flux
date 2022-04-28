@@ -20,6 +20,7 @@ pub enum Token {
     Comma,
     Semi,
     RArrow,
+    Dot,
     Lt,
     Le,
     Gt,
@@ -30,6 +31,8 @@ pub enum Token {
     FatArrow,
     Mut,
     Where,
+    Requires,
+    Ensures,
     Literal(Lit),
     Ident(Symbol),
     OpenDelim(DelimToken),
@@ -38,7 +41,7 @@ pub enum Token {
     Ref,
     And,
     Percent,
-    Weak,
+    Strg,
 }
 
 pub(crate) struct Cursor {
@@ -50,7 +53,9 @@ pub(crate) struct Cursor {
 struct Symbols {
     fn_: Symbol,
     ref_: Symbol,
-    weak: Symbol,
+    requires: Symbol,
+    ensures: Symbol,
+    strg: Symbol,
 }
 
 struct Frame {
@@ -69,7 +74,9 @@ impl Cursor {
             symbs: Symbols {
                 fn_: Symbol::intern("fn"),
                 ref_: Symbol::intern("ref"),
-                weak: Symbol::intern("weak"),
+                strg: Symbol::intern("strg"),
+                requires: Symbol::intern("requires"),
+                ensures: Symbol::intern("ensures"),
             },
         }
     }
@@ -90,6 +97,7 @@ impl Cursor {
             TokenKind::Colon => Token::Colon,
             TokenKind::Semi => Token::Semi,
             TokenKind::RArrow => Token::RArrow,
+            TokenKind::Dot => Token::Dot,
             TokenKind::OpenDelim(delim) => Token::OpenDelim(delim),
             TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
             TokenKind::Literal(lit) if lit.suffix.is_none() => Token::Literal(lit),
@@ -98,7 +106,9 @@ impl Cursor {
             }
             TokenKind::Ident(symb, _) if symb == self.symbs.ref_ => Token::Ref,
             TokenKind::Ident(symb, _) if symb == self.symbs.fn_ => Token::Fn,
-            TokenKind::Ident(symb, _) if symb == self.symbs.weak => Token::Weak,
+            TokenKind::Ident(symb, _) if symb == self.symbs.strg => Token::Strg,
+            TokenKind::Ident(symb, _) if symb == self.symbs.requires => Token::Requires,
+            TokenKind::Ident(symb, _) if symb == self.symbs.ensures => Token::Ensures,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) => Token::Ident(symb),

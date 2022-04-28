@@ -258,6 +258,8 @@ pub struct Interned<T: Internable + ?Sized> {
     arc: Arc<T>,
 }
 
+pub type List<T> = Interned<[T]>;
+
 impl<T: Internable> Interned<T> {
     pub fn new(obj: T) -> Self {
         match Interned::lookup(&obj) {
