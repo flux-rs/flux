@@ -70,7 +70,6 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
-        // ORIG self.adt_defs[&def_id].clone()
         match self.adt_defs.get(&def_id) {
             Some(adt_def) => adt_def.clone(),
             None => default_adt_def(),
