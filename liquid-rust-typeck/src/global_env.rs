@@ -24,6 +24,10 @@ pub struct GlobalEnv<'tcx> {
     adt_defs: FxHashMap<DefId, ty::AdtDef>,
 }
 
+fn default_adt_def() -> ty::AdtDef {
+    ty::AdtDef::Opaque { refined_by: crate::intern::Interned::from(vec![]) }
+}
+
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         GlobalEnv {
@@ -67,10 +71,10 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
         // ORIG self.adt_defs[&def_id].clone()
-        self.adt_defs
-            .get(&def_id)
-            .unwrap_or_else(|| panic!("Unknown adt: {:?}", def_id))
-            .clone()
+        match self.adt_defs.get(&def_id) {
+            Some(adt_def) => adt_def.clone(),
+            None => default_adt_def(),
+        }
     }
 
     pub fn sorts(&self, bty: &BaseTy) -> Vec<Sort> {

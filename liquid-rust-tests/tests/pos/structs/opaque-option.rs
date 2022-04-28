@@ -18,24 +18,3 @@ pub fn test() -> i32 {
     let opt = MyOption::some(1);
     opt.unwrap()
 }
-
-#[lr::assume]
-#[lr::sig(fn(T) -> Option<T>)]
-fn some<T>(x: T) -> Option<T> {
-    Option::Some(x)
-}
-
-#[lr::assume]
-#[lr::sig(fn(Option<T>) -> T)]
-fn unwrap<T>(x: Option<T>) -> T {
-    match x {
-        Some(v) => v,
-        None => panic!("ohh"),
-    }
-}
-
-#[lr::sig(fn() -> i32[1])]
-pub fn test2() -> i32 {
-    let opt = some(1);
-    opt.unwrap()
-}
