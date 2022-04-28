@@ -25,7 +25,7 @@ pub struct GlobalEnv<'tcx> {
 }
 
 fn default_adt_def() -> ty::AdtDef {
-    ty::AdtDef::Opaque { refined_by: crate::intern::Interned::from(vec![]) }
+    ty::AdtDef::Opaque { refined_by: crate::intern::List::from(vec![]) }
 }
 
 impl<'tcx> GlobalEnv<'tcx> {
