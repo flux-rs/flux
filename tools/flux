@@ -1,0 +1,124 @@
+#!/usr/bin/env stack
+-- stack --resolver lts-18.10 script
+
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+
+import           System.Directory.Internal.Prelude (getArgs)
+import Text.Printf (printf)
+import GHCi.Message (Message(CreateBCOs))
+import System.Process
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString as B
+import qualified Data.Maybe as Mb
+import           Data.Aeson hiding (Error)
+import           GHC.Generics
+import qualified Data.Maybe as Mb
+import qualified Data.Text.Lazy.Encoding as LT
+import qualified Data.Text.Lazy as LT
+import qualified Data.Map as M
+import System.FilePath
+
+main :: IO ()
+main = do
+  [inFile] <- getArgs
+  let outFile = mkOutFile inFile
+  -- putStrLn  (printf "Target: %s, Outfile: %s" inFile outFile)
+  (_, Just out, Just err, _) <- createProcess (fluxProc inFile) { std_out = CreatePipe , std_err = CreatePipe }
+  res <- B.hGetContents err
+  -- print res
+  let ls = T.lines (T.decodeUtf8 res)
+  -- print ls
+  let ls' = [ l | l <- ls, T.isInfixOf "error[LIQUID]" l ]
+  -- print ls'
+  let jIns = [ e | l <- ls', e <- Mb.maybeToList (tDecode l) ]
+  -- print jIns
+  let jOut = convert jIns
+  encodeFile outFile jOut
+
+mkOutFile :: FilePath -> FilePath
+mkOutFile inFile = inFile ++ ".json"
+
+tDecode :: T.Text -> Maybe JIn
+tDecode = decode . LT.encodeUtf8 . LT.fromStrict
+
+fluxProc :: FilePath -> CreateProcess
+fluxProc file = proc fluxCmd (fluxFlags ++ [file])
+  where
+    fluxCmd :: String
+    fluxCmd = "liquid-rust"
+    fluxFlags :: [String]
+    fluxFlags = ["--crate-type=rlib", "--error-format=json"]
+
+-------------------------------------------------------------------------
+-- | Output JSON to `server`
+-------------------------------------------------------------------------
+
+data Status = Safe | Unsafe | Crash | Error
+  deriving (Generic)
+data Error  = MkError { message :: T.Text, start :: Pos, stop :: Pos }
+  deriving (Generic)
+data Pos    = MkPos { line :: Int, column :: Int}
+  deriving (Generic)
+data JOut   = MkOut { status :: Status, errors :: [Error], types :: M.Map Int Int }
+  deriving (Generic)
+
+instance ToJSON Error where
+  toEncoding = genericToEncoding defaultOptions
+
+instance ToJSON Status where
+  toJSON Safe   = String "safe"
+  toJSON Unsafe = String "unsafe"
+  toJSON Crash  = String "crash"
+  toJSON Error  = String "error"
+  -- toEncoding = FIXME ---genericToEncoding defaultOptions
+
+instance ToJSON Pos where
+  toEncoding = genericToEncoding defaultOptions
+
+instance ToJSON JOut where
+  toEncoding = genericToEncoding defaultOptions
+
+
+convert :: [JIn] -> JOut
+convert []   = MkOut Safe   [] 			mempty
+convert jIns = MkOut Unsafe (convert1 <$> jIns) mempty
+
+convert1 :: JIn -> Error
+convert1 jIn = MkError msg (mkStart sps) (mkStop sps)
+  where
+    msg      = message_in jIn
+    sps      = spans jIn
+
+mkStart :: [Span] -> Pos
+mkStart [sp] = MkPos (line_start sp) (column_start sp)
+
+mkStop :: [Span] -> Pos
+mkStop [sp] = MkPos (line_end sp) (column_end sp)
+
+
+
+-- { "status":"error"
+-- , "types" : {}
+-- , "errors":[{"message":"Crash: Type ErrorsTC-ERROR Type identifier 'strin' unbound"
+--             ,"stop"   :{"column":31,"line":1}
+--             ,"start"  :{"column":25,"line":1}}
+--            ]
+-- }
+
+-------------------------------------------------------------------------
+-- | Input JSON from `flux`
+-------------------------------------------------------------------------
+data JIn    = MkIn { message_in :: T.Text, spans :: [Span] }
+  deriving (Generic, Show)
+
+data Span   = MkSpan { line_start :: Int, column_start :: Int, line_end :: Int, column_end :: Int }
+  deriving (Generic, Show)
+
+instance FromJSON JIn where
+  parseJSON = withObject "JIn" $ \v -> MkIn
+    <$> v .: "message"
+    <*> v .: "spans"
+
+instance FromJSON Span where
