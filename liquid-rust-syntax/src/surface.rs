@@ -1,5 +1,6 @@
 use std::fmt;
 
+pub use liquid_rust_common::config::AssertBehaviorOptions;
 pub use rustc_ast::token::LitKind;
 use rustc_ast::Mutability;
 use rustc_hir::def_id::DefId;
@@ -12,6 +13,12 @@ pub struct Qualifier {
     pub name: Ident,
     pub args: Vec<Param>,
     pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct AssertBehavior {
+    pub option: AssertBehaviorOptions,
     pub span: Span,
 }
 

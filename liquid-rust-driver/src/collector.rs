@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface, ParseErrorKind,
-    ParseResult,
+    parse_assert_behavior, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    surface, ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_errors::ErrorReported;
@@ -28,6 +28,7 @@ pub(crate) struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
     pub adts: FxHashMap<LocalDefId, surface::AdtDef>,
     pub qualifs: Vec<surface::Qualifier>,
+    pub assert_behavior: Option<surface::AssertBehavior>,
 }
 
 pub(crate) struct FnSpec {
@@ -97,6 +98,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorReported> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         let mut qualifiers = attrs.qualifiers();
+        let assert_behavior = attrs.assert_behavior();
+        self.specs.assert_behavior = assert_behavior;
         self.specs.qualifs.append(&mut qualifiers);
         Ok(())
     }
@@ -144,6 +147,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 LiquidAttrKind::Qualifier(qualifer)
+            }
+            ("assert_behavior", MacArgs::Delimited(span, _, tokens)) => {
+                let assert_behavior =
+                    self.parse(tokens.clone(), span.entire(), parse_assert_behavior)?;
+                LiquidAttrKind::AssertBehavior(assert_behavior)
             }
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
                 let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
@@ -237,7 +245,12 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
 
 impl Specs {
     fn new() -> Specs {
-        Specs { fns: FxHashMap::default(), adts: FxHashMap::default(), qualifs: Vec::default() }
+        Specs {
+            fns: FxHashMap::default(),
+            adts: FxHashMap::default(),
+            qualifs: Vec::default(),
+            assert_behavior: None,
+        }
     }
 }
 
@@ -260,6 +273,7 @@ enum LiquidAttrKind {
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
     Field(surface::Ty),
+    AssertBehavior(surface::AssertBehavior),
 }
 
 macro_rules! read_attr {
@@ -325,6 +339,10 @@ impl LiquidAttrs {
     fn field(&mut self) -> Option<surface::Ty> {
         read_attr!(self, "field", Field)
     }
+
+    fn assert_behavior(&mut self) -> Option<surface::AssertBehavior> {
+        read_attr!(self, "assert_behavior", AssertBehavior)
+    }
 }
 
 impl LiquidAttrKind {
@@ -336,6 +354,7 @@ impl LiquidAttrKind {
             LiquidAttrKind::RefinedBy(_) => "refined_by",
             LiquidAttrKind::Qualifier(_) => "qualifier",
             LiquidAttrKind::Field(_) => "field",
+            LiquidAttrKind::AssertBehavior(_) => "assert_behavior",
         }
     }
 }
