@@ -26,7 +26,7 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
-use liquid_rust_common::index::IndexVec;
+use liquid_rust_common::{config::AssertBehaviorOptions, index::IndexVec};
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -398,16 +398,33 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         expected: bool,
         target: BasicBlock,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let cond_ty = self.check_operand(pcx, env, cond);
+        match self.genv.assert_behavior() {
+            AssertBehaviorOptions::Ignore => Ok(vec![(target, None)]),
+            AssertBehaviorOptions::Assume => {
+                let cond_ty = self.check_operand(pcx, env, cond);
+                let pred = match cond_ty.kind() {
+                    TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
+                    _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
+                };
 
-        let pred = match cond_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
-            _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
-        };
+                let assert = if expected { pred } else { pred.not() };
+                Ok(vec![(target, Some(assert))])
+            }
+            AssertBehaviorOptions::Check => {
+                let cond_ty = self.check_operand(pcx, env, cond);
 
-        let assert = if expected { pred } else { pred.not() };
+                let pred = match cond_ty.kind() {
+                    TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
+                    _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
+                };
 
-        Ok(vec![(target, Some(assert))])
+                let assert = if expected { pred } else { pred.not() };
+                let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
+                gen.check_pred(assert.clone());
+
+                Ok(vec![(target, Some(assert))])
+            }
+        }
     }
 
     fn check_switch_int(

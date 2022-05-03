@@ -91,6 +91,12 @@ impl<'tcx> CrateChecker<'tcx> {
             })
             .try_collect_exhaust()?;
 
+        // Assert behavior
+        let assert_behavior = specs.assert_behavior;
+        assert_behavior.map(|annotation| {
+            genv.register_assert_behavior(annotation.option);
+        });
+
         // Adt definitions
         specs
             .structs

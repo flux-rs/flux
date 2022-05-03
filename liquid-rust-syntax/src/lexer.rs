@@ -42,6 +42,9 @@ pub enum Token {
     And,
     Percent,
     Strg,
+    Ignore,
+    Assume,
+    Check,
 }
 
 pub(crate) struct Cursor {
@@ -56,6 +59,9 @@ struct Symbols {
     requires: Symbol,
     ensures: Symbol,
     strg: Symbol,
+    ignore: Symbol,
+    assume: Symbol,
+    check: Symbol,
 }
 
 struct Frame {
@@ -77,6 +83,9 @@ impl Cursor {
                 strg: Symbol::intern("strg"),
                 requires: Symbol::intern("requires"),
                 ensures: Symbol::intern("ensures"),
+                ignore: Symbol::intern("ignore"),
+                assume: Symbol::intern("assume"),
+                check: Symbol::intern("check"),
             },
         }
     }
@@ -109,6 +118,9 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == self.symbs.strg => Token::Strg,
             TokenKind::Ident(symb, _) if symb == self.symbs.requires => Token::Requires,
             TokenKind::Ident(symb, _) if symb == self.symbs.ensures => Token::Ensures,
+            TokenKind::Ident(symb, _) if symb == self.symbs.ignore => Token::Ignore,
+            TokenKind::Ident(symb, _) if symb == self.symbs.assume => Token::Assume,
+            TokenKind::Ident(symb, _) if symb == self.symbs.check => Token::Check,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
