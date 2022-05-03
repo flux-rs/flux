@@ -51,7 +51,10 @@ pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::
     parse!(surface_grammar::QualifierParser, tokens, span)
 }
 
-pub fn parse_assert_behavior(tokens: TokenStream, span: Span) -> ParseResult<surface::AssertBehavior> {
+pub fn parse_assert_behavior(
+    tokens: TokenStream,
+    span: Span,
+) -> ParseResult<surface::AssertBehavior> {
     parse!(surface_grammar::AssertBehaviorParser, tokens, span)
 }
 
