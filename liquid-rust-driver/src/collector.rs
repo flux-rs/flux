@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface, ParseErrorKind,
-    ParseResult,
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
+    ParseErrorKind, ParseResult,
 };
 use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
 use rustc_errors::ErrorReported;
@@ -152,9 +152,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
+            ("alias", MacArgs::Delimited(span, _, tokens)) => {
+                let ty_alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
+                println!("DEF: {:?}", ty_alias);
+                LiquidAttrKind::TypeAlias(ty_alias)
+            }
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
-                // print!("LR::SIG {:#?} \n", fn_sig);
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
@@ -285,6 +289,7 @@ enum LiquidAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
+    TypeAlias(surface::Alias),
     Field(surface::Ty),
 }
 
@@ -362,6 +367,7 @@ impl LiquidAttrKind {
             LiquidAttrKind::RefinedBy(_) => "refined_by",
             LiquidAttrKind::Qualifier(_) => "qualifier",
             LiquidAttrKind::Field(_) => "field",
+            LiquidAttrKind::TypeAlias(_) => "type",
         }
     }
 }

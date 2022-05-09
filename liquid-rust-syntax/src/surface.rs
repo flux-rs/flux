@@ -16,6 +16,14 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
+pub struct Alias<T = Ident> {
+    pub name: Ident,
+    pub args: Vec<Ident>,
+    pub defn: Ty<T>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct StructDef<T = Ident> {
     pub refined_by: Option<Params>,
     pub fields: Vec<Option<Ty<T>>>,

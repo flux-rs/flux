@@ -11,6 +11,7 @@ use rustc_span::{symbol::kw, BytePos, Symbol};
 pub enum Token {
     Caret,
     EqEq,
+    Eq,
     AndAnd,
     OrOr,
     Plus,
@@ -27,6 +28,7 @@ pub enum Token {
     Ge,
     At,
     Fn,
+    Type,
     Iff,
     FatArrow,
     Mut,

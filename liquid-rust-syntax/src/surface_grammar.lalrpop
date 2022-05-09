@@ -8,6 +8,17 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
+pub Alias: surface::Alias = {
+  <lo:@L>
+    <name:Ident>
+    "<" <args:Comma<Ident>> ">"
+    "->"
+    <defn:Ty>
+    <hi:@R> => {
+        surface::Alias { name, args: vec![], defn, span: mk_span(lo, hi) }
+    }
+}
+
 pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
 }
@@ -224,9 +235,11 @@ extern {
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
+        "type" => Token::Type,
         "ref" => Token::Ref,
         "@"  => Token::At,
         "==" => Token::EqEq,
+        "="  => Token::Eq,
         "&&" => Token::AndAnd,
         "||" => Token::OrOr,
         "=>" => Token::FatArrow,
