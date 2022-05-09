@@ -130,15 +130,10 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_to_match(
-        &mut self,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        other: &PathsTree,
-    ) {
+    pub fn fold_unfold_with(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_to_match(genv, pcx, node2);
+                node1.fold_unfold_with(genv, pcx, node2);
             }
         }
     }
@@ -265,7 +260,7 @@ impl Node {
         }
     }
 
-    fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &Node) {
+    fn fold_unfold_with(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(_, _), Node::Ty(_)) => {
@@ -277,7 +272,7 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_to_match(genv, pcx, field2);
+            field1.fold_unfold_with(genv, pcx, field2);
         }
     }
 
@@ -363,19 +358,7 @@ fn ty_infer_folding(
                 expr_infer_folding(params, e1, e2);
             }
         }
-        (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
-            bty_infer_folding(genv, pcx, params, bty1, bty2);
-            let sorts = genv.sorts(bty1);
-            let exprs1 = pcx.push_bindings(&sorts, p);
-            for (e1, e2) in iter::zip(exprs1, exprs2) {
-                expr_infer_folding(params, &e1, e2)
-            }
-        }
-        (TyKind::Exists(..), TyKind::Exists(..)) => todo!(),
-        (TyKind::Refine(..), TyKind::Exists(..)) => todo!(),
-        (TyKind::Ptr(_), TyKind::Ptr(_)) => {
-            todo!()
-        }
+        (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
         (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
             ty_infer_folding(genv, pcx, params, ty1, ty2);
         }
