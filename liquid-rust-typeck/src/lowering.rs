@@ -1,6 +1,6 @@
-use crate::ty::{self, Path};
+use crate::ty::{self, Path, VariantDef};
 use itertools::Itertools;
-use liquid_rust_common::index::IndexGen;
+use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
@@ -55,7 +55,8 @@ impl LoweringCtxt {
                     .iter()
                     .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
                     .collect_vec();
-                ty::AdtDef::transparent(refined_by, fields)
+                let variants = vec![VariantDef::new(fields)];
+                ty::AdtDef::transparent(refined_by, IndexVec::from_raw(variants))
             }
             core::AdtDef::Opaque { .. } => ty::AdtDef::opaque(refined_by),
         }
