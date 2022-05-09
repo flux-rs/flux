@@ -258,7 +258,7 @@ impl TypeEnv {
         tag: Tag,
     ) {
         self.bindings
-            .fold_unfold_to_match(genv, pcx, &bb_env.env.bindings);
+            .fold_unfold_with(genv, pcx, &bb_env.env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
