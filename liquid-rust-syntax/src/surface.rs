@@ -227,6 +227,17 @@ impl fmt::Debug for BinOp {
 // -------------------------- DEFAULT Signatures -----------------------------
 // ---------------------------------------------------------------------------
 
+pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
+    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
+    let args = rust_sig
+        .inputs()
+        .iter()
+        .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
+        .collect();
+    let returns = default_ty(rust_sig.output());
+    FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
+}
+
 fn default_refkind(m: &Mutability) -> RefKind {
     match m {
         Mutability::Mut => RefKind::Mut,
@@ -260,17 +271,6 @@ fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
         _ => TyKind::Path(default_path(ty)),
     };
     Ty { kind, span: rustc_span::DUMMY_SP }
-}
-
-pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
-    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
-    let args = rust_sig
-        .inputs()
-        .iter()
-        .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
-        .collect();
-    let returns = default_ty(rust_sig.output());
-    FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
 }
 
 pub mod zip {

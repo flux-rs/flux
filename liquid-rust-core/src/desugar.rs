@@ -1,6 +1,9 @@
 use std::iter;
 
-use liquid_rust_common::{index::IndexGen, iter::IterExt};
+use liquid_rust_common::{
+    index::{IndexGen, IndexVec},
+    iter::IterExt,
+};
 use liquid_rust_syntax::surface::{self, Res};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
@@ -9,7 +12,7 @@ use rustc_span::{sym, symbol::kw, Symbol};
 
 use crate::ty::{
     AdtDef, AdtSortsMap, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param,
-    Pred, Qualifier, Sort, Ty, Var,
+    Pred, Qualifier, Sort, Ty, Var, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -49,7 +52,8 @@ pub fn desugar_struct_def(
             .into_iter()
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
-        Ok(AdtDef::Transparent { refined_by: cx.params.params, fields })
+        let variants = IndexVec::from_raw(vec![VariantDef::new(fields)]);
+        Ok(AdtDef::Transparent { refined_by: cx.params.params, variants })
     }
 }
 

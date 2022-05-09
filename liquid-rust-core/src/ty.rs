@@ -2,12 +2,13 @@ use core::fmt;
 use std::fmt::Write;
 
 use itertools::Itertools;
-use liquid_rust_common::format::PadAdapter;
+use liquid_rust_common::{format::PadAdapter, index::IndexVec};
 pub use liquid_rust_syntax::surface::{BinOp, RefKind};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
+pub use rustc_target::abi::VariantIdx;
 
 pub trait AdtSortsMap {
     fn get(&self, def_id: DefId) -> Option<&[Sort]>;
@@ -15,8 +16,13 @@ pub trait AdtSortsMap {
 
 #[derive(Debug)]
 pub enum AdtDef {
-    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
+    Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
     Opaque { refined_by: Vec<Param> },
+}
+
+#[derive(Debug)]
+pub struct VariantDef {
+    pub fields: Vec<Ty>,
 }
 
 pub struct FnSig {
@@ -163,6 +169,12 @@ impl AdtDef {
 
     pub fn sorts(&self) -> Vec<Sort> {
         self.refined_by().iter().map(|param| param.sort).collect()
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>) -> Self {
+        Self { fields }
     }
 }
 

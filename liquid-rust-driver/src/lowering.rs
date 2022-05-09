@@ -246,7 +246,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
                 mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
                 _ => {
-                    self.tcx.sess.err("place not supported");
+                    self.tcx
+                        .sess
+                        .err(&format!("place not supported: `{place:?}`"));
                     return Err(ErrorReported);
                 }
             }

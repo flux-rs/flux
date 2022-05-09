@@ -50,16 +50,28 @@ impl LoweringCtxt {
         let refined_by = cx.lower_params(&name_gen, adt_def.refined_by());
 
         match adt_def {
-            core::AdtDef::Transparent { fields, .. } => {
-                let fields = fields
+            core::AdtDef::Transparent { variants, .. } => {
+                let variants = variants
                     .iter()
-                    .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+                    .map(|variant| cx.lower_variant_def(variant, &mut fresh_kvar))
                     .collect_vec();
-                let variants = vec![VariantDef::new(fields)];
                 ty::AdtDef::transparent(refined_by, IndexVec::from_raw(variants))
             }
             core::AdtDef::Opaque { .. } => ty::AdtDef::opaque(refined_by),
         }
+    }
+
+    fn lower_variant_def(
+        &self,
+        variant_def: &core::VariantDef,
+        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
+    ) -> VariantDef {
+        let fields = variant_def
+            .fields
+            .iter()
+            .map(|ty| self.lower_ty(ty, fresh_kvar))
+            .collect_vec();
+        VariantDef::new(fields)
     }
 
     fn lower_constr(
