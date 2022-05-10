@@ -341,7 +341,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let cx = LoweringCtxt::empty();
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+            .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if subst
@@ -835,7 +835,7 @@ impl Mode for Check<'_> {
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        Pred::kvars(self.kvars.fresh(sorts, scope))
+        self.kvars.fresh(sorts, scope)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {

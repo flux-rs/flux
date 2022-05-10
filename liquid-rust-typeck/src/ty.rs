@@ -310,18 +310,15 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
-    /// Fill holes with fresh kvars
-    pub fn with_fresh_kvars(&self, fresh_kvar: &mut impl FnMut(&BaseTy) -> Vec<KVar>) -> Ty {
+    pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
         match self.kind() {
-            TyKind::Refine(bty, exprs) => {
-                Ty::refine(bty.with_fresh_kvars(fresh_kvar), exprs.clone())
-            }
+            TyKind::Refine(bty, exprs) => Ty::refine(bty.fill_holes(mk_pred), exprs.clone()),
             TyKind::Exists(bty, p) => {
-                let p = if let Pred::Hole = p { Pred::kvars(fresh_kvar(bty)) } else { p.clone() };
-                let bty = bty.with_fresh_kvars(fresh_kvar);
+                let p = if let Pred::Hole = p { mk_pred(bty) } else { p.clone() };
+                let bty = bty.fill_holes(mk_pred);
                 Ty::exists(bty, p)
             }
-            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_fresh_kvars(fresh_kvar)),
+            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.fill_holes(mk_pred)),
             TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
                 self.clone()
             }
@@ -387,10 +384,10 @@ impl BaseTy {
         }
     }
 
-    fn with_fresh_kvars(&self, fresh_kvar: &mut impl FnMut(&BaseTy) -> Vec<KVar>) -> BaseTy {
+    fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> BaseTy {
         match self {
             BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| ty.with_fresh_kvars(fresh_kvar));
+                let substs = substs.iter().map(|ty| ty.fill_holes(mk_pred));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),

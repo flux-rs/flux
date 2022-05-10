@@ -82,7 +82,7 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    pub fn fresh<S>(&mut self, sorts: &[Sort], scope: S) -> Vec<KVar>
+    pub fn fresh<S>(&mut self, sorts: &[Sort], scope: S) -> Pred
     where
         S: IntoIterator<Item = (Name, Sort)>,
     {
@@ -105,7 +105,7 @@ impl KVarStore {
             );
             kvars.push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
         }
-        kvars
+        Pred::kvars(kvars)
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {

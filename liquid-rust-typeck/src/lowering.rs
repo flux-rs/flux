@@ -15,8 +15,6 @@ impl LoweringCtxt {
 
     pub fn lower_fn_sig(fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let name_gen = IndexGen::new();
-        let fresh_kvar =
-            &mut |_: &ty::BaseTy| unreachable!("inference predicate in top level function");
 
         let mut cx = LoweringCtxt::empty();
 
@@ -24,26 +22,25 @@ impl LoweringCtxt {
 
         let mut requires = vec![];
         for constr in fn_sig.requires {
-            requires.push(cx.lower_constr(&constr, fresh_kvar));
+            requires.push(cx.lower_constr(&constr));
         }
 
         let mut args = vec![];
         for ty in fn_sig.args {
-            args.push(cx.lower_ty(&ty, fresh_kvar));
+            args.push(cx.lower_ty(&ty));
         }
 
         let mut ensures = vec![];
         for constr in fn_sig.ensures {
-            ensures.push(cx.lower_constr(&constr, fresh_kvar));
+            ensures.push(cx.lower_constr(&constr));
         }
 
-        let ret = cx.lower_ty(&fn_sig.ret, fresh_kvar);
+        let ret = cx.lower_ty(&fn_sig.ret);
 
         ty::Binders::new(params, ty::FnSig::new(requires, args, ret, ensures))
     }
 
     pub fn lower_adt_def(adt_def: &core::AdtDef) -> ty::AdtDef {
-        let mut fresh_kvar = |_: &ty::BaseTy| panic!("inference predicate in top item");
         let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::empty();
 
@@ -53,7 +50,7 @@ impl LoweringCtxt {
             core::AdtDef::Transparent { variants, .. } => {
                 let variants = variants
                     .iter()
-                    .map(|variant| cx.lower_variant_def(variant, &mut fresh_kvar))
+                    .map(|variant| cx.lower_variant_def(variant))
                     .collect_vec();
                 ty::AdtDef::transparent(refined_by, IndexVec::from_raw(variants))
             }
@@ -61,29 +58,21 @@ impl LoweringCtxt {
         }
     }
 
-    fn lower_variant_def(
-        &self,
-        variant_def: &core::VariantDef,
-        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
-    ) -> VariantDef {
+    fn lower_variant_def(&self, variant_def: &core::VariantDef) -> VariantDef {
         let fields = variant_def
             .fields
             .iter()
-            .map(|ty| self.lower_ty(ty, fresh_kvar))
+            .map(|ty| self.lower_ty(ty))
             .collect_vec();
         VariantDef::new(fields)
     }
 
-    fn lower_constr(
-        &self,
-        constr: &core::Constr,
-        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
-    ) -> ty::Constr {
+    fn lower_constr(&self, constr: &core::Constr) -> ty::Constr {
         match constr {
             core::Constr::Type(loc, ty) => {
                 ty::Constr::Type(
                     Path::from(ty::Loc::Free(self.name_map[&loc.name])),
-                    self.lower_ty(ty, fresh_kvar),
+                    self.lower_ty(ty),
                 )
             }
             core::Constr::Pred(e) => ty::Constr::Pred(self.lower_expr(e)),
@@ -123,11 +112,7 @@ impl LoweringCtxt {
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    pub fn lower_ty(
-        &self,
-        ty: &core::Ty,
-        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
-    ) -> ty::Ty {
+    pub fn lower_ty(&self, ty: &core::Ty) -> ty::Ty {
         match ty {
             core::Ty::Indexed(bty, refine) => {
                 let exprs = refine
@@ -135,20 +120,18 @@ impl LoweringCtxt {
                     .iter()
                     .map(|e| self.lower_expr(e))
                     .collect_vec();
-                ty::Ty::refine(self.lower_base_ty(bty, fresh_kvar), exprs)
+                ty::Ty::refine(self.lower_base_ty(bty), exprs)
             }
             core::Ty::Exists(bty, pred) => {
-                let bty = self.lower_base_ty(bty, fresh_kvar);
+                let bty = self.lower_base_ty(bty);
                 let pred = match pred {
-                    core::Pred::Hole => fresh_kvar(&bty),
+                    core::Pred::Hole => ty::Pred::Hole,
                     core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
                 };
                 ty::Ty::exists(bty, pred)
             }
             core::Ty::Ptr(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),
-            core::Ty::Ref(rk, ty) => {
-                ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty, fresh_kvar))
-            }
+            core::Ty::Ref(rk, ty) => ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty)),
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
         }
@@ -161,17 +144,13 @@ impl LoweringCtxt {
         }
     }
 
-    fn lower_base_ty(
-        &self,
-        bty: &core::BaseTy,
-        fresh_kvar: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
-    ) -> ty::BaseTy {
+    fn lower_base_ty(&self, bty: &core::BaseTy) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
-                let substs = substs.iter().map(|ty| self.lower_ty(ty, fresh_kvar));
+                let substs = substs.iter().map(|ty| self.lower_ty(ty));
                 ty::BaseTy::adt(*did, substs)
             }
         }

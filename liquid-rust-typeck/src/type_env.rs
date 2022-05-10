@@ -7,7 +7,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, KVar, Param, Path, RefKind, Ty, TyKind, Var},
+    ty::{BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
@@ -657,7 +657,7 @@ impl TypeEnvInfer {
     pub fn into_bb_env(
         self,
         genv: &GlobalEnv,
-        fresh_kvar: &mut impl FnMut(&[Sort], &[Param]) -> Vec<KVar>,
+        fresh_kvar: &mut impl FnMut(&[Sort], &[Param]) -> Pred,
         env: &TypeEnv,
     ) -> BasicBlockEnv {
         let mut params = vec![];
@@ -666,7 +666,7 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
             if sort != Sort::loc() {
-                constrs.push(Pred::kvars(fresh_kvar(&[sort.clone()], &params)));
+                constrs.push(fresh_kvar(&[sort.clone()], &params));
             } else {
                 constrs.push(Pred::tt())
             }
@@ -677,7 +677,7 @@ impl TypeEnvInfer {
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
-            *ty = ty.with_fresh_kvars(fresh_kvar);
+            *ty = ty.fill_holes(fresh_kvar);
         }
 
         // HACK(nilehmann) the inference algorithm doesn't track pledges so we insert
