@@ -152,21 +152,29 @@ impl PathsTree {
         let mut path = path.into();
         loop {
             let loc = path.loc;
-            let proj = path
-                .projection()
-                .iter()
-                .copied()
-                .chain(place_proj.map_take_while(|p| PlaceElem::as_field(p)))
-                .collect_vec();
+            let mut proj = vec![];
 
             let mut node = self.map.get_mut(&loc).unwrap();
-            for &f in &proj {
-                node = &mut node.unfold(genv, VariantIdx::from_u32(0))[f];
+            for elem in path
+                .projection()
+                .iter()
+                .map(|f| FieldOrDowncast::Field(*f))
+                .chain(place_proj.map_take_while(|p| FieldOrDowncast::from_place_elem(p)))
+            {
+                match elem {
+                    FieldOrDowncast::Field(f) => {
+                        proj.push(f);
+                        node = node.proj(genv, f);
+                    }
+                    FieldOrDowncast::Downcast(variant_idx) => {
+                        node.unfold(genv, variant_idx);
+                    }
+                }
             }
-            let ty = node.fold(genv, pcx);
 
             match place_proj.next() {
                 Some(PlaceElem::Deref) => {
+                    let ty = node.fold(genv, pcx);
                     match ty.kind() {
                         TyKind::Ptr(ref_path) => path = ref_path.clone(),
                         TyKind::Ref(mode, ty) => {
@@ -178,8 +186,11 @@ impl PathsTree {
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
-                Some(_) => unreachable!("expected deref"),
-                None => return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty)),
+                Some(elem) => unreachable!("expected deref, found `{elem:?}`"),
+                None => {
+                    let ty = node.fold(genv, pcx);
+                    return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty));
+                }
             }
         }
     }
@@ -217,6 +228,21 @@ impl PathsTree {
             }
         }
         LookupResult::Ref(mode, ty)
+    }
+}
+
+enum FieldOrDowncast {
+    Field(Field),
+    Downcast(VariantIdx),
+}
+
+impl FieldOrDowncast {
+    fn from_place_elem(elem: &PlaceElem) -> Option<FieldOrDowncast> {
+        match elem {
+            PlaceElem::Field(f) => Some(FieldOrDowncast::Field(*f)),
+            PlaceElem::Downcast(variant_idx) => Some(FieldOrDowncast::Downcast(*variant_idx)),
+            _ => None,
+        }
     }
 }
 
@@ -289,18 +315,23 @@ impl Node {
     }
 
     fn unfold(&mut self, genv: &GlobalEnv, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
+        if let Node::Ty(ty) = self {
+            let (did, fields) = ty.unfold(genv, variant_idx).unwrap();
+            *self = Node::Adt(did, variant_idx, fields.into_iter().map(Node::Ty).collect());
+        }
         match self {
-            Node::Ty(ty) => {
-                let (did, fields) = ty.unfold(genv, variant_idx).unwrap();
-
-                *self = Node::Adt(did, variant_idx, fields.into_iter().map(Node::Ty).collect());
-                if let Node::Adt(.., fields) = self {
-                    fields
-                } else {
-                    unsafe { unreachable_unchecked() }
-                }
+            Node::Ty(_) => unreachable!(),
+            Node::Adt(_, node_variant_idx, fields) => {
+                debug_assert_eq!(variant_idx, *node_variant_idx);
+                fields
             }
-            Node::Adt(.., fields) => fields,
+        }
+    }
+
+    fn proj(&mut self, genv: &GlobalEnv, field: Field) -> &mut Node {
+        match self {
+            Node::Ty(_) => &mut self.unfold(genv, VariantIdx::from_u32(0))[field],
+            Node::Adt(_, _, fields) => &mut fields[field],
         }
     }
 

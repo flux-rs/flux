@@ -7,6 +7,7 @@ use liquid_rust_common::{
 use liquid_rust_syntax::surface::{self, Res};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
@@ -57,17 +58,14 @@ pub fn desugar_struct_def(
     }
 }
 
-pub fn desugar_enum_def(
-    sess: &Session,
-    adt_def: surface::EnumDef,
-) -> Result<AdtDef, ErrorReported> {
-    let mut params = ParamsCtxt::new(sess);
+pub fn desugar_enum_def(tcx: TyCtxt, adt_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
+    let mut params = ParamsCtxt::new(tcx.sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     if adt_def.opaque {
         Ok(AdtDef::Opaque { refined_by: params.params })
     } else {
-        panic!("transparent enums are not supported yet")
+        Ok(AdtDef::default(tcx, tcx.adt_def(adt_def.def_id)))
     }
 }
 

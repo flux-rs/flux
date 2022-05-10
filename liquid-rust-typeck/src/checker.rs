@@ -267,6 +267,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
                 env.write_place(self.genv, pcx, p, ty, Tag::Assign(stmt.source_info.span));
             }
+            StatementKind::SetDiscriminant { .. } => {
+                // TODO(nilehmann) double chould check here that the place is unfolded to
+                // the corect variant. This should be guaranteed by rustc
+            }
             StatementKind::Nop => {}
         }
     }
