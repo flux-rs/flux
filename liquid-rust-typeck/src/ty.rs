@@ -121,7 +121,8 @@ pub struct Substs(List<Ty>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    Infer(List<KVar>),
+    Hole,
+    Kvars(List<KVar>),
     Expr(Expr),
 }
 
@@ -308,6 +309,35 @@ impl Ty {
     pub fn param(param: ParamTy) -> Ty {
         TyKind::Param(param).intern()
     }
+
+    /// Fill holes with fresh kvars
+    pub fn with_fresh_kvars(
+        &self,
+        genv: &GlobalEnv,
+        fresh_kvar: &mut impl FnMut(&[Sort]) -> Vec<KVar>,
+    ) -> Ty {
+        match self.kind() {
+            TyKind::Refine(bty, exprs) => {
+                Ty::refine(bty.with_fresh_kvars(genv, fresh_kvar), exprs.clone())
+            }
+            TyKind::Exists(bty, p) => {
+                let p = if let Pred::Hole = p {
+                    let sorts = genv.sorts(bty);
+                    Pred::kvars(fresh_kvar(&sorts))
+                } else {
+                    p.clone()
+                };
+                let bty = bty.with_fresh_kvars(genv, fresh_kvar);
+                Ty::exists(bty, p)
+            }
+            TyKind::Ref(ref_kind, ty) => {
+                Ty::mk_ref(*ref_kind, ty.with_fresh_kvars(genv, fresh_kvar))
+            }
+            TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
+                self.clone()
+            }
+        }
+    }
 }
 
 impl TyKind {
@@ -365,6 +395,22 @@ impl BaseTy {
             BaseTy::Uint(uint_ty) => Layout::Uint(*uint_ty),
             BaseTy::Bool => Layout::Bool,
             BaseTy::Adt(did, _) => Layout::Adt(*did),
+        }
+    }
+
+    fn with_fresh_kvars(
+        &self,
+        genv: &GlobalEnv,
+        fresh_kvar: &mut impl FnMut(&[Interned<SortS>]) -> Vec<KVar>,
+    ) -> BaseTy {
+        match self {
+            BaseTy::Adt(did, substs) => {
+                let substs = substs
+                    .iter()
+                    .map(|ty| ty.with_fresh_kvars(genv, fresh_kvar));
+                BaseTy::adt(*did, substs)
+            }
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
         }
     }
 }
@@ -609,16 +655,11 @@ impl From<Expr> for Pred {
 }
 
 impl Pred {
-    pub fn infer<T>(kvars: T) -> Pred
+    pub fn kvars<T>(kvars: T) -> Pred
     where
         List<KVar>: From<T>,
     {
-        Pred::Infer(Interned::from(kvars))
-    }
-
-    pub fn dummy_infer(sorts: &[Sort]) -> Pred {
-        let kvars = sorts.iter().map(|_| KVar::dummy()).collect_vec();
-        Pred::infer(kvars)
+        Pred::Kvars(Interned::from(kvars))
     }
 
     pub fn tt() -> Pred {
@@ -627,19 +668,19 @@ impl Pred {
 
     pub fn is_true(&self) -> bool {
         match self {
-            Pred::Infer(..) => false,
             Pred::Expr(e) => e.is_true(),
+            _ => false,
         }
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::Infer(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
     pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Pred {
         match self {
-            Pred::Infer(kvars) => {
-                Pred::infer(
+            Pred::Kvars(kvars) => {
+                Pred::kvars(
                     kvars
                         .iter()
                         .map(|kvar| kvar.subst_bound_vars(exprs))
@@ -647,6 +688,7 @@ impl Pred {
                 )
             }
             Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(exprs)),
+            Pred::Hole => Pred::Hole,
         }
     }
 }
@@ -899,7 +941,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Pred::Infer(kvars) => {
+                Pred::Kvars(kvars) => {
                     if let [kvar] = &kvars[..] {
                         w!("{:?}", kvar)
                     } else {
@@ -907,6 +949,7 @@ mod pretty {
                     }
                 }
                 Pred::Expr(expr) => w!("{:?}", expr),
+                Pred::Hole => w!("*"),
             }
         }
 

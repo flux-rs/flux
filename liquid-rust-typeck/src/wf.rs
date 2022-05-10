@@ -163,7 +163,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         sort: ty::Sort,
     ) -> Result<(), ErrorReported> {
         match pred {
-            core::Pred::Infer => Ok(()),
+            core::Pred::Hole => Ok(()),
             core::Pred::Expr(e) => self.check_expr(env, e, sort),
         }
     }

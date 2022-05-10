@@ -82,7 +82,7 @@ pub struct Indices {
 }
 
 pub enum Pred {
-    Infer,
+    Hole,
     Expr(Expr),
 }
 
@@ -326,7 +326,7 @@ impl fmt::Debug for Indices {
 impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Infer => write!(f, "Infer"),
+            Self::Hole => write!(f, "Infer"),
             Self::Expr(e) => write!(f, "{e:?}"),
         }
     }

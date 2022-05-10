@@ -102,11 +102,12 @@ impl Subst<'_> {
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred {
-            Pred::Infer(kvars) => {
+            Pred::Kvars(kvars) => {
                 let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect_vec();
-                Pred::infer(kvars)
+                Pred::kvars(kvars)
             }
             Pred::Expr(e) => self.subst_expr(e).into(),
+            Pred::Hole => Pred::Hole,
         }
     }
 

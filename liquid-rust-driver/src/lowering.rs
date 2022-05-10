@@ -324,13 +324,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
         use liquid_rust_core::ty as core;
         match ty.kind() {
             rustc_middle::ty::TyKind::Bool => {
-                Ok(core::Ty::Exists(core::BaseTy::Bool, core::Pred::Infer))
+                Ok(core::Ty::Exists(core::BaseTy::Bool, core::Pred::Hole))
             }
             rustc_middle::ty::TyKind::Int(int_ty) => {
-                Ok(core::Ty::Exists(core::BaseTy::Int(*int_ty), core::Pred::Infer))
+                Ok(core::Ty::Exists(core::BaseTy::Int(*int_ty), core::Pred::Hole))
             }
             rustc_middle::ty::TyKind::Uint(uint_ty) => {
-                Ok(core::Ty::Exists(core::BaseTy::Uint(*uint_ty), core::Pred::Infer))
+                Ok(core::Ty::Exists(core::BaseTy::Uint(*uint_ty), core::Pred::Hole))
             }
             rustc_middle::ty::TyKind::Float(float_ty) => Ok(core::Ty::Float(*float_ty)),
             rustc_middle::ty::TyKind::Param(param) => {
@@ -342,7 +342,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     .map(|arg| self.lower_generic_arg(arg))
                     .try_collect()?;
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
-                Ok(core::Ty::Exists(adt, core::Pred::Infer))
+                Ok(core::Ty::Exists(adt, core::Pred::Hole))
             }
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
