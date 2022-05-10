@@ -780,11 +780,11 @@ impl Mode for Inference<'_> {
         modified
     }
 
-    fn fresh_kvar<I>(&mut self, sorts: &[Sort], _scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, _sorts: &[Sort], _scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        Pred::dummy_infer(sorts)
+        Pred::Hole
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -835,7 +835,7 @@ impl Mode for Check<'_> {
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        self.kvars.fresh(sorts, scope)
+        Pred::kvars(self.kvars.fresh(sorts, scope))
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
