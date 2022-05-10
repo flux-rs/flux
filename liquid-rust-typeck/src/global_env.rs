@@ -70,7 +70,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
-                let adt_def = core::AdtDef::default(self.tcx, &self.tcx.adt_def(def_id));
+                let adt_def = core::AdtDef::default(self.tcx, self.tcx.adt_def(def_id));
                 LoweringCtxt::lower_adt_def(&adt_def)
             })
             .clone()
