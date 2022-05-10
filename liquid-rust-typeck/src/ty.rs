@@ -311,28 +311,17 @@ impl Ty {
     }
 
     /// Fill holes with fresh kvars
-    pub fn with_fresh_kvars(
-        &self,
-        genv: &GlobalEnv,
-        fresh_kvar: &mut impl FnMut(&[Sort]) -> Vec<KVar>,
-    ) -> Ty {
+    pub fn with_fresh_kvars(&self, fresh_kvar: &mut impl FnMut(&BaseTy) -> Vec<KVar>) -> Ty {
         match self.kind() {
             TyKind::Refine(bty, exprs) => {
-                Ty::refine(bty.with_fresh_kvars(genv, fresh_kvar), exprs.clone())
+                Ty::refine(bty.with_fresh_kvars(fresh_kvar), exprs.clone())
             }
             TyKind::Exists(bty, p) => {
-                let p = if let Pred::Hole = p {
-                    let sorts = genv.sorts(bty);
-                    Pred::kvars(fresh_kvar(&sorts))
-                } else {
-                    p.clone()
-                };
-                let bty = bty.with_fresh_kvars(genv, fresh_kvar);
+                let p = if let Pred::Hole = p { Pred::kvars(fresh_kvar(bty)) } else { p.clone() };
+                let bty = bty.with_fresh_kvars(fresh_kvar);
                 Ty::exists(bty, p)
             }
-            TyKind::Ref(ref_kind, ty) => {
-                Ty::mk_ref(*ref_kind, ty.with_fresh_kvars(genv, fresh_kvar))
-            }
+            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_fresh_kvars(fresh_kvar)),
             TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
                 self.clone()
             }
@@ -398,16 +387,10 @@ impl BaseTy {
         }
     }
 
-    fn with_fresh_kvars(
-        &self,
-        genv: &GlobalEnv,
-        fresh_kvar: &mut impl FnMut(&[Interned<SortS>]) -> Vec<KVar>,
-    ) -> BaseTy {
+    fn with_fresh_kvars(&self, fresh_kvar: &mut impl FnMut(&BaseTy) -> Vec<KVar>) -> BaseTy {
         match self {
             BaseTy::Adt(did, substs) => {
-                let substs = substs
-                    .iter()
-                    .map(|ty| ty.with_fresh_kvars(genv, fresh_kvar));
+                let substs = substs.iter().map(|ty| ty.with_fresh_kvars(fresh_kvar));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
