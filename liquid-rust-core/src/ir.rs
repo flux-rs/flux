@@ -204,7 +204,7 @@ impl fmt::Debug for Statement {
             StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::SetDiscriminant(place, variant_idx) => {
-                write!(f, "discriminant({:?}) = {:?})", place, variant_idx)
+                write!(f, "discriminant({:?}) = {:?}", place, variant_idx)
             }
         }
     }
