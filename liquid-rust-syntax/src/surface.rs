@@ -238,6 +238,18 @@ pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
     FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
 }
 
+pub fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
+    let kind = match ty.kind() {
+        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
+            let ref_kind = default_refkind(m);
+            let tgt_ty = default_ty(*ty);
+            TyKind::Ref(ref_kind, Box::new(tgt_ty))
+        }
+        _ => TyKind::Path(default_path(ty)),
+    };
+    Ty { kind, span: rustc_span::DUMMY_SP }
+}
+
 fn default_refkind(m: &Mutability) -> RefKind {
     match m {
         Mutability::Mut => RefKind::Mut,
@@ -259,18 +271,6 @@ fn default_path(ty: rustc_middle::ty::Ty) -> Path<Res> {
         _ => todo!("`{ty:?}`"),
     };
     Path { ident, args, span: rustc_span::DUMMY_SP }
-}
-
-fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
-    let kind = match ty.kind() {
-        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
-            let ref_kind = default_refkind(m);
-            let tgt_ty = default_ty(*ty);
-            TyKind::Ref(ref_kind, Box::new(tgt_ty))
-        }
-        _ => TyKind::Path(default_path(ty)),
-    };
-    Ty { kind, span: rustc_span::DUMMY_SP }
 }
 
 pub mod zip {

@@ -113,7 +113,14 @@ pub fn desugar_fn_sig(
     })
 }
 
-struct DesugarCtxt<'a> {
+pub fn desugar_ty(sess: &Session, ty: surface::Ty<Res>) -> Result<Ty, ErrorReported> {
+    let mut cx = DesugarCtxt::empty(sess);
+    let ty = cx.desugar_ty(ty);
+    assert!(cx.requires.is_empty());
+    ty
+}
+
+pub struct DesugarCtxt<'a> {
     params: ParamsCtxt<'a>,
     requires: Vec<Constr>,
 }
@@ -126,6 +133,10 @@ struct ParamsCtxt<'a> {
 }
 
 impl<'a> DesugarCtxt<'a> {
+    fn empty(sess: &Session) -> DesugarCtxt {
+        DesugarCtxt::with_params(ParamsCtxt::new(sess))
+    }
+
     fn with_params(params: ParamsCtxt) -> DesugarCtxt {
         DesugarCtxt { params, requires: vec![] }
     }

@@ -337,20 +337,4 @@ mod errors {
             Self { span: ident.span, path: ident }
         }
     }
-
-    // #[derive(SessionDiagnostic)]
-    // #[error = "LIQUID"]
-    // pub struct RefinedTypeParam {
-    //     #[message = "type parameters cannot be refined"]
-    //     #[label = "refined type parameter"]
-    //     pub span: Span,
-    // }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct RefinedFloat {
-        #[message = "float cannot be refined"]
-        #[label = "refined float"]
-        pub span: Span,
-    }
 }
