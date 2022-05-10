@@ -12,6 +12,7 @@ use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
+pub use rustc_target::abi::VariantIdx;
 
 use crate::{
     global_env::GlobalEnv,
@@ -21,9 +22,17 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub enum AdtDef {
-    Transparent { refined_by: List<Param>, fields: List<Ty> },
-    Opaque { refined_by: List<Param> },
+pub struct AdtDef(Interned<AdtDefData>);
+
+#[derive(Eq, PartialEq, Hash)]
+pub enum AdtDefData {
+    Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
+    Opaque { refined_by: Vec<Param> },
+}
+
+#[derive(Eq, PartialEq, Hash)]
+pub struct VariantDef {
+    pub fields: Vec<Ty>,
 }
 
 #[derive(Debug, Clone)]
@@ -212,26 +221,16 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque<P>(refined_by: P) -> Self
-    where
-        List<Param>: From<P>,
-    {
-        AdtDef::Opaque { refined_by: Interned::from(refined_by) }
+    pub fn opaque(refined_by: Vec<Param>) -> Self {
+        AdtDef(Interned::new(AdtDefData::Opaque { refined_by }))
     }
-    pub fn transparent<P, F>(refined_by: P, fields: F) -> Self
-    where
-        List<Param>: From<P>,
-        List<Ty>: From<F>,
-    {
-        AdtDef::Transparent {
-            refined_by: Interned::from(refined_by),
-            fields: Interned::from(fields),
-        }
+    pub fn transparent(refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef>) -> Self {
+        AdtDef(Interned::new(AdtDefData::Transparent { refined_by, variants }))
     }
 
     pub fn refined_by(&self) -> &[Param] {
-        match self {
-            AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
+        match &*self.0 {
+            AdtDefData::Transparent { refined_by, .. } | AdtDefData::Opaque { refined_by, .. } => {
                 refined_by
             }
         }
@@ -244,27 +243,37 @@ impl AdtDef {
             .collect()
     }
 
-    pub fn unfold(&self, substs: &Substs, exprs: &[Expr]) -> IndexVec<Field, Ty> {
-        match self {
-            AdtDef::Transparent { fields, refined_by } => {
-                let mut subst = Subst::with_type_substs(substs.as_slice());
-                debug_assert_eq!(exprs.len(), self.refined_by().len());
-                for (e, param) in exprs.iter().zip(refined_by) {
-                    subst.insert_expr_subst(param.name, e.clone());
-                }
-                fields.iter().map(|ty| subst.subst_ty(ty)).collect()
-            }
-            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+    pub fn unfold(
+        &self,
+        substs: &Substs,
+        exprs: &[Expr],
+        variant_idx: VariantIdx,
+    ) -> Option<IndexVec<Field, Ty>> {
+        let fields = &self.variants()?[variant_idx].fields;
+        let mut subst = Subst::with_type_substs(substs.as_slice());
+        debug_assert_eq!(exprs.len(), self.refined_by().len());
+        for (e, param) in exprs.iter().zip(self.refined_by()) {
+            subst.insert_expr_subst(param.name, e.clone());
+        }
+        Some(fields.iter().map(|ty| subst.subst_ty(ty)).collect())
+    }
+
+    pub fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
+        match &*self.0 {
+            AdtDefData::Transparent { variants, .. } => Some(variants),
+            AdtDefData::Opaque { .. } => None,
         }
     }
 
-    pub fn unfold_uninit(&self) -> IndexVec<Field, Ty> {
-        match self {
-            AdtDef::Transparent { fields, .. } => {
-                fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
-            }
-            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
-        }
+    pub fn unfold_uninit(&self, variant_idx: VariantIdx) -> Option<IndexVec<Field, Ty>> {
+        let fields = &self.variants()?[variant_idx].fields;
+        Some(fields.iter().map(|ty| Ty::uninit(ty.layout())).collect())
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>) -> Self {
+        VariantDef { fields }
     }
 }
 
@@ -326,15 +335,19 @@ impl TyS {
         }
     }
 
-    pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
+    pub fn unfold(
+        &self,
+        genv: &GlobalEnv,
+        variant_idx: VariantIdx,
+    ) -> Option<(DefId, IndexVec<Field, Ty>)> {
         match self.kind() {
             TyKind::Refine(BaseTy::Adt(did, substs), exprs) => {
                 let adt_def = genv.adt_def(*did);
-                (*did, adt_def.unfold(substs, exprs))
+                Some((*did, adt_def.unfold(substs, exprs, variant_idx)?))
             }
             TyKind::Uninit(Layout::Adt(did)) => {
                 let adt_def = genv.adt_def(*did);
-                (*did, adt_def.unfold_uninit())
+                Some((*did, adt_def.unfold_uninit(variant_idx)?))
             }
             _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
@@ -736,7 +749,19 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar], [Constr], [Param]);
+impl_internable!(
+    AdtDefData,
+    TyS,
+    ExprS,
+    SortS,
+    [Ty],
+    [Pred],
+    [Expr],
+    [Field],
+    [KVar],
+    [Constr],
+    [Param]
+);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;

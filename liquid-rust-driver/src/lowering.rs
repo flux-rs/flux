@@ -79,11 +79,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     self.lower_rvalue(rvalue, stmt.source_info)?,
                 )
             }
+            mir::StatementKind::SetDiscriminant { place, variant_index } => {
+                StatementKind::SetDiscriminant(self.lower_place(place)?, *variant_index)
+            }
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
             mir::StatementKind::FakeRead(_)
-            | mir::StatementKind::SetDiscriminant { .. }
             | mir::StatementKind::Retag(_, _)
             | mir::StatementKind::AscribeUserType(_, _)
             | mir::StatementKind::Coverage(_)
@@ -245,8 +247,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
             match elem {
                 mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
                 mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
+                mir::PlaceElem::Downcast(_, variant_idx) => {
+                    projection.push(PlaceElem::Downcast(variant_idx))
+                }
                 _ => {
-                    self.tcx.sess.err("place not supported");
+                    self.tcx
+                        .sess
+                        .err(&format!("place not supported: `{place:?}`"));
                     return Err(ErrorReported);
                 }
             }

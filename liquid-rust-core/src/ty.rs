@@ -2,12 +2,16 @@ use core::fmt;
 use std::fmt::Write;
 
 use itertools::Itertools;
-use liquid_rust_common::format::PadAdapter;
+use liquid_rust_common::{format::PadAdapter, index::IndexVec};
+use liquid_rust_syntax::surface;
 pub use liquid_rust_syntax::surface::{BinOp, RefKind};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
+pub use rustc_target::abi::VariantIdx;
+
+use crate::desugar;
 
 pub trait AdtSortsMap {
     fn get(&self, def_id: DefId) -> Option<&[Sort]>;
@@ -15,8 +19,13 @@ pub trait AdtSortsMap {
 
 #[derive(Debug)]
 pub enum AdtDef {
-    Transparent { refined_by: Vec<Param>, fields: Vec<Ty> },
+    Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
     Opaque { refined_by: Vec<Param> },
+}
+
+#[derive(Debug)]
+pub struct VariantDef {
+    pub fields: Vec<Ty>,
 }
 
 pub struct FnSig {
@@ -133,6 +142,13 @@ newtype_index! {
     }
 }
 
+impl Ty {
+    pub fn default(tcx: rustc_middle::ty::TyCtxt, ty: rustc_middle::ty::Ty) -> Ty {
+        let ty = surface::default_ty(ty);
+        desugar::desugar_ty(tcx.sess, ty).expect("failed to desugar default type")
+    }
+}
+
 impl BaseTy {
     /// Returns `true` if the base ty is [`Bool`].
     ///
@@ -155,6 +171,15 @@ impl Lit {
 }
 
 impl AdtDef {
+    pub fn default(tcx: rustc_middle::ty::TyCtxt, struct_def: &rustc_middle::ty::AdtDef) -> AdtDef {
+        let variants = struct_def
+            .variants
+            .iter()
+            .map(|variant| VariantDef::default(tcx, variant))
+            .collect();
+        AdtDef::Transparent { refined_by: vec![], variants }
+    }
+
     pub fn refined_by(&self) -> &[Param] {
         match self {
             Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
@@ -163,6 +188,24 @@ impl AdtDef {
 
     pub fn sorts(&self) -> Vec<Sort> {
         self.refined_by().iter().map(|param| param.sort).collect()
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>) -> Self {
+        Self { fields }
+    }
+
+    pub fn default(
+        tcx: rustc_middle::ty::TyCtxt,
+        variant_def: &rustc_middle::ty::VariantDef,
+    ) -> VariantDef {
+        let fields = variant_def
+            .fields
+            .iter()
+            .map(|field| Ty::default(tcx, tcx.type_of(field.did)))
+            .collect();
+        VariantDef { fields }
     }
 }
 

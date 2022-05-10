@@ -21,11 +21,7 @@ pub struct GlobalEnv<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
-    adt_defs: FxHashMap<DefId, ty::AdtDef>,
-}
-
-fn default_adt_def() -> ty::AdtDef {
-    ty::AdtDef::Opaque { refined_by: crate::intern::List::from(vec![]) }
+    adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
 }
 
 impl<'tcx> GlobalEnv<'tcx> {
@@ -33,7 +29,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
             adt_sorts: FxHashMap::default(),
-            adt_defs: FxHashMap::default(),
+            adt_defs: RefCell::new(FxHashMap::default()),
             tcx,
         }
     }
@@ -49,7 +45,7 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn register_adt_def(&mut self, def_id: DefId, adt_def: core::AdtDef) {
         let adt_def = LoweringCtxt::lower_adt_def(&adt_def);
-        self.adt_defs.insert(def_id, adt_def);
+        self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
     pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -70,10 +66,14 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
-        match self.adt_defs.get(&def_id) {
-            Some(adt_def) => adt_def.clone(),
-            None => default_adt_def(),
-        }
+        self.adt_defs
+            .borrow_mut()
+            .entry(def_id)
+            .or_insert_with(|| {
+                let adt_def = core::AdtDef::default(self.tcx, self.tcx.adt_def(def_id));
+                LoweringCtxt::lower_adt_def(&adt_def)
+            })
+            .clone()
     }
 
     pub fn sorts(&self, bty: &BaseTy) -> Vec<Sort> {
