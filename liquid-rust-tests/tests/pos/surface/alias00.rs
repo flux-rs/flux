@@ -1,15 +1,18 @@
 #![feature(register_tool)]
 #![register_tool(lr)]
-#![feature(custom_inner_attributes)]
-#![lr::alias(type nat() = i32{v: 0 <= v})]
-#![lr::alias(type lb(n) = i32{v: n <= v})]
 
-#[lr::sig(fn(x:nat) -> nat)]
+#[lr::alias(type Nat() = i32{v: 0 <= v})]
+type _Nat = i32;
+
+#[lr::alias(type Lb(n) = i32{v: n <= v})]
+type _Lb = i32;
+
+#[lr::sig(fn(x:Nat) -> Nat)]
 pub fn test1(x: i32) -> i32 {
     x + 1
 }
 
-#[lr::sig(fn(x:lb[10]) -> lb[10])]
+#[lr::sig(fn(x:Lb[10]) -> Lb[10])]
 pub fn test2(x: i32) -> i32 {
     x + 1
 }

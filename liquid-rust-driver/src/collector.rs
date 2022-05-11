@@ -68,6 +68,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
+    fn parse_tyalias_spec(
+        &mut self,
+        _def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        if let Some(alias) = attrs.alias() {
+            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
+            self.specs.aliases.insert(alias.name, alias);
+        }
+        Ok(())
+    }
+
     fn parse_enum_def(
         &mut self,
         def_id: LocalDefId,
@@ -115,12 +128,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
-        let mut aliases = attrs.aliases();
+        // let mut aliases = attrs.aliases();
         // println!("ALIAS: parse_crate_spec: {:?}", aliases.len());
-        while let Some(alias) = aliases.pop() {
-            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
-            self.specs.aliases.insert(alias.name, alias);
-        }
+        // while let Some(alias) = aliases.pop() {
+        // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
+        // self.specs.aliases.insert(alias.name, alias);
+        // }
         Ok(())
     }
 
@@ -252,6 +265,11 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
             ItemKind::Mod(..) => {
                 // TODO: Parse mod level attributes
             }
+            ItemKind::TyAlias(..) => {
+                let hir_id = item.hir_id();
+                let attrs = self.tcx.hir().attrs(hir_id);
+                let _ = self.parse_tyalias_spec(item.def_id, attrs);
+            }
             _ => (),
         }
     }
@@ -357,8 +375,8 @@ impl LiquidAttrs {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 
-    fn aliases(&mut self) -> Vec<surface::Alias> {
-        read_all_attrs!(self, "alias", TypeAlias)
+    fn alias(&mut self) -> Option<surface::Alias> {
+        read_attr!(self, "alias", TypeAlias)
     }
 
     fn refined_by(&mut self) -> Option<surface::Params> {
