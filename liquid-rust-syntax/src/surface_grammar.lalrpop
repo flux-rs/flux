@@ -10,9 +10,10 @@ grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
 pub Alias: surface::Alias = {
   <lo:@L>
+    "type"
     <name:Ident>
     <params:("(" Comma<Ident> ")")?>
-    "->"
+    "="
     <defn:Ty>
     <hi:@R> => {
         let args = match params {

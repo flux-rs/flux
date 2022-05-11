@@ -28,7 +28,6 @@ pub enum Token {
     Ge,
     At,
     Fn,
-    Type,
     Iff,
     FatArrow,
     Mut,
@@ -44,6 +43,7 @@ pub enum Token {
     And,
     Percent,
     Strg,
+    Type,
 }
 
 pub(crate) struct Cursor {
@@ -89,6 +89,7 @@ impl Cursor {
             TokenKind::Lt => Token::Lt,
             TokenKind::Le => Token::Le,
             TokenKind::EqEq => Token::EqEq,
+            TokenKind::Eq => Token::Eq,
             TokenKind::AndAnd => Token::AndAnd,
             TokenKind::OrOr => Token::OrOr,
             TokenKind::FatArrow => Token::FatArrow,
@@ -113,6 +114,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == self.symbs.ensures => Token::Ensures,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
+            TokenKind::Ident(symb, _) if symb == kw::Type => Token::Type,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,
