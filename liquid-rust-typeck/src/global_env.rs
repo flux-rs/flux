@@ -32,17 +32,7 @@ fn default_adt_def() -> ty::AdtDef {
 
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
-        let assert_behavior = match CONFIG.default_assert_terminator_behavior {
-            0 => AssertBehaviorOptions::Ignore,
-            1 => AssertBehaviorOptions::Assume,
-            2 => AssertBehaviorOptions::Check,
-            _ => {
-                unreachable!(
-                    "unexpected default assert behavior {:?}",
-                    CONFIG.default_assert_terminator_behavior
-                )
-            }
-        };
+        let assert_behavior = CONFIG.assert_terminator_behavior;
 
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),

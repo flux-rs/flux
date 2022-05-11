@@ -23,20 +23,6 @@ pub Qualifier: surface::Qualifier = {
     }
 }
 
-pub AssertBehavior: surface::AssertBehavior = {
-    <lo:@L>
-    <option:AssertBehaviorOptions>
-    <hi:@R> => {
-        surface::AssertBehavior { option: option, span: mk_span(lo, hi) }
-    }
-}
-
-AssertBehaviorOptions: surface::AssertBehaviorOptions = {
-    "ignore"    => surface::AssertBehaviorOptions::Ignore,
-    "assume"    => surface::AssertBehaviorOptions::Assume,
-    "check"     => surface::AssertBehaviorOptions::Check,
-}
-
 Param: surface::Param = <name: Ident> ":" <sort: Ident> => surface::Param { <> };
 
 pub FnSig: surface::FnSig = {
@@ -265,8 +251,5 @@ extern {
         "->" => Token::RArrow,
         "&"  => Token::And,
         "%" => Token::Percent,
-        "ignore" => Token::Ignore,
-        "assume" => Token::Assume,
-        "check" => Token::Check,
     }
 }

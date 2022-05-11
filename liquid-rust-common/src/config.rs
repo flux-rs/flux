@@ -3,11 +3,32 @@ use serde::Deserialize;
 use std::{io::Read, lazy::SyncLazy, path::PathBuf};
 pub use toml::Value;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Copy, Clone)]
 pub enum AssertBehaviorOptions {
-    Ignore = 0,
-    Assume = 1,
-    Check = 2,
+    Ignore,
+    Assume,
+    Check,
+}
+
+impl std::str::FromStr for AssertBehaviorOptions {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ignore" => Ok(AssertBehaviorOptions::Ignore),
+            "assume" => Ok(AssertBehaviorOptions::Assume),
+            "check" => Ok(AssertBehaviorOptions::Check),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CrateConfig {
+    pub log_dir: PathBuf,
+    pub dump_constraint: bool,
+    pub dump_checker_trace: bool,
+    pub assert_terminator_behavior: AssertBehaviorOptions,
 }
 
 #[derive(Deserialize)]
@@ -15,7 +36,7 @@ pub struct Config {
     pub log_dir: PathBuf,
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
-    pub default_assert_terminator_behavior: i32,
+    pub assert_terminator_behavior: AssertBehaviorOptions,
 }
 
 pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
@@ -24,7 +45,7 @@ pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
-            .set_default("default_assert_terminator_behavior", 1)?
+            .set_default("assert_terminator_behavior", "Assume")?
             .add_source(Environment::with_prefix("LR").ignore_empty(true))
             .build()?
             .try_deserialize()

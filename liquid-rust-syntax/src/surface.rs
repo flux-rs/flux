@@ -17,12 +17,6 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
-pub struct AssertBehavior {
-    pub option: AssertBehaviorOptions,
-    pub span: Span,
-}
-
-#[derive(Debug)]
 pub struct StructDef<T = Ident> {
     pub refined_by: Option<Params>,
     pub fields: Vec<Option<Ty<T>>>,
