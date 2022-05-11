@@ -4,6 +4,12 @@
 #![lr::alias(nat() -> i32{v: 0 <= v})]
 #![lr::alias(lb(n) -> i32{v: n <= v})]
 
+#[lr::sig(fn(x:nat) -> nat)]
+pub fn test0(x: i32) -> i32 { //~ ERROR postcondition might not hold
+    x - 1
+}
+
+
 #[lr::sig(fn(x:nat[]) -> nat[])]
 pub fn test1(x: i32) -> i32 { //~ ERROR postcondition might not hold
     x - 1

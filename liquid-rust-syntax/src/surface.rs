@@ -315,23 +315,38 @@ pub mod expand {
             Arg::Alias(x, path, indices) => {
                 match expand_alias(aliases, &path, &indices) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                        let subst = mk_sub1(e_bind, x);
-                        let x_pred = subst_expr(&subst, &e_pred);
-                        Arg::Indexed(x, e_path, Some(x_pred))
+                        expand_arg_exists(x, e_path, e_bind, e_pred)
                     }
                     _ => panic!("bad alias app: {:?}[{:?}]", &path, &indices),
                 }
             }
-            Arg::Indexed(x, path, e) => Arg::Indexed(x, expand_path(aliases, &path), e),
+            Arg::Indexed(x, path, None) => {
+                match expand_alias0(aliases, &path) {
+                    Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
+                        expand_arg_exists(x, e_path, e_bind, e_pred)
+                    }
+                    Some(_) => panic!("unexpected arg: expand_arg"),
+                    None => Arg::Indexed(x, expand_path(aliases, &path), None),
+                }
+            }
+            Arg::Indexed(x, path, Some(e)) => Arg::Indexed(x, expand_path(aliases, &path), Some(e)),
             Arg::Ty(t) => Arg::Ty(expand_ty(aliases, &t)),
             Arg::StrgRef(x, t) => Arg::StrgRef(x, expand_ty(aliases, &t)),
         }
     }
 
+    fn expand_arg_exists(x: Ident, e_path: Path, e_bind: Ident, e_pred: Expr) -> Arg {
+        let subst = mk_sub1(e_bind, x);
+        let x_pred = subst_expr(&subst, &e_pred);
+        Arg::Indexed(x, e_path, Some(x_pred))
+    }
+    fn expand_alias0(aliases: &AliasMap, path: &Path) -> Option<TyKind> {
+        let indices = Indices { indices: vec![], span: path.span };
+        expand_alias(aliases, path, &indices)
+    }
+
     fn expand_alias(aliases: &AliasMap, path: &Path, indices: &Indices) -> Option<TyKind> {
         let id = path.ident;
-        // let id_alias = aliases.get(&id);
-        // println!("ALIAS: expand_alias: {:?} -> {:?}", id, id_alias);
         match aliases.get(&id) {
             Some(alias) /* if path.args.is_empty() */ => {
                 let subst = mk_sub(&alias.args, &indices.indices);
@@ -357,27 +372,19 @@ pub mod expand {
 
     fn expand_kind(aliases: &AliasMap, k: &TyKind) -> TyKind {
         match k {
-            TyKind::Path(p) => TyKind::Path(expand_path(aliases, &p)),
+            TyKind::Path(p) => {
+                let indices = Indices { indices: vec![], span: p.span };
+                match expand_alias(aliases, p, &indices) {
+                    Some(k) => k,
+                    None => TyKind::Path(expand_path(aliases, &p)),
+                }
+            }
             TyKind::Exists { bind, path, pred } => {
                 TyKind::Exists {
                     bind: bind.clone(),
                     path: expand_path(aliases, &path),
                     pred: pred.clone(),
                 }
-
-                //                match expand_path(aliases, &path) {
-                //                    None => TyKind::Exists { bind, path, pred },
-                //                    Some(TyKind::Path(ep)) => TyKind::Exists { bind, path: ep, pred },
-                //                    Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                //                        let subst = mk_sub1(e_bind, bind);
-                //                        TyKind::Exists {
-                //                            bind,
-                //                            path: e_path,
-                //                            pred: and(pred, subst_expr(&subst, &e_pred)),
-                //                        }
-                //                    }
-                //                    Some(_) => panic!("expand_path:unexpected:exists"),
-                //                }
             }
             TyKind::Indexed { path, indices } => {
                 match expand_alias(aliases, &path, &indices) {
@@ -388,9 +395,6 @@ pub mod expand {
                             indices: indices.clone(),
                         }
                     }
-                    // None => TyKind::Indexed { path, indices },
-                    // Some(TyKind::Path(ep)) => TyKind::Indexed { path: ep, indices },
-                    // Some(_) => panic!("expand_path:unexpected:index"),
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(rk.clone(), Box::new(expand_ty(aliases, &*t))),
