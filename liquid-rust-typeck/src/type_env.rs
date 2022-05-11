@@ -423,7 +423,8 @@ impl TypeEnvInfer {
                     .iter()
                     .zip(sorts)
                     .map(|(e, sort)| {
-                        if e.has_free_vars(scope) {
+                        let has_free_vars = !scope.contains_all(e.vars());
+                        if has_free_vars {
                             let fresh = name_gen.fresh();
                             params.insert(fresh, sort);
                             Expr::var(fresh)
@@ -550,7 +551,8 @@ impl TypeEnvInfer {
                 let bty = self.join_bty(genv, other, bty1, bty2);
                 let exprs = izip!(exprs1, exprs2, genv.sorts(&bty))
                     .map(|(e1, e2, sort)| {
-                        if !self.is_packed_expr(e1) && (e2.has_free_vars(&self.scope) || e1 != e2) {
+                        let e2_has_free_vars = !self.scope.contains_all(e2.vars());
+                        if !self.is_packed_expr(e1) && (e2_has_free_vars || e1 != e2) {
                             Expr::var(self.fresh(sort))
                         } else {
                             e1.clone()

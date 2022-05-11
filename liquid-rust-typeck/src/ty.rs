@@ -2,9 +2,7 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
-// use liquid_rust_common::index::Idx;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
-pub use liquid_rust_syntax::surface;
 
 use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
@@ -17,7 +15,6 @@ pub use rustc_target::abi::VariantIdx;
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Interned, List},
-    pure_ctxt::Scope,
     subst::Subst,
 };
 
@@ -599,10 +596,6 @@ impl ExprS {
         vars
     }
 
-    pub fn has_free_vars(&self, scope: &Scope) -> bool {
-        self.vars().into_iter().any(|name| !scope.contains(name))
-    }
-
     /// Simplify expression applying some rules like removing double negation. This is used for pretty
     /// printing.
     pub fn simplify(&self) -> Expr {
@@ -718,15 +711,6 @@ impl Path {
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])
-    }
-}
-
-impl Loc {
-    pub fn is_free(&self, scope: &Scope) -> bool {
-        match self {
-            Loc::Local(_) => false,
-            Loc::Free(name) => !scope.contains(*name),
-        }
     }
 }
 

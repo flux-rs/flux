@@ -259,6 +259,10 @@ impl Scope {
     pub fn contains(&self, name: Name) -> bool {
         name.index() < self.bindings.len()
     }
+
+    pub fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
+        iter.into_iter().all(|name| self.contains(name))
+    }
 }
 
 impl std::ops::Index<Name> for Scope {
