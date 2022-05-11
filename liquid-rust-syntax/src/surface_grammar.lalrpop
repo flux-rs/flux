@@ -11,13 +11,18 @@ grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 pub Alias: surface::Alias = {
   <lo:@L>
     <name:Ident>
-    "<" <args:Comma<Ident>> ">"
+    <params:("(" Comma<Ident> ")")?>
     "->"
     <defn:Ty>
     <hi:@R> => {
-        surface::Alias { name, args: vec![], defn, span: mk_span(lo, hi) }
+        let args = match params {
+            Some(xs) => xs.1,
+            None => vec![],
+        };
+        surface::Alias { name, args, defn, span: mk_span(lo, hi) }
     }
 }
+
 
 pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
@@ -67,6 +72,7 @@ Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>                => surface::Arg::StrgRef(bind, ty),
     <bind:Ident> ":" <path:Path>                       => surface::Arg::Indexed(bind, path, None),
     <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Indexed(bind, path, Some(pred)),
+    <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(bind, path, indices),
     <ty:Ty>                                            => surface::Arg::Ty(<>)
 }
 

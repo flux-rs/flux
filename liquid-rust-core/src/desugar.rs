@@ -145,6 +145,7 @@ impl<'a> DesugarCtxt<'a> {
                 Ok(Ty::Ptr(loc))
             }
             surface::Arg::Ty(ty) => self.desugar_ty(ty),
+            surface::Arg::Alias(..) => panic!("Unexpected-Alias in desugar!"),
         }
     }
 
@@ -340,6 +341,7 @@ impl ParamsCtxt<'_> {
                 self.ty_gather_params(ty, adt_sorts)?;
             }
             surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_sorts)?,
+            _ => panic!("unexpected: arg_gather_params"),
         }
         Ok(())
     }

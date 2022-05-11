@@ -29,6 +29,7 @@ pub(crate) struct Specs {
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
+    pub aliases: surface::AliasMap,
 }
 
 pub(crate) struct FnSpec {
@@ -40,9 +41,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a Session) -> Result<Specs, ErrorReported> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_reported: false };
 
-        tcx.hir().visit_all_item_likes(&mut collector);
-
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;
+
+        tcx.hir().visit_all_item_likes(&mut collector);
 
         if collector.error_reported {
             Err(ErrorReported)
@@ -114,6 +115,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
+        let mut aliases = attrs.aliases();
+        // println!("ALIAS: parse_crate_spec: {:?}", aliases.len());
+        while let Some(alias) = aliases.pop() {
+            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
+            self.specs.aliases.insert(alias.name, alias);
+        }
         Ok(())
     }
 
@@ -154,7 +161,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("alias", MacArgs::Delimited(span, _, tokens)) => {
                 let ty_alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
-                println!("DEF: {:?}", ty_alias);
+                // println!("ALIAS: {:?}", ty_alias);
                 LiquidAttrKind::TypeAlias(ty_alias)
             }
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
@@ -267,6 +274,7 @@ impl Specs {
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
+            aliases: FxHashMap::default(),
         }
     }
 }
@@ -349,6 +357,10 @@ impl LiquidAttrs {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 
+    fn aliases(&mut self) -> Vec<surface::Alias> {
+        read_all_attrs!(self, "alias", TypeAlias)
+    }
+
     fn refined_by(&mut self) -> Option<surface::Params> {
         read_attr!(self, "refined_by", RefinedBy)
     }
@@ -367,7 +379,7 @@ impl LiquidAttrKind {
             LiquidAttrKind::RefinedBy(_) => "refined_by",
             LiquidAttrKind::Qualifier(_) => "qualifier",
             LiquidAttrKind::Field(_) => "field",
-            LiquidAttrKind::TypeAlias(_) => "type",
+            LiquidAttrKind::TypeAlias(_) => "alias",
         }
     }
 }

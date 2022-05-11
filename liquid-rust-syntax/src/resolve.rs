@@ -106,6 +106,7 @@ impl<'tcx> Resolver<'tcx> {
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(ty) => Ok(surface::Arg::Ty(self.resolve_ty(ty)?)),
+            _ => panic!("unexpected: resolve_arg"),
         }
     }
 
