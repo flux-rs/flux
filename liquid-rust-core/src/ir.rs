@@ -12,7 +12,7 @@ use rustc_middle::{
     ty::{FloatTy, IntTy, UintTy},
 };
 
-use crate::ty::{Layout, Ty};
+use crate::ty::{Layout, Ty, VariantIdx};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
@@ -72,6 +72,7 @@ pub struct Statement {
 #[derive(Debug)]
 pub enum StatementKind {
     Assign(Place, Rvalue),
+    SetDiscriminant(Place, VariantIdx),
     Nop,
 }
 
@@ -114,6 +115,7 @@ pub struct Place {
 pub enum PlaceElem {
     Deref,
     Field(Field),
+    Downcast(VariantIdx),
 }
 
 pub enum Constant {
@@ -201,6 +203,9 @@ impl fmt::Debug for Statement {
         match &self.kind {
             StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
             StatementKind::Nop => write!(f, "nop"),
+            StatementKind::SetDiscriminant(place, variant_idx) => {
+                write!(f, "discriminant({:?}) = {:?}", place, variant_idx)
+            }
         }
     }
 }
@@ -272,6 +277,10 @@ impl fmt::Debug for Place {
                 }
                 PlaceElem::Deref => {
                     p = format!("*{}", p);
+                    need_parens = true;
+                }
+                PlaceElem::Downcast(variant_idx) => {
+                    p = format!("{p} as {variant_idx:?}");
                     need_parens = true;
                 }
             }

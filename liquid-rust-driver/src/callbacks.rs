@@ -107,7 +107,7 @@ impl<'tcx> CrateChecker<'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let adt_def = desugar::desugar_enum_def(sess, enum_def)?;
+                let adt_def = desugar::desugar_enum_def(tcx, enum_def)?;
                 Wf::new(sess, &genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())

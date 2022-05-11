@@ -2,7 +2,7 @@ use std::fmt;
 
 pub use rustc_ast::token::LitKind;
 use rustc_ast::Mutability;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::{Span, Symbol};
@@ -34,6 +34,7 @@ pub struct StructDef<T = Ident> {
 
 #[derive(Debug)]
 pub struct EnumDef {
+    pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
     pub opaque: bool,
 }
@@ -239,6 +240,29 @@ impl fmt::Debug for BinOp {
 // -------------------------- DEFAULT Signatures -----------------------------
 // ---------------------------------------------------------------------------
 
+pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
+    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
+    let args = rust_sig
+        .inputs()
+        .iter()
+        .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
+        .collect();
+    let returns = default_ty(rust_sig.output());
+    FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
+}
+
+pub fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
+    let kind = match ty.kind() {
+        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
+            let ref_kind = default_refkind(m);
+            let tgt_ty = default_ty(*ty);
+            TyKind::Ref(ref_kind, Box::new(tgt_ty))
+        }
+        _ => TyKind::Path(default_path(ty)),
+    };
+    Ty { kind, span: rustc_span::DUMMY_SP }
+}
+
 fn default_refkind(m: &Mutability) -> RefKind {
     match m {
         Mutability::Mut => RefKind::Mut,
@@ -262,28 +286,28 @@ fn default_path(ty: rustc_middle::ty::Ty) -> Path<Res> {
     Path { ident, args, span: rustc_span::DUMMY_SP }
 }
 
-fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
-    let kind = match ty.kind() {
-        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
-            let ref_kind = default_refkind(m);
-            let tgt_ty = default_ty(*ty);
-            TyKind::Ref(ref_kind, Box::new(tgt_ty))
-        }
-        _ => TyKind::Path(default_path(ty)),
-    };
-    Ty { kind, span: rustc_span::DUMMY_SP }
-}
+// fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
+//     let kind = match ty.kind() {
+//         rustc_middle::ty::TyKind::Ref(_, ty, m) => {
+//             let ref_kind = default_refkind(m);
+//             let tgt_ty = default_ty(*ty);
+//             TyKind::Ref(ref_kind, Box::new(tgt_ty))
+//         }
+//         _ => TyKind::Path(default_path(ty)),
+//     };
+//     Ty { kind, span: rustc_span::DUMMY_SP }
+// }
 
-pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
-    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
-    let args = rust_sig
-        .inputs()
-        .iter()
-        .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
-        .collect();
-    let returns = default_ty(rust_sig.output());
-    FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
-}
+// pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
+//     let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
+//     let args = rust_sig
+//         .inputs()
+//         .iter()
+//         .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
+//         .collect();
+//     let returns = default_ty(rust_sig.output());
+//     FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
+// }
 
 pub mod expand {
     use std::{collections::HashMap, iter};

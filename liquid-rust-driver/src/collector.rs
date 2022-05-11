@@ -79,7 +79,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let refined_by = attrs.refined_by();
         self.specs
             .enums
-            .insert(def_id, surface::EnumDef { refined_by, opaque });
+            .insert(def_id, surface::EnumDef { def_id, refined_by, opaque });
         Ok(())
     }
 
