@@ -26,7 +26,7 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
-use liquid_rust_common::index::IndexVec;
+use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -290,8 +290,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(pcx, env, terminator.source_info, *func, substs, args, destination)
             }
-            TerminatorKind::Assert { cond, expected, target } => {
-                self.check_assert(pcx, env, cond, *expected, *target)
+            TerminatorKind::Assert { cond, expected, target, msg } => {
+                self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
             }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(self.genv, pcx, place);
@@ -398,20 +398,37 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
+        source_info: SourceInfo,
         cond: &Operand,
         expected: bool,
         target: BasicBlock,
+        msg: &'static str,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let cond_ty = self.check_operand(pcx, env, cond);
-
-        let pred = match cond_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
-            _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
+        let ty = self.check_operand(pcx, env, cond);
+        let pred = if let TyKind::Refine(BaseTy::Bool, exprs) = ty.kind() {
+            if expected {
+                exprs[0].clone()
+            } else {
+                exprs[0].not()
+            }
+        } else {
+            unreachable!("unexpected ty `{ty:?}`")
         };
 
-        let assert = if expected { pred } else { pred.not() };
+        match self.genv.check_asserts() {
+            AssertBehavior::Ignore => Ok(vec![(target, None)]),
+            AssertBehavior::Assume => Ok(vec![(target, Some(pred))]),
+            AssertBehavior::Check => {
+                let mut gen = ConstraintGen::new(
+                    self.genv,
+                    pcx.breadcrumb(),
+                    Tag::Assert(msg, source_info.span),
+                );
+                gen.check_pred(pred.clone());
 
-        Ok(vec![(target, Some(assert))])
+                Ok(vec![(target, Some(pred))])
+            }
+        }
     }
 
     fn check_switch_int(

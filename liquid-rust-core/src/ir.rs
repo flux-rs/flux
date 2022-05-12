@@ -61,6 +61,7 @@ pub enum TerminatorKind {
         cond: Operand,
         expected: bool,
         target: BasicBlock,
+        msg: &'static str,
     },
 }
 
@@ -254,8 +255,11 @@ impl fmt::Debug for Terminator {
             TerminatorKind::Drop { place, target } => {
                 write!(f, "drop({place:?}) -> {target:?}")
             }
-            TerminatorKind::Assert { cond, target, expected } => {
-                write!(f, "assert({cond:?} is expected to be {expected:?}) -> {target:?}")
+            TerminatorKind::Assert { cond, target, expected, msg } => {
+                write!(
+                    f,
+                    "assert({cond:?} is expected to be {expected:?}, \"{msg}\") -> {target:?}"
+                )
             }
         }
     }
