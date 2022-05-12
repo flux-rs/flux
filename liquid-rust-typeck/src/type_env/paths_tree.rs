@@ -10,7 +10,7 @@ use crate::{
     global_env::GlobalEnv,
     pure_ctxt::PureCtxt,
     subst::Subst,
-    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var},
+    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var, VariantIdx},
 };
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -51,12 +51,12 @@ impl PathsTree {
         for f in path.projection() {
             match node {
                 Node::Ty(_) => return None,
-                Node::Adt(_, fields) => node = &fields[*f],
+                Node::Adt(.., fields) => node = &fields[*f],
             }
         }
         match node {
             Node::Ty(ty) => Some(ty),
-            Node::Adt(_, _) => None,
+            Node::Adt(..) => None,
         }
     }
 
@@ -65,12 +65,12 @@ impl PathsTree {
         for f in path.projection() {
             match node {
                 Node::Ty(_) => return None,
-                Node::Adt(_, fields) => node = &mut fields[*f],
+                Node::Adt(.., fields) => node = &mut fields[*f],
             }
         }
         match node {
             Node::Ty(ty) => Some(ty),
-            Node::Adt(_, _) => None,
+            Node::Adt(..) => None,
         }
     }
 
@@ -130,15 +130,10 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_to_match(
-        &mut self,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        other: &PathsTree,
-    ) {
+    pub fn fold_unfold_with(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_to_match(genv, pcx, node2);
+                node1.fold_unfold_with(genv, pcx, node2);
             }
         }
     }
@@ -157,21 +152,29 @@ impl PathsTree {
         let mut path = path.into();
         loop {
             let loc = path.loc;
-            let proj = path
-                .projection()
-                .iter()
-                .copied()
-                .chain(place_proj.map_take_while(|p| PlaceElem::as_field(p)))
-                .collect_vec();
+            let mut proj = vec![];
 
             let mut node = self.map.get_mut(&loc).unwrap();
-            for &f in &proj {
-                node = &mut node.unfold(genv)[f];
+            for elem in path
+                .projection()
+                .iter()
+                .map(|f| FieldOrDowncast::Field(*f))
+                .chain(place_proj.map_take_while(|p| FieldOrDowncast::from_place_elem(p)))
+            {
+                match elem {
+                    FieldOrDowncast::Field(f) => {
+                        proj.push(f);
+                        node = node.proj(genv, f);
+                    }
+                    FieldOrDowncast::Downcast(variant_idx) => {
+                        node.unfold(genv, variant_idx);
+                    }
+                }
             }
-            let ty = node.fold(genv, pcx);
 
             match place_proj.next() {
                 Some(PlaceElem::Deref) => {
+                    let ty = node.fold(genv, pcx);
                     match ty.kind() {
                         TyKind::Ptr(ref_path) => path = ref_path.clone(),
                         TyKind::Ref(mode, ty) => {
@@ -183,8 +186,11 @@ impl PathsTree {
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
-                Some(_) => unreachable!("expected deref"),
-                None => return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty)),
+                Some(elem) => unreachable!("expected deref, found `{elem:?}`"),
+                None => {
+                    let ty = node.fold(genv, pcx);
+                    return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty));
+                }
             }
         }
     }
@@ -215,13 +221,28 @@ impl PathsTree {
                     });
                 }
                 (PlaceElem::Field(f), _) => {
-                    let (_, fields) = ty.unfold(genv);
+                    let (_, fields) = ty.unfold(genv, VariantIdx::from_u32(0)).unwrap();
                     ty = fields[*f].clone();
                 }
                 _ => unreachable!(),
             }
         }
         LookupResult::Ref(mode, ty)
+    }
+}
+
+enum FieldOrDowncast {
+    Field(Field),
+    Downcast(VariantIdx),
+}
+
+impl FieldOrDowncast {
+    fn from_place_elem(elem: &PlaceElem) -> Option<FieldOrDowncast> {
+        match elem {
+            PlaceElem::Field(f) => Some(FieldOrDowncast::Field(*f)),
+            PlaceElem::Downcast(variant_idx) => Some(FieldOrDowncast::Downcast(*variant_idx)),
+            _ => None,
+        }
     }
 }
 
@@ -248,16 +269,23 @@ impl<'a> std::ops::IndexMut<&'a Path> for PathsTree {
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum Node {
     Ty(Ty),
-    Adt(DefId, IndexVec<Field, Node>),
+    Adt(DefId, VariantIdx, IndexVec<Field, Node>),
 }
 
 impl Node {
     fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut Node) {
         let (fields1, fields2) = match (&mut *self, &mut *other) {
             (Node::Ty(_), Node::Ty(_)) => return,
-            (Node::Ty(_), Node::Adt(_, fields2)) => (self.unfold(genv), fields2),
-            (Node::Adt(_, fields1), Node::Ty(_)) => (fields1, other.unfold(genv)),
-            (Node::Adt(_, fields1), Node::Adt(_, fields2)) => (fields1, fields2),
+            (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
+                (self.unfold(genv, *variant_idx), fields2)
+            }
+            (Node::Adt(_, variant_idx, fields1), Node::Ty(_)) => {
+                (fields1, other.unfold(genv, *variant_idx))
+            }
+            (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
+                debug_assert_eq!(variant_idx1, variant_idx2);
+                (fields1, fields2)
+            }
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2.iter_mut()) {
@@ -265,48 +293,58 @@ impl Node {
         }
     }
 
-    fn fold_unfold_to_match(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &Node) {
+    fn fold_unfold_with(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
-            (Node::Adt(_, _), Node::Ty(_)) => {
+            (Node::Adt(..), Node::Ty(_)) => {
                 self.fold(genv, pcx);
                 return;
             }
-            (Node::Ty(_), Node::Adt(_, fields2)) => (self.unfold(genv), fields2),
-            (Node::Adt(_, fields1), Node::Adt(_, fields2)) => (fields1, fields2),
+            (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
+                (self.unfold(genv, *variant_idx), fields2)
+            }
+            (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
+                debug_assert_eq!(variant_idx1, variant_idx2);
+                (fields1, fields2)
+            }
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_to_match(genv, pcx, field2);
+            field1.fold_unfold_with(genv, pcx, field2);
         }
     }
 
-    fn unfold(&mut self, genv: &GlobalEnv) -> &mut IndexVec<Field, Node> {
+    fn unfold(&mut self, genv: &GlobalEnv, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
+        if let Node::Ty(ty) = self {
+            let (did, fields) = ty.unfold(genv, variant_idx).unwrap();
+            *self = Node::Adt(did, variant_idx, fields.into_iter().map(Node::Ty).collect());
+        }
         match self {
-            Node::Ty(ty) => {
-                let (did, fields) = ty.unfold(genv);
-
-                *self = Node::Adt(did, fields.into_iter().map(Node::Ty).collect());
-                if let Node::Adt(_, fields) = self {
-                    fields
-                } else {
-                    unsafe { unreachable_unchecked() }
-                }
+            Node::Ty(_) => unreachable!(),
+            Node::Adt(_, node_variant_idx, fields) => {
+                debug_assert_eq!(variant_idx, *node_variant_idx);
+                fields
             }
-            Node::Adt(_, fields) => fields,
+        }
+    }
+
+    fn proj(&mut self, genv: &GlobalEnv, field: Field) -> &mut Node {
+        match self {
+            Node::Ty(_) => &mut self.unfold(genv, VariantIdx::from_u32(0))[field],
+            Node::Adt(_, _, fields) => &mut fields[field],
         }
     }
 
     fn fold(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) -> &mut Ty {
         match self {
             Node::Ty(ty) => ty,
-            Node::Adt(did, fields) => {
+            Node::Adt(did, variant_idx, fields) => {
                 let fields = fields
                     .iter_mut()
                     .map(|n| n.fold(genv, pcx).clone())
                     .collect_vec();
                 let adt_def = genv.adt_def(*did);
-                let exprs = fold(genv, pcx, &adt_def, &fields[..]);
+                let exprs = fold(genv, pcx, &adt_def, &fields[..], *variant_idx);
                 let adt = BaseTy::adt(*did, vec![]);
                 let ty = Ty::refine(adt, exprs);
                 *self = Node::Ty(ty);
@@ -322,7 +360,7 @@ impl Node {
     fn subst_mut(&mut self, subst: &Subst) {
         match self {
             Node::Ty(ty) => *ty = subst.subst_ty(ty),
-            Node::Adt(_, fields) => {
+            Node::Adt(.., fields) => {
                 for field in fields.iter_mut() {
                     field.subst_mut(subst);
                 }
@@ -333,20 +371,23 @@ impl Node {
 
 type ParamInst = FxHashMap<Name, Expr>;
 
-fn fold(genv: &GlobalEnv, pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty]) -> Vec<Expr> {
-    match adt_def {
-        AdtDef::Transparent { refined_by, fields } => {
-            let mut params = FxHashMap::default();
-            for (ty1, ty2) in iter::zip(tys, fields) {
-                ty_infer_folding(genv, pcx, &mut params, ty1, ty2);
-            }
-            refined_by
-                .iter()
-                .map(|param| params.remove(&param.name).unwrap())
-                .collect()
-        }
-        AdtDef::Opaque { .. } => panic!("folding opaque adt"),
+fn fold(
+    genv: &GlobalEnv,
+    pcx: &mut PureCtxt,
+    adt_def: &AdtDef,
+    tys: &[Ty],
+    variant_idx: VariantIdx,
+) -> Vec<Expr> {
+    let fields = &adt_def.variants().unwrap()[variant_idx].fields;
+    let mut params = FxHashMap::default();
+    for (ty1, ty2) in iter::zip(tys, fields) {
+        ty_infer_folding(genv, pcx, &mut params, ty1, ty2);
     }
+    adt_def
+        .refined_by()
+        .iter()
+        .map(|param| params.remove(&param.name).unwrap())
+        .collect()
 }
 
 fn ty_infer_folding(
@@ -363,19 +404,7 @@ fn ty_infer_folding(
                 expr_infer_folding(params, e1, e2);
             }
         }
-        (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
-            bty_infer_folding(genv, pcx, params, bty1, bty2);
-            let sorts = genv.sorts(bty1);
-            let exprs1 = pcx.push_bindings(&sorts, p);
-            for (e1, e2) in iter::zip(exprs1, exprs2) {
-                expr_infer_folding(params, &e1, e2)
-            }
-        }
-        (TyKind::Exists(..), TyKind::Exists(..)) => todo!(),
-        (TyKind::Refine(..), TyKind::Exists(..)) => todo!(),
-        (TyKind::Ptr(_), TyKind::Ptr(_)) => {
-            todo!()
-        }
+        (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
         (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
             ty_infer_folding(genv, pcx, params, ty1, ty2);
         }
@@ -455,7 +484,7 @@ impl<'a> PathsIter<'a> {
     fn new(loc: Loc, root: &'a Node) -> Self {
         match root {
             Node::Ty(ty) => PathsIter::Ty(Some((loc, ty))),
-            Node::Adt(_, fields) => {
+            Node::Adt(.., fields) => {
                 PathsIter::Adt { loc, projection: vec![], stack: vec![fields.iter().enumerate()] }
             }
         }
@@ -471,7 +500,7 @@ impl<'a> Iterator for PathsIter<'a> {
                 while let Some(top) = stack.last_mut() {
                     if let Some((i, node)) = top.next() {
                         match node {
-                            Node::Adt(_, fields) => {
+                            Node::Adt(.., fields) => {
                                 projection.push(Field::from(i));
                                 stack.push(fields.iter().enumerate());
                             }
@@ -507,7 +536,7 @@ impl<'a> PathsIterMut<'a> {
     fn new(loc: Loc, root: &'a mut Node) -> Self {
         match root {
             Node::Ty(ty) => PathsIterMut::Ty(Some((loc, ty))),
-            Node::Adt(_, fields) => {
+            Node::Adt(.., fields) => {
                 PathsIterMut::Adt {
                     loc,
                     projection: vec![],
@@ -527,7 +556,7 @@ impl<'a> Iterator for PathsIterMut<'a> {
                 while let Some(top) = stack.last_mut() {
                     if let Some((i, node)) = top.next() {
                         match node {
-                            Node::Adt(_, fields) => {
+                            Node::Adt(.., fields) => {
                                 projection.push(Field::from(i));
                                 stack.push(fields.iter_mut().enumerate());
                             }

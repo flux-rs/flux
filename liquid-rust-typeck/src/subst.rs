@@ -102,11 +102,12 @@ impl Subst<'_> {
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred {
-            Pred::Infer(kvars) => {
+            Pred::Kvars(kvars) => {
                 let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect_vec();
-                Pred::infer(kvars)
+                Pred::kvars(kvars)
             }
             Pred::Expr(e) => self.subst_expr(e).into(),
+            Pred::Hole => Pred::Hole,
         }
     }
 
@@ -262,15 +263,13 @@ impl Subst<'_> {
         ty2: &TyS,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
-                self.infer_from_btys(genv, pcx, params, env, bty1, requires, bty2);
+            (TyKind::Refine(_, exprs1), TyKind::Refine(_, exprs2)) => {
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     self.infer_from_exprs(params, e1, e2);
                 }
             }
-            (TyKind::Exists(bty1, p), TyKind::Refine(bty2, exprs2)) => {
+            (TyKind::Exists(bty1, p), TyKind::Refine(_, exprs2)) => {
                 // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
-                self.infer_from_btys(genv, pcx, params, env, bty1, requires, bty2);
                 let sorts = genv.sorts(bty1);
                 let exprs1 = pcx.push_bindings(&sorts, p);
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
@@ -297,24 +296,6 @@ impl Subst<'_> {
                 self.infer_from_tys(genv, pcx, params, env, ty1, requires, ty2);
             }
             _ => {}
-        }
-    }
-
-    fn infer_from_btys(
-        &mut self,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        params: &FxHashSet<Name>,
-        env: &TypeEnv,
-        bty1: &BaseTy,
-        requires: &FxHashMap<Path, Ty>,
-        bty2: &BaseTy,
-    ) {
-        if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
-            debug_assert_eq!(did1, did2);
-            for (ty1, ty2) in iter::zip(substs1, substs2) {
-                self.infer_from_tys(genv, pcx, params, env, ty1, requires, ty2);
-            }
         }
     }
 
