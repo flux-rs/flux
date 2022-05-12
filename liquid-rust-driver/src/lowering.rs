@@ -147,11 +147,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::TerminatorKind::Drop { place, target, .. } => {
                 TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
             }
-            mir::TerminatorKind::Assert { cond, target, expected, .. } => {
+            mir::TerminatorKind::Assert { cond, target, expected, msg, .. } => {
                 TerminatorKind::Assert {
                     cond: self.lower_operand(cond)?,
                     expected: *expected,
                     target: *target,
+                    msg: self.lower_assert_msg(msg)?,
                 }
             }
             mir::TerminatorKind::Resume
@@ -292,6 +293,17 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
+        }
+    }
+
+    fn lower_assert_msg(&self, msg: &mir::AssertMessage) -> Result<&'static str, ErrorReported> {
+        use mir::AssertKind::*;
+        match msg {
+            DivisionByZero(_) => Ok("possible division by zero"),
+            RemainderByZero(_) => Ok("possible remainder with a divisor of zero"),
+            Overflow(mir::BinOp::Div, _, _) => Ok("possible division with overflow"),
+            Overflow(mir::BinOp::Rem, _, _) => Ok("possible remainder with overflow"),
+            _ => self.emit_err(None, format!("unsupported assert message: `{msg:?}`")),
         }
     }
 

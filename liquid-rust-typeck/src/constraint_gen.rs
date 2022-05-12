@@ -22,6 +22,7 @@ pub enum Tag {
     Call(Span),
     Assign(Span),
     Ret,
+    Assert(&'static str, Span),
     Div(Span),
     Rem(Span),
     Goto(Option<Span>, BasicBlock),
@@ -171,6 +172,7 @@ mod pretty {
                         w!("Goto({:?})", ^bb)
                     }
                 }
+                Tag::Assert(msg, span) => w!("Assert(\"{}\", {:?})", ^msg, span),
             }
         }
     }

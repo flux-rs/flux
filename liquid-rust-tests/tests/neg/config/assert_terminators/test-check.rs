@@ -4,6 +4,7 @@
 #![lr::cfg(check_asserts = "check")]
 
 #[lr::sig(fn(x: i32, y: i32) -> i32)]
-pub fn test(x: i32, y: i32) -> i32 { //~ ERROR postcondition might not hold
-    x / y
+pub fn test(x: i32, y: i32) -> i32 {
+    x / y //~ ERROR possible division by zero
+          //~^ ERROR possible division with overflow
 }
