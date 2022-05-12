@@ -3,11 +3,40 @@ use serde::Deserialize;
 use std::{io::Read, lazy::SyncLazy, path::PathBuf};
 pub use toml::Value;
 
+#[derive(Debug, Deserialize, Copy, Clone)]
+pub enum AssertBehavior {
+    Ignore,
+    Assume,
+    Check,
+}
+
+impl std::str::FromStr for AssertBehavior {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ignore" => Ok(AssertBehavior::Ignore),
+            "assume" => Ok(AssertBehavior::Assume),
+            "check" => Ok(AssertBehavior::Check),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CrateConfig {
+    pub log_dir: PathBuf,
+    pub dump_constraint: bool,
+    pub dump_checker_trace: bool,
+    pub check_asserts: AssertBehavior,
+}
+
 #[derive(Deserialize)]
 pub struct Config {
     pub log_dir: PathBuf,
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
+    pub check_asserts: AssertBehavior,
 }
 
 pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
@@ -16,6 +45,7 @@ pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
+            .set_default("check_asserts", "Assume")?
             .add_source(Environment::with_prefix("LR").ignore_empty(true))
             .build()?
             .try_deserialize()

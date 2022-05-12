@@ -42,6 +42,9 @@ pub enum Token {
     And,
     Percent,
     Strg,
+    Ignore,
+    Assume,
+    Check,
 }
 
 pub(crate) struct Cursor {
