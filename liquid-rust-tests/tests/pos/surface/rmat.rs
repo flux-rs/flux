@@ -8,7 +8,9 @@ use rvec::RVec;
 
 #[lr::refined_by(rows: int, cols: int)]
 pub struct RMat {
-    #[lr::field(RVec<RVec<f32>[cols]>[rows])]
+    #[lr::field(usize[@cols])]
+    cols: usize,
+    #[lr::field(RVec<RVec<f32>[cols]>[@rows])]
     inner: RVec<RVec<f32>>,
 }
 
@@ -22,7 +24,7 @@ impl RMat {
             inner.push(r);
             i += 1;
         }
-        Self { inner }
+        Self { cols, inner }
     }
 
     #[lr::sig(fn(&RMat[@m, @n], usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &f32)]

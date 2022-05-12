@@ -267,6 +267,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
                 env.write_place(self.genv, pcx, p, ty, Tag::Assign(stmt.source_info.span));
             }
+            StatementKind::SetDiscriminant { .. } => {
+                // TODO(nilehmann) double chould check here that the place is unfolded to
+                // the corect variant. This should be guaranteed by rustc
+            }
             StatementKind::Nop => {}
         }
     }
@@ -337,7 +341,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let cx = LoweringCtxt::empty();
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+            .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if subst
@@ -793,11 +797,11 @@ impl Mode for Inference<'_> {
         modified
     }
 
-    fn fresh_kvar<I>(&mut self, sorts: &[Sort], _scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, _sorts: &[Sort], _scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        Pred::dummy_infer(sorts)
+        Pred::Hole
     }
 
     fn clear(&mut self, bb: BasicBlock) {
