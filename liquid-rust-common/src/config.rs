@@ -3,7 +3,9 @@ use serde::Deserialize;
 use std::{io::Read, lazy::SyncLazy, path::PathBuf};
 pub use toml::Value;
 
+// serde small case
 #[derive(Debug, Deserialize, Copy, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum AssertBehavior {
     Ignore,
     Assume,
@@ -45,7 +47,7 @@ pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
-            .set_default("check_asserts", "Assume")?
+            .set_default("check_asserts", "assume")?
             .add_source(Environment::with_prefix("LR").ignore_empty(true))
             .build()?
             .try_deserialize()
