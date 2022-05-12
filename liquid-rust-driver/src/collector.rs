@@ -415,7 +415,11 @@ macro_rules! try_read_setting {
             if parse_result.is_err() {
                 Err(errors::CFGError {
                     span,
-                    message: format!("incorrect type in value for setting `{}`", setting),
+                    message: format!(
+                        "incorrect type in value for setting `{}`, expected {}",
+                        $setting,
+                        stringify!($type)
+                    ),
                 })
             } else {
                 Ok(parse_result.unwrap())
