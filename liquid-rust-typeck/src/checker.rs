@@ -26,7 +26,7 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
-use liquid_rust_common::{config::AssertBehaviorOptions, index::IndexVec};
+use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -398,9 +398,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         expected: bool,
         target: BasicBlock,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        match self.genv.assert_behavior() {
-            AssertBehaviorOptions::Ignore => Ok(vec![(target, None)]),
-            AssertBehaviorOptions::Assume => {
+        match self.genv.check_asserts() {
+            AssertBehavior::Ignore => Ok(vec![(target, None)]),
+            AssertBehavior::Assume => {
                 let cond_ty = self.check_operand(pcx, env, cond);
                 let pred = match cond_ty.kind() {
                     TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
@@ -410,7 +410,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let assert = if expected { pred } else { pred.not() };
                 Ok(vec![(target, Some(assert))])
             }
-            AssertBehaviorOptions::Check => {
+            AssertBehavior::Check => {
                 let cond_ty = self.check_operand(pcx, env, cond);
 
                 let pred = match cond_ty.kind() {

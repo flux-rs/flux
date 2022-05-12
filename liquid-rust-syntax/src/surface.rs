@@ -1,6 +1,5 @@
 use std::fmt;
 
-pub use liquid_rust_common::config::AssertBehaviorOptions;
 pub use rustc_ast::token::LitKind;
 use rustc_ast::Mutability;
 use rustc_hir::def_id::DefId;

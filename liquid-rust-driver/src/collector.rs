@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use itertools::Itertools;
 use liquid_rust_common::{
-    config::{self, AssertBehaviorOptions, CrateConfig},
+    config::{self, AssertBehavior, CrateConfig},
     iter::IterExt,
 };
 use liquid_rust_syntax::{
@@ -178,7 +178,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 match LiquidAttrCFG::parse_cfg(attr_item) {
                     Err(error) => return self.emit_err(error),
                     Ok(mut cfg) => {
-                        match cfg.into_crate_cfg() {
+                        match cfg.try_into_crate_cfg() {
                             Err(error) => return self.emit_err(error),
                             Ok(crate_cfg) => LiquidAttrKind::CrateConfig(crate_cfg),
                         }
@@ -484,18 +484,14 @@ impl LiquidAttrCFG {
         }
     }
 
-    fn into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
+    fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
         let log_dir = try_read_setting!(self, "log_dir", PathBuf, config::CONFIG.log_dir.clone())?;
         let dump_constraint =
             try_read_setting!(self, "dump_constraint", bool, config::CONFIG.dump_constraint)?;
         let dump_checker_trace =
             try_read_setting!(self, "dump_checker_trace", bool, config::CONFIG.dump_checker_trace)?;
-        let assert_terminator_behavior = try_read_setting!(
-            self,
-            "assert_terminator_behavior",
-            AssertBehaviorOptions,
-            config::CONFIG.assert_terminator_behavior
-        )?;
+        let check_asserts =
+            try_read_setting!(self, "check_asserts", AssertBehavior, config::CONFIG.check_asserts)?;
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {
@@ -504,7 +500,7 @@ impl LiquidAttrCFG {
             });
         }
 
-        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace, assert_terminator_behavior })
+        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace, check_asserts })
     }
 }
 

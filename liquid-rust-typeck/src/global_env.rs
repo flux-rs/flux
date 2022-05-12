@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use liquid_rust_common::config::{AssertBehaviorOptions, CONFIG};
+use liquid_rust_common::config::{AssertBehavior, CONFIG};
 use liquid_rust_core::{
     desugar,
     ty::{self as core, AdtSortsMap},
@@ -23,7 +23,7 @@ pub struct GlobalEnv<'tcx> {
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
     adt_defs: FxHashMap<DefId, ty::AdtDef>,
-    assert_behavior: AssertBehaviorOptions,
+    check_asserts: AssertBehavior,
 }
 
 fn default_adt_def() -> ty::AdtDef {
@@ -32,19 +32,19 @@ fn default_adt_def() -> ty::AdtDef {
 
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
-        let assert_behavior = CONFIG.assert_terminator_behavior;
+        let check_asserts = CONFIG.check_asserts;
 
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
             adt_sorts: FxHashMap::default(),
             adt_defs: FxHashMap::default(),
             tcx,
-            assert_behavior,
+            check_asserts,
         }
     }
 
-    pub fn register_assert_behavior(&mut self, behavior: AssertBehaviorOptions) {
-        self.assert_behavior = behavior;
+    pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
+        self.check_asserts = behavior;
     }
 
     pub fn register_adt_sorts(&mut self, def_id: DefId, sorts: Vec<core::Sort>) {
@@ -93,8 +93,8 @@ impl<'tcx> GlobalEnv<'tcx> {
         }
     }
 
-    pub fn assert_behavior(&self) -> &AssertBehaviorOptions {
-        &self.assert_behavior
+    pub fn check_asserts(&self) -> &AssertBehavior {
+        &self.check_asserts
     }
 }
 
