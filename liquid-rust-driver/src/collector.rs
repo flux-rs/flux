@@ -462,7 +462,7 @@ impl LiquidAttrCFG {
                     if self.map.get(&name).is_some() {
                         return Err(errors::CFGError {
                             span,
-                            message: format!("duplicated setting: {}", name),
+                            message: format!("duplicated setting `{}`", name),
                         });
                     }
 
