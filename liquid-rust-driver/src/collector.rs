@@ -6,8 +6,7 @@ use liquid_rust_common::{
     iter::IterExt,
 };
 use liquid_rust_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
-    parse_type_alias,
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
     surface::{self},
     ParseErrorKind, ParseResult,
 };
