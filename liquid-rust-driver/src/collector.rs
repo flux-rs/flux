@@ -6,7 +6,7 @@ use liquid_rust_common::{
     iter::IterExt,
 };
 use liquid_rust_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
     surface::{self},
     ParseErrorKind, ParseResult,
 };
@@ -35,6 +35,7 @@ pub(crate) struct Specs {
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
+    pub aliases: surface::AliasMap,
     pub crate_config: Option<config::CrateConfig>,
 }
 
@@ -47,9 +48,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a Session) -> Result<Specs, ErrorReported> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_reported: false };
 
-        tcx.hir().visit_all_item_likes(&mut collector);
-
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;
+
+        tcx.hir().visit_all_item_likes(&mut collector);
 
         if collector.error_reported {
             Err(ErrorReported)
@@ -71,6 +72,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let fn_sig = attrs.fn_sig();
 
         self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
+        Ok(())
+    }
+
+    fn parse_tyalias_spec(
+        &mut self,
+        _def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        if let Some(alias) = attrs.alias() {
+            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
+            self.specs.aliases.insert(alias.name, alias);
+        }
         Ok(())
     }
 
@@ -124,7 +138,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
-
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
         Ok(())
@@ -165,9 +178,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
+            ("alias", MacArgs::Delimited(span, _, tokens)) => {
+                let ty_alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
+                // println!("ALIAS: {:?}", ty_alias);
+                LiquidAttrKind::TypeAlias(ty_alias)
+            }
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
-                // print!("LR::SIG {:#?} \n", fn_sig);
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
@@ -265,6 +282,11 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
             ItemKind::Mod(..) => {
                 // TODO: Parse mod level attributes
             }
+            ItemKind::TyAlias(..) => {
+                let hir_id = item.hir_id();
+                let attrs = self.tcx.hir().attrs(hir_id);
+                let _ = self.parse_tyalias_spec(item.def_id, attrs);
+            }
             _ => (),
         }
     }
@@ -287,6 +309,7 @@ impl Specs {
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
+            aliases: FxHashMap::default(),
             crate_config: None,
         }
     }
@@ -310,6 +333,7 @@ enum LiquidAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
+    TypeAlias(surface::Alias),
     Field(surface::Ty),
     CrateConfig(config::CrateConfig),
 }
@@ -370,6 +394,10 @@ impl LiquidAttrs {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 
+    fn alias(&mut self) -> Option<surface::Alias> {
+        read_attr!(self, "alias", TypeAlias)
+    }
+
     fn refined_by(&mut self) -> Option<surface::Params> {
         read_attr!(self, "refined_by", RefinedBy)
     }
@@ -392,6 +420,7 @@ impl LiquidAttrKind {
             LiquidAttrKind::RefinedBy(_) => "refined_by",
             LiquidAttrKind::Qualifier(_) => "qualifier",
             LiquidAttrKind::Field(_) => "field",
+            LiquidAttrKind::TypeAlias(_) => "alias",
             LiquidAttrKind::CrateConfig(_) => "crate_config",
         }
     }

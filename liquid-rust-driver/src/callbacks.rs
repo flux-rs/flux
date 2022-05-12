@@ -121,6 +121,8 @@ impl<'tcx> CrateChecker<'tcx> {
                 Ok(())
             })?;
 
+        let aliases = specs.aliases;
+
         // Function signatures
         specs
             .fns
@@ -130,6 +132,7 @@ impl<'tcx> CrateChecker<'tcx> {
                     assume.insert(def_id);
                 }
                 if let Some(fn_sig) = spec.fn_sig {
+                    let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
                     let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
                     let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
                     let fn_sig = desugar::desugar_fn_sig(sess, &genv, fn_sig)?;
