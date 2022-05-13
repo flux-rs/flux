@@ -174,3 +174,24 @@ impl<'tcx> ItemLikeVisitor<'tcx> for CrateChecker<'tcx> {
     fn visit_trait_item(&mut self, _item: &'tcx rustc_hir::TraitItem<'tcx>) {}
     fn visit_foreign_item(&mut self, _item: &'tcx rustc_hir::ForeignItem<'tcx>) {}
 }
+
+#[allow(clippy::needless_lifetimes)]
+fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> mir_borrowck<'tcx> {
+    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
+        tcx,
+        ty::WithOptConstParam::unknown(def_id),
+    );
+    // SAFETY: This is safe because we are feeding in the same `tcx` that is
+    // going to be used as a witness when pulling out the data.
+    unsafe {
+        mir_storage::store_mir_body(tcx, def_id, body_with_facts);
+    }
+    let mut providers = Providers::default();
+    rustc_borrowck::provide(&mut providers);
+    let original_mir_borrowck = providers.mir_borrowck;
+    original_mir_borrowck(tcx, def_id)
+}
+
+fn override_queries(_session: &Session, local: &mut Providers, _external: &mut ExternProviders) {
+    local.mir_borrowck = mir_borrowck;
+}
