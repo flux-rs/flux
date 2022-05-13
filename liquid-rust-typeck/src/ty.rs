@@ -321,6 +321,19 @@ impl Ty {
             }
         }
     }
+
+    pub fn with_holes(&self) -> Ty {
+        match self.kind() {
+            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => {
+                let bty = bty.with_holes();
+                Ty::exists(bty, Pred::Hole)
+            }
+            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_holes()),
+            TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
+                self.clone()
+            }
+        }
+    }
 }
 
 impl TyKind {
@@ -385,6 +398,16 @@ impl BaseTy {
         match self {
             BaseTy::Adt(did, substs) => {
                 let substs = substs.iter().map(|ty| ty.fill_holes(mk_pred));
+                BaseTy::adt(*did, substs)
+            }
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
+        }
+    }
+
+    fn with_holes(&self) -> BaseTy {
+        match self {
+            BaseTy::Adt(did, substs) => {
+                let substs = substs.iter().map(|ty| ty.with_holes());
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),

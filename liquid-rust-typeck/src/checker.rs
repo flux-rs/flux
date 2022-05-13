@@ -374,12 +374,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match constr {
                 Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
-                    let gen = &mut ConstraintGen::new(
-                        self.genv,
-                        pcx.breadcrumb(),
-                        Tag::Call(source_info.span),
-                    );
-                    env.update_path(gen, path, updated_ty);
+                    env.update_path(path, updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }
@@ -837,7 +832,7 @@ impl Mode for Check<'_> {
                 .bb_envs_infer
                 .remove(&target)
                 .unwrap()
-                .into_bb_env(ck.genv, fresh_kvar, &env)
+                .into_bb_env(ck.genv, fresh_kvar)
         });
 
         dbg::check_goto!(target, pcx, env, bb_env);

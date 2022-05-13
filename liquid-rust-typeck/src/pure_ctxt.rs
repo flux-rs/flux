@@ -5,12 +5,12 @@ use std::{
 };
 
 use itertools::{repeat_n, Itertools};
-use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
+use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     constraint_gen::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Loc, Name, Pred, Sort, SortKind, Var},
+    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -185,11 +185,11 @@ impl PureCtxt<'_> {
         self.ptr = self.push_node(NodeKind::Pred(expr.into()));
     }
 
-    pub fn push_loc(&mut self) -> Loc {
-        let fresh = Name::new(self.next_name_idx());
-        self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
-        Loc::Free(fresh)
-    }
+    // pub fn push_loc(&mut self) -> Loc {
+    //     let fresh = Name::new(self.next_name_idx());
+    //     self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
+    //     Loc::Free(fresh)
+    // }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
         let pred = pred.into();
