@@ -55,21 +55,13 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1.3.0
       - name: Rust rustfmt
-        run: | 
-          cargo fmt --check 
+        run: cargo fmt --check 
 
   check-clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-            toolchain: nightly-2022-02-28
-            components: rust-src, rustc-dev, llvm-tools-preview, rustfmt
-            override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1.3.0      
       - name: Run clippy
-        uses: actions-rs/clippy-check@v1.0.7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo clippy
