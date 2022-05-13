@@ -68,3 +68,4 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: "nightly-2022-02-28"
