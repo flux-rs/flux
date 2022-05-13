@@ -45,8 +45,8 @@ jobs:
       - name: Run tests
         run: |
           which fixpoint && cargo test -p liquid-rust-tests
-          
- check-fmt:
+
+  check-fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -54,7 +54,7 @@ jobs:
         run: | 
           cargo fmt --check 
 
- check-clippy:
+  check-clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
