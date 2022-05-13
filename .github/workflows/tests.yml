@@ -59,5 +59,4 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Run clippy
-        uses: action-rs/clippy-check@v1.0.7
-        
+        uses: actions-rs/clippy-check@v1.0.7
