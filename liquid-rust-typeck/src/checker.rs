@@ -26,7 +26,7 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 use itertools::Itertools;
-use liquid_rust_common::index::IndexVec;
+use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
 use liquid_rust_core::{
     ir::{
         self, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo, Statement,
@@ -267,6 +267,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
                 env.write_place(self.genv, pcx, p, ty, Tag::Assign(stmt.source_info.span));
             }
+            StatementKind::SetDiscriminant { .. } => {
+                // TODO(nilehmann) double chould check here that the place is unfolded to
+                // the corect variant. This should be guaranteed by rustc
+            }
             StatementKind::Nop => {}
         }
     }
@@ -286,8 +290,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Call { func, substs, args, destination } => {
                 self.check_call(pcx, env, terminator.source_info, *func, substs, args, destination)
             }
-            TerminatorKind::Assert { cond, expected, target } => {
-                self.check_assert(pcx, env, cond, *expected, *target)
+            TerminatorKind::Assert { cond, expected, target, msg } => {
+                self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
             }
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(self.genv, pcx, place);
@@ -312,6 +316,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(vec![])
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         pcx: &mut PureCtxt,
@@ -337,7 +342,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let cx = LoweringCtxt::empty();
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty, &mut fresh_kvar))
+            .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if subst
@@ -370,12 +375,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match constr {
                 Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
-                    let gen = &mut ConstraintGen::new(
-                        self.genv,
-                        pcx.breadcrumb(),
-                        Tag::Call(source_info.span),
-                    );
-                    env.update_path(gen, path, updated_ty);
+                    env.update_path(path, updated_ty);
                 }
                 Constr::Pred(e) => pcx.push_pred(e.clone()),
             }
@@ -390,24 +390,42 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(successors)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_assert(
         &mut self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
+        source_info: SourceInfo,
         cond: &Operand,
         expected: bool,
         target: BasicBlock,
+        msg: &'static str,
     ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let cond_ty = self.check_operand(pcx, env, cond);
-
-        let pred = match cond_ty.kind() {
-            TyKind::Refine(BaseTy::Bool, exprs) => exprs[0].clone(),
-            _ => unreachable!("unexpected cond_ty {:?}", cond_ty),
+        let ty = self.check_operand(pcx, env, cond);
+        let pred = if let TyKind::Refine(BaseTy::Bool, exprs) = ty.kind() {
+            if expected {
+                exprs[0].clone()
+            } else {
+                exprs[0].not()
+            }
+        } else {
+            unreachable!("unexpected ty `{ty:?}`")
         };
 
-        let assert = if expected { pred } else { pred.not() };
+        match self.genv.check_asserts() {
+            AssertBehavior::Ignore => Ok(vec![(target, None)]),
+            AssertBehavior::Assume => Ok(vec![(target, Some(pred))]),
+            AssertBehavior::Check => {
+                let mut gen = ConstraintGen::new(
+                    self.genv,
+                    pcx.breadcrumb(),
+                    Tag::Assert(msg, source_info.span),
+                );
+                gen.check_pred(pred.clone());
 
-        Ok(vec![(target, Some(assert))])
+                Ok(vec![(target, Some(pred))])
+            }
+        }
     }
 
     fn check_switch_int(
@@ -776,11 +794,11 @@ impl Mode for Inference<'_> {
         modified
     }
 
-    fn fresh_kvar<I>(&mut self, sorts: &[Sort], _scope: I) -> Pred
+    fn fresh_kvar<I>(&mut self, _sorts: &[Sort], _scope: I) -> Pred
     where
         I: IntoIterator<Item = (Name, Sort)>,
     {
-        Pred::dummy_infer(sorts)
+        Pred::Hole
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -816,7 +834,7 @@ impl Mode for Check<'_> {
                 .bb_envs_infer
                 .remove(&target)
                 .unwrap()
-                .into_bb_env(ck.genv, fresh_kvar, &env)
+                .into_bb_env(ck.genv, fresh_kvar)
         });
 
         dbg::check_goto!(target, pcx, env, bb_env);

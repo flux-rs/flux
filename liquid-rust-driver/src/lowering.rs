@@ -79,11 +79,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     self.lower_rvalue(rvalue, stmt.source_info)?,
                 )
             }
+            mir::StatementKind::SetDiscriminant { place, variant_index } => {
+                StatementKind::SetDiscriminant(self.lower_place(place)?, *variant_index)
+            }
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
             mir::StatementKind::FakeRead(_)
-            | mir::StatementKind::SetDiscriminant { .. }
             | mir::StatementKind::Retag(_, _)
             | mir::StatementKind::AscribeUserType(_, _)
             | mir::StatementKind::Coverage(_)
@@ -145,11 +147,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::TerminatorKind::Drop { place, target, .. } => {
                 TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
             }
-            mir::TerminatorKind::Assert { cond, target, expected, .. } => {
+            mir::TerminatorKind::Assert { cond, target, expected, msg, .. } => {
                 TerminatorKind::Assert {
                     cond: self.lower_operand(cond)?,
                     expected: *expected,
                     target: *target,
+                    msg: self.lower_assert_msg(msg)?,
                 }
             }
             mir::TerminatorKind::Resume
@@ -245,8 +248,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
             match elem {
                 mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
                 mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
+                mir::PlaceElem::Downcast(_, variant_idx) => {
+                    projection.push(PlaceElem::Downcast(variant_idx))
+                }
                 _ => {
-                    self.tcx.sess.err("place not supported");
+                    self.tcx
+                        .sess
+                        .err(&format!("place not supported: `{place:?}`"));
                     return Err(ErrorReported);
                 }
             }
@@ -288,6 +296,17 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
+    fn lower_assert_msg(&self, msg: &mir::AssertMessage) -> Result<&'static str, ErrorReported> {
+        use mir::AssertKind::*;
+        match msg {
+            DivisionByZero(_) => Ok("possible division by zero"),
+            RemainderByZero(_) => Ok("possible remainder with a divisor of zero"),
+            Overflow(mir::BinOp::Div, _, _) => Ok("possible division with overflow"),
+            Overflow(mir::BinOp::Rem, _, _) => Ok("possible remainder with overflow"),
+            _ => self.emit_err(None, format!("unsupported assert message: `{msg:?}`")),
+        }
+    }
+
     fn lower_generic_arg(
         &self,
         arg: rustc_middle::ty::subst::GenericArg,
@@ -317,13 +336,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
         use liquid_rust_core::ty as core;
         match ty.kind() {
             rustc_middle::ty::TyKind::Bool => {
-                Ok(core::Ty::Exists(core::BaseTy::Bool, core::Pred::Infer))
+                Ok(core::Ty::Exists(core::BaseTy::Bool, core::Pred::Hole))
             }
             rustc_middle::ty::TyKind::Int(int_ty) => {
-                Ok(core::Ty::Exists(core::BaseTy::Int(*int_ty), core::Pred::Infer))
+                Ok(core::Ty::Exists(core::BaseTy::Int(*int_ty), core::Pred::Hole))
             }
             rustc_middle::ty::TyKind::Uint(uint_ty) => {
-                Ok(core::Ty::Exists(core::BaseTy::Uint(*uint_ty), core::Pred::Infer))
+                Ok(core::Ty::Exists(core::BaseTy::Uint(*uint_ty), core::Pred::Hole))
             }
             rustc_middle::ty::TyKind::Float(float_ty) => Ok(core::Ty::Float(*float_ty)),
             rustc_middle::ty::TyKind::Param(param) => {
@@ -335,7 +354,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     .map(|arg| self.lower_generic_arg(arg))
                     .try_collect()?;
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
-                Ok(core::Ty::Exists(adt, core::Pred::Infer))
+                Ok(core::Ty::Exists(adt, core::Pred::Hole))
             }
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }

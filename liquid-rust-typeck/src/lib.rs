@@ -10,6 +10,7 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
+extern crate rustc_target;
 
 mod checker;
 mod constraint_gen;
@@ -157,6 +158,7 @@ fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), E
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
             Tag::Goto(span, bb) => tcx.sess.emit_err(errors::GotoError { span, bb }),
+            Tag::Assert(msg, span) => tcx.sess.emit_err(errors::AssertError { msg, span }),
         };
     }
 
@@ -230,7 +232,7 @@ mod errors {
     #[error = "LIQUID"]
     pub struct DivError {
         #[message = "possible division by zero"]
-        #[label = "denominator might not be zero"]
+        #[label = "denominator might be zero"]
         pub span: Span,
     }
 
@@ -240,6 +242,14 @@ mod errors {
         #[message = "possible reminder with a divisor of zero"]
         #[label = "divisor might not be zero"]
         pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct AssertError {
+        #[message = "assertion might fail: {msg}"]
+        pub span: Span,
+        pub msg: &'static str,
     }
 }
 

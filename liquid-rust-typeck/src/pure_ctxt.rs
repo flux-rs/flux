@@ -5,12 +5,12 @@ use std::{
 };
 
 use itertools::{repeat_n, Itertools};
-use liquid_rust_common::index::{Idx, IndexGen, IndexVec};
+use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 
 use crate::{
     constraint_gen::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Loc, Name, Pred, Sort, SortKind, Var},
+    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Name, Pred, Sort, SortKind, Var},
     FixpointCtxt, TagIdx,
 };
 
@@ -105,8 +105,7 @@ impl KVarStore {
             );
             kvars.push(KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
         }
-
-        Pred::infer(kvars)
+        Pred::kvars(kvars)
     }
 
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
@@ -154,10 +153,10 @@ impl PureCtxt<'_> {
         }
 
         match p {
-            Pred::Infer(kvars) => {
+            Pred::Kvars(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
                 for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    let p = Pred::infer(vec![kvar.subst_bound_vars(&exprs)]);
+                    let p = Pred::kvars(vec![kvar.subst_bound_vars(&exprs)]);
                     self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
                 }
             }
@@ -167,6 +166,11 @@ impl PureCtxt<'_> {
                 }
                 if !e.is_true() {
                     self.push_pred(e.subst_bound_vars(&exprs));
+                }
+            }
+            Pred::Hole => {
+                for (name, sort) in bindings {
+                    self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::Hole));
                 }
             }
         }
@@ -181,11 +185,11 @@ impl PureCtxt<'_> {
         self.ptr = self.push_node(NodeKind::Pred(expr.into()));
     }
 
-    pub fn push_loc(&mut self) -> Loc {
-        let fresh = Name::new(self.next_name_idx());
-        self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
-        Loc::Free(fresh)
-    }
+    // pub fn push_loc(&mut self) -> Loc {
+    //     let fresh = Name::new(self.next_name_idx());
+    //     self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
+    //     Loc::Free(fresh)
+    // }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
         let pred = pred.into();
@@ -254,6 +258,10 @@ impl Scope {
 
     pub fn contains(&self, name: Name) -> bool {
         name.index() < self.bindings.len()
+    }
+
+    pub fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
+        iter.into_iter().all(|name| self.contains(name))
     }
 }
 
@@ -339,13 +347,14 @@ fn pred_to_fixpoint(
 ) -> fixpoint::Pred {
     match pred {
         Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(cx, expr)),
-        Pred::Infer(kvars) => {
+        Pred::Kvars(kvars) => {
             let kvars = kvars
                 .iter()
                 .map(|kvar| kvar_to_fixpoint(cx, bindings, kvar))
                 .collect();
             fixpoint::Pred::And(kvars)
         }
+        Pred::Hole => panic!("unexpected hole"),
     }
 }
 

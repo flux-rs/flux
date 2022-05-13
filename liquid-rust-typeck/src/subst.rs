@@ -102,11 +102,12 @@ impl Subst<'_> {
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {
         match pred {
-            Pred::Infer(kvars) => {
+            Pred::Kvars(kvars) => {
                 let kvars = kvars.iter().map(|kvar| self.subst_kvar(kvar)).collect_vec();
-                Pred::infer(kvars)
+                Pred::kvars(kvars)
             }
             Pred::Expr(e) => self.subst_expr(e).into(),
+            Pred::Hole => Pred::Hole,
         }
     }
 
@@ -251,6 +252,7 @@ impl Subst<'_> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn infer_from_tys(
         &mut self,
         genv: &GlobalEnv,

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use liquid_rust_common::config::{AssertBehavior, CONFIG};
 use liquid_rust_core::{
     desugar,
     ty::{self as core, AdtSortsMap},
@@ -21,21 +22,25 @@ pub struct GlobalEnv<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
-    adt_defs: FxHashMap<DefId, ty::AdtDef>,
-}
-
-fn default_adt_def() -> ty::AdtDef {
-    ty::AdtDef::Opaque { refined_by: crate::intern::List::from(vec![]) }
+    adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
+    check_asserts: AssertBehavior,
 }
 
 impl<'tcx> GlobalEnv<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
+        let check_asserts = CONFIG.check_asserts;
+
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
             adt_sorts: FxHashMap::default(),
-            adt_defs: FxHashMap::default(),
+            adt_defs: RefCell::new(FxHashMap::default()),
             tcx,
+            check_asserts,
         }
+    }
+
+    pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
+        self.check_asserts = behavior;
     }
 
     pub fn register_adt_sorts(&mut self, def_id: DefId, sorts: Vec<core::Sort>) {
@@ -49,7 +54,7 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn register_adt_def(&mut self, def_id: DefId, adt_def: core::AdtDef) {
         let adt_def = LoweringCtxt::lower_adt_def(&adt_def);
-        self.adt_defs.insert(def_id, adt_def);
+        self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
     pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -70,10 +75,14 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
-        match self.adt_defs.get(&def_id) {
-            Some(adt_def) => adt_def.clone(),
-            None => default_adt_def(),
-        }
+        self.adt_defs
+            .borrow_mut()
+            .entry(def_id)
+            .or_insert_with(|| {
+                let adt_def = core::AdtDef::default(self.tcx, self.tcx.adt_def(def_id));
+                LoweringCtxt::lower_adt_def(&adt_def)
+            })
+            .clone()
     }
 
     pub fn sorts(&self, bty: &BaseTy) -> Vec<Sort> {
@@ -82,6 +91,10 @@ impl<'tcx> GlobalEnv<'tcx> {
             BaseTy::Bool => vec![Sort::bool()],
             BaseTy::Adt(def_id, _) => self.adt_def(*def_id).sorts(),
         }
+    }
+
+    pub fn check_asserts(&self) -> &AssertBehavior {
+        &self.check_asserts
     }
 }
 

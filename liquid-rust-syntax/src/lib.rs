@@ -43,6 +43,10 @@ pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface:
     parse!(surface_grammar::RefinedByParser, tokens, span)
 }
 
+pub fn parse_type_alias(tokens: TokenStream, span: Span) -> ParseResult<surface::Alias> {
+    parse!(surface_grammar::AliasParser, tokens, span)
+}
+
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
     parse!(surface_grammar::FnSigParser, tokens, span)
 }

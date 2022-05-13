@@ -1,15 +1,19 @@
 use std::iter;
 
-use liquid_rust_common::{index::IndexGen, iter::IterExt};
+use liquid_rust_common::{
+    index::{IndexGen, IndexVec},
+    iter::IterExt,
+};
 use liquid_rust_syntax::surface::{self, Res};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use crate::ty::{
     AdtDef, AdtSortsMap, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param,
-    Pred, Qualifier, Sort, Ty, Var,
+    Pred, Qualifier, Sort, Ty, Var, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -49,21 +53,19 @@ pub fn desugar_struct_def(
             .into_iter()
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
-        Ok(AdtDef::Transparent { refined_by: cx.params.params, fields })
+        let variants = IndexVec::from_raw(vec![VariantDef::new(fields)]);
+        Ok(AdtDef::Transparent { refined_by: cx.params.params, variants })
     }
 }
 
-pub fn desugar_enum_def(
-    sess: &Session,
-    adt_def: surface::EnumDef,
-) -> Result<AdtDef, ErrorReported> {
-    let mut params = ParamsCtxt::new(sess);
+pub fn desugar_enum_def(tcx: TyCtxt, adt_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
+    let mut params = ParamsCtxt::new(tcx.sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     if adt_def.opaque {
         Ok(AdtDef::Opaque { refined_by: params.params })
     } else {
-        panic!("transparent enums are not supported yet")
+        Ok(AdtDef::default(tcx, tcx.adt_def(adt_def.def_id)))
     }
 }
 
@@ -109,7 +111,14 @@ pub fn desugar_fn_sig(
     })
 }
 
-struct DesugarCtxt<'a> {
+pub fn desugar_ty(sess: &Session, ty: surface::Ty<Res>) -> Result<Ty, ErrorReported> {
+    let mut cx = DesugarCtxt::empty(sess);
+    let ty = cx.desugar_ty(ty);
+    assert!(cx.requires.is_empty());
+    ty
+}
+
+pub struct DesugarCtxt<'a> {
     params: ParamsCtxt<'a>,
     requires: Vec<Constr>,
 }
@@ -122,6 +131,10 @@ struct ParamsCtxt<'a> {
 }
 
 impl<'a> DesugarCtxt<'a> {
+    fn empty(sess: &Session) -> DesugarCtxt {
+        DesugarCtxt::with_params(ParamsCtxt::new(sess))
+    }
+
     fn with_params(params: ParamsCtxt) -> DesugarCtxt {
         DesugarCtxt { params, requires: vec![] }
     }
@@ -145,6 +158,7 @@ impl<'a> DesugarCtxt<'a> {
                 Ok(Ty::Ptr(loc))
             }
             surface::Arg::Ty(ty) => self.desugar_ty(ty),
+            surface::Arg::Alias(..) => panic!("Unexpected-Alias in desugar!"),
         }
     }
 
@@ -340,6 +354,7 @@ impl ParamsCtxt<'_> {
                 self.ty_gather_params(ty, adt_sorts)?;
             }
             surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_sorts)?,
+            _ => panic!("unexpected: arg_gather_params"),
         }
         Ok(())
     }

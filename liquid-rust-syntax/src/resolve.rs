@@ -106,6 +106,7 @@ impl<'tcx> Resolver<'tcx> {
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(ty) => Ok(surface::Arg::Ty(self.resolve_ty(ty)?)),
+            surface::Arg::Alias(_, _, _) => panic!("Unexpected 'Alias' in resolve_arg"),
         }
     }
 
@@ -336,21 +337,5 @@ mod errors {
         pub fn new(ident: surface::Ident) -> Self {
             Self { span: ident.span, path: ident }
         }
-    }
-
-    // #[derive(SessionDiagnostic)]
-    // #[error = "LIQUID"]
-    // pub struct RefinedTypeParam {
-    //     #[message = "type parameters cannot be refined"]
-    //     #[label = "refined type parameter"]
-    //     pub span: Span,
-    // }
-
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct RefinedFloat {
-        #[message = "float cannot be refined"]
-        #[label = "refined float"]
-        pub span: Span,
     }
 }

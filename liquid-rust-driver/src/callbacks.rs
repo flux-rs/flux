@@ -91,6 +91,13 @@ impl<'tcx> CrateChecker<'tcx> {
             })
             .try_collect_exhaust()?;
 
+        // Assert behavior from Crate config
+        // TODO(atgeller) rest of settings from crate config
+        if let Some(crate_config) = specs.crate_config {
+            let assert_behavior = crate_config.check_asserts;
+            genv.register_assert_behavior(assert_behavior);
+        }
+
         // Adt definitions
         specs
             .structs
@@ -107,11 +114,13 @@ impl<'tcx> CrateChecker<'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let adt_def = desugar::desugar_enum_def(sess, enum_def)?;
+                let adt_def = desugar::desugar_enum_def(tcx, enum_def)?;
                 Wf::new(sess, &genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())
             })?;
+
+        let aliases = specs.aliases;
 
         // Function signatures
         specs
@@ -122,6 +131,7 @@ impl<'tcx> CrateChecker<'tcx> {
                     assume.insert(def_id);
                 }
                 if let Some(fn_sig) = spec.fn_sig {
+                    let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
                     let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
                     let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
                     let fn_sig = desugar::desugar_fn_sig(sess, &genv, fn_sig)?;

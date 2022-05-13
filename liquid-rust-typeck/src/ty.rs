@@ -2,9 +2,7 @@ use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
-// use liquid_rust_common::index::Idx;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
-pub use liquid_rust_syntax::surface;
 
 use liquid_rust_core::{ir::Local, ty::Layout};
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
@@ -12,18 +10,26 @@ use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
+pub use rustc_target::abi::VariantIdx;
 
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Interned, List},
-    pure_ctxt::Scope,
     subst::Subst,
 };
 
 #[derive(Clone)]
-pub enum AdtDef {
-    Transparent { refined_by: List<Param>, fields: List<Ty> },
-    Opaque { refined_by: List<Param> },
+pub struct AdtDef(Interned<AdtDefData>);
+
+#[derive(Eq, PartialEq, Hash)]
+pub enum AdtDefData {
+    Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
+    Opaque { refined_by: Vec<Param> },
+}
+
+#[derive(Eq, PartialEq, Hash)]
+pub struct VariantDef {
+    pub fields: Vec<Ty>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,7 +118,8 @@ pub struct Substs(List<Ty>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
-    Infer(List<KVar>),
+    Hole,
+    Kvars(List<KVar>),
     Expr(Expr),
 }
 
@@ -212,26 +219,16 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque<P>(refined_by: P) -> Self
-    where
-        List<Param>: From<P>,
-    {
-        AdtDef::Opaque { refined_by: Interned::from(refined_by) }
+    pub fn opaque(refined_by: Vec<Param>) -> Self {
+        AdtDef(Interned::new(AdtDefData::Opaque { refined_by }))
     }
-    pub fn transparent<P, F>(refined_by: P, fields: F) -> Self
-    where
-        List<Param>: From<P>,
-        List<Ty>: From<F>,
-    {
-        AdtDef::Transparent {
-            refined_by: Interned::from(refined_by),
-            fields: Interned::from(fields),
-        }
+    pub fn transparent(refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef>) -> Self {
+        AdtDef(Interned::new(AdtDefData::Transparent { refined_by, variants }))
     }
 
     pub fn refined_by(&self) -> &[Param] {
-        match self {
-            AdtDef::Transparent { refined_by, .. } | AdtDef::Opaque { refined_by, .. } => {
+        match &*self.0 {
+            AdtDefData::Transparent { refined_by, .. } | AdtDefData::Opaque { refined_by, .. } => {
                 refined_by
             }
         }
@@ -244,27 +241,37 @@ impl AdtDef {
             .collect()
     }
 
-    pub fn unfold(&self, substs: &Substs, exprs: &[Expr]) -> IndexVec<Field, Ty> {
-        match self {
-            AdtDef::Transparent { fields, refined_by } => {
-                let mut subst = Subst::with_type_substs(substs.as_slice());
-                debug_assert_eq!(exprs.len(), self.refined_by().len());
-                for (e, param) in exprs.iter().zip(refined_by) {
-                    subst.insert_expr_subst(param.name, e.clone());
-                }
-                fields.iter().map(|ty| subst.subst_ty(ty)).collect()
-            }
-            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
+    pub fn unfold(
+        &self,
+        substs: &Substs,
+        exprs: &[Expr],
+        variant_idx: VariantIdx,
+    ) -> Option<IndexVec<Field, Ty>> {
+        let fields = &self.variants()?[variant_idx].fields;
+        let mut subst = Subst::with_type_substs(substs.as_slice());
+        debug_assert_eq!(exprs.len(), self.refined_by().len());
+        for (e, param) in exprs.iter().zip(self.refined_by()) {
+            subst.insert_expr_subst(param.name, e.clone());
+        }
+        Some(fields.iter().map(|ty| subst.subst_ty(ty)).collect())
+    }
+
+    pub fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
+        match &*self.0 {
+            AdtDefData::Transparent { variants, .. } => Some(variants),
+            AdtDefData::Opaque { .. } => None,
         }
     }
 
-    pub fn unfold_uninit(&self) -> IndexVec<Field, Ty> {
-        match self {
-            AdtDef::Transparent { fields, .. } => {
-                fields.iter().map(|ty| Ty::uninit(ty.layout())).collect()
-            }
-            AdtDef::Opaque { .. } => panic!("unfolding opaque adt"),
-        }
+    pub fn unfold_uninit(&self, variant_idx: VariantIdx) -> Option<IndexVec<Field, Ty>> {
+        let fields = &self.variants()?[variant_idx].fields;
+        Some(fields.iter().map(|ty| Ty::uninit(ty.layout())).collect())
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>) -> Self {
+        VariantDef { fields }
     }
 }
 
@@ -299,6 +306,34 @@ impl Ty {
     pub fn param(param: ParamTy) -> Ty {
         TyKind::Param(param).intern()
     }
+
+    pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
+        match self.kind() {
+            TyKind::Refine(bty, exprs) => Ty::refine(bty.fill_holes(mk_pred), exprs.clone()),
+            TyKind::Exists(bty, p) => {
+                let p = if let Pred::Hole = p { mk_pred(bty) } else { p.clone() };
+                let bty = bty.fill_holes(mk_pred);
+                Ty::exists(bty, p)
+            }
+            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.fill_holes(mk_pred)),
+            TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
+                self.clone()
+            }
+        }
+    }
+
+    pub fn with_holes(&self) -> Ty {
+        match self.kind() {
+            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => {
+                let bty = bty.with_holes();
+                Ty::exists(bty, Pred::Hole)
+            }
+            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_holes()),
+            TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
+                self.clone()
+            }
+        }
+    }
 }
 
 impl TyKind {
@@ -326,15 +361,19 @@ impl TyS {
         }
     }
 
-    pub fn unfold(&self, genv: &GlobalEnv) -> (DefId, IndexVec<Field, Ty>) {
+    pub fn unfold(
+        &self,
+        genv: &GlobalEnv,
+        variant_idx: VariantIdx,
+    ) -> Option<(DefId, IndexVec<Field, Ty>)> {
         match self.kind() {
             TyKind::Refine(BaseTy::Adt(did, substs), exprs) => {
                 let adt_def = genv.adt_def(*did);
-                (*did, adt_def.unfold(substs, exprs))
+                Some((*did, adt_def.unfold(substs, exprs, variant_idx)?))
             }
             TyKind::Uninit(Layout::Adt(did)) => {
                 let adt_def = genv.adt_def(*did);
-                (*did, adt_def.unfold_uninit())
+                Some((*did, adt_def.unfold_uninit(variant_idx)?))
             }
             _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
@@ -352,6 +391,26 @@ impl BaseTy {
             BaseTy::Uint(uint_ty) => Layout::Uint(*uint_ty),
             BaseTy::Bool => Layout::Bool,
             BaseTy::Adt(did, _) => Layout::Adt(*did),
+        }
+    }
+
+    fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> BaseTy {
+        match self {
+            BaseTy::Adt(did, substs) => {
+                let substs = substs.iter().map(|ty| ty.fill_holes(mk_pred));
+                BaseTy::adt(*did, substs)
+            }
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
+        }
+    }
+
+    fn with_holes(&self) -> BaseTy {
+        match self {
+            BaseTy::Adt(did, substs) => {
+                let substs = substs.iter().map(|ty| ty.with_holes());
+                BaseTy::adt(*did, substs)
+            }
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
         }
     }
 }
@@ -560,10 +619,6 @@ impl ExprS {
         vars
     }
 
-    pub fn has_free_vars(&self, scope: &Scope) -> bool {
-        self.vars().into_iter().any(|name| !scope.contains(name))
-    }
-
     /// Simplify expression applying some rules like removing double negation. This is used for pretty
     /// printing.
     pub fn simplify(&self) -> Expr {
@@ -596,16 +651,11 @@ impl From<Expr> for Pred {
 }
 
 impl Pred {
-    pub fn infer<T>(kvars: T) -> Pred
+    pub fn kvars<T>(kvars: T) -> Pred
     where
         List<KVar>: From<T>,
     {
-        Pred::Infer(Interned::from(kvars))
-    }
-
-    pub fn dummy_infer(sorts: &[Sort]) -> Pred {
-        let kvars = sorts.iter().map(|_| KVar::dummy()).collect_vec();
-        Pred::infer(kvars)
+        Pred::Kvars(Interned::from(kvars))
     }
 
     pub fn tt() -> Pred {
@@ -614,19 +664,19 @@ impl Pred {
 
     pub fn is_true(&self) -> bool {
         match self {
-            Pred::Infer(..) => false,
             Pred::Expr(e) => e.is_true(),
+            _ => false,
         }
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::Infer(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
     pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Pred {
         match self {
-            Pred::Infer(kvars) => {
-                Pred::infer(
+            Pred::Kvars(kvars) => {
+                Pred::kvars(
                     kvars
                         .iter()
                         .map(|kvar| kvar.subst_bound_vars(exprs))
@@ -634,6 +684,7 @@ impl Pred {
                 )
             }
             Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(exprs)),
+            Pred::Hole => Pred::Hole,
         }
     }
 }
@@ -686,15 +737,6 @@ impl From<Loc> for Path {
     }
 }
 
-impl Loc {
-    pub fn is_free(&self, scope: &Scope) -> bool {
-        match self {
-            Loc::Local(_) => false,
-            Loc::Free(name) => !scope.contains(*name),
-        }
-    }
-}
-
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
         Loc::Free(name)
@@ -736,7 +778,19 @@ impl<'a> From<&'a Name> for Var {
     }
 }
 
-impl_internable!(TyS, ExprS, SortS, [Ty], [Pred], [Expr], [Field], [KVar], [Constr], [Param]);
+impl_internable!(
+    AdtDefData,
+    TyS,
+    ExprS,
+    SortS,
+    [Ty],
+    [Pred],
+    [Expr],
+    [Field],
+    [KVar],
+    [Constr],
+    [Param]
+);
 
 mod pretty {
     use liquid_rust_common::format::PadAdapter;
@@ -874,7 +928,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Pred::Infer(kvars) => {
+                Pred::Kvars(kvars) => {
                     if let [kvar] = &kvars[..] {
                         w!("{:?}", kvar)
                     } else {
@@ -882,6 +936,7 @@ mod pretty {
                     }
                 }
                 Pred::Expr(expr) => w!("{:?}", expr),
+                Pred::Hole => w!("*"),
             }
         }
 

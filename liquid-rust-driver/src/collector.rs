@@ -1,12 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use itertools::Itertools;
-use liquid_rust_common::iter::IterExt;
-use liquid_rust_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, surface, ParseErrorKind,
-    ParseResult,
+use liquid_rust_common::{
+    config::{self, AssertBehavior, CrateConfig},
+    iter::IterExt,
 };
-use rustc_ast::{tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs};
+use liquid_rust_syntax::{
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
+    ParseErrorKind, ParseResult,
+};
+use rustc_ast::{
+    tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs, MetaItemKind, NestedMetaItem,
+};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
@@ -29,6 +34,8 @@ pub(crate) struct Specs {
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
+    pub aliases: surface::AliasMap,
+    pub crate_config: Option<config::CrateConfig>,
 }
 
 pub(crate) struct FnSpec {
@@ -40,9 +47,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a Session) -> Result<Specs, ErrorReported> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_reported: false };
 
-        tcx.hir().visit_all_item_likes(&mut collector);
-
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;
+
+        tcx.hir().visit_all_item_likes(&mut collector);
 
         if collector.error_reported {
             Err(ErrorReported)
@@ -67,6 +74,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
+    fn parse_tyalias_spec(
+        &mut self,
+        _def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorReported> {
+        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        if let Some(alias) = attrs.alias() {
+            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
+            self.specs.aliases.insert(alias.name, alias);
+        }
+        Ok(())
+    }
+
     fn parse_enum_def(
         &mut self,
         def_id: LocalDefId,
@@ -78,7 +98,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let refined_by = attrs.refined_by();
         self.specs
             .enums
-            .insert(def_id, surface::EnumDef { refined_by, opaque });
+            .insert(def_id, surface::EnumDef { def_id, refined_by, opaque });
         Ok(())
     }
 
@@ -111,9 +131,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 
     fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorReported> {
+        // TODO(atgeller) error if non-crate attributes
+        // TODO(atgeller) error if >1 cfg attributes
+
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
+        let crate_config = attrs.crate_config();
+        self.specs.crate_config = crate_config;
         Ok(())
     }
 
@@ -152,14 +177,29 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
+            ("alias", MacArgs::Delimited(span, _, tokens)) => {
+                let ty_alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
+                // println!("ALIAS: {:?}", ty_alias);
+                LiquidAttrKind::TypeAlias(ty_alias)
+            }
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
-                // print!("LR::SIG {:#?} \n", fn_sig);
                 LiquidAttrKind::FnSig(fn_sig)
             }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 LiquidAttrKind::Qualifier(qualifer)
+            }
+            ("cfg", MacArgs::Delimited(_, _, _)) => {
+                match LiquidAttrCFG::parse_cfg(attr_item) {
+                    Err(error) => return self.emit_err(error),
+                    Ok(mut cfg) => {
+                        match cfg.try_into_crate_cfg() {
+                            Err(error) => return self.emit_err(error),
+                            Ok(crate_cfg) => LiquidAttrKind::CrateConfig(crate_cfg),
+                        }
+                    }
+                }
             }
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
                 let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
@@ -241,6 +281,11 @@ impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
             ItemKind::Mod(..) => {
                 // TODO: Parse mod level attributes
             }
+            ItemKind::TyAlias(..) => {
+                let hir_id = item.hir_id();
+                let attrs = self.tcx.hir().attrs(hir_id);
+                let _ = self.parse_tyalias_spec(item.def_id, attrs);
+            }
             _ => (),
         }
     }
@@ -263,6 +308,8 @@ impl Specs {
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
+            aliases: FxHashMap::default(),
+            crate_config: None,
         }
     }
 }
@@ -285,7 +332,9 @@ enum LiquidAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
+    TypeAlias(surface::Alias),
     Field(surface::Ty),
+    CrateConfig(config::CrateConfig),
 }
 
 macro_rules! read_attr {
@@ -344,12 +393,20 @@ impl LiquidAttrs {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
 
+    fn alias(&mut self) -> Option<surface::Alias> {
+        read_attr!(self, "alias", TypeAlias)
+    }
+
     fn refined_by(&mut self) -> Option<surface::Params> {
         read_attr!(self, "refined_by", RefinedBy)
     }
 
     fn field(&mut self) -> Option<surface::Ty> {
         read_attr!(self, "field", Field)
+    }
+
+    fn crate_config(&mut self) -> Option<config::CrateConfig> {
+        read_attr!(self, "crate_config", CrateConfig)
     }
 }
 
@@ -362,7 +419,118 @@ impl LiquidAttrKind {
             LiquidAttrKind::RefinedBy(_) => "refined_by",
             LiquidAttrKind::Qualifier(_) => "qualifier",
             LiquidAttrKind::Field(_) => "field",
+            LiquidAttrKind::TypeAlias(_) => "alias",
+            LiquidAttrKind::CrateConfig(_) => "crate_config",
         }
+    }
+}
+
+#[derive(Debug)]
+struct CFGSetting {
+    setting: String,
+    span: Span,
+}
+
+#[derive(Debug)]
+struct LiquidAttrCFG {
+    map: HashMap<String, CFGSetting>,
+}
+
+macro_rules! try_read_setting {
+    ($self:expr, $setting:literal, $type:ident, $default:expr) => {
+        if let Some(CFGSetting { setting, span }) = $self.map.remove($setting) {
+            let parse_result = setting.as_str().parse::<$type>();
+            if parse_result.is_err() {
+                Err(errors::CFGError {
+                    span,
+                    message: format!(
+                        "incorrect type in value for setting `{}`, expected {}",
+                        $setting,
+                        stringify!($type)
+                    ),
+                })
+            } else {
+                Ok(parse_result.unwrap())
+            }
+        } else {
+            Ok($default)
+        }
+    };
+}
+
+impl LiquidAttrCFG {
+    // TODO: Ugly that we have to access the collector for error reporting
+    fn parse_cfg(attr_item: &AttrItem) -> Result<Self, errors::CFGError> {
+        let mut cfg = Self { map: HashMap::new() };
+        let meta_item_kind = attr_item.meta_kind();
+        match meta_item_kind {
+            Some(MetaItemKind::List(items)) => {
+                for item in items {
+                    cfg.parse_cfg_item(&item)?;
+                }
+            }
+            _ => {
+                return Err(errors::CFGError {
+                    span: attr_item.span(),
+                    message: "bad syntax".to_string(),
+                })
+            }
+        };
+
+        //todo!();
+        Ok(cfg)
+    }
+
+    fn parse_cfg_item(&mut self, nested_item: &NestedMetaItem) -> Result<(), errors::CFGError> {
+        match nested_item {
+            NestedMetaItem::MetaItem(item) => {
+                let name = item.name_or_empty().to_ident_string();
+                let span = item.span;
+                if !name.is_empty() {
+                    if self.map.get(&name).is_some() {
+                        return Err(errors::CFGError {
+                            span,
+                            message: format!("duplicated setting `{}`", name),
+                        });
+                    }
+
+                    // TODO: support types of values other than strings
+                    let value_str = item.value_str().map(|symbol| symbol.to_ident_string());
+
+                    if let Some(value) = value_str {
+                        let setting = CFGSetting { setting: value, span: item.span };
+                        self.map.insert(name, setting);
+                        return Ok(());
+                    }
+                }
+                Err(errors::CFGError { span, message: "bad setting name".to_string() })
+            }
+            _ => {
+                Err(errors::CFGError {
+                    span: nested_item.span(),
+                    message: "unsupported item".to_string(),
+                })
+            }
+        }
+    }
+
+    fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
+        let log_dir = try_read_setting!(self, "log_dir", PathBuf, config::CONFIG.log_dir.clone())?;
+        let dump_constraint =
+            try_read_setting!(self, "dump_constraint", bool, config::CONFIG.dump_constraint)?;
+        let dump_checker_trace =
+            try_read_setting!(self, "dump_checker_trace", bool, config::CONFIG.dump_checker_trace)?;
+        let check_asserts =
+            try_read_setting!(self, "check_asserts", AssertBehavior, config::CONFIG.check_asserts)?;
+
+        if let Some((name, setting)) = self.map.iter().next() {
+            return Err(errors::CFGError {
+                span: setting.span,
+                message: format!("invalid crate cfg keyword `{}`", name),
+            });
+        }
+
+        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace, check_asserts })
     }
 }
 
@@ -383,6 +551,14 @@ mod errors {
     pub struct InvalidAttr {
         #[message = "invalid liquid attribute"]
         pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error = "LIQUID"]
+    pub struct CFGError {
+        #[message = "invalid liquid configuration attribute: {message}"]
+        pub span: Span,
+        pub message: String,
     }
 
     #[derive(SessionDiagnostic)]
