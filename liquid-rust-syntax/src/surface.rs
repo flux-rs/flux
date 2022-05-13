@@ -400,31 +400,25 @@ pub mod expand {
                 let indices = Indices { indices: vec![], span: p.span };
                 match expand_alias(aliases, p, &indices) {
                     Some(k) => k,
-                    None => TyKind::Path(expand_path(aliases, &p)),
+                    None => TyKind::Path(expand_path(aliases, p)),
                 }
             }
             TyKind::Exists { bind, path, pred } => {
-                TyKind::Exists {
-                    bind: bind.clone(),
-                    path: expand_path(aliases, &path),
-                    pred: pred.clone(),
-                }
+                TyKind::Exists { bind: *bind, path: expand_path(aliases, path), pred: pred.clone() }
             }
             TyKind::Indexed { path, indices } => {
-                match expand_alias(aliases, &path, &indices) {
+                match expand_alias(aliases, path, indices) {
                     Some(k) => k,
                     None => {
                         TyKind::Indexed {
-                            path: expand_path(aliases, &path),
+                            path: expand_path(aliases, path),
                             indices: indices.clone(),
                         }
                     }
                 }
             }
-            TyKind::Ref(rk, t) => TyKind::Ref(rk.clone(), Box::new(expand_ty(aliases, &*t))),
-            TyKind::StrgRef(rk, t) => {
-                TyKind::StrgRef(rk.clone(), Box::new(expand_ty(aliases, &*t)))
-            }
+            TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, &*t))),
+            TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(expand_ty(aliases, &*t))),
         }
     }
 
@@ -491,7 +485,7 @@ pub mod expand {
     fn subst_path(subst: &Subst, p: &Path) -> Path {
         let mut args = vec![];
         for t in p.args.iter() {
-            args.push(subst_ty(subst, &t));
+            args.push(subst_ty(subst, t));
         }
         Path { ident: p.ident, args, span: p.span }
     }

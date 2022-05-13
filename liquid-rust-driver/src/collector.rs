@@ -6,8 +6,7 @@ use liquid_rust_common::{
     iter::IterExt,
 };
 use liquid_rust_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
-    surface::{self},
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
     ParseErrorKind, ParseResult,
 };
 use rustc_ast::{
@@ -473,7 +472,7 @@ impl LiquidAttrCFG {
             _ => {
                 return Err(errors::CFGError {
                     span: attr_item.span(),
-                    message: format!("bad syntax"),
+                    message: "bad syntax".to_string(),
                 })
             }
         };
@@ -498,20 +497,18 @@ impl LiquidAttrCFG {
                     // TODO: support types of values other than strings
                     let value_str = item.value_str().map(|symbol| symbol.to_ident_string());
 
-                    if !value_str.is_none() {
-                        let value = value_str.unwrap();
+                    if let Some(value) = value_str {
                         let setting = CFGSetting { setting: value, span: item.span };
                         self.map.insert(name, setting);
                         return Ok(());
                     }
                 }
-                // Would have returned already if ok
-                return Err(errors::CFGError { span, message: format!("bad setting name") });
+                Err(errors::CFGError { span, message: "bad setting name".to_string() })
             }
             _ => {
-                return Err(errors::CFGError {
+                Err(errors::CFGError {
                     span: nested_item.span(),
-                    message: format!("unsupported item"),
+                    message: "unsupported item".to_string(),
                 })
             }
         }

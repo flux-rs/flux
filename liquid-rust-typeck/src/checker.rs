@@ -316,6 +316,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(vec![])
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         pcx: &mut PureCtxt,
@@ -389,6 +390,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(successors)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_assert(
         &mut self,
         pcx: &mut PureCtxt,

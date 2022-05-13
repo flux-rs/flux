@@ -252,6 +252,7 @@ impl Subst<'_> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn infer_from_tys(
         &mut self,
         genv: &GlobalEnv,
