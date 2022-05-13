@@ -38,7 +38,9 @@ jobs:
       - name: Add Fixpoint to the path
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
-     # We need to build before running tests for the binary to be ready
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.3.0
+      # We need to build before running tests for the binary to be ready
       - name: Build
         run: |
           cargo build
@@ -50,6 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.3.0
       - name: Rust rustfmt
         run: | 
           cargo fmt --check 
@@ -58,5 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.3.0
       - name: Run clippy
         uses: actions-rs/clippy-check@v1.0.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
