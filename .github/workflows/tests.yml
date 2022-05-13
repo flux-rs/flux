@@ -69,3 +69,4 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           toolchain: "nightly-2022-02-28"
+          components: clippy
