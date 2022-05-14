@@ -16,9 +16,8 @@ use crate::ty::{Layout, Ty, VariantIdx};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
-    pub arg_count: usize,
     pub local_decls: IndexVec<Local, LocalDecl>,
-    pub mir: &'tcx mir::Body<'tcx>,
+    pub mir: mir::Body<'tcx>,
 }
 
 #[derive(Debug)]
@@ -129,17 +128,17 @@ pub enum Constant {
 impl Body<'_> {
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.arg_count + 1).map(Local::new)
+        (1..self.mir.arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.mir.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
     pub fn reverse_postorder(&self) -> impl ExactSizeIterator<Item = BasicBlock> + '_ {
-        mir::traversal::reverse_postorder(self.mir).map(|(bb, _)| bb)
+        mir::traversal::reverse_postorder(&self.mir).map(|(bb, _)| bb)
     }
 
     #[inline]

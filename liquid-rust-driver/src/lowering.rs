@@ -17,29 +17,28 @@ use rustc_span::Span;
 
 pub struct LoweringCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
-    body: &'tcx mir::Body<'tcx>,
+    body: mir::Body<'tcx>,
 }
 
 impl<'tcx> LoweringCtxt<'tcx> {
-    pub fn lower(
-        tcx: TyCtxt<'tcx>,
-        body: &'tcx mir::Body<'tcx>,
-    ) -> Result<Body<'tcx>, ErrorReported> {
+    pub fn lower(tcx: TyCtxt<'tcx>, body: mir::Body<'tcx>) -> Result<Body<'tcx>, ErrorReported> {
         let lower = Self { tcx, body };
 
-        let basic_blocks = body
+        let basic_blocks = lower
+            .body
             .basic_blocks()
             .iter()
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        let local_decls = body
+        let local_decls = lower
+            .body
             .local_decls
             .iter()
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, arg_count: body.arg_count, mir: body })
+        Ok(Body { basic_blocks, local_decls, mir: lower.body })
     }
 
     fn lower_basic_block_data(
@@ -106,7 +105,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let kind = match &terminator.kind {
             mir::TerminatorKind::Return => TerminatorKind::Return,
             mir::TerminatorKind::Call { func, args, destination, .. } => {
-                let (func, substs) = match func.ty(self.body, self.tcx).kind() {
+                let (func, substs) = match func.ty(&self.body, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let substs = substs
                             .iter()

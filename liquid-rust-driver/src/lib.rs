@@ -2,6 +2,7 @@
 
 extern crate rustc_ast;
 extern crate rustc_ast_pretty;
+extern crate rustc_borrowck;
 extern crate rustc_const_eval;
 extern crate rustc_driver;
 extern crate rustc_errors;
@@ -16,6 +17,7 @@ extern crate rustc_span;
 mod callbacks;
 mod collector;
 mod lowering;
+mod mir_storage;
 
 use callbacks::LiquidCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};

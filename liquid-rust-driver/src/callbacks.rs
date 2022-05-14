@@ -7,15 +7,25 @@ use rustc_errors::ErrorReported;
 use rustc_hash::FxHashSet;
 use rustc_hir::{def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ImplItemKind, ItemKind};
 use rustc_interface::{interface::Compiler, Queries};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{
+    query::{query_values, Providers},
+    TyCtxt, WithOptConstParam,
+};
 
-use crate::{collector::SpecCollector, lowering::LoweringCtxt};
+use crate::{collector::SpecCollector, lowering::LoweringCtxt, mir_storage};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
 pub(crate) struct LiquidCallbacks;
 
 impl Callbacks for LiquidCallbacks {
+    fn config(&mut self, config: &mut rustc_interface::interface::Config) {
+        assert!(config.override_queries.is_none());
+        config.override_queries = Some(|_, local, _| {
+            local.mir_borrowck = mir_borrowck;
+        });
+    }
+
     fn after_analysis<'tcx>(
         &mut self,
         compiler: &Compiler,
@@ -148,7 +158,18 @@ impl<'tcx> CrateChecker<'tcx> {
         if self.assume.contains(&def_id) {
             return Ok(());
         }
-        let mir = &self.genv.tcx.optimized_mir(def_id);
+        let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
+        {
+            let mut w = std::io::BufWriter::new(std::io::stdout());
+            rustc_middle::mir::pretty::write_mir_fn(
+                self.genv.tcx,
+                &mir,
+                &mut |_, _| Ok(()),
+                &mut w,
+            )
+            .unwrap();
+        }
+
         let body = LoweringCtxt::lower(self.genv.tcx, mir)?;
         typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
@@ -176,10 +197,10 @@ impl<'tcx> ItemLikeVisitor<'tcx> for CrateChecker<'tcx> {
 }
 
 #[allow(clippy::needless_lifetimes)]
-fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> mir_borrowck<'tcx> {
+fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> query_values::mir_borrowck<'tcx> {
     let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
         tcx,
-        ty::WithOptConstParam::unknown(def_id),
+        WithOptConstParam::unknown(def_id),
     );
     // SAFETY: This is safe because we are feeding in the same `tcx` that is
     // going to be used as a witness when pulling out the data.
@@ -190,8 +211,4 @@ fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> mir_borrowck<'tc
     rustc_borrowck::provide(&mut providers);
     let original_mir_borrowck = providers.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
-}
-
-fn override_queries(_session: &Session, local: &mut Providers, _external: &mut ExternProviders) {
-    local.mir_borrowck = mir_borrowck;
 }
