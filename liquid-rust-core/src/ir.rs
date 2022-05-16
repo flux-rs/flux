@@ -133,6 +133,7 @@ pub enum Constant {
     Uint(u128, UintTy),
     Float(u128, FloatTy),
     Bool(bool),
+    Unit,
 }
 
 pub enum FakeReadCause {
@@ -340,10 +341,11 @@ impl fmt::Debug for Operand {
 impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
-            Self::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
-            Self::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
-            Self::Bool(b) => write!(f, "{}", b),
+            Constant::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
+            Constant::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
+            Constant::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
+            Constant::Bool(b) => write!(f, "{}", b),
+            Constant::Unit => write!(f, "()"),
         }
     }
 }

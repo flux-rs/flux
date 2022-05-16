@@ -331,6 +331,10 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
+    pub fn unit() -> Ty {
+        Ty::tuple(vec![])
+    }
+
     pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
         match self.kind() {
             TyKind::Indexed(bty, exprs) => Ty::refine(bty.fill_holes(mk_pred), exprs.clone()),

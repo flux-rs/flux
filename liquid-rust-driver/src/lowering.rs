@@ -311,6 +311,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         TyKind::Bool => {
                             Ok(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0))
                         }
+                        TyKind::Tuple(tys) if tys.is_empty() => Ok(Constant::Unit),
                         _ => {
                             self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
                         }

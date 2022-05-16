@@ -770,6 +770,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ty::refine(BaseTy::Bool, vec![e])
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
+            Constant::Unit => Ty::unit(),
         }
     }
 
