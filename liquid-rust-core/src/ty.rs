@@ -64,6 +64,7 @@ pub enum Ty {
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
     Tuple(Vec<Ty>),
+    Never,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -76,6 +77,7 @@ pub enum Layout {
     Ref,
     Param,
     Tuple(Vec<Layout>),
+    Never,
 }
 
 pub struct Indices {
@@ -278,6 +280,7 @@ impl fmt::Debug for Ty {
             Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
             Ty::Param(param) => write!(f, "{param}"),
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
+            Ty::Never => write!(f, "!"),
         }
     }
 }

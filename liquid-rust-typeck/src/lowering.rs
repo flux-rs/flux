@@ -120,7 +120,7 @@ impl LoweringCtxt {
                     .iter()
                     .map(|e| self.lower_expr(e))
                     .collect_vec();
-                ty::Ty::refine(self.lower_base_ty(bty), exprs)
+                ty::Ty::indexed(self.lower_base_ty(bty), exprs)
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty);
@@ -138,6 +138,7 @@ impl LoweringCtxt {
                 let tys = tys.iter().map(|ty| self.lower_ty(ty)).collect_vec();
                 ty::Ty::tuple(tys)
             }
+            core::Ty::Never => ty::Ty::never(),
         }
     }
 
@@ -197,6 +198,7 @@ pub fn lower_layout(layout: &core::Layout) -> ty::Layout {
         core::Layout::Tuple(layouts) => {
             ty::Layout::tuple(layouts.iter().map(|l| lower_layout(l)).collect_vec())
         }
+        core::Layout::Never => ty::Layout::never(),
     }
 }
 

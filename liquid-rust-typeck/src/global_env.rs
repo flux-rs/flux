@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 
+use itertools::Itertools;
 use liquid_rust_common::config::{AssertBehavior, CONFIG};
 use liquid_rust_core::{
     desugar,
-    ty::{self as core, AdtSortsMap},
+    ty::{self as core, AdtSortsMap, VariantIdx},
 };
 use liquid_rust_syntax::surface;
 use rustc_hash::FxHashMap;
@@ -95,6 +96,23 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn check_asserts(&self) -> &AssertBehavior {
         &self.check_asserts
+    }
+
+    pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
+        let adt_def = self.adt_def(def_id);
+        let variant = &adt_def.variants().unwrap()[variant_idx];
+        let args = &variant.fields[..];
+        // TODO(nilehmann) get generics from somewhere
+        // TODO(nilehmann) we should store the return type in the variant
+        let bty = BaseTy::adt(def_id, vec![]);
+        let exprs = adt_def
+            .refined_by()
+            .iter()
+            .map(|param| ty::Expr::var(param.name))
+            .collect_vec();
+        let ret = ty::Ty::indexed(bty, exprs);
+        let sig = ty::FnSig::new(vec![], args, ret, vec![]);
+        ty::Binders::new(&adt_def.refined_by()[..], sig)
     }
 }
 

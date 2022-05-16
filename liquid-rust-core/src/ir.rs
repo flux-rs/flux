@@ -93,6 +93,11 @@ pub enum Rvalue {
     ShrRef(Place),
     BinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
+    Aggregate(AggregateKind, Vec<Operand>),
+}
+
+pub enum AggregateKind {
+    Adt(DefId, VariantIdx, Vec<Ty>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -321,11 +326,23 @@ impl fmt::Debug for Place {
 impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Use(op) => write!(f, "{:?}", op),
-            Self::MutRef(place) => write!(f, "&mut {:?}", place),
-            Self::ShrRef(place) => write!(f, "& {:?}", place),
-            Self::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
-            Self::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
+            Rvalue::Use(op) => write!(f, "{:?}", op),
+            Rvalue::MutRef(place) => write!(f, "&mut {:?}", place),
+            Rvalue::ShrRef(place) => write!(f, "& {:?}", place),
+            Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
+            Rvalue::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
+                let fname = rustc_middle::ty::tls::with(|tcx| {
+                    let path = tcx.def_path(*def_id);
+                    path.data.iter().join("::")
+                });
+                write!(
+                    f,
+                    "{fname}::{variant_idx:?}::<{:?}>({:?})",
+                    substs.iter().format(","),
+                    args.iter().format(",")
+                )
+            }
         }
     }
 }

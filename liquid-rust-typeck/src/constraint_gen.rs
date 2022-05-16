@@ -66,7 +66,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
             }
             (TyKind::Exists(bty, p), _) => {
                 let exprs = ck.pcx.push_bindings(&ck.genv.sorts(bty), p);
-                let ty1 = Ty::refine(bty.clone(), exprs);
+                let ty1 = Ty::indexed(bty.clone(), exprs);
                 ck.subtyping(&ty1, ty2);
                 return;
             }

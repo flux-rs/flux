@@ -49,10 +49,8 @@ impl TypeEnv {
     }
 
     pub fn alloc(&mut self, loc: impl Into<Loc>, layout: Layout) {
-        // TODO(nilehmann) we should probably do this for all ZSTs
-        let ty = if layout.is_unit() { Ty::tuple(vec![]) } else { Ty::uninit(layout) };
         let loc = loc.into();
-        self.bindings.insert(loc, ty);
+        self.bindings.insert(loc, Ty::uninit(layout));
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
@@ -149,7 +147,7 @@ impl TypeEnv {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
                 let exprs = pcx.push_bindings(&genv.sorts(bty), p);
-                Ty::refine(bty.clone(), exprs)
+                Ty::indexed(bty.clone(), exprs)
             }
             TyKind::Ref(RefKind::Shr, ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);
@@ -362,7 +360,7 @@ impl TypeEnvInfer {
                     })
                     .collect_vec();
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
-                Ty::refine(bty, exprs)
+                Ty::indexed(bty, exprs)
             }
             TyKind::Tuple(tys) => {
                 let tys = tys
@@ -373,6 +371,7 @@ impl TypeEnvInfer {
             }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
+            | TyKind::Never
             | TyKind::Float(_)
             | TyKind::Ptr(_)
             | TyKind::Uninit(_)
@@ -505,7 +504,7 @@ impl TypeEnvInfer {
                         }
                     })
                     .collect_vec();
-                Ty::refine(bty, exprs)
+                Ty::indexed(bty, exprs)
             }
             (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {

@@ -86,7 +86,7 @@ impl Subst<'_> {
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, exprs) => {
-                Ty::refine(
+                Ty::indexed(
                     self.subst_base_ty(bty),
                     exprs.iter().map(|e| self.subst_expr(e)).collect_vec(),
                 )
@@ -101,6 +101,7 @@ impl Subst<'_> {
                 let tys = tys.iter().map(|ty| self.subst_ty(ty)).collect_vec();
                 Ty::tuple(tys)
             }
+            TyKind::Never => Ty::never(),
         }
     }
 

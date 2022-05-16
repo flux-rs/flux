@@ -159,16 +159,16 @@ impl<'tcx> CrateChecker<'tcx> {
             return Ok(());
         }
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
-        {
-            let mut w = std::io::BufWriter::new(std::io::stdout());
-            rustc_middle::mir::pretty::write_mir_fn(
-                self.genv.tcx,
-                &mir,
-                &mut |_, _| Ok(()),
-                &mut w,
-            )
-            .unwrap();
-        }
+        // {
+        //     let mut w = std::io::BufWriter::new(std::io::stdout());
+        //     rustc_middle::mir::pretty::write_mir_fn(
+        //         self.genv.tcx,
+        //         &mir,
+        //         &mut |_, _| Ok(()),
+        //         &mut w,
+        //     )
+        //     .unwrap();
+        // }
 
         let body = LoweringCtxt::lower(self.genv.tcx, mir)?;
         typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)

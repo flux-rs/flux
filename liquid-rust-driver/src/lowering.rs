@@ -2,8 +2,8 @@ use itertools::Itertools;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem,
-        Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand,
+        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::Layout,
 };
@@ -221,6 +221,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(Rvalue::ShrRef(self.lower_place(p)?))
             }
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
+            mir::Rvalue::Aggregate(aggregate_kind, args) => {
+                let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
+                let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
+                Ok(Rvalue::Aggregate(aggregate_kind, args))
+            }
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
             | mir::Rvalue::ThreadLocalRef(_)
@@ -230,9 +235,31 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::Rvalue::CheckedBinaryOp(_, _)
             | mir::Rvalue::NullaryOp(_, _)
             | mir::Rvalue::Discriminant(_)
-            | mir::Rvalue::Aggregate(_, _)
             | mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
+            }
+        }
+    }
+
+    fn lower_aggregate_kind(
+        &self,
+        aggregate_kind: &mir::AggregateKind,
+    ) -> Result<AggregateKind, ErrorReported> {
+        match aggregate_kind {
+            mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
+                let substs = substs
+                    .iter()
+                    .map(|arg| self.lower_generic_arg(arg))
+                    .try_collect()?;
+                Ok(AggregateKind::Adt(*def_id, *variant_idx, substs))
+            }
+            mir::AggregateKind::Adt(..)
+            | mir::AggregateKind::Array(_)
+            | mir::AggregateKind::Tuple
+            | mir::AggregateKind::Closure(_, _)
+            | mir::AggregateKind::Generator(_, _, _) => {
+                return self
+                    .emit_err(None, format!("unsupported aggregate kind: `{:?}`", aggregate_kind));
             }
         }
     }
@@ -357,6 +384,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_middle::ty::TyKind::Ref(..) => Ok(Layout::Ref),
             rustc_middle::ty::TyKind::Float(float_ty) => Ok(Layout::Float(*float_ty)),
             rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Layout::Tuple(vec![])),
+            rustc_middle::ty::Never => Ok(Layout::Never),
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
     }
@@ -385,6 +413,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
                 Ok(core::Ty::Exists(adt, core::Pred::Hole))
             }
+            rustc_middle::ty::Never => Ok(core::Ty::Never),
             rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(core::Ty::Tuple(vec![])),
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
