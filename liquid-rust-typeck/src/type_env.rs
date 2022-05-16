@@ -11,13 +11,13 @@ use crate::{
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::{ir, ty::Layout};
+use liquid_rust_core::ir;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
 use self::paths_tree::{LookupResult, PathsTree};
 
-use super::ty::{Loc, Name, Pred, Sort};
+use super::ty::{Layout, Loc, Name, Pred, Sort};
 
 #[derive(Clone, Default)]
 pub struct TypeEnv {
@@ -49,8 +49,10 @@ impl TypeEnv {
     }
 
     pub fn alloc(&mut self, loc: impl Into<Loc>, layout: Layout) {
+        // TODO(nilehmann) we should probably do this for all ZSTs
+        let ty = if layout.is_unit() { Ty::tuple(vec![]) } else { Ty::uninit(layout) };
         let loc = loc.into();
-        self.bindings.insert(loc, Ty::uninit(layout));
+        self.bindings.insert(loc, ty);
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
@@ -195,7 +197,7 @@ impl TypeEnv {
         subst: &mut Subst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(_, exprs1), TyKind::Refine(_, exprs2)) => {
+            (TyKind::Indexed(_, exprs1), TyKind::Indexed(_, exprs2)) => {
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     subst.infer_from_exprs(params, e1, e2);
                 }
@@ -343,7 +345,7 @@ impl TypeEnvInfer {
         ty: &Ty,
     ) -> Ty {
         match ty.kind() {
-            TyKind::Refine(bty, exprs) => {
+            TyKind::Indexed(bty, exprs) => {
                 let sorts = genv.sorts(bty);
                 let exprs = exprs
                     .iter()
@@ -361,6 +363,13 @@ impl TypeEnvInfer {
                     .collect_vec();
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
                 Ty::refine(bty, exprs)
+            }
+            TyKind::Tuple(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|ty| TypeEnvInfer::pack_ty(params, genv, scope, name_gen, ty))
+                    .collect_vec();
+                Ty::tuple(tys)
             }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
@@ -474,17 +483,17 @@ impl TypeEnvInfer {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit(layout), _) => {
                 debug_assert_eq!(layout, &ty2.layout());
-                Ty::uninit(*layout)
+                Ty::uninit(layout.clone())
             }
             (_, TyKind::Uninit(layout)) => {
                 debug_assert_eq!(layout, &ty1.layout());
-                Ty::uninit(*layout)
+                Ty::uninit(layout.clone())
             }
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
                 Ty::strg_ref(path1.clone())
             }
-            (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
+            (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
                 let exprs = izip!(exprs1, exprs2, genv.sorts(&bty))
                     .map(|(e1, e2, sort)| {
@@ -498,8 +507,8 @@ impl TypeEnvInfer {
                     .collect_vec();
                 Ty::refine(bty, exprs)
             }
-            (TyKind::Exists(bty1, _), TyKind::Refine(bty2, ..) | TyKind::Exists(bty2, ..))
-            | (TyKind::Refine(bty1, _), TyKind::Exists(bty2, ..)) => {
+            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
+            | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
                 Ty::exists(bty, Pred::Hole)
             }
@@ -514,6 +523,13 @@ impl TypeEnvInfer {
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
+            }
+            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
+                assert!(
+                    tys1.is_empty() && tys2.is_empty(),
+                    "join of non-empty tuples is not supported yet"
+                );
+                Ty::tuple(vec![])
             }
             _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
         }

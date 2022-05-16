@@ -56,7 +56,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
         let mut ck = self.breadcrumb();
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, e1), TyKind::Refine(bty2, e2)) if e1 == e2 => {
+            (TyKind::Indexed(bty1, e1), TyKind::Indexed(bty2, e2)) if e1 == e2 => {
                 ck.bty_subtyping(bty1, bty2);
                 return;
             }
@@ -74,13 +74,13 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
         }
 
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
+            (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
                 ck.bty_subtyping(bty1, bty2);
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     ck.check_pred(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()));
                 }
             }
-            (TyKind::Refine(bty1, exprs), TyKind::Exists(bty2, p)) => {
+            (TyKind::Indexed(bty1, exprs), TyKind::Exists(bty2, p)) => {
                 ck.bty_subtyping(bty1, bty2);
                 ck.check_pred(p.subst_bound_vars(exprs));
             }
@@ -103,6 +103,12 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
             (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
+            }
+            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
+                debug_assert_eq!(tys1.len(), tys2.len());
+                for (ty1, ty2) in iter::zip(tys1, tys2) {
+                    ck.subtyping(ty1, ty2);
+                }
             }
             _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
         }

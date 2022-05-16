@@ -4,7 +4,7 @@ use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
 pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 
-use liquid_rust_core::{ir::Local, ty::Layout};
+use liquid_rust_core::ir::Local;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
@@ -78,13 +78,33 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Refine(BaseTy, List<Expr>),
+    Indexed(BaseTy, List<Expr>),
     Exists(BaseTy, Pred),
+    Tuple(List<Ty>),
     Float(FloatTy),
     Uninit(Layout),
     Ptr(Path),
     Ref(RefKind, Ty),
     Param(ParamTy),
+}
+
+pub type Layout = Interned<LayoutS>;
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct LayoutS {
+    kind: LayoutKind,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum LayoutKind {
+    Bool,
+    Int(IntTy),
+    Uint(UintTy),
+    Float(FloatTy),
+    Adt(DefId),
+    Ref,
+    Param,
+    Tuple(List<Layout>),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
@@ -284,6 +304,10 @@ impl Ty {
         TyKind::Ref(mode, ty).intern()
     }
 
+    pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
+        TyKind::Tuple(tys.into()).intern()
+    }
+
     pub fn uninit(layout: Layout) -> Ty {
         TyKind::Uninit(layout).intern()
     }
@@ -292,7 +316,7 @@ impl Ty {
     where
         List<Expr>: From<T>,
     {
-        TyKind::Refine(bty, Interned::from(exprs)).intern()
+        TyKind::Indexed(bty, Interned::from(exprs)).intern()
     }
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
@@ -309,7 +333,7 @@ impl Ty {
 
     pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
         match self.kind() {
-            TyKind::Refine(bty, exprs) => Ty::refine(bty.fill_holes(mk_pred), exprs.clone()),
+            TyKind::Indexed(bty, exprs) => Ty::refine(bty.fill_holes(mk_pred), exprs.clone()),
             TyKind::Exists(bty, p) => {
                 let p = if let Pred::Hole = p { mk_pred(bty) } else { p.clone() };
                 let bty = bty.fill_holes(mk_pred);
@@ -319,18 +343,26 @@ impl Ty {
             TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
                 self.clone()
             }
+            TyKind::Tuple(tys) => {
+                let tys = tys.iter().map(|ty| ty.fill_holes(mk_pred)).collect_vec();
+                Ty::tuple(tys)
+            }
         }
     }
 
     pub fn with_holes(&self) -> Ty {
         match self.kind() {
-            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => {
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => {
                 let bty = bty.with_holes();
                 Ty::exists(bty, Pred::Hole)
             }
             TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_holes()),
             TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
                 self.clone()
+            }
+            TyKind::Tuple(tys) => {
+                let tys = tys.iter().map(|ty| ty.with_holes()).collect_vec();
+                Ty::tuple(tys)
             }
         }
     }
@@ -353,11 +385,22 @@ impl TyS {
 
     pub fn layout(&self) -> Layout {
         match self.kind() {
-            TyKind::Refine(bty, _) | TyKind::Exists(bty, _) => bty.layout(),
-            TyKind::Float(float_ty) => Layout::Float(*float_ty),
-            TyKind::Uninit(layout) => *layout,
-            TyKind::Ptr(_) | TyKind::Ref(..) => Layout::Ref,
-            TyKind::Param(_) => Layout::Param,
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => {
+                match bty {
+                    BaseTy::Int(int_ty) => Layout::int(*int_ty),
+                    BaseTy::Uint(uint_ty) => Layout::uint(*uint_ty),
+                    BaseTy::Bool => Layout::bool(),
+                    BaseTy::Adt(did, _) => Layout::adt(*did),
+                }
+            }
+            TyKind::Float(float_ty) => Layout::float(*float_ty),
+            TyKind::Uninit(layout) => layout.clone(),
+            TyKind::Ptr(_) | TyKind::Ref(..) => Layout::mk_ref(),
+            TyKind::Param(_) => Layout::param(),
+            TyKind::Tuple(tys) => {
+                let layouts = tys.iter().map(|ty| ty.layout()).collect_vec();
+                Layout::tuple(layouts)
+            }
         }
     }
 
@@ -367,31 +410,78 @@ impl TyS {
         variant_idx: VariantIdx,
     ) -> Option<(DefId, IndexVec<Field, Ty>)> {
         match self.kind() {
-            TyKind::Refine(BaseTy::Adt(did, substs), exprs) => {
+            TyKind::Indexed(BaseTy::Adt(did, substs), exprs) => {
                 let adt_def = genv.adt_def(*did);
                 Some((*did, adt_def.unfold(substs, exprs, variant_idx)?))
             }
-            TyKind::Uninit(Layout::Adt(did)) => {
-                let adt_def = genv.adt_def(*did);
-                Some((*did, adt_def.unfold_uninit(variant_idx)?))
+            TyKind::Uninit(layout) => {
+                match layout.kind() {
+                    LayoutKind::Adt(did) => {
+                        let adt_def = genv.adt_def(*did);
+                        Some((*did, adt_def.unfold_uninit(variant_idx)?))
+                    }
+                    LayoutKind::Tuple(_) => todo!("unfolding of tuples is not yet supported"),
+                    _ => panic!("type cannot be unfolded: `{self:?}`"),
+                }
             }
             _ => panic!("type cannot be unfolded: `{self:?}`"),
         }
     }
 }
 
+impl Layout {
+    pub fn mk_ref() -> Layout {
+        LayoutKind::Ref.intern()
+    }
+
+    pub fn param() -> Layout {
+        LayoutKind::Param.intern()
+    }
+
+    pub fn float(float_ty: FloatTy) -> Layout {
+        LayoutKind::Float(float_ty).intern()
+    }
+
+    pub fn tuple(layouts: impl Into<List<Layout>>) -> Layout {
+        LayoutKind::Tuple(layouts.into()).intern()
+    }
+
+    pub fn int(int_ty: IntTy) -> Layout {
+        LayoutKind::Int(int_ty).intern()
+    }
+
+    pub fn uint(uint_ty: UintTy) -> Layout {
+        LayoutKind::Uint(uint_ty).intern()
+    }
+
+    pub fn adt(def_id: DefId) -> Layout {
+        LayoutKind::Adt(def_id).intern()
+    }
+
+    pub fn bool() -> Layout {
+        LayoutKind::Bool.intern()
+    }
+}
+
+impl LayoutS {
+    pub fn kind(&self) -> &LayoutKind {
+        &self.kind
+    }
+
+    pub fn is_unit(&self) -> bool {
+        matches!(self.kind(), LayoutKind::Tuple(tys) if tys.is_empty())
+    }
+}
+
+impl LayoutKind {
+    fn intern(self) -> Layout {
+        Interned::new(LayoutS { kind: self })
+    }
+}
+
 impl BaseTy {
     pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(def_id, Substs::new(substs.into_iter().collect_vec()))
-    }
-
-    fn layout(&self) -> Layout {
-        match self {
-            BaseTy::Int(int_ty) => Layout::Int(*int_ty),
-            BaseTy::Uint(uint_ty) => Layout::Uint(*uint_ty),
-            BaseTy::Bool => Layout::Bool,
-            BaseTy::Adt(did, _) => Layout::Adt(*did),
-        }
     }
 
     fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> BaseTy {
@@ -783,13 +873,15 @@ impl_internable!(
     TyS,
     ExprS,
     SortS,
+    LayoutS,
     [Ty],
     [Pred],
     [Expr],
     [Field],
     [KVar],
     [Constr],
-    [Param]
+    [Param],
+    [Layout]
 );
 
 mod pretty {
@@ -858,7 +950,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Refine(bty, exprs) => fmt_bty(bty, Some(exprs), cx, f),
+                TyKind::Indexed(bty, exprs) => fmt_bty(bty, Some(exprs), cx, f),
                 TyKind::Exists(bty, p) => {
                     if p.is_true() {
                         w!("{:?}", bty)
@@ -872,6 +964,7 @@ mod pretty {
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
+                TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
             }
         }
 

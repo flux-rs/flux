@@ -398,7 +398,7 @@ fn ty_infer_folding(
     ty2: &Ty,
 ) {
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Refine(bty1, exprs1), TyKind::Refine(bty2, exprs2)) => {
+        (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
             bty_infer_folding(genv, pcx, params, bty1, bty2);
             for (e1, e2) in iter::zip(exprs1, exprs2) {
                 expr_infer_folding(params, e1, e2);

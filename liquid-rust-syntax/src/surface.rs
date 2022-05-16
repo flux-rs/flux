@@ -99,6 +99,9 @@ pub enum TyKind<T = Ident> {
 
     /// Strong reference, &strg<self: i32>
     StrgRef(Ident, Box<Ty<T>>),
+
+    /// ()
+    Unit,
 }
 
 #[derive(Debug, Clone)]
@@ -258,6 +261,7 @@ pub fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
             let tgt_ty = default_ty(*ty);
             TyKind::Ref(ref_kind, Box::new(tgt_ty))
         }
+        rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => TyKind::Unit,
         _ => TyKind::Path(default_path(ty)),
     };
     Ty { kind, span: rustc_span::DUMMY_SP }
@@ -419,6 +423,7 @@ pub mod expand {
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, &*t))),
             TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(expand_ty(aliases, &*t))),
+            TyKind::Unit => TyKind::Unit,
         }
     }
 
@@ -527,6 +532,7 @@ pub mod expand {
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(subst_ty(subst, &*t))),
             TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(subst_ty(subst, &*t))),
+            TyKind::Unit => TyKind::Unit,
         }
     }
 }
@@ -619,6 +625,7 @@ pub mod zip {
             (TyKind::Ref(rk, ty), TyKind::Ref(default_rk, default)) if rk == *default_rk => {
                 TyKind::Ref(rk, Box::new(zip_ty(*ty, default)))
             }
+            (TyKind::Unit, TyKind::Unit) => TyKind::Unit,
             _ => panic!("incompatible types `{default:?}`"),
         };
         Ty { kind, span: ty.span }
