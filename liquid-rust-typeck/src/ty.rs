@@ -86,6 +86,7 @@ pub enum TyKind {
     Ptr(Path),
     Ref(RefKind, Ty),
     Param(ParamTy),
+    Never,
 }
 
 pub type Layout = Interned<LayoutS>;
@@ -105,6 +106,7 @@ pub enum LayoutKind {
     Ref,
     Param,
     Tuple(List<Layout>),
+    Never,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
@@ -312,7 +314,7 @@ impl Ty {
         TyKind::Uninit(layout).intern()
     }
 
-    pub fn refine<T>(bty: BaseTy, exprs: T) -> Ty
+    pub fn indexed<T>(bty: BaseTy, exprs: T) -> Ty
     where
         List<Expr>: From<T>,
     {
@@ -331,9 +333,17 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
+    pub fn unit() -> Ty {
+        Ty::tuple(vec![])
+    }
+
+    pub fn never() -> Ty {
+        TyKind::Never.intern()
+    }
+
     pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
         match self.kind() {
-            TyKind::Indexed(bty, exprs) => Ty::refine(bty.fill_holes(mk_pred), exprs.clone()),
+            TyKind::Indexed(bty, exprs) => Ty::indexed(bty.fill_holes(mk_pred), exprs.clone()),
             TyKind::Exists(bty, p) => {
                 let p = if let Pred::Hole = p { mk_pred(bty) } else { p.clone() };
                 let bty = bty.fill_holes(mk_pred);
@@ -347,6 +357,7 @@ impl Ty {
                 let tys = tys.iter().map(|ty| ty.fill_holes(mk_pred)).collect_vec();
                 Ty::tuple(tys)
             }
+            TyKind::Never => Ty::never(),
         }
     }
 
@@ -364,6 +375,7 @@ impl Ty {
                 let tys = tys.iter().map(|ty| ty.with_holes()).collect_vec();
                 Ty::tuple(tys)
             }
+            TyKind::Never => Ty::never(),
         }
     }
 }
@@ -401,6 +413,7 @@ impl TyS {
                 let layouts = tys.iter().map(|ty| ty.layout()).collect_vec();
                 Layout::tuple(layouts)
             }
+            TyKind::Never => Layout::never(),
         }
     }
 
@@ -460,6 +473,10 @@ impl Layout {
 
     pub fn bool() -> Layout {
         LayoutKind::Bool.intern()
+    }
+
+    pub fn never() -> Layout {
+        LayoutKind::Never.intern()
     }
 }
 
@@ -965,6 +982,7 @@ mod pretty {
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
+                TyKind::Never => w!("!"),
             }
         }
 

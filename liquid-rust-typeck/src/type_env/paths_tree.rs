@@ -346,7 +346,7 @@ impl Node {
                 let adt_def = genv.adt_def(*did);
                 let exprs = fold(genv, pcx, &adt_def, &fields[..], *variant_idx);
                 let adt = BaseTy::adt(*did, vec![]);
-                let ty = Ty::refine(adt, exprs);
+                let ty = Ty::indexed(adt, exprs);
                 *self = Node::Ty(ty);
                 if let Node::Ty(ty) = self {
                     ty

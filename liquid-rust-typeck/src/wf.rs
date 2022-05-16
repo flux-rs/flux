@@ -125,11 +125,11 @@ impl<T: AdtSortsMap> Wf<'_, T> {
             }
             core::Ty::Ptr(loc) => self.check_loc(env, *loc),
             core::Ty::Ref(_, ty) => self.check_type(env, ty),
-            core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
             core::Ty::Tuple(tys) => {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
+            core::Ty::Never | core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
         }
     }
 
