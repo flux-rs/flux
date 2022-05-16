@@ -24,6 +24,7 @@ pub struct Body<'tcx> {
 pub struct BasicBlockData {
     pub statements: Vec<Statement>,
     pub terminator: Option<Terminator>,
+    pub is_cleanup: bool,
 }
 
 pub struct LocalDecl {
@@ -62,6 +63,14 @@ pub enum TerminatorKind {
         target: BasicBlock,
         msg: &'static str,
     },
+    FalseEdge {
+        real_target: BasicBlock,
+        imaginary_target: BasicBlock,
+    },
+    FalseUnwind {
+        real_target: BasicBlock,
+        unwind: Option<BasicBlock>,
+    },
 }
 
 pub struct Statement {
@@ -73,6 +82,7 @@ pub struct Statement {
 pub enum StatementKind {
     Assign(Place, Rvalue),
     SetDiscriminant(Place, VariantIdx),
+    FakeRead(Box<(FakeReadCause, Place)>),
     Nop,
 }
 
@@ -123,6 +133,10 @@ pub enum Constant {
     Uint(u128, UintTy),
     Float(u128, FloatTy),
     Bool(bool),
+}
+
+pub enum FakeReadCause {
+    ForLet(Option<DefId>),
 }
 
 impl Body<'_> {
@@ -206,6 +220,9 @@ impl fmt::Debug for Statement {
             StatementKind::SetDiscriminant(place, variant_idx) => {
                 write!(f, "discriminant({:?}) = {:?}", place, variant_idx)
             }
+            StatementKind::FakeRead(box (cause, place)) => {
+                write!(f, "FakeRead({cause:?}, {place:?}")
+            }
         }
     }
 }
@@ -259,6 +276,12 @@ impl fmt::Debug for Terminator {
                     f,
                     "assert({cond:?} is expected to be {expected:?}, \"{msg}\") -> {target:?}"
                 )
+            }
+            TerminatorKind::FalseEdge { real_target, imaginary_target } => {
+                write!(f, "falseEdge -> [real: {real_target:?}, imaginary: {imaginary_target:?}]")
+            }
+            TerminatorKind::FalseUnwind { real_target, unwind } => {
+                write!(f, "falseUnwind -> [real: {real_target:?}, cleanup: {unwind:?}]")
             }
         }
     }
@@ -321,6 +344,14 @@ impl fmt::Debug for Constant {
             Self::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
             Self::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
             Self::Bool(b) => write!(f, "{}", b),
+        }
+    }
+}
+
+impl fmt::Debug for FakeReadCause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FakeReadCause::ForLet(def_id) => write!(f, "ForLet({def_id:?})"),
         }
     }
 }

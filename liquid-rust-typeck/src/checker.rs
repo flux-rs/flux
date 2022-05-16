@@ -239,11 +239,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
+        let data = &self.body.basic_blocks[bb];
+        if data.is_cleanup {
+            return Ok(());
+        }
+
         dbg::basic_block_start!(bb, pcx, env);
 
         self.visited.insert(bb);
 
-        let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
             dbg::statement!("start", stmt, pcx, env);
             self.check_statement(&mut pcx, &mut env, stmt);
@@ -271,6 +275,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 // TODO(nilehmann) double chould check here that the place is unfolded to
                 // the corect variant. This should be guaranteed by rustc
             }
+            StatementKind::FakeRead(_) => {
+                // TODO(nilehmann) fake reads should be folding points
+            }
             StatementKind::Nop => {}
         }
     }
@@ -296,6 +303,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Drop { place, target } => {
                 let _ = env.move_place(self.genv, pcx, place);
                 Ok(vec![(*target, None)])
+            }
+            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, None)]),
+            TerminatorKind::FalseUnwind { real_target, unwind } => {
+                Ok(vec![(*real_target, None), (unwind.unwrap(), None)])
             }
         }
     }

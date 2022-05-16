@@ -2,8 +2,8 @@ use itertools::Itertools;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, LocalDecl, Operand, Place, PlaceElem, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind,
+        BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem,
+        Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::Layout,
 };
@@ -56,6 +56,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 .as_ref()
                 .map(|terminator| self.lower_terminator(terminator))
                 .transpose()?,
+            is_cleanup: data.is_cleanup,
         };
         Ok(data)
     }
@@ -81,11 +82,16 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::StatementKind::SetDiscriminant { place, variant_index } => {
                 StatementKind::SetDiscriminant(self.lower_place(place)?, *variant_index)
             }
+            mir::StatementKind::FakeRead(box (cause, place)) => {
+                StatementKind::FakeRead(Box::new((
+                    self.lower_fake_read_cause(*cause)?,
+                    self.lower_place(place)?,
+                )))
+            }
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
-            mir::StatementKind::FakeRead(_)
-            | mir::StatementKind::Retag(_, _)
+            mir::StatementKind::Retag(_, _)
             | mir::StatementKind::AscribeUserType(_, _)
             | mir::StatementKind::Coverage(_)
             | mir::StatementKind::CopyNonOverlapping(_) => {
@@ -96,6 +102,21 @@ impl<'tcx> LoweringCtxt<'tcx> {
             }
         };
         Ok(Statement { kind, source_info: stmt.source_info })
+    }
+
+    fn lower_fake_read_cause(
+        &self,
+        cause: mir::FakeReadCause,
+    ) -> Result<FakeReadCause, ErrorReported> {
+        match cause {
+            mir::FakeReadCause::ForLet(def_id) => Ok(FakeReadCause::ForLet(def_id)),
+            mir::FakeReadCause::ForMatchedPlace(..)
+            | mir::FakeReadCause::ForMatchGuard
+            | mir::FakeReadCause::ForGuardBinding
+            | mir::FakeReadCause::ForIndex { .. } => {
+                return self.emit_err(None, format!("unsupported fake read cause: `{:?}`", cause));
+            }
+        }
     }
 
     fn lower_terminator(
@@ -154,14 +175,21 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     msg: self.lower_assert_msg(msg)?,
                 }
             }
+            mir::TerminatorKind::FalseEdge { real_target, imaginary_target } => {
+                TerminatorKind::FalseEdge {
+                    real_target: *real_target,
+                    imaginary_target: *imaginary_target,
+                }
+            }
+            mir::TerminatorKind::FalseUnwind { real_target, unwind } => {
+                TerminatorKind::FalseUnwind { real_target: *real_target, unwind: *unwind }
+            }
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::DropAndReplace { .. }
             | mir::TerminatorKind::Yield { .. }
             | mir::TerminatorKind::GeneratorDrop
-            | mir::TerminatorKind::FalseEdge { .. }
-            | mir::TerminatorKind::FalseUnwind { .. }
             | mir::TerminatorKind::InlineAsm { .. } => {
                 return self.emit_err(
                     Some(terminator.source_info.span),
