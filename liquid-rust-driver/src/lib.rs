@@ -37,8 +37,6 @@ pub fn run_compiler(mut args: Vec<String>) -> i32 {
     args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
     // Add release mode to the arguments.
     args.push("-O".into());
-    // We don't support unwinding.
-    args.push("-Cpanic=abort".into());
     // Run the rust compiler with the arguments.
     let mut callbacks = LiquidCallbacks::default();
     catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run())

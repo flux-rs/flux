@@ -131,7 +131,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<Terminator, ErrorReported> {
         let kind = match &terminator.kind {
             mir::TerminatorKind::Return => TerminatorKind::Return,
-            mir::TerminatorKind::Call { func, args, destination, .. } => {
+            mir::TerminatorKind::Call { func, args, destination, cleanup, .. } => {
                 let (func, substs) = match func.ty(&self.body, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let substs = substs
@@ -161,6 +161,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .iter()
                         .map(|arg| self.lower_operand(arg))
                         .try_collect()?,
+                    cleanup: *cleanup,
                 }
             }
             mir::TerminatorKind::SwitchInt { discr, targets, .. } => {

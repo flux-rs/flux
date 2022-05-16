@@ -47,6 +47,7 @@ pub enum TerminatorKind {
         substs: Vec<Ty>,
         args: Vec<Operand>,
         destination: Option<(Place, BasicBlock)>,
+        cleanup: Option<BasicBlock>,
     },
     SwitchInt {
         discr: Operand,
@@ -251,7 +252,7 @@ impl fmt::Debug for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
-            TerminatorKind::Call { func, substs: ty_subst, args, destination } => {
+            TerminatorKind::Call { func, substs: ty_subst, args, destination, cleanup } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
@@ -259,7 +260,7 @@ impl fmt::Debug for Terminator {
                 if let Some((place, target)) = destination {
                     write!(
                         f,
-                        "{:?} = call {}({:?}) -> {:?}",
+                        "{:?} = call {}({:?}) -> [return: {:?}, cleanup: {cleanup:?}]",
                         place,
                         fname,
                         args.iter().format(", "),
@@ -268,7 +269,7 @@ impl fmt::Debug for Terminator {
                 } else {
                     write!(
                         f,
-                        "call {}<{:?}>({:?})",
+                        "call {}<{:?}>({:?}) -> [cleanup: {cleanup:?}]",
                         fname,
                         ty_subst.iter().format(", "),
                         args.iter().format(", ")

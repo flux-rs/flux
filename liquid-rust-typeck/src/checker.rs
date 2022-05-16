@@ -239,15 +239,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        let data = &self.body.basic_blocks[bb];
-        if data.is_cleanup {
-            return Ok(());
-        }
-
         dbg::basic_block_start!(bb, pcx, env);
 
         self.visited.insert(bb);
-
+        let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
             dbg::statement!("start", stmt, pcx, env);
             self.check_statement(&mut pcx, &mut env, stmt)?;
@@ -304,7 +299,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::SwitchInt { discr, targets } => {
                 self.check_switch_int(pcx, env, discr, targets)
             }
-            TerminatorKind::Call { func, substs, args, destination } => {
+            TerminatorKind::Call { func, substs, args, destination, .. } => {
                 let fn_sig = self.genv.lookup_fn_sig(*func);
                 let ret =
                     self.check_call(pcx, env, terminator.source_info, fn_sig, substs, args)?;
@@ -319,11 +314,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Assert { cond, expected, target, msg } => {
                 self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
             }
-            TerminatorKind::Drop { place, target, unwind } => {
+            TerminatorKind::Drop { place, target, .. } => {
                 let _ = env.move_place(self.genv, pcx, place);
-                Ok(vec![(*target, None), (unwind.unwrap(), None)])
+                Ok(vec![(*target, None)])
             }
-            TerminatorKind::DropAndReplace { place, value, target, unwind } => {
+            TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(pcx, env, value);
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
                 env.write_place(
@@ -333,12 +328,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     ty,
                     Tag::Assign(terminator.source_info.span),
                 );
-                Ok(vec![(*target, None), (unwind.unwrap(), None)])
+                Ok(vec![(*target, None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, None)]),
-            TerminatorKind::FalseUnwind { real_target, unwind } => {
-                Ok(vec![(*real_target, None), (unwind.unwrap(), None)])
-            }
+            TerminatorKind::FalseUnwind { real_target, .. } => Ok(vec![(*real_target, None)]),
             TerminatorKind::Resume => todo!("implement checking of cleanup code"),
         }
     }
