@@ -184,8 +184,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::TerminatorKind::FalseUnwind { real_target, unwind } => {
                 TerminatorKind::FalseUnwind { real_target: *real_target, unwind: *unwind }
             }
-            mir::TerminatorKind::Resume
-            | mir::TerminatorKind::Abort
+            mir::TerminatorKind::Resume => TerminatorKind::Resume,
+            mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::DropAndReplace { .. }
             | mir::TerminatorKind::Yield { .. }

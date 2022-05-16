@@ -71,6 +71,7 @@ pub enum TerminatorKind {
         real_target: BasicBlock,
         unwind: Option<BasicBlock>,
     },
+    Resume,
 }
 
 pub struct Statement {
@@ -284,6 +285,7 @@ impl fmt::Debug for Terminator {
             TerminatorKind::FalseUnwind { real_target, unwind } => {
                 write!(f, "falseUnwind -> [real: {real_target:?}, cleanup: {unwind:?}]")
             }
+            TerminatorKind::Resume => write!(f, "resume"),
         }
     }
 }
