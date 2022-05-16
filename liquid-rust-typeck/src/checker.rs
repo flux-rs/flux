@@ -271,10 +271,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         stmt: &Statement,
     ) -> Result<(), ErrorReported> {
         match &stmt.kind {
-            StatementKind::Assign(p, rvalue) => {
+            StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue)?;
                 let ty = env.unpack_ty(self.genv, pcx, &ty);
-                env.write_place(self.genv, pcx, p, ty, Tag::Assign(stmt.source_info.span));
+                env.write_place(self.genv, pcx, place, ty, Tag::Assign(stmt.source_info.span));
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double chould check here that the place is unfolded to
@@ -282,6 +282,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             StatementKind::FakeRead(_) => {
                 // TODO(nilehmann) fake reads should be folding points
+            }
+            StatementKind::AscribeUserType(_, _) => {
+                // User ascriptions affect nll, but no refinement type checking.
+                // Maybe we can use this to associate refinement type to locals.
             }
             StatementKind::Nop => {}
         }
@@ -315,9 +319,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Assert { cond, expected, target, msg } => {
                 self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
             }
-            TerminatorKind::Drop { place, target } => {
+            TerminatorKind::Drop { place, target, unwind } => {
                 let _ = env.move_place(self.genv, pcx, place);
-                Ok(vec![(*target, None)])
+                Ok(vec![(*target, None), (unwind.unwrap(), None)])
+            }
+            TerminatorKind::DropAndReplace { place, value, target, unwind } => {
+                let ty = self.check_operand(pcx, env, value);
+                let ty = env.unpack_ty(self.genv, pcx, &ty);
+                env.write_place(
+                    self.genv,
+                    pcx,
+                    place,
+                    ty,
+                    Tag::Assign(terminator.source_info.span),
+                );
+                Ok(vec![(*target, None), (unwind.unwrap(), None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, None)]),
             TerminatorKind::FalseUnwind { real_target, unwind } => {

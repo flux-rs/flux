@@ -4,9 +4,11 @@ use itertools::Itertools;
 use liquid_rust_common::index::{Idx, IndexVec};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::mir::{
-    BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK,
+pub use rustc_middle::{
+    mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
+    ty::Variance,
 };
+
 use rustc_middle::{
     mir,
     ty::{FloatTy, IntTy, UintTy},
@@ -56,6 +58,13 @@ pub enum TerminatorKind {
     Drop {
         place: Place,
         target: BasicBlock,
+        unwind: Option<BasicBlock>,
+    },
+    DropAndReplace {
+        place: Place,
+        value: Operand,
+        target: BasicBlock,
+        unwind: Option<BasicBlock>,
     },
     Assert {
         cond: Operand,
@@ -84,6 +93,7 @@ pub enum StatementKind {
     Assign(Place, Rvalue),
     SetDiscriminant(Place, VariantIdx),
     FakeRead(Box<(FakeReadCause, Place)>),
+    AscribeUserType(Place, Variance),
     Nop,
 }
 
@@ -230,6 +240,9 @@ impl fmt::Debug for Statement {
             StatementKind::FakeRead(box (cause, place)) => {
                 write!(f, "FakeRead({cause:?}, {place:?}")
             }
+            StatementKind::AscribeUserType(place, variance) => {
+                write!(f, "AscribeUserType({place:?}, {variance:?})")
+            }
         }
     }
 }
@@ -275,8 +288,14 @@ impl fmt::Debug for Terminator {
             TerminatorKind::Goto { target } => {
                 write!(f, "goto -> {target:?}")
             }
-            TerminatorKind::Drop { place, target } => {
-                write!(f, "drop({place:?}) -> {target:?}")
+            TerminatorKind::DropAndReplace { place, value, target, unwind } => {
+                write!(
+                    f,
+                    "replace({place:?} <- {value:?}) -> [return: {target:?}], unwind: {unwind:?}"
+                )
+            }
+            TerminatorKind::Drop { place, target, unwind } => {
+                write!(f, "drop({place:?}) -> [{target:?}, unwind: {unwind:?}]")
             }
             TerminatorKind::Assert { cond, target, expected, msg } => {
                 write!(

@@ -91,8 +91,14 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
+            mir::StatementKind::AscribeUserType(
+                box (place, mir::UserTypeProjection { projs, .. }),
+                variance,
+            ) if projs.is_empty() => {
+                StatementKind::AscribeUserType(self.lower_place(place)?, *variance)
+            }
             mir::StatementKind::Retag(_, _)
-            | mir::StatementKind::AscribeUserType(_, _)
+            | mir::StatementKind::AscribeUserType(..)
             | mir::StatementKind::Coverage(_)
             | mir::StatementKind::CopyNonOverlapping(_) => {
                 return self.emit_err(
@@ -164,8 +170,20 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
-            mir::TerminatorKind::Drop { place, target, .. } => {
-                TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
+            mir::TerminatorKind::Drop { place, target, unwind } => {
+                TerminatorKind::Drop {
+                    place: self.lower_place(place)?,
+                    target: *target,
+                    unwind: *unwind,
+                }
+            }
+            mir::TerminatorKind::DropAndReplace { place, value, target, unwind } => {
+                TerminatorKind::DropAndReplace {
+                    place: self.lower_place(place)?,
+                    value: self.lower_operand(value)?,
+                    target: *target,
+                    unwind: *unwind,
+                }
             }
             mir::TerminatorKind::Assert { cond, target, expected, msg, .. } => {
                 TerminatorKind::Assert {
@@ -187,7 +205,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::TerminatorKind::Resume => TerminatorKind::Resume,
             mir::TerminatorKind::Abort
             | mir::TerminatorKind::Unreachable
-            | mir::TerminatorKind::DropAndReplace { .. }
             | mir::TerminatorKind::Yield { .. }
             | mir::TerminatorKind::GeneratorDrop
             | mir::TerminatorKind::InlineAsm { .. } => {
