@@ -524,6 +524,13 @@ impl TypeEnvInfer {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
             }
+            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
+                assert!(
+                    tys1.is_empty() && tys2.is_empty(),
+                    "join of non-empty tuples is not supported yet"
+                );
+                Ty::tuple(vec![])
+            }
             _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
         }
     }

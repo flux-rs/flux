@@ -15,12 +15,11 @@ impl<T> RVec<T> {
 
     #[lr::assume]
     #[lr::sig(
-    fn(self: &strg RVec<T>[@n], T) -> i32[0]
+    fn(self: &strg RVec<T>[@n], T) -> ()
     ensures self: RVec<T>[n+1]
     )]
-    pub fn push(&mut self, item: T) -> i32 {
+    pub fn push(&mut self, item: T) {
         self.inner.push(item);
-        0
     }
 
     #[lr::assume]
@@ -58,10 +57,9 @@ impl<T> RVec<T> {
     }
 
     #[lr::assume]
-    #[lr::sig(fn(&mut RVec<T>[@n], a: usize{0 <= a && a < n}, b: usize{0 <= b && b < n}) -> i32[0])]
-    pub fn swap(&mut self, a: usize, b: usize) -> i32 {
+    #[lr::sig(fn(&mut RVec<T>[@n], a: usize{0 <= a && a < n}, b: usize{0 <= b && b < n}) -> ())]
+    pub fn swap(&mut self, a: usize, b: usize) {
         self.inner.swap(a, b);
-        0
     }
 
     #[lr::assume]

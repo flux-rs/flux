@@ -625,6 +625,7 @@ pub mod zip {
             (TyKind::Ref(rk, ty), TyKind::Ref(default_rk, default)) if rk == *default_rk => {
                 TyKind::Ref(rk, Box::new(zip_ty(*ty, default)))
             }
+            (TyKind::Unit, TyKind::Unit) => TyKind::Unit,
             _ => panic!("incompatible types `{default:?}`"),
         };
         Ty { kind, span: ty.span }
