@@ -323,6 +323,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let span = c.span;
         match lit {
             mir::ConstantKind::Ty(c) => {
+                // HACK(nilehmann) we evaluate the constant to support u32::MAX
+                // we should instead lower it as is and refine its type.
+                let c = c.eval(tcx, ParamEnv::empty());
                 if let ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
                     let ty = c.ty();
                     match ty.kind() {
