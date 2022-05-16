@@ -196,7 +196,7 @@ pub fn lower_layout(layout: &core::Layout) -> ty::Layout {
         core::Layout::Ref => ty::Layout::mk_ref(),
         core::Layout::Param => ty::Layout::param(),
         core::Layout::Tuple(layouts) => {
-            ty::Layout::tuple(layouts.iter().map(|l| lower_layout(l)).collect_vec())
+            ty::Layout::tuple(layouts.iter().map(lower_layout).collect_vec())
         }
         core::Layout::Never => ty::Layout::never(),
     }

@@ -112,7 +112,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .collect_vec();
         let ret = ty::Ty::indexed(bty, exprs);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);
-        ty::Binders::new(&adt_def.refined_by()[..], sig)
+        ty::Binders::new(adt_def.refined_by(), sig)
     }
 }
 
