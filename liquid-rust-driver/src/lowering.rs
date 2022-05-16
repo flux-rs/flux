@@ -328,6 +328,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_middle::ty::TyKind::Adt(adt_def, _) => Ok(Layout::Adt(adt_def.did)),
             rustc_middle::ty::TyKind::Ref(..) => Ok(Layout::Ref),
             rustc_middle::ty::TyKind::Float(float_ty) => Ok(Layout::Float(*float_ty)),
+            rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Layout::Tuple(vec![])),
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
     }
@@ -356,6 +357,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
                 Ok(core::Ty::Exists(adt, core::Pred::Hole))
             }
+            rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(core::Ty::Tuple(vec![])),
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
     }

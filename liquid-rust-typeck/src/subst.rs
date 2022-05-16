@@ -85,7 +85,7 @@ impl Subst<'_> {
 
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Refine(bty, exprs) => {
+            TyKind::Indexed(bty, exprs) => {
                 Ty::refine(
                     self.subst_base_ty(bty),
                     exprs.iter().map(|e| self.subst_expr(e)).collect_vec(),
@@ -97,6 +97,10 @@ impl Subst<'_> {
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, self.subst_ty(ty)),
             TyKind::Uninit(_) => ty.clone(),
+            TyKind::Tuple(tys) => {
+                let tys = tys.iter().map(|ty| self.subst_ty(ty)).collect_vec();
+                Ty::tuple(tys)
+            }
         }
     }
 
@@ -264,12 +268,12 @@ impl Subst<'_> {
         ty2: &TyS,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Refine(_, exprs1), TyKind::Refine(_, exprs2)) => {
+            (TyKind::Indexed(_, exprs1), TyKind::Indexed(_, exprs2)) => {
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
                     self.infer_from_exprs(params, e1, e2);
                 }
             }
-            (TyKind::Exists(bty1, p), TyKind::Refine(_, exprs2)) => {
+            (TyKind::Exists(bty1, p), TyKind::Indexed(_, exprs2)) => {
                 // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
                 let sorts = genv.sorts(bty1);
                 let exprs1 = pcx.push_bindings(&sorts, p);
