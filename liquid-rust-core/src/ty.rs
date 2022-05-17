@@ -63,9 +63,11 @@ pub enum Ty {
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
+    Tuple(Vec<Ty>),
+    Never,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Layout {
     Bool,
     Int(IntTy),
@@ -74,6 +76,8 @@ pub enum Layout {
     Adt(DefId),
     Ref,
     Param,
+    Tuple(Vec<Layout>),
+    Never,
 }
 
 pub struct Indices {
@@ -275,6 +279,8 @@ impl fmt::Debug for Ty {
             Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
             Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
             Ty::Param(param) => write!(f, "{param}"),
+            Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
+            Ty::Never => write!(f, "!"),
         }
     }
 }

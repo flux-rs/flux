@@ -93,6 +93,8 @@ TyKind: surface::TyKind = {
     <path:Path>                                        => surface::TyKind::Path(<>),
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
     <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },
+
+    "(" ")"  => surface::TyKind::Unit
 }
 
 GenericArgs: Vec<surface::Ty> = {

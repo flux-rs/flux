@@ -120,7 +120,7 @@ impl LoweringCtxt {
                     .iter()
                     .map(|e| self.lower_expr(e))
                     .collect_vec();
-                ty::Ty::refine(self.lower_base_ty(bty), exprs)
+                ty::Ty::indexed(self.lower_base_ty(bty), exprs)
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty);
@@ -134,6 +134,11 @@ impl LoweringCtxt {
             core::Ty::Ref(rk, ty) => ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty)),
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
+            core::Ty::Tuple(tys) => {
+                let tys = tys.iter().map(|ty| self.lower_ty(ty)).collect_vec();
+                ty::Ty::tuple(tys)
+            }
+            core::Ty::Never => ty::Ty::never(),
         }
     }
 
@@ -178,6 +183,22 @@ impl LoweringCtxt {
             core::Lit::Int(n) => ty::Constant::from(n),
             core::Lit::Bool(b) => ty::Constant::from(b),
         }
+    }
+}
+
+pub fn lower_layout(layout: &core::Layout) -> ty::Layout {
+    match layout {
+        core::Layout::Bool => ty::Layout::bool(),
+        core::Layout::Int(int_ty) => ty::Layout::int(*int_ty),
+        core::Layout::Uint(uint_ty) => ty::Layout::uint(*uint_ty),
+        core::Layout::Float(float_ty) => ty::Layout::float(*float_ty),
+        core::Layout::Adt(def_id) => ty::Layout::adt(*def_id),
+        core::Layout::Ref => ty::Layout::mk_ref(),
+        core::Layout::Param => ty::Layout::param(),
+        core::Layout::Tuple(layouts) => {
+            ty::Layout::tuple(layouts.iter().map(lower_layout).collect_vec())
+        }
+        core::Layout::Never => ty::Layout::never(),
     }
 }
 
