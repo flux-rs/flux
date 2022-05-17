@@ -10,7 +10,6 @@ extern crate rustc_span;
 use std::{
     collections::{hash_map::Entry, BinaryHeap},
     iter,
-    mem::Discriminant,
 };
 
 use crate::{
@@ -92,8 +91,8 @@ enum Guard {
     None,
     /// The successor is an if-then-else or while-do boolean condition
     Pred(Expr),
-    /// The successor was determined to be a particular enum variant
-    Match(Place, crate::ty::VariantIdx),
+    // The successor was determined to be a particular enum variant
+    // Match(Place, crate::ty::VariantIdx),
 }
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
@@ -312,7 +311,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => self.check_ret(pcx, env),
             TerminatorKind::Unreachable => Ok(vec![]),
-            TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
+            TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
                 self.check_switch_int(pcx, env, discr, targets)
             }
@@ -323,7 +322,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 if let Some((p, bb)) = destination {
                     let ret = env.unpack_ty(self.genv, pcx, &ret);
                     env.write_place(self.genv, pcx, p, ret, Tag::Call(terminator.source_info.span));
-                    Ok(vec![(*bb, None)])
+                    Ok(vec![(*bb, Guard::None)])
                 } else {
                     Ok(vec![])
                 }
@@ -333,7 +332,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let _ = env.move_place(self.genv, pcx, place);
-                Ok(vec![(*target, None)])
+                Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(pcx, env, value);
@@ -345,10 +344,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     ty,
                     Tag::Assign(terminator.source_info.span),
                 );
-                Ok(vec![(*target, None)])
+                Ok(vec![(*target, Guard::None)])
             }
-            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, None)]),
-            TerminatorKind::FalseUnwind { real_target, .. } => Ok(vec![(*real_target, None)]),
+            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
+            TerminatorKind::FalseUnwind { real_target, .. } => {
+                Ok(vec![(*real_target, Guard::None)])
+            }
             TerminatorKind::Resume => todo!("implement checking of cleanup code"),
         }
     }
@@ -357,7 +358,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let ret_place_ty = env.lookup_place(self.genv, pcx, Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
@@ -450,7 +451,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         expected: bool,
         target: BasicBlock,
         msg: &'static str,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let ty = self.check_operand(pcx, env, cond);
         let pred = if let TyKind::Indexed(BaseTy::Bool, exprs) = ty.kind() {
             if expected {
@@ -463,8 +464,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
 
         match self.genv.check_asserts() {
-            AssertBehavior::Ignore => Ok(vec![(target, None)]),
-            AssertBehavior::Assume => Ok(vec![(target, Some(pred))]),
+            AssertBehavior::Ignore => Ok(vec![(target, Guard::None)]),
+            AssertBehavior::Assume => Ok(vec![(target, Guard::Pred(pred))]),
             AssertBehavior::Check => {
                 let mut gen = ConstraintGen::new(
                     self.genv,
@@ -473,7 +474,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 );
                 gen.check_pred(pred.clone());
 
-                Ok(vec![(target, Some(pred))])
+                Ok(vec![(target, Guard::Pred(pred))])
             }
         }
     }
@@ -484,7 +485,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         discr: &Operand,
         targets: &mir::SwitchTargets,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let discr_ty = self.check_operand(pcx, env, discr);
         let mk = |bits| {
             match discr_ty.kind() {
@@ -505,13 +506,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut successors = vec![];
 
         for (bits, bb) in targets.iter() {
-            successors.push((bb, Some(mk(bits))));
+            successors.push((bb, Guard::Pred(mk(bits))));
         }
         let otherwise = targets
             .iter()
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| Expr::binary_op(BinOp::And, e1, e2));
-
+        let otherwise = match otherwise {
+            Some(p) => Guard::Pred(p),
+            None => Guard::None,
+        };
         successors.push((targets.otherwise(), otherwise));
 
         Ok(successors)
@@ -522,12 +526,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut pcx: PureCtxt,
         env: TypeEnv,
         src_info: SourceInfo,
-        successors: Vec<(BasicBlock, Option<Expr>)>,
+        successors: Vec<(BasicBlock, Guard)>,
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
             let mut pcx = pcx.breadcrumb();
             let env = env.clone();
-            if let Some(guard) = guard {
+            if let Guard::Pred(guard) = guard {
                 pcx.push_pred(guard);
             }
             self.check_goto(pcx, env, Some(src_info), target)?;
@@ -570,40 +574,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(pcx, env, source_info, sig, substs, args)
-            }
-            Rvalue::ShrRef(place) => {
-                // OWNERSHIP SAFETY CHECK
-                env.borrow_shr(self.genv, pcx, place)
-            }
-            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(pcx, env, *un_op, op),
-
-            Rvalue::Discriminant(p) => {
-                let ty = env.lookup_place(self.genv, pcx, p);
-                match ty.kind() {
-                    TyKind::Refine(BaseTy::Adt(def_id, substs), exprs) => {
-                        // let rustc_adt_def = self.genv.tcx.adt_def(def_id);
-                        let adt_def = self.genv.adt_def(*def_id);
-                        if let Some(variants) = adt_def.variants() {
-                            for (i, var_def) in variants.iter_enumerated() {
-                                println!(
-                                    "variant {:?} = {:?} // unfold = {:?}",
-                                    i,
-                                    var_def.fields,
-                                    adt_def.unfold(substs, exprs, i)
-                                );
-                            }
-                        }
-                        //         // pub fn ty(&self as FieldDef, tcx: TyCtxt<'tcx>, subst: SubstsRef<'tcx>) -> Ty<'tcx>
-                        //     if let Some(ctor_id) = v.ctor_def_id {
-                        //         let ctor_sig = self.genv.tcx.fn_sig(ctor_id);
-                        //         println!("variant: {:?}", ctor_sig);
-                        //     }
-                        // }
-                        panic!("FIXME")
-                    }
-                    _ => todo!(),
-                }
-            }
+            } // RJ--HEREHEREHERE
+              // Rvalue::Discriminant(p) => {
+              //     let ty = env.lookup_place(self.genv, pcx, p);
+              //     match ty.kind() {
+              //         TyKind::Refine(BaseTy::Adt(def_id, substs), exprs) => {
+              //             // let rustc_adt_def = self.genv.tcx.adt_def(def_id);
+              //             let adt_def = self.genv.adt_def(*def_id);
+              //             if let Some(variants) = adt_def.variants() {
+              //                 for (i, var_def) in variants.iter_enumerated() {
+              //                     println!(
+              //                         "variant {:?} = {:?} // unfold = {:?}",
+              //                         i,
+              //                         var_def.fields,
+              //                         adt_def.unfold(substs, exprs, i)
+              //                     );
+              //                 }
+              //             }
+              //             //         // pub fn ty(&self as FieldDef, tcx: TyCtxt<'tcx>, subst: SubstsRef<'tcx>) -> Ty<'tcx>
+              //             //     if let Some(ctor_id) = v.ctor_def_id {
+              //             //         let ctor_sig = self.genv.tcx.fn_sig(ctor_id);
+              //             //         println!("variant: {:?}", ctor_sig);
+              //             //     }
+              //             // }
+              //             panic!("FIXME")
+              //         }
+              //         _ => todo!(),
+              //     }
+              // }
         }
     }
 
