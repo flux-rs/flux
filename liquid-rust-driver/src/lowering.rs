@@ -2,8 +2,8 @@ use itertools::Itertools;
 use liquid_rust_core::{
     self as core,
     ir::{
-        BasicBlockData, BinOp, Body, Constant, LocalDecl, Operand, Place, PlaceElem, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand,
+        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::Layout,
 };
@@ -17,29 +17,28 @@ use rustc_span::Span;
 
 pub struct LoweringCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
-    body: &'tcx mir::Body<'tcx>,
+    body: mir::Body<'tcx>,
 }
 
 impl<'tcx> LoweringCtxt<'tcx> {
-    pub fn lower(
-        tcx: TyCtxt<'tcx>,
-        body: &'tcx mir::Body<'tcx>,
-    ) -> Result<Body<'tcx>, ErrorReported> {
+    pub fn lower(tcx: TyCtxt<'tcx>, body: mir::Body<'tcx>) -> Result<Body<'tcx>, ErrorReported> {
         let lower = Self { tcx, body };
 
-        let basic_blocks = body
+        let basic_blocks = lower
+            .body
             .basic_blocks()
             .iter()
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        let local_decls = body
+        let local_decls = lower
+            .body
             .local_decls
             .iter()
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, arg_count: body.arg_count, mir: body })
+        Ok(Body { basic_blocks, local_decls, mir: lower.body })
     }
 
     fn lower_basic_block_data(
@@ -57,6 +56,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 .as_ref()
                 .map(|terminator| self.lower_terminator(terminator))
                 .transpose()?,
+            is_cleanup: data.is_cleanup,
         };
         Ok(data)
     }
@@ -82,12 +82,23 @@ impl<'tcx> LoweringCtxt<'tcx> {
             mir::StatementKind::SetDiscriminant { place, variant_index } => {
                 StatementKind::SetDiscriminant(self.lower_place(place)?, *variant_index)
             }
+            mir::StatementKind::FakeRead(box (cause, place)) => {
+                StatementKind::FakeRead(Box::new((
+                    self.lower_fake_read_cause(*cause)?,
+                    self.lower_place(place)?,
+                )))
+            }
             mir::StatementKind::Nop
             | mir::StatementKind::StorageLive(_)
             | mir::StatementKind::StorageDead(_) => StatementKind::Nop,
-            mir::StatementKind::FakeRead(_)
-            | mir::StatementKind::Retag(_, _)
-            | mir::StatementKind::AscribeUserType(_, _)
+            mir::StatementKind::AscribeUserType(
+                box (place, mir::UserTypeProjection { projs, .. }),
+                variance,
+            ) if projs.is_empty() => {
+                StatementKind::AscribeUserType(self.lower_place(place)?, *variance)
+            }
+            mir::StatementKind::Retag(_, _)
+            | mir::StatementKind::AscribeUserType(..)
             | mir::StatementKind::Coverage(_)
             | mir::StatementKind::CopyNonOverlapping(_) => {
                 return self.emit_err(
@@ -99,14 +110,29 @@ impl<'tcx> LoweringCtxt<'tcx> {
         Ok(Statement { kind, source_info: stmt.source_info })
     }
 
+    fn lower_fake_read_cause(
+        &self,
+        cause: mir::FakeReadCause,
+    ) -> Result<FakeReadCause, ErrorReported> {
+        match cause {
+            mir::FakeReadCause::ForLet(def_id) => Ok(FakeReadCause::ForLet(def_id)),
+            mir::FakeReadCause::ForMatchedPlace(..)
+            | mir::FakeReadCause::ForMatchGuard
+            | mir::FakeReadCause::ForGuardBinding
+            | mir::FakeReadCause::ForIndex { .. } => {
+                return self.emit_err(None, format!("unsupported fake read cause: `{:?}`", cause));
+            }
+        }
+    }
+
     fn lower_terminator(
         &self,
         terminator: &mir::Terminator<'tcx>,
     ) -> Result<Terminator, ErrorReported> {
         let kind = match &terminator.kind {
             mir::TerminatorKind::Return => TerminatorKind::Return,
-            mir::TerminatorKind::Call { func, args, destination, .. } => {
-                let (func, substs) = match func.ty(self.body, self.tcx).kind() {
+            mir::TerminatorKind::Call { func, args, destination, cleanup, .. } => {
+                let (func, substs) = match func.ty(&self.body, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let substs = substs
                             .iter()
@@ -135,6 +161,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .iter()
                         .map(|arg| self.lower_operand(arg))
                         .try_collect()?,
+                    cleanup: *cleanup,
                 }
             }
             mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
@@ -144,8 +171,20 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
-            mir::TerminatorKind::Drop { place, target, .. } => {
-                TerminatorKind::Drop { place: self.lower_place(place)?, target: *target }
+            mir::TerminatorKind::Drop { place, target, unwind } => {
+                TerminatorKind::Drop {
+                    place: self.lower_place(place)?,
+                    target: *target,
+                    unwind: *unwind,
+                }
+            }
+            mir::TerminatorKind::DropAndReplace { place, value, target, unwind } => {
+                TerminatorKind::DropAndReplace {
+                    place: self.lower_place(place)?,
+                    value: self.lower_operand(value)?,
+                    target: *target,
+                    unwind: *unwind,
+                }
             }
             mir::TerminatorKind::Assert { cond, target, expected, msg, .. } => {
                 TerminatorKind::Assert {
@@ -156,13 +195,19 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             mir::TerminatorKind::Unreachable => TerminatorKind::Unreachable,
-            mir::TerminatorKind::Resume
-            | mir::TerminatorKind::Abort
-            | mir::TerminatorKind::DropAndReplace { .. }
+            mir::TerminatorKind::FalseEdge { real_target, imaginary_target } => {
+                TerminatorKind::FalseEdge {
+                    real_target: *real_target,
+                    imaginary_target: *imaginary_target,
+                }
+            }
+            mir::TerminatorKind::FalseUnwind { real_target, unwind } => {
+                TerminatorKind::FalseUnwind { real_target: *real_target, unwind: *unwind }
+            }
+            mir::TerminatorKind::Resume => TerminatorKind::Resume,
+            mir::TerminatorKind::Abort
             | mir::TerminatorKind::Yield { .. }
             | mir::TerminatorKind::GeneratorDrop
-            | mir::TerminatorKind::FalseEdge { .. }
-            | mir::TerminatorKind::FalseUnwind { .. }
             | mir::TerminatorKind::InlineAsm { .. } => {
                 return self.emit_err(
                     Some(terminator.source_info.span),
@@ -194,7 +239,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(Rvalue::ShrRef(self.lower_place(p)?))
             }
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
-            mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
+            mir::Rvalue::Aggregate(aggregate_kind, args) => {
+                let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
+                let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
+                Ok(Rvalue::Aggregate(aggregate_kind, args))
+            }
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
             | mir::Rvalue::ThreadLocalRef(_)
@@ -203,9 +252,32 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::Rvalue::Cast(_, _, _)
             | mir::Rvalue::CheckedBinaryOp(_, _)
             | mir::Rvalue::NullaryOp(_, _)
-            | mir::Rvalue::Aggregate(_, _)
+            | mir::Rvalue::Discriminant(_)
             | mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
+            }
+        }
+    }
+
+    fn lower_aggregate_kind(
+        &self,
+        aggregate_kind: &mir::AggregateKind,
+    ) -> Result<AggregateKind, ErrorReported> {
+        match aggregate_kind {
+            mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
+                let substs = substs
+                    .iter()
+                    .map(|arg| self.lower_generic_arg(arg))
+                    .try_collect()?;
+                Ok(AggregateKind::Adt(*def_id, *variant_idx, substs))
+            }
+            mir::AggregateKind::Adt(..)
+            | mir::AggregateKind::Array(_)
+            | mir::AggregateKind::Tuple
+            | mir::AggregateKind::Closure(_, _)
+            | mir::AggregateKind::Generator(_, _, _) => {
+                return self
+                    .emit_err(None, format!("unsupported aggregate kind: `{:?}`", aggregate_kind));
             }
         }
     }
@@ -269,6 +341,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let span = c.span;
         match lit {
             mir::ConstantKind::Ty(c) => {
+                // HACK(nilehmann) we evaluate the constant to support u32::MAX
+                // we should instead lower it as is and refine its type.
+                let c = c.eval(tcx, ParamEnv::empty());
                 if let ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
                     let ty = c.ty();
                     match ty.kind() {
@@ -284,6 +359,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         TyKind::Bool => {
                             Ok(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0))
                         }
+                        TyKind::Tuple(tys) if tys.is_empty() => Ok(Constant::Unit),
                         _ => {
                             self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
                         }
@@ -328,6 +404,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_middle::ty::TyKind::Adt(adt_def, _) => Ok(Layout::Adt(adt_def.did)),
             rustc_middle::ty::TyKind::Ref(..) => Ok(Layout::Ref),
             rustc_middle::ty::TyKind::Float(float_ty) => Ok(Layout::Float(*float_ty)),
+            rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Layout::Tuple(vec![])),
+            rustc_middle::ty::Never => Ok(Layout::Never),
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
     }
@@ -356,6 +434,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 let adt = core::BaseTy::Adt(adt_def.did, substs);
                 Ok(core::Ty::Exists(adt, core::Pred::Hole))
             }
+            rustc_middle::ty::Never => Ok(core::Ty::Never),
+            rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(core::Ty::Tuple(vec![])),
             _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
         }
     }

@@ -129,6 +129,7 @@ impl<'tcx> Resolver<'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
             }
+            surface::TyKind::Unit => surface::TyKind::Unit,
         };
         Ok(surface::Ty { kind, span: ty.span })
     }

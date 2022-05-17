@@ -2,6 +2,7 @@
 
 extern crate rustc_ast;
 extern crate rustc_ast_pretty;
+extern crate rustc_borrowck;
 extern crate rustc_const_eval;
 extern crate rustc_driver;
 extern crate rustc_errors;
@@ -16,6 +17,7 @@ extern crate rustc_span;
 mod callbacks;
 mod collector;
 mod lowering;
+mod mir_storage;
 
 use callbacks::LiquidCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
@@ -35,8 +37,6 @@ pub fn run_compiler(mut args: Vec<String>) -> i32 {
     args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
     // Add release mode to the arguments.
     args.push("-O".into());
-    // We don't support unwinding.
-    args.push("-Cpanic=abort".into());
     // Run the rust compiler with the arguments.
     let mut callbacks = LiquidCallbacks::default();
     catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run())
