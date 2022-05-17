@@ -155,9 +155,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     msg: self.lower_assert_msg(msg)?,
                 }
             }
+            mir::TerminatorKind::Unreachable => TerminatorKind::Unreachable,
             mir::TerminatorKind::Resume
             | mir::TerminatorKind::Abort
-            | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::DropAndReplace { .. }
             | mir::TerminatorKind::Yield { .. }
             | mir::TerminatorKind::GeneratorDrop
@@ -194,6 +194,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(Rvalue::ShrRef(self.lower_place(p)?))
             }
             mir::Rvalue::UnaryOp(un_op, op) => Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?)),
+            mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
             | mir::Rvalue::ThreadLocalRef(_)
@@ -202,7 +203,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::Rvalue::Cast(_, _, _)
             | mir::Rvalue::CheckedBinaryOp(_, _)
             | mir::Rvalue::NullaryOp(_, _)
-            | mir::Rvalue::Discriminant(_)
             | mir::Rvalue::Aggregate(_, _)
             | mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))

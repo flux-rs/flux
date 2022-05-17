@@ -63,6 +63,7 @@ pub enum TerminatorKind {
         target: BasicBlock,
         msg: &'static str,
     },
+    Unreachable,
 }
 
 pub struct Statement {
@@ -83,6 +84,7 @@ pub enum Rvalue {
     ShrRef(Place),
     BinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
+    Discriminant(Place),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -215,6 +217,7 @@ impl fmt::Debug for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
+            TerminatorKind::Unreachable => write!(f, "unreachable"),
             TerminatorKind::Call { func, substs: ty_subst, args, destination } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
@@ -301,6 +304,7 @@ impl fmt::Debug for Rvalue {
             Self::ShrRef(place) => write!(f, "& {:?}", place),
             Self::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
             Self::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
+            Self::Discriminant(place) => write!(f, "discriminant({:?})", place),
         }
     }
 }

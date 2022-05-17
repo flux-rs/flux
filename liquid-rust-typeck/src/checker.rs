@@ -10,6 +10,7 @@ extern crate rustc_span;
 use std::{
     collections::{hash_map::Entry, BinaryHeap},
     iter,
+    mem::Discriminant,
 };
 
 use crate::{
@@ -83,6 +84,16 @@ pub struct Check<'a> {
     bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
     kvars: &'a mut KVarStore,
+}
+/// A 'Guard' describes extra "control" information that holds at the start
+/// of the successor basic block
+enum Guard {
+    /// The successor is a plain jump
+    None,
+    /// The successor is an if-then-else or while-do boolean condition
+    Pred(Expr),
+    /// The successor was determined to be a particular enum variant
+    Match(Place, crate::ty::VariantIdx),
 }
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
@@ -275,14 +286,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
+    /// For `check_terminator`, the output Vec<BasicBlock, Option<Expr>> denotes,
+    /// - `BasicBlock` "successors" of the current terminator, and
+    /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
+    ///    that is some predicate you can assume when checking the correspondnig successor.
+
     fn check_terminator(
         &mut self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => self.check_ret(pcx, env),
+            TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
                 self.check_switch_int(pcx, env, discr, targets)
@@ -523,6 +540,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.borrow_shr(self.genv, pcx, place)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(pcx, env, *un_op, op),
+
+            Rvalue::Discriminant(p) => {
+                let ty = env.lookup_place(self.genv, pcx, p);
+                match ty.kind() {
+                    TyKind::Refine(BaseTy::Adt(def_id, substs), exprs) => {
+                        // let rustc_adt_def = self.genv.tcx.adt_def(def_id);
+                        let adt_def = self.genv.adt_def(*def_id);
+                        if let Some(variants) = adt_def.variants() {
+                            for (i, var_def) in variants.iter_enumerated() {
+                                println!(
+                                    "variant {:?} = {:?} // unfold = {:?}",
+                                    i,
+                                    var_def.fields,
+                                    adt_def.unfold(substs, exprs, i)
+                                );
+                            }
+                        }
+                        //         // pub fn ty(&self as FieldDef, tcx: TyCtxt<'tcx>, subst: SubstsRef<'tcx>) -> Ty<'tcx>
+                        //     if let Some(ctor_id) = v.ctor_def_id {
+                        //         let ctor_sig = self.genv.tcx.fn_sig(ctor_id);
+                        //         println!("variant: {:?}", ctor_sig);
+                        //     }
+                        // }
+                        panic!("FIXME")
+                    }
+                    _ => todo!(),
+                }
+            }
         }
     }
 

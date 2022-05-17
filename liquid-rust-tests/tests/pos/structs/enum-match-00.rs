@@ -4,10 +4,15 @@
 #[path = "../../lib/nat.rs"]
 pub mod nat;
 
-#[lr::sig(fn (x:Option<Nat>) -> Nat)] 
-pub fn test(x:Option<i32>) -> i32 {
+pub enum MyOpt<T> {
+    Some(T),
+    None,
+}
+
+#[lr::sig(fn (MyOpt<Nat>) -> Nat)]
+pub fn test(x: MyOpt<i32>) -> i32 {
     match x {
-        Some(n) => n,
-        None => 0,
+        MyOpt::Some(n) => n,
+        MyOpt::None => 0,
     }
 }
