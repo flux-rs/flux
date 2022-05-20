@@ -402,26 +402,6 @@ impl TypeEnvInfer {
         // Unfold
         self.env.bindings.unfold_with(genv, &mut other.bindings);
 
-        // Infer subst
-        let mut subst = Subst::empty();
-        for (path, ty1) in self.env.bindings.iter() {
-            if other.bindings.contains_loc(path.loc) {
-                let ty2 = &other.bindings[&path];
-                if let (TyKind::Ptr(path1), TyKind::Ptr(path2)) = (ty1.kind(), ty2.kind()) {
-                    if !path1.projection().is_empty() || !path2.projection().is_empty() {
-                        continue;
-                    }
-                    if let (Loc::Free(loc1), Loc::Free(loc2)) = (path1.loc, path2.loc) {
-                        if !self.scope.contains(loc1) && !self.scope.contains(loc2) {
-                            subst.insert_loc_subst(loc2, Loc::Free(loc1));
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut other = other.subst(&subst);
-
         // Weakening
         let locs = self
             .env
