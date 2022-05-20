@@ -252,7 +252,6 @@ impl Subst<'_> {
     ) -> Result<(), InferenceError> {
         for name in params {
             if !self.map.contains_key(&name) {
-                println!("where is name = {:?}", name);
                 return Err(InferenceError(name));
             }
         }

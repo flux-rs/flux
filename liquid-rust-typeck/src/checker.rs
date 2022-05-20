@@ -297,7 +297,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    /// For `check_terminator`, the output Vec<BasicBlock, Option<Expr>> denotes,
+    /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
     /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
     ///    that is some predicate you can assume when checking the correspondnig successor.
@@ -576,28 +576,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(pcx, env, source_info, sig, substs, args)
             }
-            Rvalue::Discriminant(_p) => {
-                Ok(Ty::discr())
-                // let ty = env.lookup_place(self.genv, pcx, p);
-                // match ty.kind() {
-                //     TyKind::Indexed(BaseTy::Adt(def_id, substs), exprs) => {
-                //         // let rustc_adt_def = self.genv.tcx.adt_def(def_id);
-                //         let adt_def = self.genv.adt_def(*def_id);
-                //         if let Some(variants) = adt_def.variants() {
-                //             for (i, var_def) in variants.iter_enumerated() {
-                //                 println!(
-                //                     "variant {:?} = {:?} // unfold = {:?}",
-                //                     i,
-                //                     var_def.fields,
-                //                     adt_def.unfold(substs, exprs, i)
-                //                 );
-                //             }
-                //         }
-                //         Ok(Ty::discr())
-                //     }
-                //     _ => todo!(),
-                // }
-            }
+            Rvalue::Discriminant(_p) => Ok(Ty::discr()),
         }
     }
 
