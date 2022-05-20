@@ -404,6 +404,28 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit(..))
     }
 
+    pub fn vars_worker(&self, vars: &mut FxHashSet<Name>) {
+        match self.kind() {
+            TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.vars_worker(vars)),
+            TyKind::Exists(_, Pred::Expr(e)) => e.vars_worker(vars),
+            TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.vars_worker(vars)),
+            TyKind::Ref(_, ty) => ty.vars_worker(vars),
+            TyKind::Ptr(_)
+            | TyKind::Uninit(_)
+            | TyKind::Float(_)
+            | TyKind::Exists(_, _)
+            | TyKind::Param(_)
+            | TyKind::Never
+            | TyKind::Discr => (),
+        }
+    }
+
+    pub fn vars(&self) -> FxHashSet<Name> {
+        let mut vars = FxHashSet::default();
+        self.vars_worker(&mut vars);
+        vars
+    }
+
     pub fn layout(&self) -> Layout {
         match self.kind() {
             TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => {
@@ -723,24 +745,25 @@ impl ExprS {
         }
     }
 
-    pub fn vars(&self) -> FxHashSet<Name> {
-        fn go(e: &ExprS, vars: &mut FxHashSet<Name>) {
-            match e.kind() {
-                ExprKind::Var(Var::Free(name)) => {
-                    vars.insert(*name);
-                }
-                ExprKind::BinaryOp(_, e1, e2) => {
-                    go(e1, vars);
-                    go(e2, vars);
-                }
-                ExprKind::UnaryOp(_, e) => go(e, vars),
-                ExprKind::Proj(e, _) => go(e, vars),
-                ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| go(e, vars)),
-                ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
+    fn vars_worker(&self, vars: &mut FxHashSet<Name>) {
+        match self.kind() {
+            ExprKind::Var(Var::Free(name)) => {
+                vars.insert(*name);
             }
+            ExprKind::BinaryOp(_, e1, e2) => {
+                e1.vars_worker(vars);
+                e2.vars_worker(vars);
+            }
+            ExprKind::UnaryOp(_, e) => e.vars_worker(vars),
+            ExprKind::Proj(e, _) => e.vars_worker(vars),
+            ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.vars_worker(vars)),
+            ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
         }
+    }
+
+    pub fn vars(&self) -> FxHashSet<Name> {
         let mut vars = FxHashSet::default();
-        go(self, &mut vars);
+        self.vars_worker(&mut vars);
         vars
     }
 

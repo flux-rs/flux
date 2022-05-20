@@ -841,7 +841,7 @@ impl Mode for Inference<'_> {
 
         dbg::infer_goto_enter!(target, env, ck.mode.bb_envs.get(&target));
         let modified = match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env, target),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(ck.genv, scope));
                 true

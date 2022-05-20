@@ -11,7 +11,7 @@ use crate::{
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::ir;
+use liquid_rust_core::{ir, ir::BasicBlock};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
@@ -409,7 +409,7 @@ impl TypeEnvInfer {
     /// 'self' in place, and returns 'true' if there was an actual change
     /// or 'false' indicating no change (i.e. a fixpoint was reached).
 
-    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
+    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv, target: BasicBlock) -> bool {
         // Unfold
         self.env.bindings.unfold_with(genv, &mut other.bindings);
 
@@ -486,7 +486,32 @@ impl TypeEnvInfer {
             self.env.bindings[path] = ty;
         }
 
+        self.check_dead(target);
+
         modified
+    }
+
+    fn check_dead(&mut self, _target: BasicBlock) -> () {
+        let dead_names = self.dead_params();
+        for x in dead_names.iter() {
+            self.params.remove(x);
+        }
+    }
+
+    /// 'dead_params' returns the (ideally empty) subset of 'self.params' comprising
+    /// names that do not appear in types in 'env' (in a way that makes for easy solving).
+    fn dead_params(&self) -> Vec<Name> {
+        let mut used: FxHashSet<Name> = FxHashSet::default();
+        for (_, ty) in self.env.bindings.iter() {
+            for x in ty.vars().iter() {
+                used.insert(*x);
+            }
+        }
+        self.params
+            .iter()
+            .filter(|(x, _)| !used.contains(x))
+            .map(|(x, _)| *x)
+            .collect()
     }
 
     fn join_ty(&mut self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
