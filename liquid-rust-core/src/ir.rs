@@ -106,6 +106,7 @@ pub enum Rvalue {
     BinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
     Aggregate(AggregateKind, Vec<Operand>),
+    Discriminant(Place),
 }
 
 pub enum AggregateKind {
@@ -156,6 +157,7 @@ pub enum Constant {
 
 pub enum FakeReadCause {
     ForLet(Option<DefId>),
+    ForMatchedPlace(Option<DefId>),
 }
 
 impl Body<'_> {
@@ -351,6 +353,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Use(op) => write!(f, "{:?}", op),
             Rvalue::MutRef(place) => write!(f, "&mut {:?}", place),
             Rvalue::ShrRef(place) => write!(f, "& {:?}", place),
+            Rvalue::Discriminant(place) => write!(f, "discriminant({:?})", place),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
             Rvalue::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
@@ -395,6 +398,7 @@ impl fmt::Debug for FakeReadCause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FakeReadCause::ForLet(def_id) => write!(f, "ForLet({def_id:?})"),
+            FakeReadCause::ForMatchedPlace(def_id) => write!(f, "ForMatchedPlace({def_id:?})"),
         }
     }
 }

@@ -499,6 +499,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), exprs) => {
                     Expr::binary_op(BinOp::Eq, exprs[0].clone(), Expr::from_bits(bty, bits))
                 }
+                TyKind::Discr => Expr::bool(true),
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
         };
@@ -574,34 +575,29 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(pcx, env, source_info, sig, substs, args)
-            } // RJ--HEREHEREHERE
-              // Rvalue::Discriminant(p) => {
-              //     let ty = env.lookup_place(self.genv, pcx, p);
-              //     match ty.kind() {
-              //         TyKind::Refine(BaseTy::Adt(def_id, substs), exprs) => {
-              //             // let rustc_adt_def = self.genv.tcx.adt_def(def_id);
-              //             let adt_def = self.genv.adt_def(*def_id);
-              //             if let Some(variants) = adt_def.variants() {
-              //                 for (i, var_def) in variants.iter_enumerated() {
-              //                     println!(
-              //                         "variant {:?} = {:?} // unfold = {:?}",
-              //                         i,
-              //                         var_def.fields,
-              //                         adt_def.unfold(substs, exprs, i)
-              //                     );
-              //                 }
-              //             }
-              //             //         // pub fn ty(&self as FieldDef, tcx: TyCtxt<'tcx>, subst: SubstsRef<'tcx>) -> Ty<'tcx>
-              //             //     if let Some(ctor_id) = v.ctor_def_id {
-              //             //         let ctor_sig = self.genv.tcx.fn_sig(ctor_id);
-              //             //         println!("variant: {:?}", ctor_sig);
-              //             //     }
-              //             // }
-              //             panic!("FIXME")
-              //         }
-              //         _ => todo!(),
-              //     }
-              // }
+            }
+            Rvalue::Discriminant(_p) => {
+                Ok(Ty::discr())
+                // let ty = env.lookup_place(self.genv, pcx, p);
+                // match ty.kind() {
+                //     TyKind::Indexed(BaseTy::Adt(def_id, substs), exprs) => {
+                //         // let rustc_adt_def = self.genv.tcx.adt_def(def_id);
+                //         let adt_def = self.genv.adt_def(*def_id);
+                //         if let Some(variants) = adt_def.variants() {
+                //             for (i, var_def) in variants.iter_enumerated() {
+                //                 println!(
+                //                     "variant {:?} = {:?} // unfold = {:?}",
+                //                     i,
+                //                     var_def.fields,
+                //                     adt_def.unfold(substs, exprs, i)
+                //                 );
+                //             }
+                //         }
+                //         Ok(Ty::discr())
+                //     }
+                //     _ => todo!(),
+                // }
+            }
         }
     }
 

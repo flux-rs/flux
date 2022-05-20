@@ -87,6 +87,8 @@ pub enum TyKind {
     Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
+    /// Used internally to represent result of `discriminant` RVal
+    Discr,
 }
 
 pub type Layout = Interned<LayoutS>;
@@ -107,6 +109,7 @@ pub enum LayoutKind {
     Param,
     Tuple(List<Layout>),
     Never,
+    Discr,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
@@ -341,6 +344,10 @@ impl Ty {
         TyKind::Never.intern()
     }
 
+    pub fn discr() -> Ty {
+        TyKind::Discr.intern()
+    }
+
     pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
         match self.kind() {
             TyKind::Indexed(bty, exprs) => Ty::indexed(bty.fill_holes(mk_pred), exprs.clone()),
@@ -358,6 +365,7 @@ impl Ty {
                 Ty::tuple(tys)
             }
             TyKind::Never => Ty::never(),
+            TyKind::Discr => Ty::discr(),
         }
     }
 
@@ -376,6 +384,7 @@ impl Ty {
                 Ty::tuple(tys)
             }
             TyKind::Never => Ty::never(),
+            TyKind::Discr => Ty::discr(),
         }
     }
 }
@@ -414,6 +423,7 @@ impl TyS {
                 Layout::tuple(layouts)
             }
             TyKind::Never => Layout::never(),
+            TyKind::Discr => Layout::discr(),
         }
     }
 
@@ -477,6 +487,10 @@ impl Layout {
 
     pub fn never() -> Layout {
         LayoutKind::Never.intern()
+    }
+
+    pub fn discr() -> Layout {
+        LayoutKind::Discr.intern()
     }
 }
 
@@ -619,6 +633,10 @@ impl Expr {
 
     pub fn constant(c: Constant) -> Expr {
         ExprKind::Constant(c).intern()
+    }
+
+    pub fn bool(b: bool) -> Expr {
+        Expr::constant(Constant::Bool(b))
     }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -983,6 +1001,7 @@ mod pretty {
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
+                TyKind::Discr => w!("discr"),
             }
         }
 

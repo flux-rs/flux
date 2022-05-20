@@ -159,6 +159,7 @@ impl<'tcx> CrateChecker<'tcx> {
             return Ok(());
         }
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
+        // NOTE: Uncomment to dump MIR
         // {
         //     let mut w = std::io::BufWriter::new(std::io::stdout());
         //     rustc_middle::mir::pretty::write_mir_fn(

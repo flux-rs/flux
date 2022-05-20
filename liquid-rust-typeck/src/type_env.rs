@@ -174,6 +174,8 @@ impl TypeEnv {
                 self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, ty2, &mut subst);
             }
         }
+        // println!("bb_env.params = {:?}", bb_env.params);
+
         assert!(subst
             .check_inference(
                 bb_env
@@ -307,10 +309,11 @@ impl TypeEnvInfer {
 
     fn new(genv: &GlobalEnv, scope: Scope, env: TypeEnv) -> TypeEnvInfer {
         let name_gen = scope.name_gen();
+        let mut names = FxHashMap::default();
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
         for ty in env.bindings.values_mut() {
-            *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &name_gen, ty);
+            *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &mut names, &name_gen, ty);
         }
         TypeEnvInfer { params, name_gen, env, scope }
     }
@@ -339,6 +342,7 @@ impl TypeEnvInfer {
         params: &mut FxHashMap<Name, Sort>,
         genv: &GlobalEnv,
         scope: &Scope,
+        names: &mut FxHashMap<Expr, Name>,
         name_gen: &IndexGen<Name>,
         ty: &Ty,
     ) -> Ty {
@@ -350,28 +354,30 @@ impl TypeEnvInfer {
                     .zip(sorts)
                     .map(|(e, sort)| {
                         let has_free_vars = !scope.contains_all(e.vars());
-                        if has_free_vars {
+                        if has_free_vars && !names.contains_key(e) {
                             let fresh = name_gen.fresh();
                             params.insert(fresh, sort);
+                            names.insert(e.clone(), fresh);
                             Expr::var(fresh)
                         } else {
                             e.clone()
                         }
                     })
                     .collect_vec();
-                let bty = TypeEnvInfer::pack_bty(params, genv, scope, name_gen, bty);
+                let bty = TypeEnvInfer::pack_bty(params, genv, scope, names, name_gen, bty);
                 Ty::indexed(bty, exprs)
             }
             TyKind::Tuple(tys) => {
                 let tys = tys
                     .iter()
-                    .map(|ty| TypeEnvInfer::pack_ty(params, genv, scope, name_gen, ty))
+                    .map(|ty| TypeEnvInfer::pack_ty(params, genv, scope, names, name_gen, ty))
                     .collect_vec();
                 Ty::tuple(tys)
             }
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::Never
+            | TyKind::Discr
             | TyKind::Float(_)
             | TyKind::Ptr(_)
             | TyKind::Uninit(_)
@@ -384,6 +390,7 @@ impl TypeEnvInfer {
         params: &mut FxHashMap<Name, Sort>,
         genv: &GlobalEnv,
         scope: &Scope,
+        names: &mut FxHashMap<Expr, Name>,
         name_gen: &IndexGen<Name>,
         bty: &BaseTy,
     ) -> BaseTy {
@@ -391,12 +398,16 @@ impl TypeEnvInfer {
             BaseTy::Adt(did, substs) => {
                 let substs = substs
                     .iter()
-                    .map(|ty| Self::pack_ty(params, genv, scope, name_gen, ty));
+                    .map(|ty| Self::pack_ty(params, genv, scope, names, name_gen, ty));
                 BaseTy::adt(*did, substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
         }
     }
+
+    /// join(self, genv, other) consumes the bindings in other, to "update"
+    /// 'self' in place, and returns 'true' if there was an actual change
+    /// or 'false' indicating no change (i.e. a fixpoint was reached).
 
     pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
         // Unfold
