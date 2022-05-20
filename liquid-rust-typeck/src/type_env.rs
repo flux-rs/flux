@@ -486,12 +486,12 @@ impl TypeEnvInfer {
             self.env.bindings[path] = ty;
         }
 
-        self.check_dead(target);
+        self.remove_dead_params(target);
 
         modified
     }
 
-    fn check_dead(&mut self, _target: BasicBlock) -> () {
+    fn remove_dead_params(&mut self, _target: BasicBlock) -> () {
         let dead_names = self.dead_params();
         for x in dead_names.iter() {
             self.params.remove(x);
