@@ -354,7 +354,9 @@ impl TypeEnvInfer {
                     .zip(sorts)
                     .map(|(e, sort)| {
                         let has_free_vars = !scope.contains_all(e.vars());
-                        if has_free_vars && !names.contains_key(e) {
+                        if let Some(n) = names.get(e) {
+                            Expr::var(n)
+                        } else if has_free_vars {
                             let fresh = name_gen.fresh();
                             params.insert(fresh, sort);
                             names.insert(e.clone(), fresh);
