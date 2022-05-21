@@ -11,7 +11,7 @@ use crate::{
 };
 use itertools::{izip, Itertools};
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::{ir, ir::BasicBlock};
+use liquid_rust_core::ir;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
@@ -486,12 +486,12 @@ impl TypeEnvInfer {
             self.env.bindings[path] = ty;
         }
 
-        self.remove_dead_params(target);
+        self.remove_dead_params();
 
         modified
     }
 
-    fn remove_dead_params(&mut self, _target: BasicBlock) -> () {
+    fn remove_dead_params(&mut self) -> () {
         let dead_names = self.dead_params();
         for x in dead_names.iter() {
             self.params.remove(x);

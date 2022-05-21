@@ -406,10 +406,10 @@ impl TyS {
 
     fn gather_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
-            TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.vars_worker(vars)),
-            TyKind::Exists(_, Pred::Expr(e)) => e.vars_worker(vars),
-            TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.vars_worker(vars)),
-            TyKind::Ref(_, ty) => ty.vars_worker(vars),
+            TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.gather_vars(vars)),
+            TyKind::Exists(_, Pred::Expr(e)) => e.gather_vars(vars),
+            TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.gather_vars(vars)),
+            TyKind::Ref(_, ty) => ty.gather_vars(vars),
             TyKind::Ptr(_)
             | TyKind::Uninit(_)
             | TyKind::Float(_)
@@ -422,7 +422,7 @@ impl TyS {
 
     pub fn vars(&self) -> FxHashSet<Name> {
         let mut vars = FxHashSet::default();
-        self.vars_worker(&mut vars);
+        self.gather_vars(&mut vars);
         vars
     }
 
@@ -657,7 +657,6 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
-
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         let exprs = exprs.into_iter().collect_vec();
         ExprKind::Tuple(exprs).intern()
@@ -742,25 +741,25 @@ impl ExprS {
         }
     }
 
-    fn vars_worker(&self, vars: &mut FxHashSet<Name>) {
+    fn gather_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
             ExprKind::Var(Var::Free(name)) => {
                 vars.insert(*name);
             }
             ExprKind::BinaryOp(_, e1, e2) => {
-                e1.vars_worker(vars);
-                e2.vars_worker(vars);
+                e1.gather_vars(vars);
+                e2.gather_vars(vars);
             }
-            ExprKind::UnaryOp(_, e) => e.vars_worker(vars),
-            ExprKind::Proj(e, _) => e.vars_worker(vars),
-            ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.vars_worker(vars)),
+            ExprKind::UnaryOp(_, e) => e.gather_vars(vars),
+            ExprKind::Proj(e, _) => e.gather_vars(vars),
+            ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.gather_vars(vars)),
             ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
         }
     }
 
     pub fn vars(&self) -> FxHashSet<Name> {
         let mut vars = FxHashSet::default();
-        self.vars_worker(&mut vars);
+        self.gather_vars(&mut vars);
         vars
     }
 

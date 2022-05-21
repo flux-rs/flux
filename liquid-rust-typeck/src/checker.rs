@@ -86,14 +86,7 @@ pub struct Check<'a> {
 }
 /// A 'Guard' describes extra "control" information that holds at the start
 /// of the successor basic block
-enum Guard {
-    /// The successor is a plain jump
-    None,
-    /// The successor is an if-then-else or while-do boolean condition
-    Pred(Expr),
-    // The successor was determined to be a particular enum variant
-    // Match(Place, crate::ty::VariantIdx),
-}
+pub type Guard = Option<Expr>;
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
@@ -464,8 +457,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
 
         match self.genv.check_asserts() {
-            AssertBehavior::Ignore => Ok(vec![(target, Guard::None)]),
-            AssertBehavior::Assume => Ok(vec![(target, Guard::Pred(pred))]),
+            AssertBehavior::Ignore => Ok(vec![(target, None)]),
+            AssertBehavior::Assume => Ok(vec![(target, Some(pred))]),
             AssertBehavior::Check => {
                 let mut gen = ConstraintGen::new(
                     self.genv,
@@ -474,7 +467,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 );
                 gen.check_pred(pred.clone());
 
-                Ok(vec![(target, Guard::Pred(pred))])
+                Ok(vec![(target, Some(pred))])
             }
         }
     }
@@ -499,7 +492,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), exprs) => {
                     Expr::binary_op(BinOp::Eq, exprs[0].clone(), Expr::from_bits(bty, bits))
                 }
-                TyKind::Discr => Expr::bool(true),
+                TyKind::Discr => Expr::tt(),
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
         };
@@ -507,14 +500,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut successors = vec![];
 
         for (bits, bb) in targets.iter() {
-            successors.push((bb, Guard::Pred(mk(bits))));
+            successors.push((bb, Some(mk(bits))));
         }
         let otherwise = targets
             .iter()
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| Expr::binary_op(BinOp::And, e1, e2));
         let otherwise = match otherwise {
-            Some(p) => Guard::Pred(p),
+            Some(p) => Some(p),
             None => Guard::None,
         };
         successors.push((targets.otherwise(), otherwise));
@@ -532,7 +525,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for (target, guard) in successors {
             let mut pcx = pcx.breadcrumb();
             let env = env.clone();
-            if let Guard::Pred(guard) = guard {
+            if let Some(guard) = guard {
                 pcx.push_pred(guard);
             }
             self.check_goto(pcx, env, Some(src_info), target)?;
@@ -841,7 +834,7 @@ impl Mode for Inference<'_> {
 
         dbg::infer_goto_enter!(target, env, ck.mode.bb_envs.get(&target));
         let modified = match ck.mode.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env, target),
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(ck.genv, scope));
                 true
