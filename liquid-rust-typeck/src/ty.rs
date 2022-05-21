@@ -657,9 +657,6 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn bool(b: bool) -> Expr {
-        Expr::constant(Constant::Bool(b))
-    }
 
     pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         let exprs = exprs.into_iter().collect_vec();
