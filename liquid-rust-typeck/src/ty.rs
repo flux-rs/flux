@@ -404,7 +404,7 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit(..))
     }
 
-    pub fn vars_worker(&self, vars: &mut FxHashSet<Name>) {
+    fn gather_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
             TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.vars_worker(vars)),
             TyKind::Exists(_, Pred::Expr(e)) => e.vars_worker(vars),
