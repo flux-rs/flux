@@ -409,7 +409,7 @@ impl TypeEnvInfer {
     /// 'self' in place, and returns 'true' if there was an actual change
     /// or 'false' indicating no change (i.e. a fixpoint was reached).
 
-    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv, target: BasicBlock) -> bool {
+    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
         // Unfold
         self.env.bindings.unfold_with(genv, &mut other.bindings);
 
