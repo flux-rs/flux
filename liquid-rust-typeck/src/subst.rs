@@ -102,6 +102,7 @@ impl Subst<'_> {
                 Ty::tuple(tys)
             }
             TyKind::Never => Ty::never(),
+            TyKind::Discr => Ty::discr(),
         }
     }
 

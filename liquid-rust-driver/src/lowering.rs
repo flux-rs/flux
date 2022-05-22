@@ -116,8 +116,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<FakeReadCause, ErrorReported> {
         match cause {
             mir::FakeReadCause::ForLet(def_id) => Ok(FakeReadCause::ForLet(def_id)),
-            mir::FakeReadCause::ForMatchedPlace(..)
-            | mir::FakeReadCause::ForMatchGuard
+            mir::FakeReadCause::ForMatchedPlace(z) => Ok(FakeReadCause::ForMatchedPlace(z)),
+            mir::FakeReadCause::ForMatchGuard
             | mir::FakeReadCause::ForGuardBinding
             | mir::FakeReadCause::ForIndex { .. } => {
                 return self.emit_err(None, format!("unsupported fake read cause: `{:?}`", cause));
@@ -194,6 +194,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     msg: self.lower_assert_msg(msg)?,
                 }
             }
+            mir::TerminatorKind::Unreachable => TerminatorKind::Unreachable,
             mir::TerminatorKind::FalseEdge { real_target, imaginary_target } => {
                 TerminatorKind::FalseEdge {
                     real_target: *real_target,
@@ -205,7 +206,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             }
             mir::TerminatorKind::Resume => TerminatorKind::Resume,
             mir::TerminatorKind::Abort
-            | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::Yield { .. }
             | mir::TerminatorKind::GeneratorDrop
             | mir::TerminatorKind::InlineAsm { .. } => {
@@ -244,6 +244,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
+            mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
             mir::Rvalue::Repeat(_, _)
             | mir::Rvalue::Ref(_, _, _)
             | mir::Rvalue::ThreadLocalRef(_)
@@ -252,7 +253,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | mir::Rvalue::Cast(_, _, _)
             | mir::Rvalue::CheckedBinaryOp(_, _)
             | mir::Rvalue::NullaryOp(_, _)
-            | mir::Rvalue::Discriminant(_)
             | mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
             }

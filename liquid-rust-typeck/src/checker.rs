@@ -84,6 +84,9 @@ pub struct Check<'a> {
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
     kvars: &'a mut KVarStore,
 }
+/// A 'Guard' describes extra "control" information that holds at the start
+/// of the successor basic block
+pub type Guard = Option<Expr>;
 
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
@@ -287,15 +290,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
+    /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
+    /// - `BasicBlock` "successors" of the current terminator, and
+    /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
+    ///    that is some predicate you can assume when checking the correspondnig successor.
+
     fn check_terminator(
         &mut self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         match &terminator.kind {
             TerminatorKind::Return => self.check_ret(pcx, env),
-            TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
+            TerminatorKind::Unreachable => Ok(vec![]),
+            TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
                 self.check_switch_int(pcx, env, discr, targets)
             }
@@ -306,7 +315,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 if let Some((p, bb)) = destination {
                     let ret = env.unpack_ty(self.genv, pcx, &ret);
                     env.write_place(self.genv, pcx, p, ret, Tag::Call(terminator.source_info.span));
-                    Ok(vec![(*bb, None)])
+                    Ok(vec![(*bb, Guard::None)])
                 } else {
                     Ok(vec![])
                 }
@@ -316,7 +325,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let _ = env.move_place(self.genv, pcx, place);
-                Ok(vec![(*target, None)])
+                Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(pcx, env, value);
@@ -328,10 +337,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     ty,
                     Tag::Assign(terminator.source_info.span),
                 );
-                Ok(vec![(*target, None)])
+                Ok(vec![(*target, Guard::None)])
             }
-            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, None)]),
-            TerminatorKind::FalseUnwind { real_target, .. } => Ok(vec![(*real_target, None)]),
+            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
+            TerminatorKind::FalseUnwind { real_target, .. } => {
+                Ok(vec![(*real_target, Guard::None)])
+            }
             TerminatorKind::Resume => todo!("implement checking of cleanup code"),
         }
     }
@@ -340,7 +351,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let ret_place_ty = env.lookup_place(self.genv, pcx, Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
@@ -433,7 +444,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         expected: bool,
         target: BasicBlock,
         msg: &'static str,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let ty = self.check_operand(pcx, env, cond);
         let pred = if let TyKind::Indexed(BaseTy::Bool, exprs) = ty.kind() {
             if expected {
@@ -467,7 +478,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         discr: &Operand,
         targets: &mir::SwitchTargets,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let discr_ty = self.check_operand(pcx, env, discr);
         let mk = |bits| {
             match discr_ty.kind() {
@@ -481,6 +492,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), exprs) => {
                     Expr::binary_op(BinOp::Eq, exprs[0].clone(), Expr::from_bits(bty, bits))
                 }
+                TyKind::Discr => Expr::tt(),
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
         };
@@ -494,7 +506,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .iter()
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| Expr::binary_op(BinOp::And, e1, e2));
-
+        let otherwise = match otherwise {
+            Some(p) => Some(p),
+            None => Guard::None,
+        };
         successors.push((targets.otherwise(), otherwise));
 
         Ok(successors)
@@ -505,7 +520,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut pcx: PureCtxt,
         env: TypeEnv,
         src_info: SourceInfo,
-        successors: Vec<(BasicBlock, Option<Expr>)>,
+        successors: Vec<(BasicBlock, Guard)>,
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
             let mut pcx = pcx.breadcrumb();
@@ -554,6 +569,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(pcx, env, source_info, sig, substs, args)
             }
+            Rvalue::Discriminant(_p) => Ok(Ty::discr()),
         }
     }
 
