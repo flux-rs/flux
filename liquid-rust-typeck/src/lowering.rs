@@ -1,22 +1,28 @@
-use crate::ty::{self, Path, VariantDef};
+use crate::{
+    global_env::GlobalEnv,
+    ty::{self, Path, VariantDef},
+};
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_core::ty as core;
 use rustc_hash::FxHashMap;
 
-pub struct LoweringCtxt {
-    name_map: FxHashMap<core::Name, ty::Name>,
+pub struct LoweringCtxt<'a, 'tcx> {
+    genv: &'a GlobalEnv<'tcx>,
+    name_map: NameMap,
 }
 
-impl LoweringCtxt {
-    pub fn empty() -> Self {
-        Self { name_map: FxHashMap::default() }
+type NameMap = FxHashMap<core::Name, ty::Name>;
+
+impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
+    pub fn empty(genv: &'a GlobalEnv<'tcx>) -> Self {
+        Self { genv, name_map: FxHashMap::default() }
     }
 
-    pub fn lower_fn_sig(fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
+    pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let name_gen = IndexGen::new();
 
-        let mut cx = LoweringCtxt::empty();
+        let mut cx = LoweringCtxt::empty(genv);
 
         let params = cx.lower_params(&name_gen, &fn_sig.params);
 
@@ -40,21 +46,21 @@ impl LoweringCtxt {
         ty::Binders::new(params, ty::FnSig::new(requires, args, ret, ensures))
     }
 
-    pub fn lower_adt_def(adt_def: &core::AdtDef) -> ty::AdtDef {
+    pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
         let name_gen = IndexGen::new();
-        let mut cx = LoweringCtxt::empty();
+        let mut cx = LoweringCtxt::empty(genv);
 
         let refined_by = cx.lower_params(&name_gen, adt_def.refined_by());
 
-        match adt_def {
-            core::AdtDef::Transparent { variants, .. } => {
+        match &adt_def.kind {
+            core::AdtDefKind::Transparent { variants, .. } => {
                 let variants = variants
                     .iter()
                     .map(|variant| cx.lower_variant_def(variant))
                     .collect_vec();
-                ty::AdtDef::transparent(refined_by, IndexVec::from_raw(variants))
+                ty::AdtDef::transparent(adt_def.def_id, refined_by, IndexVec::from_raw(variants))
             }
-            core::AdtDef::Opaque { .. } => ty::AdtDef::opaque(refined_by),
+            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, refined_by),
         }
     }
 
@@ -75,7 +81,7 @@ impl LoweringCtxt {
                     self.lower_ty(ty),
                 )
             }
-            core::Constr::Pred(e) => ty::Constr::Pred(self.lower_expr(e)),
+            core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map)),
         }
     }
 
@@ -98,16 +104,16 @@ impl LoweringCtxt {
         let name_gen = IndexGen::new();
         let mut args = Vec::new();
 
-        let mut cx = LoweringCtxt::empty();
+        let mut name_map = NameMap::default();
 
         for param in &qualifier.args {
             let fresh = name_gen.fresh();
-            cx.name_map.insert(param.name.name, fresh);
+            name_map.insert(param.name.name, fresh);
             let sort = lower_sort(param.sort);
             args.push((fresh, sort));
         }
 
-        let expr = cx.lower_expr(&qualifier.expr);
+        let expr = lower_expr(&qualifier.expr, &name_map);
 
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
@@ -118,7 +124,7 @@ impl LoweringCtxt {
                 let exprs = refine
                     .exprs
                     .iter()
-                    .map(|e| self.lower_expr(e))
+                    .map(|e| lower_expr(e, &self.name_map))
                     .collect_vec();
                 ty::Ty::indexed(self.lower_base_ty(bty), exprs)
             }
@@ -126,7 +132,7 @@ impl LoweringCtxt {
                 let bty = self.lower_base_ty(bty);
                 let pred = match pred {
                     core::Pred::Hole => ty::Pred::Hole,
-                    core::Pred::Expr(e) => ty::Pred::Expr(self.lower_expr(e)),
+                    core::Pred::Expr(e) => ty::Pred::Expr(lower_expr(e, &self.name_map)),
                 };
                 ty::Ty::exists(bty, pred)
             }
@@ -155,34 +161,39 @@ impl LoweringCtxt {
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
+                let adt_def = self.genv.adt_def(*did);
                 let substs = substs.iter().map(|ty| self.lower_ty(ty));
-                ty::BaseTy::adt(*did, substs)
+                ty::BaseTy::adt(adt_def, substs)
             }
         }
     }
+}
 
-    fn lower_expr(&self, expr: &core::Expr) -> ty::Expr {
-        match &expr.kind {
-            core::ExprKind::Var(var, ..) => ty::Expr::var(self.lower_var(*var)),
-            core::ExprKind::Literal(lit) => ty::Expr::constant(self.lower_lit(*lit)),
-            core::ExprKind::BinaryOp(op, e1, e2) => {
-                ty::Expr::binary_op(lower_bin_op(*op), self.lower_expr(e1), self.lower_expr(e2))
-            }
+fn lower_expr(expr: &core::Expr, name_map: &NameMap) -> ty::Expr {
+    match &expr.kind {
+        core::ExprKind::Var(var, ..) => ty::Expr::var(lower_var(*var, name_map)),
+        core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
+        core::ExprKind::BinaryOp(op, e1, e2) => {
+            ty::Expr::binary_op(
+                lower_bin_op(*op),
+                lower_expr(e1, name_map),
+                lower_expr(e2, name_map),
+            )
         }
     }
+}
 
-    fn lower_var(&self, var: core::Var) -> ty::Var {
-        match var {
-            core::Var::Bound(idx) => ty::Var::Bound(idx),
-            core::Var::Free(name) => ty::Var::Free(self.name_map[&name]),
-        }
+fn lower_var(var: core::Var, name_map: &NameMap) -> ty::Var {
+    match var {
+        core::Var::Bound(idx) => ty::Var::Bound(idx),
+        core::Var::Free(name) => ty::Var::Free(name_map[&name]),
     }
+}
 
-    fn lower_lit(&self, lit: core::Lit) -> ty::Constant {
-        match lit {
-            core::Lit::Int(n) => ty::Constant::from(n),
-            core::Lit::Bool(b) => ty::Constant::from(b),
-        }
+fn lower_lit(lit: core::Lit) -> ty::Constant {
+    match lit {
+        core::Lit::Int(n) => ty::Constant::from(n),
+        core::Lit::Bool(b) => ty::Constant::from(b),
     }
 }
 

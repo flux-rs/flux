@@ -61,15 +61,20 @@ impl<'tcx> Resolver<'tcx> {
 
     pub fn resolve_struct_def(
         &mut self,
-        spec: surface::StructDef,
+        struct_def: surface::StructDef,
     ) -> Result<surface::StructDef<Res>, ErrorReported> {
-        let fields = spec
+        let fields = struct_def
             .fields
             .into_iter()
             .map(|ty| ty.map(|ty| self.resolve_ty(ty)).transpose())
             .try_collect_exhaust()?;
 
-        Ok(surface::StructDef { refined_by: spec.refined_by, fields, opaque: spec.opaque })
+        Ok(surface::StructDef {
+            def_id: struct_def.def_id,
+            refined_by: struct_def.refined_by,
+            fields,
+            opaque: struct_def.opaque,
+        })
     }
 
     pub fn resolve_fn_sig(

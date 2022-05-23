@@ -85,7 +85,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
 
     pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
         let mut env = Env::new(def.refined_by());
-        if let core::AdtDef::Transparent { variants, .. } = def {
+        if let core::AdtDefKind::Transparent { variants, .. } = &def.kind {
             variants
                 .iter()
                 .try_for_each_exhaust(|variant| self.check_variant_def(&mut env, variant))?;

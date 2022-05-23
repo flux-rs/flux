@@ -62,9 +62,9 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn lookup_place(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, result| result.ty())
+            .lookup_place(pcx, place, |_, result| result.ty())
     }
 
     #[track_caller]
@@ -78,8 +78,8 @@ impl TypeEnv {
 
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(genv, pcx, place, |_, result| {
+    pub fn borrow_mut(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings.lookup_place(pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(path, _) => Ty::strg_ref(path),
                 LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
@@ -90,9 +90,9 @@ impl TypeEnv {
         })
     }
 
-    pub fn borrow_shr(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn borrow_shr(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
         self.bindings
-            .lookup_place(genv, pcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
+            .lookup_place(pcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
     }
 
     pub fn write_place(
@@ -103,7 +103,7 @@ impl TypeEnv {
         new_ty: Ty,
         tag: Tag,
     ) {
-        self.bindings.lookup_place(genv, pcx, place, |pcx, result| {
+        self.bindings.lookup_place(pcx, place, |pcx, result| {
             match result {
                 LookupResult::Ptr(_, ty) => {
                     *ty = new_ty;
@@ -119,8 +119,8 @@ impl TypeEnv {
         });
     }
 
-    pub fn move_place(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
-        self.bindings.lookup_place(genv, pcx, place, |_, result| {
+    pub fn move_place(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+        self.bindings.lookup_place(pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(_, ty) => {
                     let old = ty.clone();
@@ -242,8 +242,7 @@ impl TypeEnv {
         bb_env: &mut BasicBlockEnv,
         tag: Tag,
     ) {
-        self.bindings
-            .fold_unfold_with(genv, pcx, &bb_env.env.bindings);
+        self.bindings.fold_unfold_with(pcx, &bb_env.env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
@@ -287,7 +286,7 @@ impl TypeEnv {
             *ty1 = ty2;
         }
 
-        debug_assert_eq!(self.bindings, goto_env.bindings);
+        debug_assert!(self.bindings == goto_env.bindings);
     }
 
     pub fn subst(self, subst: &Subst) -> TypeEnv {
@@ -397,11 +396,11 @@ impl TypeEnvInfer {
         bty: &BaseTy,
     ) -> BaseTy {
         match bty {
-            BaseTy::Adt(did, substs) => {
+            BaseTy::Adt(adt_def, substs) => {
                 let substs = substs
                     .iter()
                     .map(|ty| Self::pack_ty(params, genv, scope, names, name_gen, ty));
-                BaseTy::adt(*did, substs)
+                BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
         }
@@ -413,7 +412,7 @@ impl TypeEnvInfer {
 
     pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
         // Unfold
-        self.env.bindings.unfold_with(genv, &mut other.bindings);
+        self.env.bindings.unfold_with(&mut other.bindings);
 
         // Weakening
         let locs = self
@@ -473,7 +472,7 @@ impl TypeEnvInfer {
         modified
     }
 
-    fn remove_dead_params(&mut self) -> () {
+    fn remove_dead_params(&mut self) {
         let dead_names = self.dead_params();
         for x in dead_names.iter() {
             self.params.remove(x);
@@ -553,14 +552,14 @@ impl TypeEnvInfer {
     }
 
     fn join_bty(&mut self, genv: &GlobalEnv, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
-        if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
-            debug_assert_eq!(did1, did2);
-            let variances = genv.variances_of(*did1);
+        if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
+            debug_assert_eq!(def1.def_id(), def2.def_id());
+            let variances = genv.variances_of(def1.def_id());
             let substs = izip!(variances, substs1, substs2).map(|(variance, ty1, ty2)| {
                 assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
                 self.join_ty(genv, ty1, ty2)
             });
-            BaseTy::adt(*did1, substs)
+            BaseTy::adt(def1.clone(), substs)
         } else {
             debug_assert_eq!(bty1, bty2);
             bty1.clone()

@@ -17,8 +17,13 @@ pub trait AdtSortsMap {
     fn get(&self, def_id: DefId) -> Option<&[Sort]>;
 }
 
+pub struct AdtDef {
+    pub def_id: DefId,
+    pub kind: AdtDefKind,
+}
+
 #[derive(Debug)]
-pub enum AdtDef {
+pub enum AdtDefKind {
     Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
     Opaque { refined_by: Vec<Param> },
 }
@@ -181,12 +186,16 @@ impl AdtDef {
             .iter()
             .map(|variant| VariantDef::default(tcx, variant))
             .collect();
-        AdtDef::Transparent { refined_by: vec![], variants }
+        let kind = AdtDefKind::Transparent { refined_by: vec![], variants };
+        let def_id = struct_def.did;
+        AdtDef { def_id, kind }
     }
 
     pub fn refined_by(&self) -> &[Param] {
-        match self {
-            Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
+        match &self.kind {
+            AdtDefKind::Transparent { refined_by, .. } | AdtDefKind::Opaque { refined_by } => {
+                refined_by
+            }
         }
     }
 
