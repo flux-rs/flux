@@ -12,21 +12,16 @@ use std::{
     iter,
 };
 
-use crate::{
-    constraint_gen::{ConstraintGen, Tag},
-    dbg,
-    global_env::GlobalEnv,
-    lowering::{self, LoweringCtxt},
-    param_infer,
-    pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
-    subst::Subst,
-    ty::{
-        self, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred, RefKind,
-        Sort, Ty, TyKind, Var,
-    },
-    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
-};
 use itertools::Itertools;
+
+use rustc_data_structures::graph::dominators::Dominators;
+use rustc_errors::ErrorReported;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_index::bit_set::BitSet;
+use rustc_middle::mir;
+use rustc_session::Session;
+
 use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
 use liquid_rust_core::{
     ir::{
@@ -35,13 +30,22 @@ use liquid_rust_core::{
     },
     ty as core,
 };
-use rustc_data_structures::graph::dominators::Dominators;
-use rustc_errors::ErrorReported;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
-use rustc_index::bit_set::BitSet;
-use rustc_middle::mir;
-use rustc_session::Session;
+use liquid_rust_middle::ty::{
+    self,
+    subst::Subst,
+    BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred, RefKind, Sort,
+    Ty, TyKind, Var,
+};
+
+use crate::{
+    constraint_gen::{ConstraintGen, Tag},
+    dbg,
+    global_env::GlobalEnv,
+    lowering::{self, LoweringCtxt},
+    param_infer,
+    pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
+    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
+};
 
 pub struct Checker<'a, 'tcx, M> {
     sess: &'a Session,
@@ -85,6 +89,7 @@ pub struct Check<'a> {
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
     kvars: &'a mut KVarStore,
 }
+
 /// A 'Guard' describes extra "control" information that holds at the start
 /// of the successor basic block
 pub type Guard = Option<Expr>;

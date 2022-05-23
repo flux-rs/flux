@@ -1,21 +1,23 @@
+pub mod subst;
+
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
-pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 
-use liquid_rust_core::ir::Local;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
+use rustc_middle::{
+    mir::{Field, Local},
+    ty::ParamTy,
+};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{
-    intern::{impl_internable, Interned, List},
-    subst::Subst,
-};
+use crate::intern::{impl_internable, Interned, List};
+use subst::Subst;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);

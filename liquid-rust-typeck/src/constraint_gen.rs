@@ -1,13 +1,15 @@
 use std::iter;
 
 use itertools::izip;
-use liquid_rust_core::ir::BasicBlock;
+
 use rustc_span::Span;
+
+use liquid_rust_core::ir::BasicBlock;
+use liquid_rust_middle::ty::{BaseTy, BinOp, Constr, Expr, Pred, RefKind, Ty, TyKind};
 
 use crate::{
     global_env::{GlobalEnv, Variance},
     pure_ctxt::PureCtxt,
-    ty::{BaseTy, BinOp, Constr, Expr, Pred, RefKind, Ty, TyKind},
     type_env::TypeEnv,
 };
 
@@ -156,7 +158,7 @@ mod pretty {
     use std::fmt;
 
     use super::*;
-    use crate::pretty::*;
+    use liquid_rust_middle::pretty::*;
 
     impl Pretty for Tag {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {

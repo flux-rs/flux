@@ -7,12 +7,11 @@ use std::{
 use itertools::{repeat_n, Itertools};
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-
-use crate::{
-    constraint_gen::Tag,
-    ty::{BinOp, Expr, ExprKind, ExprS, KVar, KVid, Name, Pred, Sort, SortKind, Var},
-    FixpointCtxt, TagIdx,
+use liquid_rust_middle::ty::{
+    BinOp, Expr, ExprKind, ExprS, KVar, KVid, Name, Pred, Sort, SortKind, Var,
 };
+
+use crate::{constraint_gen::Tag, FixpointCtxt, TagIdx};
 
 pub struct ConstraintBuilder {
     root: NodePtr,
@@ -44,8 +43,9 @@ struct Node {
     children: Vec<NodePtr>,
 }
 
-type NodePtr = Rc<RefCell<Node>>;
-type WeakNodePtr = Weak<RefCell<Node>>;
+#[derive(Clone)]
+struct NodePtr(Rc<RefCell<Node>>);
+struct WeakNodePtr(Weak<RefCell<Node>>);
 
 enum NodeKind {
     Conj,
@@ -57,12 +57,12 @@ enum NodeKind {
 impl ConstraintBuilder {
     pub fn new() -> ConstraintBuilder {
         let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
-        let root = Rc::new(RefCell::new(root));
+        let root = NodePtr(Rc::new(RefCell::new(root)));
         ConstraintBuilder { root }
     }
 
     pub fn pure_context_at_root(&mut self) -> PureCtxt {
-        PureCtxt { ptr: Rc::clone(&self.root), cx: self }
+        PureCtxt { ptr: NodePtr(Rc::clone(&self.root)), cx: self }
     }
 
     pub fn pure_context_at(&mut self, snapshot: &Snapshot) -> Option<PureCtxt> {
@@ -126,11 +126,11 @@ impl std::ops::Index<KVid> for KVarStore {
 
 impl PureCtxt<'_> {
     pub fn breadcrumb(&mut self) -> PureCtxt {
-        PureCtxt { cx: self.cx, ptr: Rc::clone(&self.ptr) }
+        PureCtxt { cx: self.cx, ptr: NodePtr::clone(&self.ptr) }
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        Snapshot { node: Rc::downgrade(&self.ptr) }
+        Snapshot { node: NodePtr::downgrade(&self.ptr) }
     }
 
     pub fn clear(&mut self) {
@@ -213,11 +213,11 @@ impl PureCtxt<'_> {
         let node = Node {
             kind,
             nbindings: self.next_name_idx(),
-            parent: Some(Rc::downgrade(&self.ptr)),
+            parent: Some(NodePtr::downgrade(&self.ptr)),
             children: vec![],
         };
-        let node = Rc::new(RefCell::new(node));
-        self.ptr.borrow_mut().children.push(Rc::clone(&node));
+        let node = NodePtr(Rc::new(RefCell::new(node)));
+        self.ptr.borrow_mut().children.push(NodePtr::clone(&node));
         node
     }
 }
@@ -270,6 +270,26 @@ impl std::ops::Index<Name> for Scope {
 
     fn index(&self, name: Name) -> &Self::Output {
         &self.bindings[name]
+    }
+}
+
+impl std::ops::Deref for NodePtr {
+    type Target = Rc<RefCell<Node>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl NodePtr {
+    fn downgrade(this: &Self) -> WeakNodePtr {
+        WeakNodePtr(Rc::downgrade(&this.0))
+    }
+}
+
+impl WeakNodePtr {
+    fn upgrade(&self) -> Option<NodePtr> {
+        Some(NodePtr(self.0.upgrade()?))
     }
 }
 
@@ -491,7 +511,7 @@ mod pretty {
     use rustc_middle::ty::TyCtxt;
 
     use super::*;
-    use crate::pretty::*;
+    use liquid_rust_middle::pretty::*;
 
     fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
         fn go(
@@ -507,7 +527,7 @@ mod pretty {
                     (bindings, node.children.clone())
                 }
             } else {
-                (bindings, vec![Rc::clone(ptr)])
+                (bindings, vec![NodePtr::clone(ptr)])
             }
         }
         go(ptr, vec![])
@@ -524,7 +544,7 @@ mod pretty {
                     (preds, node.children.clone())
                 }
             } else {
-                (preds, vec![Rc::clone(ptr)])
+                (preds, vec![NodePtr::clone(ptr)])
             }
         }
         go(ptr, vec![])
@@ -557,7 +577,7 @@ mod pretty {
                     };
 
                     w!(
-                        "∀ {}.{:?}",
+                        "∀ {}.",
                         ^bindings
                             .into_iter()
                             .format_with(", ", |(name, sort, pred), f| {
@@ -566,9 +586,9 @@ mod pretty {
                                 } else {
                                     f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, sort, pred))
                                 }
-                            }),
-                        children
-                    )
+                            })
+                    )?;
+                    fmt_children(&children, cx, f)
                 }
                 NodeKind::Pred(expr) => {
                     let (exprs, children) = if cx.preds_chain {
@@ -577,7 +597,7 @@ mod pretty {
                         (vec![expr.clone()], node.children.clone())
                     };
                     w!(
-                        "{} ⇒{:?}",
+                        "{} ⇒",
                         ^exprs
                             .into_iter()
                             .format_with(" ∧ ", |e, f| {
@@ -587,9 +607,9 @@ mod pretty {
                                 } else {
                                     f(&format_args_cx!("({:?})", ^e))
                                 }
-                            }),
-                        children
-                    )
+                            })
+                    )?;
+                    fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
                     if pred.is_atom() {
@@ -606,29 +626,31 @@ mod pretty {
         }
     }
 
-    impl Pretty for Vec<NodePtr> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let mut f = PadAdapter::wrap_fmt(f, 2);
-            define_scoped!(cx, f);
-            match &self[..] {
-                [] => w!(" true"),
-                [n] => {
-                    if n.borrow().is_head() {
-                        w!(" ")?;
-                    } else {
-                        w!("\n")?;
-                    }
-                    w!("{:?}", Rc::clone(n))
+    fn fmt_children(
+        children: &[NodePtr],
+        cx: &PPrintCx,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let mut f = PadAdapter::wrap_fmt(f, 2);
+        define_scoped!(cx, f);
+        match children {
+            [] => w!(" true"),
+            [n] => {
+                if n.borrow().is_head() {
+                    w!(" ")?;
+                } else {
+                    w!("\n")?;
                 }
-                _ => w!("\n{:?}", join!("\n", self.iter().map(Rc::clone))),
+                w!("{:?}", NodePtr::clone(n))
             }
+            _ => w!("\n{:?}", join!("\n", children)),
         }
     }
 
     impl Pretty for PureCtxt<'_> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let parents = ParentsIter::new(Rc::clone(&self.ptr)).collect_vec();
+            let parents = ParentsIter::new(NodePtr::clone(&self.ptr)).collect_vec();
             write!(
                 f,
                 "{{{}}}",

@@ -1,16 +1,17 @@
 use std::{hint::unreachable_unchecked, iter};
 
 use itertools::Itertools;
-use liquid_rust_common::{index::IndexVec, iter::IterExt};
-use liquid_rust_core::ir::{Field, Place, PlaceElem};
+
 use rustc_hash::FxHashMap;
 
-use crate::{
-    global_env::GlobalEnv,
-    pure_ctxt::PureCtxt,
-    subst::Subst,
-    ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var, VariantIdx},
+use liquid_rust_common::{index::IndexVec, iter::IterExt};
+use liquid_rust_core::ir::{Field, Place, PlaceElem};
+use liquid_rust_middle::ty::{
+    subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var,
+    VariantIdx,
 };
+
+use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt};
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {

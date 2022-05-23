@@ -23,13 +23,9 @@ mod checker;
 mod constraint_gen;
 mod dbg;
 pub mod global_env;
-mod intern;
 pub mod lowering;
 mod param_infer;
-mod pretty;
 mod pure_ctxt;
-mod subst;
-pub mod ty;
 mod type_env;
 pub mod wf;
 
@@ -45,6 +41,7 @@ use liquid_rust_common::{
 };
 use liquid_rust_core::ir::Body;
 use liquid_rust_fixpoint::{self as fixpoint, FixpointResult};
+use liquid_rust_middle::ty;
 use pure_ctxt::KVarStore;
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
@@ -52,12 +49,11 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
-use ty::Name;
 
 pub struct FixpointCtxt {
     kvars: KVarStore,
     name_gen: IndexGen<fixpoint::Name>,
-    name_map: FxHashMap<Name, fixpoint::Name>,
+    name_map: FxHashMap<ty::Name, fixpoint::Name>,
     tags: IndexVec<TagIdx, Tag>,
     tags_inv: FxHashMap<Tag, TagIdx>,
 }
@@ -102,7 +98,7 @@ impl FixpointCtxt {
 
     pub fn with_name_map<R>(
         &mut self,
-        name: Name,
+        name: ty::Name,
         to: fixpoint::Name,
         f: impl FnOnce(&mut Self) -> R,
     ) -> R {

@@ -489,6 +489,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-core",
  "liquid-rust-fixpoint",
+ "liquid-rust-middle",
  "liquid-rust-syntax",
  "liquid-rust-typeck",
  "quickscope",
@@ -503,6 +504,16 @@ dependencies = [
  "liquid-rust-common",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "liquid-rust-middle"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "itertools",
+ "liquid-rust-common",
+ "liquid-rust-fixpoint",
 ]
 
 [[package]]
@@ -532,6 +543,7 @@ dependencies = [
  "liquid-rust-common",
  "liquid-rust-core",
  "liquid-rust-fixpoint",
+ "liquid-rust-middle",
  "liquid-rust-syntax",
  "quickscope",
  "tracing",

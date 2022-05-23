@@ -1,7 +1,3 @@
-use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::desugar;
-use liquid_rust_syntax::{self as syntax, surface};
-use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashSet;
@@ -11,6 +7,12 @@ use rustc_middle::ty::{
     query::{query_values, Providers},
     TyCtxt, WithOptConstParam,
 };
+
+use liquid_rust_common::iter::IterExt;
+use liquid_rust_core::desugar;
+use liquid_rust_middle::ty;
+use liquid_rust_syntax::{self as syntax, surface};
+use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 
 use crate::{collector::SpecCollector, lowering::LoweringCtxt, mir_storage};
 
@@ -57,7 +59,7 @@ fn check_crate(tcx: TyCtxt) -> Result<(), ErrorReported> {
 
 struct CrateChecker<'tcx> {
     genv: GlobalEnv<'tcx>,
-    qualifiers: Vec<typeck::ty::Qualifier>,
+    qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
     error_reported: bool,
 }
@@ -91,7 +93,7 @@ impl<'tcx> CrateChecker<'tcx> {
         })?;
 
         // Qualifiers
-        let qualifiers: Vec<typeck::ty::Qualifier> = specs
+        let qualifiers: Vec<ty::Qualifier> = specs
             .qualifs
             .into_iter()
             .map(|qualifier| {

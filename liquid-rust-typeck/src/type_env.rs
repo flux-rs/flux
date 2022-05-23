@@ -2,19 +2,23 @@ pub mod paths_tree;
 
 use std::iter;
 
+use itertools::{izip, Itertools};
+
+use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_middle::ty::TyCtxt;
+
+use liquid_rust_common::index::IndexGen;
+use liquid_rust_core::ir;
+use liquid_rust_middle::ty::{
+    subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var,
+};
+
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
     param_infer,
     pure_ctxt::{PureCtxt, Scope},
-    subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
 };
-use itertools::{izip, Itertools};
-use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::ir;
-use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_middle::ty::TyCtxt;
 
 use self::paths_tree::{LookupResult, PathsTree};
 
@@ -625,8 +629,8 @@ impl BasicBlockEnv {
 
 mod pretty {
     use super::*;
-    use crate::pretty::*;
     use itertools::Itertools;
+    use liquid_rust_middle::pretty::*;
     use std::fmt;
 
     impl Pretty for TypeEnv {
