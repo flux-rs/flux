@@ -287,11 +287,6 @@ impl AdtDef {
             AdtDefData::Opaque { .. } => None,
         }
     }
-
-    pub fn unfold_uninit(&self, variant_idx: VariantIdx) -> Option<IndexVec<Field, Ty>> {
-        let fields = &self.variants()?[variant_idx].fields;
-        Some(fields.iter().map(|ty| Ty::uninit(ty.layout())).collect())
-    }
 }
 
 impl VariantDef {
@@ -454,22 +449,11 @@ impl TyS {
         genv: &GlobalEnv,
         variant_idx: VariantIdx,
     ) -> Option<(DefId, IndexVec<Field, Ty>)> {
-        match self.kind() {
-            TyKind::Indexed(BaseTy::Adt(did, substs), exprs) => {
-                let adt_def = genv.adt_def(*did);
-                Some((*did, adt_def.unfold(substs, exprs, variant_idx)?))
-            }
-            TyKind::Uninit(layout) => {
-                match layout.kind() {
-                    LayoutKind::Adt(did) => {
-                        let adt_def = genv.adt_def(*did);
-                        Some((*did, adt_def.unfold_uninit(variant_idx)?))
-                    }
-                    LayoutKind::Tuple(_) => todo!("unfolding of tuples is not yet supported"),
-                    _ => panic!("type cannot be unfolded: `{self:?}`"),
-                }
-            }
-            _ => panic!("type cannot be unfolded: `{self:?}`"),
+        if let TyKind::Indexed(BaseTy::Adt(did, substs), exprs) = self.kind() {
+            let adt_def = genv.adt_def(*did);
+            Some((*did, adt_def.unfold(substs, exprs, variant_idx)?))
+        } else {
+            panic!("type cannot be unfolded: `{self:?}`")
         }
     }
 }
