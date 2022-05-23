@@ -27,6 +27,7 @@ pub struct Alias<T = Ident> {
 
 #[derive(Debug)]
 pub struct StructDef<T = Ident> {
+    pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
     pub fields: Vec<Option<Ty<T>>>,
     pub opaque: bool,

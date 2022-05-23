@@ -12,8 +12,8 @@ use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use crate::ty::{
-    AdtDef, AdtSortsMap, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit, Name, Param,
-    Pred, Qualifier, Sort, Ty, Var, VariantDef,
+    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit,
+    Name, Param, Pred, Qualifier, Sort, Ty, Var, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -45,8 +45,8 @@ pub fn desugar_struct_def(
 
     let mut cx = DesugarCtxt::with_params(params);
 
-    if adt_def.opaque {
-        Ok(AdtDef::Opaque { refined_by: cx.params.params })
+    let kind = if adt_def.opaque {
+        AdtDefKind::Opaque { refined_by: cx.params.params }
     } else {
         let fields = adt_def
             .fields
@@ -54,18 +54,22 @@ pub fn desugar_struct_def(
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
         let variants = IndexVec::from_raw(vec![VariantDef::new(fields)]);
-        Ok(AdtDef::Transparent { refined_by: cx.params.params, variants })
-    }
+        AdtDefKind::Transparent { refined_by: cx.params.params, variants }
+    };
+    let def_id = adt_def.def_id.to_def_id();
+    Ok(AdtDef { def_id, kind })
 }
 
-pub fn desugar_enum_def(tcx: TyCtxt, adt_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
+pub fn desugar_enum_def(tcx: TyCtxt, enum_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
     let mut params = ParamsCtxt::new(tcx.sess);
-    params.insert_params(adt_def.refined_by.into_iter().flatten())?;
+    params.insert_params(enum_def.refined_by.into_iter().flatten())?;
 
-    if adt_def.opaque {
-        Ok(AdtDef::Opaque { refined_by: params.params })
+    if enum_def.opaque {
+        let def_id = enum_def.def_id.to_def_id();
+        let kind = AdtDefKind::Opaque { refined_by: params.params };
+        Ok(AdtDef { def_id, kind })
     } else {
-        Ok(AdtDef::default(tcx, tcx.adt_def(adt_def.def_id)))
+        Ok(AdtDef::default(tcx, tcx.adt_def(enum_def.def_id)))
     }
 }
 

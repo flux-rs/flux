@@ -22,7 +22,13 @@ use crate::{
 pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Eq, PartialEq, Hash)]
-pub enum AdtDefData {
+pub struct AdtDefData {
+    def_id: DefId,
+    kind: AdtDefKind,
+}
+
+#[derive(Eq, PartialEq, Hash)]
+enum AdtDefKind {
     Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
     Opaque { refined_by: Vec<Param> },
 }
@@ -244,16 +250,22 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque(refined_by: Vec<Param>) -> Self {
-        AdtDef(Interned::new(AdtDefData::Opaque { refined_by }))
+    pub fn opaque(def_id: DefId, refined_by: Vec<Param>) -> Self {
+        let kind = AdtDefKind::Opaque { refined_by };
+        AdtDef(Interned::new(AdtDefData { def_id, kind }))
     }
-    pub fn transparent(refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef>) -> Self {
-        AdtDef(Interned::new(AdtDefData::Transparent { refined_by, variants }))
+    pub fn transparent(
+        def_id: DefId,
+        refined_by: Vec<Param>,
+        variants: IndexVec<VariantIdx, VariantDef>,
+    ) -> Self {
+        let kind = AdtDefKind::Transparent { refined_by, variants };
+        AdtDef(Interned::new(AdtDefData { def_id, kind }))
     }
 
     pub fn refined_by(&self) -> &[Param] {
-        match &*self.0 {
-            AdtDefData::Transparent { refined_by, .. } | AdtDefData::Opaque { refined_by, .. } => {
+        match self.kind() {
+            AdtDefKind::Transparent { refined_by, .. } | AdtDefKind::Opaque { refined_by, .. } => {
                 refined_by
             }
         }
@@ -282,10 +294,14 @@ impl AdtDef {
     }
 
     pub fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
-        match &*self.0 {
-            AdtDefData::Transparent { variants, .. } => Some(variants),
-            AdtDefData::Opaque { .. } => None,
+        match self.kind() {
+            AdtDefKind::Transparent { variants, .. } => Some(variants),
+            AdtDefKind::Opaque { .. } => None,
         }
+    }
+
+    fn kind(&self) -> &AdtDefKind {
+        &self.0.kind
     }
 }
 

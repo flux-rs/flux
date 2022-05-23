@@ -46,15 +46,15 @@ impl LoweringCtxt {
 
         let refined_by = cx.lower_params(&name_gen, adt_def.refined_by());
 
-        match adt_def {
-            core::AdtDef::Transparent { variants, .. } => {
+        match &adt_def.kind {
+            core::AdtDefKind::Transparent { variants, .. } => {
                 let variants = variants
                     .iter()
                     .map(|variant| cx.lower_variant_def(variant))
                     .collect_vec();
-                ty::AdtDef::transparent(refined_by, IndexVec::from_raw(variants))
+                ty::AdtDef::transparent(adt_def.def_id, refined_by, IndexVec::from_raw(variants))
             }
-            core::AdtDef::Opaque { .. } => ty::AdtDef::opaque(refined_by),
+            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, refined_by),
         }
     }
 
