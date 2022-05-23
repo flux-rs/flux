@@ -5,6 +5,7 @@ use std::iter;
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
+    param_infer,
     pure_ctxt::{PureCtxt, Scope},
     subst::Subst,
     ty::{BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
@@ -174,17 +175,16 @@ impl TypeEnv {
                 self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, ty2, &mut subst);
             }
         }
-        // println!("bb_env.params = {:?}", bb_env.params);
 
-        assert!(subst
-            .check_inference(
-                bb_env
-                    .params
-                    .iter()
-                    .filter(|param| !param.sort.is_loc())
-                    .map(|param| param.name)
-            )
-            .is_ok());
+        assert!(param_infer::check_inference(
+            &subst,
+            bb_env
+                .params
+                .iter()
+                .filter(|param| !param.sort.is_loc())
+                .map(|param| param.name)
+        )
+        .is_ok());
         subst
     }
 
@@ -199,7 +199,7 @@ impl TypeEnv {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(_, exprs1), TyKind::Indexed(_, exprs2)) => {
                 for (e1, e2) in iter::zip(exprs1, exprs2) {
-                    subst.infer_from_exprs(params, e1, e2);
+                    param_infer::infer_from_exprs(subst, params, e1, e2);
                 }
             }
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {

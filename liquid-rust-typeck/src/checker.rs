@@ -17,6 +17,7 @@ use crate::{
     dbg,
     global_env::GlobalEnv,
     lowering::{self, LoweringCtxt},
+    param_infer,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     subst::Subst,
     ty::{
@@ -163,7 +164,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let fn_sig = genv.lookup_fn_sig(def_id);
 
         let mut pcx = constraint.pure_context_at_root();
-        let subst = Subst::with_fresh_names(&mut pcx, fn_sig.params());
+
+        let mut subst = Subst::empty();
+        for param in fn_sig.params() {
+            let e = pcx.push_binding(param.sort.clone(), &Pred::tt());
+            subst.insert(param.name, e);
+        }
 
         let fn_sig = subst.subst_fn_sig(fn_sig.value());
 
@@ -388,8 +394,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
-        if subst
-            .infer_from_fn_call(self.genv, pcx, env, &actuals, &fn_sig)
+        if param_infer::infer_from_fn_call(&mut subst, self.genv, pcx, env, &actuals, &fn_sig)
             .is_err()
         {
             self.sess

@@ -25,6 +25,7 @@ mod dbg;
 pub mod global_env;
 mod intern;
 pub mod lowering;
+mod param_infer;
 mod pretty;
 mod pure_ctxt;
 mod subst;

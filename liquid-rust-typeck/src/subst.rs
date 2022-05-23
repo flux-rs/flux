@@ -1,18 +1,13 @@
-use std::iter;
-
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
-use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv};
+use crate::ty::*;
 
 #[derive(Debug)]
 pub struct Subst<'a> {
     map: FxHashMap<Name, Expr>,
     types: &'a [Ty],
 }
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct InferenceError(Name);
 
 impl Subst<'_> {
     pub fn empty() -> Self {
@@ -23,17 +18,12 @@ impl Subst<'_> {
         Subst { types, map: FxHashMap::default() }
     }
 
-    pub fn with_fresh_names(pcx: &mut PureCtxt, params: &[Param]) -> Self {
-        let mut subst = Self::empty();
-        for param in params {
-            let e = pcx.push_binding(param.sort.clone(), &Pred::tt());
-            subst.insert(param.name, e);
-        }
-        subst
-    }
-
     pub fn insert(&mut self, from: Name, to: impl Into<Expr>) -> Option<Expr> {
         self.map.insert(from, to.into())
+    }
+
+    pub fn contains(&self, from: Name) -> bool {
+        self.map.contains_key(&from)
     }
 
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
@@ -188,136 +178,5 @@ impl Subst<'_> {
             .get(param.index as usize)
             .cloned()
             .unwrap_or_else(|| Ty::param(param))
-    }
-
-    pub fn infer_from_fn_call(
-        &mut self,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        env: &TypeEnv,
-        actuals: &[Ty],
-        fn_sig: &Binders<FnSig>,
-    ) -> Result<(), InferenceError> {
-        assert!(actuals.len() == fn_sig.value().args().len());
-        let params = fn_sig.params().iter().map(|param| param.name).collect();
-
-        let requires = fn_sig
-            .value()
-            .requires()
-            .iter()
-            .filter_map(|constr| {
-                if let Constr::Type(path, ty) = constr {
-                    Some((path.clone(), ty.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for (actual, formal) in actuals.iter().zip(fn_sig.value().args().iter()) {
-            self.infer_from_tys(genv, pcx, &params, env, actual, &requires, formal);
-        }
-
-        self.check_inference(params.into_iter())
-    }
-
-    pub fn check_inference(
-        &self,
-        params: impl Iterator<Item = Name>,
-    ) -> Result<(), InferenceError> {
-        for name in params {
-            if !self.map.contains_key(&name) {
-                return Err(InferenceError(name));
-            }
-        }
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn infer_from_tys(
-        &mut self,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        params: &FxHashSet<Name>,
-        env: &TypeEnv,
-        ty1: &TyS,
-        requires: &FxHashMap<Path, Ty>,
-        ty2: &TyS,
-    ) {
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(_, exprs1), TyKind::Indexed(_, exprs2)) => {
-                for (e1, e2) in iter::zip(exprs1, exprs2) {
-                    self.infer_from_exprs(params, e1, e2);
-                }
-            }
-            (TyKind::Exists(bty1, p), TyKind::Indexed(_, exprs2)) => {
-                // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
-                let sorts = genv.sorts(bty1);
-                let exprs1 = pcx.push_bindings(&sorts, p);
-                for (e1, e2) in iter::zip(exprs1, exprs2) {
-                    self.infer_from_exprs(params, &e1, e2);
-                }
-            }
-            (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
-                self.infer_from_tys(genv, pcx, params, env, &env.lookup_path(path1), requires, ty2);
-            }
-            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-                self.infer_from_paths(params, path1, path2);
-                self.infer_from_tys(
-                    genv,
-                    pcx,
-                    params,
-                    env,
-                    &env.lookup_path(path1),
-                    requires,
-                    &requires[path2],
-                );
-            }
-            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
-                debug_assert_eq!(mode1, mode2);
-                self.infer_from_tys(genv, pcx, params, env, ty1, requires, ty2);
-            }
-            _ => {}
-        }
-    }
-
-    fn infer_from_paths(&mut self, _params: &FxHashSet<Name>, path1: &Path, path2: &Path) {
-        // TODO(nilehmann) we should probably do something with _params
-        if !path2.projection().is_empty() {
-            return;
-        }
-        if let Loc::Free(name) = path2.loc {
-            let new = Expr::path(path1.clone());
-            match self.insert(name, new.clone()) {
-                Some(old) if old != new => {
-                    todo!("ambiguous instantiation for location parameter`",);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
-        match (e1.kind(), e2.kind()) {
-            (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
-                if let Some(old_e) = self.insert(*name, e1.clone()) {
-                    if &old_e != e2 {
-                        todo!(
-                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *name,
-                            old_e,
-                            e1
-                        )
-                    }
-                }
-            }
-            (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
-                debug_assert_eq!(exprs1.len(), exprs2.len());
-                for (e1, e2) in exprs1.iter().zip(exprs2) {
-                    self.infer_from_exprs(params, e1, e2);
-                }
-            }
-            _ => {}
-        }
     }
 }
