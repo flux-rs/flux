@@ -7,13 +7,8 @@ use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt, ty::*, type_env::TypeEnv
 
 #[derive(Debug)]
 pub struct Subst<'a> {
-    map: FxHashMap<Name, PathOrExpr>,
+    map: FxHashMap<Name, Expr>,
     types: &'a [Ty],
-}
-
-enum PathOrExpr {
-    Path(Path),
-    Expr(Expr),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -32,33 +27,13 @@ impl Subst<'_> {
         let mut subst = Self::empty();
         for param in params {
             let e = pcx.push_binding(param.sort.clone(), &Pred::tt());
-            subst.insert(param.name, &param.sort, e);
+            subst.insert(param.name, e);
         }
         subst
     }
 
-    pub fn insert(&mut self, name: Name, sort: &Sort, to: Expr) {
-        match sort.kind() {
-            SortKind::Loc => {
-                if let ExprKind::Var(Var::Free(to)) = to.kind() {
-                    self.map
-                        .insert(name, PathOrExpr::Path(Loc::Free(*to).into()));
-                } else {
-                    panic!("invalid loc substitution: {name:?} -> {to:?}");
-                }
-            }
-            _ => {
-                self.map.insert(name, PathOrExpr::Expr(to));
-            }
-        }
-    }
-
-    pub fn insert_expr_subst(&mut self, name: Name, expr: Expr) {
-        self.map.insert(name, PathOrExpr::Expr(expr));
-    }
-
-    pub fn insert_loc_subst(&mut self, name: Name, to: impl Into<Path>) {
-        self.map.insert(name, PathOrExpr::Path(to.into()));
+    pub fn insert(&mut self, from: Name, to: impl Into<Expr>) -> Option<Expr> {
+        self.map.insert(from, to.into())
     }
 
     pub fn subst_fn_sig(&self, sig: &FnSig) -> FnSig {
@@ -122,10 +97,7 @@ impl Subst<'_> {
             Loc::Local(_) => path.clone(),
             Loc::Free(name) => {
                 match self.map.get(&name) {
-                    Some(PathOrExpr::Expr(e)) => {
-                        panic!("substituting expr for loc: `{:?}` -> `{e:?}`", path.loc)
-                    }
-                    Some(PathOrExpr::Path(inner)) => {
+                    Some(e) if let ExprKind::Path(inner) = e.kind() => {
                         let proj = inner
                             .projection()
                             .iter()
@@ -133,6 +105,12 @@ impl Subst<'_> {
                             .copied()
                             .collect_vec();
                         Path::new(inner.loc, proj)
+                    }
+                    Some(e) if let ExprKind::Var(Var::Free(to)) = e.kind() => {
+                        Path::new(Loc::Free(*to), path.projection())
+                    }
+                    Some(e) => {
+                        panic!("invalid substitution in path `{path:?}`: `{:?}` -> `{e:?}`", path.loc)
                     }
                     None => path.clone(),
                 }
@@ -171,22 +149,17 @@ impl Subst<'_> {
                     _ => Expr::proj(tup, *field),
                 }
             }
-            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| self.subst_expr(e))),
+            ExprKind::Tuple(exprs) => {
+                Expr::tuple(exprs.iter().map(|e| self.subst_expr(e)).collect_vec())
+            }
+            ExprKind::Path(path) => Expr::path(self.subst_path(path)),
         }
     }
 
     pub fn subst_var(&self, var: Var) -> Expr {
         match var {
             Var::Bound(_) => var.into(),
-            Var::Free(name) => {
-                match self.map.get(&name) {
-                    Some(PathOrExpr::Path(loc)) => {
-                        panic!("substituting loc for var: `{name:?}` -> `{loc:?}`")
-                    }
-                    Some(PathOrExpr::Expr(expr)) => expr.clone(),
-                    None => var.into(),
-                }
-            }
+            Var::Free(name) => self.map.get(&name).cloned().unwrap_or_else(|| var.into()),
         }
     }
 
@@ -195,14 +168,16 @@ impl Subst<'_> {
             Loc::Local(local) => Loc::Local(local),
             Loc::Free(name) => {
                 match self.map.get(&name) {
-                    Some(PathOrExpr::Expr(e)) => {
-                        panic!("substituting expr for loc: `{loc:?}` -> `{e:?}`")
+                    Some(e) if let ExprKind::Path(path) = e.kind() && path.projection().is_empty() => {
+                        path.loc
                     }
-                    Some(PathOrExpr::Path(path)) if path.projection().is_empty() => path.loc,
-                    Some(PathOrExpr::Path(path)) => {
-                        panic!("subtituting path for loc: `{loc:?}` -> `{path:?}`")
+                    Some(e) if let ExprKind::Var(Var::Free(to)) = e.kind() => {
+                        Loc::Free(*to)
                     }
-                    None => Loc::Free(name),
+                    Some(e) => {
+                        panic!("invalid loc substitution: `{loc:?}` -> `{e:?}`")
+                    }
+                    None => Loc::Free(name)
                 }
             }
         }
@@ -312,11 +287,11 @@ impl Subst<'_> {
             return;
         }
         if let Loc::Free(name) = path2.loc {
-            match self.map.insert(name, PathOrExpr::Path(path1.clone())) {
-                Some(PathOrExpr::Path(old_path)) if &old_path != path1 => {
+            let new = Expr::path(path1.clone());
+            match self.insert(name, new.clone()) {
+                Some(old) if old != new => {
                     todo!("ambiguous instantiation for location parameter`",);
                 }
-                Some(_) => panic!("subsitution of expression for loc"),
                 _ => {}
             }
         }
@@ -325,21 +300,15 @@ impl Subst<'_> {
     pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
-                match self.map.insert(*name, PathOrExpr::Expr(e1.clone())) {
-                    Some(PathOrExpr::Expr(old_e)) => {
-                        if &old_e != e2 {
-                            todo!(
-                                "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                                *name,
-                                old_e,
-                                e1
-                            )
-                        }
+                if let Some(old_e) = self.insert(*name, e1.clone()) {
+                    if &old_e != e2 {
+                        todo!(
+                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                            *name,
+                            old_e,
+                            e1
+                        )
                     }
-                    Some(PathOrExpr::Path(old_l)) => {
-                        panic!("subsitution of loc for expr: `{name:?}`: old `{old_l:?}`, new: `{e1:?}`")
-                    }
-                    None => {}
                 }
             }
             (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
@@ -351,28 +320,4 @@ impl Subst<'_> {
             _ => {}
         }
     }
-}
-
-mod pretty {
-    use super::*;
-    use crate::pretty::*;
-
-    impl Pretty for PathOrExpr {
-        fn fmt(&self, cx: &PPrintCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                PathOrExpr::Path(loc) => w!("loc${:?}", loc),
-                PathOrExpr::Expr(e) => {
-                    let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
-                    if e.is_atom() {
-                        w!("expr${:?}", e)
-                    } else {
-                        w!("expr$({:?})", e)
-                    }
-                }
-            }
-        }
-    }
-
-    impl_debug_with_default_cx!(PathOrExpr);
 }

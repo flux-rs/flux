@@ -230,7 +230,7 @@ impl TypeEnv {
         }
         if let (Loc::Free(loc1), Loc::Free(loc2)) = (path1.loc, path2.loc) {
             if !bb_env.scope.contains(loc1) && !bb_env.scope.contains(loc2) {
-                subst.insert_loc_subst(loc2, Loc::Free(loc1));
+                subst.insert(loc2, Path::from(Loc::Free(loc1)));
             }
         }
     }
@@ -301,7 +301,7 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
             let e = pcx.push_binding(sort.clone(), &Pred::tt());
-            subst.insert(*name, sort, e);
+            subst.insert(*name, e);
         }
         self.env.clone().subst(&subst)
     }
@@ -330,7 +330,7 @@ impl TypeEnvInfer {
                 if !scope.contains(loc) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, Sort::loc());
-                    subst.insert_loc_subst(loc, Loc::Free(fresh));
+                    subst.insert(loc, Path::from(Loc::Free(fresh)));
                 }
             }
         }
@@ -617,7 +617,7 @@ impl BasicBlockEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
             let e = pcx.push_binding(param.sort.clone(), &subst.subst_pred(constr));
-            subst.insert(param.name, &param.sort, e);
+            subst.insert(param.name, e);
         }
         self.env.clone().subst(&subst)
     }

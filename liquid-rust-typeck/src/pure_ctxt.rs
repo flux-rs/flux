@@ -435,6 +435,7 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
                 .fold(expr_to_fixpoint(cx, e), |e, proj| fixpoint::Expr::Proj(Box::new(e), proj))
         }
         ExprKind::Tuple(exprs) => tuple_to_fixpoint(cx, exprs),
+        ExprKind::Path(_) => panic!("unexpected path"),
     }
 }
 

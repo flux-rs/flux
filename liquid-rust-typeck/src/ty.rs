@@ -185,7 +185,8 @@ pub enum ExprKind {
     BinaryOp(BinOp, Expr, Expr),
     UnaryOp(UnOp, Expr),
     Proj(Expr, u32),
-    Tuple(Vec<Expr>),
+    Tuple(List<Expr>),
+    Path(Path),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -292,7 +293,7 @@ impl AdtDef {
         let mut subst = Subst::with_type_substs(substs.as_slice());
         debug_assert_eq!(exprs.len(), self.refined_by().len());
         for (e, param) in exprs.iter().zip(self.refined_by()) {
-            subst.insert_expr_subst(param.name, e.clone());
+            subst.insert(param.name, e.clone());
         }
         Some(fields.iter().map(|ty| subst.subst_ty(ty)).collect())
     }
@@ -419,12 +420,12 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit(..))
     }
 
-    fn gather_vars(&self, vars: &mut FxHashSet<Name>) {
+    fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
-            TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.gather_vars(vars)),
-            TyKind::Exists(_, Pred::Expr(e)) => e.gather_vars(vars),
-            TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.gather_vars(vars)),
-            TyKind::Ref(_, ty) => ty.gather_vars(vars),
+            TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.collect_vars(vars)),
+            TyKind::Exists(_, Pred::Expr(e)) => e.collect_vars(vars),
+            TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.collect_vars(vars)),
+            TyKind::Ref(_, ty) => ty.collect_vars(vars),
             TyKind::Ptr(_)
             | TyKind::Uninit(_)
             | TyKind::Float(_)
@@ -437,7 +438,7 @@ impl TyS {
 
     pub fn vars(&self) -> FxHashSet<Name> {
         let mut vars = FxHashSet::default();
-        self.gather_vars(&mut vars);
+        self.collect_vars(&mut vars);
         vars
     }
 
@@ -645,7 +646,7 @@ impl Expr {
     }
 
     pub fn unit() -> Expr {
-        Expr::tuple([])
+        Expr::tuple(vec![])
     }
 
     pub fn var(var: impl Into<Var>) -> Expr {
@@ -656,9 +657,8 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn tuple(exprs: impl IntoIterator<Item = Expr>) -> Expr {
-        let exprs = exprs.into_iter().collect_vec();
-        ExprKind::Tuple(exprs).intern()
+    pub fn tuple(exprs: impl Into<List<Expr>>) -> Expr {
+        ExprKind::Tuple(exprs.into()).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -687,6 +687,10 @@ impl Expr {
 
     pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
         ExprKind::Proj(e.into(), proj).intern()
+    }
+
+    pub fn path(path: Path) -> Expr {
+        ExprKind::Path(path).intern()
     }
 
     pub fn not(&self) -> Expr {
@@ -736,29 +740,38 @@ impl ExprS {
                     _ => Expr::proj(tup, *field),
                 }
             }
-            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.subst_bound_vars(exprs))),
+            ExprKind::Tuple(exprs) => {
+                Expr::tuple(
+                    exprs
+                        .iter()
+                        .map(|e| e.subst_bound_vars(exprs))
+                        .collect_vec(),
+                )
+            }
+            ExprKind::Path(path) => Expr::path(path.clone()),
         }
     }
 
-    fn gather_vars(&self, vars: &mut FxHashSet<Name>) {
+    fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
             ExprKind::Var(Var::Free(name)) => {
                 vars.insert(*name);
             }
             ExprKind::BinaryOp(_, e1, e2) => {
-                e1.gather_vars(vars);
-                e2.gather_vars(vars);
+                e1.collect_vars(vars);
+                e2.collect_vars(vars);
             }
-            ExprKind::UnaryOp(_, e) => e.gather_vars(vars),
-            ExprKind::Proj(e, _) => e.gather_vars(vars),
-            ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.gather_vars(vars)),
+            ExprKind::Path(path) => path.collect_vars(vars),
+            ExprKind::UnaryOp(_, e) => e.collect_vars(vars),
+            ExprKind::Proj(e, _) => e.collect_vars(vars),
+            ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.collect_vars(vars)),
             ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
         }
     }
 
     pub fn vars(&self) -> FxHashSet<Name> {
         let mut vars = FxHashSet::default();
-        self.gather_vars(&mut vars);
+        self.collect_vars(&mut vars);
         vars
     }
 
@@ -782,7 +795,8 @@ impl ExprS {
             }
             ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.simplify()).intern(),
             ExprKind::Proj(e, field) => ExprKind::Proj(e.simplify(), *field).intern(),
-            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify())),
+            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify()).collect_vec()),
+            ExprKind::Path(path) => Expr::path(path.clone()),
         }
     }
 }
@@ -861,6 +875,12 @@ impl From<Var> for Expr {
     }
 }
 
+impl From<Path> for Expr {
+    fn from(path: Path) -> Self {
+        Expr::path(path)
+    }
+}
+
 impl Path {
     pub fn new<T>(loc: Loc, projection: T) -> Path
     where
@@ -871,6 +891,12 @@ impl Path {
 
     pub fn projection(&self) -> &[Field] {
         &self.projection[..]
+    }
+
+    fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
+        if let Loc::Free(name) = self.loc {
+            vars.insert(name);
+        }
     }
 }
 
@@ -1159,6 +1185,7 @@ mod pretty {
                 ExprKind::Tuple(exprs) => {
                     w!("({:?})", join!(", ", exprs))
                 }
+                ExprKind::Path(path) => w!("{:?}", path),
             }
         }
     }
