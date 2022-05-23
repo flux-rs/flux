@@ -4,7 +4,6 @@ use itertools::Itertools;
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_core::ir::{Field, Place, PlaceElem};
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
 
 use crate::{
     global_env::GlobalEnv,
@@ -13,7 +12,7 @@ use crate::{
     ty::{AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var, VariantIdx},
 };
 
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
     map: FxHashMap<Loc, Node>,
 }
@@ -33,17 +32,11 @@ impl LookupResult<'_> {
 }
 
 impl PathsTree {
-    pub fn lookup_place<F, R>(
-        &mut self,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        place: &Place,
-        f: F,
-    ) -> R
+    pub fn lookup_place<F, R>(&mut self, pcx: &mut PureCtxt, place: &Place, f: F) -> R
     where
         F: for<'a> FnOnce(&mut PureCtxt, LookupResult<'a>) -> R,
     {
-        self.lookup_place_iter(genv, pcx, Loc::Local(place.local), &mut place.projection.iter(), f)
+        self.lookup_place_iter(pcx, Loc::Local(place.local), &mut place.projection.iter(), f)
     }
 
     pub fn get(&self, path: &Path) -> Option<&Ty> {
@@ -122,25 +115,24 @@ impl PathsTree {
         PathsTree { map }
     }
 
-    pub fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut PathsTree) {
+    pub fn unfold_with(&mut self, other: &mut PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get_mut(loc) {
-                node1.unfold_with(genv, node2);
+                node1.unfold_with(node2);
             }
         }
     }
 
-    pub fn fold_unfold_with(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &PathsTree) {
+    pub fn fold_unfold_with(&mut self, pcx: &mut PureCtxt, other: &PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_with(genv, pcx, node2);
+                node1.fold_unfold_with(pcx, node2);
             }
         }
     }
 
     fn lookup_place_iter<R, F>(
         &mut self,
-        genv: &GlobalEnv,
         pcx: &mut PureCtxt,
         path: impl Into<Path>,
         place_proj: &mut std::slice::Iter<PlaceElem>,
@@ -164,23 +156,23 @@ impl PathsTree {
                 match elem {
                     FieldOrDowncast::Field(f) => {
                         proj.push(f);
-                        node = node.proj(genv, f);
+                        node = node.proj(f);
                     }
                     FieldOrDowncast::Downcast(variant_idx) => {
-                        node.unfold(genv, variant_idx);
+                        node.unfold(variant_idx);
                     }
                 }
             }
 
             match place_proj.next() {
                 Some(PlaceElem::Deref) => {
-                    let ty = node.fold(genv, pcx);
+                    let ty = node.fold(pcx);
                     match ty.kind() {
                         TyKind::Ptr(ref_path) => path = ref_path.clone(),
                         TyKind::Ref(mode, ty) => {
                             let ty = ty.clone();
                             let mode = *mode;
-                            let result = self.place_proj_ty(genv, pcx, mode, &ty, place_proj);
+                            let result = self.place_proj_ty(pcx, mode, &ty, place_proj);
                             return f(pcx, result);
                         }
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
@@ -188,7 +180,7 @@ impl PathsTree {
                 }
                 Some(elem) => unreachable!("expected deref, found `{elem:?}`"),
                 None => {
-                    let ty = node.fold(genv, pcx);
+                    let ty = node.fold(pcx);
                     return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty));
                 }
             }
@@ -197,7 +189,6 @@ impl PathsTree {
 
     fn place_proj_ty(
         &mut self,
-        genv: &GlobalEnv,
         pcx: &mut PureCtxt,
         mut mode: RefKind,
         ty: &Ty,
@@ -211,7 +202,7 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return self.lookup_place_iter(genv, pcx, path.clone(), proj, |_, lookup| {
+                    return self.lookup_place_iter(pcx, path.clone(), proj, |_, lookup| {
                         match lookup {
                             LookupResult::Ptr(_, ty) => LookupResult::Ref(mode, ty.clone()),
                             LookupResult::Ref(mode2, ty2) => {
@@ -221,7 +212,7 @@ impl PathsTree {
                     });
                 }
                 (PlaceElem::Field(f), _) => {
-                    let (_, fields) = ty.unfold(genv, VariantIdx::from_u32(0)).unwrap();
+                    let (_, fields) = ty.unfold(VariantIdx::from_u32(0)).unwrap();
                     ty = fields[*f].clone();
                 }
                 _ => unreachable!(),
@@ -266,21 +257,21 @@ impl<'a> std::ops::IndexMut<&'a Path> for PathsTree {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 enum Node {
     Ty(Ty),
-    Adt(DefId, VariantIdx, IndexVec<Field, Node>),
+    Adt(AdtDef, VariantIdx, IndexVec<Field, Node>),
 }
 
 impl Node {
-    fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut Node) {
+    fn unfold_with(&mut self, other: &mut Node) {
         let (fields1, fields2) = match (&mut *self, &mut *other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.unfold(genv, *variant_idx), fields2)
+                (self.unfold(*variant_idx), fields2)
             }
             (Node::Adt(_, variant_idx, fields1), Node::Ty(_)) => {
-                (fields1, other.unfold(genv, *variant_idx))
+                (fields1, other.unfold(*variant_idx))
             }
             (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
                 debug_assert_eq!(variant_idx1, variant_idx2);
@@ -289,19 +280,19 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2.iter_mut()) {
-            field1.unfold_with(genv, field2);
+            field1.unfold_with(field2);
         }
     }
 
-    fn fold_unfold_with(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, other: &Node) {
+    fn fold_unfold_with(&mut self, pcx: &mut PureCtxt, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(..), Node::Ty(_)) => {
-                self.fold(genv, pcx);
+                self.fold(pcx);
                 return;
             }
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.unfold(genv, *variant_idx), fields2)
+                (self.unfold(*variant_idx), fields2)
             }
             (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
                 debug_assert_eq!(variant_idx1, variant_idx2);
@@ -310,14 +301,14 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_with(genv, pcx, field2);
+            field1.fold_unfold_with(pcx, field2);
         }
     }
 
-    fn unfold(&mut self, genv: &GlobalEnv, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
+    fn unfold(&mut self, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
         if let Node::Ty(ty) = self {
-            let (did, fields) = ty.unfold(genv, variant_idx).unwrap();
-            *self = Node::Adt(did, variant_idx, fields.into_iter().map(Node::Ty).collect());
+            let (adt_def, fields) = ty.unfold(variant_idx).unwrap();
+            *self = Node::Adt(adt_def, variant_idx, fields.into_iter().map(Node::Ty).collect());
         }
         match self {
             Node::Ty(_) => unreachable!(),
@@ -328,24 +319,20 @@ impl Node {
         }
     }
 
-    fn proj(&mut self, genv: &GlobalEnv, field: Field) -> &mut Node {
+    fn proj(&mut self, field: Field) -> &mut Node {
         match self {
-            Node::Ty(_) => &mut self.unfold(genv, VariantIdx::from_u32(0))[field],
+            Node::Ty(_) => &mut self.unfold(VariantIdx::from_u32(0))[field],
             Node::Adt(_, _, fields) => &mut fields[field],
         }
     }
 
-    fn fold(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) -> &mut Ty {
+    fn fold(&mut self, pcx: &mut PureCtxt) -> &mut Ty {
         match self {
             Node::Ty(ty) => ty,
-            Node::Adt(did, variant_idx, fields) => {
-                let fields = fields
-                    .iter_mut()
-                    .map(|n| n.fold(genv, pcx).clone())
-                    .collect_vec();
-                let adt_def = genv.adt_def(*did);
-                let exprs = fold(genv, pcx, &adt_def, &fields[..], *variant_idx);
-                let adt = BaseTy::adt(*did, vec![]);
+            Node::Adt(adt_def, variant_idx, fields) => {
+                let fields = fields.iter_mut().map(|n| n.fold(pcx).clone()).collect_vec();
+                let exprs = fold(pcx, adt_def, &fields[..], *variant_idx);
+                let adt = BaseTy::adt(adt_def.clone(), vec![]);
                 let ty = Ty::indexed(adt, exprs);
                 *self = Node::Ty(ty);
                 if let Node::Ty(ty) = self {
@@ -371,17 +358,11 @@ impl Node {
 
 type ParamInst = FxHashMap<Name, Expr>;
 
-fn fold(
-    genv: &GlobalEnv,
-    pcx: &mut PureCtxt,
-    adt_def: &AdtDef,
-    tys: &[Ty],
-    variant_idx: VariantIdx,
-) -> Vec<Expr> {
+fn fold(pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Expr> {
     let fields = &adt_def.variants().unwrap()[variant_idx].fields;
     let mut params = FxHashMap::default();
     for (ty1, ty2) in iter::zip(tys, fields) {
-        ty_infer_folding(genv, pcx, &mut params, ty1, ty2);
+        ty_infer_folding(pcx, &mut params, ty1, ty2);
     }
     adt_def
         .refined_by()
@@ -390,40 +371,28 @@ fn fold(
         .collect()
 }
 
-fn ty_infer_folding(
-    genv: &GlobalEnv,
-    pcx: &mut PureCtxt,
-    params: &mut ParamInst,
-    ty1: &Ty,
-    ty2: &Ty,
-) {
+fn ty_infer_folding(pcx: &mut PureCtxt, params: &mut ParamInst, ty1: &Ty, ty2: &Ty) {
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
-            bty_infer_folding(genv, pcx, params, bty1, bty2);
+            bty_infer_folding(pcx, params, bty1, bty2);
             for (e1, e2) in iter::zip(exprs1, exprs2) {
                 expr_infer_folding(params, e1, e2);
             }
         }
         (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
         (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-            ty_infer_folding(genv, pcx, params, ty1, ty2);
+            ty_infer_folding(pcx, params, ty1, ty2);
         }
         _ => {}
     }
 }
 
-fn bty_infer_folding(
-    genv: &GlobalEnv,
-    pcx: &mut PureCtxt,
-    params: &mut ParamInst,
-    bty1: &BaseTy,
-    bty2: &BaseTy,
-) {
-    if let (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) = (bty1, bty2) {
-        debug_assert_eq!(did1, did2);
+fn bty_infer_folding(pcx: &mut PureCtxt, params: &mut ParamInst, bty1: &BaseTy, bty2: &BaseTy) {
+    if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
+        debug_assert_eq!(def1.def_id(), def2.def_id());
         debug_assert_eq!(substs1.len(), substs2.len());
         for (ty1, ty2) in iter::zip(substs1, substs2) {
-            ty_infer_folding(genv, pcx, params, ty1, ty2);
+            ty_infer_folding(pcx, params, ty1, ty2);
         }
     }
 }

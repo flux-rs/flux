@@ -13,12 +13,11 @@ pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 pub use rustc_target::abi::VariantIdx;
 
 use crate::{
-    global_env::GlobalEnv,
     intern::{impl_internable, Interned, List},
     subst::Subst,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Eq, PartialEq, Hash)]
@@ -141,7 +140,7 @@ pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
     Bool,
-    Adt(DefId, Substs),
+    Adt(AdtDef, Substs),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -254,6 +253,7 @@ impl AdtDef {
         let kind = AdtDefKind::Opaque { refined_by };
         AdtDef(Interned::new(AdtDefData { def_id, kind }))
     }
+
     pub fn transparent(
         def_id: DefId,
         refined_by: Vec<Param>,
@@ -261,6 +261,10 @@ impl AdtDef {
     ) -> Self {
         let kind = AdtDefKind::Transparent { refined_by, variants };
         AdtDef(Interned::new(AdtDefData { def_id, kind }))
+    }
+
+    pub fn def_id(&self) -> DefId {
+        self.0.def_id
     }
 
     pub fn refined_by(&self) -> &[Param] {
@@ -444,7 +448,7 @@ impl TyS {
                     BaseTy::Int(int_ty) => Layout::int(*int_ty),
                     BaseTy::Uint(uint_ty) => Layout::uint(*uint_ty),
                     BaseTy::Bool => Layout::bool(),
-                    BaseTy::Adt(did, _) => Layout::adt(*did),
+                    BaseTy::Adt(adt_def, _) => Layout::adt(adt_def.def_id()),
                 }
             }
             TyKind::Float(float_ty) => Layout::float(*float_ty),
@@ -460,14 +464,9 @@ impl TyS {
         }
     }
 
-    pub fn unfold(
-        &self,
-        genv: &GlobalEnv,
-        variant_idx: VariantIdx,
-    ) -> Option<(DefId, IndexVec<Field, Ty>)> {
-        if let TyKind::Indexed(BaseTy::Adt(did, substs), exprs) = self.kind() {
-            let adt_def = genv.adt_def(*did);
-            Some((*did, adt_def.unfold(substs, exprs, variant_idx)?))
+    pub fn unfold(&self, variant_idx: VariantIdx) -> Option<(AdtDef, IndexVec<Field, Ty>)> {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), exprs) = self.kind() {
+            Some((adt_def.clone(), adt_def.unfold(substs, exprs, variant_idx)?))
         } else {
             panic!("type cannot be unfolded: `{self:?}`")
         }
@@ -533,15 +532,15 @@ impl LayoutKind {
 }
 
 impl BaseTy {
-    pub fn adt(def_id: DefId, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(def_id, Substs::new(substs.into_iter().collect_vec()))
+    pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
+        BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
     }
 
     fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> BaseTy {
         match self {
-            BaseTy::Adt(did, substs) => {
+            BaseTy::Adt(adt_def, substs) => {
                 let substs = substs.iter().map(|ty| ty.fill_holes(mk_pred));
-                BaseTy::adt(*did, substs)
+                BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
         }
@@ -549,9 +548,9 @@ impl BaseTy {
 
     fn with_holes(&self) -> BaseTy {
         match self {
-            BaseTy::Adt(did, substs) => {
+            BaseTy::Adt(adt_def, substs) => {
                 let substs = substs.iter().map(|ty| ty.with_holes());
-                BaseTy::adt(*did, substs)
+                BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
         }
@@ -1046,7 +1045,7 @@ mod pretty {
             BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => w!("bool")?,
-            BaseTy::Adt(did, _) => w!("{:?}", did)?,
+            BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
         }
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {

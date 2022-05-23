@@ -147,9 +147,9 @@ impl Subst<'_> {
 
     fn subst_base_ty(&self, bty: &BaseTy) -> BaseTy {
         match bty {
-            BaseTy::Adt(did, substs) => {
+            BaseTy::Adt(adt_def, substs) => {
                 let substs = substs.iter().map(|ty| self.subst_ty(ty));
-                BaseTy::adt(*did, substs)
+                BaseTy::adt(adt_def.clone(), substs)
             }
             _ => bty.clone(),
         }

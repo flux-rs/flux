@@ -324,7 +324,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let _ = env.move_place(self.genv, pcx, place);
+                let _ = env.move_place(pcx, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
@@ -352,7 +352,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
-        let ret_place_ty = env.lookup_place(self.genv, pcx, Place::RETURN);
+        let ret_place_ty = env.lookup_place(pcx, Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -382,7 +382,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
 
         // Infer substitution
-        let cx = LoweringCtxt::empty();
+        let cx = LoweringCtxt::empty(self.genv);
         let substs = substs
             .iter()
             .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
@@ -562,8 +562,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 Ok(self.check_binary_op(pcx, env, source_info, *bin_op, op1, op2))
             }
-            Rvalue::MutRef(place) => Ok(env.borrow_mut(self.genv, pcx, place)),
-            Rvalue::ShrRef(place) => Ok(env.borrow_shr(self.genv, pcx, place)),
+            Rvalue::MutRef(place) => Ok(env.borrow_mut(pcx, place)),
+            Rvalue::ShrRef(place) => Ok(env.borrow_shr(pcx, place)),
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(pcx, env, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
@@ -780,11 +780,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(self.genv, pcx, p)
+                env.lookup_place(pcx, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(self.genv, pcx, p)
+                env.move_place(pcx, p)
             }
             Operand::Constant(c) => self.check_constant(c),
         };

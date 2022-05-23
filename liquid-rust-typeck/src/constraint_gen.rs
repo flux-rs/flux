@@ -123,10 +123,10 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 debug_assert_eq!(uint_ty1, uint_ty2);
             }
             (BaseTy::Bool, BaseTy::Bool) => {}
-            (BaseTy::Adt(did1, substs1), BaseTy::Adt(did2, substs2)) => {
-                debug_assert_eq!(did1, did2);
+            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
+                debug_assert_eq!(def1.def_id(), def2.def_id());
                 debug_assert_eq!(substs1.len(), substs2.len());
-                let variances = self.genv.variances_of(*did1);
+                let variances = self.genv.variances_of(def1.def_id());
                 for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
                     self.polymorphic_subtyping(*variance, ty1, ty2);
                 }

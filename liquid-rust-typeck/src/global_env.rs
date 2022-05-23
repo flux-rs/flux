@@ -49,12 +49,12 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
-        let fn_sig = LoweringCtxt::lower_fn_sig(fn_sig);
+        let fn_sig = LoweringCtxt::lower_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
     pub fn register_adt_def(&mut self, def_id: DefId, adt_def: core::AdtDef) {
-        let adt_def = LoweringCtxt::lower_adt_def(&adt_def);
+        let adt_def = LoweringCtxt::lower_adt_def(self, &adt_def);
         self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
@@ -66,7 +66,7 @@ impl<'tcx> GlobalEnv<'tcx> {
                 let fn_sig = surface::default_fn_sig(self.tcx, def_id);
                 let fn_sig = desugar::desugar_fn_sig(self.tcx.sess, self, fn_sig).unwrap();
                 debug_assert!(Wf::new(self.tcx.sess, self).check_fn_sig(&fn_sig).is_ok());
-                LoweringCtxt::lower_fn_sig(fn_sig)
+                LoweringCtxt::lower_fn_sig(self, fn_sig)
             })
             .clone()
     }
@@ -81,7 +81,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .entry(def_id)
             .or_insert_with(|| {
                 let adt_def = core::AdtDef::default(self.tcx, self.tcx.adt_def(def_id));
-                LoweringCtxt::lower_adt_def(&adt_def)
+                LoweringCtxt::lower_adt_def(self, &adt_def)
             })
             .clone()
     }
@@ -90,7 +90,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) => vec![Sort::int()],
             BaseTy::Bool => vec![Sort::bool()],
-            BaseTy::Adt(def_id, _) => self.adt_def(*def_id).sorts(),
+            BaseTy::Adt(adt_def, _) => adt_def.sorts(),
         }
     }
 
@@ -104,7 +104,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         let args = &variant.fields[..];
         // TODO(nilehmann) get generics from somewhere
         // TODO(nilehmann) we should store the return type in the variant
-        let bty = BaseTy::adt(def_id, vec![]);
+        let bty = BaseTy::adt(adt_def.clone(), vec![]);
         let exprs = adt_def
             .refined_by()
             .iter()
