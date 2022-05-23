@@ -10,6 +10,8 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_span;
 extern crate rustc_target;
+extern crate rustc_errors;
+extern crate rustc_const_eval;
 
 mod intern;
 pub mod pretty;

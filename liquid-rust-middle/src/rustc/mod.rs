@@ -3,3 +3,6 @@
 //! more features we should be able to work directly on rustc's structures.
 
 pub mod mir;
+pub mod ty;
+
+mod lowering;

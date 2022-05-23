@@ -3,25 +3,28 @@
 use std::fmt;
 
 use itertools::Itertools;
-use liquid_rust_common::index::{Idx, IndexVec};
+
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::{
-    mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
-    ty::Variance,
-};
-
 use rustc_middle::{
     mir,
     ty::{FloatTy, IntTy, UintTy},
 };
+pub use rustc_middle::{
+    mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
+    ty::Variance,
+};
+use rustc_target::abi::VariantIdx;
 
-use crate::ty::{Layout, Ty, VariantIdx};
+use liquid_rust_common::index::{Idx, IndexVec};
+
+use super::ty::{GenericArg, Ty};
+use crate::intern::List;
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub local_decls: IndexVec<Local, LocalDecl>,
-    pub mir: mir::Body<'tcx>,
+    pub(crate) rustc_mir: mir::Body<'tcx>,
 }
 
 #[derive(Debug)]
@@ -32,7 +35,7 @@ pub struct BasicBlockData {
 }
 
 pub struct LocalDecl {
-    pub layout: Layout,
+    pub ty: Ty,
     pub source_info: SourceInfo,
 }
 
@@ -46,7 +49,7 @@ pub enum TerminatorKind {
     Return,
     Call {
         func: DefId,
-        substs: Vec<Ty>,
+        substs: List<GenericArg>,
         args: Vec<Operand>,
         destination: Option<(Place, BasicBlock)>,
         cleanup: Option<BasicBlock>,
@@ -112,7 +115,7 @@ pub enum Rvalue {
 }
 
 pub enum AggregateKind {
-    Adt(DefId, VariantIdx, Vec<Ty>),
+    Adt(DefId, VariantIdx, List<GenericArg>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -165,29 +168,29 @@ pub enum FakeReadCause {
 impl Body<'_> {
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.mir.arg_count + 1).map(Local::new)
+        (1..self.rustc_mir.arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.mir.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.rustc_mir.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
     pub fn reverse_postorder(&self) -> impl ExactSizeIterator<Item = BasicBlock> + '_ {
-        mir::traversal::reverse_postorder(&self.mir).map(|(bb, _)| bb)
+        mir::traversal::reverse_postorder(&self.rustc_mir).map(|(bb, _)| bb)
     }
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        self.mir.predecessors()[bb].len() > (if bb == START_BLOCK { 0 } else { 1 })
+        self.rustc_mir.predecessors()[bb].len() > (if bb == START_BLOCK { 0 } else { 1 })
     }
 
     #[inline]
     pub fn dominators(&self) -> Dominators<BasicBlock> {
-        self.mir.dominators()
+        self.rustc_mir.dominators()
     }
 
     #[inline]
