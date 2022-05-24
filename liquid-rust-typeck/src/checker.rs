@@ -39,7 +39,7 @@ use crate::{
     constraint_gen::{ConstraintGen, Tag},
     dbg,
     global_env::GlobalEnv,
-    lowering::{self, LoweringCtxt},
+    lowering::LoweringCtxt,
     param_infer,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
@@ -227,10 +227,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for local in body.vars_and_temps_iter() {
-            env.alloc(local, lowering::lower_layout(&body.local_decls[local].layout));
+            env.alloc(local);
         }
 
-        env.alloc(RETURN_PLACE, lowering::lower_layout(&body.local_decls[RETURN_PLACE].layout));
+        env.alloc(RETURN_PLACE);
         env
     }
 

@@ -61,7 +61,7 @@ impl Subst<'_> {
             TyKind::Ptr(path) => Ty::strg_ref(self.subst_path(path)),
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, self.subst_ty(ty)),
-            TyKind::Uninit(_) => ty.clone(),
+            TyKind::Uninit => ty.clone(),
             TyKind::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.subst_ty(ty)).collect_vec();
                 Ty::tuple(tys)

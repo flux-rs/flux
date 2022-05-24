@@ -22,7 +22,7 @@ use crate::{
 
 use self::paths_tree::{LookupResult, PathsTree};
 
-use super::ty::{Layout, Loc, Name, Pred, Sort};
+use super::ty::{Loc, Name, Pred, Sort};
 
 #[derive(Clone, Default)]
 pub struct TypeEnv {
@@ -53,9 +53,9 @@ impl TypeEnv {
         self.bindings.insert(loc, ty);
     }
 
-    pub fn alloc(&mut self, loc: impl Into<Loc>, layout: Layout) {
+    pub fn alloc(&mut self, loc: impl Into<Loc>) {
         let loc = loc.into();
-        self.bindings.insert(loc, Ty::uninit(layout));
+        self.bindings.insert(loc, Ty::uninit());
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
@@ -129,7 +129,7 @@ impl TypeEnv {
             match result {
                 LookupResult::Ptr(_, ty) => {
                     let old = ty.clone();
-                    *ty = Ty::uninit(ty.layout());
+                    *ty = Ty::uninit();
                     old
                 }
                 LookupResult::Ref(RefKind::Mut, _) => {
@@ -385,7 +385,7 @@ impl TypeEnvInfer {
             | TyKind::Discr
             | TyKind::Float(_)
             | TyKind::Ptr(_)
-            | TyKind::Uninit(_)
+            | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_) => ty.clone(),
         }
@@ -501,14 +501,7 @@ impl TypeEnvInfer {
 
     fn join_ty(&mut self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit(layout), _) => {
-                debug_assert_eq!(layout, &ty2.layout());
-                Ty::uninit(layout.clone())
-            }
-            (_, TyKind::Uninit(layout)) => {
-                debug_assert_eq!(layout, &ty1.layout());
-                Ty::uninit(layout.clone())
-            }
+            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
                 Ty::strg_ref(path1.clone())
