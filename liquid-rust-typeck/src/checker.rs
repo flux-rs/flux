@@ -31,10 +31,8 @@ use liquid_rust_core::{
     ty as core,
 };
 use liquid_rust_middle::ty::{
-    self,
-    subst::Subst,
-    BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred, RefKind, Sort,
-    Ty, TyKind, Var,
+    self, subst::Subst, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred,
+    RefKind, Sort, Ty, TyKind, Var,
 };
 
 use crate::{
