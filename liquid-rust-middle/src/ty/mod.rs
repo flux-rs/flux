@@ -1,21 +1,23 @@
+pub mod subst;
+
 use std::{fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
-pub use liquid_rust_core::{ir::Field, ty::ParamTy};
 
-use liquid_rust_core::ir::Local;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
+use rustc_middle::{
+    mir::{Field, Local},
+    ty::ParamTy,
+};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{
-    intern::{impl_internable, Interned, List},
-    subst::Subst,
-};
+use crate::intern::{impl_internable, Interned, List};
+use subst::Subst;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -87,33 +89,12 @@ pub enum TyKind {
     Exists(BaseTy, Pred),
     Tuple(List<Ty>),
     Float(FloatTy),
-    Uninit(Layout),
+    Uninit,
     Ptr(Path),
     Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
     /// Used internally to represent result of `discriminant` RVal
-    Discr,
-}
-
-pub type Layout = Interned<LayoutS>;
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct LayoutS {
-    kind: LayoutKind,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum LayoutKind {
-    Bool,
-    Int(IntTy),
-    Uint(UintTy),
-    Float(FloatTy),
-    Adt(DefId),
-    Ref,
-    Param,
-    Tuple(List<Layout>),
-    Never,
     Discr,
 }
 
@@ -329,8 +310,8 @@ impl Ty {
         TyKind::Tuple(tys.into()).intern()
     }
 
-    pub fn uninit(layout: Layout) -> Ty {
-        TyKind::Uninit(layout).intern()
+    pub fn uninit() -> Ty {
+        TyKind::Uninit.intern()
     }
 
     pub fn indexed<T>(bty: BaseTy, exprs: T) -> Ty
@@ -373,9 +354,7 @@ impl Ty {
                 Ty::exists(bty, p)
             }
             TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.fill_holes(mk_pred)),
-            TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
-                self.clone()
-            }
+            TyKind::Float(_) | TyKind::Uninit | TyKind::Ptr(_) | TyKind::Param(_) => self.clone(),
             TyKind::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| ty.fill_holes(mk_pred)).collect_vec();
                 Ty::tuple(tys)
@@ -392,9 +371,7 @@ impl Ty {
                 Ty::exists(bty, Pred::Hole)
             }
             TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_holes()),
-            TyKind::Float(_) | TyKind::Uninit(_) | TyKind::Ptr(_) | TyKind::Param(_) => {
-                self.clone()
-            }
+            TyKind::Float(_) | TyKind::Uninit | TyKind::Ptr(_) | TyKind::Param(_) => self.clone(),
             TyKind::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| ty.with_holes()).collect_vec();
                 Ty::tuple(tys)
@@ -417,7 +394,7 @@ impl TyS {
     }
 
     pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit(..))
+        matches!(self.kind(), TyKind::Uninit)
     }
 
     fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
@@ -427,7 +404,7 @@ impl TyS {
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.collect_vars(vars)),
             TyKind::Ref(_, ty) => ty.collect_vars(vars),
             TyKind::Ptr(_)
-            | TyKind::Uninit(_)
+            | TyKind::Uninit
             | TyKind::Float(_)
             | TyKind::Exists(_, _)
             | TyKind::Param(_)
@@ -442,93 +419,12 @@ impl TyS {
         vars
     }
 
-    pub fn layout(&self) -> Layout {
-        match self.kind() {
-            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => {
-                match bty {
-                    BaseTy::Int(int_ty) => Layout::int(*int_ty),
-                    BaseTy::Uint(uint_ty) => Layout::uint(*uint_ty),
-                    BaseTy::Bool => Layout::bool(),
-                    BaseTy::Adt(adt_def, _) => Layout::adt(adt_def.def_id()),
-                }
-            }
-            TyKind::Float(float_ty) => Layout::float(*float_ty),
-            TyKind::Uninit(layout) => layout.clone(),
-            TyKind::Ptr(_) | TyKind::Ref(..) => Layout::mk_ref(),
-            TyKind::Param(_) => Layout::param(),
-            TyKind::Tuple(tys) => {
-                let layouts = tys.iter().map(|ty| ty.layout()).collect_vec();
-                Layout::tuple(layouts)
-            }
-            TyKind::Never => Layout::never(),
-            TyKind::Discr => Layout::discr(),
-        }
-    }
-
     pub fn unfold(&self, variant_idx: VariantIdx) -> Option<(AdtDef, IndexVec<Field, Ty>)> {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), exprs) = self.kind() {
             Some((adt_def.clone(), adt_def.unfold(substs, exprs, variant_idx)?))
         } else {
             panic!("type cannot be unfolded: `{self:?}`")
         }
-    }
-}
-
-impl Layout {
-    pub fn mk_ref() -> Layout {
-        LayoutKind::Ref.intern()
-    }
-
-    pub fn param() -> Layout {
-        LayoutKind::Param.intern()
-    }
-
-    pub fn float(float_ty: FloatTy) -> Layout {
-        LayoutKind::Float(float_ty).intern()
-    }
-
-    pub fn tuple(layouts: impl Into<List<Layout>>) -> Layout {
-        LayoutKind::Tuple(layouts.into()).intern()
-    }
-
-    pub fn int(int_ty: IntTy) -> Layout {
-        LayoutKind::Int(int_ty).intern()
-    }
-
-    pub fn uint(uint_ty: UintTy) -> Layout {
-        LayoutKind::Uint(uint_ty).intern()
-    }
-
-    pub fn adt(def_id: DefId) -> Layout {
-        LayoutKind::Adt(def_id).intern()
-    }
-
-    pub fn bool() -> Layout {
-        LayoutKind::Bool.intern()
-    }
-
-    pub fn never() -> Layout {
-        LayoutKind::Never.intern()
-    }
-
-    pub fn discr() -> Layout {
-        LayoutKind::Discr.intern()
-    }
-}
-
-impl LayoutS {
-    pub fn kind(&self) -> &LayoutKind {
-        &self.kind
-    }
-
-    pub fn is_unit(&self) -> bool {
-        matches!(self.kind(), LayoutKind::Tuple(tys) if tys.is_empty())
-    }
-}
-
-impl LayoutKind {
-    fn intern(self) -> Layout {
-        Interned::new(LayoutS { kind: self })
     }
 }
 
@@ -775,8 +671,8 @@ impl ExprS {
         vars
     }
 
-    /// Simplify expression applying some rules like removing double negation. This is used for pretty
-    /// printing.
+    /// Simplify expression applying some rules like removing double negation. This is only used
+    /// for pretty printing.
     pub fn simplify(&self) -> Expr {
         match self.kind() {
             ExprKind::Var(var) => ExprKind::Var(*var).intern(),
@@ -952,7 +848,6 @@ impl_internable!(
     TyS,
     ExprS,
     SortS,
-    LayoutS,
     [Ty],
     [Pred],
     [Expr],
@@ -960,7 +855,6 @@ impl_internable!(
     [KVar],
     [Constr],
     [Param],
-    [Layout]
 );
 
 mod pretty {
@@ -1038,7 +932,7 @@ mod pretty {
                     }
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
-                TyKind::Uninit(_) => w!("uninit"),
+                TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(loc) => w!("ptr({:?})", loc),
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),

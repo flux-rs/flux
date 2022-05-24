@@ -1,19 +1,15 @@
 [package]
 edition = "2021"
-name = "liquid-rust-typeck"
+name = "liquid-rust-middle"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dashmap = { version = "4.0.2", features = ["raw-api"] }
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-core = { path = "../liquid-rust-core" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
-liquid-rust-middle = { path = "../liquid-rust-middle" }
-liquid-rust-syntax = { path = "../liquid-rust-syntax" }
-quickscope = "0.1"
-tracing = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

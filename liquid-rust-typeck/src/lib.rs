@@ -23,13 +23,9 @@ mod checker;
 mod constraint_gen;
 mod dbg;
 pub mod global_env;
-mod intern;
 pub mod lowering;
 mod param_infer;
-mod pretty;
 mod pure_ctxt;
-mod subst;
-pub mod ty;
 mod type_env;
 pub mod wf;
 
@@ -43,8 +39,8 @@ use liquid_rust_common::{
     config::CONFIG,
     index::{IndexGen, IndexVec},
 };
-use liquid_rust_core::ir::Body;
 use liquid_rust_fixpoint::{self as fixpoint, FixpointResult};
+use liquid_rust_middle::{rustc::mir::Body, ty};
 use pure_ctxt::KVarStore;
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
@@ -52,12 +48,11 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
-use ty::Name;
 
 pub struct FixpointCtxt {
     kvars: KVarStore,
     name_gen: IndexGen<fixpoint::Name>,
-    name_map: FxHashMap<Name, fixpoint::Name>,
+    name_map: FxHashMap<ty::Name, fixpoint::Name>,
     tags: IndexVec<TagIdx, Tag>,
     tags_inv: FxHashMap<Tag, TagIdx>,
 }
@@ -86,7 +81,7 @@ pub fn check<'tcx>(
 
     let constraint = pure_cx.into_fixpoint(&mut fcx);
 
-    fcx.check(genv.tcx, def_id, body.mir.span, constraint, qualifiers)
+    fcx.check(genv.tcx, def_id, body.span(), constraint, qualifiers)
 }
 
 impl FixpointCtxt {
@@ -102,7 +97,7 @@ impl FixpointCtxt {
 
     pub fn with_name_map<R>(
         &mut self,
-        name: Name,
+        name: ty::Name,
         to: fixpoint::Name,
         f: impl FnOnce(&mut Self) -> R,
     ) -> R {
@@ -200,7 +195,7 @@ impl FromStr for TagIdx {
 }
 
 mod errors {
-    use liquid_rust_core::ir::BasicBlock;
+    use liquid_rust_middle::rustc::mir::BasicBlock;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::Span;
 

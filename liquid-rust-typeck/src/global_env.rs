@@ -6,6 +6,7 @@ use liquid_rust_core::{
     desugar,
     ty::{self as core, AdtSortsMap, VariantIdx},
 };
+use liquid_rust_middle::rustc;
 use liquid_rust_syntax::surface;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -113,6 +114,54 @@ impl<'tcx> GlobalEnv<'tcx> {
         let ret = ty::Ty::indexed(bty, exprs);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);
         ty::Binders::new(adt_def.refined_by(), sig)
+    }
+
+    pub fn refine_ty(
+        &self,
+        ty: &rustc::ty::Ty,
+        mk_pred: &mut impl FnMut(&BaseTy) -> ty::Pred,
+    ) -> ty::Ty {
+        let bty = match ty.kind() {
+            rustc::ty::TyKind::Never => return ty::Ty::never(),
+            rustc::ty::TyKind::Param(param_ty) => return ty::Ty::param(*param_ty),
+            rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
+                return ty::Ty::mk_ref(ty::RefKind::Mut, self.refine_ty(ty, mk_pred));
+            }
+            rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Not) => {
+                return ty::Ty::mk_ref(ty::RefKind::Shr, self.refine_ty(ty, mk_pred));
+            }
+            rustc::ty::TyKind::Float(float_ty) => return ty::Ty::float(*float_ty),
+            rustc::ty::TyKind::Tuple(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|ty| self.refine_ty(ty, mk_pred))
+                    .collect_vec();
+                return ty::Ty::tuple(tys);
+            }
+            rustc::ty::TyKind::Adt(def_id, substs) => {
+                let adt_def = self.adt_def(*def_id);
+                let substs = substs
+                    .iter()
+                    .map(|arg| self.refine_generic_arg(arg, mk_pred))
+                    .collect_vec();
+                BaseTy::adt(adt_def, substs)
+            }
+            rustc::ty::TyKind::Bool => BaseTy::Bool,
+            rustc::ty::TyKind::Int(int_ty) => BaseTy::Int(*int_ty),
+            rustc::ty::TyKind::Uint(uint_ty) => BaseTy::Uint(*uint_ty),
+        };
+        let pred = mk_pred(&bty);
+        ty::Ty::exists(bty, pred)
+    }
+
+    pub fn refine_generic_arg(
+        &self,
+        ty: &rustc::ty::GenericArg,
+        mk_pred: &mut impl FnMut(&BaseTy) -> ty::Pred,
+    ) -> ty::Ty {
+        match ty {
+            rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
+        }
     }
 }
 

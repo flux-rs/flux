@@ -72,19 +72,6 @@ pub enum Ty {
     Never,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Layout {
-    Bool,
-    Int(IntTy),
-    Uint(UintTy),
-    Float(FloatTy),
-    Adt(DefId),
-    Ref,
-    Param,
-    Tuple(Vec<Layout>),
-    Never,
-}
-
 pub struct Indices {
     pub exprs: Vec<Expr>,
     pub span: Span,

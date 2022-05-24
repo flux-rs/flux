@@ -197,22 +197,6 @@ fn lower_lit(lit: core::Lit) -> ty::Constant {
     }
 }
 
-pub fn lower_layout(layout: &core::Layout) -> ty::Layout {
-    match layout {
-        core::Layout::Bool => ty::Layout::bool(),
-        core::Layout::Int(int_ty) => ty::Layout::int(*int_ty),
-        core::Layout::Uint(uint_ty) => ty::Layout::uint(*uint_ty),
-        core::Layout::Float(float_ty) => ty::Layout::float(*float_ty),
-        core::Layout::Adt(def_id) => ty::Layout::adt(*def_id),
-        core::Layout::Ref => ty::Layout::mk_ref(),
-        core::Layout::Param => ty::Layout::param(),
-        core::Layout::Tuple(layouts) => {
-            ty::Layout::tuple(layouts.iter().map(lower_layout).collect_vec())
-        }
-        core::Layout::Never => ty::Layout::never(),
-    }
-}
-
 pub fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
         core::Sort::Int => ty::Sort::int(),

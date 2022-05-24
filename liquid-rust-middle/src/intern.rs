@@ -272,6 +272,21 @@ impl<T: Internable> Interned<T> {
     }
 }
 
+impl<T> List<T>
+where
+    [T]: Internable,
+{
+    pub fn from_vec(vec: Vec<T>) -> List<T> {
+        match Interned::lookup(vec.as_slice()) {
+            Ok(this) => this,
+            Err(shard) => {
+                let arc = Arc::from(vec);
+                Self::alloc(arc, shard)
+            }
+        }
+    }
+}
+
 impl<T> From<&[T]> for Interned<[T]>
 where
     [T]: Internable,
@@ -291,16 +306,9 @@ where
 impl<T> From<Vec<T>> for Interned<[T]>
 where
     [T]: Internable,
-    T: Clone,
 {
     fn from(vec: Vec<T>) -> Self {
-        match Interned::lookup(vec.as_slice()) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::from(vec);
-                Self::alloc(arc, shard)
-            }
-        }
+        List::from_vec(vec)
     }
 }
 

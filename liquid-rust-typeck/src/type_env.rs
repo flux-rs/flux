@@ -2,23 +2,27 @@ pub mod paths_tree;
 
 use std::iter;
 
+use itertools::{izip, Itertools};
+
+use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_middle::ty::TyCtxt;
+
+use liquid_rust_common::index::IndexGen;
+use liquid_rust_middle::{
+    rustc::mir::Place,
+    ty::{subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
+};
+
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
     global_env::GlobalEnv,
     param_infer,
     pure_ctxt::{PureCtxt, Scope},
-    subst::Subst,
-    ty::{BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
 };
-use itertools::{izip, Itertools};
-use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::ir;
-use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_middle::ty::TyCtxt;
 
 use self::paths_tree::{LookupResult, PathsTree};
 
-use super::ty::{Layout, Loc, Name, Pred, Sort};
+use super::ty::{Loc, Name, Pred, Sort};
 
 #[derive(Clone, Default)]
 pub struct TypeEnv {
@@ -49,9 +53,9 @@ impl TypeEnv {
         self.bindings.insert(loc, ty);
     }
 
-    pub fn alloc(&mut self, loc: impl Into<Loc>, layout: Layout) {
+    pub fn alloc(&mut self, loc: impl Into<Loc>) {
         let loc = loc.into();
-        self.bindings.insert(loc, Ty::uninit(layout));
+        self.bindings.insert(loc, Ty::uninit());
     }
 
     pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
@@ -63,7 +67,7 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_place(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn lookup_place(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings
             .lookup_place(pcx, place, |_, result| result.ty())
     }
@@ -79,7 +83,7 @@ impl TypeEnv {
 
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn borrow_mut(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings.lookup_place(pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(path, _) => Ty::strg_ref(path),
@@ -91,7 +95,7 @@ impl TypeEnv {
         })
     }
 
-    pub fn borrow_shr(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn borrow_shr(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings
             .lookup_place(pcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
     }
@@ -100,7 +104,7 @@ impl TypeEnv {
         &mut self,
         genv: &GlobalEnv,
         pcx: &mut PureCtxt,
-        place: &ir::Place,
+        place: &Place,
         new_ty: Ty,
         tag: Tag,
     ) {
@@ -120,12 +124,12 @@ impl TypeEnv {
         });
     }
 
-    pub fn move_place(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn move_place(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings.lookup_place(pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(_, ty) => {
                     let old = ty.clone();
-                    *ty = Ty::uninit(ty.layout());
+                    *ty = Ty::uninit();
                     old
                 }
                 LookupResult::Ref(RefKind::Mut, _) => {
@@ -381,7 +385,7 @@ impl TypeEnvInfer {
             | TyKind::Discr
             | TyKind::Float(_)
             | TyKind::Ptr(_)
-            | TyKind::Uninit(_)
+            | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_) => ty.clone(),
         }
@@ -497,14 +501,7 @@ impl TypeEnvInfer {
 
     fn join_ty(&mut self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit(layout), _) => {
-                debug_assert_eq!(layout, &ty2.layout());
-                Ty::uninit(layout.clone())
-            }
-            (_, TyKind::Uninit(layout)) => {
-                debug_assert_eq!(layout, &ty1.layout());
-                Ty::uninit(layout.clone())
-            }
+            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
                 Ty::strg_ref(path1.clone())
@@ -625,8 +622,8 @@ impl BasicBlockEnv {
 
 mod pretty {
     use super::*;
-    use crate::pretty::*;
     use itertools::Itertools;
+    use liquid_rust_middle::pretty::*;
     use std::fmt;
 
     impl Pretty for TypeEnv {
