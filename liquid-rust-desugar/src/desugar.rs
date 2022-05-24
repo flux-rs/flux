@@ -13,7 +13,7 @@ use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
     AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Indices,
-    Lit, Name, Param, Pred, Qualifier, RefKind, Sort, Ty, VarKind, VariantDef,
+    Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VarKind, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -167,7 +167,7 @@ impl<'a> DesugarCtxt<'a> {
             }
             surface::TyKind::Path(path) => {
                 let bty = self.desugar_path_into_bty(path)?;
-                Ty::Exists(bty, Pred::TRUE)
+                Ty::Exists(bty, Expr::TRUE)
             }
             surface::TyKind::Indexed { path, indices } => {
                 let bty = self.desugar_path_into_bty(path);
@@ -177,7 +177,7 @@ impl<'a> DesugarCtxt<'a> {
             surface::TyKind::Exists { bind, path, pred } => {
                 let bty = self.desugar_path_into_bty(path);
                 let pred = self.params.desugar_expr(pred, Some(bind.name));
-                Ty::Exists(bty?, Pred::Expr(pred?))
+                Ty::Exists(bty?, pred?)
             }
             surface::TyKind::Ref(rk, ty) => {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))

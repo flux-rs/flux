@@ -61,7 +61,7 @@ pub struct Qualifier {
 
 pub enum Ty {
     Indexed(BaseTy, Indices),
-    Exists(BaseTy, Pred),
+    Exists(BaseTy, Expr),
     Float(FloatTy),
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
@@ -79,11 +79,6 @@ pub enum RefKind {
 pub struct Indices {
     pub exprs: Vec<Expr>,
     pub span: Span,
-}
-
-pub enum Pred {
-    Hole,
-    Expr(Expr),
 }
 
 pub enum BaseTy {
@@ -152,10 +147,6 @@ impl BaseTy {
 
 impl Expr {
     pub const TRUE: Expr = Expr { kind: ExprKind::Literal(Lit::TRUE), span: None };
-}
-
-impl Pred {
-    pub const TRUE: Pred = Pred::Expr(Expr::TRUE);
 }
 
 impl Lit {
@@ -281,15 +272,6 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt
 impl fmt::Debug for Indices {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{{:?}}}", self.exprs.iter().format(", "))
-    }
-}
-
-impl fmt::Debug for Pred {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Hole => write!(f, "Infer"),
-            Self::Expr(e) => write!(f, "{e:?}"),
-        }
     }
 }
 

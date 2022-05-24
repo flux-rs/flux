@@ -141,10 +141,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty);
-                let pred = match pred {
-                    core::Pred::Hole => ty::Pred::Hole,
-                    core::Pred::Expr(e) => ty::Pred::Expr(lower_expr(e, &self.name_map)),
-                };
+                let pred = lower_expr(pred, &self.name_map);
                 ty::Ty::exists(bty, pred)
             }
             core::Ty::Ptr(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),

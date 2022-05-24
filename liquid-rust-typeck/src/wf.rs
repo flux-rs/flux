@@ -122,7 +122,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
             core::Ty::Indexed(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
             core::Ty::Exists(bty, pred) => {
                 env.with_bound_var(self.sorts(bty), |env| {
-                    self.check_pred(env, pred, ty::Sort::bool())
+                    self.check_expr(env, pred, ty::Sort::bool())
                 })
             }
             core::Ty::Ptr(loc) => self.check_loc(env, *loc),
@@ -160,18 +160,6 @@ impl<T: AdtSortsMap> Wf<'_, T> {
                 }
             })
             .try_collect_exhaust()
-    }
-
-    fn check_pred(
-        &self,
-        env: &Env,
-        pred: &core::Pred,
-        sort: ty::Sort,
-    ) -> Result<(), ErrorReported> {
-        match pred {
-            core::Pred::Hole => Ok(()),
-            core::Pred::Expr(e) => self.check_expr(env, e, sort),
-        }
     }
 
     fn check_expr(
