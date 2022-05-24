@@ -182,7 +182,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
 fn lower_expr(expr: &core::Expr, name_map: &NameMap) -> ty::Expr {
     match &expr.kind {
-        core::ExprKind::Var(var, ..) => ty::Expr::var(lower_var(*var, name_map)),
+        core::ExprKind::Var(var, ..) => lower_var(*var, name_map),
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {
             ty::Expr::binary_op(*op, lower_expr(e1, name_map), lower_expr(e2, name_map))
@@ -190,10 +190,10 @@ fn lower_expr(expr: &core::Expr, name_map: &NameMap) -> ty::Expr {
     }
 }
 
-fn lower_var(var: core::Var, name_map: &NameMap) -> ty::Var {
+fn lower_var(var: core::VarKind, name_map: &NameMap) -> ty::Expr {
     match var {
-        core::Var::Bound(idx) => ty::Var::Bound(idx),
-        core::Var::Free(name) => ty::Var::Free(name_map[&name]),
+        core::VarKind::Bound(idx) => ty::Expr::bvar(idx),
+        core::VarKind::Free(name) => ty::Expr::fvar(name_map[&name]),
     }
 }
 

@@ -96,8 +96,8 @@ impl Subst<'_> {
                             .collect_vec();
                         Path::new(inner.loc, proj)
                     }
-                    Some(e) if let ExprKind::Var(Var::Free(to)) = e.kind() => {
-                        Path::new(Loc::Free(*to), path.projection())
+                    Some(e) if let ExprKind::FreeVar(name) = e.kind() => {
+                        Path::new(Loc::Free(*name), path.projection())
                     }
                     Some(e) => {
                         panic!("invalid substitution in path `{path:?}`: `{:?}` -> `{e:?}`", path.loc)
@@ -125,8 +125,7 @@ impl Subst<'_> {
 
     pub fn subst_expr(&self, expr: &Expr) -> Expr {
         match expr.kind() {
-            ExprKind::Var(var) => self.subst_var(*var),
-            ExprKind::Constant(_) => expr.clone(),
+            ExprKind::FreeVar(name) => self.map.get(name).cloned().unwrap_or_else(|| expr.clone()),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(*op, self.subst_expr(e1), self.subst_expr(e2))
             }
@@ -143,13 +142,7 @@ impl Subst<'_> {
                 Expr::tuple(exprs.iter().map(|e| self.subst_expr(e)).collect_vec())
             }
             ExprKind::Path(path) => Expr::path(self.subst_path(path)),
-        }
-    }
-
-    pub fn subst_var(&self, var: Var) -> Expr {
-        match var {
-            Var::Bound(_) => var.into(),
-            Var::Free(name) => self.map.get(&name).cloned().unwrap_or_else(|| var.into()),
+            ExprKind::BoundVar(_) | ExprKind::Constant(_) => expr.clone(),
         }
     }
 
@@ -161,8 +154,8 @@ impl Subst<'_> {
                     Some(e) if let ExprKind::Path(path) = e.kind() && path.projection().is_empty() => {
                         path.loc
                     }
-                    Some(e) if let ExprKind::Var(Var::Free(to)) = e.kind() => {
-                        Loc::Free(*to)
+                    Some(e) if let ExprKind::FreeVar(name) = e.kind() => {
+                        Loc::Free(*name)
                     }
                     Some(e) => {
                         panic!("invalid loc substitution: `{loc:?}` -> `{e:?}`")

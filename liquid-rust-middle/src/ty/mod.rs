@@ -163,19 +163,14 @@ pub struct ExprS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ExprKind {
-    Var(Var),
+    FreeVar(Name),
+    BoundVar(u32),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
     UnaryOp(UnOp, Expr),
     Proj(Expr, u32),
     Tuple(List<Expr>),
     Path(Path),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Var {
-    Bound(u32),
-    Free(Name),
 }
 
 newtype_index! {
@@ -543,8 +538,12 @@ impl Expr {
         Expr::tuple(vec![])
     }
 
-    pub fn var(var: impl Into<Var>) -> Expr {
-        ExprKind::Var(var.into()).intern()
+    pub fn fvar(name: Name) -> Expr {
+        ExprKind::FreeVar(name).intern()
+    }
+
+    pub fn bvar(idx: u32) -> Expr {
+        ExprKind::BoundVar(idx).intern()
     }
 
     pub fn constant(c: Constant) -> Expr {
@@ -608,18 +607,18 @@ impl ExprS {
     pub fn is_atom(&self) -> bool {
         matches!(
             self.kind,
-            ExprKind::Var(_) | ExprKind::Constant(_) | ExprKind::UnaryOp(..) | ExprKind::Tuple(..)
+            ExprKind::FreeVar(_)
+                | ExprKind::BoundVar(_)
+                | ExprKind::Constant(_)
+                | ExprKind::UnaryOp(..)
+                | ExprKind::Tuple(..)
         )
     }
 
     pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Expr {
         match self.kind() {
-            ExprKind::Var(var) => {
-                match var {
-                    Var::Bound(idx) => exprs[*idx as usize].clone(),
-                    Var::Free(_) => Expr::var(*var),
-                }
-            }
+            ExprKind::BoundVar(idx) => exprs[*idx as usize].clone(),
+            ExprKind::FreeVar(name) => Expr::fvar(*name),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {
                 ExprKind::BinaryOp(*op, e1.subst_bound_vars(exprs), e2.subst_bound_vars(exprs))
@@ -648,7 +647,7 @@ impl ExprS {
 
     fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
-            ExprKind::Var(Var::Free(name)) => {
+            ExprKind::FreeVar(name) => {
                 vars.insert(*name);
             }
             ExprKind::BinaryOp(_, e1, e2) => {
@@ -659,7 +658,7 @@ impl ExprS {
             ExprKind::UnaryOp(_, e) => e.collect_vars(vars),
             ExprKind::Proj(e, _) => e.collect_vars(vars),
             ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.collect_vars(vars)),
-            ExprKind::Var(Var::Bound(_)) | ExprKind::Constant(_) => {}
+            ExprKind::BoundVar(_) | ExprKind::Constant(_) => {}
         }
     }
 
@@ -673,22 +672,21 @@ impl ExprS {
     /// for pretty printing.
     pub fn simplify(&self) -> Expr {
         match self.kind() {
-            ExprKind::Var(var) => ExprKind::Var(*var).intern(),
-            ExprKind::Constant(c) => ExprKind::Constant(*c).intern(),
-            ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(*op, e1.simplify(), e2.simplify()).intern()
-            }
+            ExprKind::FreeVar(name) => Expr::fvar(*name),
+            ExprKind::BoundVar(idx) => Expr::bvar(*idx),
+            ExprKind::Constant(c) => Expr::constant(*c),
+            ExprKind::BinaryOp(op, e1, e2) => Expr::binary_op(*op, e1.simplify(), e2.simplify()),
             ExprKind::UnaryOp(UnOp::Not, e) => {
                 match e.kind() {
                     ExprKind::UnaryOp(UnOp::Not, e) => e.simplify(),
                     ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                        ExprKind::BinaryOp(BinOp::Ne, e1.simplify(), e2.simplify()).intern()
+                        Expr::binary_op(BinOp::Ne, e1.simplify(), e2.simplify())
                     }
-                    _ => ExprKind::UnaryOp(UnOp::Not, e.simplify()).intern(),
+                    _ => Expr::unary_op(UnOp::Not, e.simplify()),
                 }
             }
-            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.simplify()).intern(),
-            ExprKind::Proj(e, field) => ExprKind::Proj(e.simplify(), *field).intern(),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.simplify()),
+            ExprKind::Proj(e, field) => Expr::proj(e.simplify(), *field),
             ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify()).collect_vec()),
             ExprKind::Path(path) => Expr::path(path.clone()),
         }
@@ -763,12 +761,6 @@ impl KVar {
     }
 }
 
-impl From<Var> for Expr {
-    fn from(var: Var) -> Self {
-        ExprKind::Var(var).intern()
-    }
-}
-
 impl From<Path> for Expr {
     fn from(path: Path) -> Self {
         Expr::path(path)
@@ -826,18 +818,6 @@ impl PartialOrd for Loc {
 impl Ord for Loc {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
-    }
-}
-
-impl From<Name> for Var {
-    fn from(v: Name) -> Self {
-        Self::Free(v)
-    }
-}
-
-impl<'a> From<&'a Name> for Var {
-    fn from(v: &'a Name) -> Self {
-        Self::Free(*v)
     }
 }
 
@@ -1040,7 +1020,8 @@ mod pretty {
             }
             let e = if cx.simplify_exprs { self.simplify() } else { Interned::new(self.clone()) };
             match e.kind() {
-                ExprKind::Var(x) => w!("{:?}", ^x),
+                ExprKind::FreeVar(name) => w!("{:?}", ^name),
+                ExprKind::BoundVar(idx) => w!("ν{}", ^idx),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(*op, e1) {
                         w!("({:?})", e1)?;
@@ -1078,16 +1059,6 @@ mod pretty {
                     w!("({:?})", join!(", ", exprs))
                 }
                 ExprKind::Path(path) => w!("{:?}", path),
-            }
-        }
-    }
-
-    impl Pretty for Var {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                Var::Bound(idx) => w!("ν{}", ^idx),
-                Var::Free(var) => w!("{:?}", ^var),
             }
         }
     }
@@ -1171,7 +1142,6 @@ mod pretty {
         Pred,
         Sort,
         ExprS,
-        Var,
         Loc,
         Binders<FnSig>,
         Path,

@@ -33,13 +33,13 @@ impl Env {
     }
 }
 
-impl std::ops::Index<&'_ core::Var> for Env {
+impl std::ops::Index<&'_ core::VarKind> for Env {
     type Output = ty::Sort;
 
-    fn index(&self, var: &core::Var) -> &Self::Output {
+    fn index(&self, var: &core::VarKind) -> &Self::Output {
         match var {
-            core::Var::Bound(idx) => &self.bound_var_sorts.as_ref().unwrap()[*idx as usize],
-            core::Var::Free(name) => &self.sorts[name],
+            core::VarKind::Bound(idx) => &self.bound_var_sorts.as_ref().unwrap()[*idx as usize],
+            core::VarKind::Free(name) => &self.sorts[name],
         }
     }
 }
@@ -189,7 +189,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
     }
 
     fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorReported> {
-        let found = env[&core::Var::Free(loc.name)].clone();
+        let found = env[&core::VarKind::Free(loc.name)].clone();
         if found == ty::Sort::loc() {
             Ok(())
         } else {

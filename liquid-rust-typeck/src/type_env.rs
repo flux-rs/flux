@@ -11,7 +11,7 @@ use liquid_rust_common::index::IndexGen;
 use liquid_rust_middle::{
     global_env::GlobalEnv,
     rustc::mir::Place,
-    ty::{subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
+    ty::{subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind},
 };
 
 use crate::{
@@ -254,7 +254,7 @@ impl TypeEnv {
         // Check constraints
         let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::var(param.name)])));
+            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::fvar(param.name)])));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);
@@ -357,13 +357,13 @@ impl TypeEnvInfer {
                     .zip(sorts)
                     .map(|(e, sort)| {
                         let has_free_vars = !scope.contains_all(e.vars());
-                        if let Some(n) = names.get(e) {
-                            Expr::var(n)
+                        if let Some(name) = names.get(e) {
+                            Expr::fvar(*name)
                         } else if has_free_vars {
                             let fresh = name_gen.fresh();
                             params.insert(fresh, sort);
                             names.insert(e.clone(), fresh);
-                            Expr::var(fresh)
+                            Expr::fvar(fresh)
                         } else {
                             e.clone()
                         }
@@ -512,7 +512,7 @@ impl TypeEnvInfer {
                     .map(|(e1, e2, sort)| {
                         let e2_has_free_vars = !self.scope.contains_all(e2.vars());
                         if !self.is_packed_expr(e1) && (e2_has_free_vars || e1 != e2) {
-                            Expr::var(self.fresh(sort))
+                            Expr::fvar(self.fresh(sort))
                         } else {
                             e1.clone()
                         }
@@ -598,7 +598,7 @@ impl TypeEnvInfer {
     }
 
     fn is_packed_expr(&self, expr: &Expr) -> bool {
-        matches!(expr.kind(), ExprKind::Var(Var::Free(name)) if self.params.contains_key(name))
+        matches!(expr.kind(), ExprKind::FreeVar(name) if self.params.contains_key(name))
     }
 
     fn packed_loc(&self, loc: Loc) -> Option<Name> {

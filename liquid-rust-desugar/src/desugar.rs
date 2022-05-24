@@ -13,7 +13,7 @@ use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
     AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Indices,
-    Lit, Name, Param, Pred, Qualifier, RefKind, Sort, Ty, Var, VariantDef,
+    Lit, Name, Param, Pred, Qualifier, RefKind, Sort, Ty, VarKind, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -290,9 +290,9 @@ impl ParamsCtxt<'_> {
         bound: Option<Symbol>,
     ) -> Result<Expr, ErrorReported> {
         let var = if Some(ident.name) == bound {
-            Var::Bound(0)
+            VarKind::Bound(0)
         } else if let Some(&name) = self.map.get(&ident.name) {
-            Var::Free(name)
+            VarKind::Free(name)
         } else {
             return Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)));
         };

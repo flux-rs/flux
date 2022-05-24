@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use liquid_rust_middle::{
     global_env::GlobalEnv,
-    ty::{subst::Subst, Constr, Expr, ExprKind, Loc, Name, Path, PolySig, Ty, TyKind, Var},
+    ty::{subst::Subst, Constr, Expr, ExprKind, Loc, Name, Path, PolySig, Ty, TyKind},
 };
 
 use crate::{pure_ctxt::PureCtxt, type_env::TypeEnv};
@@ -122,7 +122,7 @@ fn infer_from_paths(subst: &mut Subst, _params: &FxHashSet<Name>, path1: &Path, 
 
 pub fn infer_from_exprs(subst: &mut Subst, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
-        (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
+        (_, ExprKind::FreeVar(name)) if params.contains(name) => {
             if let Some(old_e) = subst.insert(*name, e1.clone()) {
                 if &old_e != e2 {
                     todo!(

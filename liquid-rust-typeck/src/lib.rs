@@ -299,24 +299,17 @@ fn expr_to_fixpoint(
             };
             fixpoint::Expr::Constant(constant)
         }
-        ty::ExprKind::Var(var) => {
-            match var {
-                ty::Var::Free(name) => {
-                    let name = name_map.get(name).unwrap_or_else(|| {
-                        unreachable!(
-                            "Internal error: Undeclared variable in qualifier: {:?}",
-                            name
-                        );
-                    });
-                    fixpoint::Expr::Var(*name)
-                }
-                ty::Var::Bound(_) => {
-                    unreachable!("Internal error: Bound variable in qualifier");
-                }
-            }
+        ty::ExprKind::FreeVar(name) => {
+            let name = name_map.get(name).unwrap_or_else(|| {
+                unreachable!("internal error: Undeclared variable in qualifier: {:?}", name);
+            });
+            fixpoint::Expr::Var(*name)
+        }
+        ty::ExprKind::BoundVar(_) => {
+            unreachable!("internal error: Bound variable in qualifier");
         }
         _ => {
-            unreachable!("Internal error: Bad ExprKind variable in qualifier");
+            unreachable!("internal error: Bad ExprKind variable in qualifier");
         }
     }
 }

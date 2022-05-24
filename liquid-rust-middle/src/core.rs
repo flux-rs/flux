@@ -112,13 +112,13 @@ pub struct Expr {
 }
 
 pub enum ExprKind {
-    Var(Var, Symbol, Span),
+    Var(VarKind, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
 }
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum Var {
+pub enum VarKind {
     Bound(u32),
     Free(Name),
 }
@@ -318,11 +318,11 @@ impl fmt::Debug for Lit {
     }
 }
 
-impl fmt::Debug for Var {
+impl fmt::Debug for VarKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Var::Bound(idx) => write!(f, "ν{idx}"),
-            Var::Free(name) => write!(f, "{name:?}"),
+            VarKind::Bound(idx) => write!(f, "ν{idx}"),
+            VarKind::Free(name) => write!(f, "{name:?}"),
         }
     }
 }

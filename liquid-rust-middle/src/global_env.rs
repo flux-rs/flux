@@ -94,7 +94,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         let exprs = adt_def
             .refined_by()
             .iter()
-            .map(|param| ty::Expr::var(param.name))
+            .map(|param| ty::Expr::fvar(param.name))
             .collect_vec();
         let ret = ty::Ty::indexed(bty, exprs);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);

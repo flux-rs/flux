@@ -34,7 +34,7 @@ use liquid_rust_middle::{
     },
     ty::{
         self, subst::Subst, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig,
-        Pred, RefKind, Sort, Ty, TyKind, Var,
+        Pred, RefKind, Sort, Ty, TyKind,
     },
 };
 
@@ -647,7 +647,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = Expr::binary_op(
                     BinOp::Eq,
-                    Var::Bound(0),
+                    Expr::bvar(0),
                     Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
                 );
                 let guard = Expr::binary_op(

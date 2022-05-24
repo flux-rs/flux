@@ -8,7 +8,7 @@ use itertools::{repeat_n, Itertools};
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 use liquid_rust_middle::ty::{
-    BinOp, Expr, ExprKind, ExprS, KVar, KVid, Name, Pred, Sort, SortKind, Var,
+    BinOp, Expr, ExprKind, ExprS, KVar, KVid, Name, Pred, Sort, SortKind,
 };
 
 use crate::{constraint_gen::Tag, FixpointCtxt, TagIdx};
@@ -90,12 +90,12 @@ impl KVarStore {
 
         let mut args = scope
             .filter(|(_, s)| !matches!(s.kind(), SortKind::Loc))
-            .map(|(var, sort)| (Expr::var(Var::Free(var)), sort))
+            .map(|(name, sort)| (Expr::fvar(name), sort))
             .collect_vec();
 
         let mut kvars = vec![];
         for (i, sort) in sorts.iter().enumerate() {
-            args.push((Expr::var(Var::Bound(i as u32)), sort.clone()));
+            args.push((Expr::bvar(i as u32), sort.clone()));
 
             let kvid = self.kvars.push(
                 args.iter()
@@ -149,7 +149,7 @@ impl PureCtxt<'_> {
         for sort in sorts {
             let fresh = name_gen.fresh();
             bindings.push((fresh, sort.clone()));
-            exprs.push(Expr::var(Var::Free(fresh)));
+            exprs.push(Expr::fvar(fresh));
         }
 
         match p {
@@ -385,12 +385,12 @@ fn kvar_to_fixpoint(
 ) -> fixpoint::Pred {
     let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
         match arg.kind() {
-            ExprKind::Var(Var::Free(name)) => {
+            ExprKind::FreeVar(name) => {
                 *cx.name_map
                     .get(name)
                     .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
             }
-            ExprKind::Var(Var::Bound(_)) => panic!("unexpected free bound variable"),
+            ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
             _ => {
                 let fresh = cx.fresh_name();
                 let pred = fixpoint::Expr::BinaryOp(
@@ -432,7 +432,7 @@ fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
 
 fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
     match expr.kind() {
-        ExprKind::Var(Var::Free(name)) => {
+        ExprKind::FreeVar(name) => {
             let name = *cx
                 .name_map
                 .get(name)
@@ -448,7 +448,7 @@ fn expr_to_fixpoint(cx: &FixpointCtxt, expr: &ExprS) -> fixpoint::Expr {
             )
         }
         ExprKind::UnaryOp(op, e) => fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(cx, e))),
-        ExprKind::Var(Var::Bound(_)) => panic!("unexpected free bound variable"),
+        ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
         ExprKind::Proj(e, field) => {
             repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])

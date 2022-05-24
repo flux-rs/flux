@@ -8,7 +8,7 @@ use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
-        subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var,
+        subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind,
         VariantIdx,
     },
 };
@@ -402,7 +402,7 @@ fn bty_infer_folding(pcx: &mut PureCtxt, params: &mut ParamInst, bty1: &BaseTy, 
 
 fn expr_infer_folding(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
-        (_, ExprKind::Var(Var::Free(name))) => {
+        (_, ExprKind::FreeVar(name)) => {
             match params.insert(*name, e1.clone()) {
                 Some(old_e) => {
                     if &old_e != e2 {
