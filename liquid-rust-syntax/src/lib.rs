@@ -11,7 +11,6 @@ extern crate rustc_session;
 extern crate rustc_span;
 
 pub mod lexer;
-pub mod resolve;
 pub mod surface;
 
 use lalrpop_util::lalrpop_mod;

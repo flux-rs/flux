@@ -462,7 +462,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "liquid-rust-core"
+name = "liquid-rust-desugar"
 version = "0.1.0"
 dependencies = [
  "itertools",
@@ -479,7 +479,7 @@ version = "0.1.0"
 dependencies = [
  "itertools",
  "liquid-rust-common",
- "liquid-rust-core",
+ "liquid-rust-desugar",
  "liquid-rust-fixpoint",
  "liquid-rust-middle",
  "liquid-rust-syntax",

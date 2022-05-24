@@ -9,9 +9,9 @@ use rustc_middle::ty::{
 };
 
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::desugar;
+use liquid_rust_desugar as desugar;
 use liquid_rust_middle::{rustc::lowering::LoweringCtxt, ty};
-use liquid_rust_syntax::{self as syntax, surface};
+use liquid_rust_syntax::surface;
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 
 use crate::{collector::SpecCollector, mir_storage};
@@ -115,9 +115,7 @@ impl<'tcx> CrateChecker<'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let mut resolver = syntax::resolve::Resolver::from_adt(tcx, def_id)?;
-                let struct_def = resolver.resolve_struct_def(struct_def)?;
-                let adt_def = desugar::desugar_struct_def(sess, struct_def)?;
+                let adt_def = desugar::desugar_struct_def(tcx, struct_def)?;
                 Wf::new(sess, &genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())
@@ -144,9 +142,7 @@ impl<'tcx> CrateChecker<'tcx> {
                 }
                 if let Some(fn_sig) = spec.fn_sig {
                     let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                    let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
-                    let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
-                    let fn_sig = desugar::desugar_fn_sig(sess, &genv, fn_sig)?;
+                    let fn_sig = desugar::desugar_fn_sig(tcx, &genv, def_id.to_def_id(), fn_sig)?;
                     Wf::new(sess, &genv).check_fn_sig(&fn_sig)?;
                     genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                 }

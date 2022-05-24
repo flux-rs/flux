@@ -8,7 +8,7 @@ version = "0.1.0"
 [dependencies]
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
-liquid-rust-core = { path = "../liquid-rust-core" }
+liquid-rust-desugar = { path = "../liquid-rust-desugar" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 liquid-rust-middle = { path = "../liquid-rust-middle" }
 liquid-rust-syntax = { path = "../liquid-rust-syntax" }
