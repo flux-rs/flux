@@ -46,31 +46,33 @@ pub fn desugar_struct_def(
     let mut cx = DesugarCtxt::with_params(params);
 
     let kind = if adt_def.opaque {
-        AdtDefKind::Opaque { refined_by: cx.params.params }
+        AdtDefKind::Opaque
     } else {
         let fields = adt_def
             .fields
             .into_iter()
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
-        let variants = IndexVec::from_raw(vec![VariantDef::new(fields)]);
-        AdtDefKind::Transparent { refined_by: cx.params.params, variants }
+        let variants = Some(IndexVec::from_raw(vec![Some(VariantDef { fields })]));
+        AdtDefKind::Transparent { variants }
     };
     let def_id = adt_def.def_id.to_def_id();
-    Ok(AdtDef { def_id, kind })
+    let refined_by = cx.params.params;
+    Ok(AdtDef { def_id, kind, refined_by })
 }
 
 pub fn desugar_enum_def(tcx: TyCtxt, enum_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
     let mut params = ParamsCtxt::new(tcx.sess);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
 
-    if enum_def.opaque {
-        let def_id = enum_def.def_id.to_def_id();
-        let kind = AdtDefKind::Opaque { refined_by: params.params };
-        Ok(AdtDef { def_id, kind })
+    let kind = if enum_def.opaque {
+        AdtDefKind::Opaque
     } else {
-        Ok(AdtDef::default(tcx, tcx.adt_def(enum_def.def_id)))
-    }
+        AdtDefKind::Transparent { variants: None }
+    };
+    let def_id = enum_def.def_id.to_def_id();
+    let refined_by = params.params;
+    Ok(AdtDef { def_id, kind, refined_by })
 }
 
 pub fn desugar_fn_sig(

@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     global_env::GlobalEnv,
     ty::{self, Path, VariantDef},
@@ -50,13 +52,21 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::empty(genv);
 
-        let refined_by = cx.lower_params(&name_gen, adt_def.refined_by());
+        let refined_by = cx.lower_params(&name_gen, &adt_def.refined_by);
 
         match &adt_def.kind {
-            core::AdtDefKind::Transparent { variants, .. } => {
-                let variants = variants
-                    .iter()
-                    .map(|variant| cx.lower_variant_def(variant))
+            core::AdtDefKind::Transparent { variants: None, .. } => {
+                genv.default_adt_def(adt_def.def_id)
+            }
+            core::AdtDefKind::Transparent { variants: Some(variants), .. } => {
+                let rustc_adt_def = genv.tcx.adt_def(adt_def.def_id);
+                let variants = iter::zip(variants, &rustc_adt_def.variants)
+                    .map(|(variant, rustc_variant)| {
+                        variant
+                            .as_ref()
+                            .map(|variant| cx.lower_variant_def(variant))
+                            .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
+                    })
                     .collect_vec();
                 ty::AdtDef::transparent(adt_def.def_id, refined_by, IndexVec::from_raw(variants))
             }

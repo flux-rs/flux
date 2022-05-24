@@ -5,6 +5,4 @@
 pub mod mir;
 pub mod ty;
 
-mod lowering;
-
-pub use lowering::LoweringCtxt;
+pub mod lowering;

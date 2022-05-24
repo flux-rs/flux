@@ -80,10 +80,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| {
-                let adt_def = core::AdtDef::default(self.tcx, self.tcx.adt_def(def_id));
-                LoweringCtxt::lower_adt_def(self, &adt_def)
-            })
+            .or_insert_with(|| self.default_adt_def(def_id))
             .clone()
     }
 
@@ -114,6 +111,33 @@ impl<'tcx> GlobalEnv<'tcx> {
         let ret = ty::Ty::indexed(bty, exprs);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);
         ty::Binders::new(adt_def.refined_by(), sig)
+    }
+
+    pub fn default_adt_def(&self, def_id: DefId) -> ty::AdtDef {
+        let adt_def = self.tcx.adt_def(def_id);
+        let variants = adt_def
+            .variants
+            .iter()
+            .map(|variant| self.default_variant_def(variant))
+            .collect();
+        ty::AdtDef::transparent(adt_def.did, vec![], variants)
+    }
+
+    pub fn default_variant_def(
+        &self,
+        variant_def: &rustc_middle::ty::VariantDef,
+    ) -> ty::VariantDef {
+        let fields = variant_def
+            .fields
+            .iter()
+            .map(|field| {
+                let ty = self.tcx.type_of(field.did);
+                let ty = rustc::lowering::lower_ty(self.tcx, ty);
+                self.tcx.sess.abort_if_errors();
+                self.refine_ty(&ty.unwrap(), &mut |_| ty::Pred::tt())
+            })
+            .collect();
+        ty::VariantDef { fields }
     }
 
     pub fn refine_ty(

@@ -71,7 +71,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
         &self,
         local_decl: &rustc_mir::LocalDecl<'tcx>,
     ) -> Result<LocalDecl, ErrorReported> {
-        Ok(LocalDecl { ty: self.lower_ty(local_decl.ty)?, source_info: local_decl.source_info })
+        Ok(LocalDecl {
+            ty: lower_ty(self.tcx, local_decl.ty)?,
+            source_info: local_decl.source_info,
+        })
     }
 
     fn lower_statement(
@@ -140,14 +143,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_mir::TerminatorKind::Call { func, args, destination, cleanup, .. } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        let substs = List::from_vec(
-                            substs
-                                .iter()
-                                .map(|arg| self.lower_generic_arg(arg))
-                                .try_collect()?,
-                        );
-
-                        (*fn_def, substs)
+                        (*fn_def, lower_substs(self.tcx, substs)?)
                     }
                     _ => {
                         return self.emit_err(
@@ -275,13 +271,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<AggregateKind, ErrorReported> {
         match aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
-                let substs = List::from_vec(
-                    substs
-                        .iter()
-                        .map(|arg| self.lower_generic_arg(arg))
-                        .try_collect()?,
-                );
-                Ok(AggregateKind::Adt(*def_id, *variant_idx, substs))
+                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs)?))
             }
             rustc_mir::AggregateKind::Adt(..)
             | rustc_mir::AggregateKind::Array(_)
@@ -398,54 +388,69 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
-    fn lower_generic_arg(
-        &self,
-        arg: rustc_middle::ty::subst::GenericArg,
-    ) -> Result<GenericArg, ErrorReported> {
-        match arg.unpack() {
-            GenericArgKind::Type(ty) => Ok(GenericArg::Ty(self.lower_ty(ty)?)),
-            GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-                self.emit_err(None, format!("unsupported generic argument: `{arg:?}`"))
-            }
-        }
-    }
-
-    fn lower_ty(&self, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {
-        match ty.kind() {
-            rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
-                Ok(Ty::mk_ref(self.lower_ty(*ty)?, *mutability))
-            }
-            rustc_middle::ty::TyKind::Bool => Ok(Ty::mk_bool()),
-            rustc_middle::ty::TyKind::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
-            rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
-            rustc_middle::ty::TyKind::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
-            rustc_middle::ty::TyKind::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
-            rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
-                let substs = List::from_vec(
-                    substs
-                        .iter()
-                        .map(|arg| self.lower_generic_arg(arg))
-                        .try_collect()?,
-                );
-                Ok(Ty::mk_adt(adt_def.did, substs))
-            }
-            rustc_middle::ty::Never => Ok(Ty::mk_never()),
-            rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
-            _ => self.emit_err(None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
-        }
-    }
-
     fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorReported> {
-        let mut diagnostic = self
-            .tcx
-            .sess
-            .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("LIQUID".to_string()));
-        if let Some(span) = span {
-            diagnostic.set_span(span);
-        }
-        diagnostic.emit();
-        Err(ErrorReported)
+        emit_err(self.tcx, span, msg)
     }
+}
+
+pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {
+    match ty.kind() {
+        rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
+            Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))
+        }
+        rustc_middle::ty::TyKind::Bool => Ok(Ty::mk_bool()),
+        rustc_middle::ty::TyKind::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
+        rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
+        rustc_middle::ty::TyKind::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
+        rustc_middle::ty::TyKind::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
+        rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
+            let substs = List::from_vec(
+                substs
+                    .iter()
+                    .map(|arg| lower_generic_arg(tcx, arg))
+                    .try_collect()?,
+            );
+            Ok(Ty::mk_adt(adt_def.did, substs))
+        }
+        rustc_middle::ty::Never => Ok(Ty::mk_never()),
+        rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
+        _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
+    }
+}
+
+fn lower_substs(
+    tcx: TyCtxt,
+    substs: rustc_middle::ty::subst::SubstsRef,
+) -> Result<List<GenericArg>, ErrorReported> {
+    Ok(List::from_vec(
+        substs
+            .iter()
+            .map(|arg| lower_generic_arg(tcx, arg))
+            .try_collect()?,
+    ))
+}
+
+fn lower_generic_arg(
+    tcx: TyCtxt,
+    arg: rustc_middle::ty::subst::GenericArg,
+) -> Result<GenericArg, ErrorReported> {
+    match arg.unpack() {
+        GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
+        GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
+            emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`"))
+        }
+    }
+}
+
+fn emit_err<S: AsRef<str>, T>(tcx: TyCtxt, span: Option<Span>, msg: S) -> Result<T, ErrorReported> {
+    let mut diagnostic = tcx
+        .sess
+        .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("LIQUID".to_string()));
+    if let Some(span) = span {
+        diagnostic.set_span(span);
+    }
+    diagnostic.emit();
+    Err(ErrorReported)
 }
 
 fn scalar_to_bits<'tcx>(

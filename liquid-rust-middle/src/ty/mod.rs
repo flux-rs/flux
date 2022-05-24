@@ -24,17 +24,18 @@ pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Eq, PartialEq, Hash)]
 pub struct AdtDefData {
+    refined_by: Vec<Param>,
     def_id: DefId,
     kind: AdtDefKind,
 }
 
 #[derive(Eq, PartialEq, Hash)]
 enum AdtDefKind {
-    Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
-    Opaque { refined_by: Vec<Param> },
+    Transparent { variants: IndexVec<VariantIdx, VariantDef> },
+    Opaque,
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
     pub fields: Vec<Ty>,
 }
@@ -232,8 +233,8 @@ impl FnSig {
 
 impl AdtDef {
     pub fn opaque(def_id: DefId, refined_by: Vec<Param>) -> Self {
-        let kind = AdtDefKind::Opaque { refined_by };
-        AdtDef(Interned::new(AdtDefData { def_id, kind }))
+        let kind = AdtDefKind::Opaque;
+        AdtDef(Interned::new(AdtDefData { def_id, kind, refined_by }))
     }
 
     pub fn transparent(
@@ -241,8 +242,8 @@ impl AdtDef {
         refined_by: Vec<Param>,
         variants: IndexVec<VariantIdx, VariantDef>,
     ) -> Self {
-        let kind = AdtDefKind::Transparent { refined_by, variants };
-        AdtDef(Interned::new(AdtDefData { def_id, kind }))
+        let kind = AdtDefKind::Transparent { variants };
+        AdtDef(Interned::new(AdtDefData { def_id, kind, refined_by }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -250,11 +251,7 @@ impl AdtDef {
     }
 
     pub fn refined_by(&self) -> &[Param] {
-        match self.kind() {
-            AdtDefKind::Transparent { refined_by, .. } | AdtDefKind::Opaque { refined_by, .. } => {
-                refined_by
-            }
-        }
+        &self.0.refined_by
     }
 
     pub fn sorts(&self) -> Vec<Sort> {
