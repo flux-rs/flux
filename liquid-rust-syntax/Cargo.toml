@@ -7,7 +7,6 @@ version = "0.1.0"
 
 [dependencies]
 lalrpop-util = "0.19"
-liquid-rust-common = { path = "../liquid-rust-common" }
 
 
 [build-dependencies]

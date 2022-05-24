@@ -1,9 +1,7 @@
 #![feature(rustc_private, box_patterns, once_cell)]
 
 extern crate rustc_ast;
-extern crate rustc_ast_pretty;
 extern crate rustc_borrowck;
-extern crate rustc_const_eval;
 extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_hash;

@@ -13,7 +13,6 @@ liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 liquid-rust-middle = { path = "../liquid-rust-middle" }
 liquid-rust-syntax = { path = "../liquid-rust-syntax" }
 liquid-rust-typeck = { path = "../liquid-rust-typeck" }
-quickscope = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
