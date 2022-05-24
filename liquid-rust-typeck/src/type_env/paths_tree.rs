@@ -8,7 +8,7 @@ use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
-        subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind,
+        subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Index, Loc, Name, Path, RefKind, Ty, TyKind,
         VariantIdx,
     },
 };
@@ -334,9 +334,9 @@ impl Node {
             Node::Ty(ty) => ty,
             Node::Adt(adt_def, variant_idx, fields) => {
                 let fields = fields.iter_mut().map(|n| n.fold(pcx).clone()).collect_vec();
-                let exprs = fold(pcx, adt_def, &fields[..], *variant_idx);
+                let indices = fold(pcx, adt_def, &fields[..], *variant_idx);
                 let adt = BaseTy::adt(adt_def.clone(), vec![]);
-                let ty = Ty::indexed(adt, exprs);
+                let ty = Ty::indexed(adt, indices);
                 *self = Node::Ty(ty);
                 if let Node::Ty(ty) = self {
                     ty
@@ -361,7 +361,7 @@ impl Node {
 
 type ParamInst = FxHashMap<Name, Expr>;
 
-fn fold(pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Expr> {
+fn fold(pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
     let fields = &adt_def.variants().unwrap()[variant_idx].fields;
     let mut params = FxHashMap::default();
     for (ty1, ty2) in iter::zip(tys, fields) {
@@ -370,16 +370,16 @@ fn fold(pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantId
     adt_def
         .refined_by()
         .iter()
-        .map(|param| params.remove(&param.name).unwrap())
+        .map(|param| params.remove(&param.name).unwrap().into())
         .collect()
 }
 
 fn ty_infer_folding(pcx: &mut PureCtxt, params: &mut ParamInst, ty1: &Ty, ty2: &Ty) {
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
+        (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
             bty_infer_folding(pcx, params, bty1, bty2);
-            for (e1, e2) in iter::zip(exprs1, exprs2) {
-                expr_infer_folding(params, e1, e2);
+            for (idx1, idx2) in iter::zip(indices1, indices2) {
+                expr_infer_folding(params, &idx1.expr, &idx2.expr);
             }
         }
         (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),

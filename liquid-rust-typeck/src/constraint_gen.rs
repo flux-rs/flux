@@ -1,13 +1,13 @@
 use std::iter;
 
-use itertools::izip;
+use itertools::{izip, Itertools};
 
 use rustc_span::Span;
 
 use liquid_rust_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
-    ty::{BaseTy, BinOp, Constr, Expr, Pred, RefKind, Ty, TyKind},
+    ty::{BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
 };
 
 use crate::{pure_ctxt::PureCtxt, type_env::TypeEnv};
@@ -66,8 +66,13 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                 return;
             }
             (TyKind::Exists(bty, p), _) => {
-                let exprs = ck.pcx.push_bindings(&ck.genv.sorts(bty), p);
-                let ty1 = Ty::indexed(bty.clone(), exprs);
+                let indices = ck
+                    .pcx
+                    .push_bindings(&ck.genv.sorts(bty), p)
+                    .into_iter()
+                    .map(Index::from)
+                    .collect_vec();
+                let ty1 = Ty::indexed(bty.clone(), indices);
                 ck.subtyping(&ty1, ty2);
                 return;
             }
@@ -81,9 +86,10 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
                     ck.check_pred(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()));
                 }
             }
-            (TyKind::Indexed(bty1, exprs), TyKind::Exists(bty2, p)) => {
+            (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, p)) => {
                 ck.bty_subtyping(bty1, bty2);
-                ck.check_pred(p.subst_bound_vars(exprs));
+                let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
+                ck.check_pred(p.subst_bound_vars(&exprs));
             }
             (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
                 assert_eq!(loc1, loc2);
