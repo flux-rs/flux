@@ -20,31 +20,31 @@ use super::{
 
 pub struct LoweringCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
-    body: rustc_mir::Body<'tcx>,
+    rustc_mir: rustc_mir::Body<'tcx>,
 }
 
 impl<'tcx> LoweringCtxt<'tcx> {
     pub fn lower(
         tcx: TyCtxt<'tcx>,
-        body: rustc_mir::Body<'tcx>,
+        rustc_mir: rustc_mir::Body<'tcx>,
     ) -> Result<Body<'tcx>, ErrorReported> {
-        let lower = Self { tcx, body };
+        let lower = Self { tcx, rustc_mir };
 
         let basic_blocks = lower
-            .body
+            .rustc_mir
             .basic_blocks()
             .iter()
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
         let local_decls = lower
-            .body
+            .rustc_mir
             .local_decls
             .iter()
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.body })
+        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.rustc_mir })
     }
 
     fn lower_basic_block_data(
@@ -138,7 +138,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, cleanup, .. } => {
-                let (func, substs) = match func.ty(&self.body, self.tcx).kind() {
+                let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let substs = List::from_vec(
                             substs

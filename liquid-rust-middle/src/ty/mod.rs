@@ -777,8 +777,8 @@ impl ExprS {
         vars
     }
 
-    /// Simplify expression applying some rules like removing double negation. This is used for pretty
-    /// printing.
+    /// Simplify expression applying some rules like removing double negation. This is only used
+    /// for pretty printing.
     pub fn simplify(&self) -> Expr {
         match self.kind() {
             ExprKind::Var(var) => ExprKind::Var(*var).intern(),
