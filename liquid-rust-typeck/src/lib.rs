@@ -39,9 +39,8 @@ use liquid_rust_common::{
     config::CONFIG,
     index::{IndexGen, IndexVec},
 };
-use liquid_rust_core::ir::Body;
 use liquid_rust_fixpoint::{self as fixpoint, FixpointResult};
-use liquid_rust_middle::ty;
+use liquid_rust_middle::{rustc::mir::Body, ty};
 use pure_ctxt::KVarStore;
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
@@ -82,7 +81,7 @@ pub fn check<'tcx>(
 
     let constraint = pure_cx.into_fixpoint(&mut fcx);
 
-    fcx.check(genv.tcx, def_id, body.mir.span, constraint, qualifiers)
+    fcx.check(genv.tcx, def_id, body.span(), constraint, qualifiers)
 }
 
 impl FixpointCtxt {
@@ -196,7 +195,7 @@ impl FromStr for TagIdx {
 }
 
 mod errors {
-    use liquid_rust_core::ir::BasicBlock;
+    use liquid_rust_middle::rustc::mir::BasicBlock;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::Span;
 

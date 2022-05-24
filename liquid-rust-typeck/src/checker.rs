@@ -19,27 +19,28 @@ use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::mir;
+use rustc_middle::mir as rustc_mir;
 use rustc_session::Session;
 
 use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
-use liquid_rust_core::{
-    ir::{
-        self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
-        Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+use liquid_rust_middle::{
+    rustc::{
+        self,
+        mir::{
+            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
+            Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+        },
     },
-    ty as core,
-};
-use liquid_rust_middle::ty::{
-    self, subst::Subst, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred,
-    RefKind, Sort, Ty, TyKind, Var,
+    ty::{
+        self, subst::Subst, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig,
+        Pred, RefKind, Sort, Ty, TyKind, Var,
+    },
 };
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
     dbg,
     global_env::GlobalEnv,
-    lowering::LoweringCtxt,
     param_infer,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
@@ -378,7 +379,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         source_info: SourceInfo,
         fn_sig: PolySig,
-        substs: &[core::Ty],
+        substs: &[rustc::ty::GenericArg],
         args: &[Operand],
     ) -> Result<Ty, ErrorReported> {
         let actuals = args
@@ -391,10 +392,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
 
         // Infer substitution
-        let cx = LoweringCtxt::empty(self.genv);
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
+            .map(|arg| self.genv.refine_generic_arg(arg, &mut fresh_kvar))
             .collect_vec();
         let mut subst = Subst::with_type_substs(&substs);
         if param_infer::infer_from_fn_call(&mut subst, self.genv, pcx, env, &actuals, &fn_sig)
@@ -485,7 +485,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         discr: &Operand,
-        targets: &mir::SwitchTargets,
+        targets: &rustc_mir::SwitchTargets,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let discr_ty = self.check_operand(pcx, env, discr);
         let mk = |bits| {
@@ -586,7 +586,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
-        bin_op: ir::BinOp,
+        bin_op: mir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
@@ -594,18 +594,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty2 = self.check_operand(pcx, env, op2);
 
         match bin_op {
-            ir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
-            ir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
-            ir::BinOp::Add => self.check_arith_op(pcx, source_info, BinOp::Add, &ty1, &ty2),
-            ir::BinOp::Sub => self.check_arith_op(pcx, source_info, BinOp::Sub, &ty1, &ty2),
-            ir::BinOp::Mul => self.check_arith_op(pcx, source_info, BinOp::Mul, &ty1, &ty2),
-            ir::BinOp::Div => self.check_arith_op(pcx, source_info, BinOp::Div, &ty1, &ty2),
-            ir::BinOp::Rem => self.check_rem(pcx, source_info, &ty1, &ty2),
-            ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
-            ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
-            ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
-            ir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
-            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
+            mir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
+            mir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
+            mir::BinOp::Add => self.check_arith_op(pcx, source_info, BinOp::Add, &ty1, &ty2),
+            mir::BinOp::Sub => self.check_arith_op(pcx, source_info, BinOp::Sub, &ty1, &ty2),
+            mir::BinOp::Mul => self.check_arith_op(pcx, source_info, BinOp::Mul, &ty1, &ty2),
+            mir::BinOp::Div => self.check_arith_op(pcx, source_info, BinOp::Div, &ty1, &ty2),
+            mir::BinOp::Rem => self.check_rem(pcx, source_info, &ty1, &ty2),
+            mir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
+            mir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
+            mir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
+            mir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
+            mir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
         }
     }
 
@@ -759,12 +759,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &self,
         pcx: &mut PureCtxt,
         env: &mut TypeEnv,
-        un_op: ir::UnOp,
+        un_op: mir::UnOp,
         op: &Operand,
     ) -> Ty {
         let ty = self.check_operand(pcx, env, op);
         match un_op {
-            ir::UnOp::Not => {
+            mir::UnOp::Not => {
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Bool, exprs) => {
                         Ty::indexed(BaseTy::Bool, vec![exprs[0].not()])
@@ -772,7 +772,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
             }
-            ir::UnOp::Neg => {
+            mir::UnOp::Neg => {
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Int(int_ty), exprs) => {
                         Ty::indexed(BaseTy::Int(*int_ty), vec![exprs[0].neg()])

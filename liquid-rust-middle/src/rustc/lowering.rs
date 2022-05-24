@@ -412,6 +412,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_ty(&self, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {
         match ty.kind() {
+            rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
+                Ok(Ty::mk_ref(self.lower_ty(*ty)?, *mutability))
+            }
             rustc_middle::ty::TyKind::Bool => Ok(Ty::mk_bool()),
             rustc_middle::ty::TyKind::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
             rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),

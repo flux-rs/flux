@@ -10,11 +10,11 @@ use rustc_middle::ty::{
 
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_core::desugar;
-use liquid_rust_middle::ty;
+use liquid_rust_middle::{rustc::LoweringCtxt, ty};
 use liquid_rust_syntax::{self as syntax, surface};
 use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 
-use crate::{collector::SpecCollector, lowering::LoweringCtxt, mir_storage};
+use crate::{collector::SpecCollector, mir_storage};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]

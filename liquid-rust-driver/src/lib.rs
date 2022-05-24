@@ -16,7 +16,6 @@ extern crate rustc_span;
 
 mod callbacks;
 mod collector;
-mod lowering;
 mod mir_storage;
 
 use callbacks::LiquidCallbacks;

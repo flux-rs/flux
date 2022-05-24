@@ -8,9 +8,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 
 use liquid_rust_common::index::IndexGen;
-use liquid_rust_core::ir;
-use liquid_rust_middle::ty::{
-    subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var,
+use liquid_rust_middle::{
+    rustc::mir::Place,
+    ty::{subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
 };
 
 use crate::{
@@ -67,7 +67,7 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_place(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn lookup_place(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings
             .lookup_place(pcx, place, |_, result| result.ty())
     }
@@ -83,7 +83,7 @@ impl TypeEnv {
 
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn borrow_mut(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings.lookup_place(pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(path, _) => Ty::strg_ref(path),
@@ -95,7 +95,7 @@ impl TypeEnv {
         })
     }
 
-    pub fn borrow_shr(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn borrow_shr(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings
             .lookup_place(pcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
     }
@@ -104,7 +104,7 @@ impl TypeEnv {
         &mut self,
         genv: &GlobalEnv,
         pcx: &mut PureCtxt,
-        place: &ir::Place,
+        place: &Place,
         new_ty: Ty,
         tag: Tag,
     ) {
@@ -124,7 +124,7 @@ impl TypeEnv {
         });
     }
 
-    pub fn move_place(&mut self, pcx: &mut PureCtxt, place: &ir::Place) -> Ty {
+    pub fn move_place(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
         self.bindings.lookup_place(pcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(_, ty) => {

@@ -4,8 +4,10 @@ use itertools::izip;
 
 use rustc_span::Span;
 
-use liquid_rust_core::ir::BasicBlock;
-use liquid_rust_middle::ty::{BaseTy, BinOp, Constr, Expr, Pred, RefKind, Ty, TyKind};
+use liquid_rust_middle::{
+    rustc::mir::BasicBlock,
+    ty::{BaseTy, BinOp, Constr, Expr, Pred, RefKind, Ty, TyKind},
+};
 
 use crate::{
     global_env::{GlobalEnv, Variance},

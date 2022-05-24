@@ -5,10 +5,12 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
-use liquid_rust_core::ir::{Field, Place, PlaceElem};
-use liquid_rust_middle::ty::{
-    subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var,
-    VariantIdx,
+use liquid_rust_middle::{
+    rustc::mir::{Field, Place, PlaceElem},
+    ty::{
+        subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Loc, Name, Path, RefKind, Ty, TyKind, Var,
+        VariantIdx,
+    },
 };
 
 use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt};

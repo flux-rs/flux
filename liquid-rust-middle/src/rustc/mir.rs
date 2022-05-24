@@ -14,6 +14,7 @@ pub use rustc_middle::{
     mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
     ty::Variance,
 };
+use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
 use liquid_rust_common::index::{Idx, IndexVec};
@@ -166,6 +167,10 @@ pub enum FakeReadCause {
 }
 
 impl Body<'_> {
+    pub fn span(&self) -> Span {
+        self.rustc_mir.span
+    }
+
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (1..self.rustc_mir.arg_count + 1).map(Local::new)
