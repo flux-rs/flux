@@ -6,7 +6,7 @@ use crate::{
 };
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
-use liquid_rust_core::ty as core;
+use liquid_rust_middle::core;
 use rustc_hash::FxHashMap;
 
 pub struct LoweringCtxt<'a, 'tcx> {
@@ -184,11 +184,7 @@ fn lower_expr(expr: &core::Expr, name_map: &NameMap) -> ty::Expr {
         core::ExprKind::Var(var, ..) => ty::Expr::var(lower_var(*var, name_map)),
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {
-            ty::Expr::binary_op(
-                lower_bin_op(*op),
-                lower_expr(e1, name_map),
-                lower_expr(e2, name_map),
-            )
+            ty::Expr::binary_op(*op, lower_expr(e1, name_map), lower_expr(e2, name_map))
         }
     }
 }
@@ -212,23 +208,5 @@ pub fn lower_sort(sort: core::Sort) -> ty::Sort {
         core::Sort::Int => ty::Sort::int(),
         core::Sort::Bool => ty::Sort::bool(),
         core::Sort::Loc => ty::Sort::loc(),
-    }
-}
-
-fn lower_bin_op(op: core::BinOp) -> ty::BinOp {
-    match op {
-        core::BinOp::Iff => ty::BinOp::Iff,
-        core::BinOp::Imp => ty::BinOp::Imp,
-        core::BinOp::Or => ty::BinOp::Or,
-        core::BinOp::And => ty::BinOp::And,
-        core::BinOp::Eq => ty::BinOp::Eq,
-        core::BinOp::Gt => ty::BinOp::Gt,
-        core::BinOp::Ge => ty::BinOp::Ge,
-        core::BinOp::Lt => ty::BinOp::Lt,
-        core::BinOp::Le => ty::BinOp::Le,
-        core::BinOp::Add => ty::BinOp::Add,
-        core::BinOp::Sub => ty::BinOp::Sub,
-        core::BinOp::Mod => ty::BinOp::Mod,
-        core::BinOp::Mul => ty::BinOp::Mul,
     }
 }

@@ -9,6 +9,7 @@ version = "0.1.0"
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
+liquid-rust-middle = { path = "../liquid-rust-middle" }
 liquid-rust-syntax = { path = "../liquid-rust-syntax" }
 quickscope = "0.1"
 

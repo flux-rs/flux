@@ -13,6 +13,7 @@ extern crate rustc_serialize;
 extern crate rustc_span;
 extern crate rustc_target;
 
+pub mod core;
 mod intern;
 pub mod pretty;
 pub mod rustc;

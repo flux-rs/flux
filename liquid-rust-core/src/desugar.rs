@@ -11,9 +11,9 @@ use rustc_middle::ty::TyCtxt;
 use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
-use crate::ty::{
-    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, Constr, Expr, ExprKind, FnSig, Ident, Indices, Lit,
-    Name, Param, Pred, Qualifier, Sort, Ty, Var, VariantDef,
+use liquid_rust_middle::core::{
+    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Indices,
+    Lit, Name, Param, Pred, Qualifier, RefKind, Sort, Ty, Var, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -190,7 +190,9 @@ impl<'a> DesugarCtxt<'a> {
                 let pred = self.params.desugar_expr(pred, Some(bind.name));
                 Ty::Exists(bty?, Pred::Expr(pred?))
             }
-            surface::TyKind::Ref(rk, ty) => Ty::Ref(rk, Box::new(self.desugar_ty(*ty)?)),
+            surface::TyKind::Ref(rk, ty) => {
+                Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
+            }
             surface::TyKind::StrgRef(loc, ty) => {
                 let loc = self.params.desugar_ident(loc)?;
                 let ty = self.desugar_ty(*ty)?;
@@ -237,6 +239,13 @@ impl<'a> DesugarCtxt<'a> {
     }
 }
 
+fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
+    match rk {
+        surface::RefKind::Mut => RefKind::Mut,
+        surface::RefKind::Shr => RefKind::Shr,
+    }
+}
+
 fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorReported> {
     if sort.name == SORTS.int {
         Ok(Sort::Int)
@@ -263,7 +272,7 @@ impl ParamsCtxt<'_> {
             surface::ExprKind::BinaryOp(op, e1, e2) => {
                 let e1 = self.desugar_expr(*e1, bound);
                 let e2 = self.desugar_expr(*e2, bound);
-                ExprKind::BinaryOp(op, Box::new(e1?), Box::new(e2?))
+                ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
         };
         Ok(Expr { kind, span: Some(expr.span) })
@@ -408,6 +417,24 @@ impl ParamsCtxt<'_> {
                     .emit_err(errors::RefinedTypeParam { span: path.span }))
             }
         }
+    }
+}
+
+fn desugar_bin_op(op: surface::BinOp) -> BinOp {
+    match op {
+        surface::BinOp::Iff => BinOp::Iff,
+        surface::BinOp::Imp => BinOp::Imp,
+        surface::BinOp::Or => BinOp::Or,
+        surface::BinOp::And => BinOp::And,
+        surface::BinOp::Eq => BinOp::Eq,
+        surface::BinOp::Gt => BinOp::Gt,
+        surface::BinOp::Ge => BinOp::Ge,
+        surface::BinOp::Lt => BinOp::Lt,
+        surface::BinOp::Le => BinOp::Le,
+        surface::BinOp::Add => BinOp::Add,
+        surface::BinOp::Sub => BinOp::Sub,
+        surface::BinOp::Mod => BinOp::Mod,
+        surface::BinOp::Mul => BinOp::Mul,
     }
 }
 

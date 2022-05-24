@@ -2,11 +2,11 @@ use std::cell::RefCell;
 
 use itertools::Itertools;
 use liquid_rust_common::config::{AssertBehavior, CONFIG};
-use liquid_rust_core::{
-    desugar,
-    ty::{self as core, AdtSortsMap, VariantIdx},
+use liquid_rust_core::desugar;
+use liquid_rust_middle::{
+    core::{self, AdtSortsMap, VariantIdx},
+    rustc,
 };
-use liquid_rust_middle::rustc;
 use liquid_rust_syntax::surface;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;

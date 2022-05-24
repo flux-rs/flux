@@ -1,5 +1,5 @@
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::ty::{self as core, AdtSortsMap};
+use liquid_rust_middle::core::{self, AdtSortsMap};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
@@ -235,7 +235,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
                 self.check_expr(env, e2, ty::Sort::bool())?;
                 Ok(ty::Sort::bool())
             }
-            core::BinOp::Eq => {
+            core::BinOp::Eq | core::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, s)?;
                 Ok(ty::Sort::bool())
@@ -245,7 +245,11 @@ impl<T: AdtSortsMap> Wf<'_, T> {
                 self.check_expr(env, e2, ty::Sort::int())?;
                 Ok(ty::Sort::bool())
             }
-            core::BinOp::Add | core::BinOp::Sub | core::BinOp::Mod | core::BinOp::Mul => {
+            core::BinOp::Add
+            | core::BinOp::Sub
+            | core::BinOp::Mod
+            | core::BinOp::Mul
+            | core::BinOp::Div => {
                 self.check_expr(env, e1, ty::Sort::int())?;
                 self.check_expr(env, e2, ty::Sort::int())?;
                 Ok(ty::Sort::int())

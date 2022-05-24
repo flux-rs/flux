@@ -14,6 +14,4 @@ extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_target;
 
-pub mod ty;
-
 pub mod desugar;

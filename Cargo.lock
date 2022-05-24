@@ -468,6 +468,7 @@ dependencies = [
  "itertools",
  "liquid-rust-common",
  "liquid-rust-fixpoint",
+ "liquid-rust-middle",
  "liquid-rust-syntax",
  "quickscope",
 ]

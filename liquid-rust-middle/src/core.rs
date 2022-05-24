@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 use itertools::Itertools;
 use liquid_rust_common::{format::PadAdapter, index::IndexVec};
-pub use liquid_rust_syntax::surface::{BinOp, RefKind};
+pub use liquid_rust_fixpoint::BinOp;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
@@ -70,6 +70,12 @@ pub enum Ty {
     Never,
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum RefKind {
+    Shr,
+    Mut,
+}
+
 pub struct Indices {
     pub exprs: Vec<Expr>,
     pub span: Span,
@@ -105,7 +111,6 @@ pub struct Expr {
     pub span: Option<Span>,
 }
 
-#[derive(Debug)]
 pub enum ExprKind {
     Var(Var, Symbol, Span),
     Literal(Lit),
