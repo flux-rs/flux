@@ -2,11 +2,12 @@ use std::iter;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use liquid_rust_middle::ty::{
-    subst::Subst, Constr, Expr, ExprKind, Loc, Name, Path, PolySig, Ty, TyKind, Var,
+use liquid_rust_middle::{
+    global_env::GlobalEnv,
+    ty::{subst::Subst, Constr, Expr, ExprKind, Loc, Name, Path, PolySig, Ty, TyKind, Var},
 };
 
-use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt, type_env::TypeEnv};
+use crate::{pure_ctxt::PureCtxt, type_env::TypeEnv};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct InferenceError(Name);

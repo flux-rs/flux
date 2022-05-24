@@ -13,7 +13,7 @@ use liquid_rust_middle::{
     },
 };
 
-use crate::{global_env::GlobalEnv, pure_ctxt::PureCtxt};
+use crate::pure_ctxt::PureCtxt;
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -425,22 +425,6 @@ fn expr_infer_folding(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
         }
         _ => {}
     }
-}
-
-pub trait LookupMode {
-    type Result<'a>;
-
-    fn to_result(ty: &mut Ty) -> Self::Result<'_>;
-
-    fn place_proj_ty<'a>(
-        paths: &'a mut PathsTree,
-        genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
-        ty: &Ty,
-        loc: Loc,
-        path: &mut Vec<Field>,
-        proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> (Path, Self::Result<'a>);
 }
 
 enum PathsIter<'a> {

@@ -4,7 +4,7 @@ use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
 
-use crate::{lowering::lower_sort, ty};
+use liquid_rust_middle::{ty, ty::lowering::lower_sort};
 
 pub struct Wf<'a, T> {
     sess: &'a Session,

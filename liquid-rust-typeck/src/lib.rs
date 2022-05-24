@@ -21,8 +21,6 @@ extern crate rustc_span;
 mod checker;
 mod constraint_gen;
 mod dbg;
-pub mod global_env;
-pub mod lowering;
 mod param_infer;
 mod pure_ctxt;
 mod type_env;
@@ -32,14 +30,13 @@ use std::{fs, io::Write, str::FromStr};
 
 use checker::Checker;
 use constraint_gen::Tag;
-use global_env::GlobalEnv;
 use itertools::Itertools;
 use liquid_rust_common::{
     config::CONFIG,
     index::{IndexGen, IndexVec},
 };
 use liquid_rust_fixpoint::{self as fixpoint, FixpointResult};
-use liquid_rust_middle::{rustc::mir::Body, ty};
+use liquid_rust_middle::{global_env::GlobalEnv, rustc::mir::Body, ty};
 use pure_ctxt::KVarStore;
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;

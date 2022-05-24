@@ -9,13 +9,13 @@ use rustc_middle::ty::TyCtxt;
 
 use liquid_rust_common::index::IndexGen;
 use liquid_rust_middle::{
+    global_env::GlobalEnv,
     rustc::mir::Place,
     ty::{subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind, Var},
 };
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
-    global_env::GlobalEnv,
     param_infer,
     pure_ctxt::{PureCtxt, Scope},
 };

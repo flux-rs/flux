@@ -10,9 +10,9 @@ use rustc_middle::ty::{
 
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_desugar as desugar;
-use liquid_rust_middle::{rustc::lowering::LoweringCtxt, ty};
+use liquid_rust_middle::{global_env::GlobalEnv, rustc, ty};
 use liquid_rust_syntax::surface;
-use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
+use liquid_rust_typeck::{self as typeck, wf::Wf};
 
 use crate::{collector::SpecCollector, mir_storage};
 
@@ -99,7 +99,7 @@ impl<'tcx> CrateChecker<'tcx> {
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(sess, qualifier)?;
                 Wf::new(sess, &genv).check_qualifier(&qualifier)?;
-                Ok(typeck::lowering::LoweringCtxt::lower_qualifer(&qualifier))
+                Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
             })
             .try_collect_exhaust()?;
 
@@ -169,7 +169,7 @@ impl<'tcx> CrateChecker<'tcx> {
             .unwrap();
         }
 
-        let body = LoweringCtxt::lower(self.genv.tcx, mir)?;
+        let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
         typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
 }

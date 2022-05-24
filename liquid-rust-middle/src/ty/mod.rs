@@ -1,3 +1,4 @@
+pub mod lowering;
 pub mod subst;
 
 use std::{fmt, lazy::SyncOnceCell};

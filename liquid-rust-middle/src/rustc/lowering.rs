@@ -24,7 +24,7 @@ pub struct LoweringCtxt<'tcx> {
 }
 
 impl<'tcx> LoweringCtxt<'tcx> {
-    pub fn lower(
+    pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         rustc_mir: rustc_mir::Body<'tcx>,
     ) -> Result<Body<'tcx>, ErrorReported> {
@@ -395,9 +395,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
 pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
-    sig: rustc_ty::PolyFnSig<'tcx>,
+    fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<FnSig, ErrorReported> {
-    let fn_sig = tcx.erase_late_bound_regions(sig);
+    let fn_sig = tcx.erase_late_bound_regions(fn_sig);
     let inputs_and_output = List::from_vec(
         fn_sig
             .inputs_and_output

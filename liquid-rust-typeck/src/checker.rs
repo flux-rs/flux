@@ -24,6 +24,7 @@ use rustc_session::Session;
 
 use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
 use liquid_rust_middle::{
+    global_env::GlobalEnv,
     rustc::{
         self,
         mir::{
@@ -39,9 +40,7 @@ use liquid_rust_middle::{
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
-    dbg,
-    global_env::GlobalEnv,
-    param_infer,
+    dbg, param_infer,
     pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };

@@ -5,15 +5,12 @@ use itertools::izip;
 use rustc_span::Span;
 
 use liquid_rust_middle::{
+    global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
     ty::{BaseTy, BinOp, Constr, Expr, Pred, RefKind, Ty, TyKind},
 };
 
-use crate::{
-    global_env::{GlobalEnv, Variance},
-    pure_ctxt::PureCtxt,
-    type_env::TypeEnv,
-};
+use crate::{pure_ctxt::PureCtxt, type_env::TypeEnv};
 
 pub struct ConstraintGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'tcx>,

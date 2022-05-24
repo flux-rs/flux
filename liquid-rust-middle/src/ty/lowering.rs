@@ -6,8 +6,9 @@ use crate::{
 };
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
-use liquid_rust_middle::core;
 use rustc_hash::FxHashMap;
+
+use crate::core;
 
 pub struct LoweringCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'tcx>,
