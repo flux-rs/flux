@@ -15,7 +15,7 @@ use super::{
         AggregateKind, BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand,
         Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
-    ty::{GenericArg, Ty},
+    ty::{FnSig, GenericArg, Ty},
 };
 
 pub struct LoweringCtxt<'tcx> {
@@ -391,6 +391,21 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorReported> {
         emit_err(self.tcx, span, msg)
     }
+}
+
+pub fn lower_fn_sig<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    sig: rustc_ty::PolyFnSig<'tcx>,
+) -> Result<FnSig, ErrorReported> {
+    let fn_sig = tcx.erase_late_bound_regions(sig);
+    let inputs_and_output = List::from_vec(
+        fn_sig
+            .inputs_and_output
+            .iter()
+            .map(|ty| lower_ty(tcx, ty))
+            .try_collect()?,
+    );
+    Ok(FnSig { inputs_and_output })
 }
 
 pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {

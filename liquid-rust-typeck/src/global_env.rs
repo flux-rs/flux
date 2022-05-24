@@ -2,12 +2,10 @@ use std::cell::RefCell;
 
 use itertools::Itertools;
 use liquid_rust_common::config::{AssertBehavior, CONFIG};
-use liquid_rust_core::desugar;
 use liquid_rust_middle::{
     core::{self, AdtSortsMap, VariantIdx},
     rustc,
 };
-use liquid_rust_syntax::surface;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -17,7 +15,6 @@ pub use rustc_span::symbol::Ident;
 use crate::{
     lowering::LoweringCtxt,
     ty::{self, BaseTy, Sort},
-    wf::Wf,
 };
 
 pub struct GlobalEnv<'tcx> {
@@ -63,12 +60,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         self.fn_sigs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| {
-                let fn_sig = surface::default_fn_sig(self.tcx, def_id);
-                let fn_sig = desugar::desugar_fn_sig(self.tcx.sess, self, fn_sig).unwrap();
-                debug_assert!(Wf::new(self.tcx.sess, self).check_fn_sig(&fn_sig).is_ok());
-                LoweringCtxt::lower_fn_sig(self, fn_sig)
-            })
+            .or_insert_with(|| self.default_fn_sig(def_id))
             .clone()
     }
 
@@ -113,6 +105,12 @@ impl<'tcx> GlobalEnv<'tcx> {
         ty::Binders::new(adt_def.refined_by(), sig)
     }
 
+    pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
+        let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id));
+        self.tcx.sess.abort_if_errors();
+        self.refine_fn_sig(&fn_sig.unwrap(), &mut |_| ty::Pred::tt())
+    }
+
     pub fn default_adt_def(&self, def_id: DefId) -> ty::AdtDef {
         let adt_def = self.tcx.adt_def(def_id);
         let variants = adt_def
@@ -138,6 +136,20 @@ impl<'tcx> GlobalEnv<'tcx> {
             })
             .collect();
         ty::VariantDef { fields }
+    }
+
+    pub fn refine_fn_sig(
+        &self,
+        fn_sig: &rustc::ty::FnSig,
+        mk_pred: &mut impl FnMut(&BaseTy) -> ty::Pred,
+    ) -> ty::PolySig {
+        let args = fn_sig
+            .inputs()
+            .iter()
+            .map(|ty| self.refine_ty(ty, mk_pred))
+            .collect_vec();
+        let ret = self.refine_ty(&fn_sig.output(), mk_pred);
+        ty::PolySig::new(vec![], ty::FnSig::new(vec![], args, ret, vec![]))
     }
 
     pub fn refine_ty(

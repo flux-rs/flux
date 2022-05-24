@@ -10,7 +10,7 @@ use crate::intern::{impl_internable, Interned, List};
 
 #[derive(Debug)]
 pub struct FnSig {
-    inputs_and_output: List<Ty>,
+    pub(crate) inputs_and_output: List<Ty>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

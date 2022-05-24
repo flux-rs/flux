@@ -531,10 +531,8 @@ version = "0.1.0"
 dependencies = [
  "itertools",
  "liquid-rust-common",
- "liquid-rust-core",
  "liquid-rust-fixpoint",
  "liquid-rust-middle",
- "liquid-rust-syntax",
  "quickscope",
  "tracing",
 ]
