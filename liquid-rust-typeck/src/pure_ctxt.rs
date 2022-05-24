@@ -383,7 +383,7 @@ fn kvar_to_fixpoint(
     bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     KVar(kvid, args): &KVar,
 ) -> fixpoint::Pred {
-    let args = args.iter().zip(&cx.kvars[*kvid]).map(|(arg, sort)| {
+    let args = iter::zip(args, &cx.kvars[*kvid]).map(|(arg, sort)| {
         match arg.kind() {
             ExprKind::FreeVar(name) => {
                 *cx.name_map

@@ -195,9 +195,9 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         refine: &core::Indices,
     ) -> Result<Vec<ty::Sort>, ErrorReported> {
         let sorts: Vec<ty::Sort> = refine
-            .exprs
+            .indices
             .iter()
-            .map(|e| self.synth_expr(env, e))
+            .map(|idx| self.synth_expr(env, &idx.expr))
             .try_collect_exhaust()?;
         Ok(sorts)
     }

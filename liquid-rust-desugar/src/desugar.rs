@@ -12,8 +12,8 @@ use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
-    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Indices,
-    Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VarKind, VariantDef,
+    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Index,
+    Indices, Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VarKind, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -142,8 +142,8 @@ impl<'a> DesugarCtxt<'a> {
                         .push(Constr::Pred(self.params.desugar_expr(pred, None)?));
                 }
                 let bty = self.desugar_path_into_bty(path);
-                let var = self.params.desugar_var(bind, None)?;
-                let indices = Indices { exprs: vec![var], span: bind.span };
+                let idx = Index { expr: self.params.desugar_var(bind, None)?, is_binder: true };
+                let indices = Indices { indices: vec![idx], span: bind.span };
                 Ok(Ty::Indexed(bty?, indices))
             }
             surface::Arg::StrgRef(loc, ty) => {
@@ -197,14 +197,20 @@ impl<'a> DesugarCtxt<'a> {
         let exprs = indices
             .indices
             .into_iter()
-            .map(|index| {
-                match index {
-                    surface::Index::Bind(ident) => self.params.desugar_var(ident, None),
-                    surface::Index::Expr(expr) => self.params.desugar_expr(expr, None),
-                }
-            })
+            .map(|idx| self.desugar_index(idx))
             .try_collect_exhaust()?;
-        Ok(Indices { exprs, span: indices.span })
+        Ok(Indices { indices: exprs, span: indices.span })
+    }
+
+    fn desugar_index(&self, idx: surface::Index) -> Result<Index, ErrorReported> {
+        match idx {
+            surface::Index::Bind(ident) => {
+                Ok(Index { expr: self.params.desugar_var(ident, None)?, is_binder: true })
+            }
+            surface::Index::Expr(expr) => {
+                Ok(Index { expr: self.params.desugar_expr(expr, None)?, is_binder: false })
+            }
+        }
     }
 
     fn desugar_path_into_bty(&mut self, path: surface::Path<Res>) -> Result<BaseTy, ErrorReported> {
