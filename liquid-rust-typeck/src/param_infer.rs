@@ -67,9 +67,11 @@ fn infer_from_tys(
     ty2: &Ty,
 ) {
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(_, indices), TyKind::Indexed(_, indices2)) => {
-            for (idx1, idx2) in iter::zip(indices, indices2) {
-                infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
+        (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
+            for (idx1, idx2) in iter::zip(indices1, indices2) {
+                if idx2.is_binder {
+                    infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
+                }
             }
         }
         (TyKind::Exists(bty1, p), TyKind::Indexed(_, indices2)) => {
@@ -77,7 +79,9 @@ fn infer_from_tys(
             let sorts = genv.sorts(bty1);
             let exprs1 = pcx.push_bindings(&sorts, p);
             for (e1, idx2) in iter::zip(exprs1, indices2) {
-                infer_from_exprs(subst, params, &e1, &idx2.expr);
+                if idx2.is_binder {
+                    infer_from_exprs(subst, params, &e1, &idx2.expr);
+                }
             }
         }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {

@@ -205,8 +205,8 @@ impl TypeEnv {
         subst: &mut Subst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(_, indices1), TyKind::Indexed(_, ndices2)) => {
-                for (idx1, idx2) in iter::zip(indices1, ndices2) {
+            (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
+                for (idx1, idx2) in iter::zip(indices1, indices2) {
                     param_infer::infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
                 }
             }
