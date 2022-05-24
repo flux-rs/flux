@@ -63,8 +63,7 @@ fn normal(x: &mut RVec<f32>, w: usize) -> i32 {
 
 /// creating (empty) 0-center for each cluster
 #[lr::sig(fn(n: usize, k: usize{0 < k}) -> RVec<RVec<f32>[n]>[k])]
-fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> {
-    //~ ERROR postcondition might not hold
+fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> { //~ ERROR postcondition might not hold
     let mut res = RVec::new();
     let mut i = 0;
     while i <= k {
