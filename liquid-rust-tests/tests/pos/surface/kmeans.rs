@@ -23,7 +23,7 @@ fn f32_div(n: f32, d: usize) -> f32 {
 /////////////////////////////////////////////////////////////
 
 /// distance between two points
-#[lr::sig(fn(&RVec<f32>[@n], &RVec<f32>{v : v == n}) -> f32)]
+#[lr::sig(fn(&RVec<f32>[@n], &RVec<f32>[n]) -> f32)]
 fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
     let mut res = 0.0;
     let mut i = 0;
@@ -36,7 +36,7 @@ fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
 }
 
 /// adding two points (updates the first)
-#[lr::sig(fn(&mut RVec<f32>[@n], &RVec<f32>{v : v == n}) -> i32)]
+#[lr::sig(fn(&mut RVec<f32>[@n], &RVec<f32>[n]) -> i32)]
 fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
     let mut i = 0;
     let n = x.len();
@@ -75,7 +75,7 @@ fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> {
 
 /// finding the nearest center to a point
 #[lr::sig(
-fn(&RVec<f32>[@n], &RVec<RVec<f32>{v : v == n}>[@k]) -> usize{v:0 <= v && v < k}
+fn(&RVec<f32>[@n], &RVec<RVec<f32>[n]>[@k]) -> usize{v:0 <= v && v < k}
 requires k > 0
 )]
 fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
@@ -97,7 +97,7 @@ fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
 }
 
 // TODO: the `n` is not needed, except to prevent a silly parse error!
-#[lr::sig(fn(n: usize, &mut RVec<RVec<f32>{v : v == n}>[@k], &RVec<usize>{v : v == k}) -> i32)]
+#[lr::sig(fn(n: usize, &mut RVec<RVec<f32>[n]>[@k], &RVec<usize>[k]) -> i32)]
 fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>) -> i32 {
     let k = cs.len();
     let mut i = 0;

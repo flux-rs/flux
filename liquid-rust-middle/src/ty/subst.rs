@@ -50,10 +50,13 @@ impl Subst<'_> {
 
     pub fn subst_ty(&self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Indexed(bty, exprs) => {
+            TyKind::Indexed(bty, indices) => {
                 Ty::indexed(
                     self.subst_base_ty(bty),
-                    exprs.iter().map(|e| self.subst_expr(e)).collect_vec(),
+                    indices
+                        .iter()
+                        .map(|idx| self.subst_index(idx))
+                        .collect_vec(),
                 )
             }
             TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
@@ -69,6 +72,11 @@ impl Subst<'_> {
             TyKind::Never => Ty::never(),
             TyKind::Discr => Ty::discr(),
         }
+    }
+
+    fn subst_index(&self, idx: &Index) -> Index {
+        // TODO(nilehmann) Does it make sense to keep the is_binder flat after substituting?
+        Index { expr: self.subst_expr(&idx.expr), is_binder: idx.is_binder }
     }
 
     pub fn subst_pred(&self, pred: &Pred) -> Pred {

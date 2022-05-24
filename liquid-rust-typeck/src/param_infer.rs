@@ -67,17 +67,21 @@ fn infer_from_tys(
     ty2: &Ty,
 ) {
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(_, exprs1), TyKind::Indexed(_, exprs2)) => {
-            for (e1, e2) in iter::zip(exprs1, exprs2) {
-                infer_from_exprs(subst, params, e1, e2);
+        (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
+            for (idx1, idx2) in iter::zip(indices1, indices2) {
+                if idx2.is_binder {
+                    infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
+                }
             }
         }
-        (TyKind::Exists(bty1, p), TyKind::Indexed(_, exprs2)) => {
+        (TyKind::Exists(bty1, p), TyKind::Indexed(_, indices2)) => {
             // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
             let sorts = genv.sorts(bty1);
             let exprs1 = pcx.push_bindings(&sorts, p);
-            for (e1, e2) in iter::zip(exprs1, exprs2) {
-                infer_from_exprs(subst, params, &e1, e2);
+            for (e1, idx2) in iter::zip(exprs1, indices2) {
+                if idx2.is_binder {
+                    infer_from_exprs(subst, params, &e1, &idx2.expr);
+                }
             }
         }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {

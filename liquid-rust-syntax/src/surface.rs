@@ -88,19 +88,14 @@ pub struct Ty<R = Ident> {
 pub enum TyKind<T = Ident> {
     /// ty
     Path(Path<T>),
-
     /// t[e]
     Indexed { path: Path<T>, indices: Indices },
-
     /// ty{b:e}
     Exists { bind: Ident, path: Path<T>, pred: Expr },
-
     /// Mutable or shared reference
     Ref(RefKind, Box<Ty<T>>),
-
     /// Strong reference, &strg<self: i32>
     StrgRef(Ident, Box<Ty<T>>),
-
     /// ()
     Unit,
 }

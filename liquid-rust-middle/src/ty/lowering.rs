@@ -131,13 +131,13 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
     pub fn lower_ty(&self, ty: &core::Ty) -> ty::Ty {
         match ty {
-            core::Ty::Indexed(bty, refine) => {
-                let exprs = refine
-                    .exprs
+            core::Ty::Indexed(bty, indices) => {
+                let indices = indices
+                    .indices
                     .iter()
-                    .map(|e| lower_expr(e, &self.name_map))
+                    .map(|idx| self.lower_index(idx))
                     .collect_vec();
-                ty::Ty::indexed(self.lower_base_ty(bty), exprs)
+                ty::Ty::indexed(self.lower_base_ty(bty), indices)
             }
             core::Ty::Exists(bty, pred) => {
                 let bty = self.lower_base_ty(bty);
@@ -154,6 +154,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             }
             core::Ty::Never => ty::Ty::never(),
         }
+    }
+
+    fn lower_index(&self, idx: &core::Index) -> ty::Index {
+        ty::Index { expr: lower_expr(&idx.expr, &self.name_map), is_binder: idx.is_binder }
     }
 
     fn lower_ref_kind(rk: core::RefKind) -> ty::RefKind {

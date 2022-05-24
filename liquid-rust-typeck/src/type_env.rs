@@ -11,7 +11,7 @@ use liquid_rust_common::index::IndexGen;
 use liquid_rust_middle::{
     global_env::GlobalEnv,
     rustc::mir::Place,
-    ty::{subst::Subst, BaseTy, Expr, ExprKind, Param, Path, RefKind, Ty, TyKind},
+    ty::{subst::Subst, BaseTy, Expr, ExprKind, Index, Param, Path, RefKind, Ty, TyKind},
 };
 
 use crate::{
@@ -151,8 +151,12 @@ impl TypeEnv {
     pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let exprs = pcx.push_bindings(&genv.sorts(bty), p);
-                Ty::indexed(bty.clone(), exprs)
+                let indices = pcx
+                    .push_bindings(&genv.sorts(bty), p)
+                    .into_iter()
+                    .map(Index::from)
+                    .collect_vec();
+                Ty::indexed(bty.clone(), indices)
             }
             TyKind::Ref(RefKind::Shr, ty) => {
                 let ty = self.unpack_ty(genv, pcx, ty);
@@ -201,9 +205,9 @@ impl TypeEnv {
         subst: &mut Subst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(_, exprs1), TyKind::Indexed(_, exprs2)) => {
-                for (e1, e2) in iter::zip(exprs1, exprs2) {
-                    param_infer::infer_from_exprs(subst, params, e1, e2);
+            (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
+                for (idx1, idx2) in iter::zip(indices1, indices2) {
+                    param_infer::infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
                 }
             }
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
@@ -350,27 +354,25 @@ impl TypeEnvInfer {
         ty: &Ty,
     ) -> Ty {
         match ty.kind() {
-            TyKind::Indexed(bty, exprs) => {
+            TyKind::Indexed(bty, indices) => {
                 let sorts = genv.sorts(bty);
-                let exprs = exprs
-                    .iter()
-                    .zip(sorts)
-                    .map(|(e, sort)| {
-                        let has_free_vars = !scope.contains_all(e.vars());
-                        if let Some(name) = names.get(e) {
-                            Expr::fvar(*name)
+                let indices = iter::zip(indices, sorts)
+                    .map(|(idx, sort)| {
+                        let has_free_vars = !scope.contains_all(idx.expr.vars());
+                        if let Some(name) = names.get(&idx.expr) {
+                            Expr::fvar(*name).into()
                         } else if has_free_vars {
                             let fresh = name_gen.fresh();
                             params.insert(fresh, sort);
-                            names.insert(e.clone(), fresh);
-                            Expr::fvar(fresh)
+                            names.insert(idx.expr.clone(), fresh);
+                            Expr::fvar(fresh).into()
                         } else {
-                            e.clone()
+                            idx.clone()
                         }
                     })
                     .collect_vec();
                 let bty = TypeEnvInfer::pack_bty(params, genv, scope, names, name_gen, bty);
-                Ty::indexed(bty, exprs)
+                Ty::indexed(bty, indices)
             }
             TyKind::Tuple(tys) => {
                 let tys = tys
@@ -506,16 +508,17 @@ impl TypeEnvInfer {
                 debug_assert_eq!(path1, path2);
                 Ty::strg_ref(path1.clone())
             }
-            (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
+            (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
-                let exprs = izip!(exprs1, exprs2, genv.sorts(&bty))
-                    .map(|(e1, e2, sort)| {
+                let exprs = izip!(indices1, indices2, genv.sorts(&bty))
+                    .map(|(Index { expr: e1, .. }, Index { expr: e2, .. }, sort)| {
                         let e2_has_free_vars = !self.scope.contains_all(e2.vars());
                         if !self.is_packed_expr(e1) && (e2_has_free_vars || e1 != e2) {
                             Expr::fvar(self.fresh(sort))
                         } else {
                             e1.clone()
                         }
+                        .into()
                     })
                     .collect_vec();
                 Ty::indexed(bty, exprs)

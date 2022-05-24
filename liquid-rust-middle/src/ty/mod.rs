@@ -17,6 +17,7 @@ use rustc_middle::{
 };
 pub use rustc_target::abi::VariantIdx;
 
+pub use crate::core::RefKind;
 use crate::intern::{impl_internable, Interned, List};
 use subst::Subst;
 
@@ -87,7 +88,7 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Indexed(BaseTy, List<Expr>),
+    Indexed(BaseTy, List<Index>),
     Exists(BaseTy, Pred),
     Tuple(List<Ty>),
     Float(FloatTy),
@@ -100,10 +101,10 @@ pub enum TyKind {
     Discr,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
-pub enum RefKind {
-    Shr,
-    Mut,
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Index {
+    pub expr: Expr,
+    pub is_binder: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -260,14 +261,14 @@ impl AdtDef {
     pub fn unfold(
         &self,
         substs: &Substs,
-        exprs: &[Expr],
+        indices: &[Index],
         variant_idx: VariantIdx,
     ) -> Option<IndexVec<Field, Ty>> {
         let fields = &self.variants()?[variant_idx].fields;
         let mut subst = Subst::with_type_substs(substs.as_slice());
-        debug_assert_eq!(exprs.len(), self.refined_by().len());
-        for (e, param) in exprs.iter().zip(self.refined_by()) {
-            subst.insert(param.name, e.clone());
+        debug_assert_eq!(indices.len(), self.refined_by().len());
+        for (idx, param) in indices.iter().zip(self.refined_by()) {
+            subst.insert(param.name, idx.expr.clone());
         }
         Some(fields.iter().map(|ty| subst.subst_ty(ty)).collect())
     }
@@ -307,11 +308,11 @@ impl Ty {
         TyKind::Uninit.intern()
     }
 
-    pub fn indexed<T>(bty: BaseTy, exprs: T) -> Ty
+    pub fn indexed<T>(bty: BaseTy, indices: T) -> Ty
     where
-        List<Expr>: From<T>,
+        List<Index>: From<T>,
     {
-        TyKind::Indexed(bty, Interned::from(exprs)).intern()
+        TyKind::Indexed(bty, Interned::from(indices)).intern()
     }
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
@@ -340,7 +341,7 @@ impl Ty {
 
     pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
         match self.kind() {
-            TyKind::Indexed(bty, exprs) => Ty::indexed(bty.fill_holes(mk_pred), exprs.clone()),
+            TyKind::Indexed(bty, indices) => Ty::indexed(bty.fill_holes(mk_pred), indices.clone()),
             TyKind::Exists(bty, p) => {
                 let p = if let Pred::Hole = p { mk_pred(bty) } else { p.clone() };
                 let bty = bty.fill_holes(mk_pred);
@@ -392,7 +393,9 @@ impl TyS {
 
     fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
         match self.kind() {
-            TyKind::Indexed(_, exprs) => exprs.iter().for_each(|e| e.collect_vars(vars)),
+            TyKind::Indexed(_, indices) => {
+                indices.iter().for_each(|idx| idx.expr.collect_vars(vars))
+            }
             TyKind::Exists(_, Pred::Expr(e)) => e.collect_vars(vars),
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.collect_vars(vars)),
             TyKind::Ref(_, ty) => ty.collect_vars(vars),
@@ -413,11 +416,23 @@ impl TyS {
     }
 
     pub fn unfold(&self, variant_idx: VariantIdx) -> Option<(AdtDef, IndexVec<Field, Ty>)> {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), exprs) = self.kind() {
-            Some((adt_def.clone(), adt_def.unfold(substs, exprs, variant_idx)?))
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), indices) = self.kind() {
+            Some((adt_def.clone(), adt_def.unfold(substs, indices, variant_idx)?))
         } else {
             panic!("type cannot be unfolded: `{self:?}`")
         }
+    }
+}
+
+impl From<Expr> for Index {
+    fn from(expr: Expr) -> Index {
+        Index { expr, is_binder: false }
+    }
+}
+
+impl From<Index> for Expr {
+    fn from(index: Index) -> Expr {
+        index.expr.clone()
     }
 }
 
@@ -833,6 +848,7 @@ impl_internable!(
     [KVar],
     [Constr],
     [Param],
+    [Index]
 );
 
 mod pretty {
@@ -901,7 +917,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Indexed(bty, exprs) => fmt_bty(bty, Some(exprs), cx, f),
+                TyKind::Indexed(bty, indices) => fmt_bty(bty, Some(indices), cx, f),
                 TyKind::Exists(bty, p) => {
                     if p.is_true() {
                         w!("{:?}", bty)
@@ -934,7 +950,7 @@ mod pretty {
 
     fn fmt_bty(
         bty: &BaseTy,
-        exprs: Option<&[Expr]>,
+        indices: Option<&[Index]>,
         cx: &PPrintCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
@@ -947,27 +963,40 @@ mod pretty {
         }
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
-                if let Some(exprs) = exprs {
-                    w!("<{:?}>", join!(", ", exprs))?;
+                if let Some(idx) = indices {
+                    w!("<{:?}>", join!(", ", idx))?;
                 }
             }
             BaseTy::Adt(_, args) => {
-                if !args.is_empty() || exprs.is_some() {
+                if !args.is_empty() || indices.is_some() {
                     w!("<")?;
                 }
                 w!("{:?}", join!(", ", args))?;
-                if let Some(exprs) = exprs {
+                if let Some(exprs) = indices {
                     if !args.is_empty() {
                         w!(", ")?;
                     }
                     w!("{:?}", join!(", ", exprs))?;
                 }
-                if !args.is_empty() || exprs.is_some() {
+                if !args.is_empty() || indices.is_some() {
                     w!(">")?;
                 }
             }
         }
         Ok(())
+    }
+
+    impl Pretty for Index {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if self.is_binder && self.expr.is_atom() {
+                w!("@{:?}", &self.expr)
+            } else if self.is_binder {
+                w!("@({:?})", &self.expr)
+            } else {
+                w!("{:?}", &self.expr)
+            }
+        }
     }
 
     impl Pretty for Pred {

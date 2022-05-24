@@ -77,8 +77,15 @@ pub enum RefKind {
 }
 
 pub struct Indices {
-    pub exprs: Vec<Expr>,
+    pub indices: Vec<Index>,
     pub span: Span,
+}
+
+pub struct Index {
+    pub expr: Expr,
+    /// Whether this index was used as a binder in the surface syntax. Used as a hint for inferring
+    /// parameters at function calls.
+    pub is_binder: bool,
 }
 
 pub enum BaseTy {
@@ -271,7 +278,16 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt
 
 impl fmt::Debug for Indices {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{{:?}}}", self.exprs.iter().format(", "))
+        write!(f, "[{:?}]", self.indices.iter().format(", "))
+    }
+}
+
+impl fmt::Debug for Index {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_binder {
+            write!(f, "@")?;
+        }
+        write!(f, "{:?}", self.expr)
     }
 }
 

@@ -91,12 +91,12 @@ impl<'tcx> GlobalEnv<'tcx> {
         // TODO(nilehmann) get generics from somewhere
         // TODO(nilehmann) we should store the return type in the variant
         let bty = ty::BaseTy::adt(adt_def.clone(), vec![]);
-        let exprs = adt_def
+        let indices = adt_def
             .refined_by()
             .iter()
-            .map(|param| ty::Expr::fvar(param.name))
+            .map(|param| ty::Expr::fvar(param.name).into())
             .collect_vec();
-        let ret = ty::Ty::indexed(bty, exprs);
+        let ret = ty::Ty::indexed(bty, indices);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);
         ty::Binders::new(adt_def.refined_by(), sig)
     }

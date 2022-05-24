@@ -57,7 +57,7 @@ fn sin(x: f32) -> f32 {
 }
 
 #[lr::sig(
-fn(&mut RVec<f32>[@n], &mut RVec<f32>{v:v == n}) -> i32
+fn(&mut RVec<f32>[@n], &mut RVec<f32>[n]) -> i32
 requires 2 <= n
 )]
 pub fn fft(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
