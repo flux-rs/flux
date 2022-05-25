@@ -40,8 +40,10 @@ use liquid_rust_middle::{
 
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
-    dbg, param_infer,
-    pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
+    dbg,
+    fixpoint::KVarStore,
+    param_infer,
+    pure_ctxt::{ConstraintBuilder, PureCtxt, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
@@ -431,14 +433,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
         Ok(fn_sig.ret().clone())
-
-        // let mut successors = vec![];
-        // if let Some((p, bb)) = destination {
-        //     let ret = env.unpack_ty(self.genv, pcx, fn_sig.ret());
-        //     env.write_place(self.genv, pcx, p, ret, Tag::Call(source_info.span));
-        //     successors.push((*bb, None));
-        // }
-        // Ok(successors)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -496,8 +490,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                         indices[0].expr.clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), exprs) => {
-                    Expr::binary_op(BinOp::Eq, exprs[0].clone(), Expr::from_bits(bty, bits))
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), indices) => {
+                    Expr::binary_op(BinOp::Eq, indices[0].clone(), Expr::from_bits(bty, bits))
                 }
                 TyKind::Discr => Expr::tt(),
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),

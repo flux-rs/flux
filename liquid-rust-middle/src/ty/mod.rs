@@ -432,7 +432,7 @@ impl From<Expr> for Index {
 
 impl From<Index> for Expr {
     fn from(index: Index) -> Expr {
-        index.expr.clone()
+        index.expr
     }
 }
 
