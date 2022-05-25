@@ -20,7 +20,6 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::mir as rustc_mir;
-use rustc_session::Session;
 
 use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
 use liquid_rust_middle::{
@@ -48,7 +47,6 @@ use crate::{
 };
 
 pub struct Checker<'a, 'tcx, M> {
-    sess: &'a Session,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'tcx>,
@@ -104,7 +102,6 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         mode: M,
     ) -> Self {
         Checker {
-            sess: genv.tcx.sess,
             genv,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
@@ -113,7 +110,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
             mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators,
-            queue: WorkQueue::with_none(body.basic_blocks.len(), dominators),
+            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
         }
     }
 }
@@ -332,7 +329,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 }
             }
             TerminatorKind::Assert { cond, expected, target, msg } => {
-                self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
+                Ok(vec![(
+                    *target,
+                    self.check_assert(pcx, env, terminator.source_info, cond, *expected, msg),
+                )])
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let _ = env.move_place(pcx, place);
@@ -401,7 +401,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         if param_infer::infer_from_fn_call(&mut subst, self.genv, pcx, env, &actuals, &fn_sig)
             .is_err()
         {
-            self.sess
+            self.genv
+                .tcx
+                .sess
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
             return Err(ErrorReported);
         };
@@ -435,7 +437,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(fn_sig.ret().clone())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn check_assert(
         &mut self,
         pcx: &mut PureCtxt,
@@ -443,9 +444,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         source_info: SourceInfo,
         cond: &Operand,
         expected: bool,
-        target: BasicBlock,
         msg: &'static str,
-    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
+    ) -> Guard {
         let ty = self.check_operand(pcx, env, cond);
         let pred = if let TyKind::Indexed(BaseTy::Bool, indices) = ty.kind() {
             if expected {
@@ -458,8 +458,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
 
         match self.genv.check_asserts() {
-            AssertBehavior::Ignore => Ok(vec![(target, None)]),
-            AssertBehavior::Assume => Ok(vec![(target, Some(pred))]),
+            AssertBehavior::Ignore => None,
+            AssertBehavior::Assume => Some(pred),
             AssertBehavior::Check => {
                 let mut gen = ConstraintGen::new(
                     self.genv,
@@ -468,7 +468,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 );
                 gen.check_pred(pred.clone());
 
-                Ok(vec![(target, Some(pred))])
+                Some(pred)
             }
         }
     }
@@ -921,7 +921,7 @@ struct WorkQueue<'a> {
 }
 
 impl<'a> WorkQueue<'a> {
-    fn with_none(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
+    fn empty(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
         Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
     }
 
