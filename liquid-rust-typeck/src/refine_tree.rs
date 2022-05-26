@@ -4,7 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::Itertools;
+use itertools::{Itertools, Position};
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 use liquid_rust_middle::ty::{Expr, Name, Pred, Sort, SortKind};
@@ -15,9 +15,9 @@ use crate::{
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement parameters
-/// and predicates generated during type-checking. This tree can then be converted into
+/// and predicates generated during type-checking. The tree can then be converted into
 /// a horn constraint which implies the safety of a program. The tree is constructed
-/// implicitly via manipulation a [`RefineCtxt`].
+/// implicitly when manipulating a [`RefineCtxt`].
 pub struct RefineTree {
     root: NodePtr,
 }
@@ -29,9 +29,12 @@ pub struct RefineCtxt<'a> {
     ptr: NodePtr,
 }
 
-/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking.
+/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Snapshots
+/// may become invalid when a refinement context is [`cleared`].
+///
+/// [`cleared`]: RefineCtxt::clear
 pub struct Snapshot {
-    node: WeakNodePtr,
+    ptr: WeakNodePtr,
 }
 
 pub struct Scope {
@@ -41,7 +44,7 @@ pub struct Scope {
 struct Node {
     kind: NodeKind,
     /// Number of bindings between the root and this node's parent, i.e., we have
-    /// as an invariant that `nbindings` equals the number of [`Node::ForAll`]
+    /// as an invariant that `nbindings` equals the number of [`NodeKind::ForAll`]
     /// nodes from the parent of this node to the root.
     nbindings: usize,
     parent: Option<WeakNodePtr>,
@@ -71,7 +74,13 @@ impl RefineTree {
     }
 
     pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.node.upgrade()?, cx: self })
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, cx: self })
+    }
+
+    pub fn clear(&mut self, snapshot: &Snapshot) {
+        if let Some(ptr) = snapshot.ptr.upgrade() {
+            ptr.borrow_mut().children.clear();
+        }
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
@@ -88,26 +97,26 @@ impl RefineCtxt<'_> {
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        Snapshot { node: NodePtr::downgrade(&self.ptr) }
-    }
-
-    pub fn clear(&mut self) {
-        self.ptr.borrow_mut().children.clear();
+        Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }
 
     pub fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_bindings(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Expr> {
+    /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
+    /// It returns the freshly generated names for the parameters.
+    pub fn define_params(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
         let name_gen = self.name_gen();
 
         let mut bindings = vec![];
         let mut exprs = vec![];
+        let mut names = vec![];
         for sort in sorts {
             let fresh = name_gen.fresh();
             bindings.push((fresh, sort.clone()));
             exprs.push(Expr::fvar(fresh));
+            names.push(fresh);
         }
 
         match p {
@@ -119,11 +128,18 @@ impl RefineCtxt<'_> {
                 }
             }
             Pred::Expr(e) => {
-                for (name, sort) in bindings {
-                    self.ptr = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
-                }
-                if !e.is_true() {
-                    self.push_guard(e.subst_bound_vars(&exprs));
+                for item in bindings.into_iter().with_position() {
+                    let is_last = matches!(item, Position::Last(_) | Position::Only(_));
+                    let (name, sort) = item.into_inner();
+                    if is_last {
+                        self.ptr = self.push_node(NodeKind::ForAll(
+                            name,
+                            sort,
+                            Pred::Expr(e.subst_bound_vars(&exprs)),
+                        ));
+                    } else {
+                        self.ptr = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
+                    }
                 }
             }
             Pred::Hole => {
@@ -132,14 +148,14 @@ impl RefineCtxt<'_> {
                 }
             }
         }
-        exprs
+        names
     }
 
-    pub fn push_binding(&mut self, sort: Sort, p: &Pred) -> Expr {
-        self.push_bindings(&[sort], p).pop().unwrap()
+    pub fn define_param(&mut self, sort: Sort, p: &Pred) -> Name {
+        self.define_params(&[sort], p).pop().unwrap()
     }
 
-    pub fn push_guard(&mut self, expr: impl Into<Expr>) {
+    pub fn assert_pred(&mut self, expr: impl Into<Expr>) {
         self.ptr = self.push_node(NodeKind::Guard(expr.into()));
     }
 
@@ -181,10 +197,12 @@ impl RefineCtxt<'_> {
 }
 
 impl Snapshot {
-    /// Returns the scope at the snapshot if the snapshot is still valid or
+    /// Returns the [`scope`] at the snapshot if it is still valid or
     /// [`None`] otherwise.
+    ///
+    /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
-        let parents = ParentsIter::new(self.node.upgrade()?);
+        let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
                 let node = node.borrow();
@@ -290,9 +308,9 @@ impl Node {
         }
     }
 
-    /// Returns `true` if the node kind is [`Binding`].
+    /// Returns `true` if the node kind is [`ForAll`].
     ///
-    /// [`Binding`]: NodeKind::Binding
+    /// [`ForAll`]: NodeKind::ForAll
     fn is_binding(&self) -> bool {
         matches!(self.kind, NodeKind::ForAll(..))
     }

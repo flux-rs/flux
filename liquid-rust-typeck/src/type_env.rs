@@ -152,9 +152,9 @@ impl TypeEnv {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
                 let indices = rcx
-                    .push_bindings(&genv.sorts(bty), p)
+                    .define_params(&genv.sorts(bty), p)
                     .into_iter()
-                    .map(Index::from)
+                    .map(|name| Expr::fvar(name).into())
                     .collect_vec();
                 Ty::indexed(bty.clone(), indices)
             }
@@ -308,8 +308,8 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same as
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let e = rcx.push_binding(sort.clone(), &Pred::tt());
-            subst.insert(*name, e);
+            let fresh = rcx.define_param(sort.clone(), &Pred::tt());
+            subst.insert(*name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)
     }
@@ -616,8 +616,8 @@ impl BasicBlockEnv {
     pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let e = rcx.push_binding(param.sort.clone(), &subst.subst_pred(constr));
-            subst.insert(param.name, e);
+            let fresh = rcx.define_param(param.sort.clone(), &subst.subst_pred(constr));
+            subst.insert(param.name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)
     }

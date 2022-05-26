@@ -68,9 +68,9 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
             (TyKind::Exists(bty, p), _) => {
                 let indices = ck
                     .rcx
-                    .push_bindings(&ck.genv.sorts(bty), p)
+                    .define_params(&ck.genv.sorts(bty), p)
                     .into_iter()
-                    .map(Index::from)
+                    .map(|name| Index::from(Expr::fvar(name)))
                     .collect_vec();
                 let ty1 = Ty::indexed(bty.clone(), indices);
                 ck.subtyping(&ty1, ty2);

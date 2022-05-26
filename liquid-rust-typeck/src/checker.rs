@@ -175,8 +175,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut subst = Subst::empty();
         for param in fn_sig.params() {
-            let e = rcx.push_binding(param.sort.clone(), &Pred::tt());
-            subst.insert(param.name, e);
+            let fresh = rcx.define_param(param.sort.clone(), &Pred::tt());
+            subst.insert(param.name, Expr::fvar(fresh));
         }
 
         let fn_sig = subst.subst_fn_sig(fn_sig.value());
@@ -196,13 +196,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         ck.check_goto(rcx, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
-
             if ck.visited.contains(bb) {
-                rcx.clear();
+                refine_tree.clear(snapshot);
                 ck.clear(bb);
             }
 
+            let snapshot = ck.snapshot_at_dominator(bb);
+            let mut rcx = refine_tree.refine_ctxt_at(&snapshot).unwrap();
             let mut env = ck.mode.enter_basic_block(&mut rcx, bb);
             env.unpack(genv, &mut rcx);
             ck.check_basic_block(rcx, env, bb)?;
@@ -221,7 +221,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     env.alloc_with_ty(path.loc, ty);
                 }
                 ty::Constr::Pred(e) => {
-                    rcx.push_guard(e.clone());
+                    rcx.assert_pred(e.clone());
                 }
             }
         }
@@ -308,7 +308,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     /// - `BasicBlock` "successors" of the current terminator, and
     /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
     ///    that is some predicate you can assume when checking the correspondnig successor.
-
     fn check_terminator(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -437,7 +436,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     let updated_ty = env.unpack_ty(self.genv, rcx, updated_ty);
                     env.update_path(path, updated_ty);
                 }
-                Constr::Pred(e) => rcx.push_guard(e.clone()),
+                Constr::Pred(e) => rcx.assert_pred(e.clone()),
             }
         }
         Ok(fn_sig.ret().clone())
@@ -533,7 +532,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let mut rcx = rcx.breadcrumb();
             let env = env.clone();
             if let Some(guard) = guard {
-                rcx.push_guard(guard);
+                rcx.assert_pred(guard);
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
         }
