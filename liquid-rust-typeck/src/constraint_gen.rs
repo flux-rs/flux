@@ -10,11 +10,11 @@ use liquid_rust_middle::{
     ty::{BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
 };
 
-use crate::{pure_ctxt::PureCtxt, type_env::TypeEnv};
+use crate::{refine_tree::RefineCtxt, type_env::TypeEnv};
 
 pub struct ConstraintGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'tcx>,
-    pcx: PureCtxt<'a>,
+    rcx: RefineCtxt<'a>,
     tag: Tag,
 }
 
@@ -30,12 +30,12 @@ pub enum Tag {
 }
 
 impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
-    pub fn new(genv: &'a GlobalEnv<'tcx>, pcx: PureCtxt<'a>, tag: Tag) -> Self {
-        ConstraintGen { genv, pcx, tag }
+    pub fn new(genv: &'a GlobalEnv<'tcx>, rcx: RefineCtxt<'a>, tag: Tag) -> Self {
+        ConstraintGen { genv, rcx, tag }
     }
 
     fn breadcrumb(&mut self) -> ConstraintGen<'_, 'tcx> {
-        ConstraintGen { pcx: self.pcx.breadcrumb(), ..*self }
+        ConstraintGen { rcx: self.rcx.breadcrumb(), ..*self }
     }
 
     pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
@@ -51,7 +51,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Pred>) {
-        self.pcx.push_head(pred, self.tag);
+        self.rcx.push_head(pred, self.tag);
     }
 
     pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
@@ -67,7 +67,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
             }
             (TyKind::Exists(bty, p), _) => {
                 let indices = ck
-                    .pcx
+                    .rcx
                     .push_bindings(&ck.genv.sorts(bty), p)
                     .into_iter()
                     .map(Index::from)

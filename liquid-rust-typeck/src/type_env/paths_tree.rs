@@ -13,7 +13,7 @@ use liquid_rust_middle::{
     },
 };
 
-use crate::pure_ctxt::PureCtxt;
+use crate::refine_tree::RefineCtxt;
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -35,11 +35,11 @@ impl LookupResult<'_> {
 }
 
 impl PathsTree {
-    pub fn lookup_place<F, R>(&mut self, pcx: &mut PureCtxt, place: &Place, f: F) -> R
+    pub fn lookup_place<F, R>(&mut self, rcx: &mut RefineCtxt, place: &Place, f: F) -> R
     where
-        F: for<'a> FnOnce(&mut PureCtxt, LookupResult<'a>) -> R,
+        F: for<'a> FnOnce(&mut RefineCtxt, LookupResult<'a>) -> R,
     {
-        self.lookup_place_iter(pcx, Loc::Local(place.local), &mut place.projection.iter(), f)
+        self.lookup_place_iter(rcx, Loc::Local(place.local), &mut place.projection.iter(), f)
     }
 
     pub fn get(&self, path: &Path) -> Option<&Ty> {
@@ -126,23 +126,23 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_with(&mut self, pcx: &mut PureCtxt, other: &PathsTree) {
+    pub fn fold_unfold_with(&mut self, rcx: &mut RefineCtxt, other: &PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_with(pcx, node2);
+                node1.fold_unfold_with(rcx, node2);
             }
         }
     }
 
     fn lookup_place_iter<R, F>(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         path: impl Into<Path>,
         place_proj: &mut std::slice::Iter<PlaceElem>,
         f: F,
     ) -> R
     where
-        F: for<'a> FnOnce(&mut PureCtxt, LookupResult<'a>) -> R,
+        F: for<'a> FnOnce(&mut RefineCtxt, LookupResult<'a>) -> R,
     {
         let mut path = path.into();
         loop {
@@ -169,22 +169,22 @@ impl PathsTree {
 
             match place_proj.next() {
                 Some(PlaceElem::Deref) => {
-                    let ty = node.fold(pcx);
+                    let ty = node.fold(rcx);
                     match ty.kind() {
                         TyKind::Ptr(ref_path) => path = ref_path.clone(),
                         TyKind::Ref(mode, ty) => {
                             let ty = ty.clone();
                             let mode = *mode;
-                            let result = self.place_proj_ty(pcx, mode, &ty, place_proj);
-                            return f(pcx, result);
+                            let result = self.place_proj_ty(rcx, mode, &ty, place_proj);
+                            return f(rcx, result);
                         }
                         _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
                 Some(elem) => unreachable!("expected deref, found `{elem:?}`"),
                 None => {
-                    let ty = node.fold(pcx);
-                    return f(pcx, LookupResult::Ptr(Path::new(loc, proj), ty));
+                    let ty = node.fold(rcx);
+                    return f(rcx, LookupResult::Ptr(Path::new(loc, proj), ty));
                 }
             }
         }
@@ -192,7 +192,7 @@ impl PathsTree {
 
     fn place_proj_ty(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         mut mode: RefKind,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
@@ -205,7 +205,7 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return self.lookup_place_iter(pcx, path.clone(), proj, |_, lookup| {
+                    return self.lookup_place_iter(rcx, path.clone(), proj, |_, lookup| {
                         match lookup {
                             LookupResult::Ptr(_, ty) => LookupResult::Ref(mode, ty.clone()),
                             LookupResult::Ref(mode2, ty2) => {
@@ -287,11 +287,11 @@ impl Node {
         }
     }
 
-    fn fold_unfold_with(&mut self, pcx: &mut PureCtxt, other: &Node) {
+    fn fold_unfold_with(&mut self, rcx: &mut RefineCtxt, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(..), Node::Ty(_)) => {
-                self.fold(pcx);
+                self.fold(rcx);
                 return;
             }
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
@@ -304,7 +304,7 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_with(pcx, field2);
+            field1.fold_unfold_with(rcx, field2);
         }
     }
 
@@ -329,12 +329,12 @@ impl Node {
         }
     }
 
-    fn fold(&mut self, pcx: &mut PureCtxt) -> &mut Ty {
+    fn fold(&mut self, rcx: &mut RefineCtxt) -> &mut Ty {
         match self {
             Node::Ty(ty) => ty,
             Node::Adt(adt_def, variant_idx, fields) => {
-                let fields = fields.iter_mut().map(|n| n.fold(pcx).clone()).collect_vec();
-                let indices = fold(pcx, adt_def, &fields[..], *variant_idx);
+                let fields = fields.iter_mut().map(|n| n.fold(rcx).clone()).collect_vec();
+                let indices = fold(rcx, adt_def, &fields[..], *variant_idx);
                 let adt = BaseTy::adt(adt_def.clone(), vec![]);
                 let ty = Ty::indexed(adt, indices);
                 *self = Node::Ty(ty);
@@ -361,11 +361,11 @@ impl Node {
 
 type ParamInst = FxHashMap<Name, Expr>;
 
-fn fold(pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
+fn fold(rcx: &mut RefineCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
     let fields = &adt_def.variants().unwrap()[variant_idx].fields;
     let mut params = FxHashMap::default();
     for (ty1, ty2) in iter::zip(tys, fields) {
-        ty_infer_folding(pcx, &mut params, ty1, ty2);
+        ty_infer_folding(rcx, &mut params, ty1, ty2);
     }
     adt_def
         .refined_by()
@@ -374,28 +374,28 @@ fn fold(pcx: &mut PureCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantId
         .collect()
 }
 
-fn ty_infer_folding(pcx: &mut PureCtxt, params: &mut ParamInst, ty1: &Ty, ty2: &Ty) {
+fn ty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, ty1: &Ty, ty2: &Ty) {
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
-            bty_infer_folding(pcx, params, bty1, bty2);
+            bty_infer_folding(rcx, params, bty1, bty2);
             for (idx1, idx2) in iter::zip(indices1, indices2) {
                 expr_infer_folding(params, &idx1.expr, &idx2.expr);
             }
         }
         (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
         (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-            ty_infer_folding(pcx, params, ty1, ty2);
+            ty_infer_folding(rcx, params, ty1, ty2);
         }
         _ => {}
     }
 }
 
-fn bty_infer_folding(pcx: &mut PureCtxt, params: &mut ParamInst, bty1: &BaseTy, bty2: &BaseTy) {
+fn bty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, bty1: &BaseTy, bty2: &BaseTy) {
     if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
         debug_assert_eq!(def1.def_id(), def2.def_id());
         debug_assert_eq!(substs1.len(), substs2.len());
         for (ty1, ty2) in iter::zip(substs1, substs2) {
-            ty_infer_folding(pcx, params, ty1, ty2);
+            ty_infer_folding(rcx, params, ty1, ty2);
         }
     }
 }

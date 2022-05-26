@@ -22,7 +22,7 @@ mod checker;
 mod constraint_gen;
 mod dbg;
 mod param_infer;
-mod pure_ctxt;
+mod refine_tree;
 mod type_env;
 pub mod wf;
 
@@ -47,15 +47,15 @@ pub fn check<'tcx>(
 ) -> Result<(), ErrorReported> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
     let mut kvars = fixpoint::KVarStore::new();
-    let builder = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
+    let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
 
     if CONFIG.dump_constraint {
-        dump_constraint(genv.tcx, def_id, &builder, ".lrc").unwrap();
+        dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
     }
 
     let mut fcx = fixpoint::FixpointCtxt::new(kvars);
 
-    let constraint = builder.into_fixpoint(&mut fcx);
+    let constraint = refine_tree.into_fixpoint(&mut fcx);
 
     match fcx.check(genv.tcx, def_id, constraint, qualifiers) {
         Ok(_) => Ok(()),
