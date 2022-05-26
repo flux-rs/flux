@@ -114,7 +114,7 @@ impl TypeEnv {
                     *ty = new_ty;
                 }
                 LookupResult::Ref(RefKind::Mut, ty) => {
-                    let mut gen = ConstraintGen::new(genv, rcx.breadcrumb(), tag);
+                    let mut gen = ConstraintGen::new(genv, rcx, tag);
                     gen.subtyping(&new_ty, &ty);
                 }
                 LookupResult::Ref(RefKind::Shr, _) => {
@@ -256,7 +256,7 @@ impl TypeEnv {
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        let mut gen = ConstraintGen::new(genv, rcx.breadcrumb(), tag);
+        let mut gen = ConstraintGen::new(genv, rcx, tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
             gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::fvar(param.name)])));
         }

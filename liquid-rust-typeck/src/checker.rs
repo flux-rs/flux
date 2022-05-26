@@ -202,7 +202,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
 
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut rcx = refine_tree.refine_ctxt_at(&snapshot).unwrap();
+            let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
             let mut env = ck.mode.enter_basic_block(&mut rcx, bb);
             env.unpack(genv, &mut rcx);
             ck.check_basic_block(rcx, env, bb)?;
@@ -369,7 +369,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let ret_place_ty = env.lookup_place(rcx, Place::RETURN);
-        let mut gen = ConstraintGen::new(self.genv, rcx.breadcrumb(), Tag::Ret);
+        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
 
@@ -415,7 +415,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let fn_sig = subst.subst_fn_sig(fn_sig.value());
 
         // Check preconditions
-        let mut gen = ConstraintGen::new(self.genv, rcx.breadcrumb(), Tag::Call(source_info.span));
+        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Call(source_info.span));
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
             if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
@@ -466,11 +466,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             AssertBehavior::Ignore => None,
             AssertBehavior::Assume => Some(pred),
             AssertBehavior::Check => {
-                let mut gen = ConstraintGen::new(
-                    self.genv,
-                    rcx.breadcrumb(),
-                    Tag::Assert(msg, source_info.span),
-                );
+                let mut gen =
+                    ConstraintGen::new(self.genv, rcx, Tag::Assert(msg, source_info.span));
                 gen.check_pred(pred.clone());
 
                 Some(pred)
@@ -633,7 +630,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     // Rem is a special case due to differing semantics with negative numbers
     fn check_rem(&self, rcx: &mut RefineCtxt, source_info: SourceInfo, ty1: &Ty, ty2: &Ty) -> Ty {
-        let mut gen = ConstraintGen::new(self.genv, rcx.breadcrumb(), Tag::Rem(source_info.span));
+        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Rem(source_info.span));
         let ty = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), exprs1),
@@ -706,8 +703,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
-            let mut gen =
-                ConstraintGen::new(self.genv, rcx.breadcrumb(), Tag::Div(source_info.span));
+            let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Div(source_info.span));
             gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
         }
         Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2).into()])
