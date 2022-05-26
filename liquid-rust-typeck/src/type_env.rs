@@ -17,7 +17,7 @@ use liquid_rust_middle::{
 use crate::{
     constraint_gen::{ConstraintGen, Tag},
     param_infer,
-    pure_ctxt::{PureCtxt, Scope},
+    refine_tree::{RefineCtxt, Scope},
 };
 
 use self::paths_tree::{LookupResult, PathsTree};
@@ -67,9 +67,9 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_place(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
+    pub fn lookup_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
         self.bindings
-            .lookup_place(pcx, place, |_, result| result.ty())
+            .lookup_place(rcx, place, |_, result| result.ty())
     }
 
     #[track_caller]
@@ -83,8 +83,8 @@ impl TypeEnv {
 
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
-        self.bindings.lookup_place(pcx, place, |_, result| {
+    pub fn borrow_mut(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
+        self.bindings.lookup_place(rcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(path, _) => Ty::strg_ref(path),
                 LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
@@ -95,26 +95,26 @@ impl TypeEnv {
         })
     }
 
-    pub fn borrow_shr(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
+    pub fn borrow_shr(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
         self.bindings
-            .lookup_place(pcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
+            .lookup_place(rcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
     }
 
     pub fn write_place(
         &mut self,
         genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         place: &Place,
         new_ty: Ty,
         tag: Tag,
     ) {
-        self.bindings.lookup_place(pcx, place, |pcx, result| {
+        self.bindings.lookup_place(rcx, place, |rcx, result| {
             match result {
                 LookupResult::Ptr(_, ty) => {
                     *ty = new_ty;
                 }
                 LookupResult::Ref(RefKind::Mut, ty) => {
-                    let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+                    let mut gen = ConstraintGen::new(genv, rcx, tag);
                     gen.subtyping(&new_ty, &ty);
                 }
                 LookupResult::Ref(RefKind::Shr, _) => {
@@ -124,8 +124,8 @@ impl TypeEnv {
         });
     }
 
-    pub fn move_place(&mut self, pcx: &mut PureCtxt, place: &Place) -> Ty {
-        self.bindings.lookup_place(pcx, place, |_, result| {
+    pub fn move_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
+        self.bindings.lookup_place(rcx, place, |_, result| {
             match result {
                 LookupResult::Ptr(_, ty) => {
                     let old = ty.clone();
@@ -148,28 +148,28 @@ impl TypeEnv {
         *ty = bound;
     }
 
-    pub fn unpack_ty(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt, ty: &Ty) -> Ty {
+    pub fn unpack_ty(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
-                let indices = pcx
-                    .push_bindings(&genv.sorts(bty), p)
+                let indices = rcx
+                    .define_params(&genv.sorts(bty), p)
                     .into_iter()
-                    .map(Index::from)
+                    .map(|name| Expr::fvar(name).into())
                     .collect_vec();
                 Ty::indexed(bty.clone(), indices)
             }
             TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.unpack_ty(genv, pcx, ty);
+                let ty = self.unpack_ty(genv, rcx, ty);
                 Ty::mk_ref(RefKind::Shr, ty)
             }
             _ => ty.clone(),
         }
     }
 
-    pub fn unpack(&mut self, genv: &GlobalEnv, pcx: &mut PureCtxt) {
+    pub fn unpack(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) {
         for path in self.bindings.paths().collect_vec() {
             let ty = self.bindings[&path].clone();
-            let ty = self.unpack_ty(genv, pcx, &ty);
+            let ty = self.unpack_ty(genv, rcx, &ty);
             self.bindings[&path] = ty;
         }
     }
@@ -246,17 +246,17 @@ impl TypeEnv {
     pub fn check_goto(
         mut self,
         genv: &GlobalEnv,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         bb_env: &mut BasicBlockEnv,
         tag: Tag,
     ) {
-        self.bindings.fold_unfold_with(pcx, &bb_env.env.bindings);
+        self.bindings.fold_unfold_with(rcx, &bb_env.env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        let mut gen = ConstraintGen::new(genv, pcx.breadcrumb(), tag);
+        let mut gen = ConstraintGen::new(genv, rcx, tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
             gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::fvar(param.name)])));
         }
@@ -303,13 +303,13 @@ impl TypeEnv {
 }
 
 impl TypeEnvInfer {
-    pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
+    pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         // HACK(nilehmann) it is crucial that the order in this iteration is the same as
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let e = pcx.push_binding(sort.clone(), &Pred::tt());
-            subst.insert(*name, e);
+            let fresh = rcx.define_param(sort.clone(), &Pred::tt());
+            subst.insert(*name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)
     }
@@ -613,11 +613,11 @@ impl TypeEnvInfer {
 }
 
 impl BasicBlockEnv {
-    pub fn enter(&self, pcx: &mut PureCtxt) -> TypeEnv {
+    pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let e = pcx.push_binding(param.sort.clone(), &subst.subst_pred(constr));
-            subst.insert(param.name, e);
+            let fresh = rcx.define_param(param.sort.clone(), &subst.subst_pred(constr));
+            subst.insert(param.name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)
     }

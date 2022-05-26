@@ -4,7 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::Itertools;
+use itertools::{Itertools, Position};
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
 use liquid_rust_middle::ty::{Expr, Name, Pred, Sort, SortKind};
@@ -14,26 +14,45 @@ use crate::{
     fixpoint::{FixpointCtxt, TagIdx},
 };
 
-pub struct ConstraintBuilder {
+/// A *refine*ment *tree* tracks the "tree-like structure" of refinement parameters
+/// and predicates generated during type-checking. The tree can then be converted into
+/// a horn constraint which implies the safety of a program. The tree is constructed
+/// implicitly via the manipulation of [`RefineCtxt`] and [`ConstrBuilder`].
+pub struct RefineTree {
     root: NodePtr,
 }
 
-pub struct PureCtxt<'a> {
-    cx: &'a mut ConstraintBuilder,
+/// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
+/// available in a particular path during type-checking.
+pub struct RefineCtxt<'a> {
+    _tree: &'a mut RefineTree,
     ptr: NodePtr,
 }
 
+/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Snapshots
+/// may become invalid when a refinement context is [`cleared`].
+///
+/// [`cleared`]: RefineTree::clear
 pub struct Snapshot {
-    node: WeakNodePtr,
+    ptr: WeakNodePtr,
 }
 
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
 }
 
+/// A *constr*aint *builder* is used to generate a constraint derived from subtyping when
+/// checking a function call or jumping to a basic block.
+pub struct ConstrBuilder<'a> {
+    _tree: &'a mut RefineTree,
+    ptr: NodePtr,
+}
+
 struct Node {
     kind: NodeKind,
-    /// Number of binding nodes between the root and this node's parent
+    /// Number of bindings between the root and this node's parent, i.e., we have
+    /// as an invariant that `nbindings` equals the number of [`NodeKind::ForAll`]
+    /// nodes from the parent of this node to the root.
     nbindings: usize,
     parent: Option<WeakNodePtr>,
     children: Vec<NodePtr>,
@@ -45,24 +64,30 @@ struct WeakNodePtr(Weak<RefCell<Node>>);
 
 enum NodeKind {
     Conj,
-    Binding(Name, Sort, Pred),
-    Pred(Expr),
+    ForAll(Name, Sort, Pred),
+    Guard(Expr),
     Head(Pred, Tag),
 }
 
-impl ConstraintBuilder {
-    pub fn new() -> ConstraintBuilder {
+impl RefineTree {
+    pub fn new() -> RefineTree {
         let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
-        ConstraintBuilder { root }
+        RefineTree { root }
     }
 
-    pub fn pure_context_at_root(&mut self) -> PureCtxt {
-        PureCtxt { ptr: NodePtr(Rc::clone(&self.root)), cx: self }
+    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), _tree: self }
     }
 
-    pub fn pure_context_at(&mut self, snapshot: &Snapshot) -> Option<PureCtxt> {
-        Some(PureCtxt { ptr: snapshot.node.upgrade()?, cx: self })
+    pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, _tree: self })
+    }
+
+    pub fn clear(&mut self, snapshot: &Snapshot) {
+        if let Some(ptr) = snapshot.ptr.upgrade() {
+            ptr.borrow_mut().children.clear();
+        }
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
@@ -73,111 +98,50 @@ impl ConstraintBuilder {
     }
 }
 
-impl PureCtxt<'_> {
-    pub fn breadcrumb(&mut self) -> PureCtxt {
-        PureCtxt { cx: self.cx, ptr: NodePtr::clone(&self.ptr) }
+impl RefineCtxt<'_> {
+    pub fn breadcrumb(&mut self) -> RefineCtxt {
+        RefineCtxt { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        Snapshot { node: NodePtr::downgrade(&self.ptr) }
-    }
-
-    pub fn clear(&mut self) {
-        self.ptr.borrow_mut().children.clear();
+        Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }
 
     pub fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
     }
 
-    pub fn push_bindings(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Expr> {
-        let name_gen = self.name_gen();
-
-        let mut bindings = vec![];
-        let mut exprs = vec![];
-        for sort in sorts {
-            let fresh = name_gen.fresh();
-            bindings.push((fresh, sort.clone()));
-            exprs.push(Expr::fvar(fresh));
-        }
-
-        match p {
-            Pred::Kvars(kvars) => {
-                debug_assert_eq!(kvars.len(), bindings.len());
-                for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    let p = Pred::kvars(vec![kvar.subst_bound_vars(&exprs)]);
-                    self.ptr = self.push_node(NodeKind::Binding(name, sort, p));
-                }
-            }
-            Pred::Expr(e) => {
-                for (name, sort) in bindings {
-                    self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::tt()));
-                }
-                if !e.is_true() {
-                    self.push_pred(e.subst_bound_vars(&exprs));
-                }
-            }
-            Pred::Hole => {
-                for (name, sort) in bindings {
-                    self.ptr = self.push_node(NodeKind::Binding(name, sort, Pred::Hole));
-                }
-            }
-        }
-        exprs
+    /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
+    /// It returns the freshly generated names for the parameters.
+    pub fn define_params(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
+        self.ptr.push_foralls(sorts, p)
     }
 
-    pub fn push_binding(&mut self, sort: Sort, p: &Pred) -> Expr {
-        self.push_bindings(&[sort], p).pop().unwrap()
+    pub fn define_param(&mut self, sort: Sort, p: &Pred) -> Name {
+        self.define_params(&[sort], p).pop().unwrap()
     }
 
-    pub fn push_pred(&mut self, expr: impl Into<Expr>) {
-        self.ptr = self.push_node(NodeKind::Pred(expr.into()));
+    pub fn assert_pred(&mut self, expr: impl Into<Expr>) {
+        self.ptr = self.ptr.push_node(NodeKind::Guard(expr.into()));
     }
 
-    // pub fn push_loc(&mut self) -> Loc {
-    //     let fresh = Name::new(self.next_name_idx());
-    //     self.ptr = self.push_node(NodeKind::Binding(fresh, Sort::loc(), Pred::tt()));
-    //     Loc::Free(fresh)
-    // }
-
-    pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
-        let pred = pred.into();
-        if !pred.is_true() {
-            self.push_node(NodeKind::Head(pred, tag));
-        }
-    }
-
-    fn name_gen(&self) -> IndexGen<Name> {
-        let gen = IndexGen::new();
-        gen.skip(self.next_name_idx());
-        gen
-    }
-
-    fn next_name_idx(&self) -> usize {
-        self.ptr.borrow().nbindings + usize::from(self.ptr.borrow().is_binding())
-    }
-
-    fn push_node(&mut self, kind: NodeKind) -> NodePtr {
-        debug_assert!(!matches!(self.ptr.borrow().kind, NodeKind::Head(..)));
-        let node = Node {
-            kind,
-            nbindings: self.next_name_idx(),
-            parent: Some(NodePtr::downgrade(&self.ptr)),
-            children: vec![],
-        };
-        let node = NodePtr(Rc::new(RefCell::new(node)));
-        self.ptr.borrow_mut().children.push(NodePtr::clone(&node));
-        node
+    pub fn check_constr(&mut self) -> ConstrBuilder {
+        let ptr = self.ptr.push_node(NodeKind::Conj);
+        ConstrBuilder { _tree: self._tree, ptr }
     }
 }
 
 impl Snapshot {
+    /// Returns the [`scope`] at the snapshot if it is still valid or
+    /// [`None`] otherwise.
+    ///
+    /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
-        let parents = ParentsIter::new(self.node.upgrade()?);
+        let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
                 let node = node.borrow();
-                if let NodeKind::Binding(_, sort, _) = &node.kind {
+                if let NodeKind::ForAll(_, sort, _) = &node.kind {
                     Some(sort.clone())
                 } else {
                     None
@@ -200,9 +164,7 @@ impl Scope {
 
     /// A generator of fresh names in this scope.
     pub fn name_gen(&self) -> IndexGen<Name> {
-        let gen = IndexGen::new();
-        gen.skip(self.bindings.len());
-        gen
+        IndexGen::skipping(self.bindings.len())
     }
 
     pub fn contains(&self, name: Name) -> bool {
@@ -211,6 +173,101 @@ impl Scope {
 
     pub fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
         iter.into_iter().all(|name| self.contains(name))
+    }
+}
+
+impl ConstrBuilder<'_> {
+    pub fn breadcrumb(&mut self) -> ConstrBuilder {
+        ConstrBuilder { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
+    }
+
+    pub fn push_foralls(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
+        self.ptr.push_foralls(sorts, p)
+    }
+
+    pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
+        let pred = pred.into();
+        if !pred.is_true() {
+            self.ptr.push_node(NodeKind::Head(pred, tag));
+        }
+    }
+}
+
+impl NodePtr {
+    fn downgrade(this: &Self) -> WeakNodePtr {
+        WeakNodePtr(Rc::downgrade(&this.0))
+    }
+
+    fn push_foralls(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
+        let name_gen = self.name_gen();
+
+        let mut bindings = vec![];
+        let mut exprs = vec![];
+        let mut names = vec![];
+        for sort in sorts {
+            let fresh = name_gen.fresh();
+            bindings.push((fresh, sort.clone()));
+            exprs.push(Expr::fvar(fresh));
+            names.push(fresh);
+        }
+
+        match p {
+            Pred::Kvars(kvars) => {
+                debug_assert_eq!(kvars.len(), bindings.len());
+                for ((name, sort), kvar) in iter::zip(bindings, kvars) {
+                    let p = Pred::kvars(vec![kvar.subst_bound_vars(&exprs)]);
+                    *self = self.push_node(NodeKind::ForAll(name, sort, p));
+                }
+            }
+            Pred::Expr(e) => {
+                for item in bindings.into_iter().with_position() {
+                    let is_last = matches!(item, Position::Last(_) | Position::Only(_));
+                    let (name, sort) = item.into_inner();
+                    if is_last {
+                        *self = self.push_node(NodeKind::ForAll(
+                            name,
+                            sort,
+                            Pred::Expr(e.subst_bound_vars(&exprs)),
+                        ));
+                    } else {
+                        *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
+                    }
+                }
+            }
+            Pred::Hole => {
+                for (name, sort) in bindings {
+                    *self = self.push_node(NodeKind::ForAll(name, sort, Pred::Hole));
+                }
+            }
+        }
+        names
+    }
+
+    fn name_gen(&self) -> IndexGen<Name> {
+        IndexGen::skipping(self.next_name_idx())
+    }
+
+    fn push_node(&mut self, kind: NodeKind) -> NodePtr {
+        debug_assert!(!matches!(self.borrow().kind, NodeKind::Head(..)));
+        let node = Node {
+            kind,
+            nbindings: self.next_name_idx(),
+            parent: Some(NodePtr::downgrade(self)),
+            children: vec![],
+        };
+        let node = NodePtr(Rc::new(RefCell::new(node)));
+        self.borrow_mut().children.push(NodePtr::clone(&node));
+        node
+    }
+
+    fn next_name_idx(&self) -> usize {
+        self.borrow().nbindings + usize::from(self.borrow().is_forall())
+    }
+}
+
+impl WeakNodePtr {
+    fn upgrade(&self) -> Option<NodePtr> {
+        Some(NodePtr(self.0.upgrade()?))
     }
 }
 
@@ -230,26 +287,14 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
-impl NodePtr {
-    fn downgrade(this: &Self) -> WeakNodePtr {
-        WeakNodePtr(Rc::downgrade(&this.0))
-    }
-}
-
-impl WeakNodePtr {
-    fn upgrade(&self) -> Option<NodePtr> {
-        Some(NodePtr(self.0.upgrade()?))
-    }
-}
-
 impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
             NodeKind::Conj => children_to_fixpoint(cx, &self.children),
-            NodeKind::Binding(_, sort, _) if matches!(sort.kind(), SortKind::Loc) => {
+            NodeKind::ForAll(_, sort, _) if matches!(sort.kind(), SortKind::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
-            NodeKind::Binding(name, sort, pred) => {
+            NodeKind::ForAll(name, sort, pred) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
                     let mut bindings = vec![];
@@ -265,7 +310,7 @@ impl Node {
                     ))
                 })
             }
-            NodeKind::Pred(expr) => {
+            NodeKind::Guard(expr) => {
                 Some(fixpoint::Constraint::Guard(
                     cx.expr_to_fixpoint(expr),
                     Box::new(children_to_fixpoint(cx, &self.children)?),
@@ -279,11 +324,11 @@ impl Node {
         }
     }
 
-    /// Returns `true` if the node kind is [`Binding`].
+    /// Returns `true` if the node kind is [`ForAll`].
     ///
-    /// [`Binding`]: NodeKind::Binding
-    fn is_binding(&self) -> bool {
-        matches!(self.kind, NodeKind::Binding(..))
+    /// [`ForAll`]: NodeKind::ForAll
+    fn is_forall(&self) -> bool {
+        matches!(self.kind, NodeKind::ForAll(..))
     }
 
     /// Returns `true` if the node kind is [`Head`].
@@ -381,7 +426,7 @@ mod pretty {
             mut bindings: Vec<(Name, Sort, Pred)>,
         ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Binding(name, sort, pred) = &node.kind {
+            if let NodeKind::ForAll(name, sort, pred) = &node.kind {
                 bindings.push((*name, sort.clone(), pred.clone()));
                 if let [child] = &node.children[..] {
                     go(child, bindings)
@@ -398,7 +443,7 @@ mod pretty {
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Pred(e) = &node.kind {
+            if let NodeKind::Guard(e) = &node.kind {
                 preds.push(e.clone());
                 if let [child] = &node.children[..] {
                     go(child, preds)
@@ -412,7 +457,7 @@ mod pretty {
         go(ptr, vec![])
     }
 
-    impl Pretty for ConstraintBuilder {
+    impl Pretty for RefineTree {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
@@ -431,7 +476,7 @@ mod pretty {
                 NodeKind::Conj => {
                     w!("{:?}", join!("\n", &node.children))
                 }
-                NodeKind::Binding(name, sort, pred) => {
+                NodeKind::ForAll(name, sort, pred) => {
                     let (bindings, children) = if cx.bindings_chain {
                         bindings_chain(self)
                     } else {
@@ -452,7 +497,7 @@ mod pretty {
                     )?;
                     fmt_children(&children, cx, f)
                 }
-                NodeKind::Pred(expr) => {
+                NodeKind::Guard(expr) => {
                     let (exprs, children) = if cx.preds_chain {
                         preds_chain(self)
                     } else {
@@ -509,7 +554,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for PureCtxt<'_> {
+    impl Pretty for RefineCtxt<'_> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let parents = ParentsIter::new(NodePtr::clone(&self.ptr)).collect_vec();
@@ -520,19 +565,19 @@ mod pretty {
                     .into_iter()
                     .rev()
                     .filter(|n| {
-                        matches!(n.borrow().kind, NodeKind::Binding(..) | NodeKind::Pred(..))
+                        matches!(n.borrow().kind, NodeKind::ForAll(..) | NodeKind::Guard(..))
                     })
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {
-                            NodeKind::Binding(name, sort, pred) => {
+                            NodeKind::ForAll(name, sort, pred) => {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
                                 if !pred.is_true() {
                                     f(&format_args_cx!(", {:?}", pred))?;
                                 }
                                 Ok(())
                             }
-                            NodeKind::Pred(e) => f(&format_args!("{:?}", e)),
+                            NodeKind::Guard(e) => f(&format_args!("{:?}", e)),
                             NodeKind::Conj | NodeKind::Head(..) => unreachable!(),
                         }
                     })
@@ -559,5 +604,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(ConstraintBuilder => "constraint_builder", PureCtxt<'_> => "pure_ctxt", Scope);
+    impl_debug_with_default_cx!(RefineTree => "constraint_builder", RefineCtxt<'_> => "pure_ctxt", Scope);
 }

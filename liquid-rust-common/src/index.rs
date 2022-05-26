@@ -17,6 +17,12 @@ impl<I: Idx> IndexGen<I> {
         Self { count: AtomicUsize::new(0), _marker: PhantomData }
     }
 
+    pub fn skipping(skip: usize) -> Self {
+        let gen = IndexGen::new();
+        gen.skip(skip);
+        gen
+    }
+
     /// Generate a fresh index of type `I`.
     ///
     /// ```ignore

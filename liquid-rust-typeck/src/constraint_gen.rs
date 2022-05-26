@@ -10,11 +10,14 @@ use liquid_rust_middle::{
     ty::{BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
 };
 
-use crate::{pure_ctxt::PureCtxt, type_env::TypeEnv};
+use crate::{
+    refine_tree::{ConstrBuilder, RefineCtxt},
+    type_env::TypeEnv,
+};
 
 pub struct ConstraintGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'tcx>,
-    pcx: PureCtxt<'a>,
+    builder: ConstrBuilder<'a>,
     tag: Tag,
 }
 
@@ -30,12 +33,8 @@ pub enum Tag {
 }
 
 impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
-    pub fn new(genv: &'a GlobalEnv<'tcx>, pcx: PureCtxt<'a>, tag: Tag) -> Self {
-        ConstraintGen { genv, pcx, tag }
-    }
-
-    fn breadcrumb(&mut self) -> ConstraintGen<'_, 'tcx> {
-        ConstraintGen { pcx: self.pcx.breadcrumb(), ..*self }
+    pub fn new(genv: &'a GlobalEnv<'tcx>, rcx: &'a mut RefineCtxt, tag: Tag) -> Self {
+        ConstraintGen { genv, builder: rcx.check_constr(), tag }
     }
 
     pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
@@ -51,111 +50,126 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Pred>) {
-        self.pcx.push_head(pred, self.tag);
+        self.builder.push_head(pred, self.tag);
     }
 
     pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
-        let mut ck = self.breadcrumb();
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(bty1, e1), TyKind::Indexed(bty2, e2)) if e1 == e2 => {
-                ck.bty_subtyping(bty1, bty2);
-                return;
-            }
-            (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
-                ck.bty_subtyping(bty1, bty2);
-                return;
-            }
-            (TyKind::Exists(bty, p), _) => {
-                let indices = ck
-                    .pcx
-                    .push_bindings(&ck.genv.sorts(bty), p)
-                    .into_iter()
-                    .map(Index::from)
-                    .collect_vec();
-                let ty1 = Ty::indexed(bty.clone(), indices);
-                ck.subtyping(&ty1, ty2);
-                return;
-            }
-            _ => {}
-        }
+        subtyping(self.genv, &mut self.builder, ty1, ty2, self.tag)
+    }
+}
 
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
-                ck.bty_subtyping(bty1, bty2);
-                for (e1, e2) in iter::zip(exprs1, exprs2) {
-                    ck.check_pred(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()));
-                }
-            }
-            (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, p)) => {
-                ck.bty_subtyping(bty1, bty2);
-                let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
-                ck.check_pred(p.subst_bound_vars(&exprs));
-            }
-            (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
-                assert_eq!(loc1, loc2);
-            }
-            (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
-                ck.subtyping(ty1, ty2);
-                ck.subtyping(ty2, ty1);
-            }
-            (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-                ck.subtyping(ty1, ty2);
-            }
-            (_, TyKind::Uninit) => {
-                // FIXME: we should rethink in which situation this is sound.
-            }
-            (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2);
-            }
-            (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
-            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
-                debug_assert_eq!(float_ty1, float_ty2);
-            }
-            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
-                debug_assert_eq!(tys1.len(), tys2.len());
-                for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    ck.subtyping(ty1, ty2);
-                }
-            }
-            _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
+pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, tag: Tag) {
+    let builder = &mut builder.breadcrumb();
+    match (ty1.kind(), ty2.kind()) {
+        (TyKind::Indexed(bty1, e1), TyKind::Indexed(bty2, e2)) if e1 == e2 => {
+            bty_subtyping(genv, builder, bty1, bty2, tag);
+            return;
         }
+        (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
+            bty_subtyping(genv, builder, bty1, bty2, tag);
+            return;
+        }
+        (TyKind::Exists(bty, p), _) => {
+            let indices = builder
+                .push_foralls(&genv.sorts(bty), p)
+                .into_iter()
+                .map(|name| Index::from(Expr::fvar(name)))
+                .collect_vec();
+            let ty1 = Ty::indexed(bty.clone(), indices);
+            subtyping(genv, builder, &ty1, ty2, tag);
+            return;
+        }
+        _ => {}
     }
 
-    fn bty_subtyping(&mut self, bty1: &BaseTy, bty2: &BaseTy) {
-        match (bty1, bty2) {
-            (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
-                debug_assert_eq!(int_ty1, int_ty2);
+    match (ty1.kind(), ty2.kind()) {
+        (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
+            bty_subtyping(genv, builder, bty1, bty2, tag);
+            for (e1, e2) in iter::zip(exprs1, exprs2) {
+                builder.push_head(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()), tag);
             }
-            (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
-                debug_assert_eq!(uint_ty1, uint_ty2);
-            }
-            (BaseTy::Bool, BaseTy::Bool) => {}
-            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
-                debug_assert_eq!(def1.def_id(), def2.def_id());
-                debug_assert_eq!(substs1.len(), substs2.len());
-                let variances = self.genv.variances_of(def1.def_id());
-                for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-                    self.polymorphic_subtyping(*variance, ty1, ty2);
-                }
-            }
-            _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
         }
+        (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, p)) => {
+            bty_subtyping(genv, builder, bty1, bty2, tag);
+            let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
+            builder.push_head(p.subst_bound_vars(&exprs), tag);
+        }
+        (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
+            assert_eq!(loc1, loc2);
+        }
+        (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
+            variance_subtyping(genv, builder, Variance::Invariant, ty1, ty2, tag);
+        }
+        (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
+            subtyping(genv, builder, ty1, ty2, tag);
+        }
+        (_, TyKind::Uninit) => {
+            // FIXME: we should rethink in which situation this is sound.
+        }
+        (TyKind::Param(param1), TyKind::Param(param2)) => {
+            debug_assert_eq!(param1, param2);
+        }
+        (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
+        (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
+            debug_assert_eq!(float_ty1, float_ty2);
+        }
+        (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
+            debug_assert_eq!(tys1.len(), tys2.len());
+            for (ty1, ty2) in iter::zip(tys1, tys2) {
+                subtyping(genv, builder, ty1, ty2, tag);
+            }
+        }
+        _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
     }
+}
 
-    fn polymorphic_subtyping(&mut self, variance: Variance, ty1: &Ty, ty2: &Ty) {
-        match variance {
-            rustc_middle::ty::Variance::Covariant => {
-                self.subtyping(ty1, ty2);
-            }
-            rustc_middle::ty::Variance::Invariant => {
-                self.subtyping(ty1, ty2);
-                self.subtyping(ty2, ty1);
-            }
-            rustc_middle::ty::Variance::Contravariant => {
-                self.subtyping(ty2, ty1);
-            }
-            rustc_middle::ty::Variance::Bivariant => {}
+fn bty_subtyping(
+    genv: &GlobalEnv,
+    builder: &mut ConstrBuilder,
+    bty1: &BaseTy,
+    bty2: &BaseTy,
+    tag: Tag,
+) {
+    match (bty1, bty2) {
+        (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
+            debug_assert_eq!(int_ty1, int_ty2);
         }
+        (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
+            debug_assert_eq!(uint_ty1, uint_ty2);
+        }
+        (BaseTy::Bool, BaseTy::Bool) => {}
+        (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
+            debug_assert_eq!(def1.def_id(), def2.def_id());
+            debug_assert_eq!(substs1.len(), substs2.len());
+            let variances = genv.variances_of(def1.def_id());
+            for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
+                variance_subtyping(genv, builder, *variance, ty1, ty2, tag);
+            }
+        }
+        _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
+    }
+}
+
+fn variance_subtyping(
+    genv: &GlobalEnv,
+    builder: &mut ConstrBuilder,
+    variance: Variance,
+    ty1: &Ty,
+    ty2: &Ty,
+    tag: Tag,
+) {
+    match variance {
+        rustc_middle::ty::Variance::Covariant => {
+            subtyping(genv, builder, ty1, ty2, tag);
+        }
+        rustc_middle::ty::Variance::Invariant => {
+            subtyping(genv, builder, ty1, ty2, tag);
+            subtyping(genv, builder, ty2, ty1, tag);
+        }
+        rustc_middle::ty::Variance::Contravariant => {
+            subtyping(genv, builder, ty2, ty1, tag);
+        }
+        rustc_middle::ty::Variance::Bivariant => {}
     }
 }
 
