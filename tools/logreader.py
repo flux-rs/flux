@@ -78,7 +78,10 @@ class Buff:
 
     def flush(self) -> None:
         max_len = max((len(line) for line in self.buffer if isinstance(line, str)), default=0)
-        rule_len = min(max_len, os.get_terminal_size().columns)
+        try:
+            rule_len = min(max_len, os.get_terminal_size().columns)
+        except OSError:
+            rule_len = max_len
         for line in self.buffer:
             if isinstance(line, Rule):
                 print(line.c * rule_len)
@@ -124,10 +127,13 @@ class Buff:
                 self.print_rule()
             elif fields['event'] == 'infer_goto_enter':
                 self.print(f'goto {fields["target"]}')
+                self.print()
                 # self.print(fields['scope'])
-                self.print(fields['env'])
                 self.print(fields['bb_env'])
+                self.print("⊓")
+                self.print(fields['env'])
             elif fields['event'] == 'infer_goto_exit':
+                self.print("=")
                 self.print(fields['bb_env'])
                 self.print_rule()
 
