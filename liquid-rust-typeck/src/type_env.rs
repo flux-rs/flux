@@ -416,9 +416,8 @@ impl TypeEnvInfer {
     }
 
     /// join(self, genv, other) consumes the bindings in other, to "update"
-    /// 'self' in place, and returns 'true' if there was an actual change
-    /// or 'false' indicating no change (i.e. a fixpoint was reached).
-
+    /// `self` in place, and returns `true` if there was an actual change
+    /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
         // Unfold
         self.env.bindings.unfold_with(&mut other.bindings);
@@ -445,8 +444,8 @@ impl TypeEnvInfer {
             let ty2 = other.bindings[path].clone();
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.env.bindings[path1].replace_preds_with_holes();
-                    let ty2 = other.bindings[path2].replace_preds_with_holes();
+                    let ty1 = self.env.bindings[path1].with_holes();
+                    let ty2 = other.bindings[path2].with_holes();
 
                     self.env.bindings[path] = Ty::mk_ref(RefKind::Mut, ty1.clone());
                     other.bindings[path] = Ty::mk_ref(RefKind::Mut, ty2.clone());
