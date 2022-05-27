@@ -144,7 +144,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 let pred = lower_expr(pred, &self.name_map);
                 ty::Ty::exists(bty, pred)
             }
-            core::Ty::Ptr(loc) => ty::Ty::strg_ref(ty::Loc::Free(self.name_map[&loc.name])),
+            core::Ty::Ptr(loc) => ty::Ty::ptr(ty::Loc::Free(self.name_map[&loc.name])),
             core::Ty::Ref(rk, ty) => ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty)),
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),

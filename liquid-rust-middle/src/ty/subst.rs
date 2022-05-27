@@ -61,7 +61,7 @@ impl Subst<'_> {
             }
             TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
             TyKind::Float(float_ty) => Ty::float(*float_ty),
-            TyKind::Ptr(path) => Ty::strg_ref(self.subst_path(path)),
+            TyKind::Ptr(path) => Ty::ptr(self.subst_path(path)),
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, self.subst_ty(ty)),
             TyKind::Uninit => ty.clone(),
