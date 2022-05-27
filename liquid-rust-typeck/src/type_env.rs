@@ -11,7 +11,10 @@ use liquid_rust_common::index::IndexGen;
 use liquid_rust_middle::{
     global_env::GlobalEnv,
     rustc::mir::Place,
-    ty::{subst::Subst, BaseTy, Expr, ExprKind, Index, Param, Path, RefKind, Ty, TyKind},
+    ty::{
+        fold::TypeFoldable, subst::Subst, BaseTy, Expr, ExprKind, Index, Param, Path, RefKind, Ty,
+        TyKind,
+    },
 };
 
 use crate::{
@@ -86,7 +89,7 @@ impl TypeEnv {
     pub fn borrow_mut(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
         self.bindings.lookup_place(rcx, place, |_, result| {
             match result {
-                LookupResult::Ptr(path, _) => Ty::strg_ref(path),
+                LookupResult::Ptr(path, _) => Ty::ptr(path),
                 LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
                 LookupResult::Ref(RefKind::Shr, _) => {
                     panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
@@ -358,7 +361,7 @@ impl TypeEnvInfer {
                 let sorts = genv.sorts(bty);
                 let indices = iter::zip(indices, sorts)
                     .map(|(idx, sort)| {
-                        let has_free_vars = !scope.contains_all(idx.expr.vars());
+                        let has_free_vars = !scope.contains_all(idx.fvars());
                         if let Some(name) = names.get(&idx.expr) {
                             Expr::fvar(*name).into()
                         } else if has_free_vars {
@@ -413,9 +416,8 @@ impl TypeEnvInfer {
     }
 
     /// join(self, genv, other) consumes the bindings in other, to "update"
-    /// 'self' in place, and returns 'true' if there was an actual change
-    /// or 'false' indicating no change (i.e. a fixpoint was reached).
-
+    /// `self` in place, and returns `true` if there was an actual change
+    /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
         // Unfold
         self.env.bindings.unfold_with(&mut other.bindings);
@@ -490,7 +492,7 @@ impl TypeEnvInfer {
     fn dead_params(&self) -> Vec<Name> {
         let mut used: FxHashSet<Name> = FxHashSet::default();
         for (_, ty) in self.env.bindings.iter() {
-            for x in ty.vars().iter() {
+            for x in ty.fvars().iter() {
                 used.insert(*x);
             }
         }
@@ -506,13 +508,13 @@ impl TypeEnvInfer {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
-                Ty::strg_ref(path1.clone())
+                Ty::ptr(path1.clone())
             }
             (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
                 let exprs = izip!(indices1, indices2, genv.sorts(&bty))
                     .map(|(Index { expr: e1, .. }, Index { expr: e2, .. }, sort)| {
-                        let e2_has_free_vars = !self.scope.contains_all(e2.vars());
+                        let e2_has_free_vars = !self.scope.contains_all(e2.fvars());
                         if !self.is_packed_expr(e1) && (e2_has_free_vars || e1 != e2) {
                             Expr::fvar(self.fresh(sort))
                         } else {
@@ -590,11 +592,11 @@ impl TypeEnvInfer {
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(&genv.sorts(bty), &params);
+        let fresh_kvar = &mut |bty| fresh_kvar(&genv.sorts(&bty), &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
-            *ty = ty.fill_holes(fresh_kvar);
+            *ty = ty.replace_holes(fresh_kvar);
         }
 
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings }, scope: self.scope }

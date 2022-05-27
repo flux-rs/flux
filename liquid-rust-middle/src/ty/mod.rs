@@ -1,3 +1,4 @@
+pub mod fold;
 pub mod lowering;
 pub mod subst;
 
@@ -7,7 +8,6 @@ use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
 
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
-use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
@@ -292,7 +292,7 @@ impl VariantDef {
 }
 
 impl Ty {
-    pub fn strg_ref(path: impl Into<Path>) -> Ty {
+    pub fn ptr(path: impl Into<Path>) -> Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
@@ -338,42 +338,6 @@ impl Ty {
     pub fn discr() -> Ty {
         TyKind::Discr.intern()
     }
-
-    pub fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> Ty {
-        match self.kind() {
-            TyKind::Indexed(bty, indices) => Ty::indexed(bty.fill_holes(mk_pred), indices.clone()),
-            TyKind::Exists(bty, p) => {
-                let p = if let Pred::Hole = p { mk_pred(bty) } else { p.clone() };
-                let bty = bty.fill_holes(mk_pred);
-                Ty::exists(bty, p)
-            }
-            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.fill_holes(mk_pred)),
-            TyKind::Float(_) | TyKind::Uninit | TyKind::Ptr(_) | TyKind::Param(_) => self.clone(),
-            TyKind::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| ty.fill_holes(mk_pred)).collect_vec();
-                Ty::tuple(tys)
-            }
-            TyKind::Never => Ty::never(),
-            TyKind::Discr => Ty::discr(),
-        }
-    }
-
-    pub fn with_holes(&self) -> Ty {
-        match self.kind() {
-            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => {
-                let bty = bty.with_holes();
-                Ty::exists(bty, Pred::Hole)
-            }
-            TyKind::Ref(ref_kind, ty) => Ty::mk_ref(*ref_kind, ty.with_holes()),
-            TyKind::Float(_) | TyKind::Uninit | TyKind::Ptr(_) | TyKind::Param(_) => self.clone(),
-            TyKind::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| ty.with_holes()).collect_vec();
-                Ty::tuple(tys)
-            }
-            TyKind::Never => Ty::never(),
-            TyKind::Discr => Ty::discr(),
-        }
-    }
 }
 
 impl TyKind {
@@ -389,30 +353,6 @@ impl TyS {
 
     pub fn is_uninit(&self) -> bool {
         matches!(self.kind(), TyKind::Uninit)
-    }
-
-    fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
-        match self.kind() {
-            TyKind::Indexed(_, indices) => {
-                indices.iter().for_each(|idx| idx.expr.collect_vars(vars))
-            }
-            TyKind::Exists(_, Pred::Expr(e)) => e.collect_vars(vars),
-            TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.collect_vars(vars)),
-            TyKind::Ref(_, ty) => ty.collect_vars(vars),
-            TyKind::Ptr(_)
-            | TyKind::Uninit
-            | TyKind::Float(_)
-            | TyKind::Exists(_, _)
-            | TyKind::Param(_)
-            | TyKind::Never
-            | TyKind::Discr => (),
-        }
-    }
-
-    pub fn vars(&self) -> FxHashSet<Name> {
-        let mut vars = FxHashSet::default();
-        self.collect_vars(&mut vars);
-        vars
     }
 
     pub fn unfold(&self, variant_idx: VariantIdx) -> Option<(AdtDef, IndexVec<Field, Ty>)> {
@@ -439,26 +379,6 @@ impl From<Index> for Expr {
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
-    }
-
-    fn fill_holes(&self, mk_pred: &mut impl FnMut(&BaseTy) -> Pred) -> BaseTy {
-        match self {
-            BaseTy::Adt(adt_def, substs) => {
-                let substs = substs.iter().map(|ty| ty.fill_holes(mk_pred));
-                BaseTy::adt(adt_def.clone(), substs)
-            }
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
-        }
-    }
-
-    fn with_holes(&self) -> BaseTy {
-        match self {
-            BaseTy::Adt(adt_def, substs) => {
-                let substs = substs.iter().map(|ty| ty.with_holes());
-                BaseTy::adt(adt_def.clone(), substs)
-            }
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => self.clone(),
-        }
     }
 }
 
@@ -660,29 +580,6 @@ impl ExprS {
         }
     }
 
-    fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
-        match self.kind() {
-            ExprKind::FreeVar(name) => {
-                vars.insert(*name);
-            }
-            ExprKind::BinaryOp(_, e1, e2) => {
-                e1.collect_vars(vars);
-                e2.collect_vars(vars);
-            }
-            ExprKind::Path(path) => path.collect_vars(vars),
-            ExprKind::UnaryOp(_, e) => e.collect_vars(vars),
-            ExprKind::Proj(e, _) => e.collect_vars(vars),
-            ExprKind::Tuple(exprs) => exprs.iter().for_each(|e| e.collect_vars(vars)),
-            ExprKind::BoundVar(_) | ExprKind::Constant(_) => {}
-        }
-    }
-
-    pub fn vars(&self) -> FxHashSet<Name> {
-        let mut vars = FxHashSet::default();
-        self.collect_vars(&mut vars);
-        vars
-    }
-
     /// Simplify expression applying some rules like removing double negation. This is only used
     /// for pretty printing.
     pub fn simplify(&self) -> Expr {
@@ -792,12 +689,6 @@ impl Path {
 
     pub fn projection(&self) -> &[Field] {
         &self.projection[..]
-    }
-
-    fn collect_vars(&self, vars: &mut FxHashSet<Name>) {
-        if let Loc::Free(name) = self.loc {
-            vars.insert(name);
-        }
     }
 }
 
