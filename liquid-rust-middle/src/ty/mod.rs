@@ -62,7 +62,7 @@ pub type Constrs = List<Constr>;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constr {
-    Type(Path, Ty),
+    Type(Expr, Ty),
     Pred(Expr),
 }
 
@@ -93,7 +93,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Float(FloatTy),
     Uninit,
-    Ptr(Path),
+    Ptr(Expr),
     Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
@@ -293,7 +293,7 @@ impl VariantDef {
 }
 
 impl Ty {
-    pub fn ptr(path: impl Into<Path>) -> Ty {
+    pub fn ptr(path: impl Into<Expr>) -> Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
@@ -606,6 +606,11 @@ impl ExprS {
         let proj = proj.into_iter().rev().collect_vec();
         Some(Path::new(loc, proj))
     }
+
+    pub fn expect_path(&self) -> Path {
+        self.to_path()
+            .unwrap_or_else(|| panic!("expected path, got {:?}", self))
+    }
 }
 
 impl Pred {
@@ -674,6 +679,12 @@ impl Loc {
 impl From<Loc> for Expr {
     fn from(loc: Loc) -> Self {
         loc.to_expr()
+    }
+}
+
+impl From<Path> for Expr {
+    fn from(path: Path) -> Self {
+        path.to_expr()
     }
 }
 

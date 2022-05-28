@@ -43,7 +43,7 @@ impl Subst<'_> {
 
     fn subst_constr(&self, constr: &Constr) -> Constr {
         match constr {
-            Constr::Type(path, ty) => Constr::Type(self.subst_path(path), self.subst_ty(ty)),
+            Constr::Type(path, ty) => Constr::Type(self.subst_expr(path), self.subst_ty(ty)),
             Constr::Pred(e) => Constr::Pred(self.subst_expr(e)),
         }
     }
@@ -61,7 +61,7 @@ impl Subst<'_> {
             }
             TyKind::Exists(bty, pred) => Ty::exists(self.subst_base_ty(bty), self.subst_pred(pred)),
             TyKind::Float(float_ty) => Ty::float(*float_ty),
-            TyKind::Ptr(path) => Ty::ptr(self.subst_path(path)),
+            TyKind::Ptr(path) => Ty::ptr(self.subst_expr(path)),
             TyKind::Param(param) => self.subst_ty_param(*param),
             TyKind::Ref(mode, ty) => Ty::mk_ref(*mode, self.subst_ty(ty)),
             TyKind::Uninit => ty.clone(),
@@ -88,13 +88,6 @@ impl Subst<'_> {
             Pred::Expr(e) => self.subst_expr(e).into(),
             Pred::Hole => Pred::Hole,
         }
-    }
-
-    fn subst_path(&self, path: &Path) -> Path {
-        let path_expr = self.subst_expr(&path.to_expr());
-        path_expr
-            .to_path()
-            .unwrap_or_else(|| panic!("substitution produces invalid path: {path_expr:?}"))
     }
 
     fn subst_kvar(&self, KVar(kvid, args): &KVar) -> KVar {

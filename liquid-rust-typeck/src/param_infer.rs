@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use liquid_rust_middle::{
     global_env::GlobalEnv,
-    ty::{subst::Subst, Constr, Expr, ExprKind, Loc, Name, Path, PolySig, Ty, TyKind},
+    ty::{subst::Subst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind},
 };
 
 use crate::{refine_tree::RefineCtxt, type_env::TypeEnv};
@@ -29,7 +29,7 @@ pub fn infer_from_fn_call(
         .iter()
         .filter_map(|constr| {
             if let Constr::Type(path, ty) = constr {
-                Some((path.clone(), ty.clone()))
+                Some((path.expect_path(), ty.clone()))
             } else {
                 None
             }
@@ -85,19 +85,28 @@ fn infer_from_tys(
             }
         }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
-            infer_from_tys(subst, genv, rcx, params, env, &env.lookup_path(path1), requires, ty2);
-        }
-        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-            infer_from_paths(subst, params, path1, path2);
             infer_from_tys(
                 subst,
                 genv,
                 rcx,
                 params,
                 env,
-                &env.lookup_path(path1),
+                &env.lookup_path(&path1.expect_path()),
                 requires,
-                &requires[path2],
+                ty2,
+            );
+        }
+        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+            infer_from_exprs(subst, params, path1, path2);
+            infer_from_tys(
+                subst,
+                genv,
+                rcx,
+                params,
+                env,
+                &env.lookup_path(&path1.expect_path()),
+                requires,
+                &requires[&path2.expect_path()],
             );
         }
         (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
@@ -105,22 +114,6 @@ fn infer_from_tys(
             infer_from_tys(subst, genv, rcx, params, env, ty1, requires, ty2);
         }
         _ => {}
-    }
-}
-
-fn infer_from_paths(subst: &mut Subst, _params: &FxHashSet<Name>, path1: &Path, path2: &Path) {
-    // TODO(nilehmann) we should probably do something with _params
-    if !path2.projection().is_empty() {
-        return;
-    }
-    if let Loc::Free(name) = path2.loc {
-        let new = path1.to_expr();
-        match subst.insert(name, new.clone()) {
-            Some(old) if old != new => {
-                todo!("ambiguous instantiation for location parameter`",);
-            }
-            _ => {}
-        }
     }
 }
 
@@ -143,6 +136,9 @@ pub fn infer_from_exprs(subst: &mut Subst, params: &FxHashSet<Name>, e1: &Expr, 
             for (e1, e2) in exprs1.iter().zip(exprs2) {
                 infer_from_exprs(subst, params, e1, e2);
             }
+        }
+        (ExprKind::PathProj(e1, field1), ExprKind::PathProj(e2, field2)) if field1 == field2 => {
+            infer_from_exprs(subst, params, e1, e2);
         }
         _ => {}
     }

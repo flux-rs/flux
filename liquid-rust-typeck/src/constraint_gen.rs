@@ -40,7 +40,7 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
         match constr {
             Constr::Type(path, ty) => {
-                let actual_ty = env.lookup_path(path);
+                let actual_ty = env.lookup_path(&path.expect_path());
                 self.subtyping(&actual_ty, ty);
             }
             Constr::Pred(e) => {

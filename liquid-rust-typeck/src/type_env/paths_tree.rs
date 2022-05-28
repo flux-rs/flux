@@ -171,7 +171,7 @@ impl PathsTree {
                 Some(PlaceElem::Deref) => {
                     let ty = node.fold(rcx);
                     match ty.kind() {
-                        TyKind::Ptr(ref_path) => path = ref_path.clone(),
+                        TyKind::Ptr(ptr_path) => path = ptr_path.expect_path(),
                         TyKind::Ref(mode, ty) => {
                             let ty = ty.clone();
                             let mode = *mode;
@@ -205,7 +205,7 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return self.lookup_place_iter(rcx, path.clone(), proj, |_, lookup| {
+                    return self.lookup_place_iter(rcx, path.expect_path(), proj, |_, lookup| {
                         match lookup {
                             LookupResult::Ptr(_, ty) => LookupResult::Ref(mode, ty.clone()),
                             LookupResult::Ref(mode2, ty2) => {
@@ -251,9 +251,29 @@ impl<'a> std::ops::Index<&'a Path> for PathsTree {
     }
 }
 
+impl std::ops::Index<Path> for PathsTree {
+    type Output = Ty;
+
+    fn index(&self, path: Path) -> &Self::Output {
+        match self.get(&path) {
+            Some(ty) => ty,
+            None => panic!("no entry found for path `{:?}`", path),
+        }
+    }
+}
+
 impl<'a> std::ops::IndexMut<&'a Path> for PathsTree {
     fn index_mut(&mut self, path: &'a Path) -> &mut Self::Output {
         match self.get_mut(path) {
+            Some(ty) => ty,
+            None => panic!("no entry found for path `{:?}`", path),
+        }
+    }
+}
+
+impl std::ops::IndexMut<Path> for PathsTree {
+    fn index_mut(&mut self, path: Path) -> &mut Self::Output {
+        match self.get_mut(&path) {
             Some(ty) => ty,
             None => panic!("no entry found for path `{:?}`", path),
         }

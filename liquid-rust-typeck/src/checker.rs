@@ -216,9 +216,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in fn_sig.requires() {
             match constr {
                 ty::Constr::Type(path, ty) => {
-                    assert!(path.projection().is_empty());
+                    let loc = path.to_loc().unwrap();
                     let ty = env.unpack_ty(genv, rcx, ty);
-                    env.alloc_with_ty(path.loc, ty);
+                    env.alloc_with_ty(loc, ty);
                 }
                 ty::Constr::Pred(e) => {
                     rcx.assert_pred(e.clone());
@@ -420,7 +420,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
-                env.weaken_ty_at_path(&mut gen, path, bound.clone());
+                env.weaken_ty_at_path(&mut gen, &path.expect_path(), bound.clone());
             } else {
                 gen.subtyping(&actual, formal);
             }
@@ -434,7 +434,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match constr {
                 Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(self.genv, rcx, updated_ty);
-                    env.update_path(path, updated_ty);
+                    env.update_path(&path.expect_path(), updated_ty);
                 }
                 Constr::Pred(e) => rcx.assert_pred(e.clone()),
             }

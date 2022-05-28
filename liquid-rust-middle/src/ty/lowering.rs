@@ -2,7 +2,7 @@ use std::iter;
 
 use crate::{
     global_env::GlobalEnv,
-    ty::{self, Path, VariantDef},
+    ty::{self, VariantDef},
 };
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
@@ -87,10 +87,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     fn lower_constr(&self, constr: &core::Constr) -> ty::Constr {
         match constr {
             core::Constr::Type(loc, ty) => {
-                ty::Constr::Type(
-                    Path::from(ty::Loc::Free(self.name_map[&loc.name])),
-                    self.lower_ty(ty),
-                )
+                ty::Constr::Type(ty::Expr::fvar(self.name_map[&loc.name]), self.lower_ty(ty))
             }
             core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map)),
         }

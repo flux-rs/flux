@@ -42,7 +42,7 @@ pub struct TypeEnvInfer {
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
     constrs: Vec<Pred>,
-    scope: Scope,
+    _scope: Scope,
     pub env: TypeEnv,
 }
 
@@ -214,9 +214,9 @@ impl TypeEnv {
                 }
             }
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-                self.infer_subst_for_bb_env_paths(bb_env, params, path1, path2, subst);
-                let ty1 = &self.bindings[path1];
-                let ty2 = &bb_env.env.bindings[path2];
+                param_infer::infer_from_exprs(subst, params, path1, path2);
+                let ty1 = &self.bindings[path1.expect_path()];
+                let ty2 = &bb_env.env.bindings[path2.expect_path()];
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
@@ -224,25 +224,6 @@ impl TypeEnv {
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             _ => {}
-        }
-    }
-
-    fn infer_subst_for_bb_env_paths(
-        &self,
-        bb_env: &BasicBlockEnv,
-        _params: &FxHashSet<Name>,
-        path1: &Path,
-        path2: &Path,
-        subst: &mut Subst,
-    ) {
-        // TODO(nilehmann) we should probably do something with _params
-        if !path1.projection().is_empty() || !path2.projection().is_empty() {
-            return;
-        }
-        if let (Loc::Free(loc1), Loc::Free(loc2)) = (path1.loc, path2.loc) {
-            if !bb_env.scope.contains(loc1) && !bb_env.scope.contains(loc2) {
-                subst.insert(loc2, Loc::Free(loc1));
-            }
         }
     }
 
@@ -283,16 +264,16 @@ impl TypeEnv {
             if let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) =
                 (ty1.kind(), ty2.kind())
             {
-                let ty = &self.bindings[ptr_path];
+                let ty = &self.bindings[ptr_path.expect_path()];
                 gen.subtyping(ty, bound);
-                self.bindings[ptr_path] = bound.clone();
+                self.bindings[ptr_path.expect_path()] = bound.clone();
                 self.bindings[&path] = Ty::mk_ref(RefKind::Mut, bound.clone());
             }
         }
 
         // Check subtyping
         for (path, ty1) in self.bindings.iter_mut() {
-            let ty2 = goto_env.bindings[&path].clone();
+            let ty2 = goto_env.bindings[path].clone();
             gen.subtyping(ty1, &ty2);
             *ty1 = ty2;
         }
@@ -444,21 +425,21 @@ impl TypeEnvInfer {
             let ty2 = other.bindings[path].clone();
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.env.bindings[path1].with_holes();
-                    let ty2 = other.bindings[path2].with_holes();
+                    let ty1 = self.env.bindings[path1.expect_path()].with_holes();
+                    let ty2 = other.bindings[path2.expect_path()].with_holes();
 
                     self.env.bindings[path] = Ty::mk_ref(RefKind::Mut, ty1.clone());
                     other.bindings[path] = Ty::mk_ref(RefKind::Mut, ty2.clone());
 
-                    self.env.bindings[path1] = ty1;
-                    other.bindings[path2] = ty2;
+                    self.env.bindings[path1.expect_path()] = ty1;
+                    other.bindings[path2.expect_path()] = ty2;
                 }
                 (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    self.env.bindings[ptr_path] = bound.clone();
+                    self.env.bindings[ptr_path.expect_path()] = bound.clone();
                     self.env.bindings[path] = Ty::mk_ref(RefKind::Mut, bound.clone());
                 }
                 (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
-                    other.bindings[ptr_path] = bound.clone();
+                    other.bindings[ptr_path.expect_path()] = bound.clone();
                     other.bindings[path] = Ty::mk_ref(RefKind::Mut, bound.clone());
                 }
                 _ => {}
@@ -599,7 +580,7 @@ impl TypeEnvInfer {
             *ty = ty.replace_holes(fresh_kvar);
         }
 
-        BasicBlockEnv { params, constrs, env: TypeEnv { bindings }, scope: self.scope }
+        BasicBlockEnv { params, constrs, env: TypeEnv { bindings }, _scope: self.scope }
     }
 
     fn is_packed_expr(&self, expr: &Expr) -> bool {
