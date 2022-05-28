@@ -21,6 +21,8 @@ pub use crate::core::RefKind;
 use crate::intern::{impl_internable, Interned, List};
 use subst::Subst;
 
+use self::fold::TypeFoldable;
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
 
@@ -196,6 +198,17 @@ impl<T> Binders<T> {
     pub fn value(&self) -> &T {
         &self.value
     }
+
+    pub fn replace_params_with_fresh_vars(&self, mut fresh: impl FnMut(&Param) -> Name) -> T
+    where
+        T: TypeFoldable,
+    {
+        let mut subst = Subst::empty();
+        for param in self.params() {
+            subst.insert(param.name, fresh(param));
+        }
+        subst.apply(&self.value)
+    }
 }
 
 impl FnSig {
@@ -271,7 +284,7 @@ impl AdtDef {
         for (idx, param) in indices.iter().zip(self.refined_by()) {
             subst.insert(param.name, idx.expr.clone());
         }
-        Some(fields.iter().map(|ty| subst.subst_ty(ty)).collect())
+        Some(fields.iter().map(|ty| subst.apply(ty)).collect())
     }
 
     pub fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
@@ -685,6 +698,12 @@ impl From<Loc> for Expr {
 impl From<Path> for Expr {
     fn from(path: Path) -> Self {
         path.to_expr()
+    }
+}
+
+impl From<Name> for Expr {
+    fn from(name: Name) -> Self {
+        Expr::fvar(name)
     }
 }
 

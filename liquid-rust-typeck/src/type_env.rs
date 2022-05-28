@@ -242,7 +242,7 @@ impl TypeEnv {
         // Check constraints
         let mut gen = ConstraintGen::new(genv, rcx, tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(subst.subst_pred(&constr.subst_bound_vars(&[Expr::fvar(param.name)])));
+            gen.check_pred(subst.apply(&constr.subst_bound_vars(&[Expr::fvar(param.name)])));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);
@@ -599,7 +599,7 @@ impl BasicBlockEnv {
     pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
         let mut subst = Subst::empty();
         for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let fresh = rcx.define_param(param.sort.clone(), &subst.subst_pred(constr));
+            let fresh = rcx.define_param(param.sort.clone(), &subst.apply(constr));
             subst.insert(param.name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)

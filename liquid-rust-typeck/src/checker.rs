@@ -169,17 +169,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
-        let fn_sig = genv.lookup_fn_sig(def_id);
-
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let mut subst = Subst::empty();
-        for param in fn_sig.params() {
-            let fresh = rcx.define_param(param.sort.clone(), &Pred::tt());
-            subst.insert(param.name, Expr::fvar(fresh));
-        }
-
-        let fn_sig = subst.subst_fn_sig(fn_sig.value());
+        let fn_sig = genv
+            .lookup_fn_sig(def_id)
+            .replace_params_with_fresh_vars(|param| {
+                rcx.define_param(param.sort.clone(), &Pred::tt())
+            });
 
         let env = Self::init(genv, &mut rcx, body, &fn_sig);
 
@@ -412,7 +408,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 .emit_err(errors::ParamInferenceError { span: source_info.span });
             return Err(ErrorReported);
         };
-        let fn_sig = subst.subst_fn_sig(fn_sig.value());
+        let fn_sig = subst.apply(fn_sig.value());
 
         // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Call(source_info.span));

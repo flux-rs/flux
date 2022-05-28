@@ -369,7 +369,7 @@ impl Node {
 
     fn subst_mut(&mut self, subst: &Subst) {
         match self {
-            Node::Ty(ty) => *ty = subst.subst_ty(ty),
+            Node::Ty(ty) => *ty = subst.apply(ty),
             Node::Adt(.., fields) => {
                 for field in fields.iter_mut() {
                     field.subst_mut(subst);

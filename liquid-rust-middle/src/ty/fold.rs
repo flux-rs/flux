@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use super::{BaseTy, Expr, ExprKind, Index, KVar, Loc, Name, Path, Pred, Ty, TyKind};
+use super::{BaseTy, Constr, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Ty, TyKind};
 
 pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
@@ -13,12 +13,12 @@ pub trait TypeVisitor: Sized {
 }
 
 pub trait TypeFolder: Sized {
-    fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        expr.super_fold_with(self)
-    }
-
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         ty.super_fold_with(self)
+    }
+
+    fn fold_expr(&mut self, expr: &Expr) -> Expr {
+        expr.super_fold_with(self)
     }
 }
 
@@ -108,6 +108,58 @@ pub trait TypeFoldable: Sized {
         }
 
         self.fold_with(&mut ReplaceBoundVars(substs))
+    }
+}
+
+impl TypeFoldable for FnSig {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        let requires = self
+            .requires
+            .iter()
+            .map(|constr| constr.fold_with(folder))
+            .collect_vec();
+        let args = self
+            .args
+            .iter()
+            .map(|arg| arg.fold_with(folder))
+            .collect_vec();
+        let ensures = self
+            .ensures
+            .iter()
+            .map(|constr| constr.fold_with(folder))
+            .collect_vec();
+        let ret = self.ret.fold_with(folder);
+        FnSig::new(requires, args, ret, ensures)
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.requires
+            .iter()
+            .for_each(|constr| constr.visit_with(visitor));
+        self.args.iter().for_each(|arg| arg.visit_with(visitor));
+        self.ensures
+            .iter()
+            .for_each(|constr| constr.visit_with(visitor));
+        self.ret.visit_with(visitor);
+    }
+}
+
+impl TypeFoldable for Constr {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            Constr::Type(path, ty) => Constr::Type(path.fold_with(folder), ty.fold_with(folder)),
+            Constr::Pred(e) => Constr::Pred(e.fold_with(folder)),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            Constr::Type(path, ty) => {
+                path.visit_with(visitor);
+                ty.visit_with(visitor);
+            }
+            Constr::Pred(e) => e.visit_with(visitor),
+        }
     }
 }
 
@@ -266,32 +318,6 @@ impl TypeFoldable for Expr {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_expr(self)
-    }
-}
-
-impl TypeFoldable for Path {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Path::new(self.loc.fold_with(folder), self.projection.clone())
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.loc.visit_with(visitor);
-    }
-}
-
-impl TypeFoldable for Loc {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Loc::Local(local) => Loc::Local(*local),
-            Loc::Free(name) => Loc::Free(name.fold_with(folder)),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        match self {
-            Loc::Local(_) => {}
-            Loc::Free(name) => name.visit_with(visitor),
-        }
     }
 }
 
