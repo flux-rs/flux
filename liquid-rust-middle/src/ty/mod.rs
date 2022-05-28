@@ -550,36 +550,6 @@ impl ExprS {
         )
     }
 
-    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Expr {
-        match self.kind() {
-            ExprKind::BoundVar(idx) => exprs[*idx as usize].clone(),
-            ExprKind::FreeVar(name) => Expr::fvar(*name),
-            ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(*op, e1.subst_bound_vars(exprs), e2.subst_bound_vars(exprs))
-                    .intern()
-            }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.subst_bound_vars(exprs)),
-            ExprKind::Proj(tup, field) => {
-                let tup = tup.subst_bound_vars(exprs);
-                // Opportunistically eta reduce the tuple
-                match tup.kind() {
-                    ExprKind::Tuple(exprs) => exprs[*field as usize].clone(),
-                    _ => Expr::proj(tup, *field),
-                }
-            }
-            ExprKind::Tuple(exprs) => {
-                Expr::tuple(
-                    exprs
-                        .iter()
-                        .map(|e| e.subst_bound_vars(exprs))
-                        .collect_vec(),
-                )
-            }
-            ExprKind::Path(path) => Expr::path(path.clone()),
-        }
-    }
-
     /// Simplify expression applying some rules like removing double negation. This is only used
     /// for pretty printing.
     pub fn simplify(&self) -> Expr {
@@ -633,21 +603,6 @@ impl Pred {
     pub fn is_atom(&self) -> bool {
         matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
-
-    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> Pred {
-        match self {
-            Pred::Kvars(kvars) => {
-                Pred::kvars(
-                    kvars
-                        .iter()
-                        .map(|kvar| kvar.subst_bound_vars(exprs))
-                        .collect_vec(),
-                )
-            }
-            Pred::Expr(e) => Pred::Expr(e.subst_bound_vars(exprs)),
-            Pred::Hole => Pred::Hole,
-        }
-    }
 }
 
 impl KVar {
@@ -660,16 +615,6 @@ impl KVar {
 
     pub fn dummy() -> KVar {
         KVar::new(KVid::from(0usize), vec![])
-    }
-
-    pub fn subst_bound_vars(&self, exprs: &[Expr]) -> KVar {
-        KVar::new(
-            self.0,
-            self.1
-                .iter()
-                .map(|arg| arg.subst_bound_vars(exprs))
-                .collect_vec(),
-        )
     }
 }
 

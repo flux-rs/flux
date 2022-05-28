@@ -7,7 +7,7 @@ use rustc_span::Span;
 use liquid_rust_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
-    ty::{BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
+    ty::{fold::TypeFoldable, BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
 };
 
 use crate::{

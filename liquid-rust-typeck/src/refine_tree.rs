@@ -7,7 +7,7 @@ use std::{
 use itertools::{Itertools, Position};
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use liquid_rust_middle::ty::{Expr, Name, Pred, Sort, SortKind};
+use liquid_rust_middle::ty::{fold::TypeFoldable, Expr, Name, Pred, Sort, SortKind};
 
 use crate::{
     constraint_gen::Tag,

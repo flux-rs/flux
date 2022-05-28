@@ -13,8 +13,8 @@ pub trait TypeVisitor: Sized {
 }
 
 pub trait TypeFolder: Sized {
-    fn fold_fvar(&mut self, name: Name) -> Name {
-        name.super_fold_with(self)
+    fn fold_expr(&mut self, expr: &Expr) -> Expr {
+        expr.super_fold_with(self)
     }
 
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
@@ -92,6 +92,22 @@ pub trait TypeFoldable: Sized {
         }
 
         self.fold_with(&mut WithHoles)
+    }
+
+    fn subst_bound_vars(&self, substs: &[Expr]) -> Self {
+        struct ReplaceBoundVars<'a>(&'a [Expr]);
+
+        impl<'a> TypeFolder for ReplaceBoundVars<'a> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::BoundVar(idx) = expr.kind() {
+                    self.0[*idx as usize].clone()
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut ReplaceBoundVars(substs))
     }
 }
 
@@ -246,6 +262,10 @@ impl TypeFoldable for Expr {
             ExprKind::Constant(_) | ExprKind::BoundVar(_) => {}
         }
     }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_expr(self)
+    }
 }
 
 impl TypeFoldable for Path {
@@ -280,10 +300,6 @@ impl TypeFoldable for Name {
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, _visitor: &mut V) {}
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_fvar(*self)
-    }
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_fvar(*self)
