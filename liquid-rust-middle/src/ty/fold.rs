@@ -232,16 +232,17 @@ impl TypeFoldable for Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(name.fold_with(folder)),
             ExprKind::BoundVar(idx) => Expr::bvar(*idx),
+            ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder))
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder)),
-            ExprKind::Proj(e, proj) => Expr::proj(e.fold_with(folder), *proj),
+            ExprKind::TupleProj(e, proj) => Expr::proj(e.fold_with(folder), *proj),
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
-            ExprKind::Path(path) => Expr::path(path.fold_with(folder)),
+            ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
         }
     }
 
@@ -252,14 +253,14 @@ impl TypeFoldable for Expr {
                 e1.visit_with(visitor);
                 e2.visit_with(visitor);
             }
-            ExprKind::UnaryOp(_, e) | ExprKind::Proj(e, _) => e.visit_with(visitor),
+            ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => e.visit_with(visitor),
             ExprKind::Tuple(exprs) => {
                 for e in exprs {
                     e.visit_with(visitor);
                 }
             }
-            ExprKind::Path(path) => path.visit_with(visitor),
-            ExprKind::Constant(_) | ExprKind::BoundVar(_) => {}
+            ExprKind::PathProj(e, _) => e.visit_with(visitor),
+            ExprKind::Constant(_) | ExprKind::BoundVar(_) | ExprKind::Local(_) => {}
         }
     }
 

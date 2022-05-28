@@ -290,8 +290,7 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap) -> fixpoint::Expr {
         ty::ExprKind::UnaryOp(op, e) => {
             fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e, name_map)))
         }
-        ty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
-        ty::ExprKind::Proj(e, field) => {
+        ty::ExprKind::TupleProj(e, field) => {
             itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])
                 .fold(expr_to_fixpoint(e, name_map), |e, proj| {
@@ -299,7 +298,9 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap) -> fixpoint::Expr {
                 })
         }
         ty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map),
-        ty::ExprKind::Path(_) => panic!("unexpected path"),
+        ty::ExprKind::Local(_) | ty::ExprKind::BoundVar(_) | ty::ExprKind::PathProj(..) => {
+            panic!("unexpected expr: `{expr:?}`")
+        }
     }
 }
 

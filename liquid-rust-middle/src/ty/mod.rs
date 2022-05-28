@@ -113,7 +113,7 @@ pub struct Path {
     projection: List<Field>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Loc {
     Local(Local),
     Free(Name),
@@ -166,12 +166,13 @@ pub struct ExprS {
 pub enum ExprKind {
     FreeVar(Name),
     BoundVar(u32),
+    Local(Local),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
     UnaryOp(UnOp, Expr),
-    Proj(Expr, u32),
+    TupleProj(Expr, u32),
     Tuple(List<Expr>),
-    Path(Path),
+    PathProj(Expr, Field),
 }
 
 newtype_index! {
@@ -481,6 +482,10 @@ impl Expr {
         ExprKind::BoundVar(idx).intern()
     }
 
+    pub fn local(local: Local) -> Expr {
+        ExprKind::Local(local).intern()
+    }
+
     pub fn constant(c: Constant) -> Expr {
         ExprKind::Constant(c).intern()
     }
@@ -514,11 +519,11 @@ impl Expr {
     }
 
     pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
-        ExprKind::Proj(e.into(), proj).intern()
+        ExprKind::TupleProj(e.into(), proj).intern()
     }
 
-    pub fn path(path: Path) -> Expr {
-        ExprKind::Path(path).intern()
+    pub fn path_proj(base: Expr, field: Field) -> Expr {
+        ExprKind::PathProj(base, field).intern()
     }
 
     pub fn not(&self) -> Expr {
@@ -547,6 +552,7 @@ impl ExprS {
                 | ExprKind::Constant(_)
                 | ExprKind::UnaryOp(..)
                 | ExprKind::Tuple(..)
+                | ExprKind::PathProj(..)
         )
     }
 
@@ -556,6 +562,7 @@ impl ExprS {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(*name),
             ExprKind::BoundVar(idx) => Expr::bvar(*idx),
+            ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => Expr::binary_op(*op, e1.simplify(), e2.simplify()),
             ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -568,16 +575,36 @@ impl ExprS {
                 }
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.simplify()),
-            ExprKind::Proj(e, field) => Expr::proj(e.simplify(), *field),
+            ExprKind::TupleProj(e, field) => Expr::proj(e.simplify(), *field),
             ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify()).collect_vec()),
-            ExprKind::Path(path) => Expr::path(path.clone()),
+            ExprKind::PathProj(e, field) => Expr::path_proj(e.clone(), *field),
         }
     }
-}
 
-impl From<Expr> for Pred {
-    fn from(expr: Expr) -> Self {
-        Pred::Expr(expr)
+    pub fn to_loc(&self) -> Option<Loc> {
+        match self.kind() {
+            ExprKind::FreeVar(name) => Some(Loc::Free(*name)),
+            ExprKind::Local(local) => Some(Loc::Local(*local)),
+            _ => None,
+        }
+    }
+
+    pub fn to_path(&self) -> Option<Path> {
+        let mut expr = self;
+        let mut proj = vec![];
+        let loc = loop {
+            match expr.kind() {
+                ExprKind::PathProj(e, field) => {
+                    proj.push(*field);
+                    expr = e;
+                }
+                ExprKind::FreeVar(name) => break Loc::Free(*name),
+                ExprKind::Local(local) => break Loc::Local(*local),
+                _ => return None,
+            }
+        };
+        let proj = proj.into_iter().rev().collect_vec();
+        Some(Path::new(loc, proj))
     }
 }
 
@@ -594,10 +621,7 @@ impl Pred {
     }
 
     pub fn is_true(&self) -> bool {
-        match self {
-            Pred::Expr(e) => e.is_true(),
-            _ => false,
-        }
+        matches!(self, Pred::Expr(e) if e.is_true())
     }
 
     pub fn is_atom(&self) -> bool {
@@ -618,12 +642,6 @@ impl KVar {
     }
 }
 
-impl From<Path> for Expr {
-    fn from(path: Path) -> Self {
-        Expr::path(path)
-    }
-}
-
 impl Path {
     pub fn new<T>(loc: Loc, projection: T) -> Path
     where
@@ -634,6 +652,34 @@ impl Path {
 
     pub fn projection(&self) -> &[Field] {
         &self.projection[..]
+    }
+
+    pub fn to_expr(&self) -> Expr {
+        self.projection
+            .iter()
+            .rev()
+            .fold(self.loc.to_expr(), |e, f| Expr::path_proj(e, *f))
+    }
+}
+
+impl Loc {
+    pub fn to_expr(&self) -> Expr {
+        match self {
+            Loc::Local(local) => Expr::local(*local),
+            Loc::Free(name) => Expr::fvar(*name),
+        }
+    }
+}
+
+impl From<Loc> for Expr {
+    fn from(loc: Loc) -> Self {
+        loc.to_expr()
+    }
+}
+
+impl From<Expr> for Pred {
+    fn from(expr: Expr) -> Self {
+        Pred::Expr(expr)
     }
 }
 
@@ -652,23 +698,6 @@ impl From<Name> for Loc {
 impl From<Local> for Loc {
     fn from(local: Local) -> Self {
         Loc::Local(local)
-    }
-}
-
-impl PartialOrd for Loc {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Loc::Local(local1), Loc::Local(local2)) => local1.partial_cmp(local2),
-            (Loc::Local(_), Loc::Free(_)) => Some(std::cmp::Ordering::Less),
-            (Loc::Free(_), Loc::Local(_)) => Some(std::cmp::Ordering::Greater),
-            (Loc::Free(loc1), Loc::Free(loc2)) => loc1.partial_cmp(loc2),
-        }
-    }
-}
-
-impl Ord for Loc {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
     }
 }
 
@@ -887,6 +916,7 @@ mod pretty {
             match e.kind() {
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
                 ExprKind::BoundVar(idx) => w!("ν{}", ^idx),
+                ExprKind::Local(local) => w!("{:?}", ^local),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(*op, e1) {
                         w!("({:?})", e1)?;
@@ -913,7 +943,7 @@ mod pretty {
                         w!("{:?}({:?})", op, e)
                     }
                 }
-                ExprKind::Proj(e, field) => {
+                ExprKind::TupleProj(e, field) => {
                     if e.is_atom() {
                         w!("{:?}.{:?}", e, ^field)
                     } else {
@@ -923,7 +953,13 @@ mod pretty {
                 ExprKind::Tuple(exprs) => {
                     w!("({:?})", join!(", ", exprs))
                 }
-                ExprKind::Path(path) => w!("{:?}", path),
+                ExprKind::PathProj(e, field) => {
+                    if e.is_atom() {
+                        w!("{:?}.{:?}", e, field)
+                    } else {
+                        w!("({:?}).{:?}", e, field)
+                    }
+                }
             }
         }
     }

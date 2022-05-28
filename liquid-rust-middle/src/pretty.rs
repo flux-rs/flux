@@ -2,7 +2,7 @@ use std::{cell::RefCell, fmt};
 
 use liquid_rust_common::config;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{mir::Field, ty::TyCtxt};
 use rustc_span::{Pos, Span};
 
 use crate::intern::{Internable, Interned};
@@ -277,6 +277,12 @@ impl Pretty for DefId {
         } else {
             w!("{}", ^path.data.last().unwrap())
         }
+    }
+}
+
+impl Pretty for Field {
+    fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self:?}")
     }
 }
 

@@ -114,7 +114,7 @@ fn infer_from_paths(subst: &mut Subst, _params: &FxHashSet<Name>, path1: &Path, 
         return;
     }
     if let Loc::Free(name) = path2.loc {
-        let new = Expr::path(path1.clone());
+        let new = path1.to_expr();
         match subst.insert(name, new.clone()) {
             Some(old) if old != new => {
                 todo!("ambiguous instantiation for location parameter`",);

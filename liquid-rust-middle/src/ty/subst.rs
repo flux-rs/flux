@@ -91,29 +91,10 @@ impl Subst<'_> {
     }
 
     fn subst_path(&self, path: &Path) -> Path {
-        match path.loc {
-            Loc::Local(_) => path.clone(),
-            Loc::Free(name) => {
-                match self.map.get(&name) {
-                    Some(e) if let ExprKind::Path(inner) = e.kind() => {
-                        let proj = inner
-                            .projection()
-                            .iter()
-                            .chain(path.projection())
-                            .copied()
-                            .collect_vec();
-                        Path::new(inner.loc, proj)
-                    }
-                    Some(e) if let ExprKind::FreeVar(name) = e.kind() => {
-                        Path::new(Loc::Free(*name), path.projection())
-                    }
-                    Some(e) => {
-                        panic!("invalid substitution in path `{path:?}`: `{:?}` -> `{e:?}`", path.loc)
-                    }
-                    None => path.clone(),
-                }
-            }
-        }
+        let path_expr = self.subst_expr(&path.to_expr());
+        path_expr
+            .to_path()
+            .unwrap_or_else(|| panic!("substitution produces invalid path: {path_expr:?}"))
     }
 
     fn subst_kvar(&self, KVar(kvid, args): &KVar) -> KVar {
@@ -138,7 +119,7 @@ impl Subst<'_> {
                 Expr::binary_op(*op, self.subst_expr(e1), self.subst_expr(e2))
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, self.subst_expr(e)),
-            ExprKind::Proj(tup, field) => {
+            ExprKind::TupleProj(tup, field) => {
                 let tup = self.subst_expr(tup);
                 // Opportunistically eta reduce the tuple
                 match tup.kind() {
@@ -149,29 +130,17 @@ impl Subst<'_> {
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| self.subst_expr(e)).collect_vec())
             }
-            ExprKind::Path(path) => Expr::path(self.subst_path(path)),
+            ExprKind::PathProj(e, field) => Expr::path_proj(self.subst_expr(e), *field),
             ExprKind::BoundVar(_) | ExprKind::Constant(_) => expr.clone(),
+            ExprKind::Local(local) => Expr::local(*local),
         }
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
-        match loc {
-            Loc::Local(local) => Loc::Local(local),
-            Loc::Free(name) => {
-                match self.map.get(&name) {
-                    Some(e) if let ExprKind::Path(path) = e.kind() && path.projection().is_empty() => {
-                        path.loc
-                    }
-                    Some(e) if let ExprKind::FreeVar(name) = e.kind() => {
-                        Loc::Free(*name)
-                    }
-                    Some(e) => {
-                        panic!("invalid loc substitution: `{loc:?}` -> `{e:?}`")
-                    }
-                    None => Loc::Free(name)
-                }
-            }
-        }
+        let loc_expr = self.subst_expr(&loc.to_expr());
+        loc_expr
+            .to_loc()
+            .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
     }
 
     fn subst_ty_param(&self, param: ParamTy) -> Ty {

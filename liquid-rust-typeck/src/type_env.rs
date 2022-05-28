@@ -241,7 +241,7 @@ impl TypeEnv {
         }
         if let (Loc::Free(loc1), Loc::Free(loc2)) = (path1.loc, path2.loc) {
             if !bb_env.scope.contains(loc1) && !bb_env.scope.contains(loc2) {
-                subst.insert(loc2, Path::from(Loc::Free(loc1)));
+                subst.insert(loc2, Loc::Free(loc1));
             }
         }
     }
@@ -341,7 +341,7 @@ impl TypeEnvInfer {
                 if !scope.contains(loc) {
                     let fresh = name_gen.fresh();
                     params.insert(fresh, Sort::loc());
-                    subst.insert(loc, Path::from(Loc::Free(fresh)));
+                    subst.insert(loc, Loc::Free(fresh));
                 }
             }
         }
