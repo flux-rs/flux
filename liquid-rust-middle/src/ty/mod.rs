@@ -394,6 +394,14 @@ impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
     }
+
+    pub fn sorts(&self) -> Vec<Sort> {
+        match self {
+            BaseTy::Int(_) | BaseTy::Uint(_) => vec![Sort::int()],
+            BaseTy::Bool => vec![Sort::bool()],
+            BaseTy::Adt(adt_def, _) => adt_def.sorts(),
+        }
+    }
 }
 
 impl Substs {

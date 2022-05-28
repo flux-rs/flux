@@ -72,14 +72,6 @@ impl<'tcx> GlobalEnv<'tcx> {
             .clone()
     }
 
-    pub fn sorts(&self, bty: &ty::BaseTy) -> Vec<ty::Sort> {
-        match bty {
-            ty::BaseTy::Int(_) | ty::BaseTy::Uint(_) => vec![ty::Sort::int()],
-            ty::BaseTy::Bool => vec![ty::Sort::bool()],
-            ty::BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-        }
-    }
-
     pub fn check_asserts(&self) -> &AssertBehavior {
         &self.check_asserts
     }

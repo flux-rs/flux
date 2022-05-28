@@ -71,7 +71,7 @@ pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &
         }
         (TyKind::Exists(bty, p), _) => {
             let indices = builder
-                .push_foralls(&genv.sorts(bty), p)
+                .push_foralls(&bty.sorts(), p)
                 .into_iter()
                 .map(|name| Index::from(Expr::fvar(name)))
                 .collect_vec();

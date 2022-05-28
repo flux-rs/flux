@@ -61,8 +61,8 @@ impl TypeEnv {
         self.bindings.insert(loc, Ty::uninit());
     }
 
-    pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
-        TypeEnvInfer::new(genv, scope, self)
+    pub fn into_infer(self, scope: Scope) -> TypeEnvInfer {
+        TypeEnvInfer::new(scope, self)
     }
 
     fn remove(&mut self, loc: Loc) {
@@ -151,28 +151,28 @@ impl TypeEnv {
         *ty = bound;
     }
 
-    pub fn unpack_ty(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {
+    pub fn unpack_ty(&mut self, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, p) => {
                 let indices = rcx
-                    .define_params(&genv.sorts(bty), p)
+                    .define_params(&bty.sorts(), p)
                     .into_iter()
                     .map(|name| Expr::fvar(name).into())
                     .collect_vec();
                 Ty::indexed(bty.clone(), indices)
             }
             TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.unpack_ty(genv, rcx, ty);
+                let ty = self.unpack_ty(rcx, ty);
                 Ty::mk_ref(RefKind::Shr, ty)
             }
             _ => ty.clone(),
         }
     }
 
-    pub fn unpack(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) {
+    pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
         for path in self.bindings.paths().collect_vec() {
             let ty = self.bindings[&path].clone();
-            let ty = self.unpack_ty(genv, rcx, &ty);
+            let ty = self.unpack_ty(rcx, &ty);
             self.bindings[&path] = ty;
         }
     }
@@ -298,13 +298,13 @@ impl TypeEnvInfer {
         self.env.clone().subst(&subst)
     }
 
-    fn new(genv: &GlobalEnv, scope: Scope, env: TypeEnv) -> TypeEnvInfer {
+    fn new(scope: Scope, env: TypeEnv) -> TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut names = FxHashMap::default();
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
         for ty in env.bindings.values_mut() {
-            *ty = TypeEnvInfer::pack_ty(&mut params, genv, &scope, &mut names, &name_gen, ty);
+            *ty = TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty);
         }
         TypeEnvInfer { params, name_gen, env, scope }
     }
@@ -331,7 +331,6 @@ impl TypeEnvInfer {
 
     fn pack_ty(
         params: &mut FxHashMap<Name, Sort>,
-        genv: &GlobalEnv,
         scope: &Scope,
         names: &mut FxHashMap<Expr, Name>,
         name_gen: &IndexGen<Name>,
@@ -339,8 +338,7 @@ impl TypeEnvInfer {
     ) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, indices) => {
-                let sorts = genv.sorts(bty);
-                let indices = iter::zip(indices, sorts)
+                let indices = iter::zip(indices, bty.sorts())
                     .map(|(idx, sort)| {
                         let has_free_vars = !scope.contains_all(idx.fvars());
                         if let Some(name) = names.get(&idx.expr) {
@@ -355,13 +353,13 @@ impl TypeEnvInfer {
                         }
                     })
                     .collect_vec();
-                let bty = TypeEnvInfer::pack_bty(params, genv, scope, names, name_gen, bty);
+                let bty = TypeEnvInfer::pack_bty(params, scope, names, name_gen, bty);
                 Ty::indexed(bty, indices)
             }
             TyKind::Tuple(tys) => {
                 let tys = tys
                     .iter()
-                    .map(|ty| TypeEnvInfer::pack_ty(params, genv, scope, names, name_gen, ty))
+                    .map(|ty| TypeEnvInfer::pack_ty(params, scope, names, name_gen, ty))
                     .collect_vec();
                 Ty::tuple(tys)
             }
@@ -379,7 +377,6 @@ impl TypeEnvInfer {
 
     fn pack_bty(
         params: &mut FxHashMap<Name, Sort>,
-        genv: &GlobalEnv,
         scope: &Scope,
         names: &mut FxHashMap<Expr, Name>,
         name_gen: &IndexGen<Name>,
@@ -389,7 +386,7 @@ impl TypeEnvInfer {
             BaseTy::Adt(adt_def, substs) => {
                 let substs = substs
                     .iter()
-                    .map(|ty| Self::pack_ty(params, genv, scope, names, name_gen, ty));
+                    .map(|ty| Self::pack_ty(params, scope, names, name_gen, ty));
                 BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -493,7 +490,7 @@ impl TypeEnvInfer {
             }
             (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
-                let exprs = izip!(indices1, indices2, genv.sorts(&bty))
+                let exprs = izip!(indices1, indices2, bty.sorts())
                     .map(|(Index { expr: e1, .. }, Index { expr: e2, .. }, sort)| {
                         let e2_has_free_vars = !self.scope.contains_all(e2.fvars());
                         if !self.is_packed_expr(e1) && (e2_has_free_vars || e1 != e2) {
@@ -557,7 +554,6 @@ impl TypeEnvInfer {
 
     pub fn into_bb_env(
         self,
-        genv: &GlobalEnv,
         fresh_kvar: &mut impl FnMut(&[Sort], &[Param]) -> Pred,
     ) -> BasicBlockEnv {
         let mut params = vec![];
@@ -573,7 +569,7 @@ impl TypeEnvInfer {
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |bty| fresh_kvar(&genv.sorts(&bty), &params);
+        let fresh_kvar = &mut |bty: BaseTy| fresh_kvar(&bty.sorts(), &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {

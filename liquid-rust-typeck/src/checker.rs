@@ -177,7 +177,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 rcx.define_param(param.sort.clone(), &Pred::tt())
             });
 
-        let env = Self::init(genv, &mut rcx, body, &fn_sig);
+        let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
         let mut ck = Checker::new(
@@ -200,20 +200,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
             let mut env = ck.mode.enter_basic_block(&mut rcx, bb);
-            env.unpack(genv, &mut rcx);
+            env.unpack(&mut rcx);
             ck.check_basic_block(rcx, env, bb)?;
         }
 
         Ok(())
     }
 
-    fn init(genv: &GlobalEnv, rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
+    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
         for constr in fn_sig.requires() {
             match constr {
                 ty::Constr::Type(path, ty) => {
                     let loc = path.to_loc().unwrap();
-                    let ty = env.unpack_ty(genv, rcx, ty);
+                    let ty = env.unpack_ty(rcx, ty);
                     env.alloc_with_ty(loc, ty);
                 }
                 ty::Constr::Pred(e) => {
@@ -223,7 +223,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-            let ty = env.unpack_ty(genv, rcx, ty);
+            let ty = env.unpack_ty(rcx, ty);
             env.alloc_with_ty(local, ty);
         }
 
@@ -281,7 +281,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
-                let ty = env.unpack_ty(self.genv, rcx, &ty);
+                let ty = env.unpack_ty(rcx, &ty);
                 env.write_place(self.genv, rcx, place, ty, Tag::Assign(stmt.source_info.span));
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -322,7 +322,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
                 if let Some((p, bb)) = destination {
-                    let ret = env.unpack_ty(self.genv, rcx, &ret);
+                    let ret = env.unpack_ty(rcx, &ret);
                     env.write_place(self.genv, rcx, p, ret, Tag::Call(terminator.source_info.span));
                     Ok(vec![(*bb, Guard::None)])
                 } else {
@@ -341,7 +341,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, value);
-                let ty = env.unpack_ty(self.genv, rcx, &ty);
+                let ty = env.unpack_ty(rcx, &ty);
                 env.write_place(
                     self.genv,
                     rcx,
@@ -390,8 +390,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
 
         let scope = rcx.scope();
-        let mut fresh_kvar =
-            |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
+        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(&bty.sorts(), scope.iter());
 
         // Infer substitution
         let substs = substs
@@ -429,7 +428,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in fn_sig.ensures() {
             match constr {
                 Constr::Type(path, updated_ty) => {
-                    let updated_ty = env.unpack_ty(self.genv, rcx, updated_ty);
+                    let updated_ty = env.unpack_ty(rcx, updated_ty);
                     env.update_path(&path.expect_path(), updated_ty);
                 }
                 Constr::Pred(e) => rcx.assert_pred(e.clone()),
@@ -786,7 +785,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Operand::Constant(c) => self.check_constant(c),
         };
-        env.unpack_ty(self.genv, rcx, &ty)
+        env.unpack_ty(rcx, &ty)
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
@@ -834,7 +833,7 @@ impl Mode for Inference<'_> {
         let modified = match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
-                entry.insert(env.into_infer(ck.genv, scope));
+                entry.insert(env.into_infer(scope));
                 true
             }
         };
@@ -883,7 +882,7 @@ impl Mode for Check<'_> {
                 .bb_envs_infer
                 .remove(&target)
                 .unwrap()
-                .into_bb_env(ck.genv, fresh_kvar)
+                .into_bb_env(fresh_kvar)
         });
 
         dbg::check_goto!(target, rcx, env, bb_env);

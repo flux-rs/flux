@@ -76,8 +76,7 @@ fn infer_from_tys(
         }
         (TyKind::Exists(bty1, p), TyKind::Indexed(_, indices2)) => {
             // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
-            let sorts = genv.sorts(bty1);
-            let names1 = rcx.define_params(&sorts, p);
+            let names1 = rcx.define_params(&bty1.sorts(), p);
             for (name1, idx2) in iter::zip(names1, indices2) {
                 if idx2.is_binder {
                     infer_from_exprs(subst, params, &Expr::fvar(name1), &idx2.expr);
