@@ -1,3 +1,5 @@
+use std::iter;
+
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_middle::core::{self, AdtSortsMap};
 use rustc_errors::ErrorReported;
@@ -13,7 +15,6 @@ pub struct Wf<'a, T> {
 
 struct Env {
     sorts: FxHashMap<core::Name, ty::Sort>,
-    bound_var_sorts: Option<Vec<ty::Sort>>,
 }
 
 impl Env {
@@ -22,25 +23,32 @@ impl Env {
             .iter()
             .map(|param| (param.name.name, lower_sort(param.sort)))
             .collect();
-        Env { sorts, bound_var_sorts: None }
+        Env { sorts }
     }
 
-    fn with_bound_var<R>(&mut self, sorts: Vec<ty::Sort>, f: impl FnOnce(&Self) -> R) -> R {
-        self.bound_var_sorts = Some(sorts);
+    fn with_binders<R>(
+        &mut self,
+        binders: &[core::Ident],
+        sorts: &[ty::Sort],
+        f: impl FnOnce(&Self) -> R,
+    ) -> R {
+        debug_assert_eq!(binders.len(), sorts.len());
+        for (binder, sort) in iter::zip(binders, sorts) {
+            self.sorts.insert(binder.name, sort.clone());
+        }
         let r = f(self);
-        self.bound_var_sorts = None;
+        for binder in binders {
+            self.sorts.remove(&binder.name);
+        }
         r
     }
 }
 
-impl std::ops::Index<&'_ core::VarKind> for Env {
+impl std::ops::Index<&'_ core::Name> for Env {
     type Output = ty::Sort;
 
-    fn index(&self, var: &core::VarKind) -> &Self::Output {
-        match var {
-            core::VarKind::Bound(idx) => &self.bound_var_sorts.as_ref().unwrap()[*idx as usize],
-            core::VarKind::Free(name) => &self.sorts[name],
-        }
+    fn index(&self, var: &core::Name) -> &Self::Output {
+        &self.sorts[var]
     }
 }
 
@@ -119,9 +127,22 @@ impl<T: AdtSortsMap> Wf<'_, T> {
 
     fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
         match ty {
-            core::Ty::Indexed(bty, refine) => self.check_refine(env, refine, self.sorts(bty)),
-            core::Ty::Exists(bty, pred) => {
-                env.with_bound_var(self.sorts(bty), |env| {
+            core::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
+            core::Ty::Indexed(bty, refine) => {
+                self.check_indices(env, refine, self.sorts(bty))?;
+                self.check_base_ty(env, bty)
+            }
+            core::Ty::Exists(bty, binders, pred) => {
+                let sorts = self.sorts(bty);
+                if binders.len() != sorts.len() {
+                    return self.emit_err(errors::ParamCountMismatch::new(
+                        None,
+                        sorts.len(),
+                        binders.len(),
+                    ));
+                }
+                self.check_base_ty(env, bty)?;
+                env.with_binders(binders, &sorts, |env| {
                     self.check_expr(env, pred, ty::Sort::bool())
                 })
             }
@@ -135,16 +156,28 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         }
     }
 
-    fn check_refine(
+    fn check_base_ty(&self, env: &mut Env, bty: &core::BaseTy) -> Result<(), ErrorReported> {
+        match bty {
+            core::BaseTy::Adt(_, substs) => {
+                substs
+                    .iter()
+                    .map(|ty| self.check_type(env, ty))
+                    .try_collect_exhaust()
+            }
+            core::BaseTy::Int(_) | core::BaseTy::Uint(_) | core::BaseTy::Bool => Ok(()),
+        }
+    }
+
+    fn check_indices(
         &self,
         env: &Env,
-        refine: &core::Indices,
+        indices: &core::Indices,
         expected: Vec<ty::Sort>,
     ) -> Result<(), ErrorReported> {
-        let found = self.synth_refine(env, refine)?;
+        let found = self.synt_indices(env, indices)?;
         if expected.len() != found.len() {
-            return self.emit_err(errors::GenericCountMismatch::new(
-                Some(refine.span),
+            return self.emit_err(errors::ParamCountMismatch::new(
+                Some(indices.span),
                 expected.len(),
                 found.len(),
             ));
@@ -156,7 +189,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
                 if found == expected {
                     Ok(())
                 } else {
-                    self.emit_err(errors::SortMismatch::new(Some(refine.span), expected, found))
+                    self.emit_err(errors::SortMismatch::new(Some(indices.span), expected, found))
                 }
             })
             .try_collect_exhaust()
@@ -177,7 +210,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
     }
 
     fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorReported> {
-        let found = env[&core::VarKind::Free(loc.name)].clone();
+        let found = env[&loc.name].clone();
         if found == ty::Sort::loc() {
             Ok(())
         } else {
@@ -189,7 +222,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         }
     }
 
-    fn synth_refine(
+    fn synt_indices(
         &self,
         env: &Env,
         refine: &core::Indices,
@@ -297,15 +330,15 @@ mod errors {
 
     #[derive(SessionDiagnostic)]
     #[error = "LIQUID"]
-    pub struct GenericCountMismatch {
-        #[message = "this type takes {expected} value parameters but {found} were supplied"]
-        #[label = "expected `{expected}` value arguments, found `{found}`"]
+    pub struct ParamCountMismatch {
+        #[message = "this type takes {expected} refinement parameters but {found} were supplied"]
+        #[label = "expected `{expected}` refinement arguments, found `{found}`"]
         pub span: Option<Span>,
         pub expected: usize,
         pub found: usize,
     }
 
-    impl GenericCountMismatch {
+    impl ParamCountMismatch {
         pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
         }

@@ -18,14 +18,14 @@ pub struct LoweringCtxt<'a, 'tcx> {
 type NameMap = FxHashMap<core::Name, ty::Name>;
 
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
-    pub fn empty(genv: &'a GlobalEnv<'tcx>) -> Self {
+    pub fn new(genv: &'a GlobalEnv<'tcx>) -> Self {
         Self { genv, name_map: FxHashMap::default() }
     }
 
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let name_gen = IndexGen::new();
 
-        let mut cx = LoweringCtxt::empty(genv);
+        let mut cx = LoweringCtxt::new(genv);
 
         let params = cx.lower_params(&name_gen, &fn_sig.params);
 
@@ -51,7 +51,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
     pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
         let name_gen = IndexGen::new();
-        let mut cx = LoweringCtxt::empty(genv);
+        let mut cx = LoweringCtxt::new(genv);
 
         let refined_by = cx.lower_params(&name_gen, &adt_def.refined_by);
 
@@ -89,7 +89,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             core::Constr::Type(loc, ty) => {
                 ty::Constr::Type(ty::Expr::fvar(self.name_map[&loc.name]), self.lower_ty(ty))
             }
-            core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map)),
+            core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map, &[])),
         }
     }
 
@@ -121,13 +121,17 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             args.push((fresh, sort));
         }
 
-        let expr = lower_expr(&qualifier.expr, &name_map);
+        let expr = lower_expr(&qualifier.expr, &name_map, &[]);
 
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    pub fn lower_ty(&self, ty: &core::Ty) -> ty::Ty {
+    fn lower_ty(&self, ty: &core::Ty) -> ty::Ty {
         match ty {
+            core::Ty::BaseTy(bty) => {
+                let bty = self.lower_base_ty(bty);
+                ty::Ty::exists(bty, ty::Pred::tt())
+            }
             core::Ty::Indexed(bty, indices) => {
                 let indices = indices
                     .indices
@@ -136,9 +140,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                     .collect_vec();
                 ty::Ty::indexed(self.lower_base_ty(bty), indices)
             }
-            core::Ty::Exists(bty, pred) => {
+            core::Ty::Exists(bty, binders, pred) => {
                 let bty = self.lower_base_ty(bty);
-                let pred = lower_expr(pred, &self.name_map);
+                let pred = lower_expr(pred, &self.name_map, binders);
                 ty::Ty::exists(bty, pred)
             }
             core::Ty::Ptr(loc) => ty::Ty::ptr(ty::Loc::Free(self.name_map[&loc.name])),
@@ -154,7 +158,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     }
 
     fn lower_index(&self, idx: &core::Index) -> ty::Index {
-        ty::Index { expr: lower_expr(&idx.expr, &self.name_map), is_binder: idx.is_binder }
+        ty::Index { expr: lower_expr(&idx.expr, &self.name_map, &[]), is_binder: idx.is_binder }
     }
 
     fn lower_ref_kind(rk: core::RefKind) -> ty::RefKind {
@@ -178,20 +182,23 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     }
 }
 
-fn lower_expr(expr: &core::Expr, name_map: &NameMap) -> ty::Expr {
+fn lower_expr(expr: &core::Expr, name_map: &NameMap, binders: &[core::Ident]) -> ty::Expr {
     match &expr.kind {
-        core::ExprKind::Var(var, ..) => lower_var(*var, name_map),
+        core::ExprKind::Var(name, ..) => {
+            if let Some(idx) = binders.iter().position(|bind| bind.name == *name) {
+                ty::Expr::bvar(idx as u32)
+            } else {
+                ty::Expr::fvar(name_map[&name])
+            }
+        }
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {
-            ty::Expr::binary_op(*op, lower_expr(e1, name_map), lower_expr(e2, name_map))
+            ty::Expr::binary_op(
+                *op,
+                lower_expr(e1, name_map, binders),
+                lower_expr(e2, name_map, binders),
+            )
         }
-    }
-}
-
-fn lower_var(var: core::VarKind, name_map: &NameMap) -> ty::Expr {
-    match var {
-        core::VarKind::Bound(idx) => ty::Expr::bvar(idx),
-        core::VarKind::Free(name) => ty::Expr::fvar(name_map[&name]),
     }
 }
 

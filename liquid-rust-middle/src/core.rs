@@ -1,3 +1,8 @@
+//! "Core" (desugared) version of level liquid annotations. The main difference with
+//! the surface syntax is that the list of refinement parameters is explicit in `core`.
+//! For example, the signature `fn(x: &strg i32[@n]) -> (); x: i32[@n + 1]` desugars to
+//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) -> (); l: i32[n + 1]`.
+
 use core::fmt;
 use std::fmt::Write;
 
@@ -60,8 +65,14 @@ pub struct Qualifier {
 }
 
 pub enum Ty {
+    /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
+    /// technically need this variant, but we keep it around to simplify desugaring.
+    BaseTy(BaseTy),
     Indexed(BaseTy, Indices),
-    Exists(BaseTy, Expr),
+    /// Existential types in core are represented with an explicit list of binders for
+    /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
+    /// for two indices. (there's currently no equivalent surface syntax).
+    Exists(BaseTy, Vec<Ident>, Expr),
     Float(FloatTy),
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
@@ -114,15 +125,9 @@ pub struct Expr {
 }
 
 pub enum ExprKind {
-    Var(VarKind, Symbol, Span),
+    Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
-}
-
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum VarKind {
-    Bound(u32),
-    Free(Name),
 }
 
 #[derive(Clone, Copy)]
@@ -223,9 +228,10 @@ impl fmt::Debug for Constr {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Ty::BaseTy(bty) => write!(f, "{bty:?}"),
             Ty::Indexed(bty, e) => fmt_bty(bty, Some(e), f),
-            Ty::Exists(bty, p) => {
-                write!(f, "{bty:?}{{{p:?}}}")
+            Ty::Exists(bind, bty, p) => {
+                write!(f, "{bty:?}{{{bind:?} : {p:?}}}")
             }
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
@@ -312,15 +318,6 @@ impl fmt::Debug for Lit {
         match self {
             Lit::Int(i) => write!(f, "{i}"),
             Lit::Bool(b) => write!(f, "{b}"),
-        }
-    }
-}
-
-impl fmt::Debug for VarKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            VarKind::Bound(idx) => write!(f, "ν{idx}"),
-            VarKind::Free(name) => write!(f, "{name:?}"),
         }
     }
 }

@@ -13,7 +13,7 @@ use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
     AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Index,
-    Indices, Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VarKind, VariantDef,
+    Indices, Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -23,7 +23,7 @@ pub fn desugar_qualifier(
     let mut params = ParamsCtxt::new(sess);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
-    let expr = params.desugar_expr(qualifier.expr, None);
+    let expr = params.desugar_expr(qualifier.expr);
 
     Ok(Qualifier { name, args: params.params, expr: expr? })
 }
@@ -86,7 +86,7 @@ pub fn desugar_fn_sig(
     let mut desugar = DesugarCtxt::with_params(params);
 
     if let Some(e) = fn_sig.requires {
-        let e = desugar.params.desugar_expr(e, None)?;
+        let e = desugar.params.desugar_expr(e)?;
         desugar.requires.push(Constr::Pred(e));
     }
 
@@ -125,7 +125,7 @@ pub struct DesugarCtxt<'a> {
 struct ParamsCtxt<'a> {
     sess: &'a Session,
     name_gen: IndexGen<Name>,
-    map: FxHashMap<Symbol, Name>,
+    name_map: FxHashMap<Symbol, Name>,
     params: Vec<Param>,
 }
 
@@ -139,10 +139,10 @@ impl<'a> DesugarCtxt<'a> {
             surface::Arg::Indexed(bind, path, pred) => {
                 if let Some(pred) = pred {
                     self.requires
-                        .push(Constr::Pred(self.params.desugar_expr(pred, None)?));
+                        .push(Constr::Pred(self.params.desugar_expr(pred)?));
                 }
                 let bty = self.desugar_path_into_bty(path);
-                let idx = Index { expr: self.params.desugar_var(bind, None)?, is_binder: true };
+                let idx = Index { expr: self.params.desugar_var(bind)?, is_binder: true };
                 let indices = Indices { indices: vec![idx], span: bind.span };
                 Ok(Ty::Indexed(bty?, indices))
             }
@@ -167,7 +167,7 @@ impl<'a> DesugarCtxt<'a> {
             }
             surface::TyKind::Path(path) => {
                 let bty = self.desugar_path_into_bty(path)?;
-                Ty::Exists(bty, Expr::TRUE)
+                Ty::BaseTy(bty)
             }
             surface::TyKind::Indexed { path, indices } => {
                 let bty = self.desugar_path_into_bty(path);
@@ -176,8 +176,14 @@ impl<'a> DesugarCtxt<'a> {
             }
             surface::TyKind::Exists { bind, path, pred } => {
                 let bty = self.desugar_path_into_bty(path);
-                let pred = self.params.desugar_expr(pred, Some(bind.name));
-                Ty::Exists(bty?, pred?)
+
+                let fresh = self.params.fresh();
+                let pred = self
+                    .params
+                    .with_name_map(bind.name, fresh, |params| params.desugar_expr(pred));
+
+                let binders = vec![Ident { name: fresh, source_info: (bind.span, bind.name) }];
+                Ty::Exists(bty?, binders, pred?)
             }
             surface::TyKind::Ref(rk, ty) => {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
@@ -205,10 +211,10 @@ impl<'a> DesugarCtxt<'a> {
     fn desugar_index(&self, idx: surface::Index) -> Result<Index, ErrorReported> {
         match idx {
             surface::Index::Bind(ident) => {
-                Ok(Index { expr: self.params.desugar_var(ident, None)?, is_binder: true })
+                Ok(Index { expr: self.params.desugar_var(ident)?, is_binder: true })
             }
             surface::Index::Expr(expr) => {
-                Ok(Index { expr: self.params.desugar_expr(expr, None)?, is_binder: false })
+                Ok(Index { expr: self.params.desugar_expr(expr)?, is_binder: false })
             }
         }
     }
@@ -253,24 +259,40 @@ fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorRepor
 
 impl ParamsCtxt<'_> {
     fn new(sess: &Session) -> ParamsCtxt {
-        ParamsCtxt { sess, name_gen: IndexGen::new(), map: FxHashMap::default(), params: vec![] }
+        ParamsCtxt {
+            sess,
+            name_gen: IndexGen::new(),
+            name_map: FxHashMap::default(),
+            params: vec![],
+        }
     }
 
-    fn desugar_expr(
-        &self,
-        expr: surface::Expr,
-        bound: Option<Symbol>,
-    ) -> Result<Expr, ErrorReported> {
+    fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorReported> {
         let kind = match expr.kind {
-            surface::ExprKind::Var(ident) => return self.desugar_var(ident, bound),
+            surface::ExprKind::Var(ident) => return self.desugar_var(ident),
             surface::ExprKind::Literal(lit) => ExprKind::Literal(self.desugar_lit(lit)?),
             surface::ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = self.desugar_expr(*e1, bound);
-                let e2 = self.desugar_expr(*e2, bound);
+                let e1 = self.desugar_expr(*e1);
+                let e2 = self.desugar_expr(*e2);
                 ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
         };
         Ok(Expr { kind, span: Some(expr.span) })
+    }
+
+    fn fresh(&self) -> Name {
+        self.name_gen.fresh()
+    }
+
+    fn with_name_map<R>(&mut self, symb: Symbol, name: Name, f: impl FnOnce(&mut Self) -> R) -> R {
+        let old = self.name_map.insert(symb, name);
+        let r = f(self);
+        if let Some(old) = old {
+            self.name_map.insert(symb, old);
+        } else {
+            self.name_map.remove(&symb);
+        }
+        r
     }
 
     fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorReported> {
@@ -290,24 +312,17 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn desugar_var(
-        &self,
-        ident: surface::Ident,
-        bound: Option<Symbol>,
-    ) -> Result<Expr, ErrorReported> {
-        let var = if Some(ident.name) == bound {
-            VarKind::Bound(0)
-        } else if let Some(&name) = self.map.get(&ident.name) {
-            VarKind::Free(name)
+    fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorReported> {
+        if let Some(&name) = self.name_map.get(&ident.name) {
+            let kind = ExprKind::Var(name, ident.name, ident.span);
+            Ok(Expr { kind, span: Some(ident.span) })
         } else {
-            return Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)));
-        };
-        let kind = ExprKind::Var(var, ident.name, ident.span);
-        Ok(Expr { kind, span: Some(ident.span) })
+            Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
+        }
     }
 
     fn desugar_ident(&self, ident: surface::Ident) -> Result<Ident, ErrorReported> {
-        if let Some(&name) = self.map.get(&ident.name) {
+        if let Some(&name) = self.name_map.get(&ident.name) {
             let source_info = (ident.span, ident.name);
             Ok(Ident { name, source_info })
         } else {
@@ -319,7 +334,7 @@ impl ParamsCtxt<'_> {
         let fresh = self.name_gen.fresh();
         let source_info = (ident.span, ident.name);
 
-        if self.map.insert(ident.name, fresh).is_some() {
+        if self.name_map.insert(ident.name, fresh).is_some() {
             return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
         };
         self.params
