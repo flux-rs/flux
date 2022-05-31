@@ -90,7 +90,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .collect_vec();
         let ret = ty::Ty::indexed(bty, indices);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);
-        ty::Binders::new(adt_def.refined_by(), sig)
+        ty::Binders::bind_with_vars(sig, adt_def.sorts())
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -137,7 +137,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .map(|ty| self.refine_ty(ty, mk_pred))
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
-        ty::PolySig::new(vec![], ty::FnSig::new(vec![], args, ret, vec![]))
+        ty::PolySig::bind_with_vars(ty::FnSig::new(vec![], args, ret, vec![]), vec![])
     }
 
     pub fn refine_ty(

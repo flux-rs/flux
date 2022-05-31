@@ -27,7 +27,11 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
         let mut cx = LoweringCtxt::new(genv);
 
-        let params = cx.lower_params(&name_gen, &fn_sig.params);
+        let params = cx
+            .lower_params(&name_gen, &fn_sig.params)
+            .into_iter()
+            .map(|param| param.sort)
+            .collect_vec();
 
         let mut requires = vec![];
         for constr in fn_sig.requires {
@@ -46,7 +50,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
         let ret = cx.lower_ty(&fn_sig.ret);
 
-        ty::Binders::new(params, ty::FnSig::new(requires, args, ret, ensures))
+        ty::Binders::bind_with_vars(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
     pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
@@ -142,8 +146,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             }
             core::Ty::Exists(bty, binders, pred) => {
                 let bty = self.lower_base_ty(bty);
-                let pred = lower_expr(pred, &self.name_map, binders);
-                ty::Ty::exists(bty, pred)
+                ty::Ty::exists(bty, lower_expr(pred, &self.name_map, binders))
             }
             core::Ty::Ptr(loc) => ty::Ty::ptr(ty::Loc::Free(self.name_map[&loc.name])),
             core::Ty::Ref(rk, ty) => ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty)),
@@ -186,7 +189,8 @@ fn lower_expr(expr: &core::Expr, name_map: &NameMap, binders: &[core::Ident]) ->
     match &expr.kind {
         core::ExprKind::Var(name, ..) => {
             if let Some(idx) = binders.iter().position(|bind| bind.name == *name) {
-                ty::Expr::bvar(idx as u32)
+                todo!()
+                // ty::Expr::bvar(idx as u32)
             } else {
                 ty::Expr::fvar(name_map[name])
             }

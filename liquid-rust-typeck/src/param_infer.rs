@@ -1,30 +1,31 @@
 use std::iter;
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use liquid_rust_middle::{
     global_env::GlobalEnv,
-    ty::{subst::Subst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind},
+    ty::{subst::Subst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNER_MOST},
 };
 
 use crate::{refine_tree::RefineCtxt, type_env::TypeEnv};
 
+type Exprs = FxHashMap<usize, Expr>;
+
 #[derive(Debug, Eq, PartialEq)]
-pub struct InferenceError(Name);
+pub struct InferenceError;
 
 pub fn infer_from_fn_call(
-    subst: &mut Subst,
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     env: &TypeEnv,
     actuals: &[Ty],
     fn_sig: &PolySig,
-) -> Result<(), InferenceError> {
-    assert!(actuals.len() == fn_sig.value().args().len());
-    let params = fn_sig.params().iter().map(|param| param.name).collect();
+) -> Result<Vec<Expr>, InferenceError> {
+    assert!(actuals.len() == fn_sig.skip_binders().args().len());
 
+    let mut exprs = Exprs::default();
     let requires = fn_sig
-        .value()
+        .skip_binders()
         .requires()
         .iter()
         .filter_map(|constr| {
@@ -36,11 +37,16 @@ pub fn infer_from_fn_call(
         })
         .collect();
 
-    for (actual, formal) in actuals.iter().zip(fn_sig.value().args().iter()) {
-        infer_from_tys(subst, genv, rcx, &params, env, actual, &requires, formal);
+    for (actual, formal) in actuals.iter().zip(fn_sig.skip_binders().args().iter()) {
+        infer_from_tys(&mut exprs, genv, rcx, env, actual, &requires, formal);
     }
 
-    check_inference(subst, params.into_iter())
+    fn_sig
+        .params()
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| exprs.remove(&idx).ok_or(InferenceError))
+        .collect()
 }
 
 pub fn check_inference(
@@ -49,7 +55,7 @@ pub fn check_inference(
 ) -> Result<(), InferenceError> {
     for name in params {
         if !subst.contains(name) {
-            return Err(InferenceError(name));
+            return Err(InferenceError);
         }
     }
     Ok(())
@@ -57,10 +63,9 @@ pub fn check_inference(
 
 #[allow(clippy::too_many_arguments)]
 fn infer_from_tys(
-    subst: &mut Subst,
+    exprs: &mut Exprs,
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
-    params: &FxHashSet<Name>,
     env: &TypeEnv,
     ty1: &Ty,
     requires: &FxHashMap<Path, Ty>,
@@ -70,25 +75,24 @@ fn infer_from_tys(
         (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
             for (idx1, idx2) in iter::zip(indices1, indices2) {
                 if idx2.is_binder {
-                    infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
+                    infer_from_exprs(exprs, &idx1.expr, &idx2.expr);
                 }
             }
         }
-        (TyKind::Exists(bty1, p), TyKind::Indexed(_, indices2)) => {
+        (TyKind::Exists(_, pred), TyKind::Indexed(_, indices2)) => {
             // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
-            let names1 = rcx.define_params(&bty1.sorts(), p);
+            let names1 = rcx.define_params_for_binders(pred);
             for (name1, idx2) in iter::zip(names1, indices2) {
                 if idx2.is_binder {
-                    infer_from_exprs(subst, params, &Expr::fvar(name1), &idx2.expr);
+                    infer_from_exprs(exprs, &Expr::fvar(name1), &idx2.expr);
                 }
             }
         }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
             infer_from_tys(
-                subst,
+                exprs,
                 genv,
                 rcx,
-                params,
                 env,
                 &env.lookup_path(&path1.expect_path()),
                 requires,
@@ -96,12 +100,11 @@ fn infer_from_tys(
             );
         }
         (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-            infer_from_exprs(subst, params, path1, path2);
+            infer_from_exprs(exprs, path1, path2);
             infer_from_tys(
-                subst,
+                exprs,
                 genv,
                 rcx,
-                params,
                 env,
                 &env.lookup_path(&path1.expect_path()),
                 requires,
@@ -110,20 +113,20 @@ fn infer_from_tys(
         }
         (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
             debug_assert_eq!(mode1, mode2);
-            infer_from_tys(subst, genv, rcx, params, env, ty1, requires, ty2);
+            infer_from_tys(exprs, genv, rcx, env, ty1, requires, ty2);
         }
         _ => {}
     }
 }
 
-pub fn infer_from_exprs(subst: &mut Subst, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
+pub fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
-        (_, ExprKind::FreeVar(name)) if params.contains(name) => {
-            if let Some(old_e) = subst.insert(*name, e1.clone()) {
+        (_, ExprKind::BoundVar(bvar)) if bvar.debruijn == INNER_MOST => {
+            if let Some(old_e) = exprs.insert(bvar.index, e1.clone()) {
                 if &old_e != e2 {
                     todo!(
                         "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                        *name,
+                        bvar,
                         old_e,
                         e1
                     )
@@ -133,11 +136,11 @@ pub fn infer_from_exprs(subst: &mut Subst, params: &FxHashSet<Name>, e1: &Expr, 
         (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
             debug_assert_eq!(exprs1.len(), exprs2.len());
             for (e1, e2) in exprs1.iter().zip(exprs2) {
-                infer_from_exprs(subst, params, e1, e2);
+                infer_from_exprs(exprs, e1, e2);
             }
         }
         (ExprKind::PathProj(e1, field1), ExprKind::PathProj(e2, field2)) if field1 == field2 => {
-            infer_from_exprs(subst, params, e1, e2);
+            infer_from_exprs(exprs, e1, e2);
         }
         _ => {}
     }

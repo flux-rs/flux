@@ -4,10 +4,10 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::{Itertools, Position};
+use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use liquid_rust_middle::ty::{fold::TypeFoldable, Expr, Name, Pred, Sort, SortKind};
+use liquid_rust_middle::ty::{Binders, Expr, Name, Pred, Sort, SortKind};
 
 use crate::{
     constraint_gen::Tag,
@@ -113,12 +113,21 @@ impl RefineCtxt<'_> {
 
     /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
     /// It returns the freshly generated names for the parameters.
-    pub fn define_params(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
-        self.ptr.push_foralls(sorts, p)
+    pub fn define_param(&mut self, sort: &Sort) -> Name {
+        self.ptr
+            .push_foralls(&Binders::bind_with_var(Pred::tt(), sort))
+            .pop()
+            .unwrap()
     }
 
-    pub fn define_param(&mut self, sort: Sort, p: &Pred) -> Name {
-        self.define_params(&[sort], p).pop().unwrap()
+    /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
+    /// It returns the freshly generated names for the parameters.
+    pub fn define_params_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
+        self.ptr.push_foralls(pred)
+    }
+
+    pub fn define_param_for_binders(&mut self, p: &Binders<Pred>) -> Name {
+        self.define_params_for_binders(p).pop().unwrap()
     }
 
     pub fn assert_pred(&mut self, expr: impl Into<Expr>) {
@@ -181,8 +190,8 @@ impl ConstrBuilder<'_> {
         ConstrBuilder { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub fn push_foralls(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
-        self.ptr.push_foralls(sorts, p)
+    pub fn push_binders(&mut self, p: &Binders<Pred>) -> Vec<Name> {
+        self.ptr.push_foralls(p)
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
@@ -198,41 +207,34 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_foralls(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
+    fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
         let name_gen = self.name_gen();
 
         let mut bindings = vec![];
         let mut exprs = vec![];
         let mut names = vec![];
-        for sort in sorts {
+        for sort in pred.params() {
             let fresh = name_gen.fresh();
             bindings.push((fresh, sort.clone()));
             exprs.push(Expr::fvar(fresh));
             names.push(fresh);
         }
 
-        match p {
+        let pred = pred.replace_bound_vars(&exprs);
+
+        match pred {
             Pred::Kvars(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
-                for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    let p = Pred::kvars(vec![kvar.subst_bound_vars(&exprs)]);
+                for ((name, sort), kvar) in iter::zip(bindings, &kvars) {
+                    let p = Pred::kvars(vec![kvar.clone()]);
                     *self = self.push_node(NodeKind::ForAll(name, sort, p));
                 }
             }
             Pred::Expr(e) => {
-                for item in bindings.into_iter().with_position() {
-                    let is_last = matches!(item, Position::Last(_) | Position::Only(_));
-                    let (name, sort) = item.into_inner();
-                    if is_last {
-                        *self = self.push_node(NodeKind::ForAll(
-                            name,
-                            sort,
-                            Pred::Expr(e.subst_bound_vars(&exprs)),
-                        ));
-                    } else {
-                        *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
-                    }
+                for (name, sort) in bindings {
+                    *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
                 }
+                self.push_node(NodeKind::Guard(e));
             }
             Pred::Hole => {
                 for (name, sort) in bindings {

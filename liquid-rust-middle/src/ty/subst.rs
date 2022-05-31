@@ -1,4 +1,4 @@
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ty::*;
 
@@ -36,6 +36,35 @@ impl Subst<'_> {
         loc_expr
             .to_loc()
             .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
+    }
+
+    pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
+        match (e1.kind(), e2.kind()) {
+            (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
+                if let Some(old_e) = self.insert(*fvar, e1.clone()) {
+                    if &old_e != e2 {
+                        todo!(
+                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
+                            *fvar,
+                            old_e,
+                            e1
+                        )
+                    }
+                }
+            }
+            (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
+                debug_assert_eq!(exprs1.len(), exprs2.len());
+                for (e1, e2) in exprs1.iter().zip(exprs2) {
+                    self.infer_from_exprs(params, e1, e2);
+                }
+            }
+            (ExprKind::PathProj(e1, field1), ExprKind::PathProj(e2, field2))
+                if field1 == field2 =>
+            {
+                self.infer_from_exprs(params, e1, e2);
+            }
+            _ => {}
+        }
     }
 }
 

@@ -32,8 +32,8 @@ use liquid_rust_middle::{
         },
     },
     ty::{
-        self, subst::Subst, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig,
-        Pred, RefKind, Sort, Ty, TyKind,
+        self, fold::TypeFoldable, BaseTy, BinOp, BoundVar, Constr, Constrs,
+        Expr, FnSig, Name, Param, PolySig, Pred, RefKind, Sort, Ty, TyKind,
     },
 };
 
@@ -173,9 +173,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let fn_sig = genv
             .lookup_fn_sig(def_id)
-            .replace_params_with_fresh_vars(|param| {
-                rcx.define_param(param.sort.clone(), &Pred::tt())
-            });
+            .replace_params_with_fresh_vars(|sort| rcx.define_param(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);
 
@@ -397,17 +395,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .iter()
             .map(|arg| self.genv.refine_generic_arg(arg, &mut fresh_kvar))
             .collect_vec();
-        let mut subst = Subst::with_type_substs(&substs);
-        if param_infer::infer_from_fn_call(&mut subst, self.genv, rcx, env, &actuals, &fn_sig)
-            .is_err()
-        {
-            self.genv
-                .tcx
-                .sess
-                .emit_err(errors::ParamInferenceError { span: source_info.span });
-            return Err(ErrorReported);
+        let fn_sig = match param_infer::infer_from_fn_call(self.genv, rcx, env, &actuals, &fn_sig) {
+            Ok(exprs) => {
+                fn_sig
+                    .replace_bound_vars(&exprs)
+                    .replace_generic_types(&substs)
+            }
+            Err(_) => {
+                self.genv
+                    .tcx
+                    .sess
+                    .emit_err(errors::ParamInferenceError { span: source_info.span });
+                return Err(ErrorReported);
+            }
         };
-        let fn_sig = subst.apply(fn_sig.value());
 
         // Check preconditions
         let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Call(source_info.span));
@@ -638,7 +639,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = Expr::binary_op(
                     BinOp::Eq,
-                    Expr::bvar(0),
+                    Expr::bvar(BoundVar::NU),
                     Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
                 );
                 let guard = Expr::binary_op(

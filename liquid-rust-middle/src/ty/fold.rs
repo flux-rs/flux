@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use super::{BaseTy, Constr, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Ty, TyKind};
+use super::{BaseTy, Binders, Constr, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Ty, TyKind};
 
 pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
@@ -13,6 +13,10 @@ pub trait TypeVisitor: Sized {
 }
 
 pub trait TypeFolder: Sized {
+    fn fold_binders<T: TypeFoldable>(&mut self, t: Binders<T>) -> Binders<T> {
+        t.super_fold_with(self)
+    }
+
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         ty.super_fold_with(self)
     }
@@ -54,16 +58,16 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`holes`]: Pred::Hole
     /// [`predicate`]: Pred
-    fn replace_holes(&self, factory: &mut impl FnMut(BaseTy) -> Pred) -> Self {
+    fn replace_holes(&self, factory: &mut impl FnMut(&BaseTy) -> Pred) -> Self {
         struct ReplaceHoles<'a, F>(&'a mut F);
 
         impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
         where
-            F: FnMut(BaseTy) -> Pred,
+            F: FnMut(&BaseTy) -> Pred,
         {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                if let TyKind::Exists(bty, Pred::Hole) = ty.kind() {
-                    Ty::exists(bty.super_fold_with(self), self.0(bty.clone()))
+                if let TyKind::Exists(bty, Binders { value: Pred::Hole, .. }) = ty.kind() {
+                    Ty::exists(bty.super_fold_with(self), self.0(bty))
                 } else {
                     ty.super_fold_with(self)
                 }
@@ -94,20 +98,37 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut WithHoles)
     }
 
-    fn subst_bound_vars(&self, substs: &[Expr]) -> Self {
-        struct ReplaceBoundVars<'a>(&'a [Expr]);
+    fn replace_generic_types(&self, tys: &[Ty]) -> Self {
+        todo!()
+    }
 
-        impl<'a> TypeFolder for ReplaceBoundVars<'a> {
-            fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::BoundVar(idx) = expr.kind() {
-                    self.0[*idx as usize].clone()
-                } else {
-                    expr.super_fold_with(self)
-                }
-            }
-        }
+    // fn subst_bound_vars(&self, substs: &[Expr]) -> Self {
+    //     struct ReplaceBoundVars<'a>(&'a [Expr]);
 
-        self.fold_with(&mut ReplaceBoundVars(substs))
+    //     impl<'a> TypeFolder for ReplaceBoundVars<'a> {
+    //         fn fold_expr(&mut self, expr: &Expr) -> Expr {
+    //             if let ExprKind::BoundVar(bvar) = expr.kind() {
+    //                 self.0[*idx as usize].clone()
+    //             } else {
+    //                 expr.super_fold_with(self)
+    //             }
+    //         }
+    //     }
+
+    //     self.fold_with(&mut ReplaceBoundVars(substs))
+    // }
+}
+
+impl<T> TypeFoldable for Binders<T>
+where
+    T: TypeFoldable,
+{
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        Binders::bind_with_vars(self.value.fold_with(folder), self.params.clone())
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.value.visit_with(visitor)
     }
 }
 
@@ -175,7 +196,9 @@ impl TypeFoldable for Ty {
                         .collect_vec(),
                 )
             }
-            TyKind::Exists(bty, pred) => Ty::exists(bty.fold_with(folder), pred.fold_with(folder)),
+            TyKind::Exists(bty, pred) => {
+                TyKind::Exists(bty.fold_with(folder), pred.fold_with(folder)).intern()
+            }
             TyKind::Tuple(tys) => {
                 Ty::tuple(tys.iter().map(|ty| ty.fold_with(folder)).collect_vec())
             }
@@ -283,7 +306,7 @@ impl TypeFoldable for Expr {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(name.fold_with(folder)),
-            ExprKind::BoundVar(idx) => Expr::bvar(*idx),
+            ExprKind::BoundVar(bvar) => Expr::bvar(*bvar),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::BinaryOp(op, e1, e2) => {

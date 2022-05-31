@@ -44,14 +44,13 @@ pub struct VariantDef {
     pub fields: Vec<Ty>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Binders<T> {
-    params: List<Param>,
+    params: List<Sort>,
     value: T,
 }
 
 pub type PolySig = Binders<FnSig>;
-
 #[derive(Clone)]
 pub struct FnSig {
     requires: List<Constr>,
@@ -91,7 +90,7 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Indexed(BaseTy, List<Index>),
-    Exists(BaseTy, Pred),
+    Exists(BaseTy, Binders<Pred>),
     Tuple(List<Ty>),
     Float(FloatTy),
     Uninit,
@@ -167,7 +166,7 @@ pub struct ExprS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ExprKind {
     FreeVar(Name),
-    BoundVar(u32),
+    BoundVar(BoundVar),
     Local(Local),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
@@ -177,37 +176,59 @@ pub enum ExprKind {
     PathProj(Expr, Field),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BoundVar {
+    pub debruijn: DebruijnIndex,
+    pub index: usize,
+}
+
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "a{}",
     }
 }
 
-impl<T> Binders<T> {
-    pub fn new<P>(params: P, value: T) -> Binders<T>
-    where
-        List<Param>: From<P>,
-    {
-        Binders { params: Interned::from(params), value }
+newtype_index! {
+    pub struct DebruijnIndex {
+        DEBUG_FORMAT = "DebruijnIndex({})",
+        const INNER_MOST = 0,
+    }
+}
+
+impl<T> Binders<T>
+where
+    T: TypeFoldable,
+{
+    pub fn bind_with_vars(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
+        Binders { params: params.into(), value }
     }
 
-    pub fn params(&self) -> &[Param] {
+    pub fn bind_with_var(value: T, var: &Sort) -> Binders<T> {
+        Binders::bind_with_vars(value, vec![var.clone()])
+    }
+
+    pub fn params(&self) -> &[Sort] {
         &self.params
     }
 
-    pub fn value(&self) -> &T {
+    pub fn skip_binders(&self) -> &T {
         &self.value
     }
 
-    pub fn replace_params_with_fresh_vars(&self, mut fresh: impl FnMut(&Param) -> Name) -> T
+    pub fn replace_params_with_fresh_vars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T
     where
         T: TypeFoldable,
     {
-        let mut subst = Subst::empty();
-        for param in self.params() {
-            subst.insert(param.name, fresh(param));
-        }
-        subst.apply(&self.value)
+        todo!()
+        // let mut subst = Subst::empty();
+        // for param in self.params() {
+        //     subst.insert(param.name, fresh(param));
+        // }
+        // subst.apply(&self.value)
+    }
+
+    pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
+        todo!()
     }
 }
 
@@ -330,7 +351,8 @@ impl Ty {
     }
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
-        TyKind::Exists(bty, pred.into()).intern()
+        let pred = Binders::bind_with_vars(pred.into(), bty.sorts());
+        TyKind::Exists(bty, pred).intern()
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
@@ -499,8 +521,8 @@ impl Expr {
         ExprKind::FreeVar(name).intern()
     }
 
-    pub fn bvar(idx: u32) -> Expr {
-        ExprKind::BoundVar(idx).intern()
+    pub fn bvar(bvar: BoundVar) -> Expr {
+        ExprKind::BoundVar(bvar).intern()
     }
 
     pub fn local(local: Local) -> Expr {
@@ -655,6 +677,12 @@ impl Pred {
     }
 }
 
+impl Binders<Pred> {
+    pub fn is_true(&self) -> bool {
+        self.value.is_true()
+    }
+}
+
 impl KVar {
     pub fn new<T>(kvid: KVid, args: T) -> Self
     where
@@ -694,6 +722,14 @@ impl Loc {
             Loc::Local(local) => Expr::local(*local),
             Loc::Free(name) => Expr::fvar(*name),
         }
+    }
+}
+
+impl BoundVar {
+    pub const NU: BoundVar = BoundVar { index: 0, debruijn: INNER_MOST };
+
+    pub fn inner_most(index: usize) -> BoundVar {
+        BoundVar { index, debruijn: INNER_MOST }
     }
 }
 
@@ -751,55 +787,33 @@ impl_internable!(
     [KVar],
     [Constr],
     [Param],
-    [Index]
+    [Index],
+    [Sort]
 );
 
 mod pretty {
-    use liquid_rust_common::format::PadAdapter;
     use rustc_middle::ty::TyCtxt;
-    use std::fmt::Write;
 
     use super::*;
     use crate::pretty::*;
 
     impl Pretty for Binders<FnSig> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
             let fn_sig = &self.value;
-            if f.alternate() {
-                let mut padded = PadAdapter::wrap_fmt(f, 4);
-                define_scoped!(cx, padded);
-                w!("(\nfn")?;
-                if !self.params.is_empty() {
-                    w!("<{}>",
-                        ^self.params.iter().format_with(", ", |param, f| {
-                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
-                        })
-                    )?;
-                }
-                w!("({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
-                if !fn_sig.requires.is_empty() {
-                    w!("\nrequires {:?} ", join!(", ", &fn_sig.requires))?;
-                }
-                if !fn_sig.ensures.is_empty() {
-                    w!("\nensures {:?}", join!(", ", &fn_sig.ensures))?;
-                }
-                write!(f, "\n)")?;
-            } else {
-                define_scoped!(cx, f);
-                if !self.params.is_empty() {
-                    w!("for<{}> ",
-                        ^self.params.iter().format_with(", ", |param, f| {
-                            f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
-                        })
-                    )?;
-                }
-                if !fn_sig.requires.is_empty() {
-                    w!("[{:?}] ", join!(", ", &fn_sig.requires))?;
-                }
-                w!("fn({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
-                if !fn_sig.ensures.is_empty() {
-                    w!("; [{:?}]", join!(", ", &fn_sig.ensures))?;
-                }
+            if !self.params.is_empty() {
+                w!("for<{}> ",
+                    ^self.params.iter().format_with(", ", |sort, f| {
+                        f(&format_args_cx!("{:?}", ^sort))
+                    })
+                )?;
+            }
+            if !fn_sig.requires.is_empty() {
+                w!("[{:?}] ", join!(", ", &fn_sig.requires))?;
+            }
+            w!("fn({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
+            if !fn_sig.ensures.is_empty() {
+                w!("; [{:?}]", join!(", ", &fn_sig.ensures))?;
             }
 
             Ok(())
@@ -821,11 +835,11 @@ mod pretty {
             define_scoped!(cx, f);
             match self.kind() {
                 TyKind::Indexed(bty, indices) => fmt_bty(bty, Some(indices), cx, f),
-                TyKind::Exists(bty, p) => {
-                    if p.is_true() {
+                TyKind::Exists(bty, pred) => {
+                    if pred.is_true() {
                         w!("{:?}", bty)
                     } else {
-                        w!("{:?}{{{:?}}}", bty, p)
+                        w!("{:?}{{{:?}}}", bty, &pred.value)
                     }
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
@@ -953,7 +967,7 @@ mod pretty {
             let e = if cx.simplify_exprs { self.simplify() } else { Interned::new(self.clone()) };
             match e.kind() {
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
-                ExprKind::BoundVar(idx) => w!("ν{}", ^idx),
+                ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(*op, e1) {
@@ -1035,6 +1049,13 @@ mod pretty {
         }
     }
 
+    impl Pretty for BoundVar {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            w!("^{}.{:?}", ^self.debruijn.as_u32(), ^self.index)
+        }
+    }
+
     impl Pretty for BinOp {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1085,5 +1106,6 @@ mod pretty {
         Binders<FnSig>,
         Path,
         KVar,
+        BoundVar,
     );
 }
