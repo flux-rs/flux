@@ -1,7 +1,6 @@
 use std::fmt;
 
 pub use rustc_ast::token::LitKind;
-use rustc_ast::Mutability;
 use rustc_hir::def_id::{DefId, LocalDefId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
@@ -233,57 +232,6 @@ impl fmt::Debug for BinOp {
             BinOp::Mul => write!(f, "*"),
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// -------------------------- DEFAULT Signatures -----------------------------
-// ---------------------------------------------------------------------------
-
-pub fn default_fn_sig(tcx: TyCtxt, def_id: DefId) -> FnSig<Res> {
-    let rust_sig = tcx.erase_late_bound_regions(tcx.fn_sig(def_id));
-    let args = rust_sig
-        .inputs()
-        .iter()
-        .map(|rust_ty| Arg::Ty(default_ty(*rust_ty)))
-        .collect();
-    let returns = default_ty(rust_sig.output());
-    FnSig { args, returns, ensures: vec![], requires: None, span: rustc_span::DUMMY_SP }
-}
-
-pub fn default_ty(ty: rustc_middle::ty::Ty) -> Ty<Res> {
-    let kind = match ty.kind() {
-        rustc_middle::ty::TyKind::Ref(_, ty, m) => {
-            let ref_kind = default_refkind(m);
-            let tgt_ty = default_ty(*ty);
-            TyKind::Ref(ref_kind, Box::new(tgt_ty))
-        }
-        rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => TyKind::Unit,
-        _ => TyKind::Path(default_path(ty)),
-    };
-    Ty { kind, span: rustc_span::DUMMY_SP }
-}
-
-fn default_refkind(m: &Mutability) -> RefKind {
-    match m {
-        Mutability::Mut => RefKind::Mut,
-        Mutability::Not => RefKind::Shr,
-    }
-}
-
-fn default_path(ty: rustc_middle::ty::Ty) -> Path<Res> {
-    let (ident, args) = match ty.kind() {
-        rustc_middle::ty::TyKind::Bool => (Res::Bool, vec![]),
-        rustc_middle::ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), vec![]),
-        rustc_middle::ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), vec![]),
-        rustc_middle::ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), vec![]),
-        rustc_middle::ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), vec![]),
-        rustc_middle::ty::TyKind::Adt(adt, substs) => {
-            let substs = substs.types().map(default_ty).collect();
-            (Res::Adt(adt.did), substs)
-        }
-        _ => todo!("default_path: `{ty:?}`"),
-    };
-    Path { ident, args, span: rustc_span::DUMMY_SP }
 }
 
 pub mod expand {

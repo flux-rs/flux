@@ -1,23 +1,23 @@
 use std::{collections::HashMap, iter};
 
 use itertools::Itertools;
+use liquid_rust_middle::rustc::ty::{self as rustc_ty, Mutability};
 use rustc_span::Symbol;
 
 use liquid_rust_syntax::surface::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 
-type Locs = HashMap<Symbol, Ty<Res>>;
+type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
 /// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
 /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-pub fn zip_bare_def(b_sig: FnSig, d_sig: FnSig<Res>) -> FnSig<Res> {
-    let mut locs: Locs = HashMap::new();
-    let default_args = d_sig.args.into_iter().map(|arg| arg.assert_ty()).collect();
+pub fn zip_bare_def(sig: FnSig, rust_sig: &rustc_ty::FnSig) -> FnSig<Res> {
+    let mut locs = Locs::new();
     FnSig {
-        args: zip_args(b_sig.args, default_args, &mut locs),
-        returns: zip_ty(b_sig.returns, &d_sig.returns),
-        ensures: zip_ty_locs(b_sig.ensures, &locs),
-        requires: b_sig.requires,
-        span: b_sig.span,
+        args: zip_args(sig.args, rust_sig.inputs(), &mut locs),
+        returns: zip_ty(sig.returns, &rust_sig.output()),
+        ensures: zip_ty_locs(sig.ensures, &locs),
+        requires: sig.requires,
+        span: sig.span,
     }
 }
 
@@ -25,8 +25,8 @@ pub fn zip_bare_def(b_sig: FnSig, d_sig: FnSig<Res>) -> FnSig<Res> {
 fn zip_ty_locs(bindings: Vec<(Ident, Ty)>, locs: &Locs) -> Vec<(Ident, Ty<Res>)> {
     let mut res = vec![];
     for (ident, ty) in bindings {
-        if let Some(default) = locs.get(&ident.name) {
-            let dt = zip_ty(ty, default);
+        if let Some(rust_ty) = locs.get(&ident.name) {
+            let dt = zip_ty(ty, rust_ty);
             res.push((ident, dt))
         } else {
             panic!("missing location type for `{}`", ident)
@@ -37,66 +37,86 @@ fn zip_ty_locs(bindings: Vec<(Ident, Ty)>, locs: &Locs) -> Vec<(Ident, Ty<Res>)>
 
 /// `zip_ty_binds` traverses the inputs `bs` and `ds` and
 /// saves the types of the references in `locs`
-fn zip_args(binds: Vec<Arg>, defaults: Vec<Ty<Res>>, locs: &mut Locs) -> Vec<Arg<Res>> {
-    if binds.len() != defaults.len() {
-        panic!("bind count mismatch, expected: {:?},  found: {:?}", binds.len(), defaults.len());
+fn zip_args(binds: Vec<Arg>, rust_tys: &[rustc_ty::Ty], locs: &mut Locs) -> Vec<Arg<Res>> {
+    if binds.len() != rust_tys.len() {
+        panic!("bind count mismatch, expected: {:?},  found: {:?}", binds.len(), rust_tys.len());
     }
-    let binds = iter::zip(binds, &defaults)
-        .map(|(arg, default)| zip_arg(arg, default))
+    let binds = iter::zip(binds, rust_tys)
+        .map(|(arg, rust_ty)| zip_arg(arg, rust_ty))
         .collect_vec();
-    for (arg, default) in iter::zip(&binds, defaults) {
-        if let (Arg::StrgRef(bind, _), TyKind::Ref(RefKind::Mut, default)) = (arg, default.kind) {
-            locs.insert(bind.name, *default);
+    for (arg, rust_ty) in iter::zip(&binds, rust_tys) {
+        if let (Arg::StrgRef(bind, _), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) =
+            (arg, rust_ty.kind())
+        {
+            locs.insert(bind.name, rust_ty.clone());
         }
     }
     binds
 }
 
-fn zip_arg(arg: Arg, default: &Ty<Res>) -> Arg<Res> {
-    match (arg, &default.kind) {
-        (Arg::Ty(ty), _) => Arg::Ty(zip_ty(ty, default)),
-        (Arg::Indexed(bind, path, pred), TyKind::Path(default)) => {
-            Arg::Indexed(bind, zip_path(path, default), pred)
+fn zip_arg(arg: Arg, rust_ty: &rustc_ty::Ty) -> Arg<Res> {
+    match (arg, rust_ty.kind()) {
+        (Arg::Ty(ty), _) => Arg::Ty(zip_ty(ty, rust_ty)),
+        (Arg::Indexed(bind, path, pred), _) => Arg::Indexed(bind, zip_path(path, rust_ty), pred),
+        (Arg::StrgRef(bind, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
+            Arg::StrgRef(bind, zip_ty(ty, rust_ty))
         }
-        (Arg::StrgRef(bind, ty), TyKind::Ref(RefKind::Mut, default)) => {
-            Arg::StrgRef(bind, zip_ty(ty, default))
-        }
-        _ => panic!("incompatible types `{default:?}`"),
+        _ => panic!("incompatible types `{rust_ty:?}`"),
     }
 }
 
-fn zip_ty(ty: Ty, default: &Ty<Res>) -> Ty<Res> {
-    let kind = match (ty.kind, &default.kind) {
-        (TyKind::Path(path), TyKind::Path(default)) => TyKind::Path(zip_path(path, default)),
-        (TyKind::Indexed { path, indices }, TyKind::Path(default)) => {
-            TyKind::Indexed { path: zip_path(path, default), indices }
+fn zip_ty(ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
+    let kind = match (ty.kind, rust_ty.kind()) {
+        (TyKind::Path(path), _) => TyKind::Path(zip_path(path, rust_ty)),
+        (TyKind::Indexed { path, indices }, _) => {
+            TyKind::Indexed { path: zip_path(path, rust_ty), indices }
         }
-        (TyKind::Exists { bind, path, pred }, TyKind::Path(default)) => {
-            TyKind::Exists { bind, path: zip_path(path, default), pred }
+        (TyKind::Exists { bind, path, pred }, _) => {
+            TyKind::Exists { bind, path: zip_path(path, rust_ty), pred }
         }
-        (TyKind::StrgRef(loc, ty), TyKind::Ref(RefKind::Mut, default)) => {
-            TyKind::StrgRef(loc, Box::new(zip_ty(*ty, default)))
+        (TyKind::StrgRef(loc, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
+            TyKind::StrgRef(loc, Box::new(zip_ty(*ty, rust_ty)))
         }
-        (TyKind::Ref(rk, ty), TyKind::Ref(default_rk, default)) if rk == *default_rk => {
-            TyKind::Ref(rk, Box::new(zip_ty(*ty, default)))
+        (TyKind::Ref(RefKind::Mut, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
+            TyKind::Ref(RefKind::Mut, Box::new(zip_ty(*ty, rust_ty)))
         }
-        (TyKind::Unit, TyKind::Unit) => TyKind::Unit,
-        _ => panic!("incompatible types `{default:?}`"),
+        (TyKind::Ref(RefKind::Shr, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Not)) => {
+            TyKind::Ref(RefKind::Shr, Box::new(zip_ty(*ty, rust_ty)))
+        }
+        (TyKind::Unit, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => TyKind::Unit,
+        _ => panic!("incompatible types: `{rust_ty:?}`"),
     };
     Ty { kind, span: ty.span }
 }
 
-fn zip_path(path: Path, default: &Path<Res>) -> Path<Res> {
-    if path.args.len() != default.args.len() {
+fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
+    let (res, rust_args) = match rust_ty.kind() {
+        rustc_ty::TyKind::Adt(def_id, substs) => {
+            let res = Res::Adt(*def_id);
+            (res, &substs[..])
+        }
+        rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
+        rustc_ty::TyKind::Bool => (Res::Bool, [].as_slice()),
+        rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
+        rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
+        rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
+        _ => panic!("incompatible type: `{rust_ty:?}`"),
+    };
+    if path.args.len() != rust_args.len() {
         panic!(
             "argument count mismatch, expected: {:?},  found: {:?}",
-            default.args.len(),
+            rust_args.len(),
             path.args.len()
         );
     }
-    let args = iter::zip(path.args, &default.args)
-        .map(|(ty, default)| zip_ty(ty, default))
+    let args = iter::zip(path.args, rust_args)
+        .map(|(arg, rust_arg)| zip_generic_arg(arg, rust_arg))
         .collect();
+    Path { ident: res, args, span: path.span }
+}
 
-    Path { ident: default.ident, args, span: path.span }
+fn zip_generic_arg(arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {
+    match rust_arg {
+        rustc_ty::GenericArg::Ty(ty) => zip_ty(arg, ty),
+    }
 }

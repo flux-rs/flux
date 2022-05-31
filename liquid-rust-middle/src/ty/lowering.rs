@@ -188,7 +188,7 @@ fn lower_expr(expr: &core::Expr, name_map: &NameMap, binders: &[core::Ident]) ->
             if let Some(idx) = binders.iter().position(|bind| bind.name == *name) {
                 ty::Expr::bvar(idx as u32)
             } else {
-                ty::Expr::fvar(name_map[&name])
+                ty::Expr::fvar(name_map[name])
             }
         }
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),

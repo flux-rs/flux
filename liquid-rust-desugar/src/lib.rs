@@ -14,7 +14,10 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
-use liquid_rust_middle::core::{self, AdtSortsMap};
+use liquid_rust_middle::{
+    core::{self, AdtSortsMap},
+    rustc,
+};
 use liquid_rust_syntax::surface;
 use rustc_errors::ErrorReported;
 use rustc_hir::def_id::DefId;
@@ -37,7 +40,7 @@ pub fn desugar_fn_sig(
     def_id: DefId,
     fn_sig: surface::FnSig,
 ) -> Result<core::FnSig, ErrorReported> {
-    let default_sig = surface::default_fn_sig(tcx, def_id);
-    let fn_sig = zip_resolver::zip_bare_def(fn_sig, default_sig);
-    desugar::desugar_fn_sig(tcx.sess, sorts, fn_sig)
+    let rust_sig = rustc::lowering::lower_fn_sig(tcx, tcx.fn_sig(def_id))?;
+    let sig = zip_resolver::zip_bare_def(fn_sig, &rust_sig);
+    desugar::desugar_fn_sig(tcx.sess, sorts, sig)
 }
