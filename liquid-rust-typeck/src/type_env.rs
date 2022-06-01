@@ -40,10 +40,10 @@ pub struct TypeEnvInfer {
 }
 
 pub struct BasicBlockEnv {
-    pub params: Vec<Param>,
+    params: Vec<Param>,
     constrs: Vec<Binders<Pred>>,
     _scope: Scope,
-    pub env: TypeEnv,
+    bindings: PathsTree,
 }
 
 impl TypeEnv {
@@ -181,8 +181,8 @@ impl TypeEnv {
         let params = bb_env.params.iter().map(|param| param.name).collect();
         let mut subst = FVarSubst::empty();
         for (path, ty1) in self.bindings.iter() {
-            if bb_env.env.bindings.contains_loc(path.loc) {
-                let ty2 = &bb_env.env.bindings[&path];
+            if bb_env.bindings.contains_loc(path.loc) {
+                let ty2 = &bb_env.bindings[&path];
                 self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, ty2, &mut subst);
             }
         }
@@ -216,7 +216,7 @@ impl TypeEnv {
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 subst.infer_from_exprs(params, path1, path2);
                 let ty1 = &self.bindings[path1.expect_path()];
-                let ty2 = &bb_env.env.bindings[path2.expect_path()];
+                let ty2 = &bb_env.bindings[path2.expect_path()];
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
@@ -234,7 +234,7 @@ impl TypeEnv {
         bb_env: &BasicBlockEnv,
         tag: Tag,
     ) {
-        self.bindings.fold_unfold_with(rcx, &bb_env.env.bindings);
+        self.bindings.fold_unfold_with(rcx, &bb_env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
@@ -245,13 +245,13 @@ impl TypeEnv {
             gen.check_pred(subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
         }
 
-        let goto_env = bb_env.env.fmap(|ty| subst.apply(ty));
+        let goto_env = bb_env.bindings.fmap(|ty| subst.apply(ty));
 
         // Weakening
         let locs = self
             .bindings
             .locs()
-            .filter(|loc| !goto_env.bindings.contains_loc(*loc))
+            .filter(|loc| !goto_env.contains_loc(*loc))
             .collect_vec();
         for loc in locs {
             self.remove(loc);
@@ -260,7 +260,7 @@ impl TypeEnv {
         // Convert pointers to borrows
         for path in self.bindings.paths().collect_vec() {
             let ty1 = self.bindings[&path].clone();
-            let ty2 = goto_env.bindings[&path].clone();
+            let ty2 = goto_env[&path].clone();
             if let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) =
                 (ty1.kind(), ty2.kind())
             {
@@ -273,13 +273,9 @@ impl TypeEnv {
 
         // Check subtyping
         for (path, ty1) in self.bindings.iter() {
-            let ty2 = goto_env.bindings[path].clone();
+            let ty2 = goto_env[path].clone();
             gen.subtyping(ty1, &ty2);
         }
-    }
-
-    pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> TypeEnv {
-        TypeEnv { bindings: self.bindings.fmap(f) }
     }
 }
 
@@ -549,7 +545,7 @@ impl TypeEnvInfer {
         let mut bindings = self.bindings;
         bindings.fmap_mut(|ty| ty.replace_holes(fresh_kvar));
 
-        BasicBlockEnv { params, constrs, env: TypeEnv { bindings }, _scope: self.scope }
+        BasicBlockEnv { params, constrs, bindings, _scope: self.scope }
     }
 
     fn is_packed_expr(&self, expr: &Expr) -> bool {
@@ -571,7 +567,8 @@ impl BasicBlockEnv {
             let fresh = rcx.define_var_for_binder(&subst.apply(constr));
             subst.insert(param.name, Expr::fvar(fresh));
         }
-        self.env.fmap(|ty| subst.apply(ty))
+        let bindings = self.bindings.fmap(|ty| subst.apply(ty));
+        TypeEnv { bindings }
     }
 }
 
@@ -625,7 +622,7 @@ mod pretty {
                             f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr.skip_binders()))
                         }
                     }),
-                &self.env
+                &self.bindings
             )
         }
 
