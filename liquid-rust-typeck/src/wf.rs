@@ -88,7 +88,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
     pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorReported> {
         let env = Env::new(&qualifier.args);
 
-        self.check_expr(&env, &qualifier.expr, ty::Sort::bool())
+        self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
     pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
@@ -121,7 +121,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
                     .into_iter()
                     .try_collect_exhaust()
             }
-            core::Constr::Pred(e) => self.check_expr(env, e, ty::Sort::bool()),
+            core::Constr::Pred(e) => self.check_expr(env, e, ty::Sort::Bool),
         }
     }
 
@@ -142,9 +142,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
                     ));
                 }
                 self.check_base_ty(env, bty)?;
-                env.with_binders(binders, &sorts, |env| {
-                    self.check_expr(env, pred, ty::Sort::bool())
-                })
+                env.with_binders(binders, &sorts, |env| self.check_expr(env, pred, ty::Sort::Bool))
             }
             core::Ty::Ptr(loc) => self.check_loc(env, *loc),
             core::Ty::Ref(_, ty) => self.check_type(env, ty),
@@ -211,14 +209,10 @@ impl<T: AdtSortsMap> Wf<'_, T> {
 
     fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorReported> {
         let found = env[&loc.name].clone();
-        if found == ty::Sort::loc() {
+        if found == ty::Sort::Loc {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(
-                Some(loc.source_info.0),
-                ty::Sort::loc(),
-                found,
-            ))
+            self.emit_err(errors::SortMismatch::new(Some(loc.source_info.0), ty::Sort::Loc, found))
         }
     }
 
@@ -252,44 +246,44 @@ impl<T: AdtSortsMap> Wf<'_, T> {
     ) -> Result<ty::Sort, ErrorReported> {
         match op {
             core::BinOp::Or | core::BinOp::And | core::BinOp::Iff | core::BinOp::Imp => {
-                self.check_expr(env, e1, ty::Sort::bool())?;
-                self.check_expr(env, e2, ty::Sort::bool())?;
-                Ok(ty::Sort::bool())
+                self.check_expr(env, e1, ty::Sort::Bool)?;
+                self.check_expr(env, e2, ty::Sort::Bool)?;
+                Ok(ty::Sort::Bool)
             }
             core::BinOp::Eq | core::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, s)?;
-                Ok(ty::Sort::bool())
+                Ok(ty::Sort::Bool)
             }
             core::BinOp::Lt | core::BinOp::Le | core::BinOp::Gt | core::BinOp::Ge => {
-                self.check_expr(env, e1, ty::Sort::int())?;
-                self.check_expr(env, e2, ty::Sort::int())?;
-                Ok(ty::Sort::bool())
+                self.check_expr(env, e1, ty::Sort::Int)?;
+                self.check_expr(env, e2, ty::Sort::Int)?;
+                Ok(ty::Sort::Bool)
             }
             core::BinOp::Add
             | core::BinOp::Sub
             | core::BinOp::Mod
             | core::BinOp::Mul
             | core::BinOp::Div => {
-                self.check_expr(env, e1, ty::Sort::int())?;
-                self.check_expr(env, e2, ty::Sort::int())?;
-                Ok(ty::Sort::int())
+                self.check_expr(env, e1, ty::Sort::Int)?;
+                self.check_expr(env, e2, ty::Sort::Int)?;
+                Ok(ty::Sort::Int)
             }
         }
     }
 
     fn synth_lit(&self, lit: core::Lit) -> ty::Sort {
         match lit {
-            core::Lit::Int(_) => ty::Sort::int(),
-            core::Lit::Bool(_) => ty::Sort::bool(),
+            core::Lit::Int(_) => ty::Sort::Int,
+            core::Lit::Bool(_) => ty::Sort::Bool,
         }
     }
 
     fn sorts(&self, bty: &core::BaseTy) -> Vec<ty::Sort> {
         match bty {
-            core::BaseTy::Int(_) => vec![ty::Sort::int()],
-            core::BaseTy::Uint(_) => vec![ty::Sort::int()],
-            core::BaseTy::Bool => vec![ty::Sort::bool()],
+            core::BaseTy::Int(_) => vec![ty::Sort::Int],
+            core::BaseTy::Uint(_) => vec![ty::Sort::Int],
+            core::BaseTy::Bool => vec![ty::Sort::Bool],
             core::BaseTy::Adt(def_id, _) => {
                 if let Some(params) = self.adt_sorts.get(*def_id) {
                     params.iter().map(|sort| lower_sort(*sort)).collect()

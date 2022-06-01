@@ -256,8 +256,8 @@ fn lower_lit(lit: core::Lit) -> ty::Constant {
 
 pub fn lower_sort(sort: core::Sort) -> ty::Sort {
     match sort {
-        core::Sort::Int => ty::Sort::int(),
-        core::Sort::Bool => ty::Sort::bool(),
-        core::Sort::Loc => ty::Sort::loc(),
+        core::Sort::Int => ty::Sort::Int,
+        core::Sort::Bool => ty::Sort::Bool,
+        core::Sort::Loc => ty::Sort::Loc,
     }
 }

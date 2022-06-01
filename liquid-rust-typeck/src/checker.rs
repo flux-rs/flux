@@ -388,7 +388,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
 
         let scope = rcx.scope();
-        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(&bty.sorts(), scope.iter());
+        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(bty.sorts(), scope.iter());
 
         // Infer substitution
         let substs = substs

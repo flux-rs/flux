@@ -166,7 +166,7 @@ impl KVarStore {
         let scope = scope.into_iter();
 
         let mut args = scope
-            .filter(|(_, s)| !matches!(s.kind(), ty::SortKind::Loc))
+            .filter(|(_, sort)| !sort.is_loc())
             .map(|(name, sort)| (ty::Expr::fvar(name), sort))
             .collect_vec();
 
@@ -216,11 +216,11 @@ impl std::str::FromStr for TagIdx {
     }
 }
 
-fn sort_to_fixpoint(sort: &ty::Sort) -> fixpoint::Sort {
-    match sort.kind() {
-        ty::SortKind::Int | ty::SortKind::Loc => fixpoint::Sort::Int,
-        ty::SortKind::Bool => fixpoint::Sort::Bool,
-        ty::SortKind::Tuple(sorts) => {
+pub fn sort_to_fixpoint(sort: &ty::Sort) -> fixpoint::Sort {
+    match sort {
+        ty::Sort::Int | ty::Sort::Loc => fixpoint::Sort::Int,
+        ty::Sort::Bool => fixpoint::Sort::Bool,
+        ty::Sort::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,
                 [_] => unreachable!("1-tuple"),

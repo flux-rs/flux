@@ -141,19 +141,12 @@ pub enum Pred {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct KVar(pub KVid, pub List<Expr>);
 
-pub type Sort = Interned<SortS>;
-
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct SortS {
-    kind: SortKind,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum SortKind {
+pub enum Sort {
     Int,
     Bool,
     Loc,
-    Tuple(Vec<Sort>),
+    Tuple(List<Sort>),
 }
 
 pub type Expr = Interned<ExprS>;
@@ -442,11 +435,11 @@ impl BaseTy {
         BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
     }
 
-    pub fn sorts(&self) -> Vec<Sort> {
+    pub fn sorts(&self) -> &[Sort] {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) => vec![Sort::int()],
-            BaseTy::Bool => vec![Sort::bool()],
-            BaseTy::Adt(adt_def, _) => adt_def.sorts().to_vec(),
+            BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
+            BaseTy::Bool => &[Sort::Bool],
+            BaseTy::Adt(adt_def, _) => adt_def.sorts(),
         }
     }
 }
@@ -487,35 +480,20 @@ impl<'a> IntoIterator for &'a Substs {
 }
 
 impl Sort {
-    pub fn int() -> Self {
-        Interned::new(SortS { kind: SortKind::Int })
-    }
-
-    pub fn bool() -> Self {
-        Interned::new(SortS { kind: SortKind::Bool })
-    }
-
-    pub fn loc() -> Self {
-        Interned::new(SortS { kind: SortKind::Loc })
-    }
-
-    pub fn tuple(sorts: impl IntoIterator<Item = Sort>) -> Self {
-        let sorts = sorts.into_iter().collect_vec();
-        Interned::new(SortS { kind: SortKind::Tuple(sorts.into_iter().collect()) })
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
     }
 
     pub fn unit() -> Self {
-        Interned::new(SortS { kind: SortKind::Tuple(vec![]) })
-    }
-}
-
-impl SortS {
-    pub fn kind(&self) -> &SortKind {
-        &self.kind
+        Self::tuple(vec![])
     }
 
+    /// Returns `true` if the sort is [`Loc`].
+    ///
+    /// [`Loc`]: Sort::Loc
+    #[must_use]
     pub fn is_loc(&self) -> bool {
-        matches!(self.kind, SortKind::Loc)
+        matches!(self, Self::Loc)
     }
 }
 
@@ -858,7 +836,6 @@ impl_internable!(
     AdtDefData,
     TyS,
     ExprS,
-    SortS,
     [Ty],
     [Pred],
     [Expr],
@@ -1147,11 +1124,11 @@ mod pretty {
     impl Pretty for Sort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self.kind() {
-                SortKind::Int => w!("int"),
-                SortKind::Bool => w!("bool"),
-                SortKind::Loc => w!("loc"),
-                SortKind::Tuple(sorts) => w!("({:?})", join!(", ", sorts)),
+            match self {
+                Sort::Int => w!("int"),
+                Sort::Bool => w!("bool"),
+                Sort::Loc => w!("loc"),
+                Sort::Tuple(sorts) => w!("({:?})", join!(", ", sorts)),
             }
         }
     }

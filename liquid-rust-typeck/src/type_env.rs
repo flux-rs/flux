@@ -321,7 +321,7 @@ impl TypeEnvInfer {
             if let Loc::Free(loc) = loc {
                 if !scope.contains(loc) {
                     let fresh = name_gen.fresh();
-                    params.insert(fresh, Sort::loc());
+                    params.insert(fresh, Sort::Loc);
                     subst.insert(loc, Loc::Free(fresh));
                 }
             }
@@ -345,7 +345,7 @@ impl TypeEnvInfer {
                             Expr::fvar(*name).into()
                         } else if has_free_vars {
                             let fresh = name_gen.fresh();
-                            params.insert(fresh, sort);
+                            params.insert(fresh, sort.clone());
                             names.insert(idx.expr.clone(), fresh);
                             Expr::fvar(fresh).into()
                         } else {
@@ -546,9 +546,9 @@ impl TypeEnvInfer {
         }
     }
 
-    fn fresh(&mut self, sort: Sort) -> Name {
+    fn fresh(&mut self, sort: &Sort) -> Name {
         let fresh = self.name_gen.fresh();
-        self.params.insert(fresh, sort);
+        self.params.insert(fresh, sort.clone());
         fresh
     }
 
@@ -561,16 +561,16 @@ impl TypeEnvInfer {
         // HACK(nilehmann) it is crucial that the order in this iteration is the same as
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
-            if sort != Sort::loc() {
+            if sort.is_loc() {
+                constrs.push(Binders::new(Pred::tt(), vec![sort.clone()]))
+            } else {
                 constrs
                     .push(Binders::new(fresh_kvar(&[sort.clone()], &params), vec![sort.clone()]));
-            } else {
-                constrs.push(Binders::new(Pred::tt(), vec![sort.clone()]))
             }
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(&bty.sorts(), &params);
+        let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(bty.sorts(), &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {

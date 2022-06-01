@@ -7,11 +7,11 @@ use std::{
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use liquid_rust_middle::ty::{Binders, Expr, Name, Pred, Sort, SortKind};
+use liquid_rust_middle::ty::{Binders, Expr, Name, Pred, Sort};
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint::{FixpointCtxt, TagIdx},
+    fixpoint::{sort_to_fixpoint, FixpointCtxt, TagIdx},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables
@@ -307,9 +307,7 @@ impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
             NodeKind::Conj => children_to_fixpoint(cx, &self.children),
-            NodeKind::ForAll(_, sort, _) if matches!(sort.kind(), SortKind::Loc) => {
-                children_to_fixpoint(cx, &self.children)
-            }
+            NodeKind::ForAll(_, Sort::Loc, _) => children_to_fixpoint(cx, &self.children),
             NodeKind::ForAll(name, sort, pred) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
@@ -367,30 +365,6 @@ fn children_to_fixpoint(
         0 => None,
         1 => children.pop(),
         _ => Some(fixpoint::Constraint::Conj(children)),
-    }
-}
-
-fn sort_to_fixpoint(sort: &Sort) -> fixpoint::Sort {
-    match sort.kind() {
-        SortKind::Int | SortKind::Loc => fixpoint::Sort::Int,
-        SortKind::Bool => fixpoint::Sort::Bool,
-        SortKind::Tuple(sorts) => {
-            match &sorts[..] {
-                [] => fixpoint::Sort::Unit,
-                [_] => unreachable!("1-tuple"),
-                [sorts @ .., s1, s2] => {
-                    let s1 = Box::new(sort_to_fixpoint(s1));
-                    let s2 = Box::new(sort_to_fixpoint(s2));
-                    sorts
-                        .iter()
-                        .map(sort_to_fixpoint)
-                        .map(Box::new)
-                        .fold(fixpoint::Sort::Pair(s1, s2), |s1, s2| {
-                            fixpoint::Sort::Pair(Box::new(s1), s2)
-                        })
-                }
-            }
-        }
     }
 }
 
