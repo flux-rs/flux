@@ -45,7 +45,7 @@ pub struct VariantDef {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Binders<T> {
-    vars: List<Sort>,
+    params: List<Sort>,
     value: T,
 }
 
@@ -196,16 +196,12 @@ newtype_index! {
 }
 
 impl<T> Binders<T> {
-    pub fn bind_with_vars(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
-        Binders { vars: params.into(), value }
-    }
-
-    pub fn bind_with_var(value: T, var: &Sort) -> Binders<T> {
-        Binders::bind_with_vars(value, vec![var.clone()])
+    pub fn new(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
+        Binders { params: params.into(), value }
     }
 
     pub fn params(&self) -> &[Sort] {
-        &self.vars
+        &self.params
     }
 
     pub fn skip_binders(&self) -> &T {
@@ -219,7 +215,7 @@ where
 {
     pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
         let exprs = self
-            .vars
+            .params
             .iter()
             .map(|sort| Expr::fvar(fresh(sort)))
             .collect_vec();
@@ -295,7 +291,7 @@ impl AdtDef {
             .collect_vec();
         let ret = Ty::indexed(bty, indices);
         let sig = FnSig::new(vec![], args, ret, vec![]);
-        Binders::bind_with_vars(sig, self.sorts().clone())
+        Binders::new(sig, self.sorts().clone())
     }
 
     pub fn unfold(
@@ -317,7 +313,7 @@ impl AdtDef {
     }
 
     pub fn variant(&self, variant_idx: VariantIdx) -> Option<Binders<VariantDef>> {
-        Some(Binders::bind_with_vars(self.variants()?[variant_idx].clone(), self.sorts().clone()))
+        Some(Binders::new(self.variants()?[variant_idx].clone(), self.sorts().clone()))
     }
 
     fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
@@ -343,7 +339,7 @@ impl Binders<VariantDef> {
         self.value
             .fields
             .iter()
-            .map(|ty| Binders::bind_with_vars(ty.clone(), self.vars.clone()))
+            .map(|ty| Binders::new(ty.clone(), self.params.clone()))
     }
 }
 
@@ -372,7 +368,7 @@ impl Ty {
     }
 
     pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
-        let pred = Binders::bind_with_vars(pred.into(), bty.sorts());
+        let pred = Binders::new(pred.into(), bty.sorts());
         TyKind::Exists(bty, pred).intern()
     }
 
@@ -881,9 +877,9 @@ mod pretty {
     {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.vars.is_empty() {
+            if !self.params.is_empty() {
                 w!("for<{}> ",
-                    ^self.vars.iter().format_with(", ", |sort, f| {
+                    ^self.params.iter().format_with(", ", |sort, f| {
                         f(&format_args_cx!("{:?}", ^sort))
                     })
                 )?;
@@ -897,11 +893,11 @@ mod pretty {
         T: std::fmt::Debug,
     {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            if !self.vars.is_empty() {
+            if !self.params.is_empty() {
                 write!(
                     f,
                     "for<{}> ",
-                    self.vars
+                    self.params
                         .iter()
                         .format_with(", ", |sort, f| { f(&format_args_cx!("{:?}", ^sort)) })
                 )?;

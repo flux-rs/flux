@@ -5,13 +5,13 @@ use crate::ty::*;
 use super::fold::{TypeFoldable, TypeFolder};
 
 #[derive(Debug)]
-pub struct Subst {
+pub struct FVarSubst {
     fvar_map: FxHashMap<Name, Expr>,
 }
 
-impl Subst {
+impl FVarSubst {
     pub fn empty() -> Self {
-        Subst { fvar_map: FxHashMap::default() }
+        FVarSubst { fvar_map: FxHashMap::default() }
     }
 
     pub fn insert(&mut self, from: Name, to: impl Into<Expr>) -> Option<Expr> {
@@ -23,7 +23,7 @@ impl Subst {
     }
 
     pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
-        t.fold_with(&mut SubstFolder { subst: self })
+        t.fold_with(&mut FVarSubstFolder { subst: self })
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
@@ -63,11 +63,11 @@ impl Subst {
     }
 }
 
-struct SubstFolder<'a> {
-    subst: &'a Subst,
+struct FVarSubstFolder<'a> {
+    subst: &'a FVarSubst,
 }
 
-impl TypeFolder for SubstFolder<'_> {
+impl TypeFolder for FVarSubstFolder<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         if let ExprKind::FreeVar(name) = expr.kind() {
             self.subst

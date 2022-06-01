@@ -125,7 +125,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             .map(|ty| self.refine_ty(ty, mk_pred))
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
-        ty::PolySig::bind_with_vars(ty::FnSig::new(vec![], args, ret, vec![]), vec![])
+        ty::PolySig::new(ty::FnSig::new(vec![], args, ret, vec![]), vec![])
     }
 
     pub fn refine_ty(

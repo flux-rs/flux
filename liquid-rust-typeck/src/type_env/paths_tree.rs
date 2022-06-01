@@ -7,7 +7,9 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{subst::Subst, AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
+    ty::{
+        subst::FVarSubst, AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx,
+    },
 };
 
 use crate::{param_infer, refine_tree::RefineCtxt};
@@ -103,7 +105,7 @@ impl PathsTree {
         self.iter_mut().map(|(_, ty)| ty)
     }
 
-    pub fn subst(self, subst: &Subst) -> Self {
+    pub fn subst(self, subst: &FVarSubst) -> Self {
         let map = self
             .map
             .into_iter()
@@ -364,7 +366,7 @@ impl Node {
         }
     }
 
-    fn subst_mut(&mut self, subst: &Subst) {
+    fn subst_mut(&mut self, subst: &FVarSubst) {
         match self {
             Node::Ty(ty) => *ty = subst.apply(ty),
             Node::Adt(.., fields) => {

@@ -136,7 +136,7 @@ where
     T: TypeFoldable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binders::bind_with_vars(self.value.fold_with(folder), self.vars.clone())
+        Binders::new(self.value.fold_with(folder), self.params.clone())
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {

@@ -173,7 +173,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let fn_sig = genv
             .lookup_fn_sig(def_id)
-            .replace_bvars_with_fresh_fvars(|sort| rcx.define_param(sort));
+            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);
 
@@ -215,7 +215,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     env.alloc_with_ty(loc, ty);
                 }
                 ty::Constr::Pred(e) => {
-                    rcx.assert_pred(e.clone());
+                    rcx.assume_pred(e.clone());
                 }
             }
         }
@@ -432,7 +432,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     let updated_ty = env.unpack_ty(rcx, updated_ty);
                     env.update_path(&path.expect_path(), updated_ty);
                 }
-                Constr::Pred(e) => rcx.assert_pred(e.clone()),
+                Constr::Pred(e) => rcx.assume_pred(e.clone()),
             }
         }
         Ok(fn_sig.ret().clone())
@@ -525,7 +525,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let mut rcx = rcx.breadcrumb();
             let env = env.clone();
             if let Some(guard) = guard {
-                rcx.assert_pred(guard);
+                rcx.assume_pred(guard);
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
         }

@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 
 use liquid_rust_middle::{
     global_env::GlobalEnv,
-    ty::{subst::Subst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST},
+    ty::{subst::FVarSubst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST},
 };
 
 use crate::{refine_tree::RefineCtxt, type_env::TypeEnv};
@@ -50,7 +50,7 @@ pub fn infer_from_fn_call(
 }
 
 pub fn check_inference(
-    subst: &Subst,
+    subst: &FVarSubst,
     params: impl Iterator<Item = Name>,
 ) -> Result<(), InferenceError> {
     for name in params {
@@ -81,7 +81,7 @@ fn infer_from_tys(
         }
         (TyKind::Exists(_, pred), TyKind::Indexed(_, indices2)) => {
             // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
-            let names1 = rcx.define_params_for_binders(pred);
+            let names1 = rcx.define_vars_for_binders(pred);
             for (name1, idx2) in iter::zip(names1, indices2) {
                 if idx2.is_binder {
                     infer_from_exprs(exprs, &Expr::fvar(name1), &idx2.expr);

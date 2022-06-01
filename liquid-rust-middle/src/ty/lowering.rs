@@ -71,7 +71,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let mut cx = LoweringCtxt::new(genv);
 
-        let vars = cx.lower_params(&fn_sig.params);
+        let params = cx.lower_params(&fn_sig.params);
 
         let mut requires = vec![];
         for constr in fn_sig.requires {
@@ -90,13 +90,13 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
         let ret = cx.lower_ty(&fn_sig.ret, 1);
 
-        ty::Binders::bind_with_vars(ty::FnSig::new(requires, args, ret, ensures), vars)
+        ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
     pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
         let mut cx = LoweringCtxt::new(genv);
 
-        let vars = cx.lower_params(&adt_def.refined_by);
+        let params = cx.lower_params(&adt_def.refined_by);
 
         match &adt_def.kind {
             core::AdtDefKind::Transparent { variants: None, .. } => {
@@ -112,9 +112,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                             .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
                     })
                     .collect_vec();
-                ty::AdtDef::transparent(adt_def.def_id, vars, IndexVec::from_raw(variants))
+                ty::AdtDef::transparent(adt_def.def_id, params, IndexVec::from_raw(variants))
             }
-            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, vars),
+            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, params),
         }
     }
 

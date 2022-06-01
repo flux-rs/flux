@@ -16,14 +16,26 @@ use crate::{
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement parameters
 /// and predicates generated during type-checking. The tree can then be converted into
-/// a horn constraint which implies the safety of a program. The tree is constructed
-/// implicitly via the manipulation of [`RefineCtxt`] and [`ConstrBuilder`].
+/// a horn constraint which implies the safety of a program. Rather than constructing the
+/// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`] and
+/// [`ConstrBuilder`].
 pub struct RefineTree {
     root: NodePtr,
 }
 
 /// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
-/// available in a particular path during type-checking.
+/// available in a particular path during type-checking. For example consider the following
+/// program:
+///
+/// ```ignore
+/// #[lr::sig(fn(i32[@a0], i32{v : v > a0})) -> i32]
+/// fn add(x: i32, y: i32) -> i32 {
+///     x + y
+/// }
+/// ```
+///
+/// At the beginning of the function the refinement context will be `{a0: int, a1: int, a1 > a0}`,
+/// where `a1` is a freshly generated name for the refinement of `y`.
 pub struct RefineCtxt<'a> {
     _tree: &'a mut RefineTree,
     ptr: NodePtr,
@@ -111,26 +123,27 @@ impl RefineCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
-    /// It returns the freshly generated names for the parameters.
-    pub fn define_param(&mut self, sort: &Sort) -> Name {
+    /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
+    /// generated name for the variable.
+    pub fn define_var(&mut self, sort: &Sort) -> Name {
         self.ptr
-            .push_foralls(&Binders::bind_with_var(Pred::tt(), sort))
+            .push_foralls(&Binders::new(Pred::tt(), vec![sort.clone()]))
             .pop()
             .unwrap()
     }
 
-    /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
-    /// It returns the freshly generated names for the parameters.
-    pub fn define_params_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
+    /// "Opens" and assumes a bound predicate generating fresh refinement variables
+    /// for each binder. It returns the freshly generated names for the variables.
+    pub fn define_vars_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
         self.ptr.push_foralls(pred)
     }
 
-    pub fn define_param_for_binders(&mut self, p: &Binders<Pred>) -> Name {
-        self.define_params_for_binders(p).pop().unwrap()
+    /// Shorthand for when the bound predicate has a single binder.
+    pub fn define_var_for_binder(&mut self, pred: &Binders<Pred>) -> Name {
+        self.define_vars_for_binders(pred).pop().unwrap()
     }
 
-    pub fn assert_pred(&mut self, expr: impl Into<Expr>) {
+    pub fn assume_pred(&mut self, expr: impl Into<Expr>) {
         self.ptr = self.ptr.push_node(NodeKind::Guard(expr.into()));
     }
 
