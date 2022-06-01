@@ -176,6 +176,8 @@ pub enum ExprKind {
     PathProj(Expr, Field),
 }
 
+/// A bound *var*riable is represented as a debruijn index
+/// into a list of [`Binders`] and index into that list.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,

@@ -14,7 +14,7 @@ use crate::{
     fixpoint::{FixpointCtxt, TagIdx},
 };
 
-/// A *refine*ment *tree* tracks the "tree-like structure" of refinement parameters
+/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables
 /// and predicates generated during type-checking. The tree can then be converted into
 /// a horn constraint which implies the safety of a program. Rather than constructing the
 /// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`] and
@@ -34,8 +34,8 @@ pub struct RefineTree {
 /// }
 /// ```
 ///
-/// At the beginning of the function the refinement context will be `{a0: int, a1: int, a1 > a0}`,
-/// where `a1` is a freshly generated name for the refinement of `y`.
+/// At the beginning of the function, the refinement context will be `{a0: int, a1: int, a1 > a0}`,
+/// where `a1` is a freshly generated name for the existential variable in the refinement of `y`.
 pub struct RefineCtxt<'a> {
     _tree: &'a mut RefineTree,
     ptr: NodePtr,
@@ -49,6 +49,7 @@ pub struct Snapshot {
     ptr: WeakNodePtr,
 }
 
+/// A ist of refinement variables and their sorts.
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
 }
