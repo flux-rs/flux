@@ -13,7 +13,7 @@ pub trait TypeVisitor: Sized {
 }
 
 pub trait TypeFolder: Sized {
-    fn fold_binders<T: TypeFoldable>(&mut self, t: Binders<T>) -> Binders<T> {
+    fn fold_binders<T: TypeFoldable>(&mut self, t: &Binders<T>) -> Binders<T> {
         t.super_fold_with(self)
     }
 
@@ -99,7 +99,19 @@ pub trait TypeFoldable: Sized {
     }
 
     fn replace_generic_types(&self, tys: &[Ty]) -> Self {
-        todo!()
+        struct GenericsFolder<'a>(&'a [Ty]);
+
+        impl TypeFolder for GenericsFolder<'_> {
+            fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                if let TyKind::Param(param_ty) = ty.kind() {
+                    self.0[param_ty.index as usize].clone()
+                } else {
+                    ty.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut GenericsFolder(tys))
     }
 
     // fn subst_bound_vars(&self, substs: &[Expr]) -> Self {
@@ -124,11 +136,15 @@ where
     T: TypeFoldable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binders::bind_with_vars(self.value.fold_with(folder), self.params.clone())
+        Binders::bind_with_vars(self.value.fold_with(folder), self.vars.clone())
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.value.visit_with(visitor)
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_binders(self)
     }
 }
 

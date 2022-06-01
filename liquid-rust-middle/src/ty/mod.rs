@@ -21,7 +21,7 @@ pub use crate::core::RefKind;
 use crate::intern::{impl_internable, Interned, List};
 use subst::Subst;
 
-use self::fold::TypeFoldable;
+use self::{fold::TypeFoldable, subst::BoundVarFolder};
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -44,9 +44,9 @@ pub struct VariantDef {
     pub fields: Vec<Ty>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Binders<T> {
-    params: List<Sort>,
+    vars: List<Sort>,
     value: T,
 }
 
@@ -118,6 +118,7 @@ pub struct Path {
 pub enum Loc {
     Local(Local),
     Free(Name),
+    Bound(BoundVar),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -176,7 +177,7 @@ pub enum ExprKind {
     PathProj(Expr, Field),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,
     pub index: usize,
@@ -191,7 +192,7 @@ newtype_index! {
 newtype_index! {
     pub struct DebruijnIndex {
         DEBUG_FORMAT = "DebruijnIndex({})",
-        const INNER_MOST = 0,
+        const INNERMOST = 0,
     }
 }
 
@@ -200,7 +201,7 @@ where
     T: TypeFoldable,
 {
     pub fn bind_with_vars(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
-        Binders { params: params.into(), value }
+        Binders { vars: params.into(), value }
     }
 
     pub fn bind_with_var(value: T, var: &Sort) -> Binders<T> {
@@ -208,27 +209,25 @@ where
     }
 
     pub fn params(&self) -> &[Sort] {
-        &self.params
+        &self.vars
     }
 
     pub fn skip_binders(&self) -> &T {
         &self.value
     }
 
-    pub fn replace_params_with_fresh_vars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T
-    where
-        T: TypeFoldable,
-    {
-        todo!()
-        // let mut subst = Subst::empty();
-        // for param in self.params() {
-        //     subst.insert(param.name, fresh(param));
-        // }
-        // subst.apply(&self.value)
+    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
+        let exprs = self
+            .vars
+            .iter()
+            .map(|sort| Expr::fvar(fresh(sort)))
+            .collect_vec();
+        self.replace_bound_vars(&exprs)
     }
 
     pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
-        todo!()
+        self.value
+            .fold_with(&mut BoundVarFolder { outer_binder: INNERMOST, exprs })
     }
 }
 
@@ -300,12 +299,17 @@ impl AdtDef {
         variant_idx: VariantIdx,
     ) -> Option<IndexVec<Field, Ty>> {
         let fields = &self.variants()?[variant_idx].fields;
-        let mut subst = Subst::with_type_substs(substs.as_slice());
+        let mut subst = Subst::empty();
         debug_assert_eq!(indices.len(), self.refined_by().len());
         for (idx, param) in indices.iter().zip(self.refined_by()) {
             subst.insert(param.name, idx.expr.clone());
         }
-        Some(fields.iter().map(|ty| subst.apply(ty)).collect())
+        Some(
+            fields
+                .iter()
+                .map(|ty| subst.apply(ty).replace_generic_types(substs.as_slice()))
+                .collect(),
+        )
     }
 
     pub fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
@@ -628,6 +632,7 @@ impl ExprS {
         match self.kind() {
             ExprKind::FreeVar(name) => Some(Loc::Free(*name)),
             ExprKind::Local(local) => Some(Loc::Local(*local)),
+            ExprKind::BoundVar(bvar) => Some(Loc::Bound(*bvar)),
             _ => None,
         }
     }
@@ -642,6 +647,7 @@ impl ExprS {
                     expr = e;
                 }
                 ExprKind::FreeVar(name) => break Loc::Free(*name),
+                ExprKind::BoundVar(bvar) => break Loc::Bound(*bvar),
                 ExprKind::Local(local) => break Loc::Local(*local),
                 _ => return None,
             }
@@ -721,15 +727,63 @@ impl Loc {
         match self {
             Loc::Local(local) => Expr::local(*local),
             Loc::Free(name) => Expr::fvar(*name),
+            Loc::Bound(bvar) => Expr::bvar(*bvar),
         }
     }
 }
 
 impl BoundVar {
-    pub const NU: BoundVar = BoundVar { index: 0, debruijn: INNER_MOST };
+    pub const NU: BoundVar = BoundVar { index: 0, debruijn: INNERMOST };
 
-    pub fn inner_most(index: usize) -> BoundVar {
-        BoundVar { index, debruijn: INNER_MOST }
+    pub fn new(index: usize, debruijn: DebruijnIndex) -> Self {
+        BoundVar { index, debruijn }
+    }
+
+    pub fn innermost(index: usize) -> BoundVar {
+        BoundVar::new(index, INNERMOST)
+    }
+}
+
+impl DebruijnIndex {
+    pub fn new(depth: u32) -> DebruijnIndex {
+        DebruijnIndex::from_u32(depth)
+    }
+
+    pub fn depth(&self) -> u32 {
+        self.as_u32()
+    }
+
+    /// Returns the resulting index when this value is moved into
+    /// `amount` number of new binders. So, e.g., if you had
+    ///
+    ///    for<a: int> fn(i32[a])
+    ///
+    /// and you wanted to change it to
+    ///
+    ///    for<a: int> fn(for<b: int> fn(i32[a]))
+    ///
+    /// you would need to shift the index for `a` into a new binder.
+    #[must_use]
+    pub fn shifted_in(self, amount: u32) -> DebruijnIndex {
+        DebruijnIndex::from_u32(self.as_u32() + amount)
+    }
+
+    /// Update this index in place by shifting it "in" through
+    /// `amount` number of binders.
+    pub fn shift_in(&mut self, amount: u32) {
+        *self = self.shifted_in(amount);
+    }
+
+    /// Returns the resulting index when this value is moved out from
+    /// `amount` number of new binders.
+    #[must_use]
+    pub fn shifted_out(self, amount: u32) -> DebruijnIndex {
+        DebruijnIndex::from_u32(self.as_u32() - amount)
+    }
+
+    /// Update in place by shifting out from `amount` binders.
+    pub fn shift_out(&mut self, amount: u32) {
+        *self = self.shifted_out(amount);
     }
 }
 
@@ -797,23 +851,50 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    impl Pretty for Binders<FnSig> {
+    impl<T> Pretty for Binders<T>
+    where
+        T: Pretty,
+    {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let fn_sig = &self.value;
-            if !self.params.is_empty() {
+            if !self.vars.is_empty() {
                 w!("for<{}> ",
-                    ^self.params.iter().format_with(", ", |sort, f| {
+                    ^self.vars.iter().format_with(", ", |sort, f| {
                         f(&format_args_cx!("{:?}", ^sort))
                     })
                 )?;
             }
-            if !fn_sig.requires.is_empty() {
-                w!("[{:?}] ", join!(", ", &fn_sig.requires))?;
+            w!("{:?}", &self.value)
+        }
+    }
+
+    impl<T> std::fmt::Debug for Binders<T>
+    where
+        T: std::fmt::Debug,
+    {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            if !self.vars.is_empty() {
+                write!(
+                    f,
+                    "for<{}> ",
+                    self.vars
+                        .iter()
+                        .format_with(", ", |sort, f| { f(&format_args_cx!("{:?}", ^sort)) })
+                )?;
             }
-            w!("fn({:?}) -> {:?}", join!(", ", &fn_sig.args), &fn_sig.ret)?;
-            if !fn_sig.ensures.is_empty() {
-                w!("; [{:?}]", join!(", ", &fn_sig.ensures))?;
+            write!(f, "{:?}", self.value)
+        }
+    }
+
+    impl Pretty for FnSig {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if !self.requires.is_empty() {
+                w!("[{:?}] ", join!(", ", &self.requires))?;
+            }
+            w!("fn({:?}) -> {:?}", join!(", ", &self.args), &self.ret)?;
+            if !self.ensures.is_empty() {
+                w!("; [{:?}]", join!(", ", &self.ensures))?;
             }
 
             Ok(())
@@ -1028,11 +1109,12 @@ mod pretty {
     }
 
     impl Pretty for Loc {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
                 Loc::Free(name) => w!("{:?}", ^name),
+                Loc::Bound(bvar) => w!("{:?}", bvar),
             }
         }
     }
@@ -1103,9 +1185,9 @@ mod pretty {
         Sort,
         ExprS,
         Loc,
-        Binders<FnSig>,
         Path,
         KVar,
         BoundVar,
+        FnSig,
     );
 }

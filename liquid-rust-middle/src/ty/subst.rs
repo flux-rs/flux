@@ -5,18 +5,13 @@ use crate::ty::*;
 use super::fold::{TypeFoldable, TypeFolder};
 
 #[derive(Debug)]
-pub struct Subst<'a> {
+pub struct Subst {
     fvar_map: FxHashMap<Name, Expr>,
-    generics: &'a [Ty],
 }
 
-impl Subst<'_> {
+impl Subst {
     pub fn empty() -> Self {
-        Subst { generics: &[], fvar_map: FxHashMap::default() }
-    }
-
-    pub fn with_type_substs(types: &[Ty]) -> Subst {
-        Subst { generics: types, fvar_map: FxHashMap::default() }
+        Subst { fvar_map: FxHashMap::default() }
     }
 
     pub fn insert(&mut self, from: Name, to: impl Into<Expr>) -> Option<Expr> {
@@ -68,23 +63,11 @@ impl Subst<'_> {
     }
 }
 
-struct SubstFolder<'a, 'b> {
-    subst: &'a Subst<'b>,
+struct SubstFolder<'a> {
+    subst: &'a Subst,
 }
 
-impl TypeFolder for SubstFolder<'_, '_> {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        if let TyKind::Param(param_ty) = ty.kind() {
-            self.subst
-                .generics
-                .get(param_ty.index as usize)
-                .cloned()
-                .unwrap_or_else(|| ty.clone())
-        } else {
-            ty.super_fold_with(self)
-        }
-    }
-
+impl TypeFolder for SubstFolder<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         if let ExprKind::FreeVar(name) = expr.kind() {
             self.subst
@@ -94,6 +77,31 @@ impl TypeFolder for SubstFolder<'_, '_> {
                 .unwrap_or_else(|| expr.clone())
         } else {
             expr.super_fold_with(self)
+        }
+    }
+}
+
+pub(super) struct BoundVarFolder<'a> {
+    pub(super) outer_binder: DebruijnIndex,
+    pub(super) exprs: &'a [Expr],
+}
+
+impl TypeFolder for BoundVarFolder<'_> {
+    fn fold_binders<T>(&mut self, t: &Binders<T>) -> Binders<T>
+    where
+        T: TypeFoldable,
+    {
+        self.outer_binder.shift_in(1);
+        let r = t.super_fold_with(self);
+        self.outer_binder.shift_out(1);
+        r
+    }
+
+    fn fold_expr(&mut self, e: &Expr) -> Expr {
+        if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
+            self.exprs[bvar.index].clone()
+        } else {
+            e.super_fold_with(self)
         }
     }
 }

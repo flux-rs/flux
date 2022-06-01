@@ -234,7 +234,7 @@ impl NodePtr {
                 for (name, sort) in bindings {
                     *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
                 }
-                self.push_node(NodeKind::Guard(e));
+                *self = self.push_node(NodeKind::Guard(e));
             }
             Pred::Hole => {
                 for (name, sort) in bindings {

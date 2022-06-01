@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 
 use liquid_rust_middle::{
     global_env::GlobalEnv,
-    ty::{subst::Subst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNER_MOST},
+    ty::{subst::Subst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST},
 };
 
 use crate::{refine_tree::RefineCtxt, type_env::TypeEnv};
@@ -121,7 +121,7 @@ fn infer_from_tys(
 
 pub fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
-        (_, ExprKind::BoundVar(bvar)) if bvar.debruijn == INNER_MOST => {
+        (_, ExprKind::BoundVar(bvar)) if bvar.debruijn == INNERMOST => {
             if let Some(old_e) = exprs.insert(bvar.index, e1.clone()) {
                 if &old_e != e2 {
                     todo!(

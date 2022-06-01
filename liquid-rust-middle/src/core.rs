@@ -230,8 +230,8 @@ impl fmt::Debug for Ty {
         match self {
             Ty::BaseTy(bty) => write!(f, "{bty:?}"),
             Ty::Indexed(bty, e) => fmt_bty(bty, Some(e), f),
-            Ty::Exists(bind, bty, p) => {
-                write!(f, "{bty:?}{{{bind:?} : {p:?}}}")
+            Ty::Exists(bty, binders, p) => {
+                write!(f, "{bty:?}{{{binders:?} : {p:?}}}")
             }
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),

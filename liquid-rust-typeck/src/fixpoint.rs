@@ -172,7 +172,7 @@ impl KVarStore {
 
         let mut kvars = vec![];
         for (idx, sort) in sorts.iter().enumerate() {
-            args.push((ty::Expr::bvar(BoundVar::inner_most(idx)), sort.clone()));
+            args.push((ty::Expr::bvar(BoundVar::innermost(idx)), sort.clone()));
 
             let kvid = self.kvars.push(
                 args.iter()

@@ -32,8 +32,8 @@ use liquid_rust_middle::{
         },
     },
     ty::{
-        self, fold::TypeFoldable, BaseTy, BinOp, BoundVar, Constr, Constrs,
-        Expr, FnSig, Name, Param, PolySig, Pred, RefKind, Sort, Ty, TyKind,
+        self, fold::TypeFoldable, BaseTy, BinOp, BoundVar, Constr, Constrs, Expr, FnSig, Name,
+        Param, PolySig, Pred, RefKind, Sort, Ty, TyKind,
     },
 };
 
@@ -173,7 +173,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let fn_sig = genv
             .lookup_fn_sig(def_id)
-            .replace_params_with_fresh_vars(|sort| rcx.define_param(sort));
+            .replace_bvars_with_fresh_fvars(|sort| rcx.define_param(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);
 
