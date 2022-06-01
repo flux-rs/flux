@@ -302,35 +302,12 @@ impl TypeEnvInfer {
         self.env.fmap(|ty| subst.apply(ty))
     }
 
-    fn new(scope: Scope, env: TypeEnv) -> TypeEnvInfer {
+    fn new(scope: Scope, mut env: TypeEnv) -> TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut names = FxHashMap::default();
         let mut params = FxHashMap::default();
-        let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
-        env.bindings
-            .fmap_mut(|ty| TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty));
+        env.fmap_mut(|ty| TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty));
         TypeEnvInfer { params, name_gen, env, scope }
-    }
-
-    fn pack_refs(
-        params: &mut FxHashMap<Name, Sort>,
-        scope: &Scope,
-        name_gen: &IndexGen<Name>,
-        mut env: TypeEnv,
-    ) -> TypeEnv {
-        let mut subst = FVarSubst::empty();
-
-        for loc in env.bindings.locs() {
-            if let Loc::Free(loc) = loc {
-                if !scope.contains(loc) {
-                    let fresh = name_gen.fresh();
-                    params.insert(fresh, Sort::Loc);
-                    subst.insert(loc, Loc::Free(fresh));
-                }
-            }
-        }
-        env.fmap_mut(|ty| subst.apply(ty));
-        env
     }
 
     fn pack_ty(
