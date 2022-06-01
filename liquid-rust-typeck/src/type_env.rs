@@ -581,7 +581,7 @@ mod pretty {
     impl Pretty for TypeEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{{{:?}}}", &self.bindings)
+            w!("{:?}", &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
