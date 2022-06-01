@@ -245,7 +245,7 @@ impl TypeEnv {
             gen.check_pred(subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
         }
 
-        let goto_env = bb_env.env.clone().subst(&subst);
+        let goto_env = bb_env.env.fmap(|ty| subst.apply(ty));
 
         // Weakening
         let locs = self
@@ -281,8 +281,12 @@ impl TypeEnv {
         debug_assert!(self.bindings == goto_env.bindings);
     }
 
-    pub fn subst(self, subst: &FVarSubst) -> TypeEnv {
-        TypeEnv { bindings: self.bindings.subst(subst) }
+    pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> TypeEnv {
+        TypeEnv { bindings: self.bindings.fmap(f) }
+    }
+
+    pub fn fmap_mut(&mut self, f: impl FnMut(&Ty) -> Ty) {
+        self.bindings.fmap_mut(f);
     }
 }
 
@@ -295,7 +299,7 @@ impl TypeEnvInfer {
             let fresh = rcx.define_var_for_binder(&Binders::new(Pred::Hole, vec![sort.clone()]));
             subst.insert(*name, Expr::fvar(fresh));
         }
-        self.env.clone().subst(&subst)
+        self.env.fmap(|ty| subst.apply(ty))
     }
 
     fn new(scope: Scope, env: TypeEnv) -> TypeEnvInfer {
@@ -303,9 +307,8 @@ impl TypeEnvInfer {
         let mut names = FxHashMap::default();
         let mut params = FxHashMap::default();
         let mut env = TypeEnvInfer::pack_refs(&mut params, &scope, &name_gen, env);
-        for ty in env.bindings.values_mut() {
-            *ty = TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty);
-        }
+        env.bindings
+            .fmap_mut(|ty| TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty));
         TypeEnvInfer { params, name_gen, env, scope }
     }
 
@@ -313,7 +316,7 @@ impl TypeEnvInfer {
         params: &mut FxHashMap<Name, Sort>,
         scope: &Scope,
         name_gen: &IndexGen<Name>,
-        env: TypeEnv,
+        mut env: TypeEnv,
     ) -> TypeEnv {
         let mut subst = FVarSubst::empty();
 
@@ -326,7 +329,8 @@ impl TypeEnvInfer {
                 }
             }
         }
-        env.subst(&subst)
+        env.fmap_mut(|ty| subst.apply(ty));
+        env
     }
 
     fn pack_ty(
@@ -573,9 +577,7 @@ impl TypeEnvInfer {
         let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(bty.sorts(), &params);
 
         let mut bindings = self.env.bindings;
-        for ty in bindings.values_mut() {
-            *ty = ty.replace_holes(fresh_kvar);
-        }
+        bindings.fmap_mut(|ty| ty.replace_holes(fresh_kvar));
 
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings }, _scope: self.scope }
     }
@@ -599,7 +601,7 @@ impl BasicBlockEnv {
             let fresh = rcx.define_var_for_binder(&subst.apply(constr));
             subst.insert(param.name, Expr::fvar(fresh));
         }
-        self.env.clone().subst(&subst)
+        self.env.fmap(|ty| subst.apply(ty))
     }
 }
 

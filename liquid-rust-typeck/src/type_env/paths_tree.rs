@@ -7,9 +7,7 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{
-        subst::FVarSubst, AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx,
-    },
+    ty::{AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
 use crate::{param_infer, refine_tree::RefineCtxt};
@@ -103,18 +101,6 @@ impl PathsTree {
 
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Ty> {
         self.iter_mut().map(|(_, ty)| ty)
-    }
-
-    pub fn subst(self, subst: &FVarSubst) -> Self {
-        let map = self
-            .map
-            .into_iter()
-            .map(|(loc, mut node)| {
-                node.subst_mut(subst);
-                (subst.subst_loc(loc), node)
-            })
-            .collect();
-        PathsTree { map }
     }
 
     pub fn unfold_with(&mut self, other: &mut PathsTree) {
@@ -221,6 +207,20 @@ impl PathsTree {
             }
         }
         LookupResult::Ref(mode, ty)
+    }
+
+    #[must_use]
+    pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> PathsTree {
+        let mut tree = self.clone();
+        tree.fmap_mut(f);
+        tree
+    }
+
+    pub fn fmap_mut(&mut self, mut f: impl FnMut(&Ty) -> Ty) {
+        let f = &mut f;
+        for node in self.map.values_mut() {
+            node.fmap_mut(f);
+        }
     }
 }
 
@@ -366,12 +366,12 @@ impl Node {
         }
     }
 
-    fn subst_mut(&mut self, subst: &FVarSubst) {
+    fn fmap_mut(&mut self, f: &mut impl FnMut(&Ty) -> Ty) {
         match self {
-            Node::Ty(ty) => *ty = subst.apply(ty),
+            Node::Ty(ty) => *ty = f(ty),
             Node::Adt(.., fields) => {
-                for field in fields.iter_mut() {
-                    field.subst_mut(subst);
+                for field in fields {
+                    field.fmap_mut(f);
                 }
             }
         }
