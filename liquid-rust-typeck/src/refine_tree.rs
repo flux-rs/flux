@@ -476,7 +476,11 @@ mod pretty {
             let node = self.borrow();
             match &node.kind {
                 NodeKind::Conj => {
-                    w!("{:?}", join!("\n", &node.children))
+                    if node.children.is_empty() {
+                        w!("true")
+                    } else {
+                        w!("{:?}", join!("\n", &node.children))
+                    }
                 }
                 NodeKind::ForAll(name, sort, pred) => {
                     let (bindings, children) = if cx.bindings_chain {
@@ -505,6 +509,10 @@ mod pretty {
                     } else {
                         (vec![expr.clone()], node.children.clone())
                     };
+                    let mut exprs = exprs.into_iter().filter(|e| !e.is_true()).collect_vec();
+                    if exprs.is_empty() {
+                        exprs.push(Expr::tt());
+                    }
                     w!(
                         "{} ⇒",
                         ^exprs

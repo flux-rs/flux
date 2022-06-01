@@ -19,7 +19,6 @@ pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
 use crate::intern::{impl_internable, Interned, List};
-use subst::Subst;
 
 use self::{fold::TypeFoldable, subst::BoundVarFolder};
 
@@ -28,7 +27,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Eq, PartialEq, Hash)]
 pub struct AdtDefData {
-    refined_by: Vec<Param>,
+    sorts: List<Sort>,
     def_id: DefId,
     kind: AdtDefKind,
 }
@@ -41,7 +40,7 @@ enum AdtDefKind {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
-    pub fields: Vec<Ty>,
+    fields: List<Ty>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -196,10 +195,7 @@ newtype_index! {
     }
 }
 
-impl<T> Binders<T>
-where
-    T: TypeFoldable,
-{
+impl<T> Binders<T> {
     pub fn bind_with_vars(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
         Binders { vars: params.into(), value }
     }
@@ -215,7 +211,12 @@ where
     pub fn skip_binders(&self) -> &T {
         &self.value
     }
+}
 
+impl<T> Binders<T>
+where
+    T: TypeFoldable,
+{
     pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
         let exprs = self
             .vars
@@ -263,56 +264,63 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque(def_id: DefId, refined_by: Vec<Param>) -> Self {
+    pub fn opaque(def_id: DefId, sorts: impl Into<List<Sort>>) -> Self {
         let kind = AdtDefKind::Opaque;
-        AdtDef(Interned::new(AdtDefData { def_id, kind, refined_by }))
+        AdtDef(Interned::new(AdtDefData { def_id, kind, sorts: sorts.into() }))
     }
 
     pub fn transparent(
         def_id: DefId,
-        refined_by: Vec<Param>,
+        sorts: impl Into<List<Sort>>,
         variants: IndexVec<VariantIdx, VariantDef>,
     ) -> Self {
         let kind = AdtDefKind::Transparent { variants };
-        AdtDef(Interned::new(AdtDefData { def_id, kind, refined_by }))
+        AdtDef(Interned::new(AdtDefData { def_id, kind, sorts: sorts.into() }))
     }
 
     pub fn def_id(&self) -> DefId {
         self.0.def_id
     }
 
-    pub fn refined_by(&self) -> &[Param] {
-        &self.0.refined_by
+    pub fn sorts(&self) -> &List<Sort> {
+        &self.0.sorts
     }
 
-    pub fn sorts(&self) -> Vec<Sort> {
-        self.refined_by()
-            .iter()
-            .map(|param| param.sort.clone())
-            .collect()
+    pub fn variant_sig(&self, variant_idx: VariantIdx) -> PolySig {
+        let variant = &self.variants().unwrap()[variant_idx];
+        let args = variant.fields.clone();
+        let bty = BaseTy::adt(self.clone(), vec![]);
+        let indices = (0..self.sorts().len())
+            .map(|idx| Expr::bvar(BoundVar::new(idx, INNERMOST)).into())
+            .collect_vec();
+        let ret = Ty::indexed(bty, indices);
+        let sig = FnSig::new(vec![], args, ret, vec![]);
+        Binders::bind_with_vars(sig, self.sorts().clone())
     }
 
     pub fn unfold(
         &self,
         substs: &Substs,
-        indices: &[Index],
+        exprs: &[Expr],
         variant_idx: VariantIdx,
     ) -> Option<IndexVec<Field, Ty>> {
-        let fields = &self.variants()?[variant_idx].fields;
-        let mut subst = Subst::empty();
-        debug_assert_eq!(indices.len(), self.refined_by().len());
-        for (idx, param) in indices.iter().zip(self.refined_by()) {
-            subst.insert(param.name, idx.expr.clone());
-        }
+        debug_assert_eq!(exprs.len(), self.sorts().len());
         Some(
-            fields
-                .iter()
-                .map(|ty| subst.apply(ty).replace_generic_types(substs.as_slice()))
+            self.variant(variant_idx)?
+                .fields()
+                .map(|ty| {
+                    ty.replace_bound_vars(exprs)
+                        .replace_generic_types(&substs.0)
+                })
                 .collect(),
         )
     }
 
-    pub fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
+    pub fn variant(&self, variant_idx: VariantIdx) -> Option<Binders<VariantDef>> {
+        Some(Binders::bind_with_vars(self.variants()?[variant_idx].clone(), self.sorts().clone()))
+    }
+
+    fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
         match self.kind() {
             AdtDefKind::Transparent { variants, .. } => Some(variants),
             AdtDefKind::Opaque { .. } => None,
@@ -325,8 +333,17 @@ impl AdtDef {
 }
 
 impl VariantDef {
-    pub fn new(fields: Vec<Ty>) -> Self {
-        VariantDef { fields }
+    pub fn new(fields: impl Into<List<Ty>>) -> Self {
+        VariantDef { fields: fields.into() }
+    }
+}
+
+impl Binders<VariantDef> {
+    pub fn fields(&self) -> impl Iterator<Item = Binders<Ty>> + '_ {
+        self.value
+            .fields
+            .iter()
+            .map(|ty| Binders::bind_with_vars(ty.clone(), self.vars.clone()))
     }
 }
 
@@ -397,10 +414,17 @@ impl TyS {
 
     pub fn unfold(&self, variant_idx: VariantIdx) -> Option<(AdtDef, IndexVec<Field, Ty>)> {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), indices) = self.kind() {
-            Some((adt_def.clone(), adt_def.unfold(substs, indices, variant_idx)?))
+            let exprs = indices.iter().map(|index| index.to_expr()).collect_vec();
+            Some((adt_def.clone(), adt_def.unfold(substs, &exprs, variant_idx)?))
         } else {
             panic!("type cannot be unfolded: `{self:?}`")
         }
+    }
+}
+
+impl Index {
+    pub fn to_expr(&self) -> Expr {
+        self.expr.clone()
     }
 }
 
@@ -425,7 +449,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) => vec![Sort::int()],
             BaseTy::Bool => vec![Sort::bool()],
-            BaseTy::Adt(adt_def, _) => adt_def.sorts(),
+            BaseTy::Adt(adt_def, _) => adt_def.sorts().to_vec(),
         }
     }
 }

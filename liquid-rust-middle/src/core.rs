@@ -19,6 +19,7 @@ pub trait AdtSortsMap {
     fn get(&self, def_id: DefId) -> Option<&[Sort]>;
 }
 
+#[derive(Debug)]
 pub struct AdtDef {
     pub def_id: DefId,
     pub kind: AdtDefKind,

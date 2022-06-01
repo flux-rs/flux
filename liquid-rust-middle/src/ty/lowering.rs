@@ -71,16 +71,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let mut cx = LoweringCtxt::new(genv);
 
-        let params = fn_sig
-            .params
-            .into_iter()
-            .enumerate()
-            .map(|(index, param)| {
-                cx.name_map
-                    .insert(param.name.name, Entry::Bound { index, level: 0 });
-                lower_sort(param.sort)
-            })
-            .collect_vec();
+        let vars = cx.lower_params(&fn_sig.params);
 
         let mut requires = vec![];
         for constr in fn_sig.requires {
@@ -99,23 +90,13 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
         let ret = cx.lower_ty(&fn_sig.ret, 1);
 
-        ty::Binders::bind_with_vars(ty::FnSig::new(requires, args, ret, ensures), params)
+        ty::Binders::bind_with_vars(ty::FnSig::new(requires, args, ret, ensures), vars)
     }
 
     pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
-        let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::new(genv);
 
-        let refined_by = adt_def
-            .refined_by
-            .iter()
-            .map(|param| {
-                let fresh = name_gen.fresh();
-                cx.name_map.insert(param.name.name, fresh);
-                ty::Param { name: fresh, sort: lower_sort(param.sort) }
-            })
-            .collect();
-        (&name_gen, &adt_def.refined_by);
+        let vars = cx.lower_params(&adt_def.refined_by);
 
         match &adt_def.kind {
             core::AdtDefKind::Transparent { variants: None, .. } => {
@@ -131,9 +112,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                             .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
                     })
                     .collect_vec();
-                ty::AdtDef::transparent(adt_def.def_id, refined_by, IndexVec::from_raw(variants))
+                ty::AdtDef::transparent(adt_def.def_id, vars, IndexVec::from_raw(variants))
             }
-            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, refined_by),
+            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, vars),
         }
     }
 
@@ -141,9 +122,21 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         let fields = variant_def
             .fields
             .iter()
-            .map(|ty| self.lower_ty(ty, 0))
+            .map(|ty| self.lower_ty(ty, 1))
             .collect_vec();
         VariantDef::new(fields)
+    }
+
+    fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
+        params
+            .iter()
+            .enumerate()
+            .map(|(index, param)| {
+                self.name_map
+                    .insert(param.name.name, Entry::Bound { index, level: 0 });
+                lower_sort(param.sort)
+            })
+            .collect()
     }
 
     fn lower_constr(&mut self, constr: &core::Constr, nbinders: u32) -> ty::Constr {

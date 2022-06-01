@@ -78,19 +78,7 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let adt_def = self.adt_def(def_id);
-        let variant = &adt_def.variants().unwrap()[variant_idx];
-        let args = &variant.fields[..];
-        // TODO(nilehmann) get generics from somewhere
-        // TODO(nilehmann) we should store the return type in the variant
-        let bty = ty::BaseTy::adt(adt_def.clone(), vec![]);
-        let indices = adt_def
-            .refined_by()
-            .iter()
-            .map(|param| ty::Expr::fvar(param.name).into())
-            .collect_vec();
-        let ret = ty::Ty::indexed(bty, indices);
-        let sig = ty::FnSig::new(vec![], args, ret, vec![]);
-        ty::Binders::bind_with_vars(sig, adt_def.sorts())
+        adt_def.variant_sig(variant_idx)
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -122,8 +110,8 @@ impl<'tcx> GlobalEnv<'tcx> {
                 self.tcx.sess.abort_if_errors();
                 self.refine_ty(&ty.unwrap(), &mut |_| ty::Pred::tt())
             })
-            .collect();
-        ty::VariantDef { fields }
+            .collect_vec();
+        ty::VariantDef::new(fields)
     }
 
     pub fn refine_fn_sig(

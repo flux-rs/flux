@@ -7,13 +7,10 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{
-        subst::Subst, AdtDef, BaseTy, Expr, ExprKind, Index, Loc, Name, Path, RefKind, Ty, TyKind,
-        VariantIdx,
-    },
+    ty::{subst::Subst, AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
-use crate::refine_tree::RefineCtxt;
+use crate::{param_infer, refine_tree::RefineCtxt};
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -379,18 +376,19 @@ impl Node {
     }
 }
 
-type ParamInst = FxHashMap<Name, Expr>;
+type ParamInst = FxHashMap<usize, Expr>;
 
 fn fold(rcx: &mut RefineCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
-    let fields = &adt_def.variants().unwrap()[variant_idx].fields;
     let mut params = FxHashMap::default();
-    for (ty1, ty2) in iter::zip(tys, fields) {
+    let variant_sig = adt_def.variant_sig(variant_idx);
+    for (ty1, ty2) in iter::zip(tys, variant_sig.skip_binders().args()) {
         ty_infer_folding(rcx, &mut params, ty1, ty2);
     }
     adt_def
-        .refined_by()
+        .sorts()
         .iter()
-        .map(|param| params.remove(&param.name).unwrap().into())
+        .enumerate()
+        .map(|(idx, _)| params.remove(&idx).unwrap().into())
         .collect()
 }
 
@@ -399,7 +397,7 @@ fn ty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, ty1: &Ty, ty2:
         (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
             bty_infer_folding(rcx, params, bty1, bty2);
             for (idx1, idx2) in iter::zip(indices1, indices2) {
-                expr_infer_folding(params, &idx1.expr, &idx2.expr);
+                param_infer::infer_from_exprs(params, &idx1.expr, &idx2.expr);
             }
         }
         (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
@@ -417,33 +415,6 @@ fn bty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, bty1: &BaseTy
         for (ty1, ty2) in iter::zip(substs1, substs2) {
             ty_infer_folding(rcx, params, ty1, ty2);
         }
-    }
-}
-
-fn expr_infer_folding(params: &mut ParamInst, e1: &Expr, e2: &Expr) {
-    match (e1.kind(), e2.kind()) {
-        (_, ExprKind::FreeVar(name)) => {
-            match params.insert(*name, e1.clone()) {
-                Some(old_e) => {
-                    if &old_e != e2 {
-                        todo!(
-                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *name,
-                            old_e,
-                            e1
-                        )
-                    }
-                }
-                None => {}
-            }
-        }
-        (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
-            debug_assert_eq!(exprs1.len(), exprs2.len());
-            for (e1, e2) in exprs1.iter().zip(exprs2) {
-                expr_infer_folding(params, e1, e2);
-            }
-        }
-        _ => {}
     }
 }
 
