@@ -113,22 +113,6 @@ pub trait TypeFoldable: Sized {
 
         self.fold_with(&mut GenericsFolder(tys))
     }
-
-    // fn subst_bound_vars(&self, substs: &[Expr]) -> Self {
-    //     struct ReplaceBoundVars<'a>(&'a [Expr]);
-
-    //     impl<'a> TypeFolder for ReplaceBoundVars<'a> {
-    //         fn fold_expr(&mut self, expr: &Expr) -> Expr {
-    //             if let ExprKind::BoundVar(bvar) = expr.kind() {
-    //                 self.0[*idx as usize].clone()
-    //             } else {
-    //                 expr.super_fold_with(self)
-    //             }
-    //         }
-    //     }
-
-    //     self.fold_with(&mut ReplaceBoundVars(substs))
-    // }
 }
 
 impl<T> TypeFoldable for Binders<T>

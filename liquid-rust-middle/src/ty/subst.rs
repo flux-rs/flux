@@ -23,7 +23,7 @@ impl FVarSubst {
     }
 
     pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
-        t.fold_with(&mut FVarSubstFolder { subst: self })
+        t.fold_with(&mut FVarFolder { subst: self })
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
@@ -63,11 +63,11 @@ impl FVarSubst {
     }
 }
 
-struct FVarSubstFolder<'a> {
+struct FVarFolder<'a> {
     subst: &'a FVarSubst,
 }
 
-impl TypeFolder for FVarSubstFolder<'_> {
+impl TypeFolder for FVarFolder<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         if let ExprKind::FreeVar(name) = expr.kind() {
             self.subst
@@ -81,12 +81,18 @@ impl TypeFolder for FVarSubstFolder<'_> {
     }
 }
 
-pub(super) struct BoundVarFolder<'a> {
-    pub(super) outer_binder: DebruijnIndex,
-    pub(super) exprs: &'a [Expr],
+pub(crate) struct BVarFolder<'a> {
+    outer_binder: DebruijnIndex,
+    exprs: &'a [Expr],
 }
 
-impl TypeFolder for BoundVarFolder<'_> {
+impl<'a> BVarFolder<'a> {
+    pub(crate) fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
+        BVarFolder { exprs, outer_binder: INNERMOST }
+    }
+}
+
+impl TypeFolder for BVarFolder<'_> {
     fn fold_binders<T>(&mut self, t: &Binders<T>) -> Binders<T>
     where
         T: TypeFoldable,

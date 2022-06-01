@@ -20,7 +20,7 @@ pub use rustc_target::abi::VariantIdx;
 pub use crate::core::RefKind;
 use crate::intern::{impl_internable, Interned, List};
 
-use self::{fold::TypeFoldable, subst::BoundVarFolder};
+use self::{fold::TypeFoldable, subst::BVarFolder};
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -223,8 +223,7 @@ where
     }
 
     pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
-        self.value
-            .fold_with(&mut BoundVarFolder { outer_binder: INNERMOST, exprs })
+        self.value.fold_with(&mut BVarFolder::new(exprs))
     }
 }
 
