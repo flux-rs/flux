@@ -461,3 +461,26 @@ impl<'a> Iterator for PathsIter<'a> {
         }
     }
 }
+
+mod pretty {
+    use super::*;
+    use itertools::Itertools;
+    use liquid_rust_middle::pretty::*;
+    use std::fmt;
+
+    impl Pretty for PathsTree {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            let bindings = self
+                .iter()
+                .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
+                .collect_vec();
+            w!(
+                "{{{}}}",
+                ^bindings
+                    .into_iter()
+                    .format_with(", ", |(loc, ty), f| f(&format_args_cx!("{:?}: {:?}", loc, ty)))
+            )
+        }
+    }
+}

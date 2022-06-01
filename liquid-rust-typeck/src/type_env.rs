@@ -36,7 +36,7 @@ pub struct TypeEnvInfer {
     params: FxHashMap<Name, Sort>,
     scope: Scope,
     name_gen: IndexGen<Name>,
-    env: TypeEnv,
+    bindings: PathsTree,
 }
 
 pub struct BasicBlockEnv {
@@ -231,7 +231,7 @@ impl TypeEnv {
         mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        bb_env: &mut BasicBlockEnv,
+        bb_env: &BasicBlockEnv,
         tag: Tag,
     ) {
         self.bindings.fold_unfold_with(rcx, &bb_env.env.bindings);
@@ -281,10 +281,6 @@ impl TypeEnv {
     pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> TypeEnv {
         TypeEnv { bindings: self.bindings.fmap(f) }
     }
-
-    pub fn fmap_mut(&mut self, f: impl FnMut(&Ty) -> Ty) {
-        self.bindings.fmap_mut(f);
-    }
 }
 
 impl TypeEnvInfer {
@@ -296,15 +292,16 @@ impl TypeEnvInfer {
             let fresh = rcx.define_var_for_binder(&Binders::new(Pred::Hole, vec![sort.clone()]));
             subst.insert(*name, Expr::fvar(fresh));
         }
-        self.env.fmap(|ty| subst.apply(ty))
+        TypeEnv { bindings: self.bindings.fmap(|ty| subst.apply(ty)) }
     }
 
-    fn new(scope: Scope, mut env: TypeEnv) -> TypeEnvInfer {
+    fn new(scope: Scope, TypeEnv { mut bindings }: TypeEnv) -> TypeEnvInfer {
         let name_gen = scope.name_gen();
         let mut names = FxHashMap::default();
         let mut params = FxHashMap::default();
-        env.fmap_mut(|ty| TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty));
-        TypeEnvInfer { params, name_gen, env, scope }
+        bindings
+            .fmap_mut(|ty| TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty));
+        TypeEnvInfer { params, name_gen, bindings, scope }
     }
 
     fn pack_ty(
@@ -376,11 +373,10 @@ impl TypeEnvInfer {
     /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
         // Unfold
-        self.env.bindings.unfold_with(&mut other.bindings);
+        self.bindings.unfold_with(&mut other.bindings);
 
         // Weakening
         let locs = self
-            .env
             .bindings
             .locs()
             .filter(|loc| !other.bindings.contains_loc(*loc))
@@ -389,29 +385,29 @@ impl TypeEnvInfer {
             if let Some(loc) = self.packed_loc(loc) {
                 self.params.remove(&loc);
             }
-            self.env.remove(loc);
+            self.bindings.remove(loc);
         }
 
-        let paths = self.env.bindings.paths().collect_vec();
+        let paths = self.bindings.paths().collect_vec();
 
         // Convert pointers to borrows
         for path in &paths {
-            let ty1 = self.env.bindings[path].clone();
+            let ty1 = self.bindings[path].clone();
             let ty2 = other.bindings[path].clone();
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.env.bindings[path1.expect_path()].with_holes();
+                    let ty1 = self.bindings[path1.expect_path()].with_holes();
                     let ty2 = other.bindings[path2.expect_path()].with_holes();
 
-                    self.env.bindings[path] = Ty::mk_ref(RefKind::Mut, ty1.clone());
+                    self.bindings[path] = Ty::mk_ref(RefKind::Mut, ty1.clone());
                     other.bindings[path] = Ty::mk_ref(RefKind::Mut, ty2.clone());
 
-                    self.env.bindings[path1.expect_path()] = ty1;
+                    self.bindings[path1.expect_path()] = ty1;
                     other.bindings[path2.expect_path()] = ty2;
                 }
                 (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    self.env.bindings[ptr_path.expect_path()] = bound.clone();
-                    self.env.bindings[path] = Ty::mk_ref(RefKind::Mut, bound.clone());
+                    self.bindings[ptr_path.expect_path()] = bound.clone();
+                    self.bindings[path] = Ty::mk_ref(RefKind::Mut, bound.clone());
                 }
                 (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
                     other.bindings[ptr_path.expect_path()] = bound.clone();
@@ -424,11 +420,11 @@ impl TypeEnvInfer {
         // Join types
         let mut modified = false;
         for path in &paths {
-            let ty1 = self.env.bindings[path].clone();
+            let ty1 = self.bindings[path].clone();
             let ty2 = other.bindings[path].clone();
             let ty = self.join_ty(genv, &ty1, &ty2);
             modified |= ty1 != ty;
-            self.env.bindings[path] = ty;
+            self.bindings[path] = ty;
         }
 
         self.remove_dead_params();
@@ -447,7 +443,7 @@ impl TypeEnvInfer {
     /// names that do not appear in types in 'env' (in a way that makes for easy solving).
     fn dead_params(&self) -> Vec<Name> {
         let mut used: FxHashSet<Name> = FxHashSet::default();
-        for (_, ty) in self.env.bindings.iter() {
+        for (_, ty) in self.bindings.iter() {
             for x in ty.fvars().iter() {
                 used.insert(*x);
             }
@@ -550,7 +546,7 @@ impl TypeEnvInfer {
 
         let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(bty.sorts(), &params);
 
-        let mut bindings = self.env.bindings;
+        let mut bindings = self.bindings;
         bindings.fmap_mut(|ty| ty.replace_holes(fresh_kvar));
 
         BasicBlockEnv { params, constrs, env: TypeEnv { bindings }, _scope: self.scope }
@@ -588,18 +584,7 @@ mod pretty {
     impl Pretty for TypeEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let bindings = self
-                .bindings
-                .iter()
-                .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
-                .collect_vec();
-
-            w!(
-                "{{{}}}",
-                ^bindings
-                    .into_iter()
-                    .format_with(", ", |(loc, ty), f| f(&format_args_cx!("{:?}: {:?}", loc, ty)))
-            )
+            w!("{{{:?}}}", &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -616,7 +601,7 @@ mod pretty {
                 ^self.params
                     .iter()
                     .format_with(", ", |(name, sort), f| f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))),
-                &self.env
+                &self.bindings
             )
         }
 
