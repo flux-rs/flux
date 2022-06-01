@@ -777,11 +777,15 @@ impl DebruijnIndex {
     /// Returns the resulting index when this value is moved into
     /// `amount` number of new binders. So, e.g., if you had
     ///
+    /// ```ignore
     ///    for<a: int> fn(i32[a])
+    /// ```
     ///
     /// and you wanted to change it to
     ///
+    /// ```ignore
     ///    for<a: int> fn(for<b: int> fn(i32[a]))
+    /// ```
     ///
     /// you would need to shift the index for `a` into a new binder.
     #[must_use]
