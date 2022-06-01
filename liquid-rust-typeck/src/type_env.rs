@@ -272,13 +272,10 @@ impl TypeEnv {
         }
 
         // Check subtyping
-        for (path, ty1) in self.bindings.iter_mut() {
+        for (path, ty1) in self.bindings.iter() {
             let ty2 = goto_env.bindings[path].clone();
             gen.subtyping(ty1, &ty2);
-            *ty1 = ty2;
         }
-
-        debug_assert!(self.bindings == goto_env.bindings);
     }
 
     pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> TypeEnv {

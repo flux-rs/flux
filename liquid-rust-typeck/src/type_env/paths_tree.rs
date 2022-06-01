@@ -93,16 +93,6 @@ impl PathsTree {
         self.iter().map(|(path, _)| path)
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Path, &mut Ty)> {
-        self.map
-            .iter_mut()
-            .flat_map(|(loc, node)| PathsIterMut::new(*loc, node))
-    }
-
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Ty> {
-        self.iter_mut().map(|(_, ty)| ty)
-    }
-
     pub fn unfold_with(&mut self, other: &mut PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get_mut(loc) {
@@ -468,62 +458,6 @@ impl<'a> Iterator for PathsIter<'a> {
                 None
             }
             PathsIter::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
-        }
-    }
-}
-
-enum PathsIterMut<'a> {
-    Adt {
-        stack: Vec<std::iter::Enumerate<std::slice::IterMut<'a, Node>>>,
-        loc: Loc,
-        projection: Vec<Field>,
-    },
-    Ty(Option<(Loc, &'a mut Ty)>),
-}
-
-impl<'a> PathsIterMut<'a> {
-    fn new(loc: Loc, root: &'a mut Node) -> Self {
-        match root {
-            Node::Ty(ty) => PathsIterMut::Ty(Some((loc, ty))),
-            Node::Adt(.., fields) => {
-                PathsIterMut::Adt {
-                    loc,
-                    projection: vec![],
-                    stack: vec![fields.iter_mut().enumerate()],
-                }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for PathsIterMut<'a> {
-    type Item = (Path, &'a mut Ty);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            PathsIterMut::Adt { stack, loc, projection } => {
-                while let Some(top) = stack.last_mut() {
-                    if let Some((i, node)) = top.next() {
-                        match node {
-                            Node::Adt(.., fields) => {
-                                projection.push(Field::from(i));
-                                stack.push(fields.iter_mut().enumerate());
-                            }
-                            Node::Ty(ty) => {
-                                projection.push(Field::from(i));
-                                let path = Path::new(*loc, projection.as_slice());
-                                projection.pop();
-                                return Some((path, ty));
-                            }
-                        }
-                    } else {
-                        projection.pop();
-                        stack.pop();
-                    }
-                }
-                None
-            }
-            PathsIterMut::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
         }
     }
 }
