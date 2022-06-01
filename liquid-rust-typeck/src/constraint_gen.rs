@@ -7,7 +7,7 @@ use rustc_span::Span;
 use liquid_rust_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
-    ty::{fold::TypeFoldable, BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
+    ty::{BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
 };
 
 use crate::{
@@ -69,9 +69,9 @@ pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &
             bty_subtyping(genv, builder, bty1, bty2, tag);
             return;
         }
-        (TyKind::Exists(bty, p), _) => {
+        (TyKind::Exists(bty, pred), _) => {
             let indices = builder
-                .push_foralls(&bty.sorts(), p)
+                .push_binders(pred)
                 .into_iter()
                 .map(|name| Index::from(Expr::fvar(name)))
                 .collect_vec();
@@ -89,10 +89,10 @@ pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &
                 builder.push_head(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()), tag);
             }
         }
-        (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, p)) => {
+        (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, pred)) => {
             bty_subtyping(genv, builder, bty1, bty2, tag);
             let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
-            builder.push_head(p.subst_bound_vars(&exprs), tag);
+            builder.push_head(pred.replace_bound_vars(&exprs), tag);
         }
         (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
             assert_eq!(loc1, loc2);

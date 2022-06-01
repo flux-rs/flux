@@ -2,7 +2,7 @@ use std::iter;
 
 use crate::{
     global_env::GlobalEnv,
-    ty::{self, VariantDef},
+    ty::{self, DebruijnIndex, VariantDef},
 };
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
@@ -15,45 +15,88 @@ pub struct LoweringCtxt<'a, 'tcx> {
     name_map: NameMap,
 }
 
-type NameMap = FxHashMap<core::Name, ty::Name>;
+#[derive(Default, Debug)]
+struct NameMap {
+    map: FxHashMap<core::Name, Entry>,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum Entry {
+    Bound { level: u32, index: usize },
+    Free(ty::Name),
+}
+
+impl From<ty::Name> for Entry {
+    fn from(v: ty::Name) -> Self {
+        Self::Free(v)
+    }
+}
+
+impl NameMap {
+    fn insert(&mut self, name: core::Name, var: impl Into<Entry>) {
+        self.map.insert(name, var.into());
+    }
+
+    fn get(&self, name: core::Name, nbinders: u32) -> ty::Expr {
+        match self.map[&name] {
+            Entry::Bound { level, index } => {
+                ty::Expr::bvar(ty::BoundVar::new(index, DebruijnIndex::new(nbinders - level - 1)))
+            }
+            Entry::Free(name) => ty::Expr::fvar(name),
+        }
+    }
+
+    fn with_binders<R>(
+        &mut self,
+        binders: &[core::Ident],
+        nbinders: u32,
+        f: impl FnOnce(&mut Self, u32) -> R,
+    ) -> R {
+        for (index, binder) in binders.iter().enumerate() {
+            self.insert(binder.name, Entry::Bound { index, level: nbinders });
+        }
+        let r = f(self, nbinders + 1);
+        for binder in binders {
+            self.map.remove(&binder.name);
+        }
+        r
+    }
+}
 
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn new(genv: &'a GlobalEnv<'tcx>) -> Self {
-        Self { genv, name_map: FxHashMap::default() }
+        Self { genv, name_map: NameMap::default() }
     }
 
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
-        let name_gen = IndexGen::new();
-
         let mut cx = LoweringCtxt::new(genv);
 
-        let params = cx.lower_params(&name_gen, &fn_sig.params);
+        let params = cx.lower_params(&fn_sig.params);
 
         let mut requires = vec![];
         for constr in fn_sig.requires {
-            requires.push(cx.lower_constr(&constr));
+            requires.push(cx.lower_constr(&constr, 1));
         }
 
         let mut args = vec![];
         for ty in fn_sig.args {
-            args.push(cx.lower_ty(&ty));
+            args.push(cx.lower_ty(&ty, 1));
         }
 
         let mut ensures = vec![];
         for constr in fn_sig.ensures {
-            ensures.push(cx.lower_constr(&constr));
+            ensures.push(cx.lower_constr(&constr, 1));
         }
 
-        let ret = cx.lower_ty(&fn_sig.ret);
+        let ret = cx.lower_ty(&fn_sig.ret, 1);
 
-        ty::Binders::new(params, ty::FnSig::new(requires, args, ret, ensures))
+        ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
     pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
-        let name_gen = IndexGen::new();
         let mut cx = LoweringCtxt::new(genv);
 
-        let refined_by = cx.lower_params(&name_gen, &adt_def.refined_by);
+        let params = cx.lower_params(&adt_def.refined_by);
 
         match &adt_def.kind {
             core::AdtDefKind::Transparent { variants: None, .. } => {
@@ -69,96 +112,104 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                             .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
                     })
                     .collect_vec();
-                ty::AdtDef::transparent(adt_def.def_id, refined_by, IndexVec::from_raw(variants))
+                ty::AdtDef::transparent(adt_def.def_id, params, IndexVec::from_raw(variants))
             }
-            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, refined_by),
+            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, params),
         }
     }
 
-    fn lower_variant_def(&self, variant_def: &core::VariantDef) -> VariantDef {
+    fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> VariantDef {
         let fields = variant_def
             .fields
             .iter()
-            .map(|ty| self.lower_ty(ty))
+            .map(|ty| self.lower_ty(ty, 1))
             .collect_vec();
         VariantDef::new(fields)
     }
 
-    fn lower_constr(&self, constr: &core::Constr) -> ty::Constr {
-        match constr {
-            core::Constr::Type(loc, ty) => {
-                ty::Constr::Type(ty::Expr::fvar(self.name_map[&loc.name]), self.lower_ty(ty))
-            }
-            core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map, &[])),
-        }
-    }
-
-    fn lower_params(
-        &mut self,
-        name_gen: &IndexGen<ty::Name>,
-        params: &[core::Param],
-    ) -> Vec<ty::Param> {
+    fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
         params
             .iter()
-            .map(|param| {
-                let fresh = name_gen.fresh();
-                self.name_map.insert(param.name.name, fresh);
-                ty::Param { name: fresh, sort: lower_sort(param.sort) }
+            .enumerate()
+            .map(|(index, param)| {
+                self.name_map
+                    .insert(param.name.name, Entry::Bound { index, level: 0 });
+                lower_sort(param.sort)
             })
             .collect()
     }
 
-    pub fn lower_qualifer(qualifier: &core::Qualifier) -> ty::Qualifier {
-        let name_gen = IndexGen::new();
-        let mut args = Vec::new();
-
-        let mut name_map = NameMap::default();
-
-        for param in &qualifier.args {
-            let fresh = name_gen.fresh();
-            name_map.insert(param.name.name, fresh);
-            let sort = lower_sort(param.sort);
-            args.push((fresh, sort));
+    fn lower_constr(&mut self, constr: &core::Constr, nbinders: u32) -> ty::Constr {
+        match constr {
+            core::Constr::Type(loc, ty) => {
+                ty::Constr::Type(self.name_map.get(loc.name, nbinders), self.lower_ty(ty, nbinders))
+            }
+            core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map, 1)),
         }
+    }
 
-        let expr = lower_expr(&qualifier.expr, &name_map, &[]);
+    pub fn lower_qualifer(qualifier: &core::Qualifier) -> ty::Qualifier {
+        let mut name_map = NameMap::default();
+        let name_gen = IndexGen::new();
+
+        let args = qualifier
+            .args
+            .iter()
+            .map(|param| {
+                let fresh = name_gen.fresh();
+                name_map.insert(param.name.name, fresh);
+                (fresh, lower_sort(param.sort))
+            })
+            .collect_vec();
+
+        let expr = lower_expr(&qualifier.expr, &name_map, 1);
 
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    fn lower_ty(&self, ty: &core::Ty) -> ty::Ty {
+    fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
         match ty {
             core::Ty::BaseTy(bty) => {
-                let bty = self.lower_base_ty(bty);
+                let bty = self.lower_base_ty(bty, nbinders);
                 ty::Ty::exists(bty, ty::Pred::tt())
             }
             core::Ty::Indexed(bty, indices) => {
                 let indices = indices
                     .indices
                     .iter()
-                    .map(|idx| self.lower_index(idx))
+                    .map(|idx| self.lower_index(idx, nbinders))
                     .collect_vec();
-                ty::Ty::indexed(self.lower_base_ty(bty), indices)
+                ty::Ty::indexed(self.lower_base_ty(bty, nbinders), indices)
             }
             core::Ty::Exists(bty, binders, pred) => {
-                let bty = self.lower_base_ty(bty);
-                let pred = lower_expr(pred, &self.name_map, binders);
-                ty::Ty::exists(bty, pred)
+                let bty = self.lower_base_ty(bty, nbinders);
+                self.name_map
+                    .with_binders(binders, nbinders, |name_map, nbinders| {
+                        ty::Ty::exists(bty, lower_expr(pred, name_map, nbinders))
+                    })
             }
-            core::Ty::Ptr(loc) => ty::Ty::ptr(ty::Loc::Free(self.name_map[&loc.name])),
-            core::Ty::Ref(rk, ty) => ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty)),
+            core::Ty::Ptr(loc) => ty::Ty::ptr(self.name_map.get(loc.name, nbinders)),
+            core::Ty::Ref(rk, ty) => {
+                ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty, nbinders))
+            }
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
             core::Ty::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| self.lower_ty(ty)).collect_vec();
+                let tys = tys
+                    .iter()
+                    .map(|ty| self.lower_ty(ty, nbinders))
+                    .collect_vec();
                 ty::Ty::tuple(tys)
             }
             core::Ty::Never => ty::Ty::never(),
         }
     }
 
-    fn lower_index(&self, idx: &core::Index) -> ty::Index {
-        ty::Index { expr: lower_expr(&idx.expr, &self.name_map, &[]), is_binder: idx.is_binder }
+    fn lower_index(&self, idx: &core::Index, nbinders: u32) -> ty::Index {
+        ty::Index {
+            expr: lower_expr(&idx.expr, &self.name_map, nbinders),
+            is_binder: idx.is_binder,
+        }
     }
 
     fn lower_ref_kind(rk: core::RefKind) -> ty::RefKind {
@@ -168,35 +219,29 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         }
     }
 
-    fn lower_base_ty(&self, bty: &core::BaseTy) -> ty::BaseTy {
+    fn lower_base_ty(&mut self, bty: &core::BaseTy, nbinders: u32) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
                 let adt_def = self.genv.adt_def(*did);
-                let substs = substs.iter().map(|ty| self.lower_ty(ty));
+                let substs = substs.iter().map(|ty| self.lower_ty(ty, nbinders));
                 ty::BaseTy::adt(adt_def, substs)
             }
         }
     }
 }
 
-fn lower_expr(expr: &core::Expr, name_map: &NameMap, binders: &[core::Ident]) -> ty::Expr {
+fn lower_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
     match &expr.kind {
-        core::ExprKind::Var(name, ..) => {
-            if let Some(idx) = binders.iter().position(|bind| bind.name == *name) {
-                ty::Expr::bvar(idx as u32)
-            } else {
-                ty::Expr::fvar(name_map[name])
-            }
-        }
+        core::ExprKind::Var(name, ..) => name_map.get(*name, nbinders),
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {
             ty::Expr::binary_op(
                 *op,
-                lower_expr(e1, name_map, binders),
-                lower_expr(e2, name_map, binders),
+                lower_expr(e1, name_map, nbinders),
+                lower_expr(e2, name_map, nbinders),
             )
         }
     }

@@ -371,12 +371,16 @@ impl fmt::Debug for Rvalue {
                     let path = tcx.def_path(*def_id);
                     path.data.iter().join("::")
                 });
-                write!(
-                    f,
-                    "{fname}::{variant_idx:?}::<{:?}>({:?})",
-                    substs.iter().format(","),
-                    args.iter().format(",")
-                )
+                if substs.is_empty() {
+                    write!(f, "{fname}::{variant_idx:?}({:?})", args.iter().format(", "))
+                } else {
+                    write!(
+                        f,
+                        "{fname}::{variant_idx:?}::<{:?}>({:?})",
+                        substs.iter().format(", "),
+                        args.iter().format(", ")
+                    )
+                }
             }
         }
     }

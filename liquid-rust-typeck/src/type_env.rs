@@ -12,8 +12,8 @@ use liquid_rust_middle::{
     global_env::GlobalEnv,
     rustc::mir::Place,
     ty::{
-        fold::TypeFoldable, subst::Subst, BaseTy, Expr, ExprKind, Index, Param, Path, RefKind, Ty,
-        TyKind,
+        fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, ExprKind, Index, Param, Path,
+        RefKind, Ty, TyKind,
     },
 };
 
@@ -41,7 +41,7 @@ pub struct TypeEnvInfer {
 
 pub struct BasicBlockEnv {
     pub params: Vec<Param>,
-    constrs: Vec<Pred>,
+    constrs: Vec<Binders<Pred>>,
     _scope: Scope,
     pub env: TypeEnv,
 }
@@ -153,9 +153,9 @@ impl TypeEnv {
 
     pub fn unpack_ty(&mut self, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Exists(bty, p) => {
+            TyKind::Exists(bty, pred) => {
                 let indices = rcx
-                    .define_params(&bty.sorts(), p)
+                    .define_vars_for_binders(pred)
                     .into_iter()
                     .map(|name| Expr::fvar(name).into())
                     .collect_vec();
@@ -177,9 +177,9 @@ impl TypeEnv {
         }
     }
 
-    fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> Subst {
+    fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|param| param.name).collect();
-        let mut subst = Subst::empty();
+        let mut subst = FVarSubst::empty();
         for (path, ty1) in self.bindings.iter() {
             if bb_env.env.bindings.contains_loc(path.loc) {
                 let ty2 = &bb_env.env.bindings[&path];
@@ -205,16 +205,16 @@ impl TypeEnv {
         params: &FxHashSet<Name>,
         ty1: &Ty,
         ty2: &Ty,
-        subst: &mut Subst,
+        subst: &mut FVarSubst,
     ) {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
                 for (idx1, idx2) in iter::zip(indices1, indices2) {
-                    param_infer::infer_from_exprs(subst, params, &idx1.expr, &idx2.expr);
+                    subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
                 }
             }
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-                param_infer::infer_from_exprs(subst, params, path1, path2);
+                subst.infer_from_exprs(params, path1, path2);
                 let ty1 = &self.bindings[path1.expect_path()];
                 let ty2 = &bb_env.env.bindings[path2.expect_path()];
                 self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
@@ -242,7 +242,7 @@ impl TypeEnv {
         // Check constraints
         let mut gen = ConstraintGen::new(genv, rcx, tag);
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(subst.apply(&constr.subst_bound_vars(&[Expr::fvar(param.name)])));
+            gen.check_pred(subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
         }
 
         let goto_env = bb_env.env.clone().subst(&subst);
@@ -281,18 +281,18 @@ impl TypeEnv {
         debug_assert!(self.bindings == goto_env.bindings);
     }
 
-    pub fn subst(self, subst: &Subst) -> TypeEnv {
+    pub fn subst(self, subst: &FVarSubst) -> TypeEnv {
         TypeEnv { bindings: self.bindings.subst(subst) }
     }
 }
 
 impl TypeEnvInfer {
     pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
-        let mut subst = Subst::empty();
+        let mut subst = FVarSubst::empty();
         // HACK(nilehmann) it is crucial that the order in this iteration is the same as
         // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params.iter() {
-            let fresh = rcx.define_param(sort.clone(), &Pred::tt());
+            let fresh = rcx.define_var_for_binder(&Binders::new(Pred::Hole, vec![sort.clone()]));
             subst.insert(*name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)
@@ -315,7 +315,7 @@ impl TypeEnvInfer {
         name_gen: &IndexGen<Name>,
         env: TypeEnv,
     ) -> TypeEnv {
-        let mut subst = Subst::empty();
+        let mut subst = FVarSubst::empty();
 
         for loc in env.bindings.locs() {
             if let Loc::Free(loc) = loc {
@@ -562,14 +562,15 @@ impl TypeEnvInfer {
         // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
         for (name, sort) in self.params {
             if sort != Sort::loc() {
-                constrs.push(fresh_kvar(&[sort.clone()], &params));
+                constrs
+                    .push(Binders::new(fresh_kvar(&[sort.clone()], &params), vec![sort.clone()]));
             } else {
-                constrs.push(Pred::tt())
+                constrs.push(Binders::new(Pred::tt(), vec![sort.clone()]))
             }
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |bty: BaseTy| fresh_kvar(&bty.sorts(), &params);
+        let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(&bty.sorts(), &params);
 
         let mut bindings = self.env.bindings;
         for ty in bindings.values_mut() {
@@ -593,9 +594,9 @@ impl TypeEnvInfer {
 
 impl BasicBlockEnv {
     pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
-        let mut subst = Subst::empty();
-        for (param, constr) in self.params.iter().zip(&self.constrs) {
-            let fresh = rcx.define_param(param.sort.clone(), &subst.apply(constr));
+        let mut subst = FVarSubst::empty();
+        for (param, constr) in iter::zip(&self.params, &self.constrs) {
+            let fresh = rcx.define_var_for_binder(&subst.apply(constr));
             subst.insert(param.name, Expr::fvar(fresh));
         }
         self.env.clone().subst(&subst)
@@ -660,7 +661,7 @@ mod pretty {
                         if constr.is_true() {
                             f(&format_args_cx!("{:?}: {:?}", ^param.name, ^param.sort))
                         } else {
-                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr))
+                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^param.name, ^param.sort, constr.skip_binders()))
                         }
                     }),
                 &self.env

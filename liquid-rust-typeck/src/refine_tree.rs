@@ -4,26 +4,38 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use itertools::{Itertools, Position};
+use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use liquid_rust_middle::ty::{fold::TypeFoldable, Expr, Name, Pred, Sort, SortKind};
+use liquid_rust_middle::ty::{Binders, Expr, Name, Pred, Sort, SortKind};
 
 use crate::{
     constraint_gen::Tag,
     fixpoint::{FixpointCtxt, TagIdx},
 };
 
-/// A *refine*ment *tree* tracks the "tree-like structure" of refinement parameters
+/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables
 /// and predicates generated during type-checking. The tree can then be converted into
-/// a horn constraint which implies the safety of a program. The tree is constructed
-/// implicitly via the manipulation of [`RefineCtxt`] and [`ConstrBuilder`].
+/// a horn constraint which implies the safety of a program. Rather than constructing the
+/// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`] and
+/// [`ConstrBuilder`].
 pub struct RefineTree {
     root: NodePtr,
 }
 
 /// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
-/// available in a particular path during type-checking.
+/// available in a particular path during type-checking. For example consider the following
+/// program:
+///
+/// ```ignore
+/// #[lr::sig(fn(i32[@a0], i32{v : v > a0})) -> i32]
+/// fn add(x: i32, y: i32) -> i32 {
+///     x + y
+/// }
+/// ```
+///
+/// At the beginning of the function, the refinement context will be `{a0: int, a1: int, a1 > a0}`,
+/// where `a1` is a freshly generated name for the existential variable in the refinement of `y`.
 pub struct RefineCtxt<'a> {
     _tree: &'a mut RefineTree,
     ptr: NodePtr,
@@ -37,6 +49,7 @@ pub struct Snapshot {
     ptr: WeakNodePtr,
 }
 
+/// A ist of refinement variables and their sorts.
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
 }
@@ -111,17 +124,27 @@ impl RefineCtxt<'_> {
         self.snapshot().scope().unwrap()
     }
 
-    /// Define new refinement parameters with the given `sorts` and satisfying the given `pred`.
-    /// It returns the freshly generated names for the parameters.
-    pub fn define_params(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
-        self.ptr.push_foralls(sorts, p)
+    /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
+    /// generated name for the variable.
+    pub fn define_var(&mut self, sort: &Sort) -> Name {
+        self.ptr
+            .push_foralls(&Binders::new(Pred::tt(), vec![sort.clone()]))
+            .pop()
+            .unwrap()
     }
 
-    pub fn define_param(&mut self, sort: Sort, p: &Pred) -> Name {
-        self.define_params(&[sort], p).pop().unwrap()
+    /// "Opens" and assumes a bound predicate generating fresh refinement variables
+    /// for each binder. It returns the freshly generated names for the variables.
+    pub fn define_vars_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
+        self.ptr.push_foralls(pred)
     }
 
-    pub fn assert_pred(&mut self, expr: impl Into<Expr>) {
+    /// Shorthand for when the bound predicate has a single binder.
+    pub fn define_var_for_binder(&mut self, pred: &Binders<Pred>) -> Name {
+        self.define_vars_for_binders(pred).pop().unwrap()
+    }
+
+    pub fn assume_pred(&mut self, expr: impl Into<Expr>) {
         self.ptr = self.ptr.push_node(NodeKind::Guard(expr.into()));
     }
 
@@ -181,8 +204,8 @@ impl ConstrBuilder<'_> {
         ConstrBuilder { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub fn push_foralls(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
-        self.ptr.push_foralls(sorts, p)
+    pub fn push_binders(&mut self, p: &Binders<Pred>) -> Vec<Name> {
+        self.ptr.push_foralls(p)
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
@@ -198,41 +221,34 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_foralls(&mut self, sorts: &[Sort], p: &Pred) -> Vec<Name> {
+    fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
         let name_gen = self.name_gen();
 
         let mut bindings = vec![];
         let mut exprs = vec![];
         let mut names = vec![];
-        for sort in sorts {
+        for sort in pred.params() {
             let fresh = name_gen.fresh();
             bindings.push((fresh, sort.clone()));
             exprs.push(Expr::fvar(fresh));
             names.push(fresh);
         }
 
-        match p {
+        let pred = pred.replace_bound_vars(&exprs);
+
+        match pred {
             Pred::Kvars(kvars) => {
                 debug_assert_eq!(kvars.len(), bindings.len());
-                for ((name, sort), kvar) in iter::zip(bindings, kvars) {
-                    let p = Pred::kvars(vec![kvar.subst_bound_vars(&exprs)]);
+                for ((name, sort), kvar) in iter::zip(bindings, &kvars) {
+                    let p = Pred::kvars(vec![kvar.clone()]);
                     *self = self.push_node(NodeKind::ForAll(name, sort, p));
                 }
             }
             Pred::Expr(e) => {
-                for item in bindings.into_iter().with_position() {
-                    let is_last = matches!(item, Position::Last(_) | Position::Only(_));
-                    let (name, sort) = item.into_inner();
-                    if is_last {
-                        *self = self.push_node(NodeKind::ForAll(
-                            name,
-                            sort,
-                            Pred::Expr(e.subst_bound_vars(&exprs)),
-                        ));
-                    } else {
-                        *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
-                    }
+                for (name, sort) in bindings {
+                    *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
                 }
+                *self = self.push_node(NodeKind::Guard(e));
             }
             Pred::Hole => {
                 for (name, sort) in bindings {
@@ -474,7 +490,11 @@ mod pretty {
             let node = self.borrow();
             match &node.kind {
                 NodeKind::Conj => {
-                    w!("{:?}", join!("\n", &node.children))
+                    if node.children.is_empty() {
+                        w!("true")
+                    } else {
+                        w!("{:?}", join!("\n", &node.children))
+                    }
                 }
                 NodeKind::ForAll(name, sort, pred) => {
                     let (bindings, children) = if cx.bindings_chain {
@@ -503,6 +523,10 @@ mod pretty {
                     } else {
                         (vec![expr.clone()], node.children.clone())
                     };
+                    let mut exprs = exprs.into_iter().filter(|e| !e.is_true()).collect_vec();
+                    if exprs.is_empty() {
+                        exprs.push(Expr::tt());
+                    }
                     w!(
                         "{} ⇒",
                         ^exprs

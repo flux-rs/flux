@@ -11,7 +11,7 @@ use liquid_rust_common::{
     index::{IndexGen, IndexVec},
 };
 use liquid_rust_fixpoint as fixpoint;
-use liquid_rust_middle::ty::{self, KVid};
+use liquid_rust_middle::ty::{self, BoundVar, KVid};
 use rustc_middle::ty::TyCtxt;
 
 newtype_index! {
@@ -171,8 +171,8 @@ impl KVarStore {
             .collect_vec();
 
         let mut kvars = vec![];
-        for (i, sort) in sorts.iter().enumerate() {
-            args.push((ty::Expr::bvar(i as u32), sort.clone()));
+        for (idx, sort) in sorts.iter().enumerate() {
+            args.push((ty::Expr::bvar(BoundVar::innermost(idx)), sort.clone()));
 
             let kvid = self.kvars.push(
                 args.iter()
