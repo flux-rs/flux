@@ -413,6 +413,38 @@ impl<T: Internable + ?Sized> Hash for Interned<T> {
     }
 }
 
+impl<T: PartialOrd + Internable> PartialOrd for Interned<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        <T as PartialOrd>::partial_cmp(&self.arc, &other.arc)
+    }
+}
+
+impl<T: Ord + Internable> Ord for Interned<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        <T as Ord>::cmp(&self.arc, &other.arc)
+    }
+}
+
+impl<T> PartialOrd for List<T>
+where
+    T: PartialOrd,
+    [T]: Internable,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        <[T] as PartialOrd>::partial_cmp(&self.arc, &other.arc)
+    }
+}
+
+impl<T> Ord for List<T>
+where
+    T: Ord,
+    [T]: Internable,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        <[T] as Ord>::cmp(&self.arc, &other.arc)
+    }
+}
+
 impl<T: Internable + ?Sized> AsRef<T> for Interned<T> {
     #[inline]
     fn as_ref(&self) -> &T {

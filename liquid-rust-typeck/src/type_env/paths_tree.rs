@@ -460,6 +460,7 @@ mod pretty {
             let bindings = self
                 .iter()
                 .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
+                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2))
                 .collect_vec();
             w!(
                 "{{{}}}",

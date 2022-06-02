@@ -122,7 +122,9 @@ class Buff:
                 self.print_rule()
             elif fields['event'] == 'check_goto':
                 self.print(f'goto {fields["target"]}')
+                self.print()
                 self.print_context(fields['rcx'], fields['env'])
+                self.print('==>')
                 self.print(fields['bb_env'])
                 self.print_rule()
             elif fields['event'] == 'infer_goto_enter':

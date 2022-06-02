@@ -562,8 +562,13 @@ mod pretty {
                 parents
                     .into_iter()
                     .rev()
-                    .filter(|n| {
-                        matches!(n.borrow().kind, NodeKind::ForAll(..) | NodeKind::Guard(..))
+                    .filter(|ptr| {
+                        let node = ptr.borrow();
+                        match &node.kind {
+                            NodeKind::ForAll(..) => true,
+                            NodeKind::Guard(e) => !e.is_true(),
+                            _ => false,
+                        }
                     })
                     .format_with(", ", |n, f| {
                         let n = n.borrow();

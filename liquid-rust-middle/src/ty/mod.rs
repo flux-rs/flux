@@ -107,7 +107,7 @@ pub struct Index {
     pub is_binder: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Path {
     pub loc: Loc,
     projection: List<Field>,
@@ -914,7 +914,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Indexed(bty, indices) => fmt_bty(bty, Some(indices), cx, f),
+                TyKind::Indexed(bty, indices) => fmt_bty(bty, indices, cx, f),
                 TyKind::Exists(bty, pred) => {
                     if pred.is_true() {
                         w!("{:?}", bty)
@@ -941,13 +941,13 @@ mod pretty {
 
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            fmt_bty(self, None, cx, f)
+            fmt_bty(self, &[], cx, f)
         }
     }
 
     fn fmt_bty(
         bty: &BaseTy,
-        indices: Option<&[Index]>,
+        indices: &[Index],
         cx: &PPrintCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
@@ -960,22 +960,20 @@ mod pretty {
         }
         match bty {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
-                if let Some(idx) = indices {
-                    w!("<{:?}>", join!(", ", idx))?;
+                if !indices.is_empty() {
+                    w!("<{:?}>", join!(", ", indices))?;
                 }
             }
             BaseTy::Adt(_, args) => {
-                if !args.is_empty() || indices.is_some() {
+                if !args.is_empty() || !indices.is_empty() {
                     w!("<")?;
                 }
                 w!("{:?}", join!(", ", args))?;
-                if let Some(exprs) = indices {
-                    if !args.is_empty() {
-                        w!(", ")?;
-                    }
-                    w!("{:?}", join!(", ", exprs))?;
+                if !args.is_empty() && !indices.is_empty() {
+                    w!(", ")?;
                 }
-                if !args.is_empty() || indices.is_some() {
+                w!("{:?}", join!(", ", indices))?;
+                if !args.is_empty() || !indices.is_empty() {
                     w!(">")?;
                 }
             }
