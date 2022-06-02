@@ -298,7 +298,7 @@ impl Node {
         if let Node::Ty(ty) = self {
             if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
                 let fields = adt_def
-                    .unfold(substs, &idxs.to_exprs(), VariantIdx::from_u32(0))
+                    .unfold(substs, &idxs.to_exprs(), variant_idx)
                     .unwrap()
                     .into_iter()
                     .map(Node::Ty)
