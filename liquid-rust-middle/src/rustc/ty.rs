@@ -1,5 +1,6 @@
 //! A simplified version of rust types.
 
+use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
@@ -13,7 +14,7 @@ pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ty(Interned<TyS>);
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -34,7 +35,7 @@ pub enum TyKind {
     Uint(UintTy),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {
     Ty(Ty),
 }
@@ -98,3 +99,51 @@ impl Ty {
 }
 
 impl_internable!(TyS, [Ty], [GenericArg]);
+
+impl std::fmt::Debug for GenericArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GenericArg::Ty(ty) => write!(f, "{ty:?}"),
+        }
+    }
+}
+
+impl std::fmt::Debug for Ty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind() {
+            TyKind::Adt(def_id, substs) => {
+                let adt_name = rustc_middle::ty::tls::with(|tcx| {
+                    let path = tcx.def_path(*def_id);
+                    path.data.iter().join("::")
+                });
+                write!(f, "{adt_name}")?;
+                if !substs.is_empty() {
+                    write!(
+                        f,
+                        "<{}>",
+                        substs
+                            .iter()
+                            .format_with(", ", |arg, f| f(&format_args!("{:?}", arg)))
+                    )?;
+                }
+                Ok(())
+            }
+            TyKind::Bool => write!(f, "bool"),
+            TyKind::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
+            TyKind::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
+            TyKind::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
+            TyKind::Never => write!(f, "!"),
+            TyKind::Param(param_ty) => write!(f, "{param_ty}"),
+            TyKind::Ref(ty, Mutability::Mut) => write!(f, "&mut {ty:?}"),
+            TyKind::Ref(ty, Mutability::Not) => write!(f, "&{ty:?}"),
+            TyKind::Tuple(tys) => {
+                write!(
+                    f,
+                    "({})",
+                    tys.iter()
+                        .format_with(", ", |ty, f| f(&format_args!("{:?}", ty)))
+                )
+            }
+        }
+    }
+}
