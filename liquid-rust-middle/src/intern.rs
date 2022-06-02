@@ -272,6 +272,21 @@ impl<T: Internable> Interned<T> {
     }
 }
 
+impl<T> List<T>
+where
+    [T]: Internable,
+{
+    pub fn from_vec(vec: Vec<T>) -> List<T> {
+        match Interned::lookup(vec.as_slice()) {
+            Ok(this) => this,
+            Err(shard) => {
+                let arc = Arc::from(vec);
+                Self::alloc(arc, shard)
+            }
+        }
+    }
+}
+
 impl<T> From<&[T]> for Interned<[T]>
 where
     [T]: Internable,
@@ -291,16 +306,9 @@ where
 impl<T> From<Vec<T>> for Interned<[T]>
 where
     [T]: Internable,
-    T: Clone,
 {
     fn from(vec: Vec<T>) -> Self {
-        match Interned::lookup(vec.as_slice()) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::from(vec);
-                Self::alloc(arc, shard)
-            }
-        }
+        List::from_vec(vec)
     }
 }
 
@@ -402,6 +410,38 @@ impl<T: Internable + ?Sized> Hash for Interned<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // NOTE: Cast disposes vtable pointer / slice/str length.
         state.write_usize(Arc::as_ptr(&self.arc) as *const () as usize)
+    }
+}
+
+impl<T: PartialOrd + Internable> PartialOrd for Interned<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        <T as PartialOrd>::partial_cmp(&self.arc, &other.arc)
+    }
+}
+
+impl<T: Ord + Internable> Ord for Interned<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        <T as Ord>::cmp(&self.arc, &other.arc)
+    }
+}
+
+impl<T> PartialOrd for List<T>
+where
+    T: PartialOrd,
+    [T]: Internable,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        <[T] as PartialOrd>::partial_cmp(&self.arc, &other.arc)
+    }
+}
+
+impl<T> Ord for List<T>
+where
+    T: Ord,
+    [T]: Internable,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        <[T] as Ord>::cmp(&self.arc, &other.arc)
     }
 }
 

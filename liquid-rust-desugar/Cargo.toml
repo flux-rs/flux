@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "liquid-rust-core"
+name = "liquid-rust-desugar"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,8 +9,8 @@ version = "0.1.0"
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
+liquid-rust-middle = { path = "../liquid-rust-middle" }
 liquid-rust-syntax = { path = "../liquid-rust-syntax" }
-quickscope = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

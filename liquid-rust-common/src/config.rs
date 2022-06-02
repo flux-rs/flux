@@ -39,6 +39,7 @@ pub struct Config {
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
     pub check_asserts: AssertBehavior,
+    pub dump_mir: bool,
 }
 
 pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
@@ -47,6 +48,7 @@ pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
+            .set_default("dump_mir", false)?
             .set_default("check_asserts", "assume")?
             .add_source(Environment::with_prefix("LR").ignore_empty(true))
             .build()?

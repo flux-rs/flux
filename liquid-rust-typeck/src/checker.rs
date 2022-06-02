@@ -12,38 +12,41 @@ use std::{
     iter,
 };
 
-use crate::{
-    constraint_gen::{ConstraintGen, Tag},
-    dbg,
-    global_env::GlobalEnv,
-    lowering::{self, LoweringCtxt},
-    pure_ctxt::{ConstraintBuilder, KVarStore, PureCtxt, Snapshot},
-    subst::Subst,
-    ty::{
-        self, BaseTy, BinOp, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred, RefKind,
-        Sort, Ty, TyKind, Var,
-    },
-    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
-};
 use itertools::Itertools;
-use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
-use liquid_rust_core::{
-    ir::{
-        self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
-        Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
-    },
-    ty as core,
-};
+
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::mir;
-use rustc_session::Session;
+use rustc_middle::mir as rustc_mir;
+
+use liquid_rust_common::{config::AssertBehavior, index::IndexVec};
+use liquid_rust_middle::{
+    global_env::GlobalEnv,
+    rustc::{
+        self,
+        mir::{
+            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
+            Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+        },
+    },
+    ty::{
+        self, fold::TypeFoldable, BaseTy, BinOp, BoundVar, Constr, Constrs, Expr, FnSig, Name,
+        Param, PolySig, Pred, RefKind, Sort, Ty, TyKind,
+    },
+};
+
+use crate::{
+    constraint_gen::{ConstraintGen, Tag},
+    dbg,
+    fixpoint::KVarStore,
+    param_infer,
+    refine_tree::{RefineCtxt, RefineTree, Snapshot},
+    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
+};
 
 pub struct Checker<'a, 'tcx, M> {
-    sess: &'a Session,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'tcx>,
@@ -62,11 +65,11 @@ pub trait Mode: Sized {
     where
         I: IntoIterator<Item = (Name, Sort)>;
 
-    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv;
+    fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
         ck: &mut Checker<Self>,
-        pcx: PureCtxt,
+        rcx: RefineCtxt,
         env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -85,6 +88,10 @@ pub struct Check<'a> {
     kvars: &'a mut KVarStore,
 }
 
+/// A 'Guard' describes extra "control" information that holds at the start
+/// of the successor basic block
+pub type Guard = Option<Expr>;
+
 impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
         genv: &'a GlobalEnv<'tcx>,
@@ -95,7 +102,6 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         mode: M,
     ) -> Self {
         Checker {
-            sess: genv.tcx.sess,
             genv,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
@@ -104,7 +110,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
             mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators,
-            queue: WorkQueue::with_none(body.basic_blocks.len(), dominators),
+            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
         }
     }
 }
@@ -116,9 +122,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
-            let mut constraint = ConstraintBuilder::new();
+            let mut refine_tree = RefineTree::new();
             let mut bb_envs = FxHashMap::default();
-            Checker::run(genv, &mut constraint, body, def_id, Inference { bb_envs: &mut bb_envs })?;
+            Checker::run(
+                genv,
+                &mut refine_tree,
+                body,
+                def_id,
+                Inference { bb_envs: &mut bb_envs },
+            )?;
 
             Ok(bb_envs)
         })
@@ -132,19 +144,19 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         def_id: DefId,
         kvars: &mut KVarStore,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
-    ) -> Result<ConstraintBuilder, ErrorReported> {
+    ) -> Result<RefineTree, ErrorReported> {
         dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
-            let mut constraint = ConstraintBuilder::new();
+            let mut refine_tree = RefineTree::new();
 
             Checker::run(
                 genv,
-                &mut constraint,
+                &mut refine_tree,
                 body,
                 def_id,
                 Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
             )?;
 
-            Ok(constraint)
+            Ok(refine_tree)
         })
     }
 }
@@ -152,19 +164,18 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
 impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
         genv: &'a GlobalEnv<'tcx>,
-        constraint: &mut ConstraintBuilder,
+        refine_tree: &mut RefineTree,
         body: &'a Body<'tcx>,
         def_id: DefId,
         mode: M,
     ) -> Result<(), ErrorReported> {
-        let fn_sig = genv.lookup_fn_sig(def_id);
+        let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let mut pcx = constraint.pure_context_at_root();
-        let subst = Subst::with_fresh_names(&mut pcx, fn_sig.params());
+        let fn_sig = genv
+            .lookup_fn_sig(def_id)
+            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
-        let fn_sig = subst.subst_fn_sig(fn_sig.value());
-
-        let env = Self::init(genv, &mut pcx, body, &fn_sig);
+        let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
         let mut ck = Checker::new(
@@ -176,49 +187,49 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             mode,
         );
 
-        ck.check_goto(pcx, env, None, START_BLOCK)?;
+        ck.check_goto(rcx, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut pcx = constraint.pure_context_at(snapshot).unwrap();
-
             if ck.visited.contains(bb) {
-                pcx.clear();
+                refine_tree.clear(snapshot);
                 ck.clear(bb);
             }
 
-            let mut env = ck.mode.enter_basic_block(&mut pcx, bb);
-            env.unpack(genv, &mut pcx);
-            ck.check_basic_block(pcx, env, bb)?;
+            let snapshot = ck.snapshot_at_dominator(bb);
+            let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
+            let mut env = ck.mode.enter_basic_block(&mut rcx, bb);
+            env.unpack(&mut rcx);
+            ck.check_basic_block(rcx, env, bb)?;
         }
 
         Ok(())
     }
 
-    fn init(genv: &GlobalEnv, pcx: &mut PureCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
+    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
         for constr in fn_sig.requires() {
             match constr {
                 ty::Constr::Type(path, ty) => {
-                    assert!(path.projection().is_empty());
-                    let ty = env.unpack_ty(genv, pcx, ty);
-                    env.alloc_with_ty(path.loc, ty);
+                    let loc = path.to_loc().unwrap();
+                    let ty = env.unpack_ty(rcx, ty);
+                    env.alloc_with_ty(loc, ty);
                 }
                 ty::Constr::Pred(e) => {
-                    pcx.push_pred(e.clone());
+                    rcx.assume_pred(e.clone());
                 }
             }
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-            let ty = env.unpack_ty(genv, pcx, ty);
+            let ty = env.unpack_ty(rcx, ty);
             env.alloc_with_ty(local, ty);
         }
 
         for local in body.vars_and_temps_iter() {
-            env.alloc(local, lowering::lower_layout(&body.local_decls[local].layout));
+            env.alloc(local);
         }
 
-        env.alloc(RETURN_PLACE, lowering::lower_layout(&body.local_decls[RETURN_PLACE].layout));
+        env.alloc(RETURN_PLACE);
         env
     }
 
@@ -235,41 +246,41 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_basic_block(
         &mut self,
-        mut pcx: PureCtxt,
+        mut rcx: RefineCtxt,
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result<(), ErrorReported> {
-        dbg::basic_block_start!(bb, pcx, env);
+        dbg::basic_block_start!(bb, rcx, env);
 
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
         for stmt in &data.statements {
-            dbg::statement!("start", stmt, pcx, env);
-            self.check_statement(&mut pcx, &mut env, stmt)?;
-            dbg::statement!("end", stmt, pcx, env);
+            dbg::statement!("start", stmt, rcx, env);
+            self.check_statement(&mut rcx, &mut env, stmt)?;
+            dbg::statement!("end", stmt, rcx, env);
         }
         if let Some(terminator) = &data.terminator {
-            dbg::terminator!("start", terminator, pcx, env);
-            let successors = self.check_terminator(&mut pcx, &mut env, terminator)?;
-            dbg::terminator!("end", terminator, pcx, env);
+            dbg::terminator!("start", terminator, rcx, env);
+            let successors = self.check_terminator(&mut rcx, &mut env, terminator)?;
+            dbg::terminator!("end", terminator, rcx, env);
 
-            self.snapshots[bb] = Some(pcx.snapshot());
-            self.check_successors(pcx, env, terminator.source_info, successors)?;
+            self.snapshots[bb] = Some(rcx.snapshot());
+            self.check_successors(rcx, env, terminator.source_info, successors)?;
         }
         Ok(())
     }
 
     fn check_statement(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         stmt: &Statement,
     ) -> Result<(), ErrorReported> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                let ty = self.check_rvalue(pcx, env, stmt.source_info, rvalue)?;
-                let ty = env.unpack_ty(self.genv, pcx, &ty);
-                env.write_place(self.genv, pcx, place, ty, Tag::Assign(stmt.source_info.span));
+                let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
+                let ty = env.unpack_ty(rcx, &ty);
+                env.write_place(self.genv, rcx, place, ty, Tag::Assign(stmt.source_info.span));
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double chould check here that the place is unfolded to
@@ -287,62 +298,72 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
+    /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
+    /// - `BasicBlock` "successors" of the current terminator, and
+    /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
+    ///    that is some predicate you can assume when checking the correspondnig successor.
     fn check_terminator(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         match &terminator.kind {
-            TerminatorKind::Return => self.check_ret(pcx, env),
-            TerminatorKind::Goto { target } => Ok(vec![(*target, None)]),
+            TerminatorKind::Return => self.check_ret(rcx, env),
+            TerminatorKind::Unreachable => Ok(vec![]),
+            TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.check_switch_int(pcx, env, discr, targets)
+                self.check_switch_int(rcx, env, discr, targets)
             }
             TerminatorKind::Call { func, substs, args, destination, .. } => {
                 let fn_sig = self.genv.lookup_fn_sig(*func);
                 let ret =
-                    self.check_call(pcx, env, terminator.source_info, fn_sig, substs, args)?;
+                    self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
                 if let Some((p, bb)) = destination {
-                    let ret = env.unpack_ty(self.genv, pcx, &ret);
-                    env.write_place(self.genv, pcx, p, ret, Tag::Call(terminator.source_info.span));
-                    Ok(vec![(*bb, None)])
+                    let ret = env.unpack_ty(rcx, &ret);
+                    env.write_place(self.genv, rcx, p, ret, Tag::Call(terminator.source_info.span));
+                    Ok(vec![(*bb, Guard::None)])
                 } else {
                     Ok(vec![])
                 }
             }
             TerminatorKind::Assert { cond, expected, target, msg } => {
-                self.check_assert(pcx, env, terminator.source_info, cond, *expected, *target, msg)
+                Ok(vec![(
+                    *target,
+                    self.check_assert(rcx, env, terminator.source_info, cond, *expected, msg),
+                )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let _ = env.move_place(self.genv, pcx, place);
-                Ok(vec![(*target, None)])
+                let _ = env.move_place(rcx, place);
+                Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
-                let ty = self.check_operand(pcx, env, value);
-                let ty = env.unpack_ty(self.genv, pcx, &ty);
+                let ty = self.check_operand(rcx, env, value);
+                let ty = env.unpack_ty(rcx, &ty);
                 env.write_place(
                     self.genv,
-                    pcx,
+                    rcx,
                     place,
                     ty,
                     Tag::Assign(terminator.source_info.span),
                 );
-                Ok(vec![(*target, None)])
+                Ok(vec![(*target, Guard::None)])
             }
-            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, None)]),
-            TerminatorKind::FalseUnwind { real_target, .. } => Ok(vec![(*real_target, None)]),
+            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
+            TerminatorKind::FalseUnwind { real_target, .. } => {
+                Ok(vec![(*real_target, Guard::None)])
+            }
             TerminatorKind::Resume => todo!("implement checking of cleanup code"),
         }
     }
 
     fn check_ret(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let ret_place_ty = env.lookup_place(self.genv, pcx, Place::RETURN);
-        let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Ret);
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
+        let ret_place_ty = env.lookup_place(rcx, Place::RETURN);
+        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
 
@@ -354,46 +375,48 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_call(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
         fn_sig: PolySig,
-        substs: &[core::Ty],
+        substs: &[rustc::ty::GenericArg],
         args: &[Operand],
     ) -> Result<Ty, ErrorReported> {
         let actuals = args
             .iter()
-            .map(|arg| self.check_operand(pcx, env, arg))
+            .map(|arg| self.check_operand(rcx, env, arg))
             .collect_vec();
 
-        let scope = pcx.scope();
-        let mut fresh_kvar =
-            |bty: &BaseTy| self.mode.fresh_kvar(&self.genv.sorts(bty), scope.iter());
+        let scope = rcx.scope();
+        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(bty.sorts(), scope.iter());
 
         // Infer substitution
-        let cx = LoweringCtxt::empty();
         let substs = substs
             .iter()
-            .map(|ty| cx.lower_ty(ty).fill_holes(&mut fresh_kvar))
+            .map(|arg| self.genv.refine_generic_arg(arg, &mut fresh_kvar))
             .collect_vec();
-        let mut subst = Subst::with_type_substs(&substs);
-        if subst
-            .infer_from_fn_call(self.genv, pcx, env, &actuals, &fn_sig)
-            .is_err()
-        {
-            self.sess
-                .emit_err(errors::ParamInferenceError { span: source_info.span });
-            return Err(ErrorReported);
+        let fn_sig = match param_infer::infer_from_fn_call(self.genv, rcx, env, &actuals, &fn_sig) {
+            Ok(exprs) => {
+                fn_sig
+                    .replace_bound_vars(&exprs)
+                    .replace_generic_types(&substs)
+            }
+            Err(_) => {
+                self.genv
+                    .tcx
+                    .sess
+                    .emit_err(errors::ParamInferenceError { span: source_info.span });
+                return Err(ErrorReported);
+            }
         };
-        let fn_sig = subst.subst_fn_sig(fn_sig.value());
 
         // Check preconditions
-        let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Call(source_info.span));
+        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Call(source_info.span));
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
             if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
-                env.weaken_ty_at_path(&mut gen, path, bound.clone());
+                env.weaken_ty_at_path(&mut gen, &path.expect_path(), bound.clone());
             } else {
                 gen.subtyping(&actual, formal);
             }
@@ -406,81 +429,69 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in fn_sig.ensures() {
             match constr {
                 Constr::Type(path, updated_ty) => {
-                    let updated_ty = env.unpack_ty(self.genv, pcx, updated_ty);
-                    env.update_path(path, updated_ty);
+                    let updated_ty = env.unpack_ty(rcx, updated_ty);
+                    env.update_path(&path.expect_path(), updated_ty);
                 }
-                Constr::Pred(e) => pcx.push_pred(e.clone()),
+                Constr::Pred(e) => rcx.assume_pred(e.clone()),
             }
         }
         Ok(fn_sig.ret().clone())
-
-        // let mut successors = vec![];
-        // if let Some((p, bb)) = destination {
-        //     let ret = env.unpack_ty(self.genv, pcx, fn_sig.ret());
-        //     env.write_place(self.genv, pcx, p, ret, Tag::Call(source_info.span));
-        //     successors.push((*bb, None));
-        // }
-        // Ok(successors)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn check_assert(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
         cond: &Operand,
         expected: bool,
-        target: BasicBlock,
         msg: &'static str,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let ty = self.check_operand(pcx, env, cond);
-        let pred = if let TyKind::Indexed(BaseTy::Bool, exprs) = ty.kind() {
+    ) -> Guard {
+        let ty = self.check_operand(rcx, env, cond);
+        let pred = if let TyKind::Indexed(BaseTy::Bool, indices) = ty.kind() {
             if expected {
-                exprs[0].clone()
+                indices[0].expr.clone()
             } else {
-                exprs[0].not()
+                indices[0].expr.not()
             }
         } else {
             unreachable!("unexpected ty `{ty:?}`")
         };
 
         match self.genv.check_asserts() {
-            AssertBehavior::Ignore => Ok(vec![(target, None)]),
-            AssertBehavior::Assume => Ok(vec![(target, Some(pred))]),
+            AssertBehavior::Ignore => None,
+            AssertBehavior::Assume => Some(pred),
             AssertBehavior::Check => {
-                let mut gen = ConstraintGen::new(
-                    self.genv,
-                    pcx.breadcrumb(),
-                    Tag::Assert(msg, source_info.span),
-                );
+                let mut gen =
+                    ConstraintGen::new(self.genv, rcx, Tag::Assert(msg, source_info.span));
                 gen.check_pred(pred.clone());
 
-                Ok(vec![(target, Some(pred))])
+                Some(pred)
             }
         }
     }
 
     fn check_switch_int(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         discr: &Operand,
-        targets: &mir::SwitchTargets,
-    ) -> Result<Vec<(BasicBlock, Option<Expr>)>, ErrorReported> {
-        let discr_ty = self.check_operand(pcx, env, discr);
+        targets: &rustc_mir::SwitchTargets,
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
+        let discr_ty = self.check_operand(rcx, env, discr);
         let mk = |bits| {
             match discr_ty.kind() {
-                TyKind::Indexed(BaseTy::Bool, exprs) => {
+                TyKind::Indexed(BaseTy::Bool, indices) => {
                     if bits == 0 {
-                        exprs[0].not()
+                        indices[0].expr.not()
                     } else {
-                        exprs[0].clone()
+                        indices[0].expr.clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), exprs) => {
-                    Expr::binary_op(BinOp::Eq, exprs[0].clone(), Expr::from_bits(bty, bits))
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), indices) => {
+                    Expr::binary_op(BinOp::Eq, indices[0].clone(), Expr::from_bits(bty, bits))
                 }
+                TyKind::Discr => Expr::tt(),
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
         };
@@ -494,7 +505,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .iter()
             .map(|(bits, _)| mk(bits).not())
             .reduce(|e1, e2| Expr::binary_op(BinOp::And, e1, e2));
-
+        let otherwise = match otherwise {
+            Some(p) => Some(p),
+            None => Guard::None,
+        };
         successors.push((targets.otherwise(), otherwise));
 
         Ok(successors)
@@ -502,86 +516,87 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_successors(
         &mut self,
-        mut pcx: PureCtxt,
+        mut rcx: RefineCtxt,
         env: TypeEnv,
         src_info: SourceInfo,
-        successors: Vec<(BasicBlock, Option<Expr>)>,
+        successors: Vec<(BasicBlock, Guard)>,
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
-            let mut pcx = pcx.breadcrumb();
+            let mut rcx = rcx.breadcrumb();
             let env = env.clone();
             if let Some(guard) = guard {
-                pcx.push_pred(guard);
+                rcx.assume_pred(guard);
             }
-            self.check_goto(pcx, env, Some(src_info), target)?;
+            self.check_goto(rcx, env, Some(src_info), target)?;
         }
         Ok(())
     }
 
     fn check_goto(
         &mut self,
-        pcx: PureCtxt,
+        rcx: RefineCtxt,
         env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            if M::check_goto_join_point(self, pcx, env, src_info, target) {
+            if M::check_goto_join_point(self, rcx, env, src_info, target) {
                 self.queue.insert(target);
             }
             Ok(())
         } else {
-            self.check_basic_block(pcx, env, target)
+            self.check_basic_block(rcx, env, target)
         }
     }
 
     fn check_rvalue(
         &mut self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
         rvalue: &Rvalue,
     ) -> Result<Ty, ErrorReported> {
         match rvalue {
-            Rvalue::Use(operand) => Ok(self.check_operand(pcx, env, operand)),
+            Rvalue::Use(operand) => Ok(self.check_operand(rcx, env, operand)),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                Ok(self.check_binary_op(pcx, env, source_info, *bin_op, op1, op2))
+                Ok(self.check_binary_op(rcx, env, source_info, *bin_op, op1, op2))
             }
-            Rvalue::MutRef(place) => Ok(env.borrow_mut(self.genv, pcx, place)),
-            Rvalue::ShrRef(place) => Ok(env.borrow_shr(self.genv, pcx, place)),
-            Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(pcx, env, *un_op, op)),
+            Rvalue::MutRef(place) => Ok(env.borrow_mut(rcx, place)),
+            Rvalue::ShrRef(place) => Ok(env.borrow_shr(rcx, place)),
+            Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
-                self.check_call(pcx, env, source_info, sig, substs, args)
+                self.check_call(rcx, env, source_info, sig, substs, args)
             }
+            Rvalue::Discriminant(_p) => Ok(Ty::discr()),
         }
     }
 
     fn check_binary_op(
         &self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
-        bin_op: ir::BinOp,
+        bin_op: mir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
-        let ty1 = self.check_operand(pcx, env, op1);
-        let ty2 = self.check_operand(pcx, env, op2);
+        let ty1 = self.check_operand(rcx, env, op1);
+        let ty2 = self.check_operand(rcx, env, op2);
 
         match bin_op {
-            ir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
-            ir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
-            ir::BinOp::Add => self.check_arith_op(pcx, source_info, BinOp::Add, &ty1, &ty2),
-            ir::BinOp::Sub => self.check_arith_op(pcx, source_info, BinOp::Sub, &ty1, &ty2),
-            ir::BinOp::Mul => self.check_arith_op(pcx, source_info, BinOp::Mul, &ty1, &ty2),
-            ir::BinOp::Div => self.check_arith_op(pcx, source_info, BinOp::Div, &ty1, &ty2),
-            ir::BinOp::Rem => self.check_rem(pcx, source_info, &ty1, &ty2),
-            ir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
-            ir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
-            ir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
-            ir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
-            ir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
+            mir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
+            mir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
+            mir::BinOp::Add => self.check_arith_op(rcx, source_info, BinOp::Add, &ty1, &ty2),
+            mir::BinOp::Sub => self.check_arith_op(rcx, source_info, BinOp::Sub, &ty1, &ty2),
+            mir::BinOp::Mul => self.check_arith_op(rcx, source_info, BinOp::Mul, &ty1, &ty2),
+            mir::BinOp::Div => self.check_arith_op(rcx, source_info, BinOp::Div, &ty1, &ty2),
+            mir::BinOp::Rem => self.check_rem(rcx, source_info, &ty1, &ty2),
+            mir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
+            mir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
+            mir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
+            mir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
+            mir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
         }
     }
 
@@ -601,17 +616,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 debug_assert_eq!(uint_ty1, uint_ty2);
                 Ty::exists(BaseTy::Uint(*uint_ty1), Pred::tt())
             }
-            (TyKind::Indexed(BaseTy::Bool, exprs1), TyKind::Indexed(BaseTy::Bool, exprs2)) => {
-                let e = Expr::binary_op(op, exprs1[0].clone(), exprs2[0].clone());
-                Ty::indexed(BaseTy::Bool, vec![e])
+            (TyKind::Indexed(BaseTy::Bool, indices1), TyKind::Indexed(BaseTy::Bool, indices2)) => {
+                let e = Expr::binary_op(op, indices1[0].expr.clone(), indices2[0].expr.clone());
+                Ty::indexed(BaseTy::Bool, vec![e.into()])
             }
             _ => unreachable!("non-boolean arguments to bitwise op: `{:?}` `{:?}`", ty1, ty2),
         }
     }
 
     // Rem is a special case due to differing semantics with negative numbers
-    fn check_rem(&self, pcx: &mut PureCtxt, source_info: SourceInfo, ty1: &Ty, ty2: &Ty) -> Ty {
-        let mut gen = ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Rem(source_info.span));
+    fn check_rem(&self, rcx: &mut RefineCtxt, source_info: SourceInfo, ty1: &Ty, ty2: &Ty) -> Ty {
+        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Rem(source_info.span));
         let ty = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), exprs1),
@@ -624,7 +639,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = Expr::binary_op(
                     BinOp::Eq,
-                    Var::Bound(0),
+                    Expr::bvar(BoundVar::NU),
                     Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()),
                 );
                 let guard = Expr::binary_op(
@@ -636,16 +651,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ty::exists(bty, pred)
             }
             (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), exprs1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), exprs2),
+                TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
+                TyKind::Indexed(BaseTy::Uint(uint_ty2), indices2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                let (e1, e2) = (&exprs1[0], &exprs2[0]);
+                let (e1, e2) = (&indices1[0].expr, &indices2[0].expr);
                 gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
                 Ty::indexed(
                     BaseTy::Uint(*uint_ty1),
-                    vec![Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone())],
+                    vec![Expr::binary_op(BinOp::Mod, e1.clone(), e2.clone()).into()],
                 )
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
@@ -656,7 +671,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_arith_op(
         &self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         source_info: SourceInfo,
         op: BinOp,
         ty1: &Ty,
@@ -664,18 +679,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Ty {
         let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Indexed(BaseTy::Int(int_ty1), exprs1),
-                TyKind::Indexed(BaseTy::Int(int_ty2), exprs2),
+                TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
+                TyKind::Indexed(BaseTy::Int(int_ty2), indices2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (BaseTy::Int(*int_ty1), exprs1[0].clone(), exprs2[0].clone())
+                (BaseTy::Int(*int_ty1), indices1[0].expr.clone(), indices2[0].expr.clone())
             }
             (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), exprs1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), exprs2),
+                TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
+                TyKind::Indexed(BaseTy::Uint(uint_ty2), indices2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (BaseTy::Uint(*uint_ty1), exprs1[0].clone(), exprs2[0].clone())
+                (BaseTy::Uint(*uint_ty1), indices1[0].expr.clone(), indices2[0].expr.clone())
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -684,28 +699,27 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
         if matches!(op, BinOp::Div) {
-            let mut gen =
-                ConstraintGen::new(self.genv, pcx.breadcrumb(), Tag::Div(source_info.span));
+            let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Div(source_info.span));
             gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
         }
-        Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2)])
+        Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2).into()])
     }
 
     fn check_cmp_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Indexed(BaseTy::Int(int_ty1), exprs1),
-                TyKind::Indexed(BaseTy::Int(int_ty2), exprs2),
+                TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
+                TyKind::Indexed(BaseTy::Int(int_ty2), indices2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (exprs1[0].clone(), exprs2[0].clone())
+                (indices1[0].expr.clone(), indices2[0].expr.clone())
             }
             (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), exprs1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), exprs2),
+                TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
+                TyKind::Indexed(BaseTy::Uint(uint_ty2), indices2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (exprs1[0].clone(), exprs2[0].clone())
+                (indices1[0].expr.clone(), indices2[0].expr.clone())
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -713,15 +727,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
-        Ty::indexed(BaseTy::Bool, vec![Expr::binary_op(op, e1, e2)])
+        Ty::indexed(BaseTy::Bool, vec![Expr::binary_op(op, e1, e2).into()])
     }
 
     fn check_eq(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
+            (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
                 debug_assert_eq!(bty1, bty2);
-                let e = Expr::binary_op(op, exprs1[0].clone(), exprs2[0].clone());
-                Ty::indexed(BaseTy::Bool, vec![e])
+                let e = Expr::binary_op(op, indices1[0].clone(), indices2[0].clone());
+                Ty::indexed(BaseTy::Bool, vec![e.into()])
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -733,25 +747,25 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn check_unary_op(
         &self,
-        pcx: &mut PureCtxt,
+        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        un_op: ir::UnOp,
+        un_op: mir::UnOp,
         op: &Operand,
     ) -> Ty {
-        let ty = self.check_operand(pcx, env, op);
+        let ty = self.check_operand(rcx, env, op);
         match un_op {
-            ir::UnOp::Not => {
+            mir::UnOp::Not => {
                 match ty.kind() {
-                    TyKind::Indexed(BaseTy::Bool, exprs) => {
-                        Ty::indexed(BaseTy::Bool, vec![exprs[0].not()])
+                    TyKind::Indexed(BaseTy::Bool, indices) => {
+                        Ty::indexed(BaseTy::Bool, vec![indices[0].expr.not().into()])
                     }
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
             }
-            ir::UnOp::Neg => {
+            mir::UnOp::Neg => {
                 match ty.kind() {
-                    TyKind::Indexed(BaseTy::Int(int_ty), exprs) => {
-                        Ty::indexed(BaseTy::Int(*int_ty), vec![exprs[0].neg()])
+                    TyKind::Indexed(BaseTy::Int(int_ty), indices) => {
+                        Ty::indexed(BaseTy::Int(*int_ty), vec![indices[0].expr.neg().into()])
                     }
                     TyKind::Float(float_ty) => Ty::float(*float_ty),
                     _ => unreachable!("incompatible type: `{:?}`", ty),
@@ -760,34 +774,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_operand(&self, pcx: &mut PureCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
+    fn check_operand(&self, rcx: &mut RefineCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(self.genv, pcx, p)
+                env.lookup_place(rcx, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(self.genv, pcx, p)
+                env.move_place(rcx, p)
             }
             Operand::Constant(c) => self.check_constant(c),
         };
-        env.unpack_ty(self.genv, pcx, &ty)
+        env.unpack_ty(rcx, &ty)
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
-                let e = Expr::constant(ty::Constant::from(*n));
-                Ty::indexed(BaseTy::Int(*int_ty), vec![e])
+                let idx = Expr::constant(ty::Constant::from(*n)).into();
+                Ty::indexed(BaseTy::Int(*int_ty), vec![idx])
             }
             Constant::Uint(n, uint_ty) => {
-                let e = Expr::constant(ty::Constant::from(*n));
-                Ty::indexed(BaseTy::Uint(*uint_ty), vec![e])
+                let idx = Expr::constant(ty::Constant::from(*n)).into();
+                Ty::indexed(BaseTy::Uint(*uint_ty), vec![idx])
             }
             Constant::Bool(b) => {
-                let e = Expr::constant(ty::Constant::from(*b));
-                Ty::indexed(BaseTy::Bool, vec![e])
+                let idx = Expr::constant(ty::Constant::from(*b)).into();
+                Ty::indexed(BaseTy::Bool, vec![idx])
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
@@ -802,13 +816,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 }
 
 impl Mode for Inference<'_> {
-    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].enter(pcx)
+    fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter(rcx)
     }
 
     fn check_goto_join_point(
         ck: &mut Checker<Inference>,
-        _pcx: PureCtxt,
+        _rcx: RefineCtxt,
         env: TypeEnv,
         _src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -820,7 +834,7 @@ impl Mode for Inference<'_> {
         let modified = match ck.mode.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
-                entry.insert(env.into_infer(ck.genv, scope));
+                entry.insert(env.into_infer(scope));
                 true
             }
         };
@@ -842,13 +856,13 @@ impl Mode for Inference<'_> {
 }
 
 impl Mode for Check<'_> {
-    fn enter_basic_block(&mut self, pcx: &mut PureCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].enter(pcx)
+    fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter(rcx)
     }
 
     fn check_goto_join_point(
         ck: &mut Checker<Check>,
-        mut pcx: PureCtxt,
+        mut rcx: RefineCtxt,
         env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -869,13 +883,13 @@ impl Mode for Check<'_> {
                 .bb_envs_infer
                 .remove(&target)
                 .unwrap()
-                .into_bb_env(ck.genv, fresh_kvar)
+                .into_bb_env(fresh_kvar)
         });
 
-        dbg::check_goto!(target, pcx, env, bb_env);
+        dbg::check_goto!(target, rcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        env.check_goto(ck.genv, &mut pcx, bb_env, tag);
+        env.check_goto(ck.genv, &mut rcx, bb_env, tag);
 
         first
     }
@@ -904,7 +918,7 @@ struct WorkQueue<'a> {
 }
 
 impl<'a> WorkQueue<'a> {
-    fn with_none(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
+    fn empty(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
         Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
     }
 

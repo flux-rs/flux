@@ -78,7 +78,10 @@ class Buff:
 
     def flush(self) -> None:
         max_len = max((len(line) for line in self.buffer if isinstance(line, str)), default=0)
-        rule_len = min(max_len, os.get_terminal_size().columns)
+        try:
+            rule_len = min(max_len, os.get_terminal_size().columns)
+        except OSError:
+            rule_len = max_len
         for line in self.buffer:
             if isinstance(line, Rule):
                 print(line.c * rule_len)
@@ -103,7 +106,7 @@ class Buff:
                 self.flush()
                 self.print()
                 self.print_bb_header(fields['bb'])
-                self.print_context(fields['pcx'], fields['env'])
+                self.print_context(fields['rcx'], fields['env'])
             elif fields['event'] == 'statement_start':
                 if fields['stmt'] == 'nop':
                     continue
@@ -111,23 +114,28 @@ class Buff:
             elif fields['event'] == 'statement_end':
                 if fields['stmt'] == 'nop':
                     continue
-                self.print_context(fields['pcx'], fields['env'])
+                self.print_context(fields['rcx'], fields['env'])
             elif fields['event'] == 'terminator_start':
                 self.print_terminator(fields['terminator'])
             elif fields['event'] == 'terminator_end':
-                self.print_context(fields['pcx'], fields['env'])
+                self.print_context(fields['rcx'], fields['env'])
                 self.print_rule()
             elif fields['event'] == 'check_goto':
                 self.print(f'goto {fields["target"]}')
-                self.print_context(fields['pcx'], fields['env'])
+                self.print()
+                self.print_context(fields['rcx'], fields['env'])
+                self.print('==>')
                 self.print(fields['bb_env'])
                 self.print_rule()
             elif fields['event'] == 'infer_goto_enter':
                 self.print(f'goto {fields["target"]}')
+                self.print()
                 # self.print(fields['scope'])
-                self.print(fields['env'])
                 self.print(fields['bb_env'])
+                self.print("⊓")
+                self.print(fields['env'])
             elif fields['event'] == 'infer_goto_exit':
+                self.print("=")
                 self.print(fields['bb_env'])
                 self.print_rule()
 
@@ -144,8 +152,8 @@ class Buff:
     def print_terminator(self, terminator: str) -> None:
         self.print(colorize(ansi.MAGENTA, terminator))
 
-    def print_context(self, pcx: str, env: str) -> None:
-        self.print(pcx)
+    def print_context(self, rcx: str, env: str) -> None:
+        self.print(rcx)
         self.print(env)
 
 

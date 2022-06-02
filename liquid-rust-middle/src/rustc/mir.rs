@@ -1,25 +1,31 @@
+//! A simplified version of rust mir.
+
 use std::fmt;
 
 use itertools::Itertools;
-use liquid_rust_common::index::{Idx, IndexVec};
+
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
-pub use rustc_middle::{
-    mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
-    ty::Variance,
-};
-
 use rustc_middle::{
     mir,
     ty::{FloatTy, IntTy, UintTy},
 };
+pub use rustc_middle::{
+    mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
+    ty::Variance,
+};
+use rustc_span::Span;
+use rustc_target::abi::VariantIdx;
 
-use crate::ty::{Layout, Ty, VariantIdx};
+use liquid_rust_common::index::{Idx, IndexVec};
+
+use super::ty::{GenericArg, Ty};
+use crate::intern::List;
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
     pub local_decls: IndexVec<Local, LocalDecl>,
-    pub mir: mir::Body<'tcx>,
+    pub(crate) rustc_mir: mir::Body<'tcx>,
 }
 
 #[derive(Debug)]
@@ -30,7 +36,7 @@ pub struct BasicBlockData {
 }
 
 pub struct LocalDecl {
-    pub layout: Layout,
+    pub ty: Ty,
     pub source_info: SourceInfo,
 }
 
@@ -44,7 +50,7 @@ pub enum TerminatorKind {
     Return,
     Call {
         func: DefId,
-        substs: Vec<Ty>,
+        substs: List<GenericArg>,
         args: Vec<Operand>,
         destination: Option<(Place, BasicBlock)>,
         cleanup: Option<BasicBlock>,
@@ -73,6 +79,7 @@ pub enum TerminatorKind {
         target: BasicBlock,
         msg: &'static str,
     },
+    Unreachable,
     FalseEdge {
         real_target: BasicBlock,
         imaginary_target: BasicBlock,
@@ -105,10 +112,11 @@ pub enum Rvalue {
     BinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
     Aggregate(AggregateKind, Vec<Operand>),
+    Discriminant(Place),
 }
 
 pub enum AggregateKind {
-    Adt(DefId, VariantIdx, Vec<Ty>),
+    Adt(DefId, VariantIdx, List<GenericArg>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -138,7 +146,7 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum PlaceElem {
     Deref,
     Field(Field),
@@ -155,34 +163,39 @@ pub enum Constant {
 
 pub enum FakeReadCause {
     ForLet(Option<DefId>),
+    ForMatchedPlace(Option<DefId>),
 }
 
 impl Body<'_> {
+    pub fn span(&self) -> Span {
+        self.rustc_mir.span
+    }
+
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.mir.arg_count + 1).map(Local::new)
+        (1..self.rustc_mir.arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.mir.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.rustc_mir.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
     pub fn reverse_postorder(&self) -> impl ExactSizeIterator<Item = BasicBlock> + '_ {
-        mir::traversal::reverse_postorder(&self.mir).map(|(bb, _)| bb)
+        mir::traversal::reverse_postorder(&self.rustc_mir).map(|(bb, _)| bb)
     }
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        self.mir.predecessors()[bb].len() > (if bb == START_BLOCK { 0 } else { 1 })
+        self.rustc_mir.predecessors()[bb].len() > (if bb == START_BLOCK { 0 } else { 1 })
     }
 
     #[inline]
     pub fn dominators(&self) -> Dominators<BasicBlock> {
-        self.mir.dominators()
+        self.rustc_mir.dominators()
     }
 
     #[inline]
@@ -252,6 +265,7 @@ impl fmt::Debug for Terminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
+            TerminatorKind::Unreachable => write!(f, "unreachable"),
             TerminatorKind::Call { func, substs: ty_subst, args, destination, cleanup } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
@@ -349,6 +363,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Use(op) => write!(f, "{:?}", op),
             Rvalue::MutRef(place) => write!(f, "&mut {:?}", place),
             Rvalue::ShrRef(place) => write!(f, "& {:?}", place),
+            Rvalue::Discriminant(place) => write!(f, "discriminant({:?})", place),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
             Rvalue::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
@@ -356,12 +371,16 @@ impl fmt::Debug for Rvalue {
                     let path = tcx.def_path(*def_id);
                     path.data.iter().join("::")
                 });
-                write!(
-                    f,
-                    "{fname}::{variant_idx:?}::<{:?}>({:?})",
-                    substs.iter().format(","),
-                    args.iter().format(",")
-                )
+                if substs.is_empty() {
+                    write!(f, "{fname}::{variant_idx:?}({:?})", args.iter().format(", "))
+                } else {
+                    write!(
+                        f,
+                        "{fname}::{variant_idx:?}::<{:?}>({:?})",
+                        substs.iter().format(", "),
+                        args.iter().format(", ")
+                    )
+                }
             }
         }
     }
@@ -393,6 +412,7 @@ impl fmt::Debug for FakeReadCause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FakeReadCause::ForLet(def_id) => write!(f, "ForLet({def_id:?})"),
+            FakeReadCause::ForMatchedPlace(def_id) => write!(f, "ForMatchedPlace({def_id:?})"),
         }
     }
 }

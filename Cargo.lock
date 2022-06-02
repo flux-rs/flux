@@ -76,16 +76,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
-name = "bigint"
-version = "4.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0e8c8a600052b52482eff2cf4d810e462fdff1f656ac1ecb6232132a1ed7def"
-dependencies = [
- "byteorder",
- "crunchy 0.1.6",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -185,12 +175,6 @@ dependencies = [
  "toml",
  "yaml-rust",
 ]
-
-[[package]]
-name = "crunchy"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
 
 [[package]]
 name = "crunchy"
@@ -337,15 +321,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
-name = "hashconsing"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cadaaa615e5e3d8922f42bde3b8e90df6f967f484d38b7be770f548e5d8d8654"
-dependencies = [
- "lazy_static",
-]
-
-[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,21 +439,20 @@ name = "liquid-rust-common"
 version = "0.1.0"
 dependencies = [
  "config",
- "itertools",
  "once_cell",
  "serde",
  "toml",
 ]
 
 [[package]]
-name = "liquid-rust-core"
+name = "liquid-rust-desugar"
 version = "0.1.0"
 dependencies = [
  "itertools",
  "liquid-rust-common",
  "liquid-rust-fixpoint",
+ "liquid-rust-middle",
  "liquid-rust-syntax",
- "quickscope",
 ]
 
 [[package]]
@@ -487,22 +461,31 @@ version = "0.1.0"
 dependencies = [
  "itertools",
  "liquid-rust-common",
- "liquid-rust-core",
+ "liquid-rust-desugar",
  "liquid-rust-fixpoint",
+ "liquid-rust-middle",
  "liquid-rust-syntax",
  "liquid-rust-typeck",
- "quickscope",
 ]
 
 [[package]]
 name = "liquid-rust-fixpoint"
 version = "0.1.0"
 dependencies = [
- "bigint",
  "itertools",
  "liquid-rust-common",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "liquid-rust-middle"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "itertools",
+ "liquid-rust-common",
+ "liquid-rust-fixpoint",
 ]
 
 [[package]]
@@ -511,7 +494,6 @@ version = "0.1.0"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
- "liquid-rust-common",
 ]
 
 [[package]]
@@ -526,14 +508,10 @@ dependencies = [
 name = "liquid-rust-typeck"
 version = "0.1.0"
 dependencies = [
- "dashmap",
- "hashconsing",
  "itertools",
  "liquid-rust-common",
- "liquid-rust-core",
  "liquid-rust-fixpoint",
- "liquid-rust-syntax",
- "quickscope",
+ "liquid-rust-middle",
  "tracing",
 ]
 
@@ -755,16 +733,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edc3358ebc67bc8b7fa0c007f945b0b18226f78437d61bec735a9eb96b61ee70"
 dependencies = [
  "unicode-xid",
-]
-
-[[package]]
-name = "quickscope"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56957ce87bc2e87b571220844dad33f458a295c3a134b524e900f2ab74858be6"
-dependencies = [
- "indexmap",
- "smallvec",
 ]
 
 [[package]]
@@ -1020,7 +988,7 @@ version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
 dependencies = [
- "crunchy 0.2.2",
+ "crunchy",
 ]
 
 [[package]]

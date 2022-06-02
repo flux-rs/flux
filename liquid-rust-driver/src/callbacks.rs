@@ -1,7 +1,3 @@
-use liquid_rust_common::iter::IterExt;
-use liquid_rust_core::desugar;
-use liquid_rust_syntax::{self as syntax, surface};
-use liquid_rust_typeck::{self as typeck, global_env::GlobalEnv, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorReported;
 use rustc_hash::FxHashSet;
@@ -12,7 +8,13 @@ use rustc_middle::ty::{
     TyCtxt, WithOptConstParam,
 };
 
-use crate::{collector::SpecCollector, lowering::LoweringCtxt, mir_storage};
+use liquid_rust_common::iter::IterExt;
+use liquid_rust_desugar as desugar;
+use liquid_rust_middle::{global_env::GlobalEnv, rustc, ty};
+use liquid_rust_syntax::surface;
+use liquid_rust_typeck::{self as typeck, wf::Wf};
+
+use crate::{collector::SpecCollector, mir_storage};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
@@ -57,7 +59,7 @@ fn check_crate(tcx: TyCtxt) -> Result<(), ErrorReported> {
 
 struct CrateChecker<'tcx> {
     genv: GlobalEnv<'tcx>,
-    qualifiers: Vec<typeck::ty::Qualifier>,
+    qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
     error_reported: bool,
 }
@@ -91,13 +93,13 @@ impl<'tcx> CrateChecker<'tcx> {
         })?;
 
         // Qualifiers
-        let qualifiers: Vec<typeck::ty::Qualifier> = specs
+        let qualifiers: Vec<ty::Qualifier> = specs
             .qualifs
             .into_iter()
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(sess, qualifier)?;
                 Wf::new(sess, &genv).check_qualifier(&qualifier)?;
-                Ok(typeck::lowering::LoweringCtxt::lower_qualifer(&qualifier))
+                Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
             })
             .try_collect_exhaust()?;
 
@@ -113,9 +115,7 @@ impl<'tcx> CrateChecker<'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let mut resolver = syntax::resolve::Resolver::from_adt(tcx, def_id)?;
-                let struct_def = resolver.resolve_struct_def(struct_def)?;
-                let adt_def = desugar::desugar_struct_def(sess, struct_def)?;
+                let adt_def = desugar::desugar_struct_def(tcx, struct_def)?;
                 Wf::new(sess, &genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())
@@ -142,9 +142,7 @@ impl<'tcx> CrateChecker<'tcx> {
                 }
                 if let Some(fn_sig) = spec.fn_sig {
                     let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                    let default_sig = surface::default_fn_sig(tcx, def_id.to_def_id());
-                    let fn_sig = surface::zip::zip_bare_def(fn_sig, default_sig);
-                    let fn_sig = desugar::desugar_fn_sig(sess, &genv, fn_sig)?;
+                    let fn_sig = desugar::desugar_fn_sig(tcx, &genv, def_id.to_def_id(), fn_sig)?;
                     Wf::new(sess, &genv).check_fn_sig(&fn_sig)?;
                     genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                 }
@@ -159,18 +157,19 @@ impl<'tcx> CrateChecker<'tcx> {
             return Ok(());
         }
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
-        // {
-        //     let mut w = std::io::BufWriter::new(std::io::stdout());
-        //     rustc_middle::mir::pretty::write_mir_fn(
-        //         self.genv.tcx,
-        //         &mir,
-        //         &mut |_, _| Ok(()),
-        //         &mut w,
-        //     )
-        //     .unwrap();
-        // }
 
-        let body = LoweringCtxt::lower(self.genv.tcx, mir)?;
+        if liquid_rust_common::config::CONFIG.dump_mir {
+            let mut w = std::io::BufWriter::new(std::io::stdout());
+            rustc_middle::mir::pretty::write_mir_fn(
+                self.genv.tcx,
+                &mir,
+                &mut |_, _| Ok(()),
+                &mut w,
+            )
+            .unwrap();
+        }
+
+        let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
         typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
 }

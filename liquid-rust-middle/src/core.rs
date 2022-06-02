@@ -1,26 +1,35 @@
+//! "Core" (desugared) version of level liquid annotations. The main difference with
+//! the surface syntax is that the list of refinement parameters is explicit in `core`.
+//! For example, the signature `fn(x: &strg i32[@n]) -> (); x: i32[@n + 1]` desugars to
+//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) -> (); l: i32[n + 1]`.
+
 use core::fmt;
 use std::fmt::Write;
 
 use itertools::Itertools;
 use liquid_rust_common::{format::PadAdapter, index::IndexVec};
-use liquid_rust_syntax::surface;
-pub use liquid_rust_syntax::surface::{BinOp, RefKind};
+pub use liquid_rust_fixpoint::BinOp;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::desugar;
-
 pub trait AdtSortsMap {
     fn get(&self, def_id: DefId) -> Option<&[Sort]>;
 }
 
 #[derive(Debug)]
-pub enum AdtDef {
-    Transparent { refined_by: Vec<Param>, variants: IndexVec<VariantIdx, VariantDef> },
-    Opaque { refined_by: Vec<Param> },
+pub struct AdtDef {
+    pub def_id: DefId,
+    pub kind: AdtDefKind,
+    pub refined_by: Vec<Param>,
+}
+
+#[derive(Debug)]
+pub enum AdtDefKind {
+    Transparent { variants: Option<IndexVec<VariantIdx, Option<VariantDef>>> },
+    Opaque,
 }
 
 #[derive(Debug)]
@@ -57,8 +66,14 @@ pub struct Qualifier {
 }
 
 pub enum Ty {
+    /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
+    /// technically need this variant, but we keep it around to simplify desugaring.
+    BaseTy(BaseTy),
     Indexed(BaseTy, Indices),
-    Exists(BaseTy, Pred),
+    /// Existential types in core are represented with an explicit list of binders for
+    /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
+    /// for two indices. (there's currently no equivalent surface syntax).
+    Exists(BaseTy, Vec<Ident>, Expr),
     Float(FloatTy),
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
@@ -67,27 +82,22 @@ pub enum Ty {
     Never,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Layout {
-    Bool,
-    Int(IntTy),
-    Uint(UintTy),
-    Float(FloatTy),
-    Adt(DefId),
-    Ref,
-    Param,
-    Tuple(Vec<Layout>),
-    Never,
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum RefKind {
+    Shr,
+    Mut,
 }
 
 pub struct Indices {
-    pub exprs: Vec<Expr>,
+    pub indices: Vec<Index>,
     pub span: Span,
 }
 
-pub enum Pred {
-    Hole,
-    Expr(Expr),
+pub struct Index {
+    pub expr: Expr,
+    /// Whether this index was used as a binder in the surface syntax. Used as a hint for inferring
+    /// parameters at function calls.
+    pub is_binder: bool,
 }
 
 pub enum BaseTy {
@@ -115,17 +125,10 @@ pub struct Expr {
     pub span: Option<Span>,
 }
 
-#[derive(Debug)]
 pub enum ExprKind {
-    Var(Var, Symbol, Span),
+    Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
-}
-
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum Var {
-    Bound(u32),
-    Free(Name),
 }
 
 #[derive(Clone, Copy)]
@@ -146,13 +149,6 @@ newtype_index! {
     }
 }
 
-impl Ty {
-    pub fn default(tcx: rustc_middle::ty::TyCtxt, ty: rustc_middle::ty::Ty) -> Ty {
-        let ty = surface::default_ty(ty);
-        desugar::desugar_ty(tcx.sess, ty).expect("failed to desugar default type")
-    }
-}
-
 impl BaseTy {
     /// Returns `true` if the base ty is [`Bool`].
     ///
@@ -166,50 +162,13 @@ impl Expr {
     pub const TRUE: Expr = Expr { kind: ExprKind::Literal(Lit::TRUE), span: None };
 }
 
-impl Pred {
-    pub const TRUE: Pred = Pred::Expr(Expr::TRUE);
-}
-
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
 impl AdtDef {
-    pub fn default(tcx: rustc_middle::ty::TyCtxt, struct_def: &rustc_middle::ty::AdtDef) -> AdtDef {
-        let variants = struct_def
-            .variants
-            .iter()
-            .map(|variant| VariantDef::default(tcx, variant))
-            .collect();
-        AdtDef::Transparent { refined_by: vec![], variants }
-    }
-
-    pub fn refined_by(&self) -> &[Param] {
-        match self {
-            Self::Transparent { refined_by, .. } | Self::Opaque { refined_by } => refined_by,
-        }
-    }
-
     pub fn sorts(&self) -> Vec<Sort> {
-        self.refined_by().iter().map(|param| param.sort).collect()
-    }
-}
-
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>) -> Self {
-        Self { fields }
-    }
-
-    pub fn default(
-        tcx: rustc_middle::ty::TyCtxt,
-        variant_def: &rustc_middle::ty::VariantDef,
-    ) -> VariantDef {
-        let fields = variant_def
-            .fields
-            .iter()
-            .map(|field| Ty::default(tcx, tcx.type_of(field.did)))
-            .collect();
-        VariantDef { fields }
+        self.refined_by.iter().map(|param| param.sort).collect()
     }
 }
 
@@ -270,9 +229,10 @@ impl fmt::Debug for Constr {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Ty::BaseTy(bty) => write!(f, "{bty:?}"),
             Ty::Indexed(bty, e) => fmt_bty(bty, Some(e), f),
-            Ty::Exists(bty, p) => {
-                write!(f, "{bty:?}{{{p:?}}}")
+            Ty::Exists(bty, binders, p) => {
+                write!(f, "{bty:?}{{{binders:?} : {p:?}}}")
             }
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
@@ -325,16 +285,16 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt
 
 impl fmt::Debug for Indices {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{{:?}}}", self.exprs.iter().format(", "))
+        write!(f, "[{:?}]", self.indices.iter().format(", "))
     }
 }
 
-impl fmt::Debug for Pred {
+impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Hole => write!(f, "Infer"),
-            Self::Expr(e) => write!(f, "{e:?}"),
+        if self.is_binder {
+            write!(f, "@")?;
         }
+        write!(f, "{:?}", self.expr)
     }
 }
 
@@ -359,15 +319,6 @@ impl fmt::Debug for Lit {
         match self {
             Lit::Int(i) => write!(f, "{i}"),
             Lit::Bool(b) => write!(f, "{b}"),
-        }
-    }
-}
-
-impl fmt::Debug for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Var::Bound(idx) => write!(f, "ν{idx}"),
-            Var::Free(name) => write!(f, "{name:?}"),
         }
     }
 }

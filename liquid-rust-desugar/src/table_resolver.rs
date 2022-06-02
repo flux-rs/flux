@@ -7,7 +7,7 @@ use rustc_middle::ty::{ParamTy, TyCtxt};
 use rustc_session::Session;
 use rustc_span::Symbol;
 
-use crate::surface::{self, Ident, Path, Res, Ty};
+use liquid_rust_syntax::surface::{self, Ident, Path, Res, Ty};
 
 pub struct Resolver<'tcx> {
     sess: &'tcx Session,
@@ -20,6 +20,7 @@ struct NameResTable {
 }
 
 impl<'tcx> Resolver<'tcx> {
+    #[allow(dead_code)]
     pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
         let mut table = NameResTable::new();
 
@@ -61,17 +62,23 @@ impl<'tcx> Resolver<'tcx> {
 
     pub fn resolve_struct_def(
         &mut self,
-        spec: surface::StructDef,
+        struct_def: surface::StructDef,
     ) -> Result<surface::StructDef<Res>, ErrorReported> {
-        let fields = spec
+        let fields = struct_def
             .fields
             .into_iter()
             .map(|ty| ty.map(|ty| self.resolve_ty(ty)).transpose())
             .try_collect_exhaust()?;
 
-        Ok(surface::StructDef { refined_by: spec.refined_by, fields, opaque: spec.opaque })
+        Ok(surface::StructDef {
+            def_id: struct_def.def_id,
+            refined_by: struct_def.refined_by,
+            fields,
+            opaque: struct_def.opaque,
+        })
     }
 
+    #[allow(dead_code)]
     pub fn resolve_fn_sig(
         &mut self,
         fn_sig: surface::FnSig,
@@ -312,7 +319,7 @@ impl NameResTable {
 }
 
 mod errors {
-    use crate::surface;
+    use liquid_rust_syntax::surface;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 

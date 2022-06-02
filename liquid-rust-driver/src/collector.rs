@@ -125,7 +125,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .structs
-            .insert(def_id, surface::StructDef { refined_by, fields, opaque });
+            .insert(def_id, surface::StructDef { def_id, refined_by, fields, opaque });
 
         Ok(())
     }

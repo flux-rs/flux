@@ -1,6 +1,6 @@
-unstable_features = true
-imports_granularity = "Crate"
-use_small_heuristics = "Max"
 chain_width = 60
 force_multiline_blocks = true
+imports_granularity = "Crate"
+unstable_features = true
 use_field_init_shorthand = true
+use_small_heuristics = "Max"

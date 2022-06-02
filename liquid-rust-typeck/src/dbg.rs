@@ -20,32 +20,32 @@ pub use crate::_check_span as check_span;
 
 #[macro_export]
 macro_rules! _basic_block_start {
-    ($bb:expr, $pcx:expr, $env:expr) => {{
-        tracing::debug!(event = "basic_block_start", bb = ?$bb, pcx = ?$pcx, env = ?$env)
+    ($bb:expr, $rcx:expr, $env:expr) => {{
+        tracing::debug!(event = "basic_block_start", bb = ?$bb, rcx = ?$rcx, env = ?$env)
     }};
 }
 pub use crate::_basic_block_start as basic_block_start;
 
 #[macro_export]
 macro_rules! _statement{
-    ($pos:literal, $stmt:expr, $pcx:expr, $env:expr) => {{
-        tracing::debug!(event = concat!("statement_", $pos), stmt = ?$stmt, pcx = ?$pcx, env = ?$env)
+    ($pos:literal, $stmt:expr, $rcx:expr, $env:expr) => {{
+        tracing::debug!(event = concat!("statement_", $pos), stmt = ?$stmt, rcx = ?$rcx, env = ?$env)
     }};
 }
 pub use crate::_statement as statement;
 
 #[macro_export]
 macro_rules! _terminator{
-    ($pos:literal, $terminator:expr, $pcx:expr, $env:expr) => {{
-        tracing::debug!(event = concat!("terminator_", $pos), terminator = ?$terminator, pcx = ?$pcx, env = ?$env)
+    ($pos:literal, $terminator:expr, $rcx:expr, $env:expr) => {{
+        tracing::debug!(event = concat!("terminator_", $pos), terminator = ?$terminator, rcx = ?$rcx, env = ?$env)
     }};
 }
 pub use crate::_terminator as terminator;
 
 #[macro_export]
 macro_rules! _check_goto {
-    ($target:expr, $pcx:expr, $env:expr, $bb_env:expr) => {{
-        tracing::debug!(event = "check_goto", target = ?$target, pcx = ?$pcx, env = ?$env, bb_env = ?$bb_env)
+    ($target:expr, $rcx:expr, $env:expr, $bb_env:expr) => {{
+        tracing::debug!(event = "check_goto", target = ?$target, rcx = ?$rcx, env = ?$env, bb_env = ?$bb_env)
     }};
 }
 pub use crate::_check_goto as check_goto;
