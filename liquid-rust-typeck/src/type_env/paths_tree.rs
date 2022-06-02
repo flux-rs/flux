@@ -305,7 +305,7 @@ impl Node {
                     .collect();
                 *self = Node::Adt(adt_def.clone(), variant_idx, fields);
             } else {
-                panic!("type cannot be downcasted")
+                panic!("type cannot be downcasted: `{ty:?}`")
             }
         }
         match self {

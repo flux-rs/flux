@@ -86,7 +86,7 @@ pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, List<Index>),
     Exists(BaseTy, Binders<Pred>),
@@ -599,6 +599,7 @@ impl ExprS {
         matches!(
             self.kind,
             ExprKind::FreeVar(_)
+                | ExprKind::Local(_)
                 | ExprKind::BoundVar(_)
                 | ExprKind::Constant(_)
                 | ExprKind::UnaryOp(..)
@@ -939,7 +940,7 @@ mod pretty {
                 TyKind::Indexed(bty, indices) => fmt_bty(bty, indices, cx, f),
                 TyKind::Exists(bty, pred) => {
                     if pred.is_true() {
-                        w!("{:?}", bty)
+                        w!("{:?}{{}}", bty)
                     } else {
                         w!("{:?}{{{:?}}}", bty, &pred.value)
                     }
@@ -1208,5 +1209,6 @@ mod pretty {
         KVar,
         BoundVar,
         FnSig,
+        Index,
     );
 }
