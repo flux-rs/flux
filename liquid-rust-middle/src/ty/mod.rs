@@ -507,6 +507,13 @@ impl Expr {
             .clone()
     }
 
+    pub fn and(exprs: impl IntoIterator<Item = Expr>) -> Expr {
+        exprs
+            .into_iter()
+            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
+            .unwrap_or_else(Expr::tt)
+    }
+
     pub fn zero() -> Expr {
         static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
         ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
@@ -583,6 +590,7 @@ impl ExprS {
         &self.kind
     }
 
+    /// Whether the expression is literally the constant true.
     pub fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
@@ -607,14 +615,28 @@ impl ExprS {
             ExprKind::BoundVar(idx) => Expr::bvar(*idx),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::BinaryOp(op, e1, e2) => Expr::binary_op(*op, e1.simplify(), e2.simplify()),
-            ExprKind::UnaryOp(UnOp::Not, e) => {
-                match e.kind() {
-                    ExprKind::UnaryOp(UnOp::Not, e) => e.simplify(),
-                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                        Expr::binary_op(BinOp::Ne, e1.simplify(), e2.simplify())
+            ExprKind::BinaryOp(op, e1, e2) => {
+                let e1 = e1.simplify();
+                let e2 = e2.simplify();
+                match (op, e1.kind(), e2.kind()) {
+                    (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _)
+                    | (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
+                        Expr::constant(Constant::Bool(false))
                     }
-                    _ => Expr::unary_op(UnOp::Not, e.simplify()),
+                    (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
+                    (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
+                    _ => Expr::binary_op(*op, e1, e2),
+                }
+            }
+            ExprKind::UnaryOp(UnOp::Not, e) => {
+                let e = e.simplify();
+                match e.kind() {
+                    ExprKind::Constant(Constant::Bool(b)) => Expr::constant(Constant::Bool(!b)),
+                    ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
+                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
+                        Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone())
+                    }
+                    _ => Expr::unary_op(UnOp::Not, e),
                 }
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.simplify()),
