@@ -7,9 +7,7 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::{index::IndexVec, iter::IterExt};
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{
-        subst::FVarSubst, AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx,
-    },
+    ty::{AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
 use crate::{param_infer, refine_tree::RefineCtxt};
@@ -93,28 +91,6 @@ impl PathsTree {
 
     pub fn paths(&self) -> impl Iterator<Item = Path> + '_ {
         self.iter().map(|(path, _)| path)
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Path, &mut Ty)> {
-        self.map
-            .iter_mut()
-            .flat_map(|(loc, node)| PathsIterMut::new(*loc, node))
-    }
-
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Ty> {
-        self.iter_mut().map(|(_, ty)| ty)
-    }
-
-    pub fn subst(self, subst: &FVarSubst) -> Self {
-        let map = self
-            .map
-            .into_iter()
-            .map(|(loc, mut node)| {
-                node.subst_mut(subst);
-                (subst.subst_loc(loc), node)
-            })
-            .collect();
-        PathsTree { map }
     }
 
     pub fn unfold_with(&mut self, other: &mut PathsTree) {
@@ -221,6 +197,20 @@ impl PathsTree {
             }
         }
         LookupResult::Ref(mode, ty)
+    }
+
+    #[must_use]
+    pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> PathsTree {
+        let mut tree = self.clone();
+        tree.fmap_mut(f);
+        tree
+    }
+
+    pub fn fmap_mut(&mut self, mut f: impl FnMut(&Ty) -> Ty) {
+        let f = &mut f;
+        for node in self.map.values_mut() {
+            node.fmap_mut(f);
+        }
     }
 }
 
@@ -366,12 +356,12 @@ impl Node {
         }
     }
 
-    fn subst_mut(&mut self, subst: &FVarSubst) {
+    fn fmap_mut(&mut self, f: &mut impl FnMut(&Ty) -> Ty) {
         match self {
-            Node::Ty(ty) => *ty = subst.apply(ty),
+            Node::Ty(ty) => *ty = f(ty),
             Node::Adt(.., fields) => {
-                for field in fields.iter_mut() {
-                    field.subst_mut(subst);
+                for field in fields {
+                    field.fmap_mut(f);
                 }
             }
         }
@@ -472,58 +462,25 @@ impl<'a> Iterator for PathsIter<'a> {
     }
 }
 
-enum PathsIterMut<'a> {
-    Adt {
-        stack: Vec<std::iter::Enumerate<std::slice::IterMut<'a, Node>>>,
-        loc: Loc,
-        projection: Vec<Field>,
-    },
-    Ty(Option<(Loc, &'a mut Ty)>),
-}
+mod pretty {
+    use super::*;
+    use itertools::Itertools;
+    use liquid_rust_middle::pretty::*;
+    use std::fmt;
 
-impl<'a> PathsIterMut<'a> {
-    fn new(loc: Loc, root: &'a mut Node) -> Self {
-        match root {
-            Node::Ty(ty) => PathsIterMut::Ty(Some((loc, ty))),
-            Node::Adt(.., fields) => {
-                PathsIterMut::Adt {
-                    loc,
-                    projection: vec![],
-                    stack: vec![fields.iter_mut().enumerate()],
-                }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for PathsIterMut<'a> {
-    type Item = (Path, &'a mut Ty);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            PathsIterMut::Adt { stack, loc, projection } => {
-                while let Some(top) = stack.last_mut() {
-                    if let Some((i, node)) = top.next() {
-                        match node {
-                            Node::Adt(.., fields) => {
-                                projection.push(Field::from(i));
-                                stack.push(fields.iter_mut().enumerate());
-                            }
-                            Node::Ty(ty) => {
-                                projection.push(Field::from(i));
-                                let path = Path::new(*loc, projection.as_slice());
-                                projection.pop();
-                                return Some((path, ty));
-                            }
-                        }
-                    } else {
-                        projection.pop();
-                        stack.pop();
-                    }
-                }
-                None
-            }
-            PathsIterMut::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
+    impl Pretty for PathsTree {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            let bindings = self
+                .iter()
+                .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
+                .collect_vec();
+            w!(
+                "{{{}}}",
+                ^bindings
+                    .into_iter()
+                    .format_with(", ", |(loc, ty), f| f(&format_args_cx!("{:?}: {:?}", loc, ty)))
+            )
         }
     }
 }
