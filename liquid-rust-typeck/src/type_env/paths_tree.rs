@@ -36,31 +36,31 @@ impl PathsTree {
         self.lookup_place_iter(rcx, Loc::Local(place.local), &mut place.projection.iter())
     }
 
-    pub fn get(&self, path: &Path) -> Option<&Ty> {
-        let mut node = self.map.get(&path.loc)?;
+    pub fn get(&self, path: &Path) -> Ty {
+        let mut node = self.map.get(&path.loc).unwrap();
         for f in path.projection() {
             match node {
-                Node::Ty(_) => return None,
+                Node::Ty(_) => panic!("expected `Node::Adt`"),
                 Node::Adt(.., fields) => node = &fields[*f],
             }
         }
         match node {
-            Node::Ty(ty) => Some(ty),
-            Node::Adt(..) => None,
+            Node::Ty(ty) => ty.clone(),
+            Node::Adt(..) => panic!("expcted `Node::Ty`"),
         }
     }
 
-    pub fn get_mut(&mut self, path: &Path) -> Option<&mut Ty> {
-        let mut node = self.map.get_mut(&path.loc)?;
+    pub fn update(&mut self, path: &Path, new_ty: Ty) {
+        let mut node = self.map.get_mut(&path.loc).unwrap();
         for f in path.projection() {
             match node {
-                Node::Ty(_) => return None,
+                Node::Ty(_) => panic!("expected `Node::Adt"),
                 Node::Adt(.., fields) => node = &mut fields[*f],
             }
         }
         match node {
-            Node::Ty(ty) => Some(ty),
-            Node::Adt(..) => None,
+            Node::Ty(ty) => *ty = new_ty,
+            Node::Adt(..) => panic!("expected `Node::Ty`"),
         }
     }
 
@@ -195,46 +195,6 @@ impl PathsTree {
         let f = &mut f;
         for node in self.map.values_mut() {
             node.fmap_mut(f);
-        }
-    }
-}
-
-impl<'a> std::ops::Index<&'a Path> for PathsTree {
-    type Output = Ty;
-
-    fn index(&self, path: &'a Path) -> &Self::Output {
-        match self.get(path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
-impl std::ops::Index<Path> for PathsTree {
-    type Output = Ty;
-
-    fn index(&self, path: Path) -> &Self::Output {
-        match self.get(&path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
-impl<'a> std::ops::IndexMut<&'a Path> for PathsTree {
-    fn index_mut(&mut self, path: &'a Path) -> &mut Self::Output {
-        match self.get_mut(path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
-impl std::ops::IndexMut<Path> for PathsTree {
-    fn index_mut(&mut self, path: Path) -> &mut Self::Output {
-        match self.get_mut(&path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
         }
     }
 }
