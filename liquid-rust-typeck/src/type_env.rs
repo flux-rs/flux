@@ -71,8 +71,7 @@ impl TypeEnv {
 
     #[track_caller]
     pub fn lookup_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
-        self.bindings
-            .lookup_place(rcx, place, |_, result| result.ty())
+        self.bindings.lookup_place(rcx, place).ty()
     }
 
     #[track_caller]
@@ -87,20 +86,18 @@ impl TypeEnv {
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
     pub fn borrow_mut(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
-        self.bindings.lookup_place(rcx, place, |_, result| {
-            match result {
-                LookupResult::Ptr(path, _) => Ty::ptr(path),
-                LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
-                LookupResult::Ref(RefKind::Shr, _) => {
-                    panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
-                }
+        match self.bindings.lookup_place(rcx, place) {
+            LookupResult::Ptr(path, _) => Ty::ptr(path),
+            LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
+            LookupResult::Ref(RefKind::Shr, _) => {
+                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
             }
-        })
+        }
     }
 
     pub fn borrow_shr(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
-        self.bindings
-            .lookup_place(rcx, place, |_, result| Ty::mk_ref(RefKind::Shr, result.ty()))
+        let result = self.bindings.lookup_place(rcx, place);
+        Ty::mk_ref(RefKind::Shr, result.ty())
     }
 
     pub fn write_place(
@@ -111,38 +108,33 @@ impl TypeEnv {
         new_ty: Ty,
         tag: Tag,
     ) {
-        self.bindings.lookup_place(rcx, place, |rcx, result| {
-            match result {
-                LookupResult::Ptr(_, ty) => {
-                    *ty = new_ty;
-                }
-                LookupResult::Ref(RefKind::Mut, ty) => {
-                    let mut gen = ConstraintGen::new(genv, rcx, tag);
-                    gen.subtyping(&new_ty, &ty);
-                }
-                LookupResult::Ref(RefKind::Shr, _) => {
-                    panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
-                }
+        match self.bindings.lookup_place(rcx, place) {
+            LookupResult::Ptr(path, _) => {
+                self.bindings[path] = new_ty;
             }
-        });
+            LookupResult::Ref(RefKind::Mut, ty) => {
+                let mut gen = ConstraintGen::new(genv, rcx, tag);
+                gen.subtyping(&new_ty, &ty);
+            }
+            LookupResult::Ref(RefKind::Shr, _) => {
+                panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
+            }
+        }
     }
 
     pub fn move_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
-        self.bindings.lookup_place(rcx, place, |_, result| {
-            match result {
-                LookupResult::Ptr(_, ty) => {
-                    let old = ty.clone();
-                    *ty = Ty::uninit();
-                    old
-                }
-                LookupResult::Ref(RefKind::Mut, _) => {
-                    panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
-                }
-                LookupResult::Ref(RefKind::Shr, _) => {
-                    panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
-                }
+        match self.bindings.lookup_place(rcx, place) {
+            LookupResult::Ptr(path, ty) => {
+                self.bindings[path] = Ty::uninit();
+                ty
             }
-        })
+            LookupResult::Ref(RefKind::Mut, _) => {
+                panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
+            }
+            LookupResult::Ref(RefKind::Shr, _) => {
+                panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
+            }
+        }
     }
 
     pub fn weaken_ty_at_path(&mut self, gen: &mut ConstraintGen, path: &Path, bound: Ty) {

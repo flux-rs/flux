@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use rustc_hash::FxHashMap;
 
-use liquid_rust_common::{index::IndexVec, iter::IterExt};
+use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
@@ -17,26 +17,23 @@ pub struct PathsTree {
     map: FxHashMap<Loc, Node>,
 }
 
-pub enum LookupResult<'a> {
-    Ptr(Path, &'a mut Ty),
+pub enum LookupResult {
+    Ptr(Path, Ty),
     Ref(RefKind, Ty),
 }
 
-impl LookupResult<'_> {
+impl LookupResult {
     pub fn ty(&self) -> Ty {
         match self {
-            LookupResult::Ptr(_, ty) => (*ty).clone(),
+            LookupResult::Ptr(_, ty) => ty.clone(),
             LookupResult::Ref(_, ty) => ty.clone(),
         }
     }
 }
 
 impl PathsTree {
-    pub fn lookup_place<F, R>(&mut self, rcx: &mut RefineCtxt, place: &Place, f: F) -> R
-    where
-        F: for<'a> FnOnce(&mut RefineCtxt, LookupResult<'a>) -> R,
-    {
-        self.lookup_place_iter(rcx, Loc::Local(place.local), &mut place.projection.iter(), f)
+    pub fn lookup_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> LookupResult {
+        self.lookup_place_iter(rcx, Loc::Local(place.local), &mut place.projection.iter())
     }
 
     pub fn get(&self, path: &Path) -> Option<&Ty> {
@@ -109,94 +106,82 @@ impl PathsTree {
         }
     }
 
-    fn lookup_place_iter<R, F>(
+    fn lookup_place_iter(
         &mut self,
         rcx: &mut RefineCtxt,
         path: impl Into<Path>,
         place_proj: &mut std::slice::Iter<PlaceElem>,
-        f: F,
-    ) -> R
-    where
-        F: for<'a> FnOnce(&mut RefineCtxt, LookupResult<'a>) -> R,
-    {
+    ) -> LookupResult {
         let mut path = path.into();
-        loop {
+        'outer: loop {
             let loc = path.loc;
-            let mut proj = vec![];
+            let mut path_proj = vec![];
 
             let mut node = self.map.get_mut(&loc).unwrap();
-            for elem in path
-                .projection()
-                .iter()
-                .map(|f| FieldOrDowncast::Field(*f))
-                .chain(place_proj.map_take_while(|p| FieldOrDowncast::from_place_elem(p)))
-            {
-                match elem {
-                    FieldOrDowncast::Field(f) => {
-                        proj.push(f);
-                        node = node.proj(f);
-                    }
-                    FieldOrDowncast::Downcast(variant_idx) => {
-                        node.unfold(variant_idx);
-                    }
-                }
+
+            for field in path.projection() {
+                node = node.proj(*field);
+                path_proj.push(*field);
             }
 
-            match place_proj.next() {
-                Some(PlaceElem::Deref) => {
-                    let ty = node.fold(rcx);
-                    match ty.kind() {
-                        TyKind::Ptr(ptr_path) => path = ptr_path.expect_path(),
-                        TyKind::Ref(mode, ty) => {
-                            let ty = ty.clone();
-                            let mode = *mode;
-                            let result = self.place_proj_ty(rcx, mode, &ty, place_proj);
-                            return f(rcx, result);
+            while let Some(elem) = place_proj.next() {
+                match elem {
+                    PlaceElem::Field(field) => {
+                        path_proj.push(*field);
+                        node = node.proj(*field);
+                    }
+                    PlaceElem::Downcast(variant_idx) => {
+                        node.downcast(*variant_idx);
+                    }
+                    PlaceElem::Deref => {
+                        let ty = node.expect_ty();
+                        match ty.kind() {
+                            TyKind::Ptr(path_expr) => {
+                                path = path_expr.expect_path();
+                                continue 'outer;
+                            }
+                            TyKind::Ref(mode, ty) => {
+                                return self.lookup_place_iter_ty(rcx, *mode, ty, place_proj);
+                            }
+                            _ => panic!(),
                         }
-                        _ => unreachable!("type cannot be dereferenced `{ty:?}`"),
                     }
                 }
-                Some(elem) => unreachable!("expected deref, found `{elem:?}`"),
-                None => {
-                    let ty = node.fold(rcx);
-                    return f(rcx, LookupResult::Ptr(Path::new(loc, proj), ty));
-                }
             }
+            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx).clone());
         }
     }
 
-    fn place_proj_ty(
+    fn lookup_place_iter_ty(
         &mut self,
         rcx: &mut RefineCtxt,
-        mut mode: RefKind,
+        mut rk: RefKind,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
     ) -> LookupResult {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
-                (PlaceElem::Deref, TyKind::Ref(mode2, ty2)) => {
-                    mode = mode.min(*mode2);
+                (PlaceElem::Deref, TyKind::Ref(rk2, ty2)) => {
+                    rk = rk.min(*rk2);
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return self.lookup_place_iter(rcx, path.expect_path(), proj, |_, lookup| {
-                        match lookup {
-                            LookupResult::Ptr(_, ty) => LookupResult::Ref(mode, ty.clone()),
-                            LookupResult::Ref(mode2, ty2) => {
-                                LookupResult::Ref(mode.min(mode2), ty2)
-                            }
-                        }
-                    });
+                    return match self.lookup_place_iter(rcx, path.expect_path(), proj) {
+                        LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
+                        LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
+                    }
                 }
-                (PlaceElem::Field(f), _) => {
-                    let (_, fields) = ty.unfold(VariantIdx::from_u32(0)).unwrap();
-                    ty = fields[*f].clone();
+                (PlaceElem::Field(field), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
+                    let fields = adt_def
+                        .unfold(substs, &idxs.to_exprs(), VariantIdx::from_u32(0))
+                        .unwrap();
+                    ty = fields[*field].clone();
                 }
                 _ => unreachable!(),
             }
         }
-        LookupResult::Ref(mode, ty)
+        LookupResult::Ref(rk, ty)
     }
 
     #[must_use]
@@ -210,21 +195,6 @@ impl PathsTree {
         let f = &mut f;
         for node in self.map.values_mut() {
             node.fmap_mut(f);
-        }
-    }
-}
-
-enum FieldOrDowncast {
-    Field(Field),
-    Downcast(VariantIdx),
-}
-
-impl FieldOrDowncast {
-    fn from_place_elem(elem: &PlaceElem) -> Option<FieldOrDowncast> {
-        match elem {
-            PlaceElem::Field(f) => Some(FieldOrDowncast::Field(*f)),
-            PlaceElem::Downcast(variant_idx) => Some(FieldOrDowncast::Downcast(*variant_idx)),
-            _ => None,
         }
     }
 }
@@ -276,14 +246,21 @@ enum Node {
 }
 
 impl Node {
+    fn expect_ty(&self) -> Ty {
+        match self {
+            Node::Ty(ty) => ty.clone(),
+            _ => panic!("expected type"),
+        }
+    }
+
     fn unfold_with(&mut self, other: &mut Node) {
         let (fields1, fields2) = match (&mut *self, &mut *other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.unfold(*variant_idx), fields2)
+                (self.downcast(*variant_idx), fields2)
             }
             (Node::Adt(_, variant_idx, fields1), Node::Ty(_)) => {
-                (fields1, other.unfold(*variant_idx))
+                (fields1, other.downcast(*variant_idx))
             }
             (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
                 debug_assert_eq!(variant_idx1, variant_idx2);
@@ -304,7 +281,7 @@ impl Node {
                 return;
             }
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.unfold(*variant_idx), fields2)
+                (self.downcast(*variant_idx), fields2)
             }
             (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
                 debug_assert_eq!(variant_idx1, variant_idx2);
@@ -317,10 +294,19 @@ impl Node {
         }
     }
 
-    fn unfold(&mut self, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
+    fn downcast(&mut self, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
         if let Node::Ty(ty) = self {
-            let (adt_def, fields) = ty.unfold(variant_idx).unwrap();
-            *self = Node::Adt(adt_def, variant_idx, fields.into_iter().map(Node::Ty).collect());
+            if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
+                let fields = adt_def
+                    .unfold(substs, &idxs.to_exprs(), VariantIdx::from_u32(0))
+                    .unwrap()
+                    .into_iter()
+                    .map(Node::Ty)
+                    .collect();
+                *self = Node::Adt(adt_def.clone(), variant_idx, fields);
+            } else {
+                panic!("type cannot be downcasted")
+            }
         }
         match self {
             Node::Ty(_) => unreachable!(),
@@ -333,7 +319,7 @@ impl Node {
 
     fn proj(&mut self, field: Field) -> &mut Node {
         match self {
-            Node::Ty(_) => &mut self.unfold(VariantIdx::from_u32(0))[field],
+            Node::Ty(_) => &mut self.downcast(VariantIdx::from_u32(0))[field],
             Node::Adt(_, _, fields) => &mut fields[field],
         }
     }

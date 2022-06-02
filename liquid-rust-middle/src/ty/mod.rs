@@ -401,14 +401,11 @@ impl TyS {
     pub fn is_uninit(&self) -> bool {
         matches!(self.kind(), TyKind::Uninit)
     }
+}
 
-    pub fn unfold(&self, variant_idx: VariantIdx) -> Option<(AdtDef, IndexVec<Field, Ty>)> {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), indices) = self.kind() {
-            let exprs = indices.iter().map(|index| index.to_expr()).collect_vec();
-            Some((adt_def.clone(), adt_def.unfold(substs, &exprs, variant_idx)?))
-        } else {
-            panic!("type cannot be unfolded: `{self:?}`")
-        }
+impl List<Index> {
+    pub fn to_exprs(&self) -> Vec<Expr> {
+        self.iter().map(|idx| idx.to_expr()).collect_vec()
     }
 }
 
