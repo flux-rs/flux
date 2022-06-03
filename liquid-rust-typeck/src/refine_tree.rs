@@ -497,23 +497,8 @@ mod pretty {
                     } else {
                         (vec![expr.clone()], node.children.clone())
                     };
-                    let mut exprs = exprs.into_iter().filter(|e| !e.is_true()).collect_vec();
-                    if exprs.is_empty() {
-                        exprs.push(Expr::tt());
-                    }
-                    w!(
-                        "{} ⇒",
-                        ^exprs
-                            .into_iter()
-                            .format_with(" ∧ ", |e, f| {
-                                let e = if cx.simplify_exprs { e.simplify() } else { e };
-                                if e.is_atom() {
-                                    f(&format_args_cx!("{:?}", ^e))
-                                } else {
-                                    f(&format_args_cx!("({:?})", ^e))
-                                }
-                            })
-                    )?;
+                    let guard = Expr::and(exprs).simplify();
+                    w!("{:?} ⇒", guard)?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
@@ -566,7 +551,7 @@ mod pretty {
                         let node = ptr.borrow();
                         match &node.kind {
                             NodeKind::ForAll(..) => true,
-                            NodeKind::Guard(e) => !e.is_true(),
+                            NodeKind::Guard(e) => !e.simplify().is_true(),
                             _ => false,
                         }
                     })

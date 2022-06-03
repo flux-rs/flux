@@ -1,4 +1,4 @@
-use std::{hint::unreachable_unchecked, iter};
+use std::{collections::HashMap, hint::unreachable_unchecked, iter};
 
 use itertools::Itertools;
 
@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
+    ty::{AdtDef, BaseTy, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
 use crate::{param_infer, refine_tree::RefineCtxt};
@@ -36,31 +36,31 @@ impl PathsTree {
         self.lookup_place_iter(rcx, Loc::Local(place.local), &mut place.projection.iter())
     }
 
-    pub fn get(&self, path: &Path) -> Option<&Ty> {
-        let mut node = self.map.get(&path.loc)?;
+    pub fn get(&self, path: &Path) -> Ty {
+        let mut node = self.map.get(&path.loc).unwrap();
         for f in path.projection() {
             match node {
-                Node::Ty(_) => return None,
+                Node::Ty(_) => panic!("expected `Node::Adt`"),
                 Node::Adt(.., fields) => node = &fields[*f],
             }
         }
         match node {
-            Node::Ty(ty) => Some(ty),
-            Node::Adt(..) => None,
+            Node::Ty(ty) => ty.clone(),
+            Node::Adt(..) => panic!("expcted `Node::Ty`"),
         }
     }
 
-    pub fn get_mut(&mut self, path: &Path) -> Option<&mut Ty> {
-        let mut node = self.map.get_mut(&path.loc)?;
+    pub fn update(&mut self, path: &Path, new_ty: Ty) {
+        let mut node = self.map.get_mut(&path.loc).unwrap();
         for f in path.projection() {
             match node {
-                Node::Ty(_) => return None,
+                Node::Ty(_) => panic!("expected `Node::Adt"),
                 Node::Adt(.., fields) => node = &mut fields[*f],
             }
         }
         match node {
-            Node::Ty(ty) => Some(ty),
-            Node::Adt(..) => None,
+            Node::Ty(ty) => *ty = new_ty,
+            Node::Adt(..) => panic!("expected `Node::Ty`"),
         }
     }
 
@@ -199,46 +199,6 @@ impl PathsTree {
     }
 }
 
-impl<'a> std::ops::Index<&'a Path> for PathsTree {
-    type Output = Ty;
-
-    fn index(&self, path: &'a Path) -> &Self::Output {
-        match self.get(path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
-impl std::ops::Index<Path> for PathsTree {
-    type Output = Ty;
-
-    fn index(&self, path: Path) -> &Self::Output {
-        match self.get(&path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
-impl<'a> std::ops::IndexMut<&'a Path> for PathsTree {
-    fn index_mut(&mut self, path: &'a Path) -> &mut Self::Output {
-        match self.get_mut(path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
-impl std::ops::IndexMut<Path> for PathsTree {
-    fn index_mut(&mut self, path: Path) -> &mut Self::Output {
-        match self.get_mut(&path) {
-            Some(ty) => ty,
-            None => panic!("no entry found for path `{:?}`", path),
-        }
-    }
-}
-
 #[derive(Clone, Eq, PartialEq)]
 enum Node {
     Ty(Ty),
@@ -305,7 +265,7 @@ impl Node {
                     .collect();
                 *self = Node::Adt(adt_def.clone(), variant_idx, fields);
             } else {
-                panic!("type cannot be downcasted")
+                panic!("type cannot be downcasted: `{ty:?}`")
             }
         }
         match self {
@@ -354,46 +314,18 @@ impl Node {
     }
 }
 
-type ParamInst = FxHashMap<usize, Expr>;
-
 fn fold(rcx: &mut RefineCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
-    let mut params = FxHashMap::default();
+    let mut exprs = FxHashMap::default();
     let variant_sig = adt_def.variant_sig(variant_idx);
     for (ty1, ty2) in iter::zip(tys, variant_sig.skip_binders().args()) {
-        ty_infer_folding(rcx, &mut params, ty1, ty2);
+        param_infer::infer_from_tys(&mut exprs, rcx, &HashMap::new(), ty1, &HashMap::new(), ty2);
     }
     adt_def
         .sorts()
         .iter()
         .enumerate()
-        .map(|(idx, _)| params.remove(&idx).unwrap().into())
+        .map(|(idx, _)| exprs.remove(&idx).unwrap().into())
         .collect()
-}
-
-fn ty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, ty1: &Ty, ty2: &Ty) {
-    match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
-            bty_infer_folding(rcx, params, bty1, bty2);
-            for (idx1, idx2) in iter::zip(indices1, indices2) {
-                param_infer::infer_from_exprs(params, &idx1.expr, &idx2.expr);
-            }
-        }
-        (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
-        (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-            ty_infer_folding(rcx, params, ty1, ty2);
-        }
-        _ => {}
-    }
-}
-
-fn bty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, bty1: &BaseTy, bty2: &BaseTy) {
-    if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
-        debug_assert_eq!(def1.def_id(), def2.def_id());
-        debug_assert_eq!(substs1.len(), substs2.len());
-        for (ty1, ty2) in iter::zip(substs1, substs2) {
-            ty_infer_folding(rcx, params, ty1, ty2);
-        }
-    }
 }
 
 enum PathsIter<'a> {

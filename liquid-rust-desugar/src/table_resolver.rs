@@ -46,18 +46,19 @@ impl<'tcx> Resolver<'tcx> {
         def_id: LocalDefId,
     ) -> Result<Resolver<'tcx>, ErrorReported> {
         let item = tcx.hir().expect_item(def_id);
-        let data = if let ItemKind::Struct(data, _) = &item.kind {
-            data
+
+        if let ItemKind::Struct(data, generics) = &item.kind {
+            let mut table = NameResTable::new();
+            table.insert_generics(tcx, generics);
+
+            for field in data.fields() {
+                table.collect_from_ty(tcx.sess, field.ty)?;
+            }
+
+            Ok(Resolver { sess: tcx.sess, table })
         } else {
-            panic!("expected a struct")
-        };
-
-        let mut table = NameResTable::new();
-        for field in data.fields() {
-            table.collect_from_ty(tcx.sess, field.ty)?;
+            panic!("expected a struct");
         }
-
-        Ok(Resolver { sess: tcx.sess, table })
     }
 
     pub fn resolve_struct_def(

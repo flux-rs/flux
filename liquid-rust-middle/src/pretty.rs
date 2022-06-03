@@ -282,7 +282,7 @@ impl Pretty for DefId {
 
 impl Pretty for Field {
     fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "{}", self.as_u32())
     }
 }
 
