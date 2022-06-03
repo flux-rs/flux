@@ -396,7 +396,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .iter()
             .map(|arg| self.genv.refine_generic_arg(arg, &mut fresh_kvar))
             .collect_vec();
-        let fn_sig = match param_infer::infer_from_fn_call(self.genv, rcx, env, &actuals, &fn_sig) {
+        let fn_sig = match param_infer::infer_from_fn_call(rcx, env, &actuals, &fn_sig) {
             Ok(exprs) => {
                 fn_sig
                     .replace_bound_vars(&exprs)

@@ -27,6 +27,11 @@ use self::paths_tree::{LookupResult, PathsTree};
 
 use super::ty::{Loc, Name, Pred, Sort};
 
+pub trait PathMap {
+    fn get(&self, path: &Path) -> Ty;
+    fn update(&mut self, path: &Path, ty: Ty);
+}
+
 #[derive(Clone, Default)]
 pub struct TypeEnv {
     bindings: PathsTree,
@@ -76,11 +81,11 @@ impl TypeEnv {
 
     #[track_caller]
     pub fn lookup_path(&self, path: &Path) -> Ty {
-        self.bindings[path].clone()
+        self.bindings.get(path)
     }
 
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
-        self.bindings[path] = new_ty;
+        self.bindings.update(path, new_ty);
     }
 
     // TODO(nilehmann) find a better name for borrow in this context
@@ -110,7 +115,7 @@ impl TypeEnv {
     ) {
         match self.bindings.lookup_place(rcx, place) {
             LookupResult::Ptr(path, _) => {
-                self.bindings[path] = new_ty;
+                self.bindings.update(&path, new_ty);
             }
             LookupResult::Ref(RefKind::Mut, ty) => {
                 let mut gen = ConstraintGen::new(genv, rcx, tag);
@@ -125,7 +130,7 @@ impl TypeEnv {
     pub fn move_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> Ty {
         match self.bindings.lookup_place(rcx, place) {
             LookupResult::Ptr(path, ty) => {
-                self.bindings[path] = Ty::uninit();
+                self.bindings.update(&path, Ty::uninit());
                 ty
             }
             LookupResult::Ref(RefKind::Mut, _) => {
@@ -138,9 +143,9 @@ impl TypeEnv {
     }
 
     pub fn weaken_ty_at_path(&mut self, gen: &mut ConstraintGen, path: &Path, bound: Ty) {
-        let ty = &mut self.bindings[path];
-        gen.subtyping(ty, &bound);
-        *ty = bound;
+        let ty = self.bindings.get(path);
+        gen.subtyping(&ty, &bound);
+        self.bindings.update(path, bound);
     }
 
     pub fn unpack_ty(&mut self, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {
@@ -163,9 +168,9 @@ impl TypeEnv {
 
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
         for path in self.bindings.paths().collect_vec() {
-            let ty = self.bindings[&path].clone();
+            let ty = self.bindings.get(&path);
             let ty = self.unpack_ty(rcx, &ty);
-            self.bindings[&path] = ty;
+            self.bindings.update(&path, ty);
         }
     }
 
@@ -174,8 +179,8 @@ impl TypeEnv {
         let mut subst = FVarSubst::empty();
         for (path, ty1) in self.bindings.iter() {
             if bb_env.bindings.contains_loc(path.loc) {
-                let ty2 = &bb_env.bindings[&path];
-                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, ty2, &mut subst);
+                let ty2 = bb_env.bindings.get(&path);
+                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
             }
         }
 
@@ -205,11 +210,11 @@ impl TypeEnv {
                     subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
                 }
             }
-            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-                subst.infer_from_exprs(params, path1, path2);
-                let ty1 = &self.bindings[path1.expect_path()];
-                let ty2 = &bb_env.bindings[path2.expect_path()];
-                self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
+            (TyKind::Ptr(pexpr1), TyKind::Ptr(pexpr2)) => {
+                subst.infer_from_exprs(params, pexpr1, pexpr2);
+                let ty1 = self.bindings.get(&pexpr1.expect_path());
+                let ty2 = bb_env.bindings.get(&pexpr2.expect_path());
+                self.infer_subst_for_bb_env_tys(bb_env, params, &ty1, &ty2, subst);
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
                 debug_assert_eq!(mode1, mode2);
@@ -251,23 +256,46 @@ impl TypeEnv {
 
         // Convert pointers to borrows
         for path in self.bindings.paths().collect_vec() {
-            let ty1 = self.bindings[&path].clone();
-            let ty2 = goto_env[&path].clone();
-            if let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) =
-                (ty1.kind(), ty2.kind())
+            let ty1 = self.bindings.get(&path);
+            let ty2 = goto_env.get(&path);
+            if let (TyKind::Ptr(pexpr), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
             {
-                let ty = &self.bindings[ptr_path.expect_path()];
-                gen.subtyping(ty, bound);
-                self.bindings[ptr_path.expect_path()] = bound.clone();
-                self.bindings[&path] = Ty::mk_ref(RefKind::Mut, bound.clone());
+                let ty = self.bindings.get(&pexpr.expect_path());
+                gen.subtyping(&ty, bound);
+                self.bindings.update(&pexpr.expect_path(), bound.clone());
+                self.bindings
+                    .update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
             }
         }
 
         // Check subtyping
         for (path, ty1) in self.bindings.iter() {
-            let ty2 = goto_env[path].clone();
+            let ty2 = goto_env.get(&path);
             gen.subtyping(ty1, &ty2);
         }
+    }
+}
+
+impl PathMap for TypeEnv {
+    fn get(&self, path: &Path) -> Ty {
+        self.bindings.get(path)
+    }
+
+    fn update(&mut self, path: &Path, ty: Ty) {
+        self.bindings.update(path, ty)
+    }
+}
+
+impl<S> PathMap for std::collections::HashMap<Path, Ty, S>
+where
+    S: std::hash::BuildHasher,
+{
+    fn get(&self, path: &Path) -> Ty {
+        self.get(path).unwrap().clone()
+    }
+
+    fn update(&mut self, path: &Path, ty: Ty) {
+        self.insert(path.clone(), ty);
     }
 }
 
@@ -380,26 +408,32 @@ impl TypeEnvInfer {
 
         // Convert pointers to borrows
         for path in &paths {
-            let ty1 = self.bindings[path].clone();
-            let ty2 = other.bindings[path].clone();
+            let ty1 = self.bindings.get(path);
+            let ty2 = other.bindings.get(path);
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.bindings[path1.expect_path()].with_holes();
-                    let ty2 = other.bindings[path2.expect_path()].with_holes();
+                (TyKind::Ptr(pexpr1), TyKind::Ptr(pexpr2)) if pexpr1 != pexpr2 => {
+                    let ty1 = self.bindings.get(&pexpr1.expect_path()).with_holes();
+                    let ty2 = other.bindings.get(&pexpr2.expect_path()).with_holes();
 
-                    self.bindings[path] = Ty::mk_ref(RefKind::Mut, ty1.clone());
-                    other.bindings[path] = Ty::mk_ref(RefKind::Mut, ty2.clone());
+                    self.bindings
+                        .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
+                    other
+                        .bindings
+                        .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
 
-                    self.bindings[path1.expect_path()] = ty1;
-                    other.bindings[path2.expect_path()] = ty2;
+                    self.bindings.update(&pexpr1.expect_path(), ty1);
+                    other.bindings.update(&pexpr2.expect_path(), ty2);
                 }
-                (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    self.bindings[ptr_path.expect_path()] = bound.clone();
-                    self.bindings[path] = Ty::mk_ref(RefKind::Mut, bound.clone());
+                (TyKind::Ptr(pexpr), TyKind::Ref(RefKind::Mut, bound)) => {
+                    self.bindings.update(&pexpr.expect_path(), bound.clone());
+                    self.bindings
+                        .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                 }
-                (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
-                    other.bindings[ptr_path.expect_path()] = bound.clone();
-                    other.bindings[path] = Ty::mk_ref(RefKind::Mut, bound.clone());
+                (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(pexpr)) => {
+                    other.bindings.update(&pexpr.expect_path(), bound.clone());
+                    other
+                        .bindings
+                        .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                 }
                 _ => {}
             }
@@ -408,11 +442,11 @@ impl TypeEnvInfer {
         // Join types
         let mut modified = false;
         for path in &paths {
-            let ty1 = self.bindings[path].clone();
-            let ty2 = other.bindings[path].clone();
+            let ty1 = self.bindings.get(path);
+            let ty2 = other.bindings.get(path);
             let ty = self.join_ty(genv, &ty1, &ty2);
             modified |= ty1 != ty;
-            self.bindings[path] = ty;
+            self.bindings.update(path, ty);
         }
 
         self.remove_dead_params();

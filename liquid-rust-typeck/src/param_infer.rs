@@ -2,29 +2,27 @@ use std::iter;
 
 use rustc_hash::FxHashMap;
 
-use liquid_rust_middle::{
-    global_env::GlobalEnv,
-    ty::{subst::FVarSubst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST},
+use liquid_rust_middle::ty::{
+    subst::FVarSubst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST,
 };
 
-use crate::{refine_tree::RefineCtxt, type_env::TypeEnv};
+use crate::{refine_tree::RefineCtxt, type_env::PathMap};
 
 type Exprs = FxHashMap<usize, Expr>;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct InferenceError;
 
-pub fn infer_from_fn_call(
-    genv: &GlobalEnv,
+pub fn infer_from_fn_call<M: PathMap>(
     rcx: &mut RefineCtxt,
-    env: &TypeEnv,
+    env: &M,
     actuals: &[Ty],
     fn_sig: &PolySig,
 ) -> Result<Vec<Expr>, InferenceError> {
     assert!(actuals.len() == fn_sig.skip_binders().args().len());
 
     let mut exprs = Exprs::default();
-    let requires = fn_sig
+    let requires: FxHashMap<Path, Ty> = fn_sig
         .skip_binders()
         .requires()
         .iter()
@@ -38,7 +36,7 @@ pub fn infer_from_fn_call(
         .collect();
 
     for (actual, formal) in actuals.iter().zip(fn_sig.skip_binders().args().iter()) {
-        infer_from_tys(&mut exprs, genv, rcx, env, actual, &requires, formal);
+        infer_from_tys(&mut exprs, rcx, env, actual, &requires, formal);
     }
 
     fn_sig
@@ -62,13 +60,12 @@ pub fn check_inference(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn infer_from_tys(
+pub fn infer_from_tys<M1: PathMap, M2: PathMap>(
     exprs: &mut Exprs,
-    genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
-    env: &TypeEnv,
+    env1: &M1,
     ty1: &Ty,
-    requires: &FxHashMap<Path, Ty>,
+    env2: &M2,
     ty2: &Ty,
 ) {
     match (ty1.kind(), ty2.kind()) {
@@ -89,31 +86,22 @@ fn infer_from_tys(
             }
         }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
-            infer_from_tys(
-                exprs,
-                genv,
-                rcx,
-                env,
-                &env.lookup_path(&path1.expect_path()),
-                requires,
-                ty2,
-            );
+            infer_from_tys(exprs, rcx, env1, &env1.get(&path1.expect_path()), env2, ty2);
         }
         (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
             infer_from_exprs(exprs, path1, path2);
             infer_from_tys(
                 exprs,
-                genv,
                 rcx,
-                env,
-                &env.lookup_path(&path1.expect_path()),
-                requires,
-                &requires[&path2.expect_path()],
+                env1,
+                &env1.get(&path1.expect_path()),
+                env2,
+                &env2.get(&path2.expect_path()),
             );
         }
         (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
             debug_assert_eq!(mode1, mode2);
-            infer_from_tys(exprs, genv, rcx, env, ty1, requires, ty2);
+            infer_from_tys(exprs, rcx, env1, ty1, env2, ty2);
         }
         _ => {}
     }
