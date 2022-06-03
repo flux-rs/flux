@@ -7,18 +7,34 @@ use rustc_span::Span;
 use liquid_rust_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
-    ty::{BaseTy, BinOp, Constr, Expr, Index, Pred, RefKind, Ty, TyKind},
+    ty::{
+        fold::TypeFoldable, BaseTy, BinOp, Constr, Constrs, Expr, Index, PolySig, Pred, RefKind,
+        Ty, TyKind,
+    },
 };
 
 use crate::{
+    param_infer::{self, InferenceError},
     refine_tree::{ConstrBuilder, RefineCtxt},
-    type_env::TypeEnv,
+    type_env::PathMap,
 };
 
 pub struct ConstraintGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'tcx>,
     builder: ConstrBuilder<'a>,
     tag: Tag,
+}
+
+pub struct FnCallChecker<'a, 'tcx, F> {
+    genv: &'a GlobalEnv<'tcx>,
+    rcx: RefineCtxt<'a>,
+    fresh_kvar: F,
+    tag: Tag,
+}
+
+pub struct CallOutput {
+    pub ret: Ty,
+    pub ensures: Constrs,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
@@ -37,10 +53,10 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
         ConstraintGen { genv, builder: rcx.check_constr(), tag }
     }
 
-    pub fn check_constr(&mut self, env: &mut TypeEnv, constr: &Constr) {
+    pub fn check_constr<Env: PathMap>(&mut self, env: &mut Env, constr: &Constr) {
         match constr {
             Constr::Type(path, ty) => {
-                let actual_ty = env.lookup_path(&path.expect_path());
+                let actual_ty = env.get(&path.expect_path());
                 self.subtyping(&actual_ty, ty);
             }
             Constr::Pred(e) => {
@@ -58,25 +74,80 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     }
 }
 
-pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, tag: Tag) {
-    let builder = &mut builder.breadcrumb();
+impl<'a, 'tcx, F> FnCallChecker<'a, 'tcx, F>
+where
+    F: FnMut(&BaseTy) -> Pred,
+{
+    pub fn new(
+        genv: &'a GlobalEnv<'tcx>,
+        rcx: &'a mut RefineCtxt,
+        fresh_kvar: F,
+        tag: Tag,
+    ) -> Self {
+        FnCallChecker { genv, rcx: rcx.breadcrumb(), fresh_kvar, tag }
+    }
+
+    pub fn check<Env: PathMap>(
+        &mut self,
+        env: &mut Env,
+        fn_sig: &PolySig,
+        substs: &[Ty],
+        actuals: &[Ty],
+    ) -> Result<CallOutput, InferenceError> {
+        // Generate fresh kvars for generic types
+        let substs = substs
+            .iter()
+            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .collect_vec();
+
+        // Iner refinement parameters
+        let exprs = param_infer::infer_from_fn_call(&mut self.rcx, env, &actuals, &fn_sig)?;
+        let fn_sig = fn_sig
+            .replace_generic_types(&substs)
+            .replace_bound_vars(&exprs);
+
+        // Check arguments
+        let mut gen = ConstraintGen::new(self.genv, &mut self.rcx, self.tag);
+        for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
+            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
+                (actual.kind(), formal.kind())
+            {
+                let path = path.expect_path();
+                gen.subtyping(&env.get(&path), bound);
+                env.update(&path, bound.clone());
+            } else {
+                gen.subtyping(&actual, formal);
+            }
+        }
+
+        // Check preconditions
+        for constr in fn_sig.requires() {
+            gen.check_constr(env, constr);
+        }
+
+        Ok(CallOutput { ret: fn_sig.ret().clone(), ensures: fn_sig.ensures().clone() })
+    }
+}
+
+pub fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, tag: Tag) {
+    let constr = &mut constr.breadcrumb();
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, e1), TyKind::Indexed(bty2, e2)) if e1 == e2 => {
-            bty_subtyping(genv, builder, bty1, bty2, tag);
+            bty_subtyping(genv, constr, bty1, bty2, tag);
             return;
         }
         (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
-            bty_subtyping(genv, builder, bty1, bty2, tag);
+            bty_subtyping(genv, constr, bty1, bty2, tag);
             return;
         }
         (TyKind::Exists(bty, pred), _) => {
-            let indices = builder
+            let indices = constr
                 .push_binders(pred)
                 .into_iter()
                 .map(|name| Index::from(Expr::fvar(name)))
                 .collect_vec();
             let ty1 = Ty::indexed(bty.clone(), indices);
-            subtyping(genv, builder, &ty1, ty2, tag);
+            subtyping(genv, constr, &ty1, ty2, tag);
             return;
         }
         _ => {}
@@ -84,24 +155,24 @@ pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &
 
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
-            bty_subtyping(genv, builder, bty1, bty2, tag);
+            bty_subtyping(genv, constr, bty1, bty2, tag);
             for (e1, e2) in iter::zip(exprs1, exprs2) {
-                builder.push_head(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()), tag);
+                constr.push_head(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()), tag);
             }
         }
         (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, pred)) => {
-            bty_subtyping(genv, builder, bty1, bty2, tag);
+            bty_subtyping(genv, constr, bty1, bty2, tag);
             let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
-            builder.push_head(pred.replace_bound_vars(&exprs), tag);
+            constr.push_head(pred.replace_bound_vars(&exprs), tag);
         }
         (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
             assert_eq!(loc1, loc2);
         }
         (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
-            variance_subtyping(genv, builder, Variance::Invariant, ty1, ty2, tag);
+            variance_subtyping(genv, constr, Variance::Invariant, ty1, ty2, tag);
         }
         (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-            subtyping(genv, builder, ty1, ty2, tag);
+            subtyping(genv, constr, ty1, ty2, tag);
         }
         (_, TyKind::Uninit) => {
             // FIXME: we should rethink in which situation this is sound.
@@ -116,7 +187,7 @@ pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &
         (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
             debug_assert_eq!(tys1.len(), tys2.len());
             for (ty1, ty2) in iter::zip(tys1, tys2) {
-                subtyping(genv, builder, ty1, ty2, tag);
+                subtyping(genv, constr, ty1, ty2, tag);
             }
         }
         _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
@@ -125,7 +196,7 @@ pub fn subtyping(genv: &GlobalEnv, builder: &mut ConstrBuilder, ty1: &Ty, ty2: &
 
 fn bty_subtyping(
     genv: &GlobalEnv,
-    builder: &mut ConstrBuilder,
+    constr: &mut ConstrBuilder,
     bty1: &BaseTy,
     bty2: &BaseTy,
     tag: Tag,
@@ -143,7 +214,7 @@ fn bty_subtyping(
             debug_assert_eq!(substs1.len(), substs2.len());
             let variances = genv.variances_of(def1.def_id());
             for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-                variance_subtyping(genv, builder, *variance, ty1, ty2, tag);
+                variance_subtyping(genv, constr, *variance, ty1, ty2, tag);
             }
         }
         _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
@@ -152,23 +223,19 @@ fn bty_subtyping(
 
 fn variance_subtyping(
     genv: &GlobalEnv,
-    builder: &mut ConstrBuilder,
+    constr: &mut ConstrBuilder,
     variance: Variance,
     ty1: &Ty,
     ty2: &Ty,
     tag: Tag,
 ) {
     match variance {
-        rustc_middle::ty::Variance::Covariant => {
-            subtyping(genv, builder, ty1, ty2, tag);
-        }
+        rustc_middle::ty::Variance::Covariant => subtyping(genv, constr, ty1, ty2, tag),
         rustc_middle::ty::Variance::Invariant => {
-            subtyping(genv, builder, ty1, ty2, tag);
-            subtyping(genv, builder, ty2, ty1, tag);
+            subtyping(genv, constr, ty1, ty2, tag);
+            subtyping(genv, constr, ty2, ty1, tag);
         }
-        rustc_middle::ty::Variance::Contravariant => {
-            subtyping(genv, builder, ty2, ty1, tag);
-        }
+        rustc_middle::ty::Variance::Contravariant => subtyping(genv, constr, ty2, ty1, tag),
         rustc_middle::ty::Variance::Bivariant => {}
     }
 }

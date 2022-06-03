@@ -79,11 +79,6 @@ impl TypeEnv {
         self.bindings.lookup_place(rcx, place).ty()
     }
 
-    #[track_caller]
-    pub fn lookup_path(&self, path: &Path) -> Ty {
-        self.bindings.get(path)
-    }
-
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
         self.bindings.update(path, new_ty);
     }
@@ -140,12 +135,6 @@ impl TypeEnv {
                 panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
             }
         }
-    }
-
-    pub fn weaken_ty_at_path(&mut self, gen: &mut ConstraintGen, path: &Path, bound: Ty) {
-        let ty = self.bindings.get(path);
-        gen.subtyping(&ty, &bound);
-        self.bindings.update(path, bound);
     }
 
     pub fn unpack_ty(&mut self, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {

@@ -7,10 +7,7 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::{
-    collections::{hash_map::Entry, BinaryHeap},
-    iter,
-};
+use std::collections::{hash_map::Entry, BinaryHeap};
 
 use itertools::Itertools;
 
@@ -32,16 +29,15 @@ use liquid_rust_middle::{
         },
     },
     ty::{
-        self, fold::TypeFoldable, BaseTy, BinOp, BoundVar, Constr, Constrs, Expr, FnSig, Name,
-        Param, PolySig, Pred, RefKind, Sort, Ty, TyKind,
+        self, BaseTy, BinOp, BoundVar, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred,
+        Sort, Ty, TyKind,
     },
 };
 
 use crate::{
-    constraint_gen::{ConstraintGen, Tag},
+    constraint_gen::{ConstraintGen, FnCallChecker, Tag},
     dbg,
     fixpoint::KVarStore,
-    param_infer,
     refine_tree::{RefineCtxt, RefineTree, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
@@ -382,51 +378,26 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         substs: &[rustc::ty::GenericArg],
         args: &[Operand],
     ) -> Result<Ty, ErrorReported> {
-        let actuals = args
+        let actuals = self.check_operands(rcx, env, args);
+
+        let substs = substs
             .iter()
-            .map(|arg| self.check_operand(rcx, env, arg))
+            .map(|arg| self.genv.refine_generic_arg(arg, &mut |_| Pred::Hole))
             .collect_vec();
 
         let scope = rcx.scope();
-        let mut fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(bty.sorts(), scope.iter());
+        let fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(bty.sorts(), scope.iter());
 
-        // Infer substitution
-        let substs = substs
-            .iter()
-            .map(|arg| self.genv.refine_generic_arg(arg, &mut fresh_kvar))
-            .collect_vec();
-        let fn_sig = match param_infer::infer_from_fn_call(rcx, env, &actuals, &fn_sig) {
-            Ok(exprs) => {
-                fn_sig
-                    .replace_bound_vars(&exprs)
-                    .replace_generic_types(&substs)
-            }
-            Err(_) => {
+        let output = FnCallChecker::new(self.genv, rcx, fresh_kvar, Tag::Call(source_info.span))
+            .check(env, &fn_sig, &substs, &actuals)
+            .map_err(|_| {
                 self.genv
                     .tcx
                     .sess
-                    .emit_err(errors::ParamInferenceError { span: source_info.span });
-                return Err(ErrorReported);
-            }
-        };
+                    .emit_err(errors::ParamInferenceError { span: source_info.span })
+            })?;
 
-        // Check preconditions
-        let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Call(source_info.span));
-        for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
-                (actual.kind(), formal.kind())
-            {
-                env.weaken_ty_at_path(&mut gen, &path.expect_path(), bound.clone());
-            } else {
-                gen.subtyping(&actual, formal);
-            }
-        }
-        for constr in fn_sig.requires() {
-            gen.check_constr(env, constr);
-        }
-
-        // Update postconditions
-        for constr in fn_sig.ensures() {
+        for constr in &output.ensures {
             match constr {
                 Constr::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(rcx, updated_ty);
@@ -435,7 +406,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Constr::Pred(e) => rcx.assume_pred(e.clone()),
             }
         }
-        Ok(fn_sig.ret().clone())
+        Ok(output.ret)
     }
 
     fn check_assert(
@@ -787,6 +758,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Operand::Constant(c) => self.check_constant(c),
         };
         env.unpack_ty(rcx, &ty)
+    }
+
+    fn check_operands(
+        &self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        operands: &[Operand],
+    ) -> Vec<Ty> {
+        operands
+            .iter()
+            .map(|op| self.check_operand(rcx, env, op))
+            .collect()
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
