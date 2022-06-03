@@ -24,6 +24,7 @@ pub struct AdtDef {
     pub def_id: DefId,
     pub kind: AdtDefKind,
     pub refined_by: Vec<Param>,
+    pub generics: rustc_middle::ty::Generics,
 }
 
 #[derive(Debug)]
@@ -34,6 +35,7 @@ pub enum AdtDefKind {
 
 #[derive(Debug)]
 pub struct VariantDef {
+    pub def_id: DefId,
     pub fields: Vec<Ty>,
 }
 

@@ -30,6 +30,7 @@ pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
     kind: AdtDefKind,
+    generics: Vec<ParamTy>,
 }
 
 #[derive(Eq, PartialEq, Hash)]
@@ -254,18 +255,19 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque(def_id: DefId, sorts: impl Into<List<Sort>>) -> Self {
+    pub fn opaque(def_id: DefId, generics: Vec<ParamTy>, sorts: impl Into<List<Sort>>) -> Self {
         let kind = AdtDefKind::Opaque;
-        AdtDef(Interned::new(AdtDefData { def_id, kind, sorts: sorts.into() }))
+        AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
     }
 
     pub fn transparent(
         def_id: DefId,
+        generics: Vec<ParamTy>,
         sorts: impl Into<List<Sort>>,
         variants: IndexVec<VariantIdx, VariantDef>,
     ) -> Self {
         let kind = AdtDefKind::Transparent { variants };
-        AdtDef(Interned::new(AdtDefData { def_id, kind, sorts: sorts.into() }))
+        AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -276,14 +278,23 @@ impl AdtDef {
         &self.0.sorts
     }
 
+    pub fn generics(&self) -> &Vec<ParamTy> {
+        &self.0.generics
+    }
+
     // RJ:HEREHEREHEREHEREHEREHERE
     pub fn variant_sig(&self, variant_idx: VariantIdx) -> PolySig {
         let def_id = &self.def_id();
 
         let variant = &self.variants().unwrap()[variant_idx];
         let args = variant.fields.clone();
-        println!("variant_sig: {def_id:?} {args:?}");
-        let bty = BaseTy::adt(self.clone(), vec![]); // RJ: where did type-params go?!
+        // let res_ty = variant.res_ty.clone();
+        let generics = self.generics().iter().map(|p| Ty::param(*p)).collect_vec();
+        println!("variant_sig: {def_id:?} {args:?} {generics:?}");
+
+        //let bty = BaseTy::adt(self.clone(), vec![]); // RJ: where did type-params go?!
+        let bty = BaseTy::adt(self.clone(), generics); // RJ: where did type-params go?!
+
         let indices = (0..self.sorts().len())
             .map(|idx| Expr::bvar(BoundVar::new(idx, INNERMOST)).into())
             .collect_vec();

@@ -98,6 +98,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
         let params = cx.lower_params(&adt_def.refined_by);
 
+        let generics = genv.adt_def_generics(adt_def.def_id);
+
         match &adt_def.kind {
             core::AdtDefKind::Transparent { variants: None, .. } => {
                 genv.default_adt_def(adt_def.def_id)
@@ -112,9 +114,14 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                             .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
                     })
                     .collect_vec();
-                ty::AdtDef::transparent(adt_def.def_id, params, IndexVec::from_raw(variants))
+                ty::AdtDef::transparent(
+                    adt_def.def_id,
+                    generics,
+                    params,
+                    IndexVec::from_raw(variants),
+                )
             }
-            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, params),
+            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, generics, params),
         }
     }
 
@@ -124,6 +131,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             .iter()
             .map(|ty| self.lower_ty(ty, 1))
             .collect_vec();
+
+        // let res_ty = self.lower_ty(&variant_def.res, 1);
+        // let res = lower_ty(tcx, tcx.type_of(variant_def.def_id))?;
+        // let res_ty = self.genv.default_variant_result_ty(variant_def.def_id);
         VariantDef::new(fields)
     }
 

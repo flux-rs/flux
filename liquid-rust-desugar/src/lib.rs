@@ -31,7 +31,7 @@ pub fn desugar_struct_def(
 ) -> Result<core::AdtDef, ErrorReported> {
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(tcx.sess, struct_def)
+    desugar::desugar_struct_def(tcx, struct_def)
 }
 
 pub fn desugar_fn_sig(

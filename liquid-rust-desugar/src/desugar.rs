@@ -37,10 +37,11 @@ pub fn resolve_sorts(sess: &Session, params: &surface::Params) -> Result<Vec<Sor
 }
 
 pub fn desugar_struct_def(
-    sess: &Session,
+    tcx: TyCtxt,
     adt_def: surface::StructDef<Res>,
 ) -> Result<AdtDef, ErrorReported> {
-    let mut params = ParamsCtxt::new(sess);
+    let def_id = adt_def.def_id.to_def_id();
+    let mut params = ParamsCtxt::new(tcx.sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     let mut cx = DesugarCtxt::with_params(params);
@@ -53,12 +54,12 @@ pub fn desugar_struct_def(
             .into_iter()
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
-        let variants = Some(IndexVec::from_raw(vec![Some(VariantDef { fields })]));
+        let variants = Some(IndexVec::from_raw(vec![Some(VariantDef { def_id, fields })]));
         AdtDefKind::Transparent { variants }
     };
-    let def_id = adt_def.def_id.to_def_id();
     let refined_by = cx.params.params;
-    Ok(AdtDef { def_id, kind, refined_by })
+    let generics = tcx.generics_of(def_id).clone();
+    Ok(AdtDef { def_id, kind, refined_by, generics })
 }
 
 pub fn desugar_enum_def(tcx: TyCtxt, enum_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
@@ -72,7 +73,8 @@ pub fn desugar_enum_def(tcx: TyCtxt, enum_def: surface::EnumDef) -> Result<AdtDe
     };
     let def_id = enum_def.def_id.to_def_id();
     let refined_by = params.params;
-    Ok(AdtDef { def_id, kind, refined_by })
+    let generics = tcx.generics_of(def_id).clone();
+    Ok(AdtDef { def_id, kind, refined_by, generics })
 }
 
 pub fn desugar_fn_sig(

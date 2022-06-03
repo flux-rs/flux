@@ -78,7 +78,6 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let adt_def = self.adt_def(def_id);
-        let did_ty = self.tcx.type_of(def_id);
         adt_def.variant_sig(variant_idx)
     }
 
@@ -95,7 +94,18 @@ impl<'tcx> GlobalEnv<'tcx> {
             .iter()
             .map(|variant| self.default_variant_def(variant))
             .collect();
-        ty::AdtDef::transparent(adt_def.did, vec![], variants)
+        let generics = self.adt_def_generics(adt_def.did);
+        ty::AdtDef::transparent(adt_def.did, generics, vec![], variants)
+    }
+    pub fn adt_def_generics(&self, def_id: DefId) -> Vec<rustc_middle::ty::ParamTy> {
+        let generics = self
+            .tcx
+            .generics_of(def_id)
+            .params
+            .iter()
+            .map(|p| rustc_middle::ty::ParamTy { index: p.index, name: p.name })
+            .collect_vec();
+        generics
     }
 
     pub fn default_variant_def(
@@ -112,7 +122,21 @@ impl<'tcx> GlobalEnv<'tcx> {
                 self.refine_ty(&ty.unwrap(), &mut |_| ty::Pred::tt())
             })
             .collect_vec();
+
+        // let res_ty = self.default_variant_result_ty(variant_def.def_id);
         ty::VariantDef::new(fields)
+    }
+
+    pub fn default_variant_result_ty(
+        &self,
+        variant_def_id: DefId,
+    ) -> crate::intern::Interned<ty::TyS> {
+        let res_ty = self.tcx.type_of(variant_def_id);
+        // let gens = self.tcx.generics_of(variant_def_id).params.clone();
+        let res_ty = rustc::lowering::lower_ty(self.tcx, res_ty);
+        self.tcx.sess.abort_if_errors();
+        let res_ty = self.refine_ty(&res_ty.unwrap(), &mut |_| ty::Pred::tt());
+        res_ty
     }
 
     pub fn refine_fn_sig(
