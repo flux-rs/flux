@@ -276,10 +276,14 @@ impl AdtDef {
         &self.0.sorts
     }
 
+    // RJ:HEREHEREHEREHEREHEREHERE
     pub fn variant_sig(&self, variant_idx: VariantIdx) -> PolySig {
+        let def_id = &self.def_id();
+
         let variant = &self.variants().unwrap()[variant_idx];
         let args = variant.fields.clone();
-        let bty = BaseTy::adt(self.clone(), vec![]);
+        println!("variant_sig: {def_id:?} {args:?}");
+        let bty = BaseTy::adt(self.clone(), vec![]); // RJ: where did type-params go?!
         let indices = (0..self.sorts().len())
             .map(|idx| Expr::bvar(BoundVar::new(idx, INNERMOST)).into())
             .collect_vec();

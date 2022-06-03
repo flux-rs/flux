@@ -140,6 +140,7 @@ fn bty_subtyping(
         (BaseTy::Bool, BaseTy::Bool) => {}
         (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
             debug_assert_eq!(def1.def_id(), def2.def_id());
+            println!("bty_sub: 1 = {:?}, 2 = {:?}", bty1, bty2);
             debug_assert_eq!(substs1.len(), substs2.len());
             let variances = genv.variances_of(def1.def_id());
             for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {

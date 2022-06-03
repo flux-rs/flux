@@ -78,6 +78,7 @@ impl<'tcx> GlobalEnv<'tcx> {
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let adt_def = self.adt_def(def_id);
+        let did_ty = self.tcx.type_of(def_id);
         adt_def.variant_sig(variant_idx)
     }
 
