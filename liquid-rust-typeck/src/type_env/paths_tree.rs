@@ -1,4 +1,4 @@
-use std::{hint::unreachable_unchecked, iter};
+use std::{collections::HashMap, hint::unreachable_unchecked, iter};
 
 use itertools::Itertools;
 
@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{AdtDef, BaseTy, Expr, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
+    ty::{AdtDef, BaseTy, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
 use crate::{param_infer, refine_tree::RefineCtxt};
@@ -314,46 +314,18 @@ impl Node {
     }
 }
 
-type ParamInst = FxHashMap<usize, Expr>;
-
 fn fold(rcx: &mut RefineCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
-    let mut params = FxHashMap::default();
+    let mut exprs = FxHashMap::default();
     let variant_sig = adt_def.variant_sig(variant_idx);
     for (ty1, ty2) in iter::zip(tys, variant_sig.skip_binders().args()) {
-        ty_infer_folding(rcx, &mut params, ty1, ty2);
+        param_infer::infer_from_tys(&mut exprs, rcx, &HashMap::new(), ty1, &HashMap::new(), ty2);
     }
     adt_def
         .sorts()
         .iter()
         .enumerate()
-        .map(|(idx, _)| params.remove(&idx).unwrap().into())
+        .map(|(idx, _)| exprs.remove(&idx).unwrap().into())
         .collect()
-}
-
-fn ty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, ty1: &Ty, ty2: &Ty) {
-    match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
-            bty_infer_folding(rcx, params, bty1, bty2);
-            for (idx1, idx2) in iter::zip(indices1, indices2) {
-                param_infer::infer_from_exprs(params, &idx1.expr, &idx2.expr);
-            }
-        }
-        (TyKind::Ptr(_), TyKind::Ptr(_)) => todo!(),
-        (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-            ty_infer_folding(rcx, params, ty1, ty2);
-        }
-        _ => {}
-    }
-}
-
-fn bty_infer_folding(rcx: &mut RefineCtxt, params: &mut ParamInst, bty1: &BaseTy, bty2: &BaseTy) {
-    if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
-        debug_assert_eq!(def1.def_id(), def2.def_id());
-        debug_assert_eq!(substs1.len(), substs2.len());
-        for (ty1, ty2) in iter::zip(substs1, substs2) {
-            ty_infer_folding(rcx, params, ty1, ty2);
-        }
-    }
 }
 
 enum PathsIter<'a> {

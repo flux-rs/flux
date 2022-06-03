@@ -27,6 +27,11 @@ use self::paths_tree::{LookupResult, PathsTree};
 
 use super::ty::{Loc, Name, Pred, Sort};
 
+pub trait PathMap {
+    fn get(&self, path: &Path) -> Ty;
+    fn update(&mut self, path: &Path, ty: Ty);
+}
+
 #[derive(Clone, Default)]
 pub struct TypeEnv {
     bindings: PathsTree,
@@ -268,6 +273,29 @@ impl TypeEnv {
             let ty2 = goto_env.get(&path);
             gen.subtyping(ty1, &ty2);
         }
+    }
+}
+
+impl PathMap for TypeEnv {
+    fn get(&self, path: &Path) -> Ty {
+        self.bindings.get(path)
+    }
+
+    fn update(&mut self, path: &Path, ty: Ty) {
+        self.bindings.update(path, ty)
+    }
+}
+
+impl<S> PathMap for std::collections::HashMap<Path, Ty, S>
+where
+    S: std::hash::BuildHasher,
+{
+    fn get(&self, path: &Path) -> Ty {
+        self.get(path).unwrap().clone()
+    }
+
+    fn update(&mut self, path: &Path, ty: Ty) {
+        self.insert(path.clone(), ty);
     }
 }
 
