@@ -317,7 +317,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Call { func, substs, args, destination, .. } => {
                 let fn_sig = self.genv.lookup_fn_sig(*func);
-                println!("CHECK-TERMINATOR: kind = {:?}, sig = {:?}", terminator.kind, fn_sig);
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
                 if let Some((p, bb)) = destination {
@@ -566,11 +565,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::ShrRef(place) => Ok(env.borrow_shr(rcx, place)),
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
-                let did_ty = self.genv.tcx.type_of(def_id);
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
-                println!(
-                    "CHECK_RVAL: def_id = {def_id:?}, variant = {variant_idx:?}, substs = {substs:?}, args = {args:?}, did_ty = {did_ty:?}"
-                );
                 self.check_call(rcx, env, source_info, sig, substs, args)
             }
             Rvalue::Discriminant(_p) => Ok(Ty::discr()),

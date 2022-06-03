@@ -132,9 +132,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             .map(|ty| self.lower_ty(ty, 1))
             .collect_vec();
 
-        // let res_ty = self.lower_ty(&variant_def.res, 1);
-        // let res = lower_ty(tcx, tcx.type_of(variant_def.def_id))?;
-        // let res_ty = self.genv.default_variant_result_ty(variant_def.def_id);
         VariantDef::new(fields)
     }
 

@@ -123,20 +123,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             })
             .collect_vec();
 
-        // let res_ty = self.default_variant_result_ty(variant_def.def_id);
         ty::VariantDef::new(fields)
-    }
-
-    pub fn default_variant_result_ty(
-        &self,
-        variant_def_id: DefId,
-    ) -> crate::intern::Interned<ty::TyS> {
-        let res_ty = self.tcx.type_of(variant_def_id);
-        // let gens = self.tcx.generics_of(variant_def_id).params.clone();
-        let res_ty = rustc::lowering::lower_ty(self.tcx, res_ty);
-        self.tcx.sess.abort_if_errors();
-        let res_ty = self.refine_ty(&res_ty.unwrap(), &mut |_| ty::Pred::tt());
-        res_ty
     }
 
     pub fn refine_fn_sig(

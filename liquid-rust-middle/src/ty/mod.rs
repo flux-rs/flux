@@ -282,18 +282,12 @@ impl AdtDef {
         &self.0.generics
     }
 
-    // RJ:HEREHEREHEREHEREHEREHERE
     pub fn variant_sig(&self, variant_idx: VariantIdx) -> PolySig {
-        let def_id = &self.def_id();
-
         let variant = &self.variants().unwrap()[variant_idx];
         let args = variant.fields.clone();
-        // let res_ty = variant.res_ty.clone();
-        let generics = self.generics().iter().map(|p| Ty::param(*p)).collect_vec();
-        println!("variant_sig: {def_id:?} {args:?} {generics:?}");
+        let substs = self.generics().iter().map(|p| Ty::param(*p)).collect_vec();
 
-        //let bty = BaseTy::adt(self.clone(), vec![]); // RJ: where did type-params go?!
-        let bty = BaseTy::adt(self.clone(), generics); // RJ: where did type-params go?!
+        let bty = BaseTy::adt(self.clone(), substs);
 
         let indices = (0..self.sorts().len())
             .map(|idx| Expr::bvar(BoundVar::new(idx, INNERMOST)).into())
