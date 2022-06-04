@@ -8,7 +8,7 @@ use liquid_rust_middle::{
     ty::{AdtDef, BaseTy, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
-use crate::constraint_gen::FnCallChecker;
+use crate::constraint_gen::ConstrGen;
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -30,8 +30,8 @@ impl LookupResult {
 }
 
 impl PathsTree {
-    pub fn lookup_place(&mut self, fnck: &mut FnCallChecker, place: &Place) -> LookupResult {
-        self.lookup_place_iter(fnck, Loc::Local(place.local), &mut place.projection.iter())
+    pub fn lookup_place(&mut self, gen: &mut ConstrGen, place: &Place) -> LookupResult {
+        self.lookup_place_iter(gen, Loc::Local(place.local), &mut place.projection.iter())
     }
 
     pub fn get(&self, path: &Path) -> Ty {
@@ -96,17 +96,17 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_with(&mut self, fnck: &mut FnCallChecker, other: &PathsTree) {
+    pub fn fold_unfold_with(&mut self, gen: &mut ConstrGen, other: &PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_with(fnck, node2);
+                node1.fold_unfold_with(gen, node2);
             }
         }
     }
 
     fn lookup_place_iter(
         &mut self,
-        fnck: &mut FnCallChecker,
+        gen: &mut ConstrGen,
         path: impl Into<Path>,
         place_proj: &mut std::slice::Iter<PlaceElem>,
     ) -> LookupResult {
@@ -139,20 +139,20 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(fnck, *mode, ty, place_proj);
+                                return self.lookup_place_iter_ty(gen, *mode, ty, place_proj);
                             }
                             _ => panic!(),
                         }
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(fnck));
+            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(gen));
         }
     }
 
     fn lookup_place_iter_ty(
         &mut self,
-        fnck: &mut FnCallChecker,
+        gen: &mut ConstrGen,
         mut rk: RefKind,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
@@ -165,7 +165,7 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return match self.lookup_place_iter(fnck, path.expect_path(), proj) {
+                    return match self.lookup_place_iter(gen, path.expect_path(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
                     }
@@ -231,11 +231,11 @@ impl Node {
         }
     }
 
-    fn fold_unfold_with(&mut self, fnck: &mut FnCallChecker, other: &Node) {
+    fn fold_unfold_with(&mut self, gen: &mut ConstrGen, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(..), Node::Ty(_)) => {
-                self.fold(fnck);
+                self.fold(gen);
                 return;
             }
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
@@ -248,7 +248,7 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_with(fnck, field2);
+            field1.fold_unfold_with(gen, field2);
         }
     }
 
@@ -282,14 +282,14 @@ impl Node {
         }
     }
 
-    fn fold(&mut self, fnck: &mut FnCallChecker) -> Ty {
+    fn fold(&mut self, gen: &mut ConstrGen) -> Ty {
         match self {
             Node::Ty(ty) => ty.clone(),
             Node::Adt(adt_def, variant_idx, fields) => {
                 let fn_sig = adt_def.variant_sig(*variant_idx);
-                let actuals = fields.iter_mut().map(|node| node.fold(fnck)).collect_vec();
-                let output = fnck
-                    .check(&mut FxHashMap::default(), &fn_sig, &[], &actuals)
+                let actuals = fields.iter_mut().map(|node| node.fold(gen)).collect_vec();
+                let output = gen
+                    .check_fn_call(&mut FxHashMap::default(), &fn_sig, &[], &actuals)
                     .unwrap();
                 assert!(output.ensures.is_empty());
                 *self = Node::Ty(output.ret.clone());

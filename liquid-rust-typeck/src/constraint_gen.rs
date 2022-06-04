@@ -8,8 +8,8 @@ use liquid_rust_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
     ty::{
-        fold::TypeFoldable, BaseTy, BinOp, Constr, Constrs, Expr, Index, PolySig, Pred, RefKind,
-        Ty, TyKind,
+        fold::TypeFoldable, BaseTy, BinOp, Constraint, Constraints, Expr, Index, PolySig, Pred,
+        RefKind, Ty, TyKind,
     },
 };
 
@@ -19,22 +19,16 @@ use crate::{
     type_env::PathMap,
 };
 
-pub struct ConstraintGen<'a, 'tcx> {
-    pub genv: &'a GlobalEnv<'tcx>,
-    builder: ConstrBuilder<'a>,
-    tag: Tag,
-}
-
-pub struct FnCallChecker<'a, 'b, 'tcx> {
+pub struct ConstrGen<'a, 'rcx, 'tcx> {
     genv: &'a GlobalEnv<'tcx>,
-    rcx: &'a mut RefineCtxt<'b>,
+    rcx: &'a mut RefineCtxt<'rcx>,
     fresh_kvar: Box<dyn FnMut(&BaseTy) -> Pred + 'a>,
     tag: Tag,
 }
 
 pub struct CallOutput {
     pub ret: Ty,
-    pub ensures: Constrs,
+    pub ensures: Constraints,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
@@ -48,46 +42,35 @@ pub enum Tag {
     Goto(Option<Span>, BasicBlock),
 }
 
-impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
-    pub fn new(genv: &'a GlobalEnv<'tcx>, rcx: &'a mut RefineCtxt, tag: Tag) -> Self {
-        ConstraintGen { genv, builder: rcx.check_constr(), tag }
-    }
-
-    pub fn check_constr<Env: PathMap>(&mut self, env: &mut Env, constr: &Constr) {
-        match constr {
-            Constr::Type(path, ty) => {
-                let actual_ty = env.get(&path.expect_path());
-                self.subtyping(&actual_ty, ty);
-            }
-            Constr::Pred(e) => {
-                self.check_pred(e.clone());
-            }
-        }
-    }
-
-    pub fn check_pred(&mut self, pred: impl Into<Pred>) {
-        self.builder.push_head(pred, self.tag);
-    }
-
-    pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
-        subtyping(self.genv, &mut self.builder, ty1, ty2, self.tag)
-    }
-}
-
-impl<'a, 'b, 'tcx> FnCallChecker<'a, 'b, 'tcx> {
+impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
     pub fn new<F>(
         genv: &'a GlobalEnv<'tcx>,
-        rcx: &'a mut RefineCtxt<'b>,
+        rcx: &'a mut RefineCtxt<'rcx>,
         fresh_kvar: F,
         tag: Tag,
     ) -> Self
     where
         F: FnMut(&BaseTy) -> Pred + 'a,
     {
-        FnCallChecker { genv, rcx, fresh_kvar: Box::new(fresh_kvar), tag }
+        ConstrGen { genv, rcx, fresh_kvar: Box::new(fresh_kvar), tag }
     }
 
-    pub fn check<Env: PathMap>(
+    pub fn check_constraint<Env: PathMap>(&mut self, env: &mut Env, constraint: &Constraint) {
+        let mut constr = self.rcx.check_constr();
+        check_constraint(self.genv, env, constraint, self.tag, &mut constr);
+    }
+
+    pub fn check_pred(&mut self, pred: impl Into<Pred>) {
+        let mut constr = self.rcx.check_constr();
+        constr.push_head(pred, self.tag);
+    }
+
+    pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
+        let mut constr = self.rcx.check_constr();
+        subtyping(self.genv, &mut constr, ty1, ty2, self.tag)
+    }
+
+    pub fn check_fn_call<Env: PathMap>(
         &mut self,
         env: &mut Env,
         fn_sig: &PolySig,
@@ -101,39 +84,53 @@ impl<'a, 'b, 'tcx> FnCallChecker<'a, 'b, 'tcx> {
             .collect_vec();
 
         // Iner refinement parameters
-        let exprs = param_infer::infer_from_fn_call(&mut self.rcx, env, actuals, fn_sig)?;
+        let exprs = param_infer::infer_from_fn_call(self.rcx, env, actuals, fn_sig)?;
         let fn_sig = fn_sig
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
 
         // Check arguments
-        let mut gen = ConstraintGen::new(self.genv, &mut self.rcx, self.tag);
+        let constr = &mut self.rcx.check_constr();
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
             if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
                 let path = path.expect_path();
-                gen.subtyping(&env.get(&path), bound);
+                subtyping(self.genv, constr, &env.get(&path), bound, self.tag);
                 env.update(&path, bound.clone());
             } else {
-                gen.subtyping(actual, formal);
+                subtyping(self.genv, constr, actual, formal, self.tag);
             }
         }
 
         // Check preconditions
-        for constr in fn_sig.requires() {
-            gen.check_constr(env, constr);
+        for constraint in fn_sig.requires() {
+            check_constraint(self.genv, env, constraint, self.tag, constr);
         }
 
         Ok(CallOutput { ret: fn_sig.ret().clone(), ensures: fn_sig.ensures().clone() })
     }
+}
 
-    pub fn as_constr_gen(&mut self) -> ConstraintGen<'_, 'tcx> {
-        ConstraintGen::new(self.genv, &mut self.rcx, self.tag)
+fn check_constraint<Env: PathMap>(
+    genv: &GlobalEnv,
+    env: &Env,
+    constraint: &Constraint,
+    tag: Tag,
+    constr: &mut ConstrBuilder,
+) {
+    match constraint {
+        Constraint::Type(path, ty) => {
+            let actual_ty = env.get(&path.expect_path());
+            subtyping(genv, constr, &actual_ty, ty, tag);
+        }
+        Constraint::Pred(e) => {
+            constr.push_head(e.clone(), tag);
+        }
     }
 }
 
-pub fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, tag: Tag) {
+fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, tag: Tag) {
     let constr = &mut constr.breadcrumb();
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, e1), TyKind::Indexed(bty2, e2)) if e1 == e2 => {

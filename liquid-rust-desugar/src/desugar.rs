@@ -12,8 +12,8 @@ use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
-    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constr, Expr, ExprKind, FnSig, Ident, Index,
-    Indices, Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VariantDef,
+    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constraint, Expr, ExprKind, FnSig, Ident,
+    Index, Indices, Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VariantDef,
 };
 
 pub fn desugar_qualifier(
@@ -89,7 +89,7 @@ pub fn desugar_fn_sig(
 
     if let Some(e) = fn_sig.requires {
         let e = desugar.params.desugar_expr(e)?;
-        desugar.requires.push(Constr::Pred(e));
+        desugar.requires.push(Constraint::Pred(e));
     }
 
     let args = fn_sig
@@ -106,7 +106,7 @@ pub fn desugar_fn_sig(
         .map(|(bind, ty)| {
             let loc = desugar.params.desugar_ident(bind);
             let ty = desugar.desugar_ty(ty);
-            Ok(Constr::Type(loc?, ty?))
+            Ok(Constraint::Type(loc?, ty?))
         })
         .try_collect_exhaust();
 
@@ -121,7 +121,7 @@ pub fn desugar_fn_sig(
 
 pub struct DesugarCtxt<'a> {
     params: ParamsCtxt<'a>,
-    requires: Vec<Constr>,
+    requires: Vec<Constraint>,
 }
 
 struct ParamsCtxt<'a> {
@@ -141,7 +141,7 @@ impl<'a> DesugarCtxt<'a> {
             surface::Arg::Indexed(bind, path, pred) => {
                 if let Some(pred) = pred {
                     self.requires
-                        .push(Constr::Pred(self.params.desugar_expr(pred)?));
+                        .push(Constraint::Pred(self.params.desugar_expr(pred)?));
                 }
                 let bty = self.desugar_path_into_bty(path);
                 let idx = Index { expr: self.params.desugar_var(bind)?, is_binder: true };
@@ -151,7 +151,7 @@ impl<'a> DesugarCtxt<'a> {
             surface::Arg::StrgRef(loc, ty) => {
                 let loc = self.params.desugar_ident(loc)?;
                 let ty = self.desugar_ty(ty)?;
-                self.requires.push(Constr::Type(loc, ty));
+                self.requires.push(Constraint::Type(loc, ty));
                 Ok(Ty::Ptr(loc))
             }
             surface::Arg::Ty(ty) => self.desugar_ty(ty),
@@ -193,7 +193,7 @@ impl<'a> DesugarCtxt<'a> {
             surface::TyKind::StrgRef(loc, ty) => {
                 let loc = self.params.desugar_ident(loc)?;
                 let ty = self.desugar_ty(*ty)?;
-                self.requires.push(Constr::Type(loc, ty));
+                self.requires.push(Constraint::Type(loc, ty));
                 Ty::Ptr(loc)
             }
             surface::TyKind::Unit => Ty::Tuple(vec![]),

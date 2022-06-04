@@ -42,17 +42,15 @@ pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<Param>,
     /// example: vec![(0 <= n), (l: i32)]
-    pub requires: Vec<Constr>,
+    pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
     /// example: i32
     pub ret: Ty,
     /// example: vec![(l: i32{v:n < v})]
-    pub ensures: Vec<Constr>,
+    pub ensures: Vec<Constraint>,
 }
-
-/// A *constr*aint
-pub enum Constr {
+pub enum Constraint {
     /// A type constraint on a location
     Type(Ident, Ty),
     /// A predicate that needs to hold
@@ -218,11 +216,11 @@ impl fmt::Debug for FnSig {
     }
 }
 
-impl fmt::Debug for Constr {
+impl fmt::Debug for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constr::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
-            Constr::Pred(e) => write!(f, "{e:?}"),
+            Constraint::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
+            Constraint::Pred(e) => write!(f, "{e:?}"),
         }
     }
 }

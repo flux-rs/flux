@@ -53,16 +53,16 @@ pub struct Binders<T> {
 pub type PolySig = Binders<FnSig>;
 #[derive(Clone)]
 pub struct FnSig {
-    requires: List<Constr>,
+    requires: List<Constraint>,
     args: List<Ty>,
     ret: Ty,
-    ensures: List<Constr>,
+    ensures: List<Constraint>,
 }
 
-pub type Constrs = List<Constr>;
+pub type Constraints = List<Constraint>;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub enum Constr {
+pub enum Constraint {
     Type(Expr, Ty),
     Pred(Expr),
 }
@@ -226,9 +226,9 @@ where
 impl FnSig {
     pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
     where
-        List<Constr>: From<A>,
+        List<Constraint>: From<A>,
         List<Ty>: From<B>,
-        List<Constr>: From<C>,
+        List<Constraint>: From<C>,
     {
         FnSig {
             requires: Interned::from(requires),
@@ -237,7 +237,7 @@ impl FnSig {
             ensures: Interned::from(ensures),
         }
     }
-    pub fn requires(&self) -> &Constrs {
+    pub fn requires(&self) -> &Constraints {
         &self.requires
     }
 
@@ -249,7 +249,7 @@ impl FnSig {
         &self.ret
     }
 
-    pub fn ensures(&self) -> &Constrs {
+    pub fn ensures(&self) -> &Constraints {
         &self.ensures
     }
 }
@@ -870,7 +870,7 @@ impl_internable!(
     [Expr],
     [Field],
     [KVar],
-    [Constr],
+    [Constraint],
     [Param],
     [Index],
     [Sort]
@@ -933,12 +933,12 @@ mod pretty {
         }
     }
 
-    impl Pretty for Constr {
+    impl Pretty for Constraint {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Constr::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
-                Constr::Pred(e) => w!("{:?}", e),
+                Constraint::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+                Constraint::Pred(e) => w!("{:?}", e),
             }
         }
     }
@@ -1208,7 +1208,7 @@ mod pretty {
     }
 
     impl_debug_with_default_cx!(
-        Constr,
+        Constraint,
         TyS => "ty",
         BaseTy,
         Pred,

@@ -147,12 +147,15 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             .collect()
     }
 
-    fn lower_constr(&mut self, constr: &core::Constr, nbinders: u32) -> ty::Constr {
+    fn lower_constr(&mut self, constr: &core::Constraint, nbinders: u32) -> ty::Constraint {
         match constr {
-            core::Constr::Type(loc, ty) => {
-                ty::Constr::Type(self.name_map.get(loc.name, nbinders), self.lower_ty(ty, nbinders))
+            core::Constraint::Type(loc, ty) => {
+                ty::Constraint::Type(
+                    self.name_map.get(loc.name, nbinders),
+                    self.lower_ty(ty, nbinders),
+                )
             }
-            core::Constr::Pred(e) => ty::Constr::Pred(lower_expr(e, &self.name_map, 1)),
+            core::Constraint::Pred(e) => ty::Constraint::Pred(lower_expr(e, &self.name_map, 1)),
         }
     }
 
