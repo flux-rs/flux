@@ -42,11 +42,11 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
-pub struct Checker<'a, 'tcx, M> {
+pub struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'tcx>,
-    mode: M,
+    phase: P,
     ret: Ty,
     ensures: Constrs,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
@@ -56,7 +56,7 @@ pub struct Checker<'a, 'tcx, M> {
     queue: WorkQueue<'a>,
 }
 
-pub trait Mode: Sized {
+pub trait Phase: Sized {
     type KvarGen<'a>: FnMut(&BaseTy) -> Pred
     where
         Self: 'a;
@@ -68,7 +68,7 @@ pub trait Mode: Sized {
         genv: &'a GlobalEnv<'tcx>,
         rcx: &'a mut RefineCtxt,
         tag: Tag,
-    ) -> FnCallChecker<'a, 'tcx, Self::KvarGen<'_>> {
+    ) -> FnCallChecker<'a, 'tcx, Self::KvarGen<'a>> {
         FnCallChecker::new(genv, rcx, self.kvar_gen(rcx), tag)
     }
 
@@ -99,14 +99,14 @@ pub struct Check<'a> {
 /// of the successor basic block
 pub type Guard = Option<Expr>;
 
-impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
+impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
         genv: &'a GlobalEnv<'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
         ensures: Constrs,
         dominators: &'a Dominators<BasicBlock>,
-        mode: M,
+        phase: P,
     ) -> Self {
         Checker {
             genv,
@@ -114,7 +114,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
             visited: BitSet::new_empty(body.basic_blocks.len()),
             ret,
             ensures,
-            mode,
+            phase,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators,
             queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
@@ -168,13 +168,13 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     }
 }
 
-impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
+impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn run(
         genv: &'a GlobalEnv<'tcx>,
         refine_tree: &mut RefineTree,
         body: &'a Body<'tcx>,
         def_id: DefId,
-        mode: M,
+        phase: P,
     ) -> Result<(), ErrorReported> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -191,7 +191,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             fn_sig.ret().clone(),
             fn_sig.ensures().clone(),
             &dominators,
-            mode,
+            phase,
         );
 
         ck.check_goto(rcx, env, None, START_BLOCK)?;
@@ -204,7 +204,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
-            let mut env = ck.mode.enter_basic_block(&mut rcx, bb);
+            let mut env = ck.phase.enter_basic_block(&mut rcx, bb);
             env.unpack(&mut rcx);
             ck.check_basic_block(rcx, env, bb)?;
         }
@@ -245,7 +245,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.is_dominated_by(bb, root) {
-                self.mode.clear(bb);
+                self.phase.clear(bb);
                 self.visited.remove(bb);
             }
         }
@@ -287,7 +287,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
                 let ty = env.unpack_ty(rcx, &ty);
-                let fresh_kvar = self.mode.kvar_gen(rcx);
+                let fresh_kvar = self.phase.kvar_gen(rcx);
                 env.write_place(
                     self.genv,
                     rcx,
@@ -336,7 +336,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
                 if let Some((p, bb)) = destination {
                     let ret = env.unpack_ty(rcx, &ret);
-                    let fresh_kvar = self.mode.kvar_gen(rcx);
+                    let fresh_kvar = self.phase.kvar_gen(rcx);
                     env.write_place(
                         self.genv,
                         rcx,
@@ -357,14 +357,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let mut fnck = self.mode.fnck(self.genv, rcx, Tag::Ret);
+                let mut fnck = self.phase.fnck(self.genv, rcx, Tag::Ret);
                 let _ = env.move_place(&mut fnck, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, value);
                 let ty = env.unpack_ty(rcx, &ty);
-                let fresh_kvar = self.mode.kvar_gen(rcx);
+                let fresh_kvar = self.phase.kvar_gen(rcx);
                 env.write_place(
                     self.genv,
                     rcx,
@@ -389,7 +389,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
         let ret_place_ty =
-            env.lookup_place(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), Place::RETURN);
+            env.lookup_place(&mut self.phase.fnck(self.genv, rcx, Tag::Ret), Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -419,9 +419,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .map(|arg| self.genv.refine_generic_arg(arg, &mut |_| Pred::Hole))
             .collect_vec();
 
-        let fresh_kvar = self.mode.kvar_gen(rcx);
-
-        let output = FnCallChecker::new(self.genv, rcx, fresh_kvar, Tag::Call(source_info.span))
+        let output = self
+            .phase
+            .fnck(self.genv, rcx, Tag::Call(source_info.span))
             .check(env, &fn_sig, &substs, &actuals)
             .map_err(|_| {
                 self.genv
@@ -544,7 +544,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         target: BasicBlock,
     ) -> Result<(), ErrorReported> {
         if self.body.is_join_point(target) {
-            if M::check_goto_join_point(self, rcx, env, src_info, target) {
+            if P::check_goto_join_point(self, rcx, env, src_info, target) {
                 self.queue.insert(target);
             }
             Ok(())
@@ -566,10 +566,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(self.check_binary_op(rcx, env, source_info, *bin_op, op1, op2))
             }
             Rvalue::MutRef(place) => {
-                Ok(env.borrow_mut(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), place))
+                Ok(env.borrow_mut(&mut self.phase.fnck(self.genv, rcx, Tag::Ret), place))
             }
             Rvalue::ShrRef(place) => {
-                Ok(env.borrow_shr(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), place))
+                Ok(env.borrow_shr(&mut self.phase.fnck(self.genv, rcx, Tag::Ret), place))
             }
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
@@ -786,11 +786,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), p)
+                env.lookup_place(&mut self.phase.fnck(self.genv, rcx, Tag::Ret), p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), p)
+                env.move_place(&mut self.phase.fnck(self.genv, rcx, Tag::Ret), p)
             }
             Operand::Constant(c) => self.check_constant(c),
         };
@@ -823,7 +823,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 }
 
-impl Mode for Inference<'_> {
+impl Phase for Inference<'_> {
     type KvarGen<'a>
     where
         Self: 'a,
@@ -847,15 +847,15 @@ impl Mode for Inference<'_> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
-        dbg::infer_goto_enter!(target, env, ck.mode.bb_envs.get(&target));
-        let modified = match ck.mode.bb_envs.entry(target) {
+        dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
+        let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(scope));
                 true
             }
         };
-        dbg::infer_goto_exit!(target, ck.mode.bb_envs[&target]);
+        dbg::infer_goto_exit!(target, ck.phase.bb_envs[&target]);
 
         modified
     }
@@ -865,7 +865,7 @@ impl Mode for Inference<'_> {
     }
 }
 
-impl Mode for Check<'_> {
+impl Phase for Check<'_> {
     type KvarGen<'a>
     where
         Self: 'a,
@@ -873,10 +873,7 @@ impl Mode for Check<'_> {
 
     fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_> {
         let scope = rcx.scope();
-        move |bty| {
-            let kvars = &mut self.kvars;
-            kvars.fresh(bty.sorts(), scope.iter())
-        }
+        move |bty| self.kvars.fresh(bty.sorts(), scope.iter())
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -893,11 +890,11 @@ impl Mode for Check<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
         let mut first = false;
 
-        let bb_env = match ck.mode.bb_envs.entry(target) {
+        let bb_env = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let fresh_kvar = &mut |sorts: &[Sort], params: &[Param]| {
-                    ck.mode.kvars.fresh(
+                    ck.phase.kvars.fresh(
                         sorts,
                         scope
                             .iter()
@@ -906,7 +903,7 @@ impl Mode for Check<'_> {
                 };
                 first = true;
                 entry.insert(
-                    ck.mode
+                    ck.phase
                         .bb_envs_infer
                         .remove(&target)
                         .unwrap()
@@ -915,7 +912,7 @@ impl Mode for Check<'_> {
             }
         };
 
-        let fresh_kvar = |bty: &BaseTy| ck.mode.kvars.fresh(bty.sorts(), scope.iter());
+        let fresh_kvar = |bty: &BaseTy| ck.phase.kvars.fresh(bty.sorts(), scope.iter());
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
