@@ -101,7 +101,12 @@ pub enum TyKind {
     Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
-    /// Used internally to represent result of `discriminant` RVal
+    /// This is a bit of a hack. We use this type internally to represent the result of
+    /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
+    /// when checking [`TerminatorKind::SwitchInt`].
+    ///
+    /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
+    /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(Place),
 }
 
@@ -415,14 +420,6 @@ impl TyS {
             place
         } else {
             panic!("expected discr")
-        }
-    }
-
-    pub fn expect_adt(&self) -> AdtDef {
-        match self.kind() {
-            TyKind::Indexed(BaseTy::Adt(adt_def, _), _)
-            | TyKind::Exists(BaseTy::Adt(adt_def, _), _) => adt_def.clone(),
-            _ => panic!("expected adt"),
         }
     }
 
