@@ -63,12 +63,12 @@ pub trait Phase: Sized {
 
     fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_>;
 
-    fn fnck<'a, 'tcx>(
+    fn fnck<'a, 'b, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'tcx>,
-        rcx: &'a mut RefineCtxt,
+        rcx: &'a mut RefineCtxt<'b>,
         tag: Tag,
-    ) -> FnCallChecker<'a, 'tcx> {
+    ) -> FnCallChecker<'a, 'b, 'tcx> {
         FnCallChecker::new(genv, rcx, self.kvar_gen(rcx), tag)
     }
 

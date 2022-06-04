@@ -920,10 +920,11 @@ mod pretty {
     impl Pretty for FnSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
+            w!("fn(")?;
             if !self.requires.is_empty() {
                 w!("[{:?}] ", join!(", ", &self.requires))?;
             }
-            w!("fn({:?}) -> {:?}", join!(", ", &self.args), &self.ret)?;
+            w!("{:?}) -> {:?}", join!(", ", &self.args), &self.ret)?;
             if !self.ensures.is_empty() {
                 w!("; [{:?}]", join!(", ", &self.ensures))?;
             }

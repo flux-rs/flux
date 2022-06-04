@@ -146,7 +146,7 @@ impl PathsTree {
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(fnck).clone());
+            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(fnck));
         }
     }
 

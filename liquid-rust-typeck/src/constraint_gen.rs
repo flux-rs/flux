@@ -25,9 +25,9 @@ pub struct ConstraintGen<'a, 'tcx> {
     tag: Tag,
 }
 
-pub struct FnCallChecker<'a, 'tcx> {
+pub struct FnCallChecker<'a, 'b, 'tcx> {
     genv: &'a GlobalEnv<'tcx>,
-    rcx: RefineCtxt<'a>,
+    rcx: &'a mut RefineCtxt<'b>,
     fresh_kvar: Box<dyn FnMut(&BaseTy) -> Pred + 'a>,
     tag: Tag,
 }
@@ -74,17 +74,17 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> FnCallChecker<'a, 'tcx> {
+impl<'a, 'b, 'tcx> FnCallChecker<'a, 'b, 'tcx> {
     pub fn new<F>(
         genv: &'a GlobalEnv<'tcx>,
-        rcx: &'a mut RefineCtxt,
+        rcx: &'a mut RefineCtxt<'b>,
         fresh_kvar: F,
         tag: Tag,
     ) -> Self
     where
         F: FnMut(&BaseTy) -> Pred + 'a,
     {
-        FnCallChecker { genv, rcx: rcx.breadcrumb(), fresh_kvar: Box::new(fresh_kvar), tag }
+        FnCallChecker { genv, rcx, fresh_kvar: Box::new(fresh_kvar), tag }
     }
 
     pub fn check<Env: PathMap>(
@@ -101,7 +101,7 @@ impl<'a, 'tcx> FnCallChecker<'a, 'tcx> {
             .collect_vec();
 
         // Iner refinement parameters
-        let exprs = param_infer::infer_from_fn_call(&mut self.rcx, env, &actuals, &fn_sig)?;
+        let exprs = param_infer::infer_from_fn_call(&mut self.rcx, env, actuals, fn_sig)?;
         let fn_sig = fn_sig
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
@@ -116,7 +116,7 @@ impl<'a, 'tcx> FnCallChecker<'a, 'tcx> {
                 gen.subtyping(&env.get(&path), bound);
                 env.update(&path, bound.clone());
             } else {
-                gen.subtyping(&actual, formal);
+                gen.subtyping(actual, formal);
             }
         }
 
