@@ -151,7 +151,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         match constr {
             core::Constraint::Type(loc, ty) => {
                 ty::Constraint::Type(
-                    self.name_map.get(loc.name, nbinders),
+                    self.name_map
+                        .get(loc.name, nbinders)
+                        .to_path()
+                        .expect("expected a valid path"),
                     self.lower_ty(ty, nbinders),
                 )
             }
@@ -199,7 +202,14 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         ty::Ty::exists(bty, lower_expr(pred, name_map, nbinders))
                     })
             }
-            core::Ty::Ptr(loc) => ty::Ty::ptr(self.name_map.get(loc.name, nbinders)),
+            core::Ty::Ptr(loc) => {
+                ty::Ty::ptr(
+                    self.name_map
+                        .get(loc.name, nbinders)
+                        .to_path()
+                        .expect("expected a valid path"),
+                )
+            }
             core::Ty::Ref(rk, ty) => {
                 ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty, nbinders))
             }

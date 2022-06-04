@@ -191,10 +191,10 @@ impl TypeEnv {
                     subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
                 }
             }
-            (TyKind::Ptr(pexpr1), TyKind::Ptr(pexpr2)) => {
-                subst.infer_from_exprs(params, pexpr1, pexpr2);
-                let ty1 = self.bindings.get(&pexpr1.expect_path());
-                let ty2 = bb_env.bindings.get(&pexpr2.expect_path());
+            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+                subst.infer_from_exprs(params, &path1.to_expr(), &path2.to_expr());
+                let ty1 = self.bindings.get(path1);
+                let ty2 = bb_env.bindings.get(path2);
                 self.infer_subst_for_bb_env_tys(bb_env, params, &ty1, &ty2, subst);
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
@@ -232,11 +232,12 @@ impl TypeEnv {
         for path in self.bindings.paths().collect_vec() {
             let ty1 = self.bindings.get(&path);
             let ty2 = goto_env.get(&path);
-            if let (TyKind::Ptr(pexpr), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
+            if let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) =
+                (ty1.kind(), ty2.kind())
             {
-                let ty = self.bindings.get(&pexpr.expect_path());
+                let ty = self.bindings.get(ptr_path);
                 gen.subtyping(&ty, bound);
-                self.bindings.update(&pexpr.expect_path(), bound.clone());
+                self.bindings.update(ptr_path, bound.clone());
                 self.bindings
                     .update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
             }
@@ -385,9 +386,9 @@ impl TypeEnvInfer {
             let ty1 = self.bindings.get(path);
             let ty2 = other.bindings.get(path);
             match (ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(pexpr1), TyKind::Ptr(pexpr2)) if pexpr1 != pexpr2 => {
-                    let ty1 = self.bindings.get(&pexpr1.expect_path()).with_holes();
-                    let ty2 = other.bindings.get(&pexpr2.expect_path()).with_holes();
+                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
+                    let ty1 = self.bindings.get(&path1).with_holes();
+                    let ty2 = other.bindings.get(&path2).with_holes();
 
                     self.bindings
                         .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
@@ -395,16 +396,16 @@ impl TypeEnvInfer {
                         .bindings
                         .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
 
-                    self.bindings.update(&pexpr1.expect_path(), ty1);
-                    other.bindings.update(&pexpr2.expect_path(), ty2);
+                    self.bindings.update(path1, ty1);
+                    other.bindings.update(path2, ty2);
                 }
-                (TyKind::Ptr(pexpr), TyKind::Ref(RefKind::Mut, bound)) => {
-                    self.bindings.update(&pexpr.expect_path(), bound.clone());
+                (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    self.bindings.update(ptr_path, bound.clone());
                     self.bindings
                         .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                 }
-                (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(pexpr)) => {
-                    other.bindings.update(&pexpr.expect_path(), bound.clone());
+                (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
+                    other.bindings.update(ptr_path, bound.clone());
                     other
                         .bindings
                         .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));

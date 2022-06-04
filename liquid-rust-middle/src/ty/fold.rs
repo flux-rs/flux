@@ -171,7 +171,13 @@ impl TypeFoldable for Constraint {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             Constraint::Type(path, ty) => {
-                Constraint::Type(path.fold_with(folder), ty.fold_with(folder))
+                Constraint::Type(
+                    path.to_expr()
+                        .fold_with(folder)
+                        .to_path()
+                        .expect("folding produced an invalid path"),
+                    ty.fold_with(folder),
+                )
             }
             Constraint::Pred(e) => Constraint::Pred(e.fold_with(folder)),
         }
@@ -180,7 +186,7 @@ impl TypeFoldable for Constraint {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Constraint::Type(path, ty) => {
-                path.visit_with(visitor);
+                path.to_expr().visit_with(visitor);
                 ty.visit_with(visitor);
             }
             Constraint::Pred(e) => e.visit_with(visitor),
@@ -206,7 +212,14 @@ impl TypeFoldable for Ty {
             TyKind::Tuple(tys) => {
                 Ty::tuple(tys.iter().map(|ty| ty.fold_with(folder)).collect_vec())
             }
-            TyKind::Ptr(path) => Ty::ptr(path.fold_with(folder)),
+            TyKind::Ptr(path) => {
+                Ty::ptr(
+                    path.to_expr()
+                        .fold_with(folder)
+                        .to_path()
+                        .expect("folding produced an invalid path"),
+                )
+            }
             TyKind::Ref(rk, ty) => Ty::mk_ref(*rk, ty.fold_with(folder)),
             TyKind::Float(_)
             | TyKind::Uninit
@@ -228,7 +241,7 @@ impl TypeFoldable for Ty {
             }
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             TyKind::Ref(_, ty) => ty.visit_with(visitor),
-            TyKind::Ptr(path) => path.visit_with(visitor),
+            TyKind::Ptr(path) => path.to_expr().visit_with(visitor),
             TyKind::Param(_)
             | TyKind::Never
             | TyKind::Discr

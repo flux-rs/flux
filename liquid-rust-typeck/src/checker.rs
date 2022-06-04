@@ -217,9 +217,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         for constr in fn_sig.requires() {
             match constr {
                 ty::Constraint::Type(path, ty) => {
-                    let loc = path.to_loc().unwrap();
+                    assert!(path.projection().is_empty());
                     let ty = env.unpack_ty(rcx, ty);
-                    env.alloc_with_ty(loc, ty);
+                    env.alloc_with_ty(path.loc, ty);
                 }
                 ty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -421,7 +421,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             match constr {
                 Constraint::Type(path, updated_ty) => {
                     let updated_ty = env.unpack_ty(rcx, updated_ty);
-                    env.update_path(&path.expect_path(), updated_ty);
+                    env.update_path(path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
             }

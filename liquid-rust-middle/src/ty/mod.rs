@@ -63,7 +63,7 @@ pub type Constraints = List<Constraint>;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constraint {
-    Type(Expr, Ty),
+    Type(Path, Ty),
     Pred(Expr),
 }
 
@@ -94,7 +94,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Float(FloatTy),
     Uninit,
-    Ptr(Expr),
+    Ptr(Path),
     Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
@@ -347,7 +347,7 @@ impl Binders<VariantDef> {
 }
 
 impl Ty {
-    pub fn ptr(path: impl Into<Expr>) -> Ty {
+    pub fn ptr(path: impl Into<Path>) -> Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
@@ -680,13 +680,8 @@ impl ExprS {
                 _ => return None,
             }
         };
-        let proj = proj.into_iter().rev().collect_vec();
+        proj.reverse();
         Some(Path::new(loc, proj))
-    }
-
-    pub fn expect_path(&self) -> Path {
-        self.to_path()
-            .unwrap_or_else(|| panic!("expected path, got {:?}", self))
     }
 }
 

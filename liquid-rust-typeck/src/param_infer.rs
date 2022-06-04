@@ -28,7 +28,7 @@ pub fn infer_from_fn_call<M: PathMap>(
         .iter()
         .filter_map(|constr| {
             if let Constraint::Type(path, ty) = constr {
-                Some((path.expect_path(), ty.clone()))
+                Some((path.clone(), ty.clone()))
             } else {
                 None
             }
@@ -86,18 +86,11 @@ pub fn infer_from_tys<M1: PathMap, M2: PathMap>(
             }
         }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
-            infer_from_tys(exprs, rcx, env1, &env1.get(&path1.expect_path()), env2, ty2);
+            infer_from_tys(exprs, rcx, env1, &env1.get(path1), env2, ty2);
         }
         (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-            infer_from_exprs(exprs, path1, path2);
-            infer_from_tys(
-                exprs,
-                rcx,
-                env1,
-                &env1.get(&path1.expect_path()),
-                env2,
-                &env2.get(&path2.expect_path()),
-            );
+            infer_from_exprs(exprs, &path1.to_expr(), &path2.to_expr());
+            infer_from_tys(exprs, rcx, env1, &env1.get(path1), env2, &env2.get(path2));
         }
         (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
             debug_assert_eq!(mode1, mode2);

@@ -83,7 +83,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
             .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
             .collect_vec();
 
-        // Iner refinement parameters
+        // Infer refinement parameters
         let exprs = param_infer::infer_from_fn_call(self.rcx, env, actuals, fn_sig)?;
         let fn_sig = fn_sig
             .replace_generic_types(&substs)
@@ -95,8 +95,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
             if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
-                let path = path.expect_path();
-                subtyping(self.genv, constr, &env.get(&path), bound, self.tag);
+                subtyping(self.genv, constr, &env.get(path), bound, self.tag);
                 env.update(&path, bound.clone());
             } else {
                 subtyping(self.genv, constr, actual, formal, self.tag);
@@ -121,7 +120,7 @@ fn check_constraint<Env: PathMap>(
 ) {
     match constraint {
         Constraint::Type(path, ty) => {
-            let actual_ty = env.get(&path.expect_path());
+            let actual_ty = env.get(path);
             subtyping(genv, constr, &actual_ty, ty, tag);
         }
         Constraint::Pred(e) => {

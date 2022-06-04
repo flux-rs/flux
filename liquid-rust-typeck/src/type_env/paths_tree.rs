@@ -134,8 +134,8 @@ impl PathsTree {
                     PlaceElem::Deref => {
                         let ty = node.expect_ty();
                         match ty.kind() {
-                            TyKind::Ptr(path_expr) => {
-                                path = path_expr.expect_path();
+                            TyKind::Ptr(ptr_path) => {
+                                path = ptr_path.clone();
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
@@ -164,8 +164,8 @@ impl PathsTree {
                     rk = rk.min(*rk2);
                     ty = ty2.clone();
                 }
-                (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return match self.lookup_place_iter(gen, path.expect_path(), proj) {
+                (PlaceElem::Deref, TyKind::Ptr(ptr_path)) => {
+                    return match self.lookup_place_iter(gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
                     }
