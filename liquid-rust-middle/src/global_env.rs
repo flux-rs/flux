@@ -94,7 +94,19 @@ impl<'tcx> GlobalEnv<'tcx> {
             .iter()
             .map(|variant| self.default_variant_def(variant))
             .collect();
-        ty::AdtDef::transparent(adt_def.did, vec![], variants)
+        let generics = self.adt_def_generics(adt_def.did);
+        ty::AdtDef::transparent(adt_def.did, generics, vec![], variants)
+    }
+
+    pub fn adt_def_generics(&self, def_id: DefId) -> Vec<rustc_middle::ty::ParamTy> {
+        let generics = self
+            .tcx
+            .generics_of(def_id)
+            .params
+            .iter()
+            .map(|p| rustc_middle::ty::ParamTy { index: p.index, name: p.name })
+            .collect_vec();
+        generics
     }
 
     pub fn default_variant_def(
@@ -111,6 +123,7 @@ impl<'tcx> GlobalEnv<'tcx> {
                 self.refine_ty(&ty.unwrap(), &mut |_| ty::Pred::tt())
             })
             .collect_vec();
+
         ty::VariantDef::new(fields)
     }
 

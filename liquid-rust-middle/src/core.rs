@@ -24,6 +24,7 @@ pub struct AdtDef {
     pub def_id: DefId,
     pub kind: AdtDefKind,
     pub refined_by: Vec<Param>,
+    pub generics: rustc_middle::ty::Generics,
 }
 
 #[derive(Debug)]
