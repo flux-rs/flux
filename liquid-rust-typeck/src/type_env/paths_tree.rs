@@ -1,3 +1,5 @@
+use std::iter;
+
 use itertools::Itertools;
 
 use rustc_hash::FxHashMap;
@@ -177,7 +179,7 @@ impl PathsTree {
                 }
                 (PlaceElem::Field(field), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
                     let fields = adt_def
-                        .unfold(substs, &idxs.to_exprs(), VariantIdx::from_u32(0))
+                        .downcast(substs, &idxs.to_exprs(), VariantIdx::from_u32(0))
                         .unwrap();
                     ty = fields[*field].clone();
                 }
@@ -232,13 +234,15 @@ impl Node {
             (Node::Adt(_, variant_idx, fields1), Node::Ty(_)) => {
                 (fields1, other.downcast(*variant_idx))
             }
-            (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
-                debug_assert_eq!(variant_idx1, variant_idx2);
+            (Node::Adt(_, _, fields1), Node::Adt(_, _, fields2)) => {
+                let max = usize::max(fields1.len(), fields2.len());
+                fields1.resize(max, Node::Ty(Ty::uninit()));
+                fields2.resize(max, Node::Ty(Ty::uninit()));
                 (fields1, fields2)
             }
         };
         debug_assert_eq!(fields1.len(), fields2.len());
-        for (field1, field2) in fields1.iter_mut().zip(fields2.iter_mut()) {
+        for (field1, field2) in iter::zip(fields1, fields2) {
             field1.unfold_with(field2);
         }
     }
@@ -253,13 +257,13 @@ impl Node {
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
                 (self.downcast(*variant_idx), fields2)
             }
-            (Node::Adt(_, variant_idx1, fields1), Node::Adt(_, variant_idx2, fields2)) => {
-                debug_assert_eq!(variant_idx1, variant_idx2);
+            (Node::Adt(_, _, fields1), Node::Adt(_, _, fields2)) => {
+                fields1.resize(usize::max(fields1.len(), fields2.len()), Node::Ty(Ty::uninit()));
                 (fields1, fields2)
             }
         };
         debug_assert_eq!(fields1.len(), fields2.len());
-        for (field1, field2) in fields1.iter_mut().zip(fields2) {
+        for (field1, field2) in iter::zip(fields1, fields2) {
             field1.fold_unfold_with(gen, field2);
         }
     }
@@ -268,7 +272,7 @@ impl Node {
         if let Node::Ty(ty) = self {
             if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
                 let fields = adt_def
-                    .unfold(substs, &idxs.to_exprs(), variant_idx)
+                    .downcast(substs, &idxs.to_exprs(), variant_idx)
                     .unwrap()
                     .into_iter()
                     .map(Node::Ty)

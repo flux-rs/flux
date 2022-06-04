@@ -388,8 +388,8 @@ impl TypeEnvInfer {
             let ty2 = other.bindings.get(path);
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.bindings.get(&path1).with_holes();
-                    let ty2 = other.bindings.get(&path2).with_holes();
+                    let ty1 = self.bindings.get(path1).with_holes();
+                    let ty2 = other.bindings.get(path2).with_holes();
 
                     self.bindings
                         .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));

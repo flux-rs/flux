@@ -300,7 +300,7 @@ impl AdtDef {
         Binders::new(sig, self.sorts().clone())
     }
 
-    pub fn unfold(
+    pub fn downcast(
         &self,
         substs: &Substs,
         exprs: &[Expr],
