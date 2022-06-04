@@ -511,7 +511,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         discr_ty: &Ty,
         targets: &rustc_mir::SwitchTargets,
     ) -> Vec<(BasicBlock, Guard)> {
-        let (place, _adt_def) = discr_ty.expect_discr();
+        let place = discr_ty.expect_discr();
 
         let mut successors = vec![];
         for (bits, bb) in targets.iter() {
@@ -532,14 +532,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
             let mut rcx = rcx.breadcrumb();
-            let env = env.clone();
+            let mut env = env.clone();
             match guard {
                 Guard::None => {}
                 Guard::Pred(expr) => {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    println!("{target:?} {place:?} {variant_idx:?}");
+                    env.downcast(&place, variant_idx);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
@@ -589,11 +589,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(rcx, env, source_info, sig, substs, args)
             }
-            Rvalue::Discriminant(place) => {
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                let adt_def = env.lookup_place(gen, place).expect_adt();
-                Ok(Ty::discr(place.clone(), adt_def))
-            }
+            Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
         }
     }
 

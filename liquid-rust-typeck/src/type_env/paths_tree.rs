@@ -34,6 +34,10 @@ impl PathsTree {
         self.lookup_place_iter(gen, Loc::Local(place.local), &mut place.projection.iter())
     }
 
+    pub fn downcast(&mut self, path: &Path, variant_idx: VariantIdx) {
+        self.get_node_mut(path).downcast(variant_idx);
+    }
+
     pub fn get(&self, path: &Path) -> Ty {
         let mut node = self.map.get(&path.loc).unwrap();
         for f in path.projection() {
@@ -49,6 +53,10 @@ impl PathsTree {
     }
 
     pub fn update(&mut self, path: &Path, new_ty: Ty) {
+        *self.get_node_mut(path).expect_ty_mut() = new_ty;
+    }
+
+    fn get_node_mut(&mut self, path: &Path) -> &mut Node {
         let mut node = self.map.get_mut(&path.loc).unwrap();
         for f in path.projection() {
             match node {
@@ -56,10 +64,7 @@ impl PathsTree {
                 Node::Adt(.., fields) => node = &mut fields[*f],
             }
         }
-        match node {
-            Node::Ty(ty) => *ty = new_ty,
-            Node::Adt(..) => panic!("expected `Node::Ty`"),
-        }
+        node
     }
 
     pub fn insert(&mut self, loc: Loc, ty: Ty) {
@@ -207,6 +212,13 @@ impl Node {
     fn expect_ty(&self) -> Ty {
         match self {
             Node::Ty(ty) => ty.clone(),
+            _ => panic!("expected type"),
+        }
+    }
+
+    fn expect_ty_mut(&mut self) -> &mut Ty {
+        match self {
+            Node::Ty(ty) => ty,
             _ => panic!("expected type"),
         }
     }

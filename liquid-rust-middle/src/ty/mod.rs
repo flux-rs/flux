@@ -20,7 +20,7 @@ pub use rustc_target::abi::VariantIdx;
 pub use crate::core::RefKind;
 use crate::{
     intern::{impl_internable, Interned, List},
-    rustc::mir::Place,
+    rustc::mir::{Place, PlaceElem},
 };
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
@@ -102,7 +102,7 @@ pub enum TyKind {
     Param(ParamTy),
     Never,
     /// Used internally to represent result of `discriminant` RVal
-    Discr(Place, AdtDef),
+    Discr(Place),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -394,8 +394,8 @@ impl Ty {
         TyKind::Never.intern()
     }
 
-    pub fn discr(place: Place, adt_def: AdtDef) -> Ty {
-        TyKind::Discr(place, adt_def).intern()
+    pub fn discr(place: Place) -> Ty {
+        TyKind::Discr(place).intern()
     }
 }
 
@@ -410,9 +410,9 @@ impl TyS {
         &self.kind
     }
 
-    pub fn expect_discr(&self) -> (&Place, &AdtDef) {
-        if let TyKind::Discr(place, adt_def) = self.kind() {
-            (place, adt_def)
+    pub fn expect_discr(&self) -> &Place {
+        if let TyKind::Discr(place) = self.kind() {
+            place
         } else {
             panic!("expected discr")
         }
@@ -426,12 +426,12 @@ impl TyS {
         }
     }
 
-    /// Whether the type is an int or a uint
+    /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
         matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_integral())
     }
 
-    /// Whether the type is a bool
+    /// Whether the type is a `bool`
     pub fn is_bool(&self) -> bool {
         matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_bool())
     }
@@ -770,6 +770,18 @@ impl Path {
         Path { loc, projection: Interned::from(projection) }
     }
 
+    pub fn from_place(place: &Place) -> Option<Path> {
+        let mut proj = vec![];
+        for elem in &place.projection {
+            if let PlaceElem::Field(field) = elem {
+                proj.push(*field);
+            } else {
+                return None;
+            }
+        }
+        Some(Path::new(Loc::Local(place.local), proj))
+    }
+
     pub fn projection(&self) -> &[Field] {
         &self.projection[..]
     }
@@ -995,7 +1007,7 @@ mod pretty {
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
-                TyKind::Discr(place, adt_def) => w!("discr({:?}, {:?})", ^place, adt_def.def_id()),
+                TyKind::Discr(place) => w!("discr({:?})", ^place),
             }
         }
 
