@@ -68,7 +68,7 @@ pub trait Phase: Sized {
         genv: &'a GlobalEnv<'tcx>,
         rcx: &'a mut RefineCtxt,
         tag: Tag,
-    ) -> FnCallChecker<'a, 'tcx, Self::KvarGen<'a>> {
+    ) -> FnCallChecker<'a, 'tcx> {
         FnCallChecker::new(genv, rcx, self.kvar_gen(rcx), tag)
     }
 
@@ -287,15 +287,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
                 let ty = env.unpack_ty(rcx, &ty);
-                let fresh_kvar = self.phase.kvar_gen(rcx);
-                env.write_place(
-                    self.genv,
-                    rcx,
-                    fresh_kvar,
-                    place,
-                    ty,
-                    Tag::Assign(stmt.source_info.span),
-                );
+                let mut fnck = self
+                    .phase
+                    .fnck(self.genv, rcx, Tag::Assign(stmt.source_info.span));
+                env.write_place(&mut fnck, place, ty);
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double chould check here that the place is unfolded to
@@ -336,15 +331,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
                 if let Some((p, bb)) = destination {
                     let ret = env.unpack_ty(rcx, &ret);
-                    let fresh_kvar = self.phase.kvar_gen(rcx);
-                    env.write_place(
-                        self.genv,
-                        rcx,
-                        fresh_kvar,
-                        p,
-                        ret,
-                        Tag::Call(terminator.source_info.span),
-                    );
+                    let mut fnck =
+                        self.phase
+                            .fnck(self.genv, rcx, Tag::Call(terminator.source_info.span));
+                    env.write_place(&mut fnck, p, ret);
                     Ok(vec![(*bb, Guard::None)])
                 } else {
                     Ok(vec![])
@@ -364,15 +354,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, value);
                 let ty = env.unpack_ty(rcx, &ty);
-                let fresh_kvar = self.phase.kvar_gen(rcx);
-                env.write_place(
-                    self.genv,
-                    rcx,
-                    fresh_kvar,
-                    place,
-                    ty,
-                    Tag::Assign(terminator.source_info.span),
-                );
+                let mut fnck =
+                    self.phase
+                        .fnck(self.genv, rcx, Tag::Assign(terminator.source_info.span));
+                env.write_place(&mut fnck, place, ty);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -912,12 +897,12 @@ impl Phase for Check<'_> {
             }
         };
 
-        let fresh_kvar = |bty: &BaseTy| ck.phase.kvars.fresh(bty.sorts(), scope.iter());
-
         dbg::check_goto!(target, rcx, env, bb_env);
 
+        let fresh_kvar = |bty: &BaseTy| ck.phase.kvars.fresh(bty.sorts(), scope.iter());
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        env.check_goto(ck.genv, &mut rcx, fresh_kvar, bb_env, tag);
+        let mut fnck = FnCallChecker::new(ck.genv, &mut rcx, fresh_kvar, tag);
+        env.check_goto(&mut fnck, bb_env);
 
         first
     }

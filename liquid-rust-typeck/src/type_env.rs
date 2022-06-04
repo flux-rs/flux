@@ -18,7 +18,7 @@ use liquid_rust_middle::{
 };
 
 use crate::{
-    constraint_gen::{ConstraintGen, FnCallChecker, Tag},
+    constraint_gen::FnCallChecker,
     param_infer,
     refine_tree::{RefineCtxt, Scope},
 };
@@ -75,10 +75,7 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_place<F>(&mut self, fnck: &mut FnCallChecker<F>, place: &Place) -> Ty
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    pub fn lookup_place(&mut self, fnck: &mut FnCallChecker, place: &Place) -> Ty {
         self.bindings.lookup_place(fnck, place).ty()
     }
 
@@ -88,10 +85,7 @@ impl TypeEnv {
 
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut<F>(&mut self, fnck: &mut FnCallChecker<F>, place: &Place) -> Ty
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    pub fn borrow_mut(&mut self, fnck: &mut FnCallChecker, place: &Place) -> Ty {
         match self.bindings.lookup_place(fnck, place) {
             LookupResult::Ptr(path, _) => Ty::ptr(path),
             LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
@@ -101,33 +95,18 @@ impl TypeEnv {
         }
     }
 
-    pub fn borrow_shr<F: FnMut(&BaseTy) -> Pred>(
-        &mut self,
-        fnck: &mut FnCallChecker<F>,
-        place: &Place,
-    ) -> Ty {
+    pub fn borrow_shr(&mut self, fnck: &mut FnCallChecker, place: &Place) -> Ty {
         let result = self.bindings.lookup_place(fnck, place);
         Ty::mk_ref(RefKind::Shr, result.ty())
     }
 
-    pub fn write_place<F>(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        fresh_kvar: F,
-        place: &Place,
-        new_ty: Ty,
-        tag: Tag,
-    ) where
-        F: FnMut(&BaseTy) -> Pred,
-    {
-        let mut fnck = FnCallChecker::new(genv, rcx, fresh_kvar, tag);
-        match self.bindings.lookup_place(&mut fnck, place) {
+    pub fn write_place(&mut self, fnck: &mut FnCallChecker, place: &Place, new_ty: Ty) {
+        match self.bindings.lookup_place(fnck, place) {
             LookupResult::Ptr(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
             LookupResult::Ref(RefKind::Mut, ty) => {
-                let mut gen = ConstraintGen::new(genv, rcx, tag);
+                let mut gen = fnck.as_constr_gen();
                 gen.subtyping(&new_ty, &ty);
             }
             LookupResult::Ref(RefKind::Shr, _) => {
@@ -136,11 +115,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn move_place<F: FnMut(&BaseTy) -> Pred>(
-        &mut self,
-        fnck: &mut FnCallChecker<F>,
-        place: &Place,
-    ) -> Ty {
+    pub fn move_place(&mut self, fnck: &mut FnCallChecker, place: &Place) -> Ty {
         match self.bindings.lookup_place(fnck, place) {
             LookupResult::Ptr(path, ty) => {
                 self.bindings.update(&path, Ty::uninit());
@@ -231,22 +206,14 @@ impl TypeEnv {
         }
     }
 
-    pub fn check_goto<F: FnMut(&BaseTy) -> Pred>(
-        mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        fresh_kvar: F,
-        bb_env: &BasicBlockEnv,
-        tag: Tag,
-    ) {
-        let mut fnck = FnCallChecker::new(genv, rcx, fresh_kvar, tag);
-        self.bindings.fold_unfold_with(&mut fnck, &bb_env.bindings);
+    pub fn check_goto(mut self, fnck: &mut FnCallChecker, bb_env: &BasicBlockEnv) {
+        self.bindings.fold_unfold_with(fnck, &bb_env.bindings);
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        let mut gen = ConstraintGen::new(genv, rcx, tag);
+        let mut gen = fnck.as_constr_gen();
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
             gen.check_pred(subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
         }

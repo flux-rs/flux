@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{AdtDef, BaseTy, Loc, Path, Pred, RefKind, Ty, TyKind, VariantIdx},
+    ty::{AdtDef, BaseTy, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
 use crate::constraint_gen::FnCallChecker;
@@ -30,10 +30,7 @@ impl LookupResult {
 }
 
 impl PathsTree {
-    pub fn lookup_place<F>(&mut self, fnck: &mut FnCallChecker<F>, place: &Place) -> LookupResult
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    pub fn lookup_place(&mut self, fnck: &mut FnCallChecker, place: &Place) -> LookupResult {
         self.lookup_place_iter(fnck, Loc::Local(place.local), &mut place.projection.iter())
     }
 
@@ -99,10 +96,7 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_with<F>(&mut self, fnck: &mut FnCallChecker<F>, other: &PathsTree)
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    pub fn fold_unfold_with(&mut self, fnck: &mut FnCallChecker, other: &PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
                 node1.fold_unfold_with(fnck, node2);
@@ -110,15 +104,12 @@ impl PathsTree {
         }
     }
 
-    fn lookup_place_iter<F>(
+    fn lookup_place_iter(
         &mut self,
-        fnck: &mut FnCallChecker<F>,
+        fnck: &mut FnCallChecker,
         path: impl Into<Path>,
         place_proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> LookupResult
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    ) -> LookupResult {
         let mut path = path.into();
         'outer: loop {
             let loc = path.loc;
@@ -159,16 +150,13 @@ impl PathsTree {
         }
     }
 
-    fn lookup_place_iter_ty<F>(
+    fn lookup_place_iter_ty(
         &mut self,
-        fnck: &mut FnCallChecker<F>,
+        fnck: &mut FnCallChecker,
         mut rk: RefKind,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> LookupResult
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    ) -> LookupResult {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
@@ -243,10 +231,7 @@ impl Node {
         }
     }
 
-    fn fold_unfold_with<F>(&mut self, fnck: &mut FnCallChecker<F>, other: &Node)
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    fn fold_unfold_with(&mut self, fnck: &mut FnCallChecker, other: &Node) {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(..), Node::Ty(_)) => {
@@ -297,10 +282,7 @@ impl Node {
         }
     }
 
-    fn fold<F>(&mut self, fnck: &mut FnCallChecker<F>) -> Ty
-    where
-        F: FnMut(&BaseTy) -> Pred,
-    {
+    fn fold(&mut self, fnck: &mut FnCallChecker) -> Ty {
         match self {
             Node::Ty(ty) => ty.clone(),
             Node::Adt(adt_def, variant_idx, fields) => {

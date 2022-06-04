@@ -25,10 +25,10 @@ pub struct ConstraintGen<'a, 'tcx> {
     tag: Tag,
 }
 
-pub struct FnCallChecker<'a, 'tcx, F> {
+pub struct FnCallChecker<'a, 'tcx> {
     genv: &'a GlobalEnv<'tcx>,
     rcx: RefineCtxt<'a>,
-    fresh_kvar: F,
+    fresh_kvar: Box<dyn FnMut(&BaseTy) -> Pred + 'a>,
     tag: Tag,
 }
 
@@ -74,17 +74,17 @@ impl<'a, 'tcx> ConstraintGen<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx, F> FnCallChecker<'a, 'tcx, F>
-where
-    F: FnMut(&BaseTy) -> Pred,
-{
-    pub fn new(
+impl<'a, 'tcx> FnCallChecker<'a, 'tcx> {
+    pub fn new<F>(
         genv: &'a GlobalEnv<'tcx>,
         rcx: &'a mut RefineCtxt,
         fresh_kvar: F,
         tag: Tag,
-    ) -> Self {
-        FnCallChecker { genv, rcx: rcx.breadcrumb(), fresh_kvar, tag }
+    ) -> Self
+    where
+        F: FnMut(&BaseTy) -> Pred + 'a,
+    {
+        FnCallChecker { genv, rcx: rcx.breadcrumb(), fresh_kvar: Box::new(fresh_kvar), tag }
     }
 
     pub fn check<Env: PathMap>(
@@ -126,6 +126,10 @@ where
         }
 
         Ok(CallOutput { ret: fn_sig.ret().clone(), ensures: fn_sig.ensures().clone() })
+    }
+
+    pub fn as_constr_gen(&mut self) -> ConstraintGen<'_, 'tcx> {
+        ConstraintGen::new(self.genv, &mut self.rcx, self.tag)
     }
 }
 
