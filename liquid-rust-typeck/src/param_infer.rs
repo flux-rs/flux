@@ -3,7 +3,7 @@ use std::iter;
 use rustc_hash::FxHashMap;
 
 use liquid_rust_middle::ty::{
-    subst::FVarSubst, Constr, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST,
+    subst::FVarSubst, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST,
 };
 
 use crate::{refine_tree::RefineCtxt, type_env::PathMap};
@@ -27,7 +27,7 @@ pub fn infer_from_fn_call<M: PathMap>(
         .requires()
         .iter()
         .filter_map(|constr| {
-            if let Constr::Type(path, ty) = constr {
+            if let Constraint::Type(path, ty) = constr {
                 Some((path.expect_path(), ty.clone()))
             } else {
                 None

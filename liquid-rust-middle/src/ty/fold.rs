@@ -4,7 +4,9 @@
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use super::{BaseTy, Binders, Constr, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Ty, TyKind};
+use super::{
+    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Ty, TyKind,
+};
 
 pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
@@ -165,21 +167,23 @@ impl TypeFoldable for FnSig {
     }
 }
 
-impl TypeFoldable for Constr {
+impl TypeFoldable for Constraint {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
-            Constr::Type(path, ty) => Constr::Type(path.fold_with(folder), ty.fold_with(folder)),
-            Constr::Pred(e) => Constr::Pred(e.fold_with(folder)),
+            Constraint::Type(path, ty) => {
+                Constraint::Type(path.fold_with(folder), ty.fold_with(folder))
+            }
+            Constraint::Pred(e) => Constraint::Pred(e.fold_with(folder)),
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
-            Constr::Type(path, ty) => {
+            Constraint::Type(path, ty) => {
                 path.visit_with(visitor);
                 ty.visit_with(visitor);
             }
-            Constr::Pred(e) => e.visit_with(visitor),
+            Constraint::Pred(e) => e.visit_with(visitor),
         }
     }
 }

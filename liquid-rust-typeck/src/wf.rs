@@ -114,14 +114,14 @@ impl<T: AdtSortsMap> Wf<'_, T> {
             .try_for_each_exhaust(|ty| self.check_type(env, ty))
     }
 
-    fn check_constr(&self, env: &mut Env, constr: &core::Constr) -> Result<(), ErrorReported> {
+    fn check_constr(&self, env: &mut Env, constr: &core::Constraint) -> Result<(), ErrorReported> {
         match constr {
-            core::Constr::Type(loc, ty) => {
+            core::Constraint::Type(loc, ty) => {
                 [self.check_loc(env, *loc), self.check_type(env, ty)]
                     .into_iter()
                     .try_collect_exhaust()
             }
-            core::Constr::Pred(e) => self.check_expr(env, e, ty::Sort::Bool),
+            core::Constraint::Pred(e) => self.check_expr(env, e, ty::Sort::Bool),
         }
     }
 
