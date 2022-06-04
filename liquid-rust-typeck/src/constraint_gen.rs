@@ -241,10 +241,9 @@ fn variance_subtyping(
 }
 
 mod pretty {
-    use std::fmt;
-
     use super::*;
     use liquid_rust_middle::pretty::*;
+    use std::fmt;
 
     impl Pretty for Tag {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {

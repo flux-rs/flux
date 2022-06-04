@@ -1,5 +1,3 @@
-use std::{collections::HashMap, hint::unreachable_unchecked, iter};
-
 use itertools::Itertools;
 
 use rustc_hash::FxHashMap;
@@ -7,10 +5,10 @@ use rustc_hash::FxHashMap;
 use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{AdtDef, BaseTy, Index, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
+    ty::{AdtDef, BaseTy, Loc, Path, Pred, RefKind, Ty, TyKind, VariantIdx},
 };
 
-use crate::{param_infer, refine_tree::RefineCtxt};
+use crate::constraint_gen::FnCallChecker;
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -32,8 +30,11 @@ impl LookupResult {
 }
 
 impl PathsTree {
-    pub fn lookup_place(&mut self, rcx: &mut RefineCtxt, place: &Place) -> LookupResult {
-        self.lookup_place_iter(rcx, Loc::Local(place.local), &mut place.projection.iter())
+    pub fn lookup_place<F>(&mut self, fnck: &mut FnCallChecker<F>, place: &Place) -> LookupResult
+    where
+        F: FnMut(&BaseTy) -> Pred,
+    {
+        self.lookup_place_iter(fnck, Loc::Local(place.local), &mut place.projection.iter())
     }
 
     pub fn get(&self, path: &Path) -> Ty {
@@ -98,20 +99,26 @@ impl PathsTree {
         }
     }
 
-    pub fn fold_unfold_with(&mut self, rcx: &mut RefineCtxt, other: &PathsTree) {
+    pub fn fold_unfold_with<F>(&mut self, fnck: &mut FnCallChecker<F>, other: &PathsTree)
+    where
+        F: FnMut(&BaseTy) -> Pred,
+    {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get(loc) {
-                node1.fold_unfold_with(rcx, node2);
+                node1.fold_unfold_with(fnck, node2);
             }
         }
     }
 
-    fn lookup_place_iter(
+    fn lookup_place_iter<F>(
         &mut self,
-        rcx: &mut RefineCtxt,
+        fnck: &mut FnCallChecker<F>,
         path: impl Into<Path>,
         place_proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> LookupResult {
+    ) -> LookupResult
+    where
+        F: FnMut(&BaseTy) -> Pred,
+    {
         let mut path = path.into();
         'outer: loop {
             let loc = path.loc;
@@ -141,24 +148,27 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(rcx, *mode, ty, place_proj);
+                                return self.lookup_place_iter_ty(fnck, *mode, ty, place_proj);
                             }
                             _ => panic!(),
                         }
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx).clone());
+            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(fnck).clone());
         }
     }
 
-    fn lookup_place_iter_ty(
+    fn lookup_place_iter_ty<F>(
         &mut self,
-        rcx: &mut RefineCtxt,
+        fnck: &mut FnCallChecker<F>,
         mut rk: RefKind,
         ty: &Ty,
         proj: &mut std::slice::Iter<PlaceElem>,
-    ) -> LookupResult {
+    ) -> LookupResult
+    where
+        F: FnMut(&BaseTy) -> Pred,
+    {
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
@@ -167,7 +177,7 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(path)) => {
-                    return match self.lookup_place_iter(rcx, path.expect_path(), proj) {
+                    return match self.lookup_place_iter(fnck, path.expect_path(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
                     }
@@ -233,11 +243,14 @@ impl Node {
         }
     }
 
-    fn fold_unfold_with(&mut self, rcx: &mut RefineCtxt, other: &Node) {
+    fn fold_unfold_with<F>(&mut self, fnck: &mut FnCallChecker<F>, other: &Node)
+    where
+        F: FnMut(&BaseTy) -> Pred,
+    {
         let (fields1, fields2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Adt(..), Node::Ty(_)) => {
-                self.fold(rcx);
+                self.fold(fnck);
                 return;
             }
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
@@ -250,7 +263,7 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in fields1.iter_mut().zip(fields2) {
-            field1.fold_unfold_with(rcx, field2);
+            field1.fold_unfold_with(fnck, field2);
         }
     }
 
@@ -284,20 +297,21 @@ impl Node {
         }
     }
 
-    fn fold(&mut self, rcx: &mut RefineCtxt) -> &mut Ty {
+    fn fold<F>(&mut self, fnck: &mut FnCallChecker<F>) -> Ty
+    where
+        F: FnMut(&BaseTy) -> Pred,
+    {
         match self {
-            Node::Ty(ty) => ty,
+            Node::Ty(ty) => ty.clone(),
             Node::Adt(adt_def, variant_idx, fields) => {
-                let fields = fields.iter_mut().map(|n| n.fold(rcx).clone()).collect_vec();
-                let indices = fold(rcx, adt_def, &fields[..], *variant_idx);
-                let adt = BaseTy::adt(adt_def.clone(), vec![]);
-                let ty = Ty::indexed(adt, indices);
-                *self = Node::Ty(ty);
-                if let Node::Ty(ty) = self {
-                    ty
-                } else {
-                    unsafe { unreachable_unchecked() }
-                }
+                let fn_sig = adt_def.variant_sig(*variant_idx);
+                let actuals = fields.iter_mut().map(|node| node.fold(fnck)).collect_vec();
+                let output = fnck
+                    .check(&mut FxHashMap::default(), &fn_sig, &[], &actuals)
+                    .unwrap();
+                assert!(output.ensures.is_empty());
+                *self = Node::Ty(output.ret.clone());
+                output.ret
             }
         }
     }
@@ -312,20 +326,6 @@ impl Node {
             }
         }
     }
-}
-
-fn fold(rcx: &mut RefineCtxt, adt_def: &AdtDef, tys: &[Ty], variant_idx: VariantIdx) -> Vec<Index> {
-    let mut exprs = FxHashMap::default();
-    let variant_sig = adt_def.variant_sig(variant_idx);
-    for (ty1, ty2) in iter::zip(tys, variant_sig.skip_binders().args()) {
-        param_infer::infer_from_tys(&mut exprs, rcx, &HashMap::new(), ty1, &HashMap::new(), ty2);
-    }
-    adt_def
-        .sorts()
-        .iter()
-        .enumerate()
-        .map(|(idx, _)| exprs.remove(&idx).unwrap().into())
-        .collect()
 }
 
 enum PathsIter<'a> {

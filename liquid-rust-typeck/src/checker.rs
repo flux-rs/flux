@@ -29,8 +29,8 @@ use liquid_rust_middle::{
         },
     },
     ty::{
-        self, BaseTy, BinOp, BoundVar, Constr, Constrs, Expr, FnSig, Name, Param, PolySig, Pred,
-        Sort, Ty, TyKind,
+        self, BaseTy, BinOp, BoundVar, Constr, Constrs, Expr, FnSig, Param, PolySig, Pred, Sort,
+        Ty, TyKind,
     },
 };
 
@@ -57,9 +57,20 @@ pub struct Checker<'a, 'tcx, M> {
 }
 
 pub trait Mode: Sized {
-    fn fresh_kvar<I>(&mut self, sorts: &[Sort], scope: I) -> Pred
+    type KvarGen<'a>: FnMut(&BaseTy) -> Pred
     where
-        I: IntoIterator<Item = (Name, Sort)>;
+        Self: 'a;
+
+    fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_>;
+
+    fn fnck<'a, 'tcx>(
+        &'a mut self,
+        genv: &'a GlobalEnv<'tcx>,
+        rcx: &'a mut RefineCtxt,
+        tag: Tag,
+    ) -> FnCallChecker<'a, 'tcx, Self::KvarGen<'_>> {
+        FnCallChecker::new(genv, rcx, self.kvar_gen(rcx), tag)
+    }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
 
@@ -276,7 +287,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
                 let ty = env.unpack_ty(rcx, &ty);
-                env.write_place(self.genv, rcx, place, ty, Tag::Assign(stmt.source_info.span));
+                let fresh_kvar = self.mode.kvar_gen(rcx);
+                env.write_place(
+                    self.genv,
+                    rcx,
+                    fresh_kvar,
+                    place,
+                    ty,
+                    Tag::Assign(stmt.source_info.span),
+                );
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double chould check here that the place is unfolded to
@@ -317,7 +336,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
                 if let Some((p, bb)) = destination {
                     let ret = env.unpack_ty(rcx, &ret);
-                    env.write_place(self.genv, rcx, p, ret, Tag::Call(terminator.source_info.span));
+                    let fresh_kvar = self.mode.kvar_gen(rcx);
+                    env.write_place(
+                        self.genv,
+                        rcx,
+                        fresh_kvar,
+                        p,
+                        ret,
+                        Tag::Call(terminator.source_info.span),
+                    );
                     Ok(vec![(*bb, Guard::None)])
                 } else {
                     Ok(vec![])
@@ -330,15 +357,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let _ = env.move_place(rcx, place);
+                let mut fnck = self.mode.fnck(self.genv, rcx, Tag::Ret);
+                let _ = env.move_place(&mut fnck, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, value);
                 let ty = env.unpack_ty(rcx, &ty);
+                let fresh_kvar = self.mode.kvar_gen(rcx);
                 env.write_place(
                     self.genv,
                     rcx,
+                    fresh_kvar,
                     place,
                     ty,
                     Tag::Assign(terminator.source_info.span),
@@ -358,7 +388,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
-        let ret_place_ty = env.lookup_place(rcx, Place::RETURN);
+        let ret_place_ty =
+            env.lookup_place(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), Place::RETURN);
         let mut gen = ConstraintGen::new(self.genv, rcx, Tag::Ret);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -378,15 +409,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         substs: &[rustc::ty::GenericArg],
         args: &[Operand],
     ) -> Result<Ty, ErrorReported> {
-        let actuals = self.check_operands(rcx, env, args);
+        let actuals = args
+            .iter()
+            .map(|op| self.check_operand(rcx, env, op))
+            .collect_vec();
 
         let substs = substs
             .iter()
             .map(|arg| self.genv.refine_generic_arg(arg, &mut |_| Pred::Hole))
             .collect_vec();
 
-        let scope = rcx.scope();
-        let fresh_kvar = |bty: &BaseTy| self.mode.fresh_kvar(bty.sorts(), scope.iter());
+        let fresh_kvar = self.mode.kvar_gen(rcx);
 
         let output = FnCallChecker::new(self.genv, rcx, fresh_kvar, Tag::Call(source_info.span))
             .check(env, &fn_sig, &substs, &actuals)
@@ -532,8 +565,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 Ok(self.check_binary_op(rcx, env, source_info, *bin_op, op1, op2))
             }
-            Rvalue::MutRef(place) => Ok(env.borrow_mut(rcx, place)),
-            Rvalue::ShrRef(place) => Ok(env.borrow_shr(rcx, place)),
+            Rvalue::MutRef(place) => {
+                Ok(env.borrow_mut(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), place))
+            }
+            Rvalue::ShrRef(place) => {
+                Ok(env.borrow_shr(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), place))
+            }
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
@@ -544,7 +581,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn check_binary_op(
-        &self,
+        &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         source_info: SourceInfo,
@@ -717,7 +754,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn check_unary_op(
-        &self,
+        &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         un_op: mir::UnOp,
@@ -745,31 +782,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_operand(&self, rcx: &mut RefineCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
+    fn check_operand(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.lookup_place(rcx, p)
+                env.lookup_place(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                env.move_place(rcx, p)
+                env.move_place(&mut self.mode.fnck(self.genv, rcx, Tag::Ret), p)
             }
             Operand::Constant(c) => self.check_constant(c),
         };
         env.unpack_ty(rcx, &ty)
-    }
-
-    fn check_operands(
-        &self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        operands: &[Operand],
-    ) -> Vec<Ty> {
-        operands
-            .iter()
-            .map(|op| self.check_operand(rcx, env, op))
-            .collect()
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
@@ -799,6 +824,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 }
 
 impl Mode for Inference<'_> {
+    type KvarGen<'a>
+    where
+        Self: 'a,
+    = impl FnMut(&BaseTy) -> Pred;
+
+    fn kvar_gen(&mut self, _rcx: &RefineCtxt) -> Self::KvarGen<'_> {
+        |_| Pred::Hole
+    }
+
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
         self.bb_envs[&bb].enter(rcx)
     }
@@ -826,19 +860,25 @@ impl Mode for Inference<'_> {
         modified
     }
 
-    fn fresh_kvar<I>(&mut self, _sorts: &[Sort], _scope: I) -> Pred
-    where
-        I: IntoIterator<Item = (Name, Sort)>,
-    {
-        Pred::Hole
-    }
-
     fn clear(&mut self, bb: BasicBlock) {
         self.bb_envs.remove(&bb);
     }
 }
 
 impl Mode for Check<'_> {
+    type KvarGen<'a>
+    where
+        Self: 'a,
+    = impl FnMut(&BaseTy) -> Pred;
+
+    fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_> {
+        let scope = rcx.scope();
+        move |bty| {
+            let kvars = &mut self.kvars;
+            kvars.fresh(bty.sorts(), scope.iter())
+        }
+    }
+
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
         self.bb_envs[&bb].enter(rcx)
     }
@@ -851,37 +891,38 @@ impl Mode for Check<'_> {
         target: BasicBlock,
     ) -> bool {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        let fresh_kvar = &mut |sorts: &[Sort], params: &[Param]| {
-            ck.mode.kvars.fresh(
-                sorts,
-                scope
-                    .iter()
-                    .chain(params.iter().map(|param| (param.name, param.sort.clone()))),
-            )
-        };
         let mut first = false;
-        let bb_env = ck.mode.bb_envs.entry(target).or_insert_with(|| {
-            first = true;
-            ck.mode
-                .bb_envs_infer
-                .remove(&target)
-                .unwrap()
-                .into_bb_env(fresh_kvar)
-        });
+
+        let bb_env = match ck.mode.bb_envs.entry(target) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let fresh_kvar = &mut |sorts: &[Sort], params: &[Param]| {
+                    ck.mode.kvars.fresh(
+                        sorts,
+                        scope
+                            .iter()
+                            .chain(params.iter().map(|param| (param.name, param.sort.clone()))),
+                    )
+                };
+                first = true;
+                entry.insert(
+                    ck.mode
+                        .bb_envs_infer
+                        .remove(&target)
+                        .unwrap()
+                        .into_bb_env(fresh_kvar),
+                )
+            }
+        };
+
+        let fresh_kvar = |bty: &BaseTy| ck.mode.kvars.fresh(bty.sorts(), scope.iter());
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        env.check_goto(ck.genv, &mut rcx, bb_env, tag);
+        env.check_goto(ck.genv, &mut rcx, fresh_kvar, bb_env, tag);
 
         first
-    }
-
-    fn fresh_kvar<I>(&mut self, sorts: &[Sort], scope: I) -> Pred
-    where
-        I: IntoIterator<Item = (Name, Sort)>,
-    {
-        self.kvars.fresh(sorts, scope)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
