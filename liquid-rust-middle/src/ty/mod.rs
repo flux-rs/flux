@@ -18,7 +18,10 @@ use rustc_middle::{
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
-use crate::intern::{impl_internable, Interned, List};
+use crate::{
+    intern::{impl_internable, Interned, List},
+    rustc::mir::Place,
+};
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
 
@@ -87,7 +90,7 @@ pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Indexed(BaseTy, List<Index>),
     Exists(BaseTy, Binders<Pred>),
@@ -99,7 +102,7 @@ pub enum TyKind {
     Param(ParamTy),
     Never,
     /// Used internally to represent result of `discriminant` RVal
-    Discr,
+    Discr(Place, AdtDef),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -391,8 +394,8 @@ impl Ty {
         TyKind::Never.intern()
     }
 
-    pub fn discr() -> Ty {
-        TyKind::Discr.intern()
+    pub fn discr(place: Place, adt_def: AdtDef) -> Ty {
+        TyKind::Discr(place, adt_def).intern()
     }
 }
 
@@ -405,6 +408,32 @@ impl TyKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+
+    pub fn expect_discr(&self) -> (&Place, &AdtDef) {
+        if let TyKind::Discr(place, adt_def) = self.kind() {
+            (place, adt_def)
+        } else {
+            panic!("expected discr")
+        }
+    }
+
+    pub fn expect_adt(&self) -> AdtDef {
+        match self.kind() {
+            TyKind::Indexed(BaseTy::Adt(adt_def, _), _)
+            | TyKind::Exists(BaseTy::Adt(adt_def, _), _) => adt_def.clone(),
+            _ => panic!("expected adt"),
+        }
+    }
+
+    /// Whether the type is an int or a uint
+    pub fn is_integral(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_integral())
+    }
+
+    /// Whether the type is a bool
+    pub fn is_bool(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_bool())
     }
 
     pub fn is_uninit(&self) -> bool {
@@ -439,6 +468,14 @@ impl From<Index> for Expr {
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
+    }
+
+    fn is_integral(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
+    }
+
+    fn is_bool(&self) -> bool {
+        matches!(self, BaseTy::Bool)
     }
 
     pub fn sorts(&self) -> &[Sort] {
@@ -958,7 +995,7 @@ mod pretty {
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
-                TyKind::Discr => w!("discr"),
+                TyKind::Discr(place, adt_def) => w!("discr({:?}, {:?})", ^place, adt_def.def_id()),
             }
         }
 

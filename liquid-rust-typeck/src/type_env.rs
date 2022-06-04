@@ -332,7 +332,7 @@ impl TypeEnvInfer {
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::Never
-            | TyKind::Discr
+            | TyKind::Discr(..)
             | TyKind::Float(_)
             | TyKind::Ptr(_)
             | TyKind::Uninit

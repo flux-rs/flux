@@ -141,12 +141,13 @@ pub enum Operand {
     Constant(Constant),
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Place {
     pub local: Local,
     pub projection: Vec<PlaceElem>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlaceElem {
     Deref,
     Field(Field),
