@@ -30,7 +30,7 @@ use liquid_rust_middle::{
     },
     ty::{
         self, BaseTy, BinOp, BoundVar, Constraint, Constraints, Expr, FnSig, Param, PolySig, Pred,
-        Sort, Ty, TyKind,
+        Sort, Ty, TyKind, VariantIdx,
     },
 };
 
@@ -95,9 +95,16 @@ pub struct Check<'a> {
     kvars: &'a mut KVarStore,
 }
 
-/// A 'Guard' describes extra "control" information that holds at the start
+/// A `Guard` describes extra "control" information that holds at the start
 /// of the successor basic block
-pub type Guard = Option<Expr>;
+enum Guard {
+    /// No extra information holds, e.g., for plain goto.
+    None,
+    /// A predicate that can be assumed, e.g., an if-then-else or while-do boolean condition.
+    Pred(Expr),
+    // The corresponding place was found to be of a particular variant.
+    Match(Place, VariantIdx),
+}
 
 impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
@@ -324,7 +331,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.check_switch_int(rcx, env, discr, targets)
+                let discr_ty = self.check_operand(rcx, env, discr);
+                if discr_ty.is_integral() || discr_ty.is_bool() {
+                    Ok(self.check_if(&discr_ty, targets))
+                } else {
+                    Ok(self.check_match(&discr_ty, targets))
+                }
             }
             TerminatorKind::Call { func, substs, args, destination, .. } => {
                 let fn_sig = self.genv.lookup_fn_sig(*func);
@@ -450,26 +462,23 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         };
 
         match self.genv.check_asserts() {
-            AssertBehavior::Ignore => None,
-            AssertBehavior::Assume => Some(pred),
+            AssertBehavior::Ignore => Guard::None,
+            AssertBehavior::Assume => Guard::Pred(pred),
             AssertBehavior::Check => {
                 self.phase
                     .constr_gen(self.genv, rcx, Tag::Assert(msg, source_info.span))
                     .check_pred(pred.clone());
 
-                Some(pred)
+                Guard::Pred(pred)
             }
         }
     }
 
-    fn check_switch_int(
+    fn check_if(
         &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        discr: &Operand,
+        discr_ty: &Ty,
         targets: &rustc_mir::SwitchTargets,
-    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
-        let discr_ty = self.check_operand(rcx, env, discr);
+    ) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, indices) => {
@@ -482,7 +491,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), indices) => {
                     Expr::binary_op(BinOp::Eq, indices[0].clone(), Expr::from_bits(bty, bits))
                 }
-                TyKind::Discr => Expr::tt(),
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
         };
@@ -490,19 +498,29 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let mut successors = vec![];
 
         for (bits, bb) in targets.iter() {
-            successors.push((bb, Some(mk(bits))));
+            successors.push((bb, Guard::Pred(mk(bits))));
         }
-        let otherwise = targets
-            .iter()
-            .map(|(bits, _)| mk(bits).not())
-            .reduce(|e1, e2| Expr::binary_op(BinOp::And, e1, e2));
-        let otherwise = match otherwise {
-            Some(p) => Some(p),
-            None => Guard::None,
-        };
-        successors.push((targets.otherwise(), otherwise));
+        let otherwise = Expr::and(targets.iter().map(|(bits, _)| mk(bits).not()));
+        successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
-        Ok(successors)
+        successors
+    }
+
+    fn check_match(
+        &mut self,
+        discr_ty: &Ty,
+        targets: &rustc_mir::SwitchTargets,
+    ) -> Vec<(BasicBlock, Guard)> {
+        let place = discr_ty.expect_discr();
+
+        let mut successors = vec![];
+        for (bits, bb) in targets.iter() {
+            successors
+                .push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(bits as usize))))
+        }
+        successors.push((targets.otherwise(), Guard::None));
+
+        successors
     }
 
     fn check_successors(
@@ -514,9 +532,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorReported> {
         for (target, guard) in successors {
             let mut rcx = rcx.breadcrumb();
-            let env = env.clone();
-            if let Some(guard) = guard {
-                rcx.assume_pred(guard);
+            let mut env = env.clone();
+            match guard {
+                Guard::None => {}
+                Guard::Pred(expr) => {
+                    rcx.assume_pred(expr);
+                }
+                Guard::Match(place, variant_idx) => {
+                    env.downcast(&place, variant_idx);
+                }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
         }
@@ -565,7 +589,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(rcx, env, source_info, sig, substs, args)
             }
-            Rvalue::Discriminant(_p) => Ok(Ty::discr()),
+            Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
         }
     }
 

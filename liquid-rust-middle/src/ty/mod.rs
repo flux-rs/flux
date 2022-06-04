@@ -18,7 +18,10 @@ use rustc_middle::{
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
-use crate::intern::{impl_internable, Interned, List};
+use crate::{
+    intern::{impl_internable, Interned, List},
+    rustc::mir::{Place, PlaceElem},
+};
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
 
@@ -87,7 +90,7 @@ pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Indexed(BaseTy, List<Index>),
     Exists(BaseTy, Binders<Pred>),
@@ -98,8 +101,13 @@ pub enum TyKind {
     Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
-    /// Used internally to represent result of `discriminant` RVal
-    Discr,
+    /// This is a bit of a hack. We use this type internally to represent the result of
+    /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
+    /// when checking [`TerminatorKind::SwitchInt`].
+    ///
+    /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
+    /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    Discr(Place),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -297,7 +305,7 @@ impl AdtDef {
         Binders::new(sig, self.sorts().clone())
     }
 
-    pub fn unfold(
+    pub fn downcast(
         &self,
         substs: &Substs,
         exprs: &[Expr],
@@ -391,8 +399,8 @@ impl Ty {
         TyKind::Never.intern()
     }
 
-    pub fn discr() -> Ty {
-        TyKind::Discr.intern()
+    pub fn discr(place: Place) -> Ty {
+        TyKind::Discr(place).intern()
     }
 }
 
@@ -405,6 +413,24 @@ impl TyKind {
 impl TyS {
     pub fn kind(&self) -> &TyKind {
         &self.kind
+    }
+
+    pub fn expect_discr(&self) -> &Place {
+        if let TyKind::Discr(place) = self.kind() {
+            place
+        } else {
+            panic!("expected discr")
+        }
+    }
+
+    /// Whether the type is an `int` or a `uint`
+    pub fn is_integral(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_integral())
+    }
+
+    /// Whether the type is a `bool`
+    pub fn is_bool(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_bool())
     }
 
     pub fn is_uninit(&self) -> bool {
@@ -439,6 +465,14 @@ impl From<Index> for Expr {
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
         BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
+    }
+
+    fn is_integral(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
+    }
+
+    fn is_bool(&self) -> bool {
+        matches!(self, BaseTy::Bool)
     }
 
     pub fn sorts(&self) -> &[Sort] {
@@ -733,6 +767,18 @@ impl Path {
         Path { loc, projection: Interned::from(projection) }
     }
 
+    pub fn from_place(place: &Place) -> Option<Path> {
+        let mut proj = vec![];
+        for elem in &place.projection {
+            if let PlaceElem::Field(field) = elem {
+                proj.push(*field);
+            } else {
+                return None;
+            }
+        }
+        Some(Path::new(Loc::Local(place.local), proj))
+    }
+
     pub fn projection(&self) -> &[Field] {
         &self.projection[..]
     }
@@ -958,7 +1004,7 @@ mod pretty {
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
-                TyKind::Discr => w!("discr"),
+                TyKind::Discr(place) => w!("discr({:?})", ^place),
             }
         }
 

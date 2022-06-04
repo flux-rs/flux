@@ -96,7 +96,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
                 (actual.kind(), formal.kind())
             {
                 subtyping(self.genv, constr, &env.get(path), bound, self.tag);
-                env.update(&path, bound.clone());
+                env.update(path, bound.clone());
             } else {
                 subtyping(self.genv, constr, actual, formal, self.tag);
             }

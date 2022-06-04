@@ -13,7 +13,7 @@ use liquid_rust_middle::{
     rustc::mir::Place,
     ty::{
         fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, ExprKind, Index, Param, Path,
-        RefKind, Ty, TyKind,
+        RefKind, Ty, TyKind, VariantIdx,
     },
 };
 
@@ -70,8 +70,9 @@ impl TypeEnv {
         TypeEnvInfer::new(scope, self)
     }
 
-    fn remove(&mut self, loc: Loc) {
-        self.bindings.remove(loc);
+    pub fn downcast(&mut self, place: &Place, variant_idx: VariantIdx) {
+        let path = Path::from_place(place).expect("downcasting is only allowed on paths");
+        self.bindings.downcast(&path, variant_idx);
     }
 
     #[track_caller]
@@ -225,7 +226,7 @@ impl TypeEnv {
             .filter(|loc| !goto_env.contains_loc(*loc))
             .collect_vec();
         for loc in locs {
-            self.remove(loc);
+            self.bindings.remove(loc);
         }
 
         // Convert pointers to borrows
@@ -332,7 +333,7 @@ impl TypeEnvInfer {
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::Never
-            | TyKind::Discr
+            | TyKind::Discr(..)
             | TyKind::Float(_)
             | TyKind::Ptr(_)
             | TyKind::Uninit
@@ -387,8 +388,8 @@ impl TypeEnvInfer {
             let ty2 = other.bindings.get(path);
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.bindings.get(&path1).with_holes();
-                    let ty2 = other.bindings.get(&path2).with_holes();
+                    let ty1 = self.bindings.get(path1).with_holes();
+                    let ty2 = other.bindings.get(path2).with_holes();
 
                     self.bindings
                         .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));

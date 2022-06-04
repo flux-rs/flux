@@ -225,7 +225,7 @@ impl TypeFoldable for Ty {
             | TyKind::Uninit
             | TyKind::Param(_)
             | TyKind::Never
-            | TyKind::Discr => self.clone(),
+            | TyKind::Discr(..) => self.clone(),
         }
     }
 
@@ -244,7 +244,7 @@ impl TypeFoldable for Ty {
             TyKind::Ptr(path) => path.to_expr().visit_with(visitor),
             TyKind::Param(_)
             | TyKind::Never
-            | TyKind::Discr
+            | TyKind::Discr(..)
             | TyKind::Float(_)
             | TyKind::Uninit => {}
         }
