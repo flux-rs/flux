@@ -35,7 +35,6 @@ pub enum AdtDefKind {
 
 #[derive(Debug)]
 pub struct VariantDef {
-    pub def_id: DefId,
     pub fields: Vec<Ty>,
 }
 

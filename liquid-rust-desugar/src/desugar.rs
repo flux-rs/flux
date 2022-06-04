@@ -54,7 +54,7 @@ pub fn desugar_struct_def(
             .into_iter()
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
-        let variants = Some(IndexVec::from_raw(vec![Some(VariantDef { def_id, fields })]));
+        let variants = Some(IndexVec::from_raw(vec![Some(VariantDef { fields })]));
         AdtDefKind::Transparent { variants }
     };
     let refined_by = cx.params.params;

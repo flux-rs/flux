@@ -97,6 +97,7 @@ impl<'tcx> GlobalEnv<'tcx> {
         let generics = self.adt_def_generics(adt_def.did);
         ty::AdtDef::transparent(adt_def.did, generics, vec![], variants)
     }
+
     pub fn adt_def_generics(&self, def_id: DefId) -> Vec<rustc_middle::ty::ParamTy> {
         let generics = self
             .tcx

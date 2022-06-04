@@ -278,7 +278,7 @@ impl AdtDef {
         &self.0.sorts
     }
 
-    pub fn generics(&self) -> &Vec<ParamTy> {
+    pub fn generics(&self) -> &[ParamTy] {
         &self.0.generics
     }
 
