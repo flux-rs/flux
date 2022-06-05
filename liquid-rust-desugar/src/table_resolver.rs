@@ -34,7 +34,7 @@ impl<'tcx> Resolver<'tcx> {
             let item = tcx.hir().item(item_id);
             if let ItemKind::Impl(parent) = &item.kind {
                 table.collect_from_ty(tcx.sess, parent.self_ty)?;
-                table.insert_generics(tcx, &parent.generics);
+                table.insert_generics(tcx, parent.generics);
             }
         }
 
@@ -328,22 +328,18 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "resolver-unsupported-signature")]
     pub struct UnsupportedSignature {
-        // #[message = "unsupported function signature"]
         #[primary_span]
-        // #[label = "{msg}"]
         #[label]
         pub span: Span,
         pub msg: &'static str,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "resolver-unresolved-path")]
     pub struct UnresolvedPath {
-        // #[message = "could not resolve `{path}`"]
         #[primary_span]
-        // #[label = "failed to resolve `{path}`"]
         #[label]
         pub span: Span,
         pub path: Ident,

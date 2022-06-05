@@ -184,7 +184,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         }
 
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
-        typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)
+        typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
 }
 
