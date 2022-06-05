@@ -1,3 +1,4 @@
+use liquid_rust_errors::LiquidRustSession;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
@@ -13,16 +14,20 @@ use liquid_rust_desugar as desugar;
 use liquid_rust_middle::{global_env::GlobalEnv, rustc, ty};
 use liquid_rust_syntax::surface;
 use liquid_rust_typeck::{self as typeck, wf::Wf};
+use rustc_session::config::ErrorOutputType;
 
 use crate::{collector::SpecCollector, mir_storage};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
-pub(crate) struct LiquidCallbacks;
+pub(crate) struct LiquidCallbacks {
+    error_format: ErrorOutputType,
+}
 
 impl Callbacks for LiquidCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
+        self.error_format = config.opts.error_format;
         config.override_queries = Some(|_, local, _| {
             local.mir_borrowck = mir_borrowck;
         });
@@ -38,36 +43,39 @@ impl Callbacks for LiquidCallbacks {
         }
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let _ = check_crate(tcx);
+            let sess =
+                LiquidRustSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
+            let _ = check_crate(tcx, &sess);
+            sess.abort_if_errors();
         });
 
         Compilation::Stop
     }
 }
 
-fn check_crate(tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
-    GlobalEnv::with_global_env(tcx, |genv| {
-        let ck = CrateChecker::new(genv)?;
+fn check_crate(tcx: TyCtxt, sess: &LiquidRustSession) -> Result<(), ErrorGuaranteed> {
+    let mut genv = GlobalEnv::new(tcx, sess);
 
-        let crate_items = tcx.hir_crate_items(());
-        let items = crate_items.items().map(|item| item.def_id);
-        let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
+    let ck = CrateChecker::new(&mut genv)?;
 
-        items
-            .chain(impl_items)
-            .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn))
-            .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
-    })
+    let crate_items = tcx.hir_crate_items(());
+    let items = crate_items.items().map(|item| item.def_id);
+    let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
+
+    items
+        .chain(impl_items)
+        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn))
+        .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
 }
 
-struct CrateChecker<'genv, 'tcx> {
-    genv: &'genv mut GlobalEnv<'genv, 'tcx>,
+struct CrateChecker<'a, 'genv, 'tcx> {
+    genv: &'a mut GlobalEnv<'genv, 'tcx>,
     qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
 }
 
-impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
-    fn new(genv: &'genv mut GlobalEnv<'genv, 'tcx>) -> Result<Self, ErrorGuaranteed> {
+impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
+    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>) -> Result<Self, ErrorGuaranteed> {
         let specs = SpecCollector::collect(genv.tcx, genv.sess)?;
 
         let mut assume = FxHashSet::default();

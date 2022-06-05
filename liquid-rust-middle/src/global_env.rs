@@ -24,16 +24,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    pub fn with_global_env<R>(
-        tcx: TyCtxt<'tcx>,
-        f: impl for<'a> FnOnce(&'a mut GlobalEnv<'a, 'tcx>) -> R,
-    ) -> R {
-        let sess = LiquidRustSession::new(tcx.sess.parse_sess.clone_source_map());
-        let mut genv = GlobalEnv::new(tcx, &sess);
-        f(&mut genv)
-    }
-
-    fn new(tcx: TyCtxt<'tcx>, sess: &'genv LiquidRustSession) -> Self {
+    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv LiquidRustSession) -> Self {
         let check_asserts = CONFIG.check_asserts;
 
         GlobalEnv {

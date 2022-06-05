@@ -60,21 +60,25 @@ pub fn check<'a, 'tcx>(
 
     match fcx.check(genv.tcx, def_id, constraint, qualifiers) {
         Ok(_) => Ok(()),
-        Err(tags) => report_errors(genv.tcx, body.span(), tags),
+        Err(tags) => report_errors(genv, body.span(), tags),
     }
 }
 
-fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
+fn report_errors(
+    genv: &GlobalEnv,
+    body_span: Span,
+    errors: Vec<Tag>,
+) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
     for err in errors {
         e = Some(match err {
-            Tag::Call(span) => tcx.sess.emit_err(errors::CallError { span }),
-            Tag::Assign(span) => tcx.sess.emit_err(errors::AssignError { span }),
-            Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
-            Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
-            Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto(span, _) => tcx.sess.emit_err(errors::GotoError { span }),
-            Tag::Assert(msg, span) => tcx.sess.emit_err(errors::AssertError { msg, span }),
+            Tag::Call(span) => genv.sess.emit_err(errors::CallError { span }),
+            Tag::Assign(span) => genv.sess.emit_err(errors::AssignError { span }),
+            Tag::Ret => genv.sess.emit_err(errors::RetError { span: body_span }),
+            Tag::Div(span) => genv.sess.emit_err(errors::DivError { span }),
+            Tag::Rem(span) => genv.sess.emit_err(errors::RemError { span }),
+            Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
+            Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { msg, span }),
         });
     }
 
@@ -103,45 +107,38 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-goto-error")]
     pub struct GotoError {
-        // #[message = "error jumping to join point"]
         #[primary_span]
         pub span: Option<Span>,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-call-error")]
     pub struct CallError {
-        // #[message = "precondition might not hold"]
         #[primary_span]
-        // #[label = "precondition might not hold in this function call"]
         #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-assign-error")]
     pub struct AssignError {
-        // #[message = "missmatched type in assignment"]
         #[primary_span]
-        // #[label = "this assignment might be unsafe"]
         #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-ret-error")]
     pub struct RetError {
-        // #[message = "postcondition might not hold"]
         #[primary_span]
-        // #[label = "the postcondition in this function might not hold"]
         #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-div-error")]
     pub struct DivError {
         // #[message = "possible division by zero"]
         #[primary_span]
@@ -151,11 +148,9 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-rem-error")]
     pub struct RemError {
-        // #[message = "possible reminder with a divisor of zero"]
         #[primary_span]
-        // #[label = "divisor might not be zero"]
         #[label]
         pub span: Span,
     }

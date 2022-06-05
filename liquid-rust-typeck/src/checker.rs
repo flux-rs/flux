@@ -424,7 +424,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .check_fn_call(env, &fn_sig, &substs, &actuals)
             .map_err(|_| {
                 self.genv
-                    .tcx
                     .sess
                     .emit_err(errors::ParamInferenceError { span: source_info.span })
             })?;
