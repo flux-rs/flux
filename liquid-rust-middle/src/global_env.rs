@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use itertools::Itertools;
 use liquid_rust_common::config::{AssertBehavior, CONFIG};
+use liquid_rust_errors::LiquidRustSession;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -13,16 +14,17 @@ use crate::{
     rustc, ty,
 };
 
-pub struct GlobalEnv<'tcx> {
+pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
+    pub sess: &'genv LiquidRustSession,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     check_asserts: AssertBehavior,
 }
 
-impl<'tcx> GlobalEnv<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
+impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv LiquidRustSession) -> Self {
         let check_asserts = CONFIG.check_asserts;
 
         GlobalEnv {
@@ -30,6 +32,7 @@ impl<'tcx> GlobalEnv<'tcx> {
             adt_sorts: FxHashMap::default(),
             adt_defs: RefCell::new(FxHashMap::default()),
             tcx,
+            sess,
             check_asserts,
         }
     }
@@ -90,12 +93,12 @@ impl<'tcx> GlobalEnv<'tcx> {
     pub fn default_adt_def(&self, def_id: DefId) -> ty::AdtDef {
         let adt_def = self.tcx.adt_def(def_id);
         let variants = adt_def
-            .variants
+            .variants()
             .iter()
             .map(|variant| self.default_variant_def(variant))
             .collect();
-        let generics = self.adt_def_generics(adt_def.did);
-        ty::AdtDef::transparent(adt_def.did, generics, vec![], variants)
+        let generics = self.adt_def_generics(adt_def.did());
+        ty::AdtDef::transparent(adt_def.did(), generics, vec![], variants)
     }
 
     pub fn adt_def_generics(&self, def_id: DefId) -> Vec<rustc_middle::ty::ParamTy> {
@@ -190,7 +193,7 @@ impl<'tcx> GlobalEnv<'tcx> {
     }
 }
 
-impl AdtSortsMap for GlobalEnv<'_> {
+impl AdtSortsMap for GlobalEnv<'_, '_> {
     fn get(&self, def_id: DefId) -> Option<&[core::Sort]> {
         Some(self.adt_sorts.get(&def_id)?)
     }

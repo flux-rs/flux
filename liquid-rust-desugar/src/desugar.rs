@@ -4,11 +4,11 @@ use liquid_rust_common::{
     index::{IndexGen, IndexVec},
     iter::IterExt,
 };
+use liquid_rust_errors::LiquidRustSession;
 use liquid_rust_syntax::surface::{self, Res};
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
-use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
@@ -17,9 +17,9 @@ use liquid_rust_middle::core::{
 };
 
 pub fn desugar_qualifier(
-    sess: &Session,
+    sess: &LiquidRustSession,
     qualifier: surface::Qualifier,
-) -> Result<Qualifier, ErrorReported> {
+) -> Result<Qualifier, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
@@ -28,7 +28,10 @@ pub fn desugar_qualifier(
     Ok(Qualifier { name, args: params.params, expr: expr? })
 }
 
-pub fn resolve_sorts(sess: &Session, params: &surface::Params) -> Result<Vec<Sort>, ErrorReported> {
+pub fn resolve_sorts(
+    sess: &LiquidRustSession,
+    params: &surface::Params,
+) -> Result<Vec<Sort>, ErrorGuaranteed> {
     params
         .params
         .iter()
@@ -38,10 +41,11 @@ pub fn resolve_sorts(sess: &Session, params: &surface::Params) -> Result<Vec<Sor
 
 pub fn desugar_struct_def(
     tcx: TyCtxt,
+    sess: &LiquidRustSession,
     adt_def: surface::StructDef<Res>,
-) -> Result<AdtDef, ErrorReported> {
+) -> Result<AdtDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut params = ParamsCtxt::new(tcx.sess);
+    let mut params = ParamsCtxt::new(sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     let mut cx = DesugarCtxt::with_params(params);
@@ -62,8 +66,12 @@ pub fn desugar_struct_def(
     Ok(AdtDef { def_id, kind, refined_by, generics })
 }
 
-pub fn desugar_enum_def(tcx: TyCtxt, enum_def: surface::EnumDef) -> Result<AdtDef, ErrorReported> {
-    let mut params = ParamsCtxt::new(tcx.sess);
+pub fn desugar_enum_def(
+    tcx: TyCtxt,
+    sess: &LiquidRustSession,
+    enum_def: surface::EnumDef,
+) -> Result<AdtDef, ErrorGuaranteed> {
+    let mut params = ParamsCtxt::new(sess);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
 
     let kind = if enum_def.opaque {
@@ -78,10 +86,10 @@ pub fn desugar_enum_def(tcx: TyCtxt, enum_def: surface::EnumDef) -> Result<AdtDe
 }
 
 pub fn desugar_fn_sig(
-    sess: &Session,
+    sess: &LiquidRustSession,
     refined_by: &impl AdtSortsMap,
     fn_sig: surface::FnSig<Res>,
-) -> Result<FnSig, ErrorReported> {
+) -> Result<FnSig, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess);
     params.gather_fn_sig_params(&fn_sig, refined_by)?;
 
@@ -125,7 +133,7 @@ pub struct DesugarCtxt<'a> {
 }
 
 struct ParamsCtxt<'a> {
-    sess: &'a Session,
+    sess: &'a LiquidRustSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
     params: Vec<Param>,
@@ -136,7 +144,7 @@ impl<'a> DesugarCtxt<'a> {
         DesugarCtxt { params, requires: vec![] }
     }
 
-    fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<Ty, ErrorReported> {
+    fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Indexed(bind, path, pred) => {
                 if let Some(pred) = pred {
@@ -159,7 +167,7 @@ impl<'a> DesugarCtxt<'a> {
         }
     }
 
-    fn desugar_ty(&mut self, ty: surface::Ty<Res>) -> Result<Ty, ErrorReported> {
+    fn desugar_ty(&mut self, ty: surface::Ty<Res>) -> Result<Ty, ErrorGuaranteed> {
         let ty = match ty.kind {
             surface::TyKind::Path(surface::Path { ident: Res::Float(float_ty), .. }) => {
                 Ty::Float(float_ty)
@@ -201,7 +209,7 @@ impl<'a> DesugarCtxt<'a> {
         Ok(ty)
     }
 
-    fn desugar_indices(&self, indices: surface::Indices) -> Result<Indices, ErrorReported> {
+    fn desugar_indices(&self, indices: surface::Indices) -> Result<Indices, ErrorGuaranteed> {
         let exprs = indices
             .indices
             .into_iter()
@@ -210,7 +218,7 @@ impl<'a> DesugarCtxt<'a> {
         Ok(Indices { indices: exprs, span: indices.span })
     }
 
-    fn desugar_index(&self, idx: surface::Index) -> Result<Index, ErrorReported> {
+    fn desugar_index(&self, idx: surface::Index) -> Result<Index, ErrorGuaranteed> {
         match idx {
             surface::Index::Bind(ident) => {
                 Ok(Index { expr: self.params.desugar_var(ident)?, is_binder: true })
@@ -221,7 +229,10 @@ impl<'a> DesugarCtxt<'a> {
         }
     }
 
-    fn desugar_path_into_bty(&mut self, path: surface::Path<Res>) -> Result<BaseTy, ErrorReported> {
+    fn desugar_path_into_bty(
+        &mut self,
+        path: surface::Path<Res>,
+    ) -> Result<BaseTy, ErrorGuaranteed> {
         let bty = match path.ident {
             Res::Bool => BaseTy::Bool,
             Res::Int(int_ty) => BaseTy::Int(int_ty),
@@ -249,7 +260,7 @@ fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
     }
 }
 
-fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorReported> {
+fn resolve_sort(sess: &LiquidRustSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
     if sort.name == SORTS.int {
         Ok(Sort::Int)
     } else if sort.name == sym::bool {
@@ -260,7 +271,7 @@ fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorRepor
 }
 
 impl ParamsCtxt<'_> {
-    fn new(sess: &Session) -> ParamsCtxt {
+    fn new(sess: &LiquidRustSession) -> ParamsCtxt {
         ParamsCtxt {
             sess,
             name_gen: IndexGen::new(),
@@ -269,7 +280,7 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorReported> {
+    fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorGuaranteed> {
         let kind = match expr.kind {
             surface::ExprKind::Var(ident) => return self.desugar_var(ident),
             surface::ExprKind::Literal(lit) => ExprKind::Literal(self.desugar_lit(lit)?),
@@ -297,7 +308,7 @@ impl ParamsCtxt<'_> {
         r
     }
 
-    fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorReported> {
+    fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorGuaranteed> {
         match lit.kind {
             surface::LitKind::Integer => {
                 match lit.symbol.as_str().parse::<i128>() {
@@ -314,7 +325,7 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorReported> {
+    fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorGuaranteed> {
         if let Some(&name) = self.name_map.get(&ident.name) {
             let kind = ExprKind::Var(name, ident.name, ident.span);
             Ok(Expr { kind, span: Some(ident.span) })
@@ -323,7 +334,7 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn desugar_ident(&self, ident: surface::Ident) -> Result<Ident, ErrorReported> {
+    fn desugar_ident(&self, ident: surface::Ident) -> Result<Ident, ErrorGuaranteed> {
         if let Some(&name) = self.name_map.get(&ident.name) {
             let source_info = (ident.span, ident.name);
             Ok(Ident { name, source_info })
@@ -332,7 +343,7 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn push_param(&mut self, ident: surface::Ident, sort: Sort) -> Result<(), ErrorReported> {
+    fn push_param(&mut self, ident: surface::Ident, sort: Sort) -> Result<(), ErrorGuaranteed> {
         let fresh = self.name_gen.fresh();
         let source_info = (ident.span, ident.name);
 
@@ -348,7 +359,7 @@ impl ParamsCtxt<'_> {
     fn insert_params(
         &mut self,
         params: impl IntoIterator<Item = surface::Param>,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         for param in params {
             self.push_param(param.name, resolve_sort(self.sess, param.sort)?)?;
         }
@@ -359,7 +370,7 @@ impl ParamsCtxt<'_> {
         &mut self,
         fn_sig: &surface::FnSig<Res>,
         adt_sorts: &impl AdtSortsMap,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         for arg in &fn_sig.args {
             self.arg_gather_params(arg, adt_sorts)?;
         }
@@ -370,7 +381,7 @@ impl ParamsCtxt<'_> {
         &mut self,
         arg: &surface::Arg<Res>,
         adt_sorts: &impl AdtSortsMap,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Indexed(bind, path, _) => {
                 let sorts = self.sorts(path, adt_sorts)?;
@@ -391,7 +402,7 @@ impl ParamsCtxt<'_> {
         &mut self,
         ty: &surface::Ty<Res>,
         adt_sorts: &impl AdtSortsMap,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
                 let sorts = self.sorts(path, adt_sorts)?;
@@ -416,7 +427,7 @@ impl ParamsCtxt<'_> {
         &self,
         path: &surface::Path<Res>,
         adt_sorts: &'a impl AdtSortsMap,
-    ) -> Result<&'a [Sort], ErrorReported> {
+    ) -> Result<&'a [Sort], ErrorGuaranteed> {
         match path.ident {
             Res::Bool => Ok(&[Sort::Bool]),
             Res::Int(_) => Ok(&[Sort::Int]),
@@ -462,10 +473,10 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "desugar-unresolved-var")]
     pub struct UnresolvedVar {
-        #[message = "cannot find value `{var}` in this scope"]
-        #[label = "not found in this scope"]
+        #[primary_span]
+        #[label]
         pub span: Span,
         pub var: Ident,
     }
@@ -477,10 +488,10 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "desugar-duplicate-param")]
     pub struct DuplicateParam {
-        #[message = "the name `{name}` is already used as a parameter"]
-        #[label = "already used"]
+        #[primary_span]
+        #[label]
         span: Span,
         name: Ident,
     }
@@ -490,11 +501,12 @@ mod errors {
             Self { span: name.span, name }
         }
     }
+
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "desugar-unresolved-sort")]
     pub struct UnresolvedSort {
-        #[message = "cannot find sort `{sort}` in this scope"]
-        #[label = "not found in this scope"]
+        #[primary_span]
+        #[label]
         pub span: Span,
         pub sort: Ident,
     }
@@ -504,31 +516,34 @@ mod errors {
             Self { span: sort.span, sort }
         }
     }
+
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "desugar-int-too-large")]
     pub struct IntTooLarge {
-        #[message = "integer literal is too large"]
-        pub span: Span,
-    }
-    #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct UnexpectedLiteral {
-        #[message = "unexpected literal"]
+        #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
-    pub struct RefinedTypeParam {
-        #[message = "type parameters cannot be refined"]
-        #[label = "refined type parameter"]
+    #[error(code = "LIQUID", slug = "desugar-unexpected-literal")]
+    pub struct UnexpectedLiteral {
+        #[primary_span]
         pub span: Span,
     }
+
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "desugar-refined-type-param")]
+    pub struct RefinedTypeParam {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(code = "LIQUID", slug = "desugar-refined-float")]
     pub struct RefinedFloat {
-        #[message = "float cannot be refined"]
-        #[label = "refined float"]
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 }

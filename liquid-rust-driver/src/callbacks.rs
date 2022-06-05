@@ -1,7 +1,8 @@
+use liquid_rust_errors::LiquidRustSession;
 use rustc_driver::{Callbacks, Compilation};
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
-use rustc_hir::{def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ImplItemKind, ItemKind};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -13,16 +14,20 @@ use liquid_rust_desugar as desugar;
 use liquid_rust_middle::{global_env::GlobalEnv, rustc, ty};
 use liquid_rust_syntax::surface;
 use liquid_rust_typeck::{self as typeck, wf::Wf};
+use rustc_session::config::ErrorOutputType;
 
 use crate::{collector::SpecCollector, mir_storage};
 
 /// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
-pub(crate) struct LiquidCallbacks;
+pub(crate) struct LiquidCallbacks {
+    error_format: ErrorOutputType,
+}
 
 impl Callbacks for LiquidCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
+        self.error_format = config.opts.error_format;
         config.override_queries = Some(|_, local, _| {
             local.mir_borrowck = mir_borrowck;
         });
@@ -33,51 +38,54 @@ impl Callbacks for LiquidCallbacks {
         compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        if compiler.session().has_errors() {
+        if compiler.session().has_errors().is_some() {
             return Compilation::Stop;
         }
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let _ = check_crate(tcx);
+            let sess =
+                LiquidRustSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
+            let _ = check_crate(tcx, &sess);
+            sess.finish_diagnostics();
         });
 
         Compilation::Stop
     }
 }
 
-fn check_crate(tcx: TyCtxt) -> Result<(), ErrorReported> {
-    let mut ck = CrateChecker::new(tcx)?;
+fn check_crate(tcx: TyCtxt, sess: &LiquidRustSession) -> Result<(), ErrorGuaranteed> {
+    let mut genv = GlobalEnv::new(tcx, sess);
 
-    tcx.hir().visit_all_item_likes(&mut ck);
+    let ck = CrateChecker::new(&mut genv)?;
 
-    if ck.error_reported {
-        Err(ErrorReported)
-    } else {
-        Ok(())
-    }
+    let crate_items = tcx.hir_crate_items(());
+    let items = crate_items.items().map(|item| item.def_id);
+    let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
+
+    items
+        .chain(impl_items)
+        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn | DefKind::AssocFn))
+        .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
 }
 
-struct CrateChecker<'tcx> {
-    genv: GlobalEnv<'tcx>,
+struct CrateChecker<'a, 'genv, 'tcx> {
+    genv: &'a mut GlobalEnv<'genv, 'tcx>,
     qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
-    error_reported: bool,
 }
 
-impl<'tcx> CrateChecker<'tcx> {
-    fn new(tcx: TyCtxt<'tcx>) -> Result<CrateChecker, ErrorReported> {
-        let sess = tcx.sess;
-        let specs = SpecCollector::collect(tcx, sess)?;
+impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
+    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>) -> Result<Self, ErrorGuaranteed> {
+        let specs = SpecCollector::collect(genv.tcx, genv.sess)?;
 
         let mut assume = FxHashSet::default();
-        let mut genv = GlobalEnv::new(tcx);
 
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
                 genv.register_adt_sorts(
                     def_id.to_def_id(),
-                    desugar::resolve_sorts(sess, refined_by)?,
+                    desugar::resolve_sorts(genv.sess, refined_by)?,
                 );
             }
             Ok(())
@@ -86,7 +94,7 @@ impl<'tcx> CrateChecker<'tcx> {
             if let Some(refined_by) = &def.refined_by {
                 genv.register_adt_sorts(
                     def_id.to_def_id(),
-                    desugar::resolve_sorts(sess, refined_by)?,
+                    desugar::resolve_sorts(genv.sess, refined_by)?,
                 );
             }
             Ok(())
@@ -97,8 +105,8 @@ impl<'tcx> CrateChecker<'tcx> {
             .qualifs
             .into_iter()
             .map(|qualifier| {
-                let qualifier = desugar::desugar_qualifier(sess, qualifier)?;
-                Wf::new(sess, &genv).check_qualifier(&qualifier)?;
+                let qualifier = desugar::desugar_qualifier(genv.sess, qualifier)?;
+                Wf::new(genv.sess, genv).check_qualifier(&qualifier)?;
                 Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
             })
             .try_collect_exhaust()?;
@@ -115,8 +123,8 @@ impl<'tcx> CrateChecker<'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let adt_def = desugar::desugar_struct_def(tcx, struct_def)?;
-                Wf::new(sess, &genv).check_adt_def(&adt_def)?;
+                let adt_def = desugar::desugar_struct_def(genv.tcx, genv.sess, struct_def)?;
+                Wf::new(genv.sess, genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())
             })?;
@@ -124,8 +132,8 @@ impl<'tcx> CrateChecker<'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let adt_def = desugar::desugar_enum_def(tcx, enum_def)?;
-                Wf::new(sess, &genv).check_adt_def(&adt_def)?;
+                let adt_def = desugar::desugar_enum_def(genv.tcx, genv.sess, enum_def)?;
+                Wf::new(genv.sess, genv).check_adt_def(&adt_def)?;
                 genv.register_adt_def(def_id.to_def_id(), adt_def);
                 Ok(())
             })?;
@@ -142,17 +150,23 @@ impl<'tcx> CrateChecker<'tcx> {
                 }
                 if let Some(fn_sig) = spec.fn_sig {
                     let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                    let fn_sig = desugar::desugar_fn_sig(tcx, &genv, def_id.to_def_id(), fn_sig)?;
-                    Wf::new(sess, &genv).check_fn_sig(&fn_sig)?;
+                    let fn_sig = desugar::desugar_fn_sig(
+                        genv.tcx,
+                        genv.sess,
+                        genv,
+                        def_id.to_def_id(),
+                        fn_sig,
+                    )?;
+                    Wf::new(genv.sess, genv).check_fn_sig(&fn_sig)?;
                     genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                 }
                 Ok(())
             })?;
 
-        Ok(CrateChecker { genv, qualifiers, assume, error_reported: false })
+        Ok(CrateChecker { genv, qualifiers, assume })
     }
 
-    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorReported> {
+    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         if self.assume.contains(&def_id) {
             return Ok(());
         }
@@ -170,29 +184,8 @@ impl<'tcx> CrateChecker<'tcx> {
         }
 
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
-        typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)
+        typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
-}
-
-impl<'tcx> ItemLikeVisitor<'tcx> for CrateChecker<'tcx> {
-    fn visit_item(&mut self, item: &'tcx rustc_hir::Item<'tcx>) {
-        if let ItemKind::Fn(..) = &item.kind {
-            if self.check_fn(item.def_id).is_err() {
-                self.error_reported = true;
-            }
-        }
-    }
-
-    fn visit_impl_item(&mut self, item: &'tcx rustc_hir::ImplItem<'tcx>) {
-        if let ImplItemKind::Fn(..) = &item.kind {
-            if self.check_fn(item.def_id).is_err() {
-                self.error_reported = true;
-            }
-        }
-    }
-
-    fn visit_trait_item(&mut self, _item: &'tcx rustc_hir::TraitItem<'tcx>) {}
-    fn visit_foreign_item(&mut self, _item: &'tcx rustc_hir::ForeignItem<'tcx>) {}
 }
 
 #[allow(clippy::needless_lifetimes)]

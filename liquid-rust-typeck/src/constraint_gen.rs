@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub struct ConstrGen<'a, 'rcx, 'tcx> {
-    genv: &'a GlobalEnv<'tcx>,
+    genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
     fresh_kvar: Box<dyn FnMut(&BaseTy) -> Pred + 'a>,
     tag: Tag,
@@ -44,7 +44,7 @@ pub enum Tag {
 
 impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
     pub fn new<F>(
-        genv: &'a GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
         fresh_kvar: F,
         tag: Tag,

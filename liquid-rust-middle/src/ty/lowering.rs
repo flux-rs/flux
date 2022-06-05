@@ -10,8 +10,8 @@ use rustc_hash::FxHashMap;
 
 use crate::core;
 
-pub struct LoweringCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'tcx>,
+pub struct LoweringCtxt<'a, 'genv, 'tcx> {
+    genv: &'a GlobalEnv<'genv, 'tcx>,
     name_map: NameMap,
 }
 
@@ -63,8 +63,8 @@ impl NameMap {
     }
 }
 
-impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
-    pub fn new(genv: &'a GlobalEnv<'tcx>) -> Self {
+impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
+    pub fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv, name_map: NameMap::default() }
     }
 
@@ -106,7 +106,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             }
             core::AdtDefKind::Transparent { variants: Some(variants), .. } => {
                 let rustc_adt_def = genv.tcx.adt_def(adt_def.def_id);
-                let variants = iter::zip(variants, &rustc_adt_def.variants)
+                let variants = iter::zip(variants, rustc_adt_def.variants())
                     .map(|(variant, rustc_variant)| {
                         variant
                             .as_ref()

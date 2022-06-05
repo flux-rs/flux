@@ -131,7 +131,7 @@ pub enum Res {
     Param(ParamTy),
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum RefKind {
     Mut,
     Shr,

@@ -3,20 +3,20 @@ use std::{
     ops::{ControlFlow, FromResidual, Try},
 };
 
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 
 pub trait IterExt: Iterator {
-    fn try_collect_exhaust<T, V>(self) -> Result<V, ErrorReported>
+    fn try_collect_exhaust<T, V>(self) -> Result<V, ErrorGuaranteed>
     where
         V: FromIterator<T>,
-        Self: Iterator<Item = Result<T, ErrorReported>> + Sized,
+        Self: Iterator<Item = Result<T, ErrorGuaranteed>> + Sized,
     {
-        let mut acc: Option<ErrorReported> = None;
+        let mut acc: Option<ErrorGuaranteed> = None;
         let v = ReportResiduals {
             iter: self,
-            f: |residual: Result<Infallible, ErrorReported>| {
+            f: |residual: Result<Infallible, ErrorGuaranteed>| {
                 match acc.take() {
-                    Some(_) => acc = Some(ErrorReported),
+                    Some(e) => acc = Some(e),
                     None => acc = Some(residual.unwrap_err()),
                 }
             },
@@ -28,16 +28,16 @@ pub trait IterExt: Iterator {
         }
     }
 
-    fn try_for_each_exhaust<T, F>(self, mut f: F) -> Result<(), ErrorReported>
+    fn try_for_each_exhaust<T, F>(self, mut f: F) -> Result<(), ErrorGuaranteed>
     where
         Self: Iterator<Item = T> + Sized,
-        F: FnMut(T) -> Result<(), ErrorReported>,
+        F: FnMut(T) -> Result<(), ErrorGuaranteed>,
     {
-        let mut acc: Option<ErrorReported> = None;
+        let mut acc: Option<ErrorGuaranteed> = None;
         for v in self {
             if let Err(e) = f(v) {
                 match acc.take() {
-                    Some(_) => acc = Some(ErrorReported),
+                    Some(_) => acc = Some(e),
                     None => acc = Some(e),
                 }
             }

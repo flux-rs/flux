@@ -35,17 +35,17 @@ use checker::Checker;
 use constraint_gen::Tag;
 use liquid_rust_common::config::CONFIG;
 use liquid_rust_middle::{global_env::GlobalEnv, rustc::mir::Body, ty};
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
-pub fn check<'tcx>(
-    genv: &GlobalEnv<'tcx>,
+pub fn check<'a, 'tcx>(
+    genv: &GlobalEnv<'a, 'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
     qualifiers: &[ty::Qualifier],
-) -> Result<(), ErrorReported> {
+) -> Result<(), ErrorGuaranteed> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
     let mut kvars = fixpoint::KVarStore::new();
     let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
@@ -60,24 +60,33 @@ pub fn check<'tcx>(
 
     match fcx.check(genv.tcx, def_id, constraint, qualifiers) {
         Ok(_) => Ok(()),
-        Err(tags) => report_errors(genv.tcx, body.span(), tags),
+        Err(tags) => report_errors(genv, body.span(), tags),
     }
 }
 
-fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), ErrorReported> {
+fn report_errors(
+    genv: &GlobalEnv,
+    body_span: Span,
+    errors: Vec<Tag>,
+) -> Result<(), ErrorGuaranteed> {
+    let mut e = None;
     for err in errors {
-        match err {
-            Tag::Call(span) => tcx.sess.emit_err(errors::CallError { span }),
-            Tag::Assign(span) => tcx.sess.emit_err(errors::AssignError { span }),
-            Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
-            Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
-            Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto(span, bb) => tcx.sess.emit_err(errors::GotoError { span, bb }),
-            Tag::Assert(msg, span) => tcx.sess.emit_err(errors::AssertError { msg, span }),
-        };
+        e = Some(match err {
+            Tag::Call(span) => genv.sess.emit_err(errors::CallError { span }),
+            Tag::Assign(span) => genv.sess.emit_err(errors::AssignError { span }),
+            Tag::Ret => genv.sess.emit_err(errors::RetError { span: body_span }),
+            Tag::Div(span) => genv.sess.emit_err(errors::DivError { span }),
+            Tag::Rem(span) => genv.sess.emit_err(errors::RemError { span }),
+            Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
+            Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { msg, span }),
+        });
     }
 
-    Err(ErrorReported)
+    if let Some(e) = e {
+        Err(e)
+    } else {
+        Ok(())
+    }
 }
 
 /// TODO(nilehmann) we should abstract over dumping files logic
@@ -94,62 +103,60 @@ fn dump_constraint<C: std::fmt::Debug>(
 }
 
 mod errors {
-    use liquid_rust_middle::rustc::mir::BasicBlock;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-goto-error")]
     pub struct GotoError {
-        #[message = "error jumping to join point: `{bb:?}`"]
+        #[primary_span]
         pub span: Option<Span>,
-        pub bb: BasicBlock,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-call-error")]
     pub struct CallError {
-        #[message = "precondition might not hold"]
-        #[label = "precondition might not hold in this function call"]
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-assign-error")]
     pub struct AssignError {
-        #[message = "missmatched type in assignment"]
-        #[label = "this assignment might be unsafe"]
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-ret-error")]
     pub struct RetError {
-        #[message = "postcondition might not hold"]
-        #[label = "the postcondition in this function might not hold"]
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-div-error")]
     pub struct DivError {
-        #[message = "possible division by zero"]
-        #[label = "denominator might be zero"]
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-rem-error")]
     pub struct RemError {
-        #[message = "possible reminder with a divisor of zero"]
-        #[label = "divisor might not be zero"]
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "refineck-assert-error")]
     pub struct AssertError {
-        #[message = "assertion might fail: {msg}"]
+        #[primary_span]
         pub span: Span,
         pub msg: &'static str,
     }

@@ -1,6 +1,6 @@
 use std::iter::Peekable;
 
-pub use rustc_ast::token::{BinOpToken, DelimToken, Lit, LitKind};
+pub use rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 use rustc_ast::{
     token::{self, TokenKind},
     tokenstream::{self, TokenStream, TokenTree},
@@ -36,8 +36,8 @@ pub enum Token {
     Ensures,
     Literal(Lit),
     Ident(Symbol),
-    OpenDelim(DelimToken),
-    CloseDelim(DelimToken),
+    OpenDelim(Delimiter),
+    CloseDelim(Delimiter),
     Invalid,
     Ref,
     And,

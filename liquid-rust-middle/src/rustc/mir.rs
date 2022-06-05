@@ -52,7 +52,8 @@ pub enum TerminatorKind {
         func: DefId,
         substs: List<GenericArg>,
         args: Vec<Operand>,
-        destination: Option<(Place, BasicBlock)>,
+        destination: Place,
+        target: Option<BasicBlock>,
         cleanup: Option<BasicBlock>,
     },
     SwitchInt {
@@ -167,7 +168,7 @@ pub enum FakeReadCause {
     ForMatchedPlace(Option<DefId>),
 }
 
-impl Body<'_> {
+impl<'tcx> Body<'tcx> {
     pub fn span(&self) -> Span {
         self.rustc_mir.span
     }
@@ -183,7 +184,10 @@ impl Body<'_> {
     }
 
     #[inline]
-    pub fn reverse_postorder(&self) -> impl ExactSizeIterator<Item = BasicBlock> + '_ {
+    pub fn reverse_postorder<'a>(&'a self) -> impl ExactSizeIterator<Item = BasicBlock> + 'tcx
+    where
+        'a: 'tcx,
+    {
         mir::traversal::reverse_postorder(&self.rustc_mir).map(|(bb, _)| bb)
     }
 
@@ -200,7 +204,10 @@ impl Body<'_> {
     }
 
     #[inline]
-    pub fn join_points(&self) -> impl Iterator<Item = BasicBlock> + '_ {
+    pub fn join_points<'a>(&'a self) -> impl Iterator<Item = BasicBlock> + 'tcx
+    where
+        'a: 'tcx,
+    {
         self.basic_blocks
             .indices()
             .filter(|bb| self.is_join_point(*bb))
@@ -267,29 +274,22 @@ impl fmt::Debug for Terminator {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { func, substs: ty_subst, args, destination, cleanup } => {
+            TerminatorKind::Call { func, substs, args, destination, target, cleanup } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
                 });
-                if let Some((place, target)) = destination {
-                    write!(
-                        f,
-                        "{:?} = call {}({:?}) -> [return: {:?}, cleanup: {cleanup:?}]",
-                        place,
-                        fname,
-                        args.iter().format(", "),
-                        target
-                    )
-                } else {
-                    write!(
-                        f,
-                        "call {}<{:?}>({:?}) -> [cleanup: {cleanup:?}]",
-                        fname,
-                        ty_subst.iter().format(", "),
-                        args.iter().format(", ")
-                    )
+                write!(f, "{destination:?} = call {fname}")?;
+
+                if !substs.is_empty() {
+                    write!(f, "::<{:?}>", substs.iter().format(", "))?;
                 }
+
+                write!(
+                    f,
+                    "({:?}) -> [return: {target:?}, cleanup: {cleanup:?}]",
+                    args.iter().format(", "),
+                )
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 write!(

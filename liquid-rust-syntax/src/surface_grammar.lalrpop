@@ -1,7 +1,7 @@
 use crate::{
     UserParseError,
     surface,
-    lexer::{Lit, Location, Token, DelimToken, BinOpToken}
+    lexer::{Lit, Location, Token, Delimiter, BinOpToken}
 };
 use rustc_span::{Span, Symbol};
 use lalrpop_util::ParseError;
@@ -256,12 +256,12 @@ extern {
         "+"  => Token::Plus,
         "-"  => Token::Minus,
         "|"  => Token::Caret,
-        "("  => Token::OpenDelim(DelimToken::Paren),
-        ")"  => Token::CloseDelim(DelimToken::Paren),
-        "{"  => Token::OpenDelim(DelimToken::Brace),
-        "}"  => Token::CloseDelim(DelimToken::Brace),
-        "["  => Token::OpenDelim(DelimToken::Bracket),
-        "]"  => Token::CloseDelim(DelimToken::Bracket),
+        "("  => Token::OpenDelim(Delimiter::Parenthesis),
+        ")"  => Token::CloseDelim(Delimiter::Parenthesis),
+        "{"  => Token::OpenDelim(Delimiter::Brace),
+        "}"  => Token::CloseDelim(Delimiter::Brace),
+        "["  => Token::OpenDelim(Delimiter::Bracket),
+        "]"  => Token::CloseDelim(Delimiter::Bracket),
         "<"  => Token::Lt,
         "<="  => Token::Le,
         ">"  => Token::Gt,

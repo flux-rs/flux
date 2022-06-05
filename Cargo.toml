@@ -5,6 +5,7 @@ members = [
     "liquid-rust-common",
     "liquid-rust-desugar",
     "liquid-rust-driver",
+    "liquid-rust-errors",
     "liquid-rust-fixpoint",
     "liquid-rust-middle",
     "liquid-rust-syntax",
