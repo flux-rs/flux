@@ -311,11 +311,9 @@ mod errors {
     use crate::ty;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "wf-sort-mismatch")]
     pub struct SortMismatch {
-        // #[message = "mismatched sorts"]
         #[primary_span]
-        // #[label = "expected `{expected}`, found `{found}`"]
         #[label]
         pub span: Option<Span>,
         pub expected: ty::Sort,
@@ -329,11 +327,9 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "wf-param-count-mismatch")]
     pub struct ParamCountMismatch {
-        // #[message = "this type takes {expected} refinement parameters but {found} were supplied"]
         #[primary_span]
-        // #[label = "expected `{expected}` refinement arguments, found `{found}`"]
         #[label]
         pub span: Option<Span>,
         pub expected: usize,

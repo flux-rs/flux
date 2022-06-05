@@ -537,35 +537,31 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "parse-duplicated-attr")]
     pub struct DuplicatedAttr {
-        // #[message = "duplicated attribute `{name}`"]
         #[primary_span]
         pub span: Span,
         pub name: &'static str,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "parse-invalid-attr")]
     pub struct InvalidAttr {
-        // #[message = "invalid liquid attribute"]
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "parse-cfg-error")]
     pub struct CFGError {
-        // #[message = "invalid liquid configuration attribute: {message}"]
         #[primary_span]
         pub span: Span,
         pub message: String,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "parse-syntax-err")]
     pub struct SyntaxErr {
-        // #[message = "Syntax Error: {msg}"]
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,

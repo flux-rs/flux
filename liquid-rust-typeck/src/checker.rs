@@ -1003,9 +1003,8 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-param-inference-error")]
     pub struct ParamInferenceError {
-        // #[message = "parameter inference error at function call"]
         #[primary_span]
         pub span: Span,
     }

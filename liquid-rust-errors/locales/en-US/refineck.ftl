@@ -23,3 +23,6 @@ refineck-rem-error =
 
 refineck-assert-error =
     assertion might fail: {$msg}
+
+refineck-param-inference-error =
+    parameter inference error at function call

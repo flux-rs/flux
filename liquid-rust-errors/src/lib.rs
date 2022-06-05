@@ -21,6 +21,10 @@ use rustc_session::{config::ErrorOutputType, parse::ParseSess, SessionDiagnostic
 use rustc_span::source_map::SourceMap;
 
 fluent_messages! {
+    parse => "../locales/en-US/parse.ftl",
+    resolver => "../locales/en-US/resolver.ftl",
+    desugar => "../locales/en-US/desugar.ftl",
+    wf => "../locales/en-US/wf.ftl",
     refineck => "../locales/en-US/refineck.ftl",
 }
 
@@ -43,6 +47,13 @@ impl LiquidRustSession {
 
     pub fn abort_if_errors(&self) {
         self.parse_sess.span_diagnostic.abort_if_errors()
+    }
+
+    pub fn finish_diagnostics(&self) {
+        self.parse_sess
+            .span_diagnostic
+            .print_error_count(&Registry::new(&[]));
+        self.abort_if_errors();
     }
 }
 

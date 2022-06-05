@@ -46,7 +46,7 @@ impl Callbacks for LiquidCallbacks {
             let sess =
                 LiquidRustSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
             let _ = check_crate(tcx, &sess);
-            sess.abort_if_errors();
+            sess.finish_diagnostics();
         });
 
         Compilation::Stop
@@ -64,7 +64,7 @@ fn check_crate(tcx: TyCtxt, sess: &LiquidRustSession) -> Result<(), ErrorGuarant
 
     items
         .chain(impl_items)
-        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn))
+        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn | DefKind::AssocFn))
         .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
 }
 

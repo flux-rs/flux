@@ -140,9 +140,7 @@ mod errors {
     #[derive(SessionDiagnostic)]
     #[error(code = "LIQUID", slug = "refineck-div-error")]
     pub struct DivError {
-        // #[message = "possible division by zero"]
         #[primary_span]
-        // #[label = "denominator might be zero"]
         #[label]
         pub span: Span,
     }
@@ -156,9 +154,8 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "refineck-assert-error")]
     pub struct AssertError {
-        // #[message = "assertion might fail: {msg}"]
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,

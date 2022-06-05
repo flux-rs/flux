@@ -473,11 +473,9 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "desugar-unresolved-var")]
     pub struct UnresolvedVar {
-        // #[message = "cannot find value `{var}` in this scope"]
         #[primary_span]
-        // #[label = "not found in this scope"]
         #[label]
         pub span: Span,
         pub var: Ident,
@@ -490,11 +488,9 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "desugar-duplicate-param")]
     pub struct DuplicateParam {
-        // #[message = "the name `{name}` is already used as a parameter"]
         #[primary_span]
-        // #[label = "already used"]
         #[label]
         span: Span,
         name: Ident,
@@ -505,12 +501,11 @@ mod errors {
             Self { span: name.span, name }
         }
     }
+
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "desugar-unresolved-sort")]
     pub struct UnresolvedSort {
-        // #[message = "cannot find sort `{sort}` in this scope"]
         #[primary_span]
-        // #[label = "not found in this scope"]
         #[label]
         pub span: Span,
         pub sort: Ident,
@@ -521,36 +516,33 @@ mod errors {
             Self { span: sort.span, sort }
         }
     }
+
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "desugar-int-too-large")]
     pub struct IntTooLarge {
-        // #[message = "integer literal is too large"]
-        #[primary_span]
-        pub span: Span,
-    }
-    #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
-    pub struct UnexpectedLiteral {
-        // #[message = "unexpected literal"]
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
-    pub struct RefinedTypeParam {
-        // #[message = "type parameters cannot be refined"]
+    #[error(code = "LIQUID", slug = "desugar-unexpected-literal")]
+    pub struct UnexpectedLiteral {
         #[primary_span]
-        // #[label = "refined type parameter"]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(code = "LIQUID", slug = "desugar-refined-type-param")]
+    pub struct RefinedTypeParam {
+        #[primary_span]
         #[label]
         pub span: Span,
     }
+
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "")]
+    #[error(code = "LIQUID", slug = "desugar-refined-float")]
     pub struct RefinedFloat {
-        // #[message = "float cannot be refined"]
         #[primary_span]
-        // #[label = "refined float"]
         #[label]
         pub span: Span,
     }
