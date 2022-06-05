@@ -2,7 +2,7 @@ use std::iter;
 
 use liquid_rust_common::iter::IterExt;
 use liquid_rust_middle::core::{self, AdtSortsMap};
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_session::{Session, SessionDiagnostic};
 
@@ -57,7 +57,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         Wf { sess, adt_sorts: refined_by }
     }
 
-    pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorReported> {
+    pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&fn_sig.params);
 
         let args = fn_sig
@@ -85,13 +85,13 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         Ok(())
     }
 
-    pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorReported> {
+    pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorGuaranteed> {
         let env = Env::new(&qualifier.args);
 
         self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
-    pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorReported> {
+    pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&def.refined_by);
         if let core::AdtDefKind::Transparent { variants, .. } = &def.kind {
             variants
@@ -107,14 +107,18 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         &self,
         env: &mut Env,
         variant: &core::VariantDef,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         variant
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(env, ty))
     }
 
-    fn check_constr(&self, env: &mut Env, constr: &core::Constraint) -> Result<(), ErrorReported> {
+    fn check_constr(
+        &self,
+        env: &mut Env,
+        constr: &core::Constraint,
+    ) -> Result<(), ErrorGuaranteed> {
         match constr {
             core::Constraint::Type(loc, ty) => {
                 [self.check_loc(env, *loc), self.check_type(env, ty)]
@@ -125,7 +129,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         }
     }
 
-    fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorReported> {
+    fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorGuaranteed> {
         match ty {
             core::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
             core::Ty::Indexed(bty, refine) => {
@@ -154,7 +158,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         }
     }
 
-    fn check_base_ty(&self, env: &mut Env, bty: &core::BaseTy) -> Result<(), ErrorReported> {
+    fn check_base_ty(&self, env: &mut Env, bty: &core::BaseTy) -> Result<(), ErrorGuaranteed> {
         match bty {
             core::BaseTy::Adt(_, substs) => {
                 substs
@@ -171,7 +175,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         env: &Env,
         indices: &core::Indices,
         expected: Vec<ty::Sort>,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let found = self.synt_indices(env, indices)?;
         if expected.len() != found.len() {
             return self.emit_err(errors::ParamCountMismatch::new(
@@ -198,7 +202,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         env: &Env,
         e: &core::Expr,
         expected: ty::Sort,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let found = self.synth_expr(env, e)?;
         if found == expected {
             Ok(())
@@ -207,7 +211,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         }
     }
 
-    fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorReported> {
+    fn check_loc(&self, env: &Env, loc: core::Ident) -> Result<(), ErrorGuaranteed> {
         let found = env[&loc.name].clone();
         if found == ty::Sort::Loc {
             Ok(())
@@ -220,7 +224,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         &self,
         env: &Env,
         refine: &core::Indices,
-    ) -> Result<Vec<ty::Sort>, ErrorReported> {
+    ) -> Result<Vec<ty::Sort>, ErrorGuaranteed> {
         let sorts: Vec<ty::Sort> = refine
             .indices
             .iter()
@@ -229,7 +233,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         Ok(sorts)
     }
 
-    fn synth_expr(&self, env: &Env, e: &core::Expr) -> Result<ty::Sort, ErrorReported> {
+    fn synth_expr(&self, env: &Env, e: &core::Expr) -> Result<ty::Sort, ErrorGuaranteed> {
         match &e.kind {
             core::ExprKind::Var(var, ..) => Ok(env[var].clone()),
             core::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit)),
@@ -243,7 +247,7 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         op: core::BinOp,
         e1: &core::Expr,
         e2: &core::Expr,
-    ) -> Result<ty::Sort, ErrorReported> {
+    ) -> Result<ty::Sort, ErrorGuaranteed> {
         match op {
             core::BinOp::Or | core::BinOp::And | core::BinOp::Iff | core::BinOp::Imp => {
                 self.check_expr(env, e1, ty::Sort::Bool)?;
@@ -294,9 +298,8 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         }
     }
 
-    fn emit_err<'a, R>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<R, ErrorReported> {
-        self.sess.emit_err(err);
-        Err(ErrorReported)
+    fn emit_err<'a, R>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<R, ErrorGuaranteed> {
+        Err(self.sess.emit_err(err))
     }
 }
 
@@ -307,10 +310,12 @@ mod errors {
     use crate::ty;
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct SortMismatch {
-        #[message = "mismatched sorts"]
-        #[label = "expected `{expected}`, found `{found}`"]
+        // #[message = "mismatched sorts"]
+        #[primary_span]
+        // #[label = "expected `{expected}`, found `{found}`"]
+        #[label]
         pub span: Option<Span>,
         pub expected: ty::Sort,
         pub found: ty::Sort,
@@ -323,10 +328,12 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct ParamCountMismatch {
-        #[message = "this type takes {expected} refinement parameters but {found} were supplied"]
-        #[label = "expected `{expected}` refinement arguments, found `{found}`"]
+        // #[message = "this type takes {expected} refinement parameters but {found} were supplied"]
+        #[primary_span]
+        // #[label = "expected `{expected}` refinement arguments, found `{found}`"]
+        #[label]
         pub span: Option<Span>,
         pub expected: usize,
         pub found: usize,

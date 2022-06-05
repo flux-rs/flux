@@ -1,7 +1,7 @@
 use rustc_driver::{Callbacks, Compilation};
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
-use rustc_hir::{def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ImplItemKind, ItemKind};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -33,7 +33,7 @@ impl Callbacks for LiquidCallbacks {
         compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        if compiler.session().has_errors() {
+        if compiler.session().has_errors().is_some() {
             return Compilation::Stop;
         }
 
@@ -45,27 +45,27 @@ impl Callbacks for LiquidCallbacks {
     }
 }
 
-fn check_crate(tcx: TyCtxt) -> Result<(), ErrorReported> {
-    let mut ck = CrateChecker::new(tcx)?;
+fn check_crate(tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
+    let ck = CrateChecker::new(tcx)?;
 
-    tcx.hir().visit_all_item_likes(&mut ck);
+    let crate_items = tcx.hir_crate_items(());
+    let items = crate_items.items().map(|item| item.def_id);
+    let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
 
-    if ck.error_reported {
-        Err(ErrorReported)
-    } else {
-        Ok(())
-    }
+    items
+        .chain(impl_items)
+        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn))
+        .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
 }
 
 struct CrateChecker<'tcx> {
     genv: GlobalEnv<'tcx>,
     qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
-    error_reported: bool,
 }
 
 impl<'tcx> CrateChecker<'tcx> {
-    fn new(tcx: TyCtxt<'tcx>) -> Result<CrateChecker, ErrorReported> {
+    fn new(tcx: TyCtxt<'tcx>) -> Result<CrateChecker, ErrorGuaranteed> {
         let sess = tcx.sess;
         let specs = SpecCollector::collect(tcx, sess)?;
 
@@ -149,10 +149,10 @@ impl<'tcx> CrateChecker<'tcx> {
                 Ok(())
             })?;
 
-        Ok(CrateChecker { genv, qualifiers, assume, error_reported: false })
+        Ok(CrateChecker { genv, qualifiers, assume })
     }
 
-    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorReported> {
+    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         if self.assume.contains(&def_id) {
             return Ok(());
         }
@@ -172,27 +172,6 @@ impl<'tcx> CrateChecker<'tcx> {
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
         typeck::check(&self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
-}
-
-impl<'tcx> ItemLikeVisitor<'tcx> for CrateChecker<'tcx> {
-    fn visit_item(&mut self, item: &'tcx rustc_hir::Item<'tcx>) {
-        if let ItemKind::Fn(..) = &item.kind {
-            if self.check_fn(item.def_id).is_err() {
-                self.error_reported = true;
-            }
-        }
-    }
-
-    fn visit_impl_item(&mut self, item: &'tcx rustc_hir::ImplItem<'tcx>) {
-        if let ImplItemKind::Fn(..) = &item.kind {
-            if self.check_fn(item.def_id).is_err() {
-                self.error_reported = true;
-            }
-        }
-    }
-
-    fn visit_trait_item(&mut self, _item: &'tcx rustc_hir::TraitItem<'tcx>) {}
-    fn visit_foreign_item(&mut self, _item: &'tcx rustc_hir::ForeignItem<'tcx>) {}
 }
 
 #[allow(clippy::needless_lifetimes)]

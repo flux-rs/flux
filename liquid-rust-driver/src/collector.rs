@@ -12,12 +12,9 @@ use liquid_rust_syntax::{
 use rustc_ast::{
     tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs, MetaItemKind, NestedMetaItem,
 };
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
-use rustc_hir::{
-    def_id::LocalDefId, itemlikevisit::ItemLikeVisitor, ForeignItem, ImplItem, ImplItemKind, Item,
-    ItemKind, TraitItem, VariantData,
-};
+use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{Session, SessionDiagnostic};
 use rustc_span::Span;
@@ -26,7 +23,7 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
     specs: Specs,
     sess: &'a Session,
-    error_reported: bool,
+    error_guaranteed: Option<ErrorGuaranteed>,
 }
 
 pub(crate) struct Specs {
@@ -44,15 +41,54 @@ pub(crate) struct FnSpec {
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
-    pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a Session) -> Result<Specs, ErrorReported> {
-        let mut collector = Self { tcx, sess, specs: Specs::new(), error_reported: false };
+    pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a Session) -> Result<Specs, ErrorGuaranteed> {
+        let mut collector = Self { tcx, sess, specs: Specs::new(), error_guaranteed: None };
 
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;
 
-        tcx.hir().visit_all_item_likes(&mut collector);
+        let crate_items = tcx.hir_crate_items(());
 
-        if collector.error_reported {
-            Err(ErrorReported)
+        for item_id in crate_items.items() {
+            let item = tcx.hir().item(item_id);
+            match &item.kind {
+                ItemKind::Fn(..) => {
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_fn_spec(item.def_id, attrs);
+                }
+                ItemKind::Struct(data, ..) => {
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_struct_def(item.def_id, attrs, data);
+                }
+                ItemKind::Enum(..) => {
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_enum_def(item.def_id, attrs);
+                }
+                ItemKind::Mod(..) => {
+                    // TODO: Parse mod level attributes
+                }
+                ItemKind::TyAlias(..) => {
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_tyalias_spec(item.def_id, attrs);
+                }
+                _ => {}
+            }
+        }
+
+        for impl_item_id in crate_items.impl_items() {
+            let impl_item = tcx.hir().impl_item(impl_item_id);
+            if let ImplItemKind::Fn(..) = &impl_item.kind {
+                let hir_id = impl_item.hir_id();
+                let attrs = tcx.hir().attrs(hir_id);
+                let _ = collector.parse_fn_spec(impl_item.def_id, attrs);
+            }
+        }
+
+        if let Some(e) = collector.error_guaranteed {
+            Err(e)
         } else {
             Ok(collector.specs)
         }
@@ -62,7 +98,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-fun attrs
@@ -78,7 +114,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         _def_id: LocalDefId,
         attrs: &[Attribute],
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         if let Some(alias) = attrs.alias() {
             // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
@@ -91,7 +127,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
         let opaque = attrs.opaque();
@@ -107,7 +143,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         attrs: &[Attribute],
         data: &VariantData,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error on field attrs if opaque
@@ -130,7 +166,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorReported> {
+    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorGuaranteed> {
         // TODO(atgeller) error if non-crate attributes
         // TODO(atgeller) error if >1 cfg attributes
 
@@ -145,13 +181,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_field_spec(
         &mut self,
         attrs: &[Attribute],
-    ) -> Result<Option<surface::Ty>, ErrorReported> {
+    ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
         let mut attrs = self.parse_liquid_attrs(attrs)?;
         self.report_dups(&attrs)?;
         Ok(attrs.field())
     }
 
-    fn parse_liquid_attrs(&mut self, attrs: &[Attribute]) -> Result<LiquidAttrs, ErrorReported> {
+    fn parse_liquid_attrs(&mut self, attrs: &[Attribute]) -> Result<LiquidAttrs, ErrorGuaranteed> {
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
@@ -170,7 +206,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(LiquidAttrs::new(attrs))
     }
 
-    fn parse_liquid_attr(&mut self, attr_item: &AttrItem) -> Result<LiquidAttr, ErrorReported> {
+    fn parse_liquid_attr(&mut self, attr_item: &AttrItem) -> Result<LiquidAttr, ErrorGuaranteed> {
         let segment = match &attr_item.path.segments[..] {
             [_, segment] => segment,
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
@@ -221,7 +257,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         tokens: TokenStream,
         input_span: Span,
         parser: impl FnOnce(TokenStream, Span) -> ParseResult<T>,
-    ) -> Result<T, ErrorReported> {
+    ) -> Result<T, ErrorGuaranteed> {
         match parser(tokens, input_span) {
             Ok(result) => Ok(result),
             Err(err) => {
@@ -236,69 +272,27 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn report_dups(&mut self, attrs: &LiquidAttrs) -> Result<(), ErrorReported> {
-        let mut has_dups = false;
+    fn report_dups(&mut self, attrs: &LiquidAttrs) -> Result<(), ErrorGuaranteed> {
         for (name, dups) in attrs.dups() {
-            has_dups = true;
             for attr in dups {
-                self.sess
-                    .emit_err(errors::DuplicatedAttr { span: attr.span, name });
+                self.error_guaranteed = Some(
+                    self.sess
+                        .emit_err(errors::DuplicatedAttr { span: attr.span, name }),
+                );
             }
         }
-        if has_dups {
-            self.error_reported = true;
-            Err(ErrorReported)
+        if let Some(e) = self.error_guaranteed {
+            Err(e)
         } else {
             Ok(())
         }
     }
 
-    fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorReported> {
-        self.error_reported = true;
-        self.sess.emit_err(err);
-        Err(ErrorReported)
+    fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+        let e = self.sess.emit_err(err);
+        self.error_guaranteed = Some(e);
+        Err(e)
     }
-}
-
-impl<'hir> ItemLikeVisitor<'hir> for SpecCollector<'_, '_> {
-    fn visit_item(&mut self, item: &'hir Item<'hir>) {
-        match &item.kind {
-            ItemKind::Fn(..) => {
-                let hir_id = item.hir_id();
-                let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_fn_spec(item.def_id, attrs);
-            }
-            ItemKind::Struct(data, ..) => {
-                let hir_id = item.hir_id();
-                let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_struct_def(item.def_id, attrs, data);
-            }
-            ItemKind::Enum(..) => {
-                let hir_id = item.hir_id();
-                let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_enum_def(item.def_id, attrs);
-            }
-            ItemKind::Mod(..) => {
-                // TODO: Parse mod level attributes
-            }
-            ItemKind::TyAlias(..) => {
-                let hir_id = item.hir_id();
-                let attrs = self.tcx.hir().attrs(hir_id);
-                let _ = self.parse_tyalias_spec(item.def_id, attrs);
-            }
-            _ => (),
-        }
-    }
-
-    fn visit_trait_item(&mut self, _trait_item: &'hir TraitItem<'hir>) {}
-    fn visit_impl_item(&mut self, item: &'hir ImplItem<'hir>) {
-        if let ImplItemKind::Fn(..) = &item.kind {
-            let hir_id = item.hir_id();
-            let attrs = self.tcx.hir().attrs(hir_id);
-            let _ = self.parse_fn_spec(item.def_id, attrs);
-        }
-    }
-    fn visit_foreign_item(&mut self, _foreign_item: &'hir ForeignItem<'hir>) {}
 }
 
 impl Specs {
@@ -539,32 +533,36 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct DuplicatedAttr {
-        #[message = "duplicated attribute `{name}`"]
+        // #[message = "duplicated attribute `{name}`"]
+        #[primary_span]
         pub span: Span,
         pub name: &'static str,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct InvalidAttr {
-        #[message = "invalid liquid attribute"]
+        // #[message = "invalid liquid attribute"]
+        #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct CFGError {
-        #[message = "invalid liquid configuration attribute: {message}"]
+        // #[message = "invalid liquid configuration attribute: {message}"]
+        #[primary_span]
         pub span: Span,
         pub message: String,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct SyntaxErr {
-        #[message = "Syntax Error: {msg}"]
+        // #[message = "Syntax Error: {msg}"]
+        #[primary_span]
         pub span: Span,
         pub msg: &'static str,
     }

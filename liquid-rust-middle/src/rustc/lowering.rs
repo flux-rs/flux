@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use rustc_const_eval::interpret::ConstValue;
-use rustc_errors::{DiagnosticId, ErrorReported};
+use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_middle::{
     mir as rustc_mir, ty as rustc_ty,
     ty::{subst::GenericArgKind, ParamEnv, TyCtxt},
@@ -27,7 +27,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         rustc_mir: rustc_mir::Body<'tcx>,
-    ) -> Result<Body<'tcx>, ErrorReported> {
+    ) -> Result<Body<'tcx>, ErrorGuaranteed> {
         let lower = Self { tcx, rustc_mir };
 
         let basic_blocks = lower
@@ -50,7 +50,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_basic_block_data(
         &self,
         data: &rustc_mir::BasicBlockData<'tcx>,
-    ) -> Result<BasicBlockData, ErrorReported> {
+    ) -> Result<BasicBlockData, ErrorGuaranteed> {
         let data = BasicBlockData {
             statements: data
                 .statements
@@ -70,7 +70,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_local_decl(
         &self,
         local_decl: &rustc_mir::LocalDecl<'tcx>,
-    ) -> Result<LocalDecl, ErrorReported> {
+    ) -> Result<LocalDecl, ErrorGuaranteed> {
         Ok(LocalDecl {
             ty: lower_ty(self.tcx, local_decl.ty)?,
             source_info: local_decl.source_info,
@@ -80,7 +80,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_statement(
         &self,
         stmt: &rustc_mir::Statement<'tcx>,
-    ) -> Result<Statement, ErrorReported> {
+    ) -> Result<Statement, ErrorGuaranteed> {
         let kind = match &stmt.kind {
             rustc_mir::StatementKind::Assign(box (place, rvalue)) => {
                 StatementKind::Assign(
@@ -107,6 +107,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 StatementKind::AscribeUserType(self.lower_place(place)?, *variance)
             }
             rustc_mir::StatementKind::Retag(_, _)
+            | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
             | rustc_mir::StatementKind::CopyNonOverlapping(_) => {
@@ -122,7 +123,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_fake_read_cause(
         &self,
         cause: rustc_mir::FakeReadCause,
-    ) -> Result<FakeReadCause, ErrorReported> {
+    ) -> Result<FakeReadCause, ErrorGuaranteed> {
         match cause {
             rustc_mir::FakeReadCause::ForLet(def_id) => Ok(FakeReadCause::ForLet(def_id)),
             rustc_mir::FakeReadCause::ForMatchedPlace(z) => Ok(FakeReadCause::ForMatchedPlace(z)),
@@ -137,10 +138,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_terminator(
         &self,
         terminator: &rustc_mir::Terminator<'tcx>,
-    ) -> Result<Terminator, ErrorReported> {
+    ) -> Result<Terminator, ErrorGuaranteed> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
-            rustc_mir::TerminatorKind::Call { func, args, destination, cleanup, .. } => {
+            rustc_mir::TerminatorKind::Call {
+                func, args, destination, target, cleanup, ..
+            } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         (*fn_def, lower_substs(self.tcx, substs)?)
@@ -152,15 +155,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         );
                     }
                 };
-                let destination = match destination {
-                    Some((place, bb)) => Some((self.lower_place(place)?, *bb)),
-                    None => None,
-                };
+                let destination = self.lower_place(destination)?;
 
                 TerminatorKind::Call {
                     func,
                     substs,
                     destination,
+                    target: *target,
                     args: args
                         .iter()
                         .map(|arg| self.lower_operand(arg))
@@ -226,7 +227,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         &self,
         rvalue: &rustc_mir::Rvalue<'tcx>,
         source_info: rustc_mir::SourceInfo,
-    ) -> Result<Rvalue, ErrorReported> {
+    ) -> Result<Rvalue, ErrorGuaranteed> {
         match rvalue {
             rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
             rustc_mir::Rvalue::BinaryOp(bin_op, operands) => {
@@ -268,7 +269,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_aggregate_kind(
         &self,
         aggregate_kind: &rustc_mir::AggregateKind,
-    ) -> Result<AggregateKind, ErrorReported> {
+    ) -> Result<AggregateKind, ErrorGuaranteed> {
         match aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
                 Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs)?))
@@ -284,7 +285,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
-    fn lower_bin_op(&self, bin_op: rustc_mir::BinOp) -> Result<BinOp, ErrorReported> {
+    fn lower_bin_op(&self, bin_op: rustc_mir::BinOp) -> Result<BinOp, ErrorGuaranteed> {
         match bin_op {
             rustc_mir::BinOp::Add => Ok(BinOp::Add),
             rustc_mir::BinOp::Sub => Ok(BinOp::Sub),
@@ -308,7 +309,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
-    fn lower_operand(&self, op: &rustc_mir::Operand<'tcx>) -> Result<Operand, ErrorReported> {
+    fn lower_operand(&self, op: &rustc_mir::Operand<'tcx>) -> Result<Operand, ErrorGuaranteed> {
         match op {
             rustc_mir::Operand::Copy(place) => Ok(Operand::Copy(self.lower_place(place)?)),
             rustc_mir::Operand::Move(place) => Ok(Operand::Move(self.lower_place(place)?)),
@@ -316,7 +317,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
-    fn lower_place(&self, place: &rustc_mir::Place<'tcx>) -> Result<Place, ErrorReported> {
+    fn lower_place(&self, place: &rustc_mir::Place<'tcx>) -> Result<Place, ErrorGuaranteed> {
         let mut projection = vec![];
         for elem in place.projection {
             match elem {
@@ -326,58 +327,47 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     projection.push(PlaceElem::Downcast(variant_idx))
                 }
                 _ => {
-                    self.tcx
+                    return Err(self
+                        .tcx
                         .sess
-                        .err(&format!("place not supported: `{place:?}`"));
-                    return Err(ErrorReported);
+                        .err(&format!("place not supported: `{place:?}`")));
                 }
             }
         }
         Ok(Place { local: place.local, projection })
     }
 
-    fn lower_constant(&self, c: &rustc_mir::Constant<'tcx>) -> Result<Constant, ErrorReported> {
-        use rustc_middle::ty::{ConstKind, TyKind};
+    fn lower_constant(
+        &self,
+        constant: &rustc_mir::Constant<'tcx>,
+    ) -> Result<Constant, ErrorGuaranteed> {
+        use rustc_middle::ty::TyKind;
         let tcx = self.tcx;
-        let lit = &c.literal;
-        let span = c.span;
-        match lit {
-            rustc_mir::ConstantKind::Ty(c) => {
-                // HACK(nilehmann) we evaluate the constant to support u32::MAX
-                // we should instead lower it as is and refine its type.
-                let c = c.eval(tcx, ParamEnv::empty());
-                if let ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
-                    let ty = c.ty();
-                    match ty.kind() {
-                        TyKind::Int(int_ty) => {
-                            Ok(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), *int_ty))
-                        }
-                        TyKind::Uint(int_ty) => {
-                            Ok(Constant::Uint(scalar_to_uint(tcx, scalar, ty).unwrap(), *int_ty))
-                        }
-                        TyKind::Float(float_ty) => {
-                            Ok(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
-                        }
-                        TyKind::Bool => {
-                            Ok(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0))
-                        }
-                        TyKind::Tuple(tys) if tys.is_empty() => Ok(Constant::Unit),
-                        _ => {
-                            self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
-                        }
-                    }
-                } else {
-                    self.emit_err(Some(span), format!("constant not supported: `{lit:?}`"))
+        let span = constant.span;
+        if let Some((scalar, ty)) = constant_to_scalar(tcx, constant) {
+            match ty.kind() {
+                TyKind::Int(int_ty) => {
+                    Ok(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), *int_ty))
                 }
+                TyKind::Uint(int_ty) => {
+                    Ok(Constant::Uint(scalar_to_uint(tcx, scalar, ty).unwrap(), *int_ty))
+                }
+                TyKind::Float(float_ty) => {
+                    Ok(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
+                }
+                TyKind::Bool => Ok(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0)),
+                TyKind::Tuple(tys) if tys.is_empty() => Ok(Constant::Unit),
+                _ => self.emit_err(Some(span), format!("constant not supported: `{constant:?}`")),
             }
-            _ => self.emit_err(Some(c.span), format!("constant not supported: `{lit:?}`")),
+        } else {
+            self.emit_err(Some(span), format!("constant not supported: `{constant:?}`"))
         }
     }
 
     fn lower_assert_msg(
         &self,
         msg: &rustc_mir::AssertMessage,
-    ) -> Result<&'static str, ErrorReported> {
+    ) -> Result<&'static str, ErrorGuaranteed> {
         use rustc_mir::AssertKind::*;
         match msg {
             DivisionByZero(_) => Ok("possible division by zero"),
@@ -388,7 +378,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
-    fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorReported> {
+    fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorGuaranteed> {
         emit_err(self.tcx, span, msg)
     }
 }
@@ -396,7 +386,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
-) -> Result<FnSig, ErrorReported> {
+) -> Result<FnSig, ErrorGuaranteed> {
     let fn_sig = tcx.erase_late_bound_regions(fn_sig);
     let inputs_and_output = List::from_vec(
         fn_sig
@@ -408,7 +398,7 @@ pub fn lower_fn_sig<'tcx>(
     Ok(FnSig { inputs_and_output })
 }
 
-pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {
+pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorGuaranteed> {
     match ty.kind() {
         rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))
@@ -425,7 +415,7 @@ pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {
                     .map(|arg| lower_generic_arg(tcx, arg))
                     .try_collect()?,
             );
-            Ok(Ty::mk_adt(adt_def.did, substs))
+            Ok(Ty::mk_adt(adt_def.did(), substs))
         }
         rustc_middle::ty::Never => Ok(Ty::mk_never()),
         rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
@@ -436,7 +426,7 @@ pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorReported> {
 fn lower_substs(
     tcx: TyCtxt,
     substs: rustc_middle::ty::subst::SubstsRef,
-) -> Result<List<GenericArg>, ErrorReported> {
+) -> Result<List<GenericArg>, ErrorGuaranteed> {
     Ok(List::from_vec(
         substs
             .iter()
@@ -448,7 +438,7 @@ fn lower_substs(
 fn lower_generic_arg(
     tcx: TyCtxt,
     arg: rustc_middle::ty::subst::GenericArg,
-) -> Result<GenericArg, ErrorReported> {
+) -> Result<GenericArg, ErrorGuaranteed> {
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
         GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
@@ -457,15 +447,38 @@ fn lower_generic_arg(
     }
 }
 
-fn emit_err<S: AsRef<str>, T>(tcx: TyCtxt, span: Option<Span>, msg: S) -> Result<T, ErrorReported> {
+fn emit_err<S: AsRef<str>, T>(
+    tcx: TyCtxt,
+    span: Option<Span>,
+    msg: S,
+) -> Result<T, ErrorGuaranteed> {
     let mut diagnostic = tcx
         .sess
         .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("LIQUID".to_string()));
     if let Some(span) = span {
         diagnostic.set_span(span);
     }
-    diagnostic.emit();
-    Err(ErrorReported)
+    Err(diagnostic.emit())
+}
+
+fn constant_to_scalar<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    constant: &rustc_mir::Constant<'tcx>,
+) -> Option<(rustc_const_eval::interpret::Scalar, rustc_ty::Ty<'tcx>)> {
+    match &constant.literal {
+        rustc_mir::ConstantKind::Val(ConstValue::Scalar(scalar), ty) => Some((*scalar, *ty)),
+        rustc_mir::ConstantKind::Ty(c) => {
+            // HACK(nilehmann) we evaluate the constant to support u32::MAX
+            // we should instead lower it as is and refine its type.
+            let c = c.eval(tcx, ParamEnv::empty());
+            if let rustc_ty::ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
+                Some((scalar, c.ty()))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 fn scalar_to_bits<'tcx>(

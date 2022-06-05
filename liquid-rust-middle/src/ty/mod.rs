@@ -2,7 +2,7 @@ pub mod fold;
 pub mod lowering;
 pub mod subst;
 
-use std::{fmt, lazy::SyncOnceCell};
+use std::{borrow::Cow, fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
 use liquid_rust_common::index::IndexVec;
@@ -534,6 +534,12 @@ impl Sort {
     #[must_use]
     pub fn is_loc(&self) -> bool {
         matches!(self, Self::Loc)
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 

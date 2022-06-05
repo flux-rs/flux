@@ -35,7 +35,7 @@ use checker::Checker;
 use constraint_gen::Tag;
 use liquid_rust_common::config::CONFIG;
 use liquid_rust_middle::{global_env::GlobalEnv, rustc::mir::Body, ty};
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
@@ -45,7 +45,7 @@ pub fn check<'tcx>(
     def_id: DefId,
     body: &Body<'tcx>,
     qualifiers: &[ty::Qualifier],
-) -> Result<(), ErrorReported> {
+) -> Result<(), ErrorGuaranteed> {
     let bb_envs = Checker::infer(genv, body, def_id)?;
     let mut kvars = fixpoint::KVarStore::new();
     let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
@@ -64,20 +64,25 @@ pub fn check<'tcx>(
     }
 }
 
-fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), ErrorReported> {
+fn report_errors(tcx: TyCtxt, body_span: Span, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
+    let mut e = None;
     for err in errors {
-        match err {
+        e = Some(match err {
             Tag::Call(span) => tcx.sess.emit_err(errors::CallError { span }),
             Tag::Assign(span) => tcx.sess.emit_err(errors::AssignError { span }),
             Tag::Ret => tcx.sess.emit_err(errors::RetError { span: body_span }),
             Tag::Div(span) => tcx.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => tcx.sess.emit_err(errors::RemError { span }),
-            Tag::Goto(span, bb) => tcx.sess.emit_err(errors::GotoError { span, bb }),
+            Tag::Goto(span, _) => tcx.sess.emit_err(errors::GotoError { span }),
             Tag::Assert(msg, span) => tcx.sess.emit_err(errors::AssertError { msg, span }),
-        };
+        });
     }
 
-    Err(ErrorReported)
+    if let Some(e) = e {
+        Err(e)
+    } else {
+        Ok(())
+    }
 }
 
 /// TODO(nilehmann) we should abstract over dumping files logic
@@ -94,62 +99,72 @@ fn dump_constraint<C: std::fmt::Debug>(
 }
 
 mod errors {
-    use liquid_rust_middle::rustc::mir::BasicBlock;
     use rustc_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct GotoError {
-        #[message = "error jumping to join point: `{bb:?}`"]
+        // #[message = "error jumping to join point"]
+        #[primary_span]
         pub span: Option<Span>,
-        pub bb: BasicBlock,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct CallError {
-        #[message = "precondition might not hold"]
-        #[label = "precondition might not hold in this function call"]
+        // #[message = "precondition might not hold"]
+        #[primary_span]
+        // #[label = "precondition might not hold in this function call"]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct AssignError {
-        #[message = "missmatched type in assignment"]
-        #[label = "this assignment might be unsafe"]
+        // #[message = "missmatched type in assignment"]
+        #[primary_span]
+        // #[label = "this assignment might be unsafe"]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct RetError {
-        #[message = "postcondition might not hold"]
-        #[label = "the postcondition in this function might not hold"]
+        // #[message = "postcondition might not hold"]
+        #[primary_span]
+        // #[label = "the postcondition in this function might not hold"]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct DivError {
-        #[message = "possible division by zero"]
-        #[label = "denominator might be zero"]
+        // #[message = "possible division by zero"]
+        #[primary_span]
+        // #[label = "denominator might be zero"]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct RemError {
-        #[message = "possible reminder with a divisor of zero"]
-        #[label = "divisor might not be zero"]
+        // #[message = "possible reminder with a divisor of zero"]
+        #[primary_span]
+        // #[label = "divisor might not be zero"]
+        #[label]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct AssertError {
-        #[message = "assertion might fail: {msg}"]
+        // #[message = "assertion might fail: {msg}"]
+        #[primary_span]
         pub span: Span,
         pub msg: &'static str,
     }

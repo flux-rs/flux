@@ -1,6 +1,6 @@
 use hir::{def_id::DefId, ItemId, ItemKind};
 use liquid_rust_common::iter::IterExt;
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
@@ -21,7 +21,10 @@ struct NameResTable {
 
 impl<'tcx> Resolver<'tcx> {
     #[allow(dead_code)]
-    pub fn from_fn(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Result<Resolver<'tcx>, ErrorReported> {
+    pub fn from_fn(
+        tcx: TyCtxt<'tcx>,
+        def_id: LocalDefId,
+    ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
         let mut table = NameResTable::new();
 
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
@@ -44,7 +47,7 @@ impl<'tcx> Resolver<'tcx> {
     pub fn from_adt(
         tcx: TyCtxt<'tcx>,
         def_id: LocalDefId,
-    ) -> Result<Resolver<'tcx>, ErrorReported> {
+    ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
         let item = tcx.hir().expect_item(def_id);
 
         if let ItemKind::Struct(data, generics) = &item.kind {
@@ -64,7 +67,7 @@ impl<'tcx> Resolver<'tcx> {
     pub fn resolve_struct_def(
         &mut self,
         struct_def: surface::StructDef,
-    ) -> Result<surface::StructDef<Res>, ErrorReported> {
+    ) -> Result<surface::StructDef<Res>, ErrorGuaranteed> {
         let fields = struct_def
             .fields
             .into_iter()
@@ -83,7 +86,7 @@ impl<'tcx> Resolver<'tcx> {
     pub fn resolve_fn_sig(
         &mut self,
         fn_sig: surface::FnSig,
-    ) -> Result<surface::FnSig<Res>, ErrorReported> {
+    ) -> Result<surface::FnSig<Res>, ErrorGuaranteed> {
         let args = fn_sig
             .args
             .into_iter()
@@ -107,7 +110,7 @@ impl<'tcx> Resolver<'tcx> {
         })
     }
 
-    fn resolve_arg(&self, arg: surface::Arg) -> Result<surface::Arg<Res>, ErrorReported> {
+    fn resolve_arg(&self, arg: surface::Arg) -> Result<surface::Arg<Res>, ErrorGuaranteed> {
         match arg {
             surface::Arg::Indexed(bind, path, pred) => {
                 Ok(surface::Arg::Indexed(bind, self.resolve_path(path)?, pred))
@@ -118,7 +121,7 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorReported> {
+    fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
             surface::TyKind::Path(path) => surface::TyKind::Path(self.resolve_path(path)?),
             surface::TyKind::Indexed { path, indices } => {
@@ -142,7 +145,7 @@ impl<'tcx> Resolver<'tcx> {
         Ok(surface::Ty { kind, span: ty.span })
     }
 
-    fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorReported> {
+    fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
         let ident = self.resolve_ident(path.ident)?;
         let args = path
             .args
@@ -152,7 +155,7 @@ impl<'tcx> Resolver<'tcx> {
         Ok(Path { ident, args, span: path.span })
     }
 
-    fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorReported> {
+    fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorGuaranteed> {
         let res = if let Some(res) = self.table.get(ident.name) {
             *res
         } else {
@@ -228,7 +231,7 @@ impl NameResTable {
         &mut self,
         sess: &Session,
         fn_sig: &hir::FnSig,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         fn_sig
             .decl
             .inputs
@@ -250,7 +253,7 @@ impl NameResTable {
         Ok(())
     }
 
-    fn collect_from_ty(&mut self, sess: &Session, ty: &hir::Ty) -> Result<(), ErrorReported> {
+    fn collect_from_ty(&mut self, sess: &Session, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(sess, ty),
             hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
@@ -298,7 +301,7 @@ impl NameResTable {
         &mut self,
         sess: &Session,
         arg: &hir::GenericArg,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         match arg {
             hir::GenericArg::Type(ty) => self.collect_from_ty(sess, ty),
             hir::GenericArg::Lifetime(_) => {
@@ -325,19 +328,23 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct UnsupportedSignature {
-        #[message = "unsupported function signature"]
-        #[label = "{msg}"]
+        // #[message = "unsupported function signature"]
+        #[primary_span]
+        // #[label = "{msg}"]
+        #[label]
         pub span: Span,
         pub msg: &'static str,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct UnresolvedPath {
-        #[message = "could not resolve `{path}`"]
-        #[label = "failed to resolve `{path}`"]
+        // #[message = "could not resolve `{path}`"]
+        #[primary_span]
+        // #[label = "failed to resolve `{path}`"]
+        #[label]
         pub span: Span,
         pub path: Ident,
     }

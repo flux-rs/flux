@@ -12,7 +12,7 @@ use std::collections::{hash_map::Entry, BinaryHeap};
 use itertools::Itertools;
 
 use rustc_data_structures::graph::dominators::Dominators;
-use rustc_errors::ErrorReported;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
@@ -98,7 +98,7 @@ pub struct Check<'a> {
 /// A `Guard` describes extra "control" information that holds at the start
 /// of the successor basic block
 enum Guard {
-    /// No extra information holds, e.g., for plain goto.
+    /// No extra information holds, e.g., for a plain goto.
     None,
     /// A predicate that can be assumed, e.g., an if-then-else or while-do boolean condition.
     Pred(Expr),
@@ -134,7 +134,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         genv: &GlobalEnv<'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-    ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorReported> {
+    ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorGuaranteed> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
             let mut refine_tree = RefineTree::new();
             let mut bb_envs = FxHashMap::default();
@@ -158,7 +158,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         def_id: DefId,
         kvars: &mut KVarStore,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
-    ) -> Result<RefineTree, ErrorReported> {
+    ) -> Result<RefineTree, ErrorGuaranteed> {
         dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
             let mut refine_tree = RefineTree::new();
 
@@ -182,7 +182,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         body: &'a Body<'tcx>,
         def_id: DefId,
         phase: P,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let fn_sig = genv
@@ -263,7 +263,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
         bb: BasicBlock,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         dbg::basic_block_start!(bb, rcx, env);
 
         self.visited.insert(bb);
@@ -289,7 +289,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         stmt: &Statement,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
@@ -325,7 +325,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
-    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         match &terminator.kind {
             TerminatorKind::Return => self.check_ret(rcx, env),
             TerminatorKind::Unreachable => Ok(vec![]),
@@ -338,19 +338,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     Ok(self.check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { func, substs, args, destination, .. } => {
+            TerminatorKind::Call { func, substs, args, destination, target, .. } => {
                 let fn_sig = self.genv.lookup_fn_sig(*func);
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
-                if let Some((p, bb)) = destination {
-                    let ret = env.unpack_ty(rcx, &ret);
-                    let mut gen = self.phase.constr_gen(
-                        self.genv,
-                        rcx,
-                        Tag::Call(terminator.source_info.span),
-                    );
-                    env.write_place(&mut gen, p, ret);
-                    Ok(vec![(*bb, Guard::None)])
+
+                let ret = env.unpack_ty(rcx, &ret);
+                let mut gen =
+                    self.phase
+                        .constr_gen(self.genv, rcx, Tag::Call(terminator.source_info.span));
+                env.write_place(&mut gen, destination, ret);
+
+                if let Some(target) = target {
+                    Ok(vec![(*target, Guard::None)])
                 } else {
                     Ok(vec![])
                 }
@@ -387,7 +387,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorReported> {
+    ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
         let ret_place_ty = env.lookup_place(gen, Place::RETURN);
 
@@ -407,7 +407,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         fn_sig: PolySig,
         substs: &[rustc::ty::GenericArg],
         args: &[Operand],
-    ) -> Result<Ty, ErrorReported> {
+    ) -> Result<Ty, ErrorGuaranteed> {
         let actuals = args
             .iter()
             .map(|op| self.check_operand(rcx, env, op))
@@ -529,7 +529,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: TypeEnv,
         src_info: SourceInfo,
         successors: Vec<(BasicBlock, Guard)>,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         for (target, guard) in successors {
             let mut rcx = rcx.breadcrumb();
             let mut env = env.clone();
@@ -553,7 +553,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
-    ) -> Result<(), ErrorReported> {
+    ) -> Result<(), ErrorGuaranteed> {
         if self.body.is_join_point(target) {
             if P::check_goto_join_point(self, rcx, env, src_info, target) {
                 self.queue.insert(target);
@@ -570,7 +570,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         source_info: SourceInfo,
         rvalue: &Rvalue,
-    ) -> Result<Ty, ErrorReported> {
+    ) -> Result<Ty, ErrorGuaranteed> {
         match rvalue {
             Rvalue::Use(operand) => Ok(self.check_operand(rcx, env, operand)),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
@@ -848,10 +848,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 }
 
 impl Phase for Inference<'_> {
-    type KvarGen<'a>
-    where
-        Self: 'a,
-    = impl FnMut(&BaseTy) -> Pred;
+    type KvarGen<'a> = impl FnMut(&BaseTy) -> Pred where Self: 'a;
 
     fn kvar_gen(&mut self, _rcx: &RefineCtxt) -> Self::KvarGen<'_> {
         |_| Pred::Hole
@@ -890,10 +887,7 @@ impl Phase for Inference<'_> {
 }
 
 impl Phase for Check<'_> {
-    type KvarGen<'a>
-    where
-        Self: 'a,
-    = impl FnMut(&BaseTy) -> Pred;
+    type KvarGen<'a> = impl FnMut(&BaseTy) -> Pred where Self: 'a;
 
     fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_> {
         let scope = rcx.scope();
@@ -1010,9 +1004,10 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error = "LIQUID"]
+    #[error(code = "LIQUID", slug = "")]
     pub struct ParamInferenceError {
-        #[message = "parameter inference error at function call"]
+        // #[message = "parameter inference error at function call"]
+        #[primary_span]
         pub span: Span,
     }
 }
