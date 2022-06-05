@@ -450,6 +450,7 @@ version = "0.1.0"
 dependencies = [
  "itertools",
  "liquid-rust-common",
+ "liquid-rust-errors",
  "liquid-rust-fixpoint",
  "liquid-rust-middle",
  "liquid-rust-syntax",
@@ -462,11 +463,16 @@ dependencies = [
  "itertools",
  "liquid-rust-common",
  "liquid-rust-desugar",
+ "liquid-rust-errors",
  "liquid-rust-fixpoint",
  "liquid-rust-middle",
  "liquid-rust-syntax",
  "liquid-rust-typeck",
 ]
+
+[[package]]
+name = "liquid-rust-errors"
+version = "0.1.0"
 
 [[package]]
 name = "liquid-rust-fixpoint"
@@ -485,6 +491,7 @@ dependencies = [
  "dashmap",
  "itertools",
  "liquid-rust-common",
+ "liquid-rust-errors",
  "liquid-rust-fixpoint",
 ]
 
@@ -510,6 +517,7 @@ version = "0.1.0"
 dependencies = [
  "itertools",
  "liquid-rust-common",
+ "liquid-rust-errors",
  "liquid-rust-fixpoint",
  "liquid-rust-middle",
  "tracing",

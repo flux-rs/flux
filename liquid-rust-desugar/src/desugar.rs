@@ -4,11 +4,11 @@ use liquid_rust_common::{
     index::{IndexGen, IndexVec},
     iter::IterExt,
 };
+use liquid_rust_errors::LiquidRustSession;
 use liquid_rust_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
-use rustc_session::Session;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
@@ -17,7 +17,7 @@ use liquid_rust_middle::core::{
 };
 
 pub fn desugar_qualifier(
-    sess: &Session,
+    sess: &LiquidRustSession,
     qualifier: surface::Qualifier,
 ) -> Result<Qualifier, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess);
@@ -29,7 +29,7 @@ pub fn desugar_qualifier(
 }
 
 pub fn resolve_sorts(
-    sess: &Session,
+    sess: &LiquidRustSession,
     params: &surface::Params,
 ) -> Result<Vec<Sort>, ErrorGuaranteed> {
     params
@@ -41,10 +41,11 @@ pub fn resolve_sorts(
 
 pub fn desugar_struct_def(
     tcx: TyCtxt,
+    sess: &LiquidRustSession,
     adt_def: surface::StructDef<Res>,
 ) -> Result<AdtDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut params = ParamsCtxt::new(tcx.sess);
+    let mut params = ParamsCtxt::new(sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     let mut cx = DesugarCtxt::with_params(params);
@@ -67,9 +68,10 @@ pub fn desugar_struct_def(
 
 pub fn desugar_enum_def(
     tcx: TyCtxt,
+    sess: &LiquidRustSession,
     enum_def: surface::EnumDef,
 ) -> Result<AdtDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(tcx.sess);
+    let mut params = ParamsCtxt::new(sess);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
 
     let kind = if enum_def.opaque {
@@ -84,7 +86,7 @@ pub fn desugar_enum_def(
 }
 
 pub fn desugar_fn_sig(
-    sess: &Session,
+    sess: &LiquidRustSession,
     refined_by: &impl AdtSortsMap,
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
@@ -131,7 +133,7 @@ pub struct DesugarCtxt<'a> {
 }
 
 struct ParamsCtxt<'a> {
-    sess: &'a Session,
+    sess: &'a LiquidRustSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
     params: Vec<Param>,
@@ -258,7 +260,7 @@ fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
     }
 }
 
-fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
+fn resolve_sort(sess: &LiquidRustSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
     if sort.name == SORTS.int {
         Ok(Sort::Int)
     } else if sort.name == sym::bool {
@@ -269,7 +271,7 @@ fn resolve_sort(sess: &Session, sort: surface::Ident) -> Result<Sort, ErrorGuara
 }
 
 impl ParamsCtxt<'_> {
-    fn new(sess: &Session) -> ParamsCtxt {
+    fn new(sess: &LiquidRustSession) -> ParamsCtxt {
         ParamsCtxt {
             sess,
             name_gen: IndexGen::new(),

@@ -5,6 +5,7 @@ use liquid_rust_common::{
     config::{self, AssertBehavior, CrateConfig},
     iter::IterExt,
 };
+use liquid_rust_errors::LiquidRustSession;
 use liquid_rust_syntax::{
     parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
     ParseErrorKind, ParseResult,
@@ -16,13 +17,13 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
 use rustc_middle::ty::TyCtxt;
-use rustc_session::{Session, SessionDiagnostic};
+use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
     specs: Specs,
-    sess: &'a Session,
+    sess: &'a LiquidRustSession,
     error_guaranteed: Option<ErrorGuaranteed>,
 }
 
@@ -41,7 +42,10 @@ pub(crate) struct FnSpec {
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
-    pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a Session) -> Result<Specs, ErrorGuaranteed> {
+    pub(crate) fn collect(
+        tcx: TyCtxt<'tcx>,
+        sess: &'a LiquidRustSession,
+    ) -> Result<Specs, ErrorGuaranteed> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_guaranteed: None };
 
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;

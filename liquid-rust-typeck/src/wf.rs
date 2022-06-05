@@ -1,15 +1,16 @@
 use std::iter;
 
 use liquid_rust_common::iter::IterExt;
+use liquid_rust_errors::LiquidRustSession;
 use liquid_rust_middle::core::{self, AdtSortsMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
-use rustc_session::{Session, SessionDiagnostic};
+use rustc_session::SessionDiagnostic;
 
 use liquid_rust_middle::{ty, ty::lowering::lower_sort};
 
 pub struct Wf<'a, T> {
-    sess: &'a Session,
+    sess: &'a LiquidRustSession,
     adt_sorts: &'a T,
 }
 
@@ -53,7 +54,7 @@ impl std::ops::Index<&'_ core::Name> for Env {
 }
 
 impl<T: AdtSortsMap> Wf<'_, T> {
-    pub fn new<'a>(sess: &'a Session, refined_by: &'a T) -> Wf<'a, T> {
+    pub fn new<'a>(sess: &'a LiquidRustSession, refined_by: &'a T) -> Wf<'a, T> {
         Wf { sess, adt_sorts: refined_by }
     }
 

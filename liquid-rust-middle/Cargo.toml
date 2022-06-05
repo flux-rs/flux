@@ -9,6 +9,7 @@ version = "0.1.0"
 dashmap = { version = "4.0.2", features = ["raw-api"] }
 itertools = "0.10"
 liquid-rust-common = { path = "../liquid-rust-common" }
+liquid-rust-errors = { path = "../liquid-rust-errors" }
 liquid-rust-fixpoint = { path = "../liquid-rust-fixpoint" }
 
 [package.metadata.rust-analyzer]

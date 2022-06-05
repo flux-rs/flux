@@ -45,7 +45,7 @@ use crate::{
 pub struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
-    genv: &'a GlobalEnv<'tcx>,
+    genv: &'a GlobalEnv<'a, 'tcx>,
     phase: P,
     ret: Ty,
     ensures: Constraints,
@@ -65,7 +65,7 @@ pub trait Phase: Sized {
 
     fn constr_gen<'a, 'rcx, 'tcx>(
         &'a mut self,
-        genv: &'a GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
         tag: Tag,
     ) -> ConstrGen<'a, 'rcx, 'tcx> {
@@ -108,7 +108,7 @@ enum Guard {
 
 impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
-        genv: &'a GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
         ret: Ty,
         ensures: Constraints,
@@ -131,7 +131,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
-        genv: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorGuaranteed> {
@@ -153,7 +153,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
     pub fn check(
-        genv: &GlobalEnv<'tcx>,
+        genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
         kvars: &mut KVarStore,
@@ -177,7 +177,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
 
 impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn run(
-        genv: &'a GlobalEnv<'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         refine_tree: &mut RefineTree,
         body: &'a Body<'tcx>,
         def_id: DefId,

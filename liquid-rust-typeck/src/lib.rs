@@ -40,8 +40,8 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
-pub fn check<'tcx>(
-    genv: &GlobalEnv<'tcx>,
+pub fn check<'a, 'tcx>(
+    genv: &GlobalEnv<'a, 'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
     qualifiers: &[ty::Qualifier],
