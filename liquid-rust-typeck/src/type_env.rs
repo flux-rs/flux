@@ -130,28 +130,10 @@ impl TypeEnv {
         }
     }
 
-    pub fn unpack_ty(&mut self, rcx: &mut RefineCtxt, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Exists(bty, pred) => {
-                let indices = rcx
-                    .define_vars_for_binders(pred)
-                    .into_iter()
-                    .map(|name| Expr::fvar(name).into())
-                    .collect_vec();
-                Ty::indexed(bty.clone(), indices)
-            }
-            TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.unpack_ty(rcx, ty);
-                Ty::mk_ref(RefKind::Shr, ty)
-            }
-            _ => ty.clone(),
-        }
-    }
-
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
         for path in self.bindings.paths().collect_vec() {
             let ty = self.bindings.get(&path);
-            let ty = self.unpack_ty(rcx, &ty);
+            let ty = rcx.unpack(&ty, false);
             self.bindings.update(&path, ty);
         }
     }

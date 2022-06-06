@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 use liquid_rust_common::index::{IndexGen, IndexVec};
 use liquid_rust_fixpoint as fixpoint;
-use liquid_rust_middle::ty::{Binders, Expr, Name, Pred, Sort};
+use liquid_rust_middle::ty::{Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind};
 
 use crate::{
     constraint_gen::Tag,
@@ -151,6 +151,32 @@ impl RefineCtxt<'_> {
     pub fn check_constr(&mut self) -> ConstrBuilder {
         let ptr = self.ptr.push_node(NodeKind::Conj);
         ConstrBuilder { _tree: self._tree, ptr }
+    }
+
+    pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
+        match ty.kind() {
+            TyKind::Exists(bty, pred) => {
+                let indices = self
+                    .define_vars_for_binders(pred)
+                    .into_iter()
+                    .map(|name| Expr::fvar(name).into())
+                    .collect_vec();
+                Ty::indexed(bty.clone(), indices)
+            }
+            TyKind::Ref(RefKind::Shr, ty) => {
+                let ty = self.unpack(ty, unpack_mut_refs);
+                Ty::mk_ref(RefKind::Shr, ty)
+            }
+            // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+            // that make the refered type too specific. We only have this as a workaround to
+            // to infer parameters under mutable references and should be removed once we implement
+            // opening of mutable references.
+            TyKind::Ref(RefKind::Mut, ty) if unpack_mut_refs => {
+                let ty = self.unpack(ty, unpack_mut_refs);
+                Ty::mk_ref(RefKind::Mut, ty)
+            }
+            _ => ty.clone(),
+        }
     }
 }
 

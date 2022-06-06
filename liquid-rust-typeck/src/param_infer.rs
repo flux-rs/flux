@@ -6,7 +6,7 @@ use liquid_rust_middle::ty::{
     subst::FVarSubst, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST,
 };
 
-use crate::{refine_tree::RefineCtxt, type_env::PathMap};
+use crate::type_env::PathMap;
 
 type Exprs = FxHashMap<usize, Expr>;
 
@@ -14,7 +14,6 @@ type Exprs = FxHashMap<usize, Expr>;
 pub struct InferenceError;
 
 pub fn infer_from_fn_call<M: PathMap>(
-    rcx: &mut RefineCtxt,
     env: &M,
     actuals: &[Ty],
     fn_sig: &PolySig,
@@ -36,7 +35,7 @@ pub fn infer_from_fn_call<M: PathMap>(
         .collect();
 
     for (actual, formal) in actuals.iter().zip(fn_sig.skip_binders().args().iter()) {
-        infer_from_tys(&mut exprs, rcx, env, actual, &requires, formal);
+        infer_from_tys(&mut exprs, env, actual, &requires, formal);
     }
 
     fn_sig
@@ -59,10 +58,8 @@ pub fn check_inference(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn infer_from_tys<M1: PathMap, M2: PathMap>(
+fn infer_from_tys<M1: PathMap, M2: PathMap>(
     exprs: &mut Exprs,
-    rcx: &mut RefineCtxt,
     env1: &M1,
     ty1: &Ty,
     env2: &M2,
@@ -76,25 +73,16 @@ pub fn infer_from_tys<M1: PathMap, M2: PathMap>(
                 }
             }
         }
-        (TyKind::Exists(_, pred), TyKind::Indexed(_, indices2)) => {
-            // HACK(nilehmann) we should probably remove this once we have proper unpacking of &mut refs
-            let names1 = rcx.define_vars_for_binders(pred);
-            for (name1, idx2) in iter::zip(names1, indices2) {
-                if idx2.is_binder {
-                    infer_from_exprs(exprs, &Expr::fvar(name1), &idx2.expr);
-                }
-            }
-        }
         (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
-            infer_from_tys(exprs, rcx, env1, &env1.get(path1), env2, ty2);
+            infer_from_tys(exprs, env1, &env1.get(path1), env2, ty2);
         }
         (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
             infer_from_exprs(exprs, &path1.to_expr(), &path2.to_expr());
-            infer_from_tys(exprs, rcx, env1, &env1.get(path1), env2, &env2.get(path2));
+            infer_from_tys(exprs, env1, &env1.get(path1), env2, &env2.get(path2));
         }
         (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
             debug_assert_eq!(mode1, mode2);
-            infer_from_tys(exprs, rcx, env1, ty1, env2, ty2);
+            infer_from_tys(exprs, env1, ty1, env2, ty2);
         }
         _ => {}
     }

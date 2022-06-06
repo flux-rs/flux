@@ -77,6 +77,21 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
         substs: &[Ty],
         actuals: &[Ty],
     ) -> Result<CallOutput, InferenceError> {
+        // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
+        // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
+        // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
+        // mutable references.
+        let actuals = iter::zip(actuals, fn_sig.skip_binders().args())
+            .map(|(actual, formal)| {
+                if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+                && let TyKind::Indexed(..) = ty.kind() {
+                    self.rcx.unpack(actual, true)
+                } else {
+                    actual.clone()
+                }
+            })
+            .collect_vec();
+
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
@@ -84,7 +99,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_fn_call(self.rcx, env, actuals, fn_sig)?;
+        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig)?;
         let fn_sig = fn_sig
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
@@ -98,7 +113,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
                 subtyping(self.genv, constr, &env.get(path), bound, self.tag);
                 env.update(path, bound.clone());
             } else {
-                subtyping(self.genv, constr, actual, formal, self.tag);
+                subtyping(self.genv, constr, &actual, formal, self.tag);
             }
         }
 

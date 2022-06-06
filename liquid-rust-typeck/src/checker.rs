@@ -217,7 +217,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             match constr {
                 ty::Constraint::Type(path, ty) => {
                     assert!(path.projection().is_empty());
-                    let ty = env.unpack_ty(rcx, ty);
+                    let ty = rcx.unpack(ty, false);
                     env.alloc_with_ty(path.loc, ty);
                 }
                 ty::Constraint::Pred(e) => {
@@ -227,7 +227,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-            let ty = env.unpack_ty(rcx, ty);
+            let ty = rcx.unpack(ty, false);
             env.alloc_with_ty(local, ty);
         }
 
@@ -285,7 +285,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
-                let ty = env.unpack_ty(rcx, &ty);
+                let ty = rcx.unpack(&ty, false);
                 let gen =
                     &mut self
                         .phase
@@ -335,7 +335,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
 
-                let ret = env.unpack_ty(rcx, &ret);
+                let ret = rcx.unpack(&ret, false);
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Call(terminator.source_info.span));
@@ -360,7 +360,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, value);
-                let ty = env.unpack_ty(rcx, &ty);
+                let ty = rcx.unpack(&ty, false);
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Assign(terminator.source_info.span));
@@ -423,7 +423,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
-                    let updated_ty = env.unpack_ty(rcx, updated_ty);
+                    let updated_ty = rcx.unpack(updated_ty, false);
                     env.update_path(path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
@@ -809,7 +809,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Operand::Constant(c) => self.check_constant(c),
         };
-        env.unpack_ty(rcx, &ty)
+        rcx.unpack(&ty, false)
     }
 
     fn check_constant(&self, c: &Constant) -> Ty {
