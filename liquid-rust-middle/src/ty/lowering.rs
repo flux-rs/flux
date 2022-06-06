@@ -159,7 +159,8 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);
-                ty::Ty::exists(bty, ty::Pred::tt())
+                let pred = ty::Binders::new(ty::Pred::tt(), bty.sorts());
+                ty::Ty::exists(bty, pred)
             }
             core::Ty::Indexed(bty, indices) => {
                 let indices = indices
@@ -173,7 +174,9 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 let bty = self.lower_base_ty(bty, nbinders);
                 self.name_map
                     .with_binders(binders, nbinders, |name_map, nbinders| {
-                        ty::Ty::exists(bty, lower_expr(pred, name_map, nbinders))
+                        let expr = lower_expr(pred, name_map, nbinders);
+                        let pred = ty::Binders::new(ty::Pred::Expr(expr), bty.sorts());
+                        ty::Ty::exists(bty, pred)
                     })
             }
             core::Ty::Ptr(loc) => {

@@ -5,7 +5,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Ty, TyKind,
+    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
 };
 
 pub trait TypeVisitor: Sized {
@@ -60,16 +60,19 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`holes`]: Pred::Hole
     /// [`predicate`]: Pred
-    fn replace_holes(&self, factory: &mut impl FnMut(&BaseTy) -> Pred) -> Self {
+    fn replace_holes(&self, factory: &mut impl FnMut(&[Sort]) -> Pred) -> Self {
         struct ReplaceHoles<'a, F>(&'a mut F);
 
         impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
         where
-            F: FnMut(&BaseTy) -> Pred,
+            F: FnMut(&[Sort]) -> Pred,
         {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                if let TyKind::Exists(bty, Binders { value: Pred::Hole, .. }) = ty.kind() {
-                    Ty::exists(bty.super_fold_with(self), self.0(bty))
+                if let TyKind::Exists(bty, Binders { params, value: Pred::Hole }) = ty.kind() {
+                    Ty::exists(
+                        bty.super_fold_with(self),
+                        Binders::new(self.0(params), params.clone()),
+                    )
                 } else {
                     ty.super_fold_with(self)
                 }
@@ -90,7 +93,8 @@ pub trait TypeFoldable: Sized {
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 if let TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) = ty.kind() {
-                    Ty::exists(bty.super_fold_with(self), Pred::Hole)
+                    let sorts = bty.sorts();
+                    Ty::exists(bty.super_fold_with(self), Binders::new(Pred::Hole, sorts))
                 } else {
                     ty.super_fold_with(self)
                 }

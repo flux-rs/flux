@@ -478,7 +478,8 @@ impl TypeEnvInfer {
             (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
-                Ty::exists(bty, Pred::Hole)
+                let pred = Binders::new(Pred::Hole, bty.sorts());
+                Ty::exists(bty, pred)
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
                 debug_assert_eq!(mode1, mode2);
@@ -542,7 +543,7 @@ impl TypeEnvInfer {
             params.push(Param { name, sort });
         }
 
-        let fresh_kvar = &mut |bty: &BaseTy| fresh_kvar(bty.sorts(), &params);
+        let fresh_kvar = &mut |sorts: &[Sort]| fresh_kvar(sorts, &params);
 
         let mut bindings = self.bindings;
         bindings.fmap_mut(|ty| ty.replace_holes(fresh_kvar));

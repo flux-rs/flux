@@ -335,8 +335,7 @@ impl Ty {
         TyKind::Indexed(bty, Interned::from(indices)).intern()
     }
 
-    pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
-        let pred = Binders::new(pred.into(), bty.sorts());
+    pub fn exists(bty: BaseTy, pred: Binders<Pred>) -> Ty {
         TyKind::Exists(bty, pred).intern()
     }
 

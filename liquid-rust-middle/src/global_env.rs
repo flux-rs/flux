@@ -196,7 +196,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_fn_sig(
         &self,
         fn_sig: &rustc::ty::FnSig,
-        mk_pred: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
+        mk_pred: &mut impl FnMut(&[ty::Sort]) -> ty::Pred,
     ) -> ty::PolySig {
         let args = fn_sig
             .inputs()
@@ -210,7 +210,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_ty(
         &self,
         ty: &rustc::ty::Ty,
-        mk_pred: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
+        mk_pred: &mut impl FnMut(&[ty::Sort]) -> ty::Pred,
     ) -> ty::Ty {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Never => return ty::Ty::never(),
@@ -241,14 +241,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
         };
-        let pred = mk_pred(&bty);
+        let pred = ty::Binders::new(mk_pred(bty.sorts()), bty.sorts());
         ty::Ty::exists(bty, pred)
     }
 
     pub fn refine_generic_arg(
         &self,
         ty: &rustc::ty::GenericArg,
-        mk_pred: &mut impl FnMut(&ty::BaseTy) -> ty::Pred,
+        mk_pred: &mut impl FnMut(&[ty::Sort]) -> ty::Pred,
     ) -> ty::Ty {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),

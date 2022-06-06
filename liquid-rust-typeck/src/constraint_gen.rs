@@ -9,7 +9,7 @@ use liquid_rust_middle::{
     rustc::mir::BasicBlock,
     ty::{
         fold::TypeFoldable, BaseTy, BinOp, Constraint, Constraints, Expr, Index, PolySig, Pred,
-        RefKind, Ty, TyKind,
+        RefKind, Sort, Ty, TyKind,
     },
 };
 
@@ -22,7 +22,7 @@ use crate::{
 pub struct ConstrGen<'a, 'rcx, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
-    fresh_kvar: Box<dyn FnMut(&BaseTy) -> Pred + 'a>,
+    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Pred + 'a>,
     tag: Tag,
 }
 
@@ -50,7 +50,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
         tag: Tag,
     ) -> Self
     where
-        F: FnMut(&BaseTy) -> Pred + 'a,
+        F: FnMut(&[Sort]) -> Pred + 'a,
     {
         ConstrGen { genv, rcx, fresh_kvar: Box::new(fresh_kvar), tag }
     }
