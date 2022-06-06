@@ -538,7 +538,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(&place, variant_idx);
+                    env.downcast(self.genv, &place, variant_idx);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;

@@ -137,8 +137,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Substs(List<Ty>);
+pub type Substs = List<Ty>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
@@ -305,24 +304,6 @@ impl AdtDef {
         Binders::new(sig, self.sorts().clone())
     }
 
-    pub fn downcast(
-        &self,
-        substs: &Substs,
-        exprs: &[Expr],
-        variant_idx: VariantIdx,
-    ) -> Option<IndexVec<Field, Ty>> {
-        debug_assert_eq!(exprs.len(), self.sorts().len());
-        Some(
-            self.variant(variant_idx)?
-                .fields()
-                .map(|ty| {
-                    ty.replace_bound_vars(exprs)
-                        .replace_generic_types(&substs.0)
-                })
-                .collect(),
-        )
-    }
-
     pub fn variant(&self, variant_idx: VariantIdx) -> Option<Binders<VariantDef>> {
         Some(Binders::new(self.variants()?[variant_idx].clone(), self.sorts().clone()))
     }
@@ -464,7 +445,7 @@ impl From<Index> for Expr {
 
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
+        BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
     }
 
     fn is_integral(&self) -> bool {
@@ -481,41 +462,6 @@ impl BaseTy {
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
         }
-    }
-}
-
-impl Substs {
-    pub fn new<T>(tys: T) -> Substs
-    where
-        List<Ty>: From<T>,
-    {
-        Substs(Interned::from(tys))
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<Ty> {
-        self.0.iter()
-    }
-
-    pub fn as_slice(&self) -> &[Ty] {
-        &self.0
-    }
-}
-
-impl<'a> IntoIterator for &'a Substs {
-    type Item = &'a Ty;
-
-    type IntoIter = std::slice::Iter<'a, Ty>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
     }
 }
 

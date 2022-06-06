@@ -11,7 +11,8 @@ pub use rustc_span::symbol::Ident;
 
 use crate::{
     core::{self, AdtSortsMap, VariantIdx},
-    rustc, ty,
+    rustc,
+    ty::{self, fold::TypeFoldable},
 };
 
 pub struct GlobalEnv<'genv, 'tcx> {
@@ -82,6 +83,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let adt_def = self.adt_def(def_id);
         adt_def.variant_sig(variant_idx)
+    }
+
+    pub fn downcast(
+        &self,
+        def_id: DefId,
+        variant_idx: VariantIdx,
+        substs: &[ty::Ty],
+        exprs: &[ty::Expr],
+    ) -> Vec<ty::Ty> {
+        let adt_def = self.adt_def(def_id);
+        adt_def
+            .variant(variant_idx)
+            .expect("cannot downcast opaque adt")
+            .fields()
+            .map(|ty| ty.replace_bound_vars(exprs).replace_generic_types(substs))
+            .collect()
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {

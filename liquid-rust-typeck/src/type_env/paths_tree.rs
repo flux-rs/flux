@@ -6,6 +6,7 @@ use rustc_hash::FxHashMap;
 
 use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
+    global_env::GlobalEnv,
     rustc::mir::{Field, Place, PlaceElem},
     ty::{AdtDef, BaseTy, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
@@ -36,8 +37,8 @@ impl PathsTree {
         self.lookup_place_iter(gen, Loc::Local(place.local), &mut place.projection.iter())
     }
 
-    pub fn downcast(&mut self, path: &Path, variant_idx: VariantIdx) {
-        self.get_node_mut(path).downcast(variant_idx);
+    pub fn downcast(&mut self, genv: &GlobalEnv, path: &Path, variant_idx: VariantIdx) {
+        self.get_node_mut(path).downcast(genv, variant_idx);
     }
 
     pub fn get(&self, path: &Path) -> Ty {
@@ -95,10 +96,10 @@ impl PathsTree {
         self.iter().map(|(path, _)| path)
     }
 
-    pub fn unfold_with(&mut self, other: &mut PathsTree) {
+    pub fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get_mut(loc) {
-                node1.unfold_with(node2);
+                node1.unfold_with(genv, node2);
             }
         }
     }
@@ -125,7 +126,7 @@ impl PathsTree {
             let mut node = self.map.get_mut(&loc).unwrap();
 
             for field in path.projection() {
-                node = node.proj(*field);
+                node = node.proj(gen.genv, *field);
                 path_proj.push(*field);
             }
 
@@ -133,10 +134,10 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(*field);
-                        node = node.proj(*field);
+                        node = node.proj(gen.genv, *field);
                     }
                     PlaceElem::Downcast(variant_idx) => {
-                        node.downcast(*variant_idx);
+                        node.downcast(gen.genv, *variant_idx);
                     }
                     PlaceElem::Deref => {
                         let ty = node.expect_ty();
@@ -178,10 +179,13 @@ impl PathsTree {
                     }
                 }
                 (PlaceElem::Field(field), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let fields = adt_def
-                        .downcast(substs, &idxs.to_exprs(), VariantIdx::from_u32(0))
-                        .unwrap();
-                    ty = fields[*field].clone();
+                    let fields = gen.genv.downcast(
+                        adt_def.def_id(),
+                        VariantIdx::from_u32(0),
+                        substs,
+                        &idxs.to_exprs(),
+                    );
+                    ty = fields[field.as_usize()].clone();
                 }
                 _ => unreachable!(),
             }
@@ -225,14 +229,14 @@ impl Node {
         }
     }
 
-    fn unfold_with(&mut self, other: &mut Node) {
+    fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut Node) {
         let (fields1, fields2) = match (&mut *self, &mut *other) {
             (Node::Ty(_), Node::Ty(_)) => return,
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.downcast(*variant_idx), fields2)
+                (self.downcast(genv, *variant_idx), fields2)
             }
             (Node::Adt(_, variant_idx, fields1), Node::Ty(_)) => {
-                (fields1, other.downcast(*variant_idx))
+                (fields1, other.downcast(genv, *variant_idx))
             }
             (Node::Adt(_, _, fields1), Node::Adt(_, _, fields2)) => {
                 let max = usize::max(fields1.len(), fields2.len());
@@ -243,7 +247,7 @@ impl Node {
         };
         debug_assert_eq!(fields1.len(), fields2.len());
         for (field1, field2) in iter::zip(fields1, fields2) {
-            field1.unfold_with(field2);
+            field1.unfold_with(genv, field2);
         }
     }
 
@@ -255,7 +259,7 @@ impl Node {
                 return;
             }
             (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.downcast(*variant_idx), fields2)
+                (self.downcast(gen.genv, *variant_idx), fields2)
             }
             (Node::Adt(_, _, fields1), Node::Adt(_, _, fields2)) => {
                 fields1.resize(usize::max(fields1.len(), fields2.len()), Node::Ty(Ty::uninit()));
@@ -268,12 +272,15 @@ impl Node {
         }
     }
 
-    fn downcast(&mut self, variant_idx: VariantIdx) -> &mut IndexVec<Field, Node> {
+    fn downcast(
+        &mut self,
+        genv: &GlobalEnv,
+        variant_idx: VariantIdx,
+    ) -> &mut IndexVec<Field, Node> {
         if let Node::Ty(ty) = self {
             if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
-                let fields = adt_def
-                    .downcast(substs, &idxs.to_exprs(), variant_idx)
-                    .unwrap()
+                let fields = genv
+                    .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
                     .into_iter()
                     .map(Node::Ty)
                     .collect();
@@ -291,9 +298,9 @@ impl Node {
         }
     }
 
-    fn proj(&mut self, field: Field) -> &mut Node {
+    fn proj(&mut self, genv: &GlobalEnv, field: Field) -> &mut Node {
         match self {
-            Node::Ty(_) => &mut self.downcast(VariantIdx::from_u32(0))[field],
+            Node::Ty(_) => &mut self.downcast(genv, VariantIdx::from_u32(0))[field],
             Node::Adt(_, _, fields) => &mut fields[field],
         }
     }

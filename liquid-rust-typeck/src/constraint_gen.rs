@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub struct ConstrGen<'a, 'rcx, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+    pub genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
     fresh_kvar: Box<dyn FnMut(&BaseTy) -> Pred + 'a>,
     tag: Tag,
