@@ -4,7 +4,6 @@ use itertools::Itertools;
 
 use rustc_hash::FxHashMap;
 
-use liquid_rust_common::index::IndexVec;
 use liquid_rust_middle::{
     global_env::GlobalEnv,
     rustc::mir::{Field, Place, PlaceElem},
@@ -46,12 +45,12 @@ impl PathsTree {
         for f in path.projection() {
             match node {
                 Node::Ty(_) => panic!("expected `Node::Adt`"),
-                Node::Adt(.., fields) => node = &fields[*f],
+                Node::Internal(.., children) => node = &children[f.as_usize()],
             }
         }
         match node {
             Node::Ty(ty) => ty.clone(),
-            Node::Adt(..) => panic!("expcted `Node::Ty`"),
+            Node::Internal(..) => panic!("expcted `Node::Ty`"),
         }
     }
 
@@ -64,7 +63,7 @@ impl PathsTree {
         for f in path.projection() {
             match node {
                 Node::Ty(_) => panic!("expected `Node::Adt"),
-                Node::Adt(.., fields) => node = &mut fields[*f],
+                Node::Internal(.., children) => node = &mut children[f.as_usize()],
             }
         }
         node
@@ -211,7 +210,13 @@ impl PathsTree {
 #[derive(Clone, Eq, PartialEq)]
 enum Node {
     Ty(Ty),
-    Adt(AdtDef, VariantIdx, IndexVec<Field, Node>),
+    Internal(NodeKind, Vec<Node>),
+}
+
+#[derive(Clone, Eq, PartialEq)]
+enum NodeKind {
+    Adt(AdtDef, VariantIdx),
+    Tuple,
 }
 
 impl Node {
@@ -230,87 +235,119 @@ impl Node {
     }
 
     fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut Node) {
-        let (fields1, fields2) = match (&mut *self, &mut *other) {
+        let (children1, children2) = match (&mut *self, &mut *other) {
             (Node::Ty(_), Node::Ty(_)) => return,
-            (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.downcast(genv, *variant_idx), fields2)
+            (Node::Ty(_), Node::Internal(_, children2)) => {
+                let children1 = self.split_uninit(children2.len());
+                (children1, children2)
             }
-            (Node::Adt(_, variant_idx, fields1), Node::Ty(_)) => {
-                (fields1, other.downcast(genv, *variant_idx))
+            (Node::Internal(_, children1), Node::Ty(_)) => {
+                let children2 = other.split_uninit(children1.len());
+                (children1, children2)
             }
-            (Node::Adt(_, _, fields1), Node::Adt(_, _, fields2)) => {
-                let max = usize::max(fields1.len(), fields2.len());
-                fields1.resize(max, Node::Ty(Ty::uninit()));
-                fields2.resize(max, Node::Ty(Ty::uninit()));
-                (fields1, fields2)
+            (Node::Internal(_, children1), Node::Internal(_, children2)) => {
+                let max = usize::max(children1.len(), children2.len());
+                children1.resize(max, Node::Ty(Ty::uninit()));
+                children2.resize(max, Node::Ty(Ty::uninit()));
+                (children1, children2)
             }
         };
-        debug_assert_eq!(fields1.len(), fields2.len());
-        for (field1, field2) in iter::zip(fields1, fields2) {
-            field1.unfold_with(genv, field2);
+        debug_assert_eq!(children1.len(), children2.len());
+        for (node1, node2) in iter::zip(children1, children2) {
+            node1.unfold_with(genv, node2);
         }
     }
 
     fn fold_unfold_with(&mut self, gen: &mut ConstrGen, other: &Node) {
-        let (fields1, fields2) = match (&mut *self, other) {
+        let (children1, children2) = match (&mut *self, other) {
             (Node::Ty(_), Node::Ty(_)) => return,
-            (Node::Adt(..), Node::Ty(_)) => {
+            (Node::Internal(..), Node::Ty(_)) => {
                 self.fold(gen);
                 return;
             }
-            (Node::Ty(_), Node::Adt(_, variant_idx, fields2)) => {
-                (self.downcast(gen.genv, *variant_idx), fields2)
+            (Node::Ty(_), Node::Internal(_, children2)) => {
+                let children1 = self.split_uninit(children2.len());
+                (children1, children2)
             }
-            (Node::Adt(_, _, fields1), Node::Adt(_, _, fields2)) => {
-                fields1.resize(usize::max(fields1.len(), fields2.len()), Node::Ty(Ty::uninit()));
-                (fields1, fields2)
+            (Node::Internal(_, children1), Node::Internal(_, children2)) => {
+                let max = usize::max(children1.len(), children2.len());
+                children1.resize(max, Node::Ty(Ty::uninit()));
+                (children1, children2)
             }
         };
-        debug_assert_eq!(fields1.len(), fields2.len());
-        for (field1, field2) in iter::zip(fields1, fields2) {
-            field1.fold_unfold_with(gen, field2);
-        }
-    }
-
-    fn downcast(
-        &mut self,
-        genv: &GlobalEnv,
-        variant_idx: VariantIdx,
-    ) -> &mut IndexVec<Field, Node> {
-        if let Node::Ty(ty) = self {
-            if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
-                let fields = genv
-                    .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
-                    .into_iter()
-                    .map(Node::Ty)
-                    .collect();
-                *self = Node::Adt(adt_def.clone(), variant_idx, fields);
-            } else {
-                panic!("type cannot be downcasted: `{ty:?}`")
-            }
-        }
-        match self {
-            Node::Ty(_) => unreachable!(),
-            Node::Adt(_, node_variant_idx, fields) => {
-                debug_assert_eq!(variant_idx, *node_variant_idx);
-                fields
-            }
+        debug_assert_eq!(children1.len(), children2.len());
+        for (node1, node2) in iter::zip(children1, children2) {
+            node1.fold_unfold_with(gen, node2);
         }
     }
 
     fn proj(&mut self, genv: &GlobalEnv, field: Field) -> &mut Node {
+        if let Node::Ty(_) = self {
+            self.split(genv);
+        }
         match self {
-            Node::Ty(_) => &mut self.downcast(genv, VariantIdx::from_u32(0))[field],
-            Node::Adt(_, _, fields) => &mut fields[field],
+            Node::Ty(_) => unreachable!(),
+            Node::Internal(_, children) => &mut children[field.as_usize()],
+        }
+    }
+
+    fn downcast(&mut self, genv: &GlobalEnv, variant_idx: VariantIdx) {
+        match self {
+            Node::Ty(ty) => {
+                if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
+                    let fields = genv
+                        .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
+                        .into_iter()
+                        .map(Node::Ty)
+                        .collect();
+                    *self = Node::Internal(NodeKind::Adt(adt_def.clone(), variant_idx), fields);
+                } else {
+                    panic!("type cannot be downcasted: `{ty:?}`")
+                }
+            }
+            Node::Internal(NodeKind::Adt(_, variant_idx2), _) => {
+                debug_assert_eq!(variant_idx, *variant_idx2);
+            }
+            Node::Internal(NodeKind::Tuple, _) => panic!("invalid downcast"),
+        }
+    }
+
+    fn split(&mut self, genv: &GlobalEnv) {
+        let ty = self.expect_ty();
+        match ty.kind() {
+            TyKind::Tuple(tys) => {
+                let children = tys.iter().cloned().map(Node::Ty).collect();
+                *self = Node::Internal(NodeKind::Tuple, children);
+            }
+            // TODO(nilehmann) we should check here whether this is a struct and not an enum
+            TyKind::Indexed(..) => {
+                self.downcast(genv, VariantIdx::from_u32(0));
+            }
+            _ => panic!("type cannot be split: `{ty:?}`"),
+        }
+    }
+
+    fn split_uninit(&mut self, n: usize) -> &mut Vec<Node> {
+        // This assumes `self` has the appropriate size.
+        *self = Node::Internal(NodeKind::Tuple, (0..n).map(|_| Node::Ty(Ty::uninit())).collect());
+        match self {
+            Node::Ty(_) => unreachable!(),
+            Node::Internal(_, children) => children,
         }
     }
 
     fn fold(&mut self, gen: &mut ConstrGen) -> Ty {
         match self {
             Node::Ty(ty) => ty.clone(),
-            Node::Adt(adt_def, variant_idx, fields) => {
+            Node::Internal(NodeKind::Tuple, children) => {
+                let tys = children.iter_mut().map(|node| node.fold(gen)).collect_vec();
+                let ty = Ty::tuple(tys);
+                *self = Node::Ty(ty.clone());
+                ty
+            }
+            Node::Internal(NodeKind::Adt(adt_def, variant_idx), children) => {
                 let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
-                let actuals = fields.iter_mut().map(|node| node.fold(gen)).collect_vec();
+                let actuals = children.iter_mut().map(|node| node.fold(gen)).collect_vec();
                 let output = gen
                     .check_fn_call(&mut FxHashMap::default(), &fn_sig, &[], &actuals)
                     .unwrap();
@@ -324,7 +361,7 @@ impl Node {
     fn fmap_mut(&mut self, f: &mut impl FnMut(&Ty) -> Ty) {
         match self {
             Node::Ty(ty) => *ty = f(ty),
-            Node::Adt(.., fields) => {
+            Node::Internal(.., fields) => {
                 for field in fields {
                     field.fmap_mut(f);
                 }
@@ -346,7 +383,7 @@ impl<'a> PathsIter<'a> {
     fn new(loc: Loc, root: &'a Node) -> Self {
         match root {
             Node::Ty(ty) => PathsIter::Ty(Some((loc, ty))),
-            Node::Adt(.., fields) => {
+            Node::Internal(.., fields) => {
                 PathsIter::Adt { loc, projection: vec![], stack: vec![fields.iter().enumerate()] }
             }
         }
@@ -362,7 +399,7 @@ impl<'a> Iterator for PathsIter<'a> {
                 while let Some(top) = stack.last_mut() {
                     if let Some((i, node)) = top.next() {
                         match node {
-                            Node::Adt(.., fields) => {
+                            Node::Internal(.., fields) => {
                                 projection.push(Field::from(i));
                                 stack.push(fields.iter().enumerate());
                             }
