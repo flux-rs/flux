@@ -1,17 +1,15 @@
 use std::iter;
 
 use liquid_rust_common::iter::IterExt;
-use liquid_rust_errors::LiquidRustSession;
-use liquid_rust_middle::core::{self, AdtSortsMap};
+use liquid_rust_middle::{core, global_env::GlobalEnv};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_session::SessionDiagnostic;
 
 use liquid_rust_middle::{ty, ty::lowering::lower_sort};
 
-pub struct Wf<'a, T> {
-    sess: &'a LiquidRustSession,
-    adt_sorts: &'a T,
+pub struct Wf<'a, 'tcx> {
+    genv: &'a GlobalEnv<'a, 'tcx>,
 }
 
 struct Env {
@@ -53,9 +51,9 @@ impl std::ops::Index<&'_ core::Name> for Env {
     }
 }
 
-impl<T: AdtSortsMap> Wf<'_, T> {
-    pub fn new<'a>(sess: &'a LiquidRustSession, refined_by: &'a T) -> Wf<'a, T> {
-        Wf { sess, adt_sorts: refined_by }
+impl<'a, 'tcx> Wf<'a, 'tcx> {
+    pub fn new(genv: &'a GlobalEnv<'a, 'tcx>) -> Wf<'a, 'tcx> {
+        Wf { genv }
     }
 
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -92,27 +90,14 @@ impl<T: AdtSortsMap> Wf<'_, T> {
         self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
-    pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorGuaranteed> {
+    pub fn check_struct_def(&self, def: &core::StructDef) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&def.refined_by);
-        if let core::AdtDefKind::Transparent { variants, .. } = &def.kind {
-            variants
+        if let core::StructKind::Transparent { fields } = &def.kind {
+            fields
                 .iter()
-                .flatten()
-                .flatten()
-                .try_for_each_exhaust(|variant| self.check_variant_def(&mut env, variant))?;
+                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty))?;
         }
         Ok(())
-    }
-
-    fn check_variant_def(
-        &self,
-        env: &mut Env,
-        variant: &core::VariantDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        variant
-            .fields
-            .iter()
-            .try_for_each_exhaust(|ty| self.check_type(env, ty))
     }
 
     fn check_constr(
@@ -289,18 +274,12 @@ impl<T: AdtSortsMap> Wf<'_, T> {
             core::BaseTy::Int(_) => vec![ty::Sort::Int],
             core::BaseTy::Uint(_) => vec![ty::Sort::Int],
             core::BaseTy::Bool => vec![ty::Sort::Bool],
-            core::BaseTy::Adt(def_id, _) => {
-                if let Some(params) = self.adt_sorts.get(*def_id) {
-                    params.iter().map(|sort| lower_sort(*sort)).collect()
-                } else {
-                    vec![]
-                }
-            }
+            core::BaseTy::Adt(def_id, _) => self.genv.sorts_of(*def_id).to_vec(),
         }
     }
 
-    fn emit_err<'a, R>(&'a self, err: impl SessionDiagnostic<'a>) -> Result<R, ErrorGuaranteed> {
-        Err(self.sess.emit_err(err))
+    fn emit_err<'b, R>(&'b self, err: impl SessionDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
+        Err(self.genv.sess.emit_err(err))
     }
 }
 

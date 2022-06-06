@@ -29,8 +29,8 @@ use liquid_rust_middle::{
         },
     },
     ty::{
-        self, BaseTy, BinOp, BoundVar, Constraint, Constraints, Expr, FnSig, Param, PolySig, Pred,
-        Sort, Ty, TyKind, VariantIdx,
+        self, BaseTy, BinOp, Binders, BoundVar, Constraint, Constraints, Expr, FnSig, Param,
+        PolySig, Pred, Sort, Ty, TyKind, VariantIdx,
     },
 };
 
@@ -57,7 +57,7 @@ pub struct Checker<'a, 'tcx, P> {
 }
 
 pub trait Phase: Sized {
-    type KvarGen<'a>: FnMut(&BaseTy) -> Pred
+    type KvarGen<'a>: FnMut(&[Sort]) -> Pred
     where
         Self: 'a;
 
@@ -538,7 +538,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(&place, variant_idx);
+                    env.downcast(self.genv, &place, variant_idx);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
@@ -627,14 +627,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 TyKind::Indexed(BaseTy::Int(int_ty2), _),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                Ty::exists(BaseTy::Int(*int_ty1), Pred::tt())
+                Ty::exists(BaseTy::Int(*int_ty1), Binders::new(Pred::tt(), vec![Sort::Int]))
             }
             (
                 TyKind::Indexed(BaseTy::Uint(uint_ty1), _),
                 TyKind::Indexed(BaseTy::Uint(uint_ty2), _),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                Ty::exists(BaseTy::Uint(*uint_ty1), Pred::tt())
+                Ty::exists(BaseTy::Uint(*uint_ty1), Binders::new(Pred::tt(), vec![Sort::Int]))
             }
             (TyKind::Indexed(BaseTy::Bool, indices1), TyKind::Indexed(BaseTy::Bool, indices2)) => {
                 let e = Expr::binary_op(op, indices1[0].expr.clone(), indices2[0].expr.clone());
@@ -675,8 +675,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     Expr::binary_op(BinOp::Ge, e1.clone(), Expr::zero()),
                     Expr::binary_op(BinOp::Ge, e2.clone(), Expr::zero()),
                 );
-                let pred = Expr::binary_op(BinOp::Imp, guard, binding);
-                Ty::exists(bty, pred)
+                let expr = Expr::binary_op(BinOp::Imp, guard, binding);
+                Ty::exists(bty, Binders::new(Pred::Expr(expr), vec![Sort::Int]))
             }
             (
                 TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
@@ -752,7 +752,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
-                return Ty::exists(BaseTy::Bool, Pred::tt());
+                return Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]));
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
@@ -768,7 +768,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
-                Ty::exists(BaseTy::Bool, Pred::tt())
+                Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         }
@@ -847,7 +847,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 }
 
 impl Phase for Inference<'_> {
-    type KvarGen<'a> = impl FnMut(&BaseTy) -> Pred where Self: 'a;
+    type KvarGen<'a> = impl FnMut(&[Sort]) -> Pred where Self: 'a;
 
     fn kvar_gen(&mut self, _rcx: &RefineCtxt) -> Self::KvarGen<'_> {
         |_| Pred::Hole
@@ -886,11 +886,11 @@ impl Phase for Inference<'_> {
 }
 
 impl Phase for Check<'_> {
-    type KvarGen<'a> = impl FnMut(&BaseTy) -> Pred where Self: 'a;
+    type KvarGen<'a> = impl FnMut(&[Sort]) -> Pred where Self: 'a;
 
     fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_> {
         let scope = rcx.scope();
-        move |bty| self.kvars.fresh(bty.sorts(), scope.iter())
+        move |sorts| self.kvars.fresh(sorts, scope.iter())
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -931,7 +931,7 @@ impl Phase for Check<'_> {
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
-        let fresh_kvar = |bty: &BaseTy| ck.phase.kvars.fresh(bty.sorts(), scope.iter());
+        let fresh_kvar = |sorts: &[Sort]| ck.phase.kvars.fresh(sorts, scope.iter());
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let gen = &mut ConstrGen::new(ck.genv, &mut rcx, fresh_kvar, tag);
         env.check_goto(gen, bb_env);

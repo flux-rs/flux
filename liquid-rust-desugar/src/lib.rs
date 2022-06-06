@@ -30,7 +30,7 @@ pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &LiquidRustSession,
     struct_def: surface::StructDef,
-) -> Result<core::AdtDef, ErrorGuaranteed> {
+) -> Result<core::StructDef, ErrorGuaranteed> {
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
     desugar::desugar_struct_def(tcx, sess, struct_def)

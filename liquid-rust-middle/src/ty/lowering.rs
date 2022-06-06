@@ -1,11 +1,9 @@
-use std::iter;
-
 use crate::{
     global_env::GlobalEnv,
-    ty::{self, DebruijnIndex, VariantDef},
+    ty::{self, DebruijnIndex},
 };
 use itertools::Itertools;
-use liquid_rust_common::index::{IndexGen, IndexVec};
+use liquid_rust_common::index::IndexGen;
 use rustc_hash::FxHashMap;
 
 use crate::core;
@@ -93,46 +91,38 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
+    pub(crate) fn lower_struct_def(
+        genv: &GlobalEnv,
+        struct_def: &core::StructDef,
+    ) -> Option<ty::VariantDef> {
         let mut cx = LoweringCtxt::new(genv);
+        let sorts = cx.lower_params(&struct_def.refined_by);
+        if let core::StructKind::Transparent { fields } = &struct_def.kind {
+            let fields = fields.iter().map(|ty| cx.lower_ty(ty, 1)).collect_vec();
 
-        let params = cx.lower_params(&adt_def.refined_by);
+            let substs = genv
+                .tcx
+                .generics_of(struct_def.def_id)
+                .params
+                .iter()
+                .map(|param| ty::Ty::param(ty::ParamTy { index: param.index, name: param.name }))
+                .collect_vec();
 
-        let generics = genv.adt_def_generics(adt_def.def_id);
+            let idxs = sorts
+                .iter()
+                .enumerate()
+                .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
+                .collect_vec();
+            let ret = ty::Ty::indexed(
+                ty::BaseTy::adt(ty::AdtDef::new(struct_def.def_id, sorts), substs),
+                idxs,
+            );
 
-        match &adt_def.kind {
-            core::AdtDefKind::Transparent { variants: None, .. } => {
-                genv.default_adt_def(adt_def.def_id)
-            }
-            core::AdtDefKind::Transparent { variants: Some(variants), .. } => {
-                let rustc_adt_def = genv.tcx.adt_def(adt_def.def_id);
-                let variants = iter::zip(variants, rustc_adt_def.variants())
-                    .map(|(variant, rustc_variant)| {
-                        variant
-                            .as_ref()
-                            .map(|variant| cx.lower_variant_def(variant))
-                            .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
-                    })
-                    .collect_vec();
-                ty::AdtDef::transparent(
-                    adt_def.def_id,
-                    generics,
-                    params,
-                    IndexVec::from_raw(variants),
-                )
-            }
-            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, generics, params),
+            let variant = ty::VariantDef::new(fields, ret);
+            Some(variant)
+        } else {
+            None
         }
-    }
-
-    fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> VariantDef {
-        let fields = variant_def
-            .fields
-            .iter()
-            .map(|ty| self.lower_ty(ty, 1))
-            .collect_vec();
-
-        VariantDef::new(fields)
     }
 
     fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
@@ -185,7 +175,8 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);
-                ty::Ty::exists(bty, ty::Pred::tt())
+                let pred = ty::Binders::new(ty::Pred::tt(), bty.sorts());
+                ty::Ty::exists(bty, pred)
             }
             core::Ty::Indexed(bty, indices) => {
                 let indices = indices
@@ -199,7 +190,9 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 let bty = self.lower_base_ty(bty, nbinders);
                 self.name_map
                     .with_binders(binders, nbinders, |name_map, nbinders| {
-                        ty::Ty::exists(bty, lower_expr(pred, name_map, nbinders))
+                        let expr = lower_expr(pred, name_map, nbinders);
+                        let pred = ty::Binders::new(ty::Pred::Expr(expr), bty.sorts());
+                        ty::Ty::exists(bty, pred)
                     })
             }
             core::Ty::Ptr(loc) => {

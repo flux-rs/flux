@@ -1,7 +1,7 @@
 use liquid_rust_errors::LiquidRustSession;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
@@ -79,23 +79,22 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let specs = SpecCollector::collect(genv.tcx, genv.sess)?;
 
         let mut assume = FxHashSet::default();
+        let mut adt_sorts = FxHashMap::default();
 
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
-                genv.register_adt_sorts(
-                    def_id.to_def_id(),
-                    desugar::resolve_sorts(genv.sess, refined_by)?,
-                );
+                let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
+                genv.register_adt_sorts(def_id.to_def_id(), &sorts);
+                adt_sorts.insert(def_id.to_def_id(), sorts);
             }
             Ok(())
         })?;
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
-                genv.register_adt_sorts(
-                    def_id.to_def_id(),
-                    desugar::resolve_sorts(genv.sess, refined_by)?,
-                );
+                let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
+                genv.register_adt_sorts(def_id.to_def_id(), &sorts);
+                adt_sorts.insert(def_id.to_def_id(), sorts);
             }
             Ok(())
         })?;
@@ -106,7 +105,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(genv.sess, qualifier)?;
-                Wf::new(genv.sess, genv).check_qualifier(&qualifier)?;
+                Wf::new(genv).check_qualifier(&qualifier)?;
                 Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
             })
             .try_collect_exhaust()?;
@@ -124,17 +123,16 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
                 let adt_def = desugar::desugar_struct_def(genv.tcx, genv.sess, struct_def)?;
-                Wf::new(genv.sess, genv).check_adt_def(&adt_def)?;
-                genv.register_adt_def(def_id.to_def_id(), adt_def);
+                Wf::new(genv).check_struct_def(&adt_def)?;
+                genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())
             })?;
         specs
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let adt_def = desugar::desugar_enum_def(genv.tcx, genv.sess, enum_def)?;
-                Wf::new(genv.sess, genv).check_adt_def(&adt_def)?;
-                genv.register_adt_def(def_id.to_def_id(), adt_def);
+                let enum_def = desugar::desugar_enum_def(genv.sess, enum_def)?;
+                genv.register_enum_def(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;
 
@@ -153,11 +151,11 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     let fn_sig = desugar::desugar_fn_sig(
                         genv.tcx,
                         genv.sess,
-                        genv,
+                        &adt_sorts,
                         def_id.to_def_id(),
                         fn_sig,
                     )?;
-                    Wf::new(genv.sess, genv).check_fn_sig(&fn_sig)?;
+                    Wf::new(genv).check_fn_sig(&fn_sig)?;
                     genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                 }
                 Ok(())

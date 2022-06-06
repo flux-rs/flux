@@ -5,16 +5,12 @@ pub mod subst;
 use std::{borrow::Cow, fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
-use liquid_rust_common::index::IndexVec;
 
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
-use rustc_middle::{
-    mir::{Field, Local},
-    ty::ParamTy,
-};
+use rustc_middle::mir::{Field, Local};
+pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
@@ -32,19 +28,12 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
-    kind: AdtDefKind,
-    generics: Vec<ParamTy>,
-}
-
-#[derive(Eq, PartialEq, Hash)]
-enum AdtDefKind {
-    Transparent { variants: IndexVec<VariantIdx, VariantDef> },
-    Opaque,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct VariantDef {
-    fields: List<Ty>,
+pub(crate) struct VariantDef {
+    pub(crate) fields: List<Ty>,
+    pub(crate) ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -137,8 +126,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Substs(List<Ty>);
+pub type Substs = List<Ty>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
@@ -263,19 +251,8 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque(def_id: DefId, generics: Vec<ParamTy>, sorts: impl Into<List<Sort>>) -> Self {
-        let kind = AdtDefKind::Opaque;
-        AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
-    }
-
-    pub fn transparent(
-        def_id: DefId,
-        generics: Vec<ParamTy>,
-        sorts: impl Into<List<Sort>>,
-        variants: IndexVec<VariantIdx, VariantDef>,
-    ) -> Self {
-        let kind = AdtDefKind::Transparent { variants };
-        AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
+    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>) -> Self {
+        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into() }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -285,72 +262,11 @@ impl AdtDef {
     pub fn sorts(&self) -> &List<Sort> {
         &self.0.sorts
     }
-
-    pub fn generics(&self) -> &[ParamTy] {
-        &self.0.generics
-    }
-
-    pub fn variant_sig(&self, variant_idx: VariantIdx) -> PolySig {
-        let variant = &self.variants().unwrap()[variant_idx];
-        let args = variant.fields.clone();
-        let substs = self.generics().iter().map(|p| Ty::param(*p)).collect_vec();
-
-        let bty = BaseTy::adt(self.clone(), substs);
-
-        let indices = (0..self.sorts().len())
-            .map(|idx| Expr::bvar(BoundVar::new(idx, INNERMOST)).into())
-            .collect_vec();
-        let ret = Ty::indexed(bty, indices);
-        let sig = FnSig::new(vec![], args, ret, vec![]);
-        Binders::new(sig, self.sorts().clone())
-    }
-
-    pub fn downcast(
-        &self,
-        substs: &Substs,
-        exprs: &[Expr],
-        variant_idx: VariantIdx,
-    ) -> Option<IndexVec<Field, Ty>> {
-        debug_assert_eq!(exprs.len(), self.sorts().len());
-        Some(
-            self.variant(variant_idx)?
-                .fields()
-                .map(|ty| {
-                    ty.replace_bound_vars(exprs)
-                        .replace_generic_types(&substs.0)
-                })
-                .collect(),
-        )
-    }
-
-    pub fn variant(&self, variant_idx: VariantIdx) -> Option<Binders<VariantDef>> {
-        Some(Binders::new(self.variants()?[variant_idx].clone(), self.sorts().clone()))
-    }
-
-    fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
-        match self.kind() {
-            AdtDefKind::Transparent { variants, .. } => Some(variants),
-            AdtDefKind::Opaque { .. } => None,
-        }
-    }
-
-    fn kind(&self) -> &AdtDefKind {
-        &self.0.kind
-    }
 }
 
 impl VariantDef {
-    pub fn new(fields: impl Into<List<Ty>>) -> Self {
-        VariantDef { fields: fields.into() }
-    }
-}
-
-impl Binders<VariantDef> {
-    pub fn fields(&self) -> impl Iterator<Item = Binders<Ty>> + '_ {
-        self.value
-            .fields
-            .iter()
-            .map(|ty| Binders::new(ty.clone(), self.params.clone()))
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
     }
 }
 
@@ -378,8 +294,7 @@ impl Ty {
         TyKind::Indexed(bty, Interned::from(indices)).intern()
     }
 
-    pub fn exists(bty: BaseTy, pred: impl Into<Pred>) -> Ty {
-        let pred = Binders::new(pred.into(), bty.sorts());
+    pub fn exists(bty: BaseTy, pred: Binders<Pred>) -> Ty {
         TyKind::Exists(bty, pred).intern()
     }
 
@@ -464,7 +379,7 @@ impl From<Index> for Expr {
 
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(adt_def, Substs::new(substs.into_iter().collect_vec()))
+        BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
     }
 
     fn is_integral(&self) -> bool {
@@ -481,41 +396,6 @@ impl BaseTy {
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
         }
-    }
-}
-
-impl Substs {
-    pub fn new<T>(tys: T) -> Substs
-    where
-        List<Ty>: From<T>,
-    {
-        Substs(Interned::from(tys))
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<Ty> {
-        self.0.iter()
-    }
-
-    pub fn as_slice(&self) -> &[Ty] {
-        &self.0
-    }
-}
-
-impl<'a> IntoIterator for &'a Substs {
-    type Item = &'a Ty;
-
-    type IntoIter = std::slice::Iter<'a, Ty>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
     }
 }
 
