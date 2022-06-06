@@ -10,7 +10,8 @@ pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
 
 use crate::{
-    core::{self, AdtSortsMap, VariantIdx},
+    core::{self, VariantIdx},
+    intern::List,
     rustc,
     ty::{self, fold::TypeFoldable},
 };
@@ -19,7 +20,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv LiquidRustSession,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
-    adt_sorts: FxHashMap<DefId, Vec<core::Sort>>,
+    adt_sorts: RefCell<FxHashMap<DefId, List<ty::Sort>>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_fields: RefCell<FxHashMap<DefId, ty::Ty>>,
     check_asserts: AssertBehavior,
@@ -31,7 +32,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
-            adt_sorts: FxHashMap::default(),
+            adt_sorts: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(FxHashMap::default()),
             adt_fields: RefCell::new(FxHashMap::default()),
             tcx,
@@ -44,8 +45,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.check_asserts = behavior;
     }
 
-    pub fn register_adt_sorts(&mut self, def_id: DefId, sorts: Vec<core::Sort>) {
-        self.adt_sorts.insert(def_id, sorts);
+    pub fn register_adt_sorts(&mut self, def_id: DefId, sorts: &[core::Sort]) {
+        let sorts = sorts
+            .iter()
+            .map(|sort| ty::lowering::lower_sort(*sort))
+            .collect();
+        self.adt_sorts
+            .get_mut()
+            .insert(def_id, List::from_vec(sorts));
     }
 
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
@@ -129,6 +136,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let ret = ty::Ty::indexed(bty, indices);
         let sig = ty::FnSig::new(vec![], args, ret, vec![]);
         ty::Binders::new(sig, adt_def.sorts().clone())
+    }
+
+    pub fn sorts_of(&self, def_id: DefId) -> List<ty::Sort> {
+        self.adt_sorts
+            .borrow_mut()
+            .entry(def_id)
+            .or_insert_with(|| List::from_vec(vec![]))
+            .clone()
     }
 
     pub fn downcast(
@@ -253,11 +268,5 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
         }
-    }
-}
-
-impl AdtSortsMap for GlobalEnv<'_, '_> {
-    fn get(&self, def_id: DefId) -> Option<&[core::Sort]> {
-        Some(self.adt_sorts.get(&def_id)?)
     }
 }

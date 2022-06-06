@@ -171,6 +171,15 @@ impl AdtDef {
     }
 }
 
+impl<S> AdtSortsMap for std::collections::HashMap<DefId, Vec<Sort>, S>
+where
+    S: std::hash::BuildHasher,
+{
+    fn get(&self, def_id: DefId) -> Option<&[Sort]> {
+        self.get(&def_id).map(|sorts| sorts.as_slice())
+    }
+}
+
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
