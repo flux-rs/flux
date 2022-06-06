@@ -9,11 +9,8 @@ use itertools::Itertools;
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-pub use rustc_middle::ty::{FloatTy, IntTy, UintTy};
-use rustc_middle::{
-    mir::{Field, Local},
-    ty::ParamTy,
-};
+use rustc_middle::mir::{Field, Local};
+pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
@@ -31,12 +28,12 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
-    generics: Vec<ParamTy>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
     pub(crate) fields: List<Ty>,
+    pub(crate) ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -254,18 +251,8 @@ impl FnSig {
 }
 
 impl AdtDef {
-    // pub fn opaque(def_id: DefId, generics: Vec<ParamTy>, sorts: impl Into<List<Sort>>) -> Self {
-    //     let kind = AdtDefKind::Opaque;
-    //     AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
-    // }
-
-    pub fn transparent(
-        def_id: DefId,
-        generics: Vec<ParamTy>,
-        sorts: impl Into<List<Sort>>,
-    ) -> Self {
-        // let kind = AdtDefKind::Transparent { variants };
-        AdtDef(Interned::new(AdtDefData { def_id, generics, sorts: sorts.into() }))
+    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>) -> Self {
+        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into() }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -275,30 +262,11 @@ impl AdtDef {
     pub fn sorts(&self) -> &List<Sort> {
         &self.0.sorts
     }
-
-    pub fn generics(&self) -> &[ParamTy] {
-        &self.0.generics
-    }
-
-    // pub fn variant(&self, variant_idx: VariantIdx) -> Option<&VariantDef> {
-    //     Some(&self.variants()?[variant_idx])
-    // }
-
-    // pub(crate) fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
-    //     match self.kind() {
-    //         AdtDefKind::Transparent { variants, .. } => Some(variants),
-    //         AdtDefKind::Opaque { .. } => None,
-    //     }
-    // }
-
-    // fn kind(&self) -> &AdtDefKind {
-    //     &self.0.kind
-    // }
 }
 
 impl VariantDef {
-    pub fn new(fields: Vec<Ty>) -> Self {
-        VariantDef { fields: List::from_vec(fields) }
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
     }
 }
 

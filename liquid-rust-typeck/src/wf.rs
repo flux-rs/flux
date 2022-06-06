@@ -90,27 +90,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
-    pub fn check_adt_def(&self, def: &core::AdtDef) -> Result<(), ErrorGuaranteed> {
+    pub fn check_struct_def(&self, def: &core::StructDef) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&def.refined_by);
-        if let core::AdtDefKind::Transparent { variants, .. } = &def.kind {
-            variants
+        if let core::StructKind::Transparent { fields } = &def.kind {
+            fields
                 .iter()
-                .flatten()
-                .flatten()
-                .try_for_each_exhaust(|variant| self.check_variant_def(&mut env, variant))?;
+                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty))?;
         }
         Ok(())
-    }
-
-    fn check_variant_def(
-        &self,
-        env: &mut Env,
-        variant: &core::VariantDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        variant
-            .fields
-            .iter()
-            .try_for_each_exhaust(|ty| self.check_type(env, ty))
     }
 
     fn check_constr(

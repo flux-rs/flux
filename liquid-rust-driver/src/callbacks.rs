@@ -123,17 +123,16 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
                 let adt_def = desugar::desugar_struct_def(genv.tcx, genv.sess, struct_def)?;
-                Wf::new(genv).check_adt_def(&adt_def)?;
-                genv.register_adt_def(def_id.to_def_id(), adt_def);
+                Wf::new(genv).check_struct_def(&adt_def)?;
+                genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())
             })?;
         specs
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let adt_def = desugar::desugar_enum_def(genv.tcx, genv.sess, enum_def)?;
-                Wf::new(genv).check_adt_def(&adt_def)?;
-                genv.register_adt_def(def_id.to_def_id(), adt_def);
+                let enum_def = desugar::desugar_enum_def(genv.sess, enum_def)?;
+                genv.register_enum_def(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;
 

@@ -100,13 +100,41 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> ty::VariantDef {
-        let fields = variant_def
-            .fields
-            .iter()
-            .map(|ty| self.lower_ty(ty, 1))
-            .collect();
-        ty::VariantDef::new(fields)
+    pub fn lower_struct_def(
+        genv: &GlobalEnv,
+        struct_def: &core::StructDef,
+    ) -> Option<ty::VariantDef> {
+        let mut cx = LoweringCtxt::new(genv);
+        let sorts = cx.lower_params(&struct_def.refined_by);
+        if let core::StructKind::Transparent { fields } = &struct_def.kind {
+            let fields = fields
+                .into_iter()
+                .map(|ty| cx.lower_ty(&ty, 1))
+                .collect_vec();
+
+            let substs = genv
+                .tcx
+                .generics_of(struct_def.def_id)
+                .params
+                .iter()
+                .map(|param| ty::Ty::param(ty::ParamTy { index: param.index, name: param.name }))
+                .collect_vec();
+
+            let idxs = sorts
+                .iter()
+                .enumerate()
+                .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
+                .collect_vec();
+            let ret = ty::Ty::indexed(
+                ty::BaseTy::adt(ty::AdtDef::new(struct_def.def_id, sorts), substs),
+                idxs,
+            );
+
+            let variant = ty::VariantDef::new(fields, ret);
+            Some(variant)
+        } else {
+            None
+        }
     }
 
     fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {

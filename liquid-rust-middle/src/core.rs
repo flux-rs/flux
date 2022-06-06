@@ -7,7 +7,7 @@ use core::fmt;
 use std::fmt::Write;
 
 use itertools::Itertools;
-use liquid_rust_common::{format::PadAdapter, index::IndexVec};
+use liquid_rust_common::format::PadAdapter;
 pub use liquid_rust_fixpoint::BinOp;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -20,22 +20,23 @@ pub trait AdtSortsMap {
 }
 
 #[derive(Debug)]
-pub struct AdtDef {
+pub struct StructDef {
     pub def_id: DefId,
-    pub kind: AdtDefKind,
+    pub kind: StructKind,
     pub refined_by: Vec<Param>,
     pub generics: rustc_middle::ty::Generics,
 }
 
 #[derive(Debug)]
-pub enum AdtDefKind {
-    Transparent { variants: Option<IndexVec<VariantIdx, Option<VariantDef>>> },
-    Opaque,
+pub struct EnumDef {
+    pub def_id: DefId,
+    pub refined_by: Vec<Param>,
 }
 
 #[derive(Debug)]
-pub struct VariantDef {
-    pub fields: Vec<Ty>,
+pub enum StructKind {
+    Transparent { fields: Vec<Ty> },
+    Opaque,
 }
 
 pub struct FnSig {
@@ -165,7 +166,7 @@ impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
-impl AdtDef {
+impl StructDef {
     pub fn sorts(&self) -> Vec<Sort> {
         self.refined_by.iter().map(|param| param.sort).collect()
     }

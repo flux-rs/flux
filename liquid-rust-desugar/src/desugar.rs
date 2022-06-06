@@ -1,9 +1,6 @@
 use std::iter;
 
-use liquid_rust_common::{
-    index::{IndexGen, IndexVec},
-    iter::IterExt,
-};
+use liquid_rust_common::{index::IndexGen, iter::IterExt};
 use liquid_rust_errors::LiquidRustSession;
 use liquid_rust_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
@@ -12,8 +9,8 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use liquid_rust_middle::core::{
-    AdtDef, AdtDefKind, AdtSortsMap, BaseTy, BinOp, Constraint, Expr, ExprKind, FnSig, Ident,
-    Index, Indices, Lit, Name, Param, Qualifier, RefKind, Sort, Ty, VariantDef,
+    AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
+    Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
 };
 
 pub fn desugar_qualifier(
@@ -43,7 +40,7 @@ pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &LiquidRustSession,
     adt_def: surface::StructDef<Res>,
-) -> Result<AdtDef, ErrorGuaranteed> {
+) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
     let mut params = ParamsCtxt::new(sess);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
@@ -51,38 +48,29 @@ pub fn desugar_struct_def(
     let mut cx = DesugarCtxt::with_params(params);
 
     let kind = if adt_def.opaque {
-        AdtDefKind::Opaque
+        StructKind::Opaque
     } else {
         let fields = adt_def
             .fields
             .into_iter()
             .map(|ty| cx.desugar_ty(ty.unwrap()))
             .try_collect_exhaust()?;
-        let variants = Some(IndexVec::from_raw(vec![Some(VariantDef { fields })]));
-        AdtDefKind::Transparent { variants }
+        StructKind::Transparent { fields }
     };
     let refined_by = cx.params.params;
     let generics = tcx.generics_of(def_id).clone();
-    Ok(AdtDef { def_id, kind, refined_by, generics })
+    Ok(StructDef { def_id, kind, refined_by, generics })
 }
 
 pub fn desugar_enum_def(
-    tcx: TyCtxt,
     sess: &LiquidRustSession,
     enum_def: surface::EnumDef,
-) -> Result<AdtDef, ErrorGuaranteed> {
+) -> Result<EnumDef, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
-
-    let kind = if enum_def.opaque {
-        AdtDefKind::Opaque
-    } else {
-        AdtDefKind::Transparent { variants: None }
-    };
     let def_id = enum_def.def_id.to_def_id();
     let refined_by = params.params;
-    let generics = tcx.generics_of(def_id).clone();
-    Ok(AdtDef { def_id, kind, refined_by, generics })
+    Ok(EnumDef { def_id, refined_by })
 }
 
 pub fn desugar_fn_sig(
