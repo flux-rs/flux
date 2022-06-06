@@ -5,7 +5,6 @@ pub mod subst;
 use std::{borrow::Cow, fmt, lazy::SyncOnceCell};
 
 use itertools::Itertools;
-use liquid_rust_common::index::IndexVec;
 
 pub use liquid_rust_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
@@ -32,19 +31,12 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
-    kind: AdtDefKind,
     generics: Vec<ParamTy>,
-}
-
-#[derive(Eq, PartialEq, Hash)]
-enum AdtDefKind {
-    Transparent { variants: IndexVec<VariantIdx, VariantDef> },
-    Opaque,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
-    pub(crate) fields: Vec<DefId>,
+    pub(crate) fields: List<Ty>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -262,19 +254,18 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn opaque(def_id: DefId, generics: Vec<ParamTy>, sorts: impl Into<List<Sort>>) -> Self {
-        let kind = AdtDefKind::Opaque;
-        AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
-    }
+    // pub fn opaque(def_id: DefId, generics: Vec<ParamTy>, sorts: impl Into<List<Sort>>) -> Self {
+    //     let kind = AdtDefKind::Opaque;
+    //     AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
+    // }
 
     pub fn transparent(
         def_id: DefId,
         generics: Vec<ParamTy>,
         sorts: impl Into<List<Sort>>,
-        variants: IndexVec<VariantIdx, VariantDef>,
     ) -> Self {
-        let kind = AdtDefKind::Transparent { variants };
-        AdtDef(Interned::new(AdtDefData { def_id, generics, kind, sorts: sorts.into() }))
+        // let kind = AdtDefKind::Transparent { variants };
+        AdtDef(Interned::new(AdtDefData { def_id, generics, sorts: sorts.into() }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -289,25 +280,25 @@ impl AdtDef {
         &self.0.generics
     }
 
-    pub fn variant(&self, variant_idx: VariantIdx) -> Option<&VariantDef> {
-        Some(&self.variants()?[variant_idx])
-    }
+    // pub fn variant(&self, variant_idx: VariantIdx) -> Option<&VariantDef> {
+    //     Some(&self.variants()?[variant_idx])
+    // }
 
-    pub(crate) fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
-        match self.kind() {
-            AdtDefKind::Transparent { variants, .. } => Some(variants),
-            AdtDefKind::Opaque { .. } => None,
-        }
-    }
+    // pub(crate) fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
+    //     match self.kind() {
+    //         AdtDefKind::Transparent { variants, .. } => Some(variants),
+    //         AdtDefKind::Opaque { .. } => None,
+    //     }
+    // }
 
-    fn kind(&self) -> &AdtDefKind {
-        &self.0.kind
-    }
+    // fn kind(&self) -> &AdtDefKind {
+    //     &self.0.kind
+    // }
 }
 
 impl VariantDef {
-    pub fn new(fields: Vec<DefId>) -> Self {
-        VariantDef { fields }
+    pub fn new(fields: Vec<Ty>) -> Self {
+        VariantDef { fields: List::from_vec(fields) }
     }
 }
 

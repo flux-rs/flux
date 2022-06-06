@@ -5,7 +5,6 @@ use crate::{
 use itertools::Itertools;
 use liquid_rust_common::index::IndexGen;
 use rustc_hash::FxHashMap;
-use rustc_middle::ty::TyCtxt;
 
 use crate::core;
 
@@ -67,12 +66,12 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub fn from_adt_def(
+    pub fn with_params(
         genv: &'a GlobalEnv<'genv, 'tcx>,
-        adt_def: &core::AdtDef,
+        params: &[core::Param],
     ) -> (Self, Vec<ty::Sort>) {
         let mut cx = Self::new(genv);
-        let sorts = cx.lower_params(&adt_def.refined_by);
+        let sorts = cx.lower_params(params);
         (cx, sorts)
     }
 
@@ -101,12 +100,13 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> Vec<ty::Ty> {
-        variant_def
+    pub fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> ty::VariantDef {
+        let fields = variant_def
             .fields
             .iter()
             .map(|ty| self.lower_ty(ty, 1))
-            .collect_vec()
+            .collect();
+        ty::VariantDef::new(fields)
     }
 
     fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
@@ -258,31 +258,4 @@ pub fn lower_sort(sort: core::Sort) -> ty::Sort {
         core::Sort::Bool => ty::Sort::Bool,
         core::Sort::Loc => ty::Sort::Loc,
     }
-}
-
-pub fn lower_adt_def(
-    tcx: TyCtxt,
-    adt_def: &rustc_middle::ty::AdtDef,
-    sorts: &[ty::Sort],
-) -> ty::AdtDef {
-    let variants = adt_def.variants().iter().map(lower_variant_def).collect();
-
-    let generics = tcx
-        .generics_of(adt_def.did())
-        .params
-        .iter()
-        .map(|p| rustc_middle::ty::ParamTy { index: p.index, name: p.name })
-        .collect_vec();
-
-    ty::AdtDef::transparent(adt_def.did(), generics, sorts, variants)
-}
-
-fn lower_variant_def(variant_def: &rustc_middle::ty::VariantDef) -> ty::VariantDef {
-    let fields = variant_def
-        .fields
-        .iter()
-        .map(|field| field.did)
-        .collect_vec();
-
-    ty::VariantDef::new(fields)
 }

@@ -1,7 +1,10 @@
 use std::{cell::RefCell, iter};
 
 use itertools::Itertools;
-use liquid_rust_common::config::{AssertBehavior, CONFIG};
+use liquid_rust_common::{
+    config::{AssertBehavior, CONFIG},
+    index::IndexVec,
+};
 use liquid_rust_errors::LiquidRustSession;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -13,7 +16,7 @@ use crate::{
     core::{self, VariantIdx},
     intern::List,
     rustc,
-    ty::{self, fold::TypeFoldable},
+    ty::{self, fold::TypeFoldable, subst::BVarFolder},
 };
 
 pub struct GlobalEnv<'genv, 'tcx> {
@@ -22,7 +25,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: RefCell<FxHashMap<DefId, List<ty::Sort>>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
-    adt_fields: RefCell<FxHashMap<DefId, ty::Ty>>,
+    adt_variants: RefCell<FxHashMap<DefId, Option<IndexVec<VariantIdx, ty::VariantDef>>>>,
     check_asserts: AssertBehavior,
 }
 
@@ -34,7 +37,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             fn_sigs: RefCell::new(FxHashMap::default()),
             adt_sorts: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(FxHashMap::default()),
-            adt_fields: RefCell::new(FxHashMap::default()),
+            adt_variants: RefCell::new(FxHashMap::default()),
             tcx,
             sess,
             check_asserts,
@@ -62,19 +65,26 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn register_adt_def(&mut self, def_id: DefId, adt_def: core::AdtDef) {
         let rust_adt_def = self.tcx.adt_def(def_id);
-        let (mut cx, sorts) = ty::lowering::LoweringCtxt::from_adt_def(self, &adt_def);
-        if let core::AdtDefKind::Transparent { variants: Some(variants) } = &adt_def.kind {
-            for (variant, rust_variant) in iter::zip(variants, rust_adt_def.variants()) {
-                if let Some(variant) = variant {
-                    for (field_def, ty) in
-                        iter::zip(&rust_variant.fields, cx.lower_variant_def(variant))
-                    {
-                        self.adt_fields.borrow_mut().insert(field_def.did, ty);
-                    }
-                }
+        let (mut cx, sorts) = ty::lowering::LoweringCtxt::with_params(self, &adt_def.refined_by);
+        match &adt_def.kind {
+            core::AdtDefKind::Transparent { variants: Some(variants) } => {
+                let variants = iter::zip(variants, rust_adt_def.variants())
+                    .map(|(variant_def, rust_variant)| {
+                        if let Some(variant_def) = variant_def {
+                            Some(cx.lower_variant_def(variant_def))
+                        } else {
+                            Some(self.default_variant_def(rust_variant))
+                        }
+                    })
+                    .collect();
+                self.adt_variants.borrow_mut().insert(def_id, variants);
             }
+            core::AdtDefKind::Opaque => {
+                self.adt_variants.borrow_mut().insert(def_id, None);
+            }
+            _ => {}
         }
-        let adt_def = ty::lowering::lower_adt_def(self.tcx, &rust_adt_def, &sorts);
+        let adt_def = lower_adt_def(self.tcx, &rust_adt_def, &sorts);
         self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
@@ -98,29 +108,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .clone()
     }
 
-    fn field_ty(&self, adt_def_id: DefId, field_def_id: DefId) -> ty::Binders<ty::Ty> {
-        let adt_def = self.adt_def(adt_def_id);
-        let ty = self
-            .adt_fields
-            .borrow_mut()
-            .entry(field_def_id)
-            .or_insert_with(|| self.default_ty(field_def_id))
-            .clone();
-        ty::Binders::new(ty, adt_def.sorts().clone())
-    }
-
     pub fn check_asserts(&self) -> &AssertBehavior {
         &self.check_asserts
     }
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let adt_def = self.adt_def(def_id);
-        let variant = &adt_def.variants().unwrap()[variant_idx];
-        let args = variant
-            .fields
-            .iter()
-            .map(|field_def_id| self.field_ty(def_id, *field_def_id).skip_binders().clone())
-            .collect_vec();
+        let args = self.variant(def_id, variant_idx).fields.to_vec();
 
         let substs = adt_def
             .generics()
@@ -153,18 +147,33 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         substs: &[ty::Ty],
         exprs: &[ty::Expr],
     ) -> Vec<ty::Ty> {
-        let adt_def = self.adt_def(def_id);
-        adt_def
-            .variant(variant_idx)
-            .expect("cannot downcast opaque adt")
+        self.variant(def_id, variant_idx)
             .fields
             .iter()
-            .map(|field_def_id| {
-                self.field_ty(def_id, *field_def_id)
-                    .replace_bound_vars(exprs)
+            .map(|ty| {
+                ty.fold_with(&mut BVarFolder::new(exprs))
                     .replace_generic_types(substs)
             })
             .collect()
+    }
+
+    fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::VariantDef {
+        self.adt_variants
+            .borrow_mut()
+            .entry(def_id)
+            .or_insert_with(|| {
+                Some(
+                    self.tcx
+                        .adt_def(def_id)
+                        .variants()
+                        .iter()
+                        .map(|variant_def| self.default_variant_def(variant_def))
+                        .collect(),
+                )
+            })
+            .as_ref()
+            .expect("cannot get variant of opaque struct")[variant_idx]
+            .clone()
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -173,20 +182,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.refine_fn_sig(&fn_sig.unwrap(), &mut |_| ty::Pred::tt())
     }
 
-    pub fn default_adt_def(&self, def_id: DefId) -> ty::AdtDef {
+    fn default_adt_def(&self, def_id: DefId) -> ty::AdtDef {
         let adt_def = self.tcx.adt_def(def_id);
-        ty::lowering::lower_adt_def(self.tcx, &adt_def, &[])
-    }
-
-    pub fn adt_def_generics(&self, def_id: DefId) -> Vec<rustc_middle::ty::ParamTy> {
-        let generics = self
-            .tcx
-            .generics_of(def_id)
-            .params
-            .iter()
-            .map(|p| rustc_middle::ty::ParamTy { index: p.index, name: p.name })
-            .collect_vec();
-        generics
+        lower_adt_def(self.tcx, &adt_def, &[])
     }
 
     fn default_ty(&self, def_id: DefId) -> ty::Ty {
@@ -195,15 +193,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.refine_ty(&rust_ty.unwrap(), &mut |_| ty::Pred::tt())
     }
 
-    pub fn default_variant_def(
-        &self,
-        variant_def: &rustc_middle::ty::VariantDef,
-    ) -> ty::VariantDef {
+    fn default_variant_def(&self, variant_def: &rustc_middle::ty::VariantDef) -> ty::VariantDef {
         let fields = variant_def
             .fields
             .iter()
-            .map(|field| field.did)
-            .collect_vec();
+            .map(|field| self.default_ty(field.did))
+            .collect();
 
         ty::VariantDef::new(fields)
     }
@@ -269,4 +264,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
         }
     }
+}
+
+fn lower_adt_def(
+    tcx: TyCtxt,
+    adt_def: &rustc_middle::ty::AdtDef,
+    sorts: &[ty::Sort],
+) -> ty::AdtDef {
+    let generics = tcx
+        .generics_of(adt_def.did())
+        .params
+        .iter()
+        .map(|p| rustc_middle::ty::ParamTy { index: p.index, name: p.name })
+        .collect_vec();
+
+    ty::AdtDef::transparent(adt_def.did(), generics, sorts)
 }
