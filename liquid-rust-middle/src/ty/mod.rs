@@ -44,7 +44,7 @@ enum AdtDefKind {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
-    pub(crate) fields: List<Ty>,
+    pub(crate) fields: Vec<DefId>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -289,8 +289,8 @@ impl AdtDef {
         &self.0.generics
     }
 
-    pub fn variant(&self, variant_idx: VariantIdx) -> Option<Binders<VariantDef>> {
-        Some(Binders::new(self.variants()?[variant_idx].clone(), self.sorts().clone()))
+    pub fn variant(&self, variant_idx: VariantIdx) -> Option<&VariantDef> {
+        Some(&self.variants()?[variant_idx])
     }
 
     pub(crate) fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
@@ -306,17 +306,8 @@ impl AdtDef {
 }
 
 impl VariantDef {
-    pub fn new(fields: impl Into<List<Ty>>) -> Self {
-        VariantDef { fields: fields.into() }
-    }
-}
-
-impl Binders<VariantDef> {
-    pub fn fields(&self) -> impl Iterator<Item = Binders<Ty>> + '_ {
-        self.value
-            .fields
-            .iter()
-            .map(|ty| Binders::new(ty.clone(), self.params.clone()))
+    pub fn new(fields: Vec<DefId>) -> Self {
+        VariantDef { fields }
     }
 }
 

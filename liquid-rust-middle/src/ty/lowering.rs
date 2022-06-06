@@ -1,12 +1,11 @@
-use std::iter;
-
 use crate::{
     global_env::GlobalEnv,
-    ty::{self, DebruijnIndex, VariantDef},
+    ty::{self, DebruijnIndex},
 };
 use itertools::Itertools;
-use liquid_rust_common::index::{IndexGen, IndexVec};
+use liquid_rust_common::index::IndexGen;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::TyCtxt;
 
 use crate::core;
 
@@ -68,6 +67,15 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
+    pub fn from_adt_def(
+        genv: &'a GlobalEnv<'genv, 'tcx>,
+        adt_def: &core::AdtDef,
+    ) -> (Self, Vec<ty::Sort>) {
+        let mut cx = Self::new(genv);
+        let sorts = cx.lower_params(&adt_def.refined_by);
+        (cx, sorts)
+    }
+
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let mut cx = LoweringCtxt::new(genv);
 
@@ -93,46 +101,12 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub fn lower_adt_def(genv: &GlobalEnv, adt_def: &core::AdtDef) -> ty::AdtDef {
-        let mut cx = LoweringCtxt::new(genv);
-
-        let params = cx.lower_params(&adt_def.refined_by);
-
-        let generics = genv.adt_def_generics(adt_def.def_id);
-
-        match &adt_def.kind {
-            core::AdtDefKind::Transparent { variants: None, .. } => {
-                genv.default_adt_def(adt_def.def_id)
-            }
-            core::AdtDefKind::Transparent { variants: Some(variants), .. } => {
-                let rustc_adt_def = genv.tcx.adt_def(adt_def.def_id);
-                let variants = iter::zip(variants, rustc_adt_def.variants())
-                    .map(|(variant, rustc_variant)| {
-                        variant
-                            .as_ref()
-                            .map(|variant| cx.lower_variant_def(variant))
-                            .unwrap_or_else(|| genv.default_variant_def(rustc_variant))
-                    })
-                    .collect_vec();
-                ty::AdtDef::transparent(
-                    adt_def.def_id,
-                    generics,
-                    params,
-                    IndexVec::from_raw(variants),
-                )
-            }
-            core::AdtDefKind::Opaque { .. } => ty::AdtDef::opaque(adt_def.def_id, generics, params),
-        }
-    }
-
-    fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> VariantDef {
-        let fields = variant_def
+    pub fn lower_variant_def(&mut self, variant_def: &core::VariantDef) -> Vec<ty::Ty> {
+        variant_def
             .fields
             .iter()
             .map(|ty| self.lower_ty(ty, 1))
-            .collect_vec();
-
-        VariantDef::new(fields)
+            .collect_vec()
     }
 
     fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
@@ -181,7 +155,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
+    pub fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);
@@ -281,4 +255,31 @@ pub fn lower_sort(sort: core::Sort) -> ty::Sort {
         core::Sort::Bool => ty::Sort::Bool,
         core::Sort::Loc => ty::Sort::Loc,
     }
+}
+
+pub fn lower_adt_def(
+    tcx: TyCtxt,
+    adt_def: &rustc_middle::ty::AdtDef,
+    sorts: &[ty::Sort],
+) -> ty::AdtDef {
+    let variants = adt_def.variants().iter().map(lower_variant_def).collect();
+
+    let generics = tcx
+        .generics_of(adt_def.did())
+        .params
+        .iter()
+        .map(|p| rustc_middle::ty::ParamTy { index: p.index, name: p.name })
+        .collect_vec();
+
+    ty::AdtDef::transparent(adt_def.did(), generics, sorts, variants)
+}
+
+fn lower_variant_def(variant_def: &rustc_middle::ty::VariantDef) -> ty::VariantDef {
+    let fields = variant_def
+        .fields
+        .iter()
+        .map(|field| field.did)
+        .collect_vec();
+
+    ty::VariantDef::new(fields)
 }
