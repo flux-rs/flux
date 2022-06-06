@@ -31,7 +31,7 @@ pub struct AdtDefData {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct VariantDef {
+pub(crate) struct VariantDef {
     pub(crate) fields: List<Ty>,
     pub(crate) ret: Ty,
 }

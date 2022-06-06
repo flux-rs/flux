@@ -100,17 +100,14 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub fn lower_struct_def(
+    pub(crate) fn lower_struct_def(
         genv: &GlobalEnv,
         struct_def: &core::StructDef,
     ) -> Option<ty::VariantDef> {
         let mut cx = LoweringCtxt::new(genv);
         let sorts = cx.lower_params(&struct_def.refined_by);
         if let core::StructKind::Transparent { fields } = &struct_def.kind {
-            let fields = fields
-                .into_iter()
-                .map(|ty| cx.lower_ty(&ty, 1))
-                .collect_vec();
+            let fields = fields.iter().map(|ty| cx.lower_ty(ty, 1)).collect_vec();
 
             let substs = genv
                 .tcx
@@ -183,7 +180,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    pub fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
+    fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);

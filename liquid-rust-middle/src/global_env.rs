@@ -105,9 +105,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let sorts = self.sorts_of(def_id);
         let variant = self.variant(def_id, variant_idx);
-        let args = variant.fields.to_vec();
-        let ret = variant.ret.clone();
-        let sig = ty::FnSig::new(vec![], args, ret, vec![]);
+        let sig = ty::FnSig::new(vec![], variant.fields, variant.ret, vec![]);
         ty::Binders::new(sig, sorts)
     }
 
