@@ -66,15 +66,6 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub fn with_params(
-        genv: &'a GlobalEnv<'genv, 'tcx>,
-        params: &[core::Param],
-    ) -> (Self, Vec<ty::Sort>) {
-        let mut cx = Self::new(genv);
-        let sorts = cx.lower_params(params);
-        (cx, sorts)
-    }
-
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let mut cx = LoweringCtxt::new(genv);
 
