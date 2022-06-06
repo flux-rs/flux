@@ -57,20 +57,12 @@ pub struct Checker<'a, 'tcx, P> {
 }
 
 pub trait Phase: Sized {
-    type KvarGen<'a>: FnMut(&[Sort]) -> Pred
-    where
-        Self: 'a;
-
-    fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_>;
-
     fn constr_gen<'a, 'rcx, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
         tag: Tag,
-    ) -> ConstrGen<'a, 'rcx, 'tcx> {
-        ConstrGen::new(genv, rcx, self.kvar_gen(rcx), tag)
-    }
+    ) -> ConstrGen<'a, 'rcx, 'tcx>;
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
 
@@ -847,10 +839,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 }
 
 impl Phase for Inference<'_> {
-    type KvarGen<'a> = impl FnMut(&[Sort]) -> Pred where Self: 'a;
-
-    fn kvar_gen(&mut self, _rcx: &RefineCtxt) -> Self::KvarGen<'_> {
-        |_| Pred::Hole
+    fn constr_gen<'a, 'rcx, 'tcx>(
+        &'a mut self,
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        rcx: &'a mut RefineCtxt<'rcx>,
+        tag: Tag,
+    ) -> ConstrGen<'a, 'rcx, 'tcx> {
+        ConstrGen::new(genv, rcx, |_| Pred::Hole, tag)
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -886,11 +881,15 @@ impl Phase for Inference<'_> {
 }
 
 impl Phase for Check<'_> {
-    type KvarGen<'a> = impl FnMut(&[Sort]) -> Pred where Self: 'a;
-
-    fn kvar_gen(&mut self, rcx: &RefineCtxt) -> Self::KvarGen<'_> {
+    fn constr_gen<'a, 'rcx, 'tcx>(
+        &'a mut self,
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        rcx: &'a mut RefineCtxt<'rcx>,
+        tag: Tag,
+    ) -> ConstrGen<'a, 'rcx, 'tcx> {
         let scope = rcx.scope();
-        move |sorts| self.kvars.fresh(sorts, scope.iter())
+        let fresh_kvar = move |sorts: &[Sort]| self.kvars.fresh(sorts, scope.iter());
+        ConstrGen::new(genv, rcx, fresh_kvar, tag)
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
