@@ -309,7 +309,7 @@ impl Node {
         match self {
             Node::Ty(ty) => ty.clone(),
             Node::Adt(adt_def, variant_idx, fields) => {
-                let fn_sig = adt_def.variant_sig(*variant_idx);
+                let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
                 let actuals = fields.iter_mut().map(|node| node.fold(gen)).collect_vec();
                 let output = gen
                     .check_fn_call(&mut FxHashMap::default(), &fn_sig, &[], &actuals)

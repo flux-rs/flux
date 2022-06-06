@@ -44,7 +44,7 @@ enum AdtDefKind {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
-    fields: List<Ty>,
+    pub(crate) fields: List<Ty>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -289,26 +289,11 @@ impl AdtDef {
         &self.0.generics
     }
 
-    pub fn variant_sig(&self, variant_idx: VariantIdx) -> PolySig {
-        let variant = &self.variants().unwrap()[variant_idx];
-        let args = variant.fields.clone();
-        let substs = self.generics().iter().map(|p| Ty::param(*p)).collect_vec();
-
-        let bty = BaseTy::adt(self.clone(), substs);
-
-        let indices = (0..self.sorts().len())
-            .map(|idx| Expr::bvar(BoundVar::new(idx, INNERMOST)).into())
-            .collect_vec();
-        let ret = Ty::indexed(bty, indices);
-        let sig = FnSig::new(vec![], args, ret, vec![]);
-        Binders::new(sig, self.sorts().clone())
-    }
-
     pub fn variant(&self, variant_idx: VariantIdx) -> Option<Binders<VariantDef>> {
         Some(Binders::new(self.variants()?[variant_idx].clone(), self.sorts().clone()))
     }
 
-    fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
+    pub(crate) fn variants(&self) -> Option<&IndexVec<VariantIdx, VariantDef>> {
         match self.kind() {
             AdtDefKind::Transparent { variants, .. } => Some(variants),
             AdtDefKind::Opaque { .. } => None,

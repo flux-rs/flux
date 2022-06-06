@@ -82,7 +82,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
         let adt_def = self.adt_def(def_id);
-        adt_def.variant_sig(variant_idx)
+        let variant = &adt_def.variants().unwrap()[variant_idx];
+        let args = variant.fields.clone();
+        let substs = adt_def
+            .generics()
+            .iter()
+            .map(|p| ty::Ty::param(*p))
+            .collect_vec();
+
+        let bty = ty::BaseTy::adt(adt_def.clone(), substs);
+
+        let indices = (0..adt_def.sorts().len())
+            .map(|idx| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
+            .collect_vec();
+        let ret = ty::Ty::indexed(bty, indices);
+        let sig = ty::FnSig::new(vec![], args, ret, vec![]);
+        ty::Binders::new(sig, adt_def.sorts().clone())
     }
 
     pub fn downcast(
