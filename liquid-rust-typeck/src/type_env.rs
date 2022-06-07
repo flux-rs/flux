@@ -202,22 +202,11 @@ impl TypeEnv {
             gen.check_pred(subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
         }
 
-        let goto_env = bb_env.bindings.fmap(|ty| subst.apply(ty));
-
-        // Weakening
-        let locs = self
-            .bindings
-            .locs()
-            .filter(|loc| !goto_env.contains_loc(*loc))
-            .collect_vec();
-        for loc in locs {
-            self.bindings.remove(loc);
-        }
+        let bb_env = bb_env.bindings.fmap(|ty| subst.apply(ty));
 
         // Convert pointers to borrows
-        for path in self.bindings.paths().collect_vec() {
+        for (path, ty2) in bb_env.iter() {
             let ty1 = self.bindings.get(&path);
-            let ty2 = goto_env.get(&path);
             if let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) =
                 (ty1.kind(), ty2.kind())
             {
@@ -230,9 +219,9 @@ impl TypeEnv {
         }
 
         // Check subtyping
-        for (path, ty1) in self.bindings.iter() {
-            let ty2 = goto_env.get(&path);
-            gen.subtyping(ty1, &ty2);
+        for (path, ty2) in bb_env.iter() {
+            let ty1 = self.bindings.get(&path);
+            gen.subtyping(&ty1, ty2);
         }
     }
 }
