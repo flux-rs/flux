@@ -21,10 +21,10 @@ use crate::{
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
