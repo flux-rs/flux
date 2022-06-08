@@ -76,8 +76,8 @@ impl TypeEnv {
     }
 
     #[track_caller]
-    pub fn lookup_place(&mut self, gen: &mut ConstrGen, place: &Place) -> Ty {
-        self.bindings.lookup_place(gen, place).ty()
+    pub fn lookup_place(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
+        self.bindings.lookup_place(rcx, gen, place).ty()
     }
 
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
@@ -86,8 +86,8 @@ impl TypeEnv {
 
     // TODO(nilehmann) find a better name for borrow in this context
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut(&mut self, gen: &mut ConstrGen, place: &Place) -> Ty {
-        match self.bindings.lookup_place(gen, place) {
+    pub fn borrow_mut(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
+        match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, _) => Ty::ptr(path),
             LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
             LookupResult::Ref(RefKind::Shr, _) => {
@@ -96,18 +96,24 @@ impl TypeEnv {
         }
     }
 
-    pub fn borrow_shr(&mut self, gen: &mut ConstrGen, place: &Place) -> Ty {
-        let result = self.bindings.lookup_place(gen, place);
+    pub fn borrow_shr(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
+        let result = self.bindings.lookup_place(rcx, gen, place);
         Ty::mk_ref(RefKind::Shr, result.ty())
     }
 
-    pub fn write_place(&mut self, gen: &mut ConstrGen, place: &Place, new_ty: Ty) {
-        match self.bindings.lookup_place(gen, place) {
+    pub fn write_place(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+        new_ty: Ty,
+    ) {
+        match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
             LookupResult::Ref(RefKind::Mut, ty) => {
-                gen.subtyping(&new_ty, &ty);
+                gen.subtyping(rcx, &new_ty, &ty);
             }
             LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
@@ -115,8 +121,8 @@ impl TypeEnv {
         }
     }
 
-    pub fn move_place(&mut self, gen: &mut ConstrGen, place: &Place) -> Ty {
-        match self.bindings.lookup_place(gen, place) {
+    pub fn move_place(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
+        match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, ty) => {
                 self.bindings.update(&path, Ty::uninit());
                 ty
@@ -188,10 +194,10 @@ impl TypeEnv {
         }
     }
 
-    pub fn check_goto(mut self, gen: &mut ConstrGen, bb_env: &BasicBlockEnv) {
+    pub fn check_goto(mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, bb_env: &BasicBlockEnv) {
         // Look up path to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
-            self.bindings.lookup_path(gen, &path);
+            self.bindings.lookup_path(rcx, gen, &path);
         }
 
         // Infer subst
@@ -199,7 +205,7 @@ impl TypeEnv {
 
         // Check constraints
         for (param, constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
+            gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(param.name)])));
         }
 
         let bb_env = bb_env.bindings.fmap(|ty| subst.apply(ty));
@@ -211,7 +217,7 @@ impl TypeEnv {
                 (ty1.kind(), ty2.kind())
             {
                 let ty = self.bindings.get(ptr_path);
-                gen.subtyping(&ty, bound);
+                gen.subtyping(rcx, &ty, bound);
                 self.bindings.update(ptr_path, bound.clone());
                 self.bindings
                     .update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
@@ -221,7 +227,7 @@ impl TypeEnv {
         // Check subtyping
         for (path, ty2) in bb_env.iter() {
             let ty1 = self.bindings.get(&path);
-            gen.subtyping(&ty1, ty2);
+            gen.subtyping(rcx, &ty1, ty2);
         }
     }
 }

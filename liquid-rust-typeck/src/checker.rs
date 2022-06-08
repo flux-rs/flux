@@ -57,12 +57,12 @@ pub struct Checker<'a, 'tcx, P> {
 }
 
 pub trait Phase: Sized {
-    fn constr_gen<'a, 'rcx, 'tcx>(
+    fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
-        rcx: &'a mut RefineCtxt<'rcx>,
+        rcx: &RefineCtxt,
         tag: Tag,
-    ) -> ConstrGen<'a, 'rcx, 'tcx>;
+    ) -> ConstrGen<'a, 'tcx>;
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
 
@@ -290,7 +290,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     &mut self
                         .phase
                         .constr_gen(self.genv, rcx, Tag::Assign(stmt.source_info.span));
-                env.write_place(gen, place, ty);
+                env.write_place(rcx, gen, place, ty);
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double chould check here that the place is unfolded to
@@ -339,7 +339,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Call(terminator.source_info.span));
-                env.write_place(&mut gen, destination, ret);
+                env.write_place(rcx, &mut gen, destination, ret);
 
                 if let Some(target) = target {
                     Ok(vec![(*target, Guard::None)])
@@ -355,7 +355,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let mut gen = self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                let _ = env.move_place(&mut gen, place);
+                let _ = env.move_place(rcx, &mut gen, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
@@ -364,7 +364,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Assign(terminator.source_info.span));
-                env.write_place(&mut gen, place, ty);
+                env.write_place(rcx, &mut gen, place, ty);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -381,12 +381,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-        let ret_place_ty = env.lookup_place(gen, Place::RETURN);
+        let ret_place_ty = env.lookup_place(rcx, gen, Place::RETURN);
 
-        gen.subtyping(&ret_place_ty, &self.ret);
+        gen.subtyping(rcx, &ret_place_ty, &self.ret);
 
-        for constr in &self.ensures {
-            gen.check_constraint(env, constr);
+        for constraint in &self.ensures {
+            gen.check_constraint(rcx, env, constraint);
         }
         Ok(vec![])
     }
@@ -413,7 +413,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let output = self
             .phase
             .constr_gen(self.genv, rcx, Tag::Call(source_info.span))
-            .check_fn_call(env, &fn_sig, &substs, &actuals)
+            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
             .map_err(|_| {
                 self.genv
                     .sess
@@ -458,7 +458,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             AssertBehavior::Check => {
                 self.phase
                     .constr_gen(self.genv, rcx, Tag::Assert(msg, source_info.span))
-                    .check_pred(pred.clone());
+                    .check_pred(rcx, pred.clone());
 
                 Guard::Pred(pred)
             }
@@ -569,11 +569,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::MutRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                Ok(env.borrow_mut(gen, place))
+                Ok(env.borrow_mut(rcx, gen, place))
             }
             Rvalue::ShrRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                Ok(env.borrow_shr(gen, place))
+                Ok(env.borrow_shr(rcx, gen, place))
             }
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
@@ -654,7 +654,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
                 let (e1, e2) = (&exprs1[0], &exprs2[0]);
-                gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
+                gen.check_pred(rcx, Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
                 let bty = BaseTy::Int(*int_ty1);
                 let binding = Expr::binary_op(
@@ -676,7 +676,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
                 let (e1, e2) = (&indices1[0].expr, &indices2[0].expr);
-                gen.check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
+                gen.check_pred(rcx, Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
 
                 Ty::indexed(
                     BaseTy::Uint(*uint_ty1),
@@ -721,7 +721,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         if matches!(op, BinOp::Div) {
             self.phase
                 .constr_gen(self.genv, rcx, Tag::Div(source_info.span))
-                .check_pred(Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
+                .check_pred(rcx, Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
         }
         Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2).into()])
     }
@@ -800,12 +800,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                env.lookup_place(gen, p)
+                env.lookup_place(rcx, gen, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                env.move_place(gen, p)
+                env.move_place(rcx, gen, p)
             }
             Operand::Constant(c) => self.check_constant(c),
         };
@@ -842,10 +842,10 @@ impl Phase for Inference<'_> {
     fn constr_gen<'a, 'rcx, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
-        rcx: &'a mut RefineCtxt<'rcx>,
+        _rcx: &RefineCtxt,
         tag: Tag,
-    ) -> ConstrGen<'a, 'rcx, 'tcx> {
-        ConstrGen::new(genv, rcx, |_| Pred::Hole, tag)
+    ) -> ConstrGen<'a, 'tcx> {
+        ConstrGen::new(genv, |_| Pred::Hole, tag)
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -881,15 +881,15 @@ impl Phase for Inference<'_> {
 }
 
 impl Phase for Check<'_> {
-    fn constr_gen<'a, 'rcx, 'tcx>(
+    fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
-        rcx: &'a mut RefineCtxt<'rcx>,
+        rcx: &RefineCtxt,
         tag: Tag,
-    ) -> ConstrGen<'a, 'rcx, 'tcx> {
+    ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
         let fresh_kvar = move |sorts: &[Sort]| self.kvars.fresh(sorts, scope.iter());
-        ConstrGen::new(genv, rcx, fresh_kvar, tag)
+        ConstrGen::new(genv, fresh_kvar, tag)
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -932,8 +932,8 @@ impl Phase for Check<'_> {
 
         let fresh_kvar = |sorts: &[Sort]| ck.phase.kvars.fresh(sorts, scope.iter());
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        let gen = &mut ConstrGen::new(ck.genv, &mut rcx, fresh_kvar, tag);
-        env.check_goto(gen, bb_env);
+        let gen = &mut ConstrGen::new(ck.genv, fresh_kvar, tag);
+        env.check_goto(&mut rcx, gen, bb_env);
 
         first
     }

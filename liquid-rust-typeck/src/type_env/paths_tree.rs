@@ -10,7 +10,7 @@ use liquid_rust_middle::{
     ty::{AdtDef, BaseTy, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
 };
 
-use crate::constraint_gen::ConstrGen;
+use crate::{constraint_gen::ConstrGen, refine_tree::RefineCtxt};
 
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -32,16 +32,31 @@ impl LookupResult {
 }
 
 impl PathsTree {
-    pub fn lookup_place(&mut self, gen: &mut ConstrGen, place: &Place) -> LookupResult {
-        self.lookup_place_iter(gen, Loc::Local(place.local), &mut place.projection.iter().copied())
+    pub fn lookup_place(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+    ) -> LookupResult {
+        self.lookup_place_iter(
+            rcx,
+            gen,
+            Loc::Local(place.local),
+            &mut place.projection.iter().copied(),
+        )
     }
 
-    pub fn lookup_path(&mut self, gen: &mut ConstrGen, path: &Path) -> LookupResult {
+    pub fn lookup_path(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        path: &Path,
+    ) -> LookupResult {
         let mut proj = path
             .projection()
             .iter()
             .map(|field| PlaceElem::Field(*field));
-        self.lookup_place_iter(gen, path.loc, &mut proj)
+        self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
     }
 
     pub fn downcast(&mut self, genv: &GlobalEnv, path: &Path, variant_idx: VariantIdx) {
@@ -113,6 +128,7 @@ impl PathsTree {
 
     fn lookup_place_iter(
         &mut self,
+        rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         path: impl Into<Path>,
         place_proj: &mut impl Iterator<Item = PlaceElem>,
@@ -146,19 +162,20 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(gen, *mode, ty, place_proj);
+                                return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
                             _ => panic!(),
                         }
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(gen));
+            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen));
         }
     }
 
     fn lookup_place_iter_ty(
         &mut self,
+        rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         mut rk: RefKind,
         ty: &Ty,
@@ -172,7 +189,7 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (PlaceElem::Deref, TyKind::Ptr(ptr_path)) => {
-                    return match self.lookup_place_iter(gen, ptr_path.clone(), proj) {
+                    return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
                     }
@@ -313,21 +330,26 @@ impl Node {
         *self = Node::Ty(Ty::uninit());
     }
 
-    fn fold(&mut self, gen: &mut ConstrGen) -> Ty {
+    fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> Ty {
         match self {
             Node::Ty(ty) => ty.clone(),
             Node::Internal(NodeKind::Tuple, children) => {
-                let tys = children.iter_mut().map(|node| node.fold(gen)).collect_vec();
+                let tys = children
+                    .iter_mut()
+                    .map(|node| node.fold(rcx, gen))
+                    .collect_vec();
                 let ty = Ty::tuple(tys);
                 *self = Node::Ty(ty.clone());
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx), children) => {
                 let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
-                let actuals = children.iter_mut().map(|node| node.fold(gen)).collect_vec();
-                let output = gen
-                    .check_fn_call(&mut FxHashMap::default(), &fn_sig, &[], &actuals)
-                    .unwrap();
+                let actuals = children
+                    .iter_mut()
+                    .map(|node| node.fold(rcx, gen))
+                    .collect_vec();
+                let env = &mut FxHashMap::default();
+                let output = gen.check_fn_call(rcx, env, &fn_sig, &[], &actuals).unwrap();
                 assert!(output.ensures.is_empty());
                 *self = Node::Ty(output.ret.clone());
                 output.ret

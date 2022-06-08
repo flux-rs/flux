@@ -19,9 +19,8 @@ use crate::{
     type_env::PathMap,
 };
 
-pub struct ConstrGen<'a, 'rcx, 'tcx> {
+pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    rcx: &'a mut RefineCtxt<'rcx>,
     fresh_kvar: Box<dyn FnMut(&[Sort]) -> Pred + 'a>,
     tag: Tag,
 }
@@ -42,36 +41,37 @@ pub enum Tag {
     Goto(Option<Span>, BasicBlock),
 }
 
-impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
-    pub fn new<F>(
-        genv: &'a GlobalEnv<'a, 'tcx>,
-        rcx: &'a mut RefineCtxt<'rcx>,
-        fresh_kvar: F,
-        tag: Tag,
-    ) -> Self
+impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
+    pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
         F: FnMut(&[Sort]) -> Pred + 'a,
     {
-        ConstrGen { genv, rcx, fresh_kvar: Box::new(fresh_kvar), tag }
+        ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
     }
 
-    pub fn check_constraint<Env: PathMap>(&mut self, env: &mut Env, constraint: &Constraint) {
-        let mut constr = self.rcx.check_constr();
+    pub fn check_constraint<Env: PathMap>(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut Env,
+        constraint: &Constraint,
+    ) {
+        let mut constr = rcx.check_constr();
         check_constraint(self.genv, env, constraint, self.tag, &mut constr);
     }
 
-    pub fn check_pred(&mut self, pred: impl Into<Pred>) {
-        let mut constr = self.rcx.check_constr();
+    pub fn check_pred(&mut self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
+        let mut constr = rcx.check_constr();
         constr.push_head(pred, self.tag);
     }
 
-    pub fn subtyping(&mut self, ty1: &Ty, ty2: &Ty) {
-        let mut constr = self.rcx.check_constr();
+    pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
+        let mut constr = rcx.check_constr();
         subtyping(self.genv, &mut constr, ty1, ty2, self.tag)
     }
 
     pub fn check_fn_call<Env: PathMap>(
         &mut self,
+        rcx: &mut RefineCtxt,
         env: &mut Env,
         fn_sig: &PolySig,
         substs: &[Ty],
@@ -85,7 +85,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
             .map(|(actual, formal)| {
                 if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind() {
-                    self.rcx.unpack(actual, true)
+                    rcx.unpack(actual, true)
                 } else {
                     actual.clone()
                 }
@@ -105,7 +105,7 @@ impl<'a, 'rcx, 'tcx> ConstrGen<'a, 'rcx, 'tcx> {
             .replace_bound_vars(&exprs);
 
         // Check arguments
-        let constr = &mut self.rcx.check_constr();
+        let constr = &mut rcx.check_constr();
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
             if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
