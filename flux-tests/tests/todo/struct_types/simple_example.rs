@@ -4,13 +4,13 @@
 // The second method uses a ghost variable in the struct
 
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 mod rvec;
 use rvec::RVec;
 
-//#[lr::ty(struct<l: int{0 <= l}>{a: RVec<T>@l, b: RVec<U>@l})]
-struct Internal<T, U>{
+//#[flux::ty(struct<l: int{0 <= l}>{a: RVec<T>@l, b: RVec<U>@l})]
+struct Internal<T, U> {
     a: RVec<T>,
     b: RVec<U>,
 }
@@ -26,10 +26,7 @@ fn _construct_internal() -> Internal<i32, i32> {
     vec2.push(2);
     vec2.push(3);
 
-    Internal {
-        a: vec1,
-        b: vec2,
-    }
+    Internal { a: vec1, b: vec2 }
     // But this shouldn't
     /*vec2.push(4)
     Internal {
@@ -38,7 +35,7 @@ fn _construct_internal() -> Internal<i32, i32> {
     }*/
 }
 
-fn _use_internal(mut internal: Internal<i32,i32>) -> i32 {
+fn _use_internal(mut internal: Internal<i32, i32>) -> i32 {
     // This should be safe, because of the invariant
     if internal.a.len() > 1 {
         *internal.b.get_mut(1)
@@ -47,8 +44,8 @@ fn _use_internal(mut internal: Internal<i32,i32>) -> i32 {
     }
 }
 
-//#[lr::ty(struct<l: int{0 <= l}, l2: int{0 <= l2>}>{ga: RVec<T>@l, gb: RVec<U>@l2, ginv: (){v: l == l2}})]
-struct Ghost<T, U>{
+//#[flux::ty(struct<l: int{0 <= l}, l2: int{0 <= l2>}>{ga: RVec<T>@l, gb: RVec<U>@l2, ginv: (){v: l == l2}})]
+struct Ghost<T, U> {
     ga: RVec<T>,
     gb: RVec<U>,
     ginv: (),
@@ -65,11 +62,7 @@ fn _construct_ghost() -> Ghost<i32, i32> {
     vec2.push(3);
 
     // This should work
-    Ghost {
-        ga: vec1,
-        gb: vec2,
-        ginv: (),
-    }
+    Ghost { ga: vec1, gb: vec2, ginv: () }
     // But this shouldn't
     /*vec2.push(4);
     Ghost {
@@ -79,7 +72,7 @@ fn _construct_ghost() -> Ghost<i32, i32> {
     }*/
 }
 
-fn _use_ghost(mut ghost: Ghost<i32,i32>) -> i32 {
+fn _use_ghost(mut ghost: Ghost<i32, i32>) -> i32 {
     // This should be safe, because of the invariant
     if ghost.ga.len() > 1 {
         *ghost.gb.get_mut(1)

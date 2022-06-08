@@ -1,11 +1,11 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-#[lr::sig(fn(n: RVec<i32>{n > 0}) -> usize{x : x < n})]
+#[flux::sig(fn(n: RVec<i32>{n > 0}) -> usize{x : x < n})]
 pub fn min_index(vec: RVec<i32>) -> usize {
     let sz = vec.len();
     let mut res: usize = 0;

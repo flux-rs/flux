@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/my_option.rs"]
 mod my_option;
@@ -13,7 +13,7 @@ pub fn unwrap_or_else<T>(opt: MyOption<T>, val: T) -> T {
     }
 }
 
-#[lr::sig(fn() -> i32[1])]
+#[flux::sig(fn() -> i32[1])]
 pub fn test() -> i32 {
     let opt = MyOption::some(1);
     opt.unwrap()

@@ -1,13 +1,13 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
-#[lr::sig(fn(bool[true]) -> ())]
+#[flux::sig(fn(bool[true]) -> ())]
 pub fn assert(_b: bool) {}
 
 pub struct S {
-    #[lr::field(i32{v : v > 0})]
+    #[flux::field(i32{v : v > 0})]
     a: i32,
-    #[lr::field(i32)]
+    #[flux::field(i32)]
     b: i32,
 }
 

@@ -61,9 +61,9 @@ We use the nightly feature `register_tool` to register the `lr` tool in order to
 
 ```rust
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
-#[lr::ty(fn<n: int>(i32@n) -> i32{v: v > n})]
+#[flux::ty(fn<n: int>(i32@n) -> i32{v: v > n})]
 pub fn inc(x: i32) -> i32 {
     x + 1
 }

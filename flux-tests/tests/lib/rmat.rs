@@ -1,11 +1,11 @@
-#[lr::opaque]
-#[lr::refined_by(rows: int, cols: int)]
+#[flux::opaque]
+#[flux::refined_by(rows: int, cols: int)]
 pub struct RMat<T> {
     inner: Vec<Vec<T>>,
 }
 
 impl<T> RMat<T> {
-    #[lr::assume]
+    #[flux::assume]
     fn clone(n: usize, elem: T) -> Vec<T>
     where
         T: Copy,
@@ -17,8 +17,8 @@ impl<T> RMat<T> {
         res
     }
 
-    #[lr::assume]
-    #[lr::sig(fn(rows: usize, cols: usize, T) -> RMat<T>[rows, cols])]
+    #[flux::assume]
+    #[flux::sig(fn(rows: usize, cols: usize, T) -> RMat<T>[rows, cols])]
     pub fn new(rows: usize, cols: usize, elem: T) -> RMat<T>
     where
         T: Copy,
@@ -31,21 +31,21 @@ impl<T> RMat<T> {
         Self { inner }
     }
 
-    #[lr::assume]
-    #[lr::sig(fn(&RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v:0 <= v && v < n}) -> &T)]
+    #[flux::assume]
+    #[flux::sig(fn(&RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v:0 <= v && v < n}) -> &T)]
     pub fn get(&self, i: usize, j: usize) -> &T {
         &self.inner[i][j]
     }
 
-    #[lr::assume]
-    #[lr::sig(fn(&mut RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &mut T)]
+    #[flux::assume]
+    #[flux::sig(fn(&mut RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {
         &mut self.inner[i][j]
     }
 }
 
-#[lr::assume]
-#[lr::sig(fn() -> usize{v:false})]
+#[flux::assume]
+#[flux::sig(fn() -> usize{v:false})]
 pub fn die() -> usize {
     panic!("die")
 }

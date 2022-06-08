@@ -1,6 +1,6 @@
 #![allow(unused_attributes)]
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/rmat.rs"]
 pub mod rmat;
@@ -8,7 +8,7 @@ use rmat::RMat;
 
 /* step 1 */
 
-#[lr::sig(fn(&RMat<f32>[m,n], m: usize{0 < m}, n: usize{0 < n}) -> bool)]
+#[flux::sig(fn(&RMat<f32>[m,n], m: usize{0 < m}, n: usize{0 < n}) -> bool)]
 pub fn is_neg(arr2: &RMat<f32>, _m: usize, n: usize) -> bool {
     let mut j = 1;
     while j < n - 1 {
@@ -22,7 +22,7 @@ pub fn is_neg(arr2: &RMat<f32>, _m: usize, n: usize) -> bool {
 
 /* step 2 */
 
-#[lr::sig(fn(m: usize{0 < m}, n: usize{0 < n}, &RMat<f32>[m, n]) -> bool)]
+#[flux::sig(fn(m: usize{0 < m}, n: usize{0 < n}, &RMat<f32>[m, n]) -> bool)]
 pub fn unb1(m: usize, n: usize, arr2: &RMat<f32>) -> bool {
     let mut i = 0;
     let mut j = 1;
@@ -54,7 +54,7 @@ pub fn unb1(m: usize, n: usize, arr2: &RMat<f32>) -> bool {
 
 /* step 3 */
 
-#[lr::sig(fn(m: usize{0 < m}, n: usize{2 < n}, &RMat<f32>[m,n]) -> usize{v: 0 < v && v+1 < n})]
+#[flux::sig(fn(m: usize{0 < m}, n: usize{2 < n}, &RMat<f32>[m,n]) -> usize{v: 0 < v && v+1 < n})]
 pub fn enter_var(_m: usize, n: usize, arr2: &RMat<f32>) -> usize {
     let mut c = *arr2.get(0, 1);
     let mut j = 1;
@@ -73,7 +73,7 @@ pub fn enter_var(_m: usize, n: usize, arr2: &RMat<f32>) -> usize {
 
 /* step 4 */
 
-#[lr::sig(fn(m: usize, n: usize, &RMat<f32>[m, n], j: usize{0 < j && j < n}, i0: usize{0 < i0 && i0 < m}, f32) -> usize{v: 0 < v && v < m})]
+#[flux::sig(fn(m: usize, n: usize, &RMat<f32>[m, n], j: usize{0 < j && j < n}, i0: usize{0 < i0 && i0 < m}, f32) -> usize{v: 0 < v && v < m})]
 pub fn depart_var(m: usize, n: usize, arr2: &RMat<f32>, j: usize, i0: usize, r0: f32) -> usize {
     let mut i = i0;
     let mut r = r0;
@@ -94,7 +94,7 @@ pub fn depart_var(m: usize, n: usize, arr2: &RMat<f32>, j: usize, i0: usize, r0:
     i
 }
 
-#[lr::sig(fn(m: usize{0 < m}, n: usize{0 < n}, &RMat<f32>[m, n], j: usize{0 < j && j < n}) -> usize{v:0 < v && v < m})]
+#[flux::sig(fn(m: usize{0 < m}, n: usize{0 < n}, &RMat<f32>[m, n], j: usize{0 < j && j < n}) -> usize{v:0 < v && v < m})]
 pub fn init_ratio_i(m: usize, _n: usize, arr2: &RMat<f32>, j: usize) -> usize {
     let mut i = 1;
     while i < m {
@@ -107,7 +107,7 @@ pub fn init_ratio_i(m: usize, _n: usize, arr2: &RMat<f32>, j: usize) -> usize {
     rmat::die() // abort ("init_ratio: negative coefficients!")
 }
 
-#[lr::sig(fn(m: usize{0 < m}, n: usize{0 < n}, &RMat<f32>[m, n],
+#[flux::sig(fn(m: usize{0 < m}, n: usize{0 < n}, &RMat<f32>[m, n],
              j: usize{0 < j && j < n}, i:usize{0 < i && i < m}
             ) -> f32)]
 pub fn init_ratio_c(_m: usize, n: usize, arr2: &RMat<f32>, j: usize, i: usize) -> f32 {
@@ -116,7 +116,7 @@ pub fn init_ratio_c(_m: usize, n: usize, arr2: &RMat<f32>, j: usize, i: usize) -
 
 /* step 5 */
 
-#[lr::sig(fn(m: usize, n: usize, &mut RMat<f32>[m,n], i: usize{0 < i && i < m}, j: usize{0 < j && j < n}) -> i32)]
+#[flux::sig(fn(m: usize, n: usize, &mut RMat<f32>[m,n], i: usize{0 < i && i < m}, j: usize{0 < j && j < n}) -> i32)]
 fn row_op(m: usize, n: usize, arr2: &mut RMat<f32>, i: usize, j: usize) -> i32 {
     // norm(m, n, arr2, i, j);
     let c = *arr2.get(i, j);
@@ -144,7 +144,7 @@ fn row_op(m: usize, n: usize, arr2: &mut RMat<f32>, i: usize, j: usize) -> i32 {
     0
 }
 
-#[lr::sig(fn(m: usize{1 < m}, n: usize{2 < n}, &mut RMat<f32>[m, n]) -> i32)]
+#[flux::sig(fn(m: usize{1 < m}, n: usize{2 < n}, &mut RMat<f32>[m, n]) -> i32)]
 pub fn simplex(m: usize, n: usize, arr2: &mut RMat<f32>) -> i32 {
     while is_neg(arr2, m, n) {
         if unb1(m, n, arr2) {

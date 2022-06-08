@@ -1,11 +1,11 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-#[lr::sig(
+#[flux::sig(
 fn(&mut RVec<i32>[@n], bool) -> i32[0]
 requires 1 <= n
 )]

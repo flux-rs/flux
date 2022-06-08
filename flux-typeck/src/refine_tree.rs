@@ -28,7 +28,7 @@ pub struct RefineTree {
 /// program:
 ///
 /// ```ignore
-/// #[lr::sig(fn(i32[@a0], i32{v : v > a0})) -> i32]
+/// #[flux::sig(fn(i32[@a0], i32{v : v > a0})) -> i32]
 /// fn add(x: i32, y: i32) -> i32 {
 ///     x + y
 /// }

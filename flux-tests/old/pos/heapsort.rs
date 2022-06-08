@@ -1,12 +1,12 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
 //hola
-#[lr::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>) -> i32; vec:RVec<i32>@len)]
+#[flux::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>) -> i32; vec:RVec<i32>@len)]
 pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     let len = vec.len();
 
@@ -29,7 +29,7 @@ pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     0
 }
 
-#[lr::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>, usize{v: 0 <= v && v < len}, usize{v: 0 <= v && v < len}) -> i32; vec: RVec<i32>@len)]
+#[flux::ty(fn<len: int>(vec: RVec<i32>@len; ref<vec>, usize{v: 0 <= v && v < len}, usize{v: 0 <= v && v < len}) -> i32; vec: RVec<i32>@len)]
 pub fn shift_down(vec: &mut RVec<i32>, start: usize, end: usize) -> i32 {
     let mut root = start;
     loop {

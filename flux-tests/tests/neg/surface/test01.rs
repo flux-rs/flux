@@ -1,7 +1,7 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
-#[lr::sig(fn(bool, n: i32, m: i32{m >= n}) -> i32{v: v > 1})]
+#[flux::sig(fn(bool, n: i32, m: i32{m >= n}) -> i32{v: v > 1})]
 pub fn ref_join(b: bool, n: i32, m: i32) -> i32 { //~ ERROR postcondition might not hold
     let mut x = n;
     let mut y = m;

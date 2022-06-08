@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/nat.rs"]
 pub mod nat;
@@ -10,7 +10,7 @@ pub enum E<T> {
     C(i32),
 }
 
-#[lr::sig(fn(E<i32>) -> Nat)]
+#[flux::sig(fn(E<i32>) -> Nat)]
 pub fn foo(x: E<i32>) -> i32 { //~ ERROR postcondition might not hold
     match x {
         E::A(n) => n,

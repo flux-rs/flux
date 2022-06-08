@@ -1,19 +1,19 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 pub mod rvec;
 
 use rvec::RVec;
 
-#[lr::refined_by(n: int)]
+#[flux::refined_by(n: int)]
 pub struct Foo {
-    #[lr::field(RVec<usize>[@n])]
+    #[flux::field(RVec<usize>[@n])]
     inner: RVec<usize>,
 }
 
 impl Foo {
-    #[lr::sig(fn() -> Foo[0])]
+    #[flux::sig(fn() -> Foo[0])]
     pub fn new() -> Foo {
         Self { inner: RVec::new() }
     }

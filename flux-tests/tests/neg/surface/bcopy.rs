@@ -1,12 +1,12 @@
 #![allow(unused_attributes)]
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 pub mod rvec;
 use rvec::RVec;
 
-#[lr::sig(fn(&RVec<i32>[@n], &mut RVec<i32>[n]) -> i32)]
+#[flux::sig(fn(&RVec<i32>[@n], &mut RVec<i32>[n]) -> i32)]
 fn bcopy_aux(src: &RVec<i32>, dst: &mut RVec<i32>) -> i32 {
     let mut i = 0;
     let n = src.len();
@@ -18,7 +18,7 @@ fn bcopy_aux(src: &RVec<i32>, dst: &mut RVec<i32>) -> i32 {
     0
 }
 
-#[lr::sig(fn(&RVec<i32>[@n]) -> RVec<i32>[n])]
+#[flux::sig(fn(&RVec<i32>[@n]) -> RVec<i32>[n])]
 pub fn bcopy(src: &RVec<i32>) -> RVec<i32> {
     let sz = src.len();
     let mut dst = RVec::from_elem_n(0, sz);

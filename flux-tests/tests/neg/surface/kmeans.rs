@@ -1,6 +1,6 @@
 #![allow(unused_attributes)]
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 pub mod rvec;
@@ -8,14 +8,14 @@ use rvec::RVec;
 
 /////////////////////////////////////////////////////////////
 
-#[lr::assume]
-#[lr::sig(fn() -> f32)]
+#[flux::assume]
+#[flux::sig(fn() -> f32)]
 fn f32_max() -> f32 {
     f32::MAX
 }
 
-#[lr::assume]
-#[lr::sig(fn(f32, d:usize) -> f32)]
+#[flux::assume]
+#[flux::sig(fn(f32, d:usize) -> f32)]
 fn f32_div(n: f32, d: usize) -> f32 {
     n / (d as f32)
 }
@@ -23,7 +23,7 @@ fn f32_div(n: f32, d: usize) -> f32 {
 /////////////////////////////////////////////////////////////
 
 /// distance between two points
-#[lr::sig(fn(&RVec<f32>[@n], &RVec<f32>[n]) -> f32)]
+#[flux::sig(fn(&RVec<f32>[@n], &RVec<f32>[n]) -> f32)]
 fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
     let mut res = 0.0;
     let mut i = 0;
@@ -36,7 +36,7 @@ fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
 }
 
 /// adding two points (updates the first)
-#[lr::sig(fn(&mut RVec<f32>[@n], &RVec<f32>[n]) -> i32)]
+#[flux::sig(fn(&mut RVec<f32>[@n], &RVec<f32>[n]) -> i32)]
 fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
     let mut i = 0;
     let n = x.len();
@@ -50,7 +50,7 @@ fn add(x: &mut RVec<f32>, y: &RVec<f32>) -> i32 {
 }
 
 /// normalizing a point (cluster) by size
-#[lr::sig(fn(&mut RVec<f32>[@n], usize) -> i32)]
+#[flux::sig(fn(&mut RVec<f32>[@n], usize) -> i32)]
 fn normal(x: &mut RVec<f32>, w: usize) -> i32 {
     let mut i = 0;
     while i < x.len() {
@@ -62,7 +62,7 @@ fn normal(x: &mut RVec<f32>, w: usize) -> i32 {
 }
 
 /// creating (empty) 0-center for each cluster
-#[lr::sig(fn(n: usize, k: usize{0 < k}) -> RVec<RVec<f32>[n]>[k])]
+#[flux::sig(fn(n: usize, k: usize{0 < k}) -> RVec<RVec<f32>[n]>[k])]
 fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> { //~ ERROR postcondition might not hold
     let mut res = RVec::new();
     let mut i = 0;
@@ -74,7 +74,7 @@ fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> { //~ ERROR postcondition
 }
 
 /// finding the nearest center to a point
-#[lr::sig(
+#[flux::sig(
 fn(&RVec<f32>[@n], &RVec<RVec<f32>[n]>[@k]) -> usize{v:0 <= v && v < k}
 requires 0 < k
 )]
@@ -97,7 +97,7 @@ fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
 }
 
 // TODO: the `n` is not needed, except to prevent a silly parse error!
-#[lr::sig(fn(n: usize, &mut RVec<RVec<f32>[n]>[@k], &RVec<usize>[k]) -> i32)]
+#[flux::sig(fn(n: usize, &mut RVec<RVec<f32>[n]>[@k], &RVec<usize>[k]) -> i32)]
 fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>) -> i32 {
     let k = cs.len();
     let mut i = 0;
@@ -109,7 +109,7 @@ fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>)
 }
 
 /// updating the centers
-#[lr::sig(fn(n: usize, k: RVec<RVec<f32>[n]>{0 < k}, &RVec<RVec<f32>[n]>) -> RVec<RVec<f32>[n]>[k])]
+#[flux::sig(fn(n: usize, k: RVec<RVec<f32>[n]>{0 < k}, &RVec<RVec<f32>[n]>) -> RVec<RVec<f32>[n]>[k])]
 fn kmeans_step(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec<f32>> {
     let k = cs.len();
 
@@ -132,7 +132,7 @@ fn kmeans_step(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec
 }
 
 /// kmeans: iterating the center-update-steps
-#[lr::sig(fn(n: usize, k: RVec<RVec<f32>[n]>, &RVec<RVec<f32>[n]>, i32) -> RVec<RVec<f32>[n]>[k])]
+#[flux::sig(fn(n: usize, k: RVec<RVec<f32>[n]>, &RVec<RVec<f32>[n]>, i32) -> RVec<RVec<f32>[n]>[k])]
 pub fn kmeans(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>, iters: i32) -> RVec<RVec<f32>> {
     let mut i = 0;
     let mut res = cs;

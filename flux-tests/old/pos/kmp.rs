@@ -1,11 +1,11 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-#[lr::ty(fn<len: int{len > 0}>(&RVec<u8>@len) -> RVec<usize{v: v >=0 && v <= len}>@len)]
+#[flux::ty(fn<len: int{len > 0}>(&RVec<u8>@len) -> RVec<usize{v: v >=0 && v <= len}>@len)]
 fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     let m = p.len();
     let mut t = RVec::from_elem_n(0, m);
@@ -29,7 +29,7 @@ fn kmp_table(p: &RVec<u8>) -> RVec<usize> {
     t
 }
 
-#[lr::ty(fn<n: int{0 < n}, m: int{0 < m && m <= n }>(RVec<u8>@m, &RVec<u8>@n) -> usize)]
+#[flux::ty(fn<n: int{0 < n}, m: int{0 < m && m <= n }>(RVec<u8>@m, &RVec<u8>@n) -> usize)]
 pub fn kmp_search(mut pat: RVec<u8>, target: &RVec<u8>) -> usize {
     let mut t_i = 0;
     let mut p_i = 0;

@@ -1,16 +1,16 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/pair.rs"]
 mod pair;
 use pair::Pair;
 
-#[lr::sig(fn(bool[true]) -> i32[0])]
+#[flux::sig(fn(bool[true]) -> i32[0])]
 pub fn assert(_b: bool) -> i32 {
     0
 }
 
-#[lr::sig(fn() -> i32[0])]
+#[flux::sig(fn() -> i32[0])]
 pub fn foo() -> i32 {
     let p = Pair::new(0, 0);
     let fst = p.fst();

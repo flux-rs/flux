@@ -1,18 +1,18 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
-#[lr::alias(type Nat() = i32{v: 0 <= v})]
+#[flux::alias(type Nat() = i32{v: 0 <= v})]
 type _Nat = i32;
 
-#[lr::alias(type Lb(n) = i32{v: n <= v})]
+#[flux::alias(type Lb(n) = i32{v: n <= v})]
 type _Lb = i32;
 
-#[lr::sig(fn(x:Nat) -> Nat)]
+#[flux::sig(fn(x:Nat) -> Nat)]
 pub fn test0(x: i32) -> i32 { //~ ERROR postcondition
     x - 1
 }
 
-#[lr::sig(fn(x:Lb[0]) -> Lb[10])]
+#[flux::sig(fn(x:Lb[0]) -> Lb[10])]
 pub fn test2(x: i32) -> i32 { //~ ERROR postcondition
     x + 1
 }

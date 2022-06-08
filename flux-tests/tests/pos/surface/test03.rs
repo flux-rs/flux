@@ -1,7 +1,7 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
-#[lr::sig(
+#[flux::sig(
 fn(x: &strg i32[@n]) -> i32
 ensures x: i32[n+1]
 )]

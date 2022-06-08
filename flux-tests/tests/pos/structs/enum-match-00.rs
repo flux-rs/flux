@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/nat.rs"]
 pub mod nat;
@@ -9,7 +9,7 @@ pub enum MyOpt<T> {
     None,
 }
 
-#[lr::sig(fn (MyOpt<Nat>) -> Nat)]
+#[flux::sig(fn (MyOpt<Nat>) -> Nat)]
 pub fn test(x: MyOpt<i32>) -> i32 {
     match x {
         MyOpt::Some(n) => n,

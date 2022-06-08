@@ -1,18 +1,18 @@
 // Based on Prusti test/example
 
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-#[lr::sig(fn(lo: usize, hi: usize{lo < hi}) -> usize{v: lo <= v && v < hi})]
+#[flux::sig(fn(lo: usize, hi: usize{lo < hi}) -> usize{v: lo <= v && v < hi})]
 fn gen_range(low: usize, _high: usize) -> usize {
     low
 }
 
-#[lr::sig(fn(&mut RVec<i32>[@n]) -> usize)]
+#[flux::sig(fn(&mut RVec<i32>[@n]) -> usize)]
 pub fn knuth_shuffle(v: &mut RVec<i32>) -> usize {
     let l = v.len();
 

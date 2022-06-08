@@ -1,16 +1,16 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/pair.rs"]
 mod pair;
 use pair::Pair;
 
-#[lr::sig(fn(bool[true]) -> i32[0])]
+#[flux::sig(fn(bool[true]) -> i32[0])]
 pub fn assert(_b: bool) -> i32 {
     0
 }
 
-#[lr::sig(fn(Pair) -> i32[0])]
+#[flux::sig(fn(Pair) -> i32[0])]
 pub fn opaque_struct_01(p: Pair) -> i32 {
     let fst = p.fst();
     let snd = p.snd();

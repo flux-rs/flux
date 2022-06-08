@@ -1,14 +1,14 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 // Test of `mod` support
 // Uses usize instead of i32 to avoid subtleties with negative numbers
-#[lr::sig(fn(usize{v : v % 2 == 1}) -> usize[1])]
+#[flux::sig(fn(usize{v : v % 2 == 1}) -> usize[1])]
 pub fn input_must_be_odd(a: usize) -> usize {
     a % 2
 }
 
-#[lr::sig(fn() -> i32)]
+#[flux::sig(fn() -> i32)]
 pub fn test_mod() -> i32 {
     input_must_be_odd(3);
     input_must_be_odd(5);
@@ -16,7 +16,7 @@ pub fn test_mod() -> i32 {
     0
 }
 
-#[lr::sig(fn(a: i32{a >= 0}, b: i32{b >= 0}) -> i32[a % b])]
+#[flux::sig(fn(a: i32{a >= 0}, b: i32{b >= 0}) -> i32[a % b])]
 pub fn mod_signed_pos(a: i32, b: i32) -> i32 {
     a % b
 }

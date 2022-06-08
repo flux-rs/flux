@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/nat.rs"]
 pub mod nat;
@@ -10,7 +10,7 @@ pub enum E<T> {
     C(i32),
 }
 
-#[lr::sig(fn(E<Nat>) -> Nat)]
+#[flux::sig(fn(E<Nat>) -> Nat)]
 pub fn foo(x: E<i32>) -> i32 {
     match x {
         E::A(n) => n,

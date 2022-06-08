@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 pub enum MyOptionI32 {
     Some(i32),

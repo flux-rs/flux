@@ -1,11 +1,11 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 fn bar() -> i32 {
     0
 }
 
-#[lr::sig(fn(bool) -> ())]
+#[flux::sig(fn(bool) -> ())]
 pub fn foo(b: bool) {
     let _x;
     if b {

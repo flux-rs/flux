@@ -1,6 +1,6 @@
 #![allow(unused_attributes)]
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 pub mod rvec;
@@ -8,7 +8,7 @@ use rvec::RVec;
 
 // CREDIT: https://shane-o.dev/blog/binary-search-rust
 
-#[lr::sig(fn(i32, &RVec<i32>) -> usize)]
+#[flux::sig(fn(i32, &RVec<i32>) -> usize)]
 pub fn binary_search(k: i32, items: &RVec<i32>) -> usize {
     let size = items.len();
     if size <= 0 {

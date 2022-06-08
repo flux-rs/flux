@@ -197,7 +197,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .filter_map(|attr| {
                 if let AttrKind::Normal(attr_item, ..) = &attr.kind {
                     match &attr_item.path.segments[..] {
-                        [first, ..] if first.ident.as_str() == "lr" => Some(attr_item),
+                        [first, ..] if first.ident.as_str() == "flux" => Some(attr_item),
                         _ => None,
                     }
                 } else {

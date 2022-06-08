@@ -1,11 +1,11 @@
 #![feature(register_tool)]
-#![register_tool(lr)]
+#![register_tool(flux)]
 
 #[path = "../../lib/surface/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-#[lr::sig(fn(b: bool, n:i32, m:i32{n < m}) -> i32{v: 0 <= v})]
+#[flux::sig(fn(b: bool, n:i32, m:i32{n < m}) -> i32{v: 0 <= v})]
 pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     let mut x = n;
     let mut y = m;
@@ -19,7 +19,7 @@ pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     *r - n
 }
 
-#[lr::sig(
+#[flux::sig(
 fn(&mut RVec<i32>[@n], bool) -> i32[0]
 requires n >= 2
 )]
@@ -34,7 +34,7 @@ pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     0
 }
 
-#[lr::sig(fn(bool) -> i32{v: v > 0})]
+#[flux::sig(fn(bool) -> i32{v: v > 0})]
 pub fn test2(b: bool) -> i32 {
     let mut x = 1;
     let mut y = 1;
@@ -48,7 +48,7 @@ pub fn test2(b: bool) -> i32 {
     x + y
 }
 
-#[lr::sig(fn(bool) -> i32{v: v > 0})]
+#[flux::sig(fn(bool) -> i32{v: v > 0})]
 pub fn test3(b: bool) -> i32 {
     let mut x = 1;
     let mut y = 2;
