@@ -59,16 +59,6 @@ impl PathsTree {
         self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
     }
 
-    pub fn downcast(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        path: &Path,
-        variant_idx: VariantIdx,
-    ) {
-        self.get_node_mut(path).downcast(genv, rcx, variant_idx);
-    }
-
     pub fn get(&self, path: &Path) -> Ty {
         let mut node = self.map.get(&path.loc).unwrap();
         for f in path.projection() {
@@ -187,29 +177,39 @@ impl PathsTree {
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
     ) -> LookupResult {
+        use PlaceElem::*;
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
             match (elem, ty.kind()) {
-                (PlaceElem::Deref, TyKind::Ref(rk2, ty2)) => {
+                (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(*rk2);
                     ty = ty2.clone();
                 }
-                (PlaceElem::Deref, TyKind::Ptr(ptr_path)) => {
+                (Deref, TyKind::Ptr(ptr_path)) => {
                     return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
                     }
                 }
-                (PlaceElem::Field(field), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
+                (Field(field), TyKind::Tuple(tys)) => {
+                    ty = tys[field.as_usize()].clone();
+                }
+                (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
                     let fields = gen.genv.downcast(
-                        adt_def.def_id(),
+                        adt.def_id(),
                         VariantIdx::from_u32(0),
                         substs,
                         &idxs.to_exprs(),
                     );
                     ty = fields[field.as_usize()].clone();
                 }
-                _ => unreachable!(),
+                (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
+                    let tys =
+                        gen.genv
+                            .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs());
+                    ty = Ty::tuple(tys)
+                }
+                _ => unreachable!("{elem:?} {ty:?}"),
             }
         }
         LookupResult::Ref(rk, ty)

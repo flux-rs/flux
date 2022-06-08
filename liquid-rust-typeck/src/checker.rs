@@ -523,14 +523,17 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorGuaranteed> {
         for (target, guard) in successors {
             let mut rcx = rcx.breadcrumb();
-            let mut env = env.clone();
+            let env = env.clone();
             match guard {
                 Guard::None => {}
                 Guard::Pred(expr) => {
                     rcx.assume_pred(expr);
                 }
-                Guard::Match(place, variant_idx) => {
-                    env.downcast(self.genv, &mut rcx, &place, variant_idx);
+                Guard::Match(_place, _variant_idx) => {
+                    // Since places in mir have explicit downcast projecion we don't use this
+                    // extra control information and just assume places downcast to the correct variant
+                    // (guaranteed by rust type system). In the future we may explicitly track
+                    // the "active" variant.
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;

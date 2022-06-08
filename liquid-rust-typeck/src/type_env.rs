@@ -13,7 +13,7 @@ use liquid_rust_middle::{
     rustc::mir::Place,
     ty::{
         fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, ExprKind, Index, Param, Path,
-        RefKind, Ty, TyKind, VariantIdx,
+        RefKind, Ty, TyKind,
     },
 };
 
@@ -68,17 +68,6 @@ impl TypeEnv {
 
     pub fn into_infer(self, scope: Scope) -> TypeEnvInfer {
         TypeEnvInfer::new(scope, self)
-    }
-
-    pub fn downcast(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        place: &Place,
-        variant_idx: VariantIdx,
-    ) {
-        let path = Path::from_place(place).expect("downcasting is only allowed on paths");
-        self.bindings.downcast(genv, rcx, &path, variant_idx);
     }
 
     #[track_caller]
