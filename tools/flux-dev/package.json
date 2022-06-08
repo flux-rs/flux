@@ -1,0 +1,35 @@
+{
+    "name": "flux-dev",
+    "displayName": "flux-dev",
+    "description": "",
+    "version": "0.0.1",
+    "repository": "https://github.com/flux/flux",
+    "engines": {
+        "vscode": "^1.64.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "lrc",
+                "aliases": [
+                    "Liquid Rust Constraint",
+                    "lrc"
+                ],
+                "extensions": [
+                    ".lrc"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "lrc",
+                "scopeName": "lrc",
+                "path": "./syntaxes/lrc.tmLanguage.json"
+            }
+        ]
+    }
+}

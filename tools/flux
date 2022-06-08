@@ -47,7 +47,7 @@ fluxProc :: FilePath -> CreateProcess
 fluxProc file = proc fluxCmd (fluxFlags ++ [file])
   where
     fluxCmd :: String
-    fluxCmd = "liquid-rust"
+    fluxCmd = "flux"
     fluxFlags :: [String]
     fluxFlags = ["--crate-type=rlib", "--error-format=json"]
 
