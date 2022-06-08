@@ -323,7 +323,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                let discr_ty = self.check_operand(rcx, env, discr);
+                let discr_ty = self.check_operand(rcx, env, terminator.source_info, discr);
                 if discr_ty.is_integral() || discr_ty.is_bool() {
                     Ok(self.check_if(&discr_ty, targets))
                 } else {
@@ -359,7 +359,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
-                let ty = self.check_operand(rcx, env, value);
+                let ty = self.check_operand(rcx, env, terminator.source_info, value);
                 let ty = rcx.unpack(&ty, false);
                 let mut gen =
                     self.phase
@@ -402,7 +402,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<Ty, ErrorGuaranteed> {
         let actuals = args
             .iter()
-            .map(|op| self.check_operand(rcx, env, op))
+            .map(|op| self.check_operand(rcx, env, source_info, op))
             .collect_vec();
 
         let substs = substs
@@ -441,7 +441,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         expected: bool,
         msg: &'static str,
     ) -> Guard {
-        let ty = self.check_operand(rcx, env, cond);
+        let ty = self.check_operand(rcx, env, source_info, cond);
         let pred = if let TyKind::Indexed(BaseTy::Bool, indices) = ty.kind() {
             if expected {
                 indices[0].expr.clone()
@@ -559,13 +559,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_info: SourceInfo,
+        src_info: SourceInfo,
         rvalue: &Rvalue,
     ) -> Result<Ty, ErrorGuaranteed> {
         match rvalue {
-            Rvalue::Use(operand) => Ok(self.check_operand(rcx, env, operand)),
+            Rvalue::Use(operand) => Ok(self.check_operand(rcx, env, src_info, operand)),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                Ok(self.check_binary_op(rcx, env, source_info, *bin_op, op1, op2))
+                Ok(self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2))
             }
             Rvalue::MutRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
@@ -575,10 +575,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
                 Ok(env.borrow_shr(rcx, gen, place))
             }
-            Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, *un_op, op)),
+            Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, src_info, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
-                self.check_call(rcx, env, source_info, sig, substs, args)
+                self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
         }
@@ -593,8 +593,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         op1: &Operand,
         op2: &Operand,
     ) -> Ty {
-        let ty1 = self.check_operand(rcx, env, op1);
-        let ty2 = self.check_operand(rcx, env, op2);
+        let ty1 = self.check_operand(rcx, env, source_info, op1);
+        let ty2 = self.check_operand(rcx, env, source_info, op2);
 
         match bin_op {
             mir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
@@ -770,10 +770,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        src_info: SourceInfo,
         un_op: mir::UnOp,
         op: &Operand,
     ) -> Ty {
-        let ty = self.check_operand(rcx, env, op);
+        let ty = self.check_operand(rcx, env, src_info, op);
         match un_op {
             mir::UnOp::Not => {
                 match ty.kind() {
@@ -795,16 +796,26 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn check_operand(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, operand: &Operand) -> Ty {
+    fn check_operand(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        src_info: SourceInfo,
+        operand: &Operand,
+    ) -> Ty {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
+                let gen = &mut self
+                    .phase
+                    .constr_gen(self.genv, rcx, Tag::Fold(src_info.span));
                 env.lookup_place(rcx, gen, p)
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
+                let gen = &mut self
+                    .phase
+                    .constr_gen(self.genv, rcx, Tag::Fold(src_info.span));
                 env.move_place(rcx, gen, p)
             }
             Operand::Constant(c) => self.check_constant(c),

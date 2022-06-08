@@ -146,9 +146,15 @@ where
         match self {
             Constraint::Pred(pred, tag) => write!(f, "{}", PredTag(pred, tag)),
             Constraint::Conj(preds) => {
-                write!(f, "(and")?;
-                write!(PadAdapter::wrap_fmt(f, 2), "{}", preds.iter().join("\n"))?;
-                write!(f, "\n)")
+                match &preds[..] {
+                    [] => write!(f, "((true))"),
+                    [pred] => write!(f, "{}", pred),
+                    preds => {
+                        write!(f, "(and")?;
+                        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", preds.iter().join("\n"))?;
+                        write!(f, "\n)")
+                    }
+                }
             }
             Constraint::Guard(body, head) => {
                 write!(f, "(forall ((_ Unit) ({body}))")?;
@@ -174,15 +180,17 @@ where
         let PredTag(pred, tag) = self;
         match pred {
             Pred::And(preds) => {
-                if let [pred] = &preds[..] {
-                    write!(f, "{}", PredTag(pred, tag))
-                } else {
-                    write!(f, "(and")?;
-                    let mut w = PadAdapter::wrap_fmt(f, 2);
-                    for pred in preds {
-                        write!(w, "\n{}", PredTag(pred, tag))?;
+                match &preds[..] {
+                    [] => write!(f, "((true))"),
+                    [pred] => write!(f, "{}", PredTag(pred, tag)),
+                    _ => {
+                        write!(f, "(and")?;
+                        let mut w = PadAdapter::wrap_fmt(f, 2);
+                        for pred in preds {
+                            write!(w, "\n{}", PredTag(pred, tag))?;
+                        }
+                        write!(f, "\n)")
                     }
-                    write!(f, "\n)")
                 }
             }
             Pred::Expr(_) | Pred::KVar(..) => {
@@ -217,10 +225,10 @@ impl fmt::Display for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Pred::And(preds) => {
-                if let [pred] = &preds[..] {
-                    write!(f, "{}", pred)
-                } else {
-                    write!(f, "(and {})", preds.iter().join(" "))
+                match &preds[..] {
+                    [] => write!(f, "((true))"),
+                    [pred] => write!(f, "{}", pred),
+                    preds => write!(f, "(and {})", preds.iter().join(" ")),
                 }
             }
             Pred::KVar(kvid, vars) => {

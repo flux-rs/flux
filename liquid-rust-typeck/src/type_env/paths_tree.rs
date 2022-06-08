@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use liquid_rust_middle::{
     global_env::GlobalEnv,
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{AdtDef, BaseTy, Loc, Path, RefKind, Ty, TyKind, VariantIdx},
+    ty::{fold::TypeFoldable, AdtDef, BaseTy, Loc, Path, RefKind, Substs, Ty, TyKind, VariantIdx},
 };
 
 use crate::{constraint_gen::ConstrGen, refine_tree::RefineCtxt};
@@ -238,7 +238,7 @@ enum Node {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum NodeKind {
-    Adt(AdtDef, VariantIdx),
+    Adt(AdtDef, VariantIdx, Substs),
     Tuple,
     Uninit,
 }
@@ -305,12 +305,14 @@ impl Node {
                         .into_iter()
                         .map(|ty| Node::Ty(rcx.unpack(&ty, false)))
                         .collect();
-                    *self = Node::Internal(NodeKind::Adt(adt_def.clone(), variant_idx), fields);
+                    let substs = substs.with_holes();
+                    *self =
+                        Node::Internal(NodeKind::Adt(adt_def.clone(), variant_idx, substs), fields);
                 } else {
                     panic!("type cannot be downcasted: `{ty:?}`")
                 }
             }
-            Node::Internal(NodeKind::Adt(_, variant_idx2), _) => {
+            Node::Internal(NodeKind::Adt(_, variant_idx2, _), _) => {
                 debug_assert_eq!(variant_idx, *variant_idx2);
             }
             Node::Internal(..) => panic!("invalid downcast"),
@@ -349,14 +351,16 @@ impl Node {
                 *self = Node::Ty(ty.clone());
                 ty
             }
-            Node::Internal(NodeKind::Adt(adt_def, variant_idx), children) => {
+            Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
                 let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
                 let actuals = children
                     .iter_mut()
                     .map(|node| node.fold(rcx, gen))
                     .collect_vec();
                 let env = &mut FxHashMap::default();
-                let output = gen.check_fn_call(rcx, env, &fn_sig, &[], &actuals).unwrap();
+                let output = gen
+                    .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
+                    .unwrap();
                 assert!(output.ensures.is_empty());
                 *self = Node::Ty(output.ret.clone());
                 output.ret

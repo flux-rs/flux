@@ -71,6 +71,7 @@ fn report_errors(
             Tag::Rem(span) => genv.sess.emit_err(errors::RemError { span }),
             Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
             Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { msg, span }),
+            Tag::Fold(span) => genv.sess.emit_err(errors::FoldError { span }),
         });
     }
 
@@ -151,5 +152,12 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(code = "LIQUID", slug = "refineck-fold-error")]
+    pub struct FoldError {
+        #[primary_span]
+        pub span: Span,
     }
 }

@@ -4,6 +4,8 @@
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
+use crate::intern::List;
+
 use super::{
     BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
 };
@@ -374,5 +376,15 @@ impl TypeFoldable for Name {
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_fvar(*self)
+    }
+}
+
+impl TypeFoldable for List<Ty> {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        List::from_vec(self.iter().map(|ty| ty.fold_with(folder)).collect())
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.iter().for_each(|ty| ty.visit_with(visitor));
     }
 }

@@ -26,3 +26,6 @@ refineck-assert-error =
 
 refineck-param-inference-error =
     parameter inference error at function call
+
+refineck-fold-error =
+    fold error

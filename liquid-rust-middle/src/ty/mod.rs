@@ -619,6 +619,7 @@ impl Pred {
 
     pub fn is_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
+            || matches!(self, Pred::Kvars(kvars) if kvars.is_empty())
     }
 
     pub fn is_atom(&self) -> bool {
@@ -959,10 +960,10 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Pred::Kvars(kvars) => {
-                    if let [kvar] = &kvars[..] {
-                        w!("{:?}", kvar)
-                    } else {
-                        w!("({:?})", join!(" ∧ ", kvars))
+                    match &kvars[..] {
+                        [] => w!("true"),
+                        [kvar] => w!("{:?}", kvar),
+                        kvars => w!("{:?}", join!(" ∧ ", kvars)),
                     }
                 }
                 Pred::Expr(expr) => w!("{:?}", expr),
