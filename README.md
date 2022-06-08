@@ -15,8 +15,8 @@ The only way to test Flux is to build it from source.
 First you need to clone this repository
 
 ```bash
-git clone https://github.com/liquid-rust/liquid-rust
-cd liquid-rust
+git clone https://github.com/liquid-rust/flux
+cd flux
 ```
 
 To build the source you need a nightly version of rustc.
@@ -86,7 +86,7 @@ Ok(FixpointResult { tag: Safe })
 You can run the various tests in the `tests/pos` and `tests/neg` directory using
 
 ```
-$ cargo test -p flux-driver
+$ cargo test -p flux-tests
 ```
 
 ## Limitations
