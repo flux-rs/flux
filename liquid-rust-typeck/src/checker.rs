@@ -530,7 +530,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(self.genv, &place, variant_idx);
+                    env.downcast(self.genv, &mut rcx, &place, variant_idx);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
@@ -854,7 +854,7 @@ impl Phase for Inference<'_> {
 
     fn check_goto_join_point(
         ck: &mut Checker<Inference>,
-        _rcx: RefineCtxt,
+        mut rcx: RefineCtxt,
         env: TypeEnv,
         _src_info: Option<SourceInfo>,
         target: BasicBlock,
@@ -864,7 +864,7 @@ impl Phase for Inference<'_> {
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
         let modified = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, env),
+            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut rcx, env),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(scope));
                 true

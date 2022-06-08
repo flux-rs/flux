@@ -70,9 +70,15 @@ impl TypeEnv {
         TypeEnvInfer::new(scope, self)
     }
 
-    pub fn downcast(&mut self, genv: &GlobalEnv, place: &Place, variant_idx: VariantIdx) {
+    pub fn downcast(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        place: &Place,
+        variant_idx: VariantIdx,
+    ) {
         let path = Path::from_place(place).expect("downcasting is only allowed on paths");
-        self.bindings.downcast(genv, &path, variant_idx);
+        self.bindings.downcast(genv, rcx, &path, variant_idx);
     }
 
     #[track_caller]
@@ -343,9 +349,9 @@ impl TypeEnvInfer {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub fn join(&mut self, genv: &GlobalEnv, mut other: TypeEnv) -> bool {
+    pub fn join(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, mut other: TypeEnv) -> bool {
         // Unfold
-        self.bindings.unfold_with(genv, &mut other.bindings);
+        self.bindings.unfold_with(genv, rcx, &mut other.bindings);
 
         // Weakening
         let locs = self

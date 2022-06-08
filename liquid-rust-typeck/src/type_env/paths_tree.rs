@@ -59,8 +59,14 @@ impl PathsTree {
         self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
     }
 
-    pub fn downcast(&mut self, genv: &GlobalEnv, path: &Path, variant_idx: VariantIdx) {
-        self.get_node_mut(path).downcast(genv, variant_idx);
+    pub fn downcast(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        path: &Path,
+        variant_idx: VariantIdx,
+    ) {
+        self.get_node_mut(path).downcast(genv, rcx, variant_idx);
     }
 
     pub fn get(&self, path: &Path) -> Ty {
@@ -118,10 +124,10 @@ impl PathsTree {
         self.iter().map(|(path, _)| path)
     }
 
-    pub fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut PathsTree) {
+    pub fn unfold_with(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, other: &mut PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get_mut(loc) {
-                node1.unfold_with(genv, node2);
+                node1.unfold_with(genv, rcx, node2);
             }
         }
     }
@@ -141,7 +147,7 @@ impl PathsTree {
             let mut node = self.map.get_mut(&loc).unwrap();
 
             for field in path.projection() {
-                node = node.proj(gen.genv, *field);
+                node = node.proj(gen.genv, rcx, *field);
                 path_proj.push(*field);
             }
 
@@ -149,10 +155,10 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        node = node.proj(gen.genv, field);
+                        node = node.proj(gen.genv, rcx, field);
                     }
                     PlaceElem::Downcast(variant_idx) => {
-                        node.downcast(gen.genv, variant_idx);
+                        node.downcast(gen.genv, rcx, variant_idx);
                     }
                     PlaceElem::Deref => {
                         let ty = node.expect_ty();
@@ -252,51 +258,52 @@ impl Node {
         }
     }
 
-    fn unfold_with(&mut self, genv: &GlobalEnv, other: &mut Node) {
+    fn unfold_with(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, other: &mut Node) {
         match (&mut *self, &mut *other) {
             (Node::Ty(_), Node::Ty(_)) => {}
             (Node::Ty(_), Node::Internal(..)) => {
                 self.uninit();
-                self.split(genv);
-                self.unfold_with(genv, other);
+                self.split(genv, rcx);
+                self.unfold_with(genv, rcx, other);
             }
             (Node::Internal(..), Node::Ty(_)) => {
                 other.uninit();
-                other.split(genv);
-                self.unfold_with(genv, other);
+                other.split(genv, rcx);
+                self.unfold_with(genv, rcx, other);
             }
             (Node::Internal(_, children1), Node::Internal(_, children2)) => {
                 let max = usize::max(children1.len(), children2.len());
                 children1.resize(max, Node::Ty(Ty::uninit()));
                 children2.resize(max, Node::Ty(Ty::uninit()));
                 for (node1, node2) in iter::zip(children1, children2) {
-                    node1.unfold_with(genv, node2);
+                    node1.unfold_with(genv, rcx, node2);
                 }
             }
         };
     }
 
-    fn proj(&mut self, genv: &GlobalEnv, field: Field) -> &mut Node {
+    fn proj(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, field: Field) -> &mut Node {
         if let Node::Ty(_) = self {
-            self.split(genv);
+            self.split(genv, rcx);
         }
         match self {
             Node::Internal(NodeKind::Adt(..) | NodeKind::Uninit, children) => {
-                children.resize(field.as_usize() + 1, Node::Ty(Ty::uninit()));
+                let max = usize::max(field.as_usize() + 1, children.len());
+                children.resize(max, Node::Ty(Ty::uninit()));
                 &mut children[field.as_usize()]
             }
             _ => unreachable!(),
         }
     }
 
-    fn downcast(&mut self, genv: &GlobalEnv, variant_idx: VariantIdx) {
+    fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
         match self {
             Node::Ty(ty) => {
                 if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
                     let fields = genv
                         .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
                         .into_iter()
-                        .map(Node::Ty)
+                        .map(|ty| Node::Ty(rcx.unpack(&ty, false)))
                         .collect();
                     *self = Node::Internal(NodeKind::Adt(adt_def.clone(), variant_idx), fields);
                 } else {
@@ -310,7 +317,7 @@ impl Node {
         }
     }
 
-    fn split(&mut self, genv: &GlobalEnv) {
+    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) {
         let ty = self.expect_ty();
         match ty.kind() {
             TyKind::Tuple(tys) => {
@@ -318,8 +325,8 @@ impl Node {
                 *self = Node::Internal(NodeKind::Tuple, children);
             }
             // TODO(nilehmann) we should check here whether this is a struct and not an enum
-            TyKind::Indexed(..) => {
-                self.downcast(genv, VariantIdx::from_u32(0));
+            TyKind::Indexed(BaseTy::Adt(..), ..) => {
+                self.downcast(genv, rcx, VariantIdx::from_u32(0));
             }
             TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
             _ => panic!("type cannot be split: `{ty:?}`"),
