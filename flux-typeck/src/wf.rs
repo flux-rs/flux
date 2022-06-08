@@ -290,7 +290,7 @@ mod errors {
     use crate::ty;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "wf-sort-mismatch")]
+    #[error(code = "FLUX", slug = "wf-sort-mismatch")]
     pub struct SortMismatch {
         #[primary_span]
         #[label]
@@ -306,7 +306,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "wf-param-count-mismatch")]
+    #[error(code = "FLUX", slug = "wf-param-count-mismatch")]
     pub struct ParamCountMismatch {
         #[primary_span]
         #[label]

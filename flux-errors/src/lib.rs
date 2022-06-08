@@ -30,11 +30,11 @@ fluent_messages! {
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
 
-pub struct LiquidRustSession {
+pub struct FluxSession {
     pub parse_sess: ParseSess,
 }
 
-impl LiquidRustSession {
+impl FluxSession {
     pub fn new(error_format: ErrorOutputType, source_map: Rc<SourceMap>) -> Self {
         let emitter = emitter(error_format, source_map.clone());
         let handler = rustc_errors::Handler::with_emitter(true, None, emitter);

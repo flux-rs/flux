@@ -15,7 +15,7 @@
             {
                 "id": "lrc",
                 "aliases": [
-                    "Liquid Rust Constraint",
+                    "Flux Constraint",
                     "lrc"
                 ],
                 "extensions": [

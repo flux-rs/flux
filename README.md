@@ -1,4 +1,4 @@
-# LiquidRust
+# Flux
 
 ## Requirements
 
@@ -10,7 +10,7 @@ Be sure that the `liquid-fixpoint` and `z3` executables are in your $PATH.
 
 ## Build Instructions
 
-The only way to test LiquidRust is to build it from source.
+The only way to test Flux is to build it from source.
 
 First you need to clone this repository
 

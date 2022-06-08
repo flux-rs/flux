@@ -1,6 +1,6 @@
 // Based on http://goto.ucsd.edu:8090/index.html#?demo=permalink%2F1642157817_3971.hs
 // This shows two different ways of requiring that two vectors in a struct have the same length
-// The first method uses an internal specification, which translates nicely to liquid rust with pure values
+// The first method uses an internal specification, which translates nicely to flux rust with pure values
 // The second method uses a ghost variable in the struct
 
 #![feature(register_tool)]

@@ -100,14 +100,14 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-goto-error")]
+    #[error(code = "FLUX", slug = "refineck-goto-error")]
     pub struct GotoError {
         #[primary_span]
         pub span: Option<Span>,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-call-error")]
+    #[error(code = "FLUX", slug = "refineck-call-error")]
     pub struct CallError {
         #[primary_span]
         #[label]
@@ -115,7 +115,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-assign-error")]
+    #[error(code = "FLUX", slug = "refineck-assign-error")]
     pub struct AssignError {
         #[primary_span]
         #[label]
@@ -123,7 +123,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-ret-error")]
+    #[error(code = "FLUX", slug = "refineck-ret-error")]
     pub struct RetError {
         #[primary_span]
         #[label]
@@ -131,7 +131,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-div-error")]
+    #[error(code = "FLUX", slug = "refineck-div-error")]
     pub struct DivError {
         #[primary_span]
         #[label]
@@ -139,7 +139,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-rem-error")]
+    #[error(code = "FLUX", slug = "refineck-rem-error")]
     pub struct RemError {
         #[primary_span]
         #[label]
@@ -147,7 +147,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-assert-error")]
+    #[error(code = "FLUX", slug = "refineck-assert-error")]
     pub struct AssertError {
         #[primary_span]
         pub span: Span,
@@ -155,7 +155,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "refineck-fold-error")]
+    #[error(code = "FLUX", slug = "refineck-fold-error")]
     pub struct FoldError {
         #[primary_span]
         pub span: Span,

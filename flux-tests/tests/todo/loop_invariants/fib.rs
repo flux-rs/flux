@@ -22,7 +22,7 @@ fn fib_loop(n: i32) -> i32 {
     i
 }
 
-// For reference, below is recursive variant with explicit invariant using liquid-type: i: i32{x: 0 < x}, j: i32{y: 0 <= y}
+// For reference, below is recursive variant with explicit invariant using flux-type: i: i32{x: 0 < x}, j: i32{y: 0 <= y}
 #[flux::ty(fn(i32{x: 0 < x}) -> i32{x: 0 < x})]
 fn fib_recursive(n: i32) -> i32 {
     let mut k = n;

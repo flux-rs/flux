@@ -328,7 +328,7 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "resolver-unsupported-signature")]
+    #[error(code = "FLUX", slug = "resolver-unsupported-signature")]
     pub struct UnsupportedSignature {
         #[primary_span]
         #[label]
@@ -337,7 +337,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "resolver-unresolved-path")]
+    #[error(code = "FLUX", slug = "resolver-unresolved-path")]
     pub struct UnresolvedPath {
         #[primary_span]
         #[label]

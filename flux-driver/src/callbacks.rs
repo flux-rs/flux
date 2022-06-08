@@ -1,4 +1,4 @@
-use flux_errors::LiquidRustSession;
+use flux_errors::FluxSession;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -18,13 +18,12 @@ use rustc_session::config::ErrorOutputType;
 
 use crate::{collector::SpecCollector, mir_storage};
 
-/// Compiler callbacks for Liquid Rust.
 #[derive(Default)]
-pub(crate) struct LiquidCallbacks {
+pub(crate) struct FluxCallbacks {
     error_format: ErrorOutputType,
 }
 
-impl Callbacks for LiquidCallbacks {
+impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
         self.error_format = config.opts.error_format;
@@ -43,8 +42,7 @@ impl Callbacks for LiquidCallbacks {
         }
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let sess =
-                LiquidRustSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
+            let sess = FluxSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
             let _ = check_crate(tcx, &sess);
             sess.finish_diagnostics();
         });
@@ -53,7 +51,7 @@ impl Callbacks for LiquidCallbacks {
     }
 }
 
-fn check_crate(tcx: TyCtxt, sess: &LiquidRustSession) -> Result<(), ErrorGuaranteed> {
+fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     let mut genv = GlobalEnv::new(tcx, sess);
 
     let ck = CrateChecker::new(&mut genv)?;

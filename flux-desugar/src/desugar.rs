@@ -1,7 +1,7 @@
 use std::iter;
 
 use flux_common::{index::IndexGen, iter::IterExt};
-use flux_errors::LiquidRustSession;
+use flux_errors::FluxSession;
 use flux_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -14,7 +14,7 @@ use flux_middle::core::{
 };
 
 pub fn desugar_qualifier(
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     qualifier: surface::Qualifier,
 ) -> Result<Qualifier, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess);
@@ -26,7 +26,7 @@ pub fn desugar_qualifier(
 }
 
 pub fn resolve_sorts(
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     params: &surface::Params,
 ) -> Result<Vec<Sort>, ErrorGuaranteed> {
     params
@@ -38,7 +38,7 @@ pub fn resolve_sorts(
 
 pub fn desugar_struct_def(
     tcx: TyCtxt,
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     adt_def: surface::StructDef<Res>,
 ) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
@@ -63,7 +63,7 @@ pub fn desugar_struct_def(
 }
 
 pub fn desugar_enum_def(
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     enum_def: surface::EnumDef,
 ) -> Result<EnumDef, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess);
@@ -74,7 +74,7 @@ pub fn desugar_enum_def(
 }
 
 pub fn desugar_fn_sig(
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     refined_by: &impl AdtSortsMap,
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
@@ -121,7 +121,7 @@ pub struct DesugarCtxt<'a> {
 }
 
 struct ParamsCtxt<'a> {
-    sess: &'a LiquidRustSession,
+    sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
     params: Vec<Param>,
@@ -248,7 +248,7 @@ fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
     }
 }
 
-fn resolve_sort(sess: &LiquidRustSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
+fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
     if sort.name == SORTS.int {
         Ok(Sort::Int)
     } else if sort.name == sym::bool {
@@ -259,7 +259,7 @@ fn resolve_sort(sess: &LiquidRustSession, sort: surface::Ident) -> Result<Sort, 
 }
 
 impl ParamsCtxt<'_> {
-    fn new(sess: &LiquidRustSession) -> ParamsCtxt {
+    fn new(sess: &FluxSession) -> ParamsCtxt {
         ParamsCtxt {
             sess,
             name_gen: IndexGen::new(),
@@ -461,7 +461,7 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-unresolved-var")]
+    #[error(code = "FLUX", slug = "desugar-unresolved-var")]
     pub struct UnresolvedVar {
         #[primary_span]
         #[label]
@@ -476,7 +476,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-duplicate-param")]
+    #[error(code = "FLUX", slug = "desugar-duplicate-param")]
     pub struct DuplicateParam {
         #[primary_span]
         #[label]
@@ -491,7 +491,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-unresolved-sort")]
+    #[error(code = "FLUX", slug = "desugar-unresolved-sort")]
     pub struct UnresolvedSort {
         #[primary_span]
         #[label]
@@ -506,21 +506,21 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-int-too-large")]
+    #[error(code = "FLUX", slug = "desugar-int-too-large")]
     pub struct IntTooLarge {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-unexpected-literal")]
+    #[error(code = "FLUX", slug = "desugar-unexpected-literal")]
     pub struct UnexpectedLiteral {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-refined-type-param")]
+    #[error(code = "FLUX", slug = "desugar-refined-type-param")]
     pub struct RefinedTypeParam {
         #[primary_span]
         #[label]
@@ -528,7 +528,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "desugar-refined-float")]
+    #[error(code = "FLUX", slug = "desugar-refined-float")]
     pub struct RefinedFloat {
         #[primary_span]
         #[label]

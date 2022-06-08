@@ -454,7 +454,7 @@ fn emit_err<S: AsRef<str>, T>(
 ) -> Result<T, ErrorGuaranteed> {
     let mut diagnostic = tcx
         .sess
-        .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("LIQUID".to_string()));
+        .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("flux".to_string()));
     if let Some(span) = span {
         diagnostic.set_span(span);
     }

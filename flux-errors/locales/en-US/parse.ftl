@@ -2,10 +2,10 @@ parse-duplicated-attr =
     duplicated attribute `{$name}`
 
 parse-invalid-attr =
-    invalid liquid attribute
+    invalid flux attribute
 
 parse-cfg-error =
-    invalid liquid configuration: {$message}
+    invalid flux configuration: {$message}
 
 parse-syntax-err =
     syntax error: {$msg}

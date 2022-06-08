@@ -16,7 +16,7 @@ mod callbacks;
 mod collector;
 mod mir_storage;
 
-use callbacks::LiquidCallbacks;
+use callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
 
 /// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
@@ -27,14 +27,14 @@ fn sysroot() -> Option<String> {
     Some(format!("{}/toolchains/{}", home, toolchain))
 }
 
-/// Run Liquid Rust and return the exit status code.
+/// Run Flux Rust and return the exit status code.
 pub fn run_compiler(mut args: Vec<String>) -> i32 {
     // Add the sysroot path to the arguments.
     args.push("--sysroot".into());
-    args.push(sysroot().expect("Liquid Rust requires rustup to be built."));
+    args.push(sysroot().expect("Flux Rust requires rustup to be built."));
     // Add release mode to the arguments.
     args.push("-O".into());
     // Run the rust compiler with the arguments.
-    let mut callbacks = LiquidCallbacks::default();
+    let mut callbacks = FluxCallbacks::default();
     catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run())
 }

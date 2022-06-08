@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use flux_common::config::{AssertBehavior, CONFIG};
-use flux_errors::LiquidRustSession;
+use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -18,7 +18,7 @@ use crate::{
 
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
-    pub sess: &'genv LiquidRustSession,
+    pub sess: &'genv FluxSession,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     adt_sorts: RefCell<FxHashMap<DefId, List<ty::Sort>>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
@@ -27,7 +27,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv LiquidRustSession) -> Self {
+    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession) -> Self {
         let check_asserts = CONFIG.check_asserts;
 
         GlobalEnv {

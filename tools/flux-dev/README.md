@@ -1,6 +1,6 @@
 # flux-dev
 
-VS Code extension with language support for liquid rust intermediate representations
+VS Code extension with language support for flux rust intermediate representations
 
 ## Install
 

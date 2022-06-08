@@ -14,7 +14,7 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
-use flux_errors::LiquidRustSession;
+use flux_errors::FluxSession;
 use flux_middle::{
     core::{self, AdtSortsMap},
     rustc,
@@ -28,7 +28,7 @@ pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
 
 pub fn desugar_struct_def(
     tcx: TyCtxt,
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     struct_def: surface::StructDef,
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
@@ -38,7 +38,7 @@ pub fn desugar_struct_def(
 
 pub fn desugar_fn_sig(
     tcx: TyCtxt,
-    sess: &LiquidRustSession,
+    sess: &FluxSession,
     sorts: &impl AdtSortsMap,
     def_id: DefId,
     fn_sig: surface::FnSig,

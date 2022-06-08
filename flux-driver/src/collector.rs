@@ -4,7 +4,7 @@ use flux_common::{
     config::{self, AssertBehavior, CrateConfig},
     iter::IterExt,
 };
-use flux_errors::LiquidRustSession;
+use flux_errors::FluxSession;
 use flux_syntax::{
     parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
     ParseErrorKind, ParseResult,
@@ -23,7 +23,7 @@ use rustc_span::Span;
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
     specs: Specs,
-    sess: &'a LiquidRustSession,
+    sess: &'a FluxSession,
     error_guaranteed: Option<ErrorGuaranteed>,
 }
 
@@ -44,7 +44,7 @@ pub(crate) struct FnSpec {
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(
         tcx: TyCtxt<'tcx>,
-        sess: &'a LiquidRustSession,
+        sess: &'a FluxSession,
     ) -> Result<Specs, ErrorGuaranteed> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_guaranteed: None };
 
@@ -103,7 +103,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-fun attrs
 
@@ -119,7 +119,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         _def_id: LocalDefId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs)?;
         if let Some(alias) = attrs.alias() {
             // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
             self.specs.aliases.insert(alias.name, alias);
@@ -132,7 +132,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         let opaque = attrs.opaque();
         let refined_by = attrs.refined_by();
@@ -148,7 +148,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
         data: &VariantData,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error on field attrs if opaque
         // TODO(nilehmann) error if it has non-struct attrs
@@ -174,7 +174,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // TODO(atgeller) error if non-crate attributes
         // TODO(atgeller) error if >1 cfg attributes
 
-        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs)?;
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
         let crate_config = attrs.crate_config();
@@ -186,12 +186,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         attrs: &[Attribute],
     ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
-        let mut attrs = self.parse_liquid_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         Ok(attrs.field())
     }
 
-    fn parse_liquid_attrs(&mut self, attrs: &[Attribute]) -> Result<LiquidAttrs, ErrorGuaranteed> {
+    fn parse_flux_attrs(&mut self, attrs: &[Attribute]) -> Result<FluxAttrs, ErrorGuaranteed> {
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
@@ -204,13 +204,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     None
                 }
             })
-            .map(|attr_item| self.parse_liquid_attr(attr_item))
+            .map(|attr_item| self.parse_flux_attr(attr_item))
             .try_collect_exhaust()?;
 
-        Ok(LiquidAttrs::new(attrs))
+        Ok(FluxAttrs::new(attrs))
     }
 
-    fn parse_liquid_attr(&mut self, attr_item: &AttrItem) -> Result<LiquidAttr, ErrorGuaranteed> {
+    fn parse_flux_attr(&mut self, attr_item: &AttrItem) -> Result<FluxAttr, ErrorGuaranteed> {
         let segment = match &attr_item.path.segments[..] {
             [_, segment] => segment,
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
@@ -220,40 +220,40 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("alias", MacArgs::Delimited(span, _, tokens)) => {
                 let ty_alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
                 // println!("ALIAS: {:?}", ty_alias);
-                LiquidAttrKind::TypeAlias(ty_alias)
+                FluxAttrKind::TypeAlias(ty_alias)
             }
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
-                LiquidAttrKind::FnSig(fn_sig)
+                FluxAttrKind::FnSig(fn_sig)
             }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
-                LiquidAttrKind::Qualifier(qualifer)
+                FluxAttrKind::Qualifier(qualifer)
             }
             ("cfg", MacArgs::Delimited(_, _, _)) => {
-                match LiquidAttrCFG::parse_cfg(attr_item) {
+                match FluxAttrCFG::parse_cfg(attr_item) {
                     Err(error) => return self.emit_err(error),
                     Ok(mut cfg) => {
                         match cfg.try_into_crate_cfg() {
                             Err(error) => return self.emit_err(error),
-                            Ok(crate_cfg) => LiquidAttrKind::CrateConfig(crate_cfg),
+                            Ok(crate_cfg) => FluxAttrKind::CrateConfig(crate_cfg),
                         }
                     }
                 }
             }
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
                 let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
-                LiquidAttrKind::RefinedBy(refined_by)
+                FluxAttrKind::RefinedBy(refined_by)
             }
             ("field", MacArgs::Delimited(span, _, tokens)) => {
                 let ty = self.parse(tokens.clone(), span.entire(), parse_ty)?;
-                LiquidAttrKind::Field(ty)
+                FluxAttrKind::Field(ty)
             }
-            ("opaque", MacArgs::Empty) => LiquidAttrKind::Opaque,
-            ("assume", MacArgs::Empty) => LiquidAttrKind::Assume,
+            ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
+            ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
         };
-        Ok(LiquidAttr { kind, span: attr_item.span() })
+        Ok(FluxAttr { kind, span: attr_item.span() })
     }
 
     fn parse<T>(
@@ -276,7 +276,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn report_dups(&mut self, attrs: &LiquidAttrs) -> Result<(), ErrorGuaranteed> {
+    fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
         for (name, dups) in attrs.dups() {
             for attr in dups {
                 self.error_guaranteed = Some(
@@ -313,18 +313,18 @@ impl Specs {
 }
 
 #[derive(Debug)]
-struct LiquidAttrs {
-    map: HashMap<&'static str, Vec<LiquidAttr>>,
+struct FluxAttrs {
+    map: HashMap<&'static str, Vec<FluxAttr>>,
 }
 
 #[derive(Debug)]
-struct LiquidAttr {
-    kind: LiquidAttrKind,
+struct FluxAttr {
+    kind: FluxAttrKind,
     span: Span,
 }
 
 #[derive(Debug)]
-enum LiquidAttrKind {
+enum FluxAttrKind {
     Assume,
     Opaque,
     FnSig(surface::FnSig),
@@ -343,7 +343,7 @@ macro_rules! read_attr {
             .unwrap_or_else(|| vec![])
             .into_iter()
             .find_map(
-                |attr| if let LiquidAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
+                |attr| if let FluxAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
             )
     };
 }
@@ -357,18 +357,18 @@ macro_rules! read_all_attrs {
             .unwrap_or_else(|| vec![])
             .into_iter()
             .filter_map(
-                |attr| if let LiquidAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
+                |attr| if let FluxAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
             )
             .collect()
     };
 }
 
-impl LiquidAttrs {
-    fn new(attrs: Vec<LiquidAttr>) -> Self {
-        LiquidAttrs { map: attrs.into_iter().into_group_map_by(|attr| attr.kind.name()) }
+impl FluxAttrs {
+    fn new(attrs: Vec<FluxAttr>) -> Self {
+        FluxAttrs { map: attrs.into_iter().into_group_map_by(|attr| attr.kind.name()) }
     }
 
-    fn dups(&self) -> impl Iterator<Item = (&'static str, &[LiquidAttr])> {
+    fn dups(&self) -> impl Iterator<Item = (&'static str, &[FluxAttr])> {
         self.map
             .iter()
             .filter(|(_, attrs)| attrs.len() > 1)
@@ -408,17 +408,17 @@ impl LiquidAttrs {
     }
 }
 
-impl LiquidAttrKind {
+impl FluxAttrKind {
     fn name(&self) -> &'static str {
         match self {
-            LiquidAttrKind::Assume => "assume",
-            LiquidAttrKind::Opaque => "opaque",
-            LiquidAttrKind::FnSig(_) => "ty",
-            LiquidAttrKind::RefinedBy(_) => "refined_by",
-            LiquidAttrKind::Qualifier(_) => "qualifier",
-            LiquidAttrKind::Field(_) => "field",
-            LiquidAttrKind::TypeAlias(_) => "alias",
-            LiquidAttrKind::CrateConfig(_) => "crate_config",
+            FluxAttrKind::Assume => "assume",
+            FluxAttrKind::Opaque => "opaque",
+            FluxAttrKind::FnSig(_) => "ty",
+            FluxAttrKind::RefinedBy(_) => "refined_by",
+            FluxAttrKind::Qualifier(_) => "qualifier",
+            FluxAttrKind::Field(_) => "field",
+            FluxAttrKind::TypeAlias(_) => "alias",
+            FluxAttrKind::CrateConfig(_) => "crate_config",
         }
     }
 }
@@ -430,7 +430,7 @@ struct CFGSetting {
 }
 
 #[derive(Debug)]
-struct LiquidAttrCFG {
+struct FluxAttrCFG {
     map: HashMap<String, CFGSetting>,
 }
 
@@ -456,7 +456,7 @@ macro_rules! try_read_setting {
     };
 }
 
-impl LiquidAttrCFG {
+impl FluxAttrCFG {
     // TODO: Ugly that we have to access the collector for error reporting
     fn parse_cfg(attr_item: &AttrItem) -> Result<Self, errors::CFGError> {
         let mut cfg = Self { map: HashMap::new() };
@@ -537,7 +537,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "parse-duplicated-attr")]
+    #[error(code = "FLUX", slug = "parse-duplicated-attr")]
     pub struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
@@ -545,14 +545,14 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "parse-invalid-attr")]
+    #[error(code = "FLUX", slug = "parse-invalid-attr")]
     pub struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "parse-cfg-error")]
+    #[error(code = "FLUX", slug = "parse-cfg-error")]
     pub struct CFGError {
         #[primary_span]
         pub span: Span,
@@ -560,7 +560,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "LIQUID", slug = "parse-syntax-err")]
+    #[error(code = "FLUX", slug = "parse-syntax-err")]
     pub struct SyntaxErr {
         #[primary_span]
         pub span: Span,
