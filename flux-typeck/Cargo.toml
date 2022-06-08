@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name = "flux-typeck"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flux-common = { path = "../flux-common" }
+flux-errors = { path = "../flux-errors" }
+flux-fixpoint = { path = "../flux-fixpoint" }
+flux-middle = { path = "../flux-middle" }
+itertools = "0.10"
+tracing = "0.1"
+
+[package.metadata.rust-analyzer]
+rustc_private = true

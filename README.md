@@ -2,9 +2,9 @@
 
 ## Requirements
 
-* [rustup](https://rustup.rs/)
-* [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint)
-* [z3](https://github.com/Z3Prover/z3)
+- [rustup](https://rustup.rs/)
+- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint)
+- [z3](https://github.com/Z3Prover/z3)
 
 Be sure that the `liquid-fixpoint` and `z3` executables are in your $PATH.
 
@@ -31,25 +31,25 @@ cargo build
 
 ## Usage
 
-### liquid-rust binary
+### flux binary
 
-You can run the liquid-rust binary with `cargo run`.
-The liquid-rust binary is a [rustc driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface) (similar to how clippy works) meaning it uses rustc as a library to "drive" compilation performing aditional analysis along the way.
-In practice this means you can use liquid-rust as you would use rustc.
-For example, the following command checks the file `test.rs` (everythins after the `--` are the arguments to the liquid-rust binary)
+You can run the flux binary with `cargo run`.
+The flux binary is a [rustc driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface) (similar to how clippy works) meaning it uses rustc as a library to "drive" compilation performing aditional analysis along the way.
+In practice this means you can use flux as you would use rustc.
+For example, the following command checks the file `test.rs` (everythins after the `--` are the arguments to the flux binary)
 
 ```bash
 cargo run -- path/to/test.rs
 ```
 
-The liquid-rust binary accepts the same flags than rustc.
+The flux binary accepts the same flags than rustc.
 You could for example check a file as a library instead of a binary like so
 
 ```bash
 cargo run -- --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment liquid-rust passes some
+Additionally, at the moment flux passes some
 default flags (like `-O` and `-Cpanic=abort`) because
 otherwise the resulting mir will have features
 not yet supported.
@@ -86,9 +86,8 @@ Ok(FixpointResult { tag: Safe })
 You can run the various tests in the `tests/pos` and `tests/neg` directory using
 
 ```
-$ cargo test -p liquid-rust-driver
+$ cargo test -p flux-driver
 ```
-
 
 ## Limitations
 
