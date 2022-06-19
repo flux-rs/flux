@@ -17,7 +17,7 @@ pub fn ref_join(b: bool, n: i32, m: i32) -> i32 { //~ ERROR postcondition might 
 
 
 #[lr::sig(fn(x: &mut i32{v: 0 <= v}) -> ())]
-pub fn test4(x: &mut i32) { //~ ERROR postcondition might not hold
-    *x -= 1;
+pub fn test4(x: &mut i32) { 
+    *x -= 1; //~ ERROR missmatched type in assignment
 }
 
