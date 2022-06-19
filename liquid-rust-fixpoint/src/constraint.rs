@@ -109,6 +109,7 @@ newtype_index! {
         DEBUG_FORMAT = "a{}",
         const NAME0 = 0,
         const NAME1 = 1,
+        const NAME2 = 2,
     }
 }
 
@@ -366,7 +367,31 @@ pub(crate) static DEFAULT_QUALIFIERS: SyncLazy<Vec<Qualifier>> = SyncLazy::new(|
         name: String::from("Le1"),
     };
 
-    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+    // (qualif Add2 ((a int) (b int) (c int)) (a == b + c))
+    let add2 = Qualifier {
+        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
+        expr: Expr::BinaryOp(
+            BinOp::Eq,
+            Box::new(Expr::Var(NAME0)),
+            Box::new(Expr::BinaryOp(BinOp::Add, Box::new(Expr::Var(NAME1)), Box::new(Expr::Var(NAME2)))),
+        ),
+        name: String::from("Add2"),
+    };
+
+
+    // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
+    let sub2 = Qualifier {
+        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
+        expr: Expr::BinaryOp(
+            BinOp::Eq,
+            Box::new(Expr::Var(NAME0)),
+            Box::new(Expr::BinaryOp(BinOp::Add, Box::new(Expr::Var(NAME1)), Box::new(Expr::Var(NAME2)))),
+        ),
+        name: String::from("Sub2"),
+    };
+
+
+    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1, add2, sub2]
 });
 
 impl fmt::Display for Qualifier {
