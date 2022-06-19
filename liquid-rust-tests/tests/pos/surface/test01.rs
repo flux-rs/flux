@@ -61,3 +61,11 @@ pub fn test3(b: bool) -> i32 {
     }
     x + y
 }
+
+
+    
+#[lr::sig(fn(x: &mut i32{v: 0 <= v}) -> ())]
+pub fn test4(x: &mut i32) {
+    *x += 1;
+}
+
