@@ -67,6 +67,7 @@ fn report_errors(
             Tag::Call(span) => genv.sess.emit_err(errors::CallError { span }),
             Tag::Assign(span) => genv.sess.emit_err(errors::AssignError { span }),
             Tag::Ret => genv.sess.emit_err(errors::RetError { span: body_span }),
+            Tag::RetAt(span) => genv.sess.emit_err(errors::RetError { span }),
             Tag::Div(span) => genv.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => genv.sess.emit_err(errors::RemError { span }),
             Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),

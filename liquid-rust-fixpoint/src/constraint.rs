@@ -385,7 +385,7 @@ pub(crate) static DEFAULT_QUALIFIERS: SyncLazy<Vec<Qualifier>> = SyncLazy::new(|
         expr: Expr::BinaryOp(
             BinOp::Eq,
             Box::new(Expr::Var(NAME0)),
-            Box::new(Expr::BinaryOp(BinOp::Add, Box::new(Expr::Var(NAME1)), Box::new(Expr::Var(NAME2)))),
+            Box::new(Expr::BinaryOp(BinOp::Sub, Box::new(Expr::Var(NAME1)), Box::new(Expr::Var(NAME2)))),
         ),
         name: String::from("Sub2"),
     };
