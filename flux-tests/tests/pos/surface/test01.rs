@@ -19,10 +19,7 @@ pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     *r - n
 }
 
-#[flux::sig(
-fn(&mut RVec<i32>[@n], bool) -> i32[0]
-requires n >= 2
-)]
+#[flux::sig(fn(&mut RVec<i32>[@n], bool) -> i32[0] requires n >= 2)]
 pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     let r;
     if b {
@@ -62,10 +59,7 @@ pub fn test3(b: bool) -> i32 {
     x + y
 }
 
-
-    
-#[lr::sig(fn(x: &mut i32{v: 0 <= v}) -> ())]
+#[flux::sig(fn(x: &mut i32{v: 0 <= v}) -> ())]
 pub fn test4(x: &mut i32) {
     *x += 1;
 }
-
