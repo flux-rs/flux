@@ -381,11 +381,14 @@ pub(crate) static DEFAULT_QUALIFIERS: SyncLazy<Vec<Qualifier>> = SyncLazy::new(|
         expr: Expr::BinaryOp(
             BinOp::Eq,
             Box::new(Expr::Var(NAME0)),
-            Box::new(Expr::BinaryOp(BinOp::Add, Box::new(Expr::Var(NAME1)), Box::new(Expr::Var(NAME2)))),
+            Box::new(Expr::BinaryOp(
+                BinOp::Add,
+                Box::new(Expr::Var(NAME1)),
+                Box::new(Expr::Var(NAME2)),
+            )),
         ),
         name: String::from("Add2"),
     };
-
 
     // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
     let sub2 = Qualifier {
@@ -393,11 +396,14 @@ pub(crate) static DEFAULT_QUALIFIERS: SyncLazy<Vec<Qualifier>> = SyncLazy::new(|
         expr: Expr::BinaryOp(
             BinOp::Eq,
             Box::new(Expr::Var(NAME0)),
-            Box::new(Expr::BinaryOp(BinOp::Sub, Box::new(Expr::Var(NAME1)), Box::new(Expr::Var(NAME2)))),
+            Box::new(Expr::BinaryOp(
+                BinOp::Sub,
+                Box::new(Expr::Var(NAME1)),
+                Box::new(Expr::Var(NAME2)),
+            )),
         ),
         name: String::from("Sub2"),
     };
-
 
     vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1, add2, sub2]
 });
