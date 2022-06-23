@@ -30,7 +30,7 @@ main = do
   -- print res
   let ls = T.lines (T.decodeUtf8 res)
   -- print ls
-  let ls' = [ l | l <- ls, T.isInfixOf "error[LIQUID]" l ]
+  let ls' = [ l | l <- ls, T.isInfixOf "error[FLUX]" l ]
   -- print ls'
   let jIns = [ e | l <- ls', e <- Mb.maybeToList (tDecode l) ]
   -- print jIns
@@ -47,7 +47,7 @@ fluxProc :: FilePath -> CreateProcess
 fluxProc file = proc fluxCmd (fluxFlags ++ [file])
   where
     fluxCmd :: String
-    fluxCmd = "liquid-rust"
+    fluxCmd = "flux"
     fluxFlags :: [String]
     fluxFlags = ["--crate-type=rlib", "--error-format=json"]
 

@@ -1,14 +1,14 @@
 [workspace]
 
 members = [
-    "liquid-rust",
-    "liquid-rust-common",
-    "liquid-rust-desugar",
-    "liquid-rust-driver",
-    "liquid-rust-errors",
-    "liquid-rust-fixpoint",
-    "liquid-rust-middle",
-    "liquid-rust-syntax",
-    "liquid-rust-typeck",
-    "liquid-rust-tests",
+    "flux",
+    "flux-common",
+    "flux-desugar",
+    "flux-driver",
+    "flux-errors",
+    "flux-fixpoint",
+    "flux-middle",
+    "flux-syntax",
+    "flux-typeck",
+    "flux-tests",
 ]

@@ -1,0 +1,15 @@
+[package]
+edition = "2021"
+name = "flux"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flux-common = { path = "../flux-common" }
+flux-driver = { path = "../flux-driver" }
+tracing-subscriber = { version = "0.3", features = ["json"] }
+
+[dependencies.tracing]
+features = ["max_level_debug", "release_max_level_warn"]
+version = "0.1"

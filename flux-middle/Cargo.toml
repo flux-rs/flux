@@ -1,0 +1,16 @@
+[package]
+edition = "2021"
+name = "flux-middle"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dashmap = { version = "4.0.2", features = ["raw-api"] }
+flux-common = { path = "../flux-common" }
+flux-errors = { path = "../flux-errors" }
+flux-fixpoint = { path = "../flux-fixpoint" }
+itertools = "0.10"
+
+[package.metadata.rust-analyzer]
+rustc_private = true
