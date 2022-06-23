@@ -319,13 +319,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ok(())
     }
 
-    fn is_return(term: &Terminator) -> bool {
-        match term.kind {
-            TerminatorKind::Return => true,
-            _ => false,
-        }
-    }
-
     fn is_stmt_nop(stmt: &Statement) -> bool {
         match stmt.kind {
             StatementKind::Nop => true,
@@ -343,7 +336,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn is_bb_ret(&self, bb: BasicBlock) -> bool {
         match &self.body.basic_blocks[bb].terminator {
             None => false,
-            Some(term) => Self::is_return(term),
+            Some(term) => matches!(term.kind, TerminatorKind::Return),
         }
     }
 
