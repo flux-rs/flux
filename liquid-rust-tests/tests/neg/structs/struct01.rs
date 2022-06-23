@@ -14,7 +14,7 @@ pub struct Foo {
 
 impl Foo {
     #[lr::sig(fn() -> Foo[10])]
-    pub fn new() -> Foo { //~ ERROR postcondition might not hold
-        Self { inner: RVec::new() }
+    pub fn new() -> Foo {
+        Self { inner: RVec::new() } //~ ERROR postcondition might not hold
     }
 }

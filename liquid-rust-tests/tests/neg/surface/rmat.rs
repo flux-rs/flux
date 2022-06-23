@@ -16,7 +16,7 @@ pub struct RMat {
 
 impl RMat {
     #[lr::sig(fn(rows: usize{rows >= 0}, cols: usize{cols >= 0}, f32) -> RMat[rows, cols])]
-    pub fn new(rows: usize, cols: usize, elem: f32) -> RMat { //~ ERROR postcondition might not hold
+    pub fn new(rows: usize, cols: usize, elem: f32) -> RMat {
         let mut inner = RVec::new();
         let mut i = 0;
         while i <= rows {
@@ -25,11 +25,11 @@ impl RMat {
             i += 1;
         }
         Self { cols, inner }
-    }
+    } //~ ERROR postcondition might not hold
 
     #[lr::sig(fn() -> RMat[10, 300])]
-    pub fn empty() -> RMat { //~ ERROR postcondition might not hold
-        Self { cols: 10, inner: RVec::new() }
+    pub fn empty() -> RMat {
+        Self { cols: 10, inner: RVec::new() } //~ ERROR postcondition might not hold
     }
 
     #[lr::sig(fn(&RMat[@m, @n], usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &f32)]

@@ -2,7 +2,7 @@
 #![register_tool(lr)]
 
 #[lr::sig(fn(n:i32{0 < n}) -> i32{x: 1 < x})]
-pub fn fib_loop(n: i32) -> i32 { //~ ERROR postcondition might not hold
+pub fn fib_loop(n: i32) -> i32 {
     let mut k = n;
     let mut i = 1;
     let mut j = 1;
@@ -12,5 +12,5 @@ pub fn fib_loop(n: i32) -> i32 { //~ ERROR postcondition might not hold
         i = tmp;
         k -= 1;
     }
-    i
+    i //~ ERROR postcondition might not hold
 }

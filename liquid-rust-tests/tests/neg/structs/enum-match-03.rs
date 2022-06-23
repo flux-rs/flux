@@ -11,9 +11,9 @@ pub enum E<T> {
 }
 
 #[lr::sig(fn(E<i32>) -> Nat)]
-pub fn foo(x: E<i32>) -> i32 { //~ ERROR postcondition might not hold
+pub fn foo(x: E<i32>) -> i32 {
     match x {
-        E::A(n) => n,
+        E::A(n) => n, //~ ERROR postcondition might not hold
         _ => 0,
     }
 }

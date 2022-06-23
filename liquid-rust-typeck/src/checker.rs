@@ -265,11 +265,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             dbg::statement!("start", stmt, rcx, env);
             self.check_statement(&mut rcx, &mut env, stmt)?;
             dbg::statement!("end", stmt, rcx, env);
-            latest_src_info = Some(stmt.source_info);
+            if !Self::is_stmt_nop(stmt) {
+                latest_src_info = Some(stmt.source_info);
+            }
         }
+
         if let Some(terminator) = &data.terminator {
             dbg::terminator!("start", terminator, rcx, env);
-            let successors = self.check_terminator(&mut rcx, &mut env, terminator)?;
+            let successors =
+                self.check_terminator(&mut rcx, &mut env, terminator, latest_src_info)?;
             dbg::terminator!("end", terminator, rcx, env);
 
             self.snapshots[bb] = Some(rcx.snapshot());
@@ -322,12 +326,29 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn is_exit(&self, bb: BasicBlock) -> bool {
-        let bb_data = &self.body.basic_blocks[bb];
-        match &bb_data.terminator {
+    fn is_stmt_nop(stmt: &Statement) -> bool {
+        match stmt.kind {
+            StatementKind::Nop => true,
+            _ => false,
+        }
+    }
+
+    fn is_bb_nop(&self, bb: BasicBlock) -> bool {
+        self.body.basic_blocks[bb]
+            .statements
+            .iter()
+            .all(|stmt| Self::is_stmt_nop(stmt))
+    }
+
+    fn is_bb_ret(&self, bb: BasicBlock) -> bool {
+        match &self.body.basic_blocks[bb].terminator {
             None => false,
             Some(term) => Self::is_return(term),
         }
+    }
+
+    fn is_exit(&self, bb: BasicBlock) -> bool {
+        self.is_bb_nop(bb) && self.is_bb_ret(bb)
     }
 
     /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
@@ -339,9 +360,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
+        src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         match &terminator.kind {
-            TerminatorKind::Return => self.check_ret(rcx, env, None),
+            TerminatorKind::Return => {
+                let tag = match src_info {
+                    Some(info) => Tag::RetAt(info.span),
+                    None => Tag::Ret,
+                };
+                self.check_ret(rcx, env, tag)
+            }
             TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -401,13 +429,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        tag: Option<Tag>,
+        tag: Tag,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
-        let ctag = match tag {
-            Some(t) => t,
-            None => Tag::Ret,
-        };
-        let gen = &mut self.phase.constr_gen(self.genv, rcx, ctag);
+        let gen = &mut self.phase.constr_gen(self.genv, rcx, tag);
         let ret_place_ty = env.lookup_place(gen, Place::RETURN);
 
         gen.subtyping(&ret_place_ty, &self.ret);
@@ -573,12 +597,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         target: BasicBlock,
     ) -> Result<(), ErrorGuaranteed> {
         if self.is_exit(target) {
-            // println!("AAAAARGH {:?} at {:?}", target, src_info);
             let tag = match src_info {
                 Some(info) => Tag::RetAt(info.span),
                 None => Tag::Ret,
             };
-            self.check_ret(&mut rcx, &mut env, Some(tag))?;
+            self.check_ret(&mut rcx, &mut env, tag)?;
             Ok(())
         } else {
             if self.body.is_join_point(target) {

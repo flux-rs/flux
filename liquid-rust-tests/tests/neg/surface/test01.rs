@@ -2,7 +2,7 @@
 #![register_tool(lr)]
 
 #[lr::sig(fn(bool, n: i32, m: i32{m >= n}) -> i32{v: v > 1})]
-pub fn ref_join(b: bool, n: i32, m: i32) -> i32 { //~ ERROR postcondition might not hold
+pub fn ref_join(b: bool, n: i32, m: i32) -> i32 {
     let mut x = n;
     let mut y = m;
     let r;
@@ -12,12 +12,10 @@ pub fn ref_join(b: bool, n: i32, m: i32) -> i32 { //~ ERROR postcondition might 
         r = &mut y;
     }
     *r += 1;
-    *r - n
+    *r - n //~ ERROR postcondition might not hold
 }
-
 
 #[lr::sig(fn(x: &mut i32{v: 0 <= v}) -> ())]
-pub fn test4(x: &mut i32) { 
+pub fn test4(x: &mut i32) {
     *x -= 1; //~ ERROR missmatched type in assignment
 }
-

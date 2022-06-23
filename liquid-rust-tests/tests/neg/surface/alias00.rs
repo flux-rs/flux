@@ -8,11 +8,11 @@ type _Nat = i32;
 type _Lb = i32;
 
 #[lr::sig(fn(x:Nat) -> Nat)]
-pub fn test0(x: i32) -> i32 { //~ ERROR postcondition
-    x - 1
+pub fn test0(x: i32) -> i32 {
+    x - 1 //~ ERROR postcondition
 }
 
 #[lr::sig(fn(x:Lb[0]) -> Lb[10])]
-pub fn test2(x: i32) -> i32 { //~ ERROR postcondition
-    x + 1
+pub fn test2(x: i32) -> i32 {
+    x + 1 //~ ERROR postcondition
 }

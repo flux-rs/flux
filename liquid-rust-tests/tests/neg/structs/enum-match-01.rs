@@ -5,9 +5,9 @@
 pub mod nat;
 
 #[lr::sig(fn (Option<i32>) -> Nat)]
-pub fn test(x: Option<i32>) -> i32 { //~ ERROR postcondition might not hold
+pub fn test(x: Option<i32>) -> i32 {
     match x {
-        Some(n) => n,
+        Some(n) => n, //~ ERROR postcondition might not hold
         None => 0,
     }
 }
