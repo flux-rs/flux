@@ -148,10 +148,6 @@ fn check_constraint<Env: PathMap>(
 fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, tag: Tag) {
     let constr = &mut constr.breadcrumb();
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(bty1, e1), TyKind::Indexed(bty2, e2)) if e1 == e2 => {
-            bty_subtyping(genv, constr, bty1, bty2, tag);
-            return;
-        }
         (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
             bty_subtyping(genv, constr, bty1, bty2, tag);
             return;
@@ -170,10 +166,12 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
     }
 
     match (ty1.kind(), ty2.kind()) {
-        (TyKind::Indexed(bty1, exprs1), TyKind::Indexed(bty2, exprs2)) => {
+        (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idx2)) => {
             bty_subtyping(genv, constr, bty1, bty2, tag);
-            for (e1, e2) in iter::zip(exprs1, exprs2) {
-                constr.push_head(Expr::binary_op(BinOp::Eq, e1.clone(), e2.clone()), tag);
+            for (idx1, idx2) in iter::zip(idxs1, idx2) {
+                if &idx1.expr != &idx2.expr {
+                    constr.push_head(Expr::binary_op(BinOp::Eq, idx1.clone(), idx2.clone()), tag);
+                }
             }
         }
         (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, pred)) => {

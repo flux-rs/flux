@@ -145,7 +145,10 @@ impl RefineCtxt<'_> {
     }
 
     pub fn assume_pred(&mut self, expr: impl Into<Expr>) {
-        self.ptr = self.ptr.push_node(NodeKind::Guard(expr.into()));
+        let expr = expr.into();
+        if !expr.is_true() {
+            self.ptr = self.ptr.push_node(NodeKind::Guard(expr.into()));
+        }
     }
 
     pub fn check_constr(&mut self) -> ConstrBuilder {
@@ -274,7 +277,9 @@ impl NodePtr {
                 for (name, sort) in bindings {
                     *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
                 }
-                *self = self.push_node(NodeKind::Guard(e));
+                if !e.is_true() {
+                    *self = self.push_node(NodeKind::Guard(e));
+                }
             }
             Pred::Hole => {
                 for (name, sort) in bindings {
@@ -427,7 +432,10 @@ impl Iterator for ParentsIter {
 }
 
 mod pretty {
-    use std::fmt::{self, Write};
+    use std::{
+        fmt::{self, Write},
+        slice,
+    };
 
     use flux_common::format::PadAdapter;
     use itertools::Itertools;
@@ -454,6 +462,24 @@ mod pretty {
             }
         }
         go(ptr, vec![])
+    }
+
+    fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
+        fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
+            let node = ptr.borrow();
+            if let NodeKind::Conj = node.kind {
+                for child in &node.children {
+                    go(child, children)
+                }
+            } else {
+                children.push(NodePtr::clone(ptr))
+            }
+        }
+        let mut children = vec![];
+        for ptr in nodes {
+            go(ptr, &mut children);
+        }
+        children
     }
 
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
@@ -490,11 +516,8 @@ mod pretty {
             let node = self.borrow();
             match &node.kind {
                 NodeKind::Conj => {
-                    if node.children.is_empty() {
-                        w!("true")
-                    } else {
-                        w!("{:?}", join!("\n", &node.children))
-                    }
+                    let nodes = flatten_conjs(slice::from_ref(self));
+                    w!("{:?}", join!("\n", nodes))
                 }
                 NodeKind::ForAll(name, sort, pred) => {
                     let (bindings, children) = if cx.bindings_chain {
@@ -549,7 +572,8 @@ mod pretty {
     ) -> fmt::Result {
         let mut f = PadAdapter::wrap_fmt(f, 2);
         define_scoped!(cx, f);
-        match children {
+        let children = flatten_conjs(children);
+        match &children[..] {
             [] => w!(" true"),
             [n] => {
                 if n.borrow().is_head() {
@@ -618,5 +642,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(RefineTree => "constraint_builder", RefineCtxt<'_> => "pure_ctxt", Scope);
+    impl_debug_with_default_cx!(RefineTree => "refine_tree", RefineCtxt<'_> => "refine_ctxt", Scope);
 }
