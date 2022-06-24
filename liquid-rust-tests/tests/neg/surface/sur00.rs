@@ -1,7 +1,7 @@
 #![feature(register_tool)]
-#![register_tool(flux)]
+#![register_tool(lr)]
 
-#[flux::sig(fn(x: i32) -> i32{v: v < x})]
+#[lr::sig(fn(x: i32) -> i32{v: v < x})]
 pub fn inc(x: i32) -> i32 {
     x + 1 //~ ERROR postcondition might not hold
 }

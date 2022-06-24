@@ -10,9 +10,9 @@ pub enum MyOpt<T> {
 }
 
 #[flux::sig(fn (MyOpt<i32>) -> Nat)]
-pub fn test(x: MyOpt<i32>) -> i32 { //~ ERROR postcondition might not hold
+pub fn test(x: MyOpt<i32>) -> i32 {
     match x {
-        MyOpt::Some(n) => n,
+        MyOpt::Some(n) => n, //~ ERROR postcondition might not hold
         MyOpt::None => 0,
     }
 }

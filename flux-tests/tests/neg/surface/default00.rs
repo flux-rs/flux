@@ -7,10 +7,10 @@ fn silly(x: i32) -> i32 {
 }
 
 #[flux::sig(fn(x: i32) -> i32{v: x < v})]
-pub fn inc(x: i32) -> i32 { //~ ERROR postcondition might not hold
+pub fn inc(x: i32) -> i32 {
     let y = silly(x);
     if x <= y {
-        y
+        y //~ ERROR postcondition might not hold
     } else {
         x + 1
     }

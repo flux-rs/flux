@@ -35,6 +35,7 @@ pub enum Tag {
     Call(Span),
     Assign(Span),
     Ret,
+    RetAt(Span),
     Fold(Span),
     Assert(&'static str, Span),
     Div(Span),
@@ -266,6 +267,7 @@ mod pretty {
                 Tag::Call(span) => w!("Call({:?})", span),
                 Tag::Assign(span) => w!("Assign({:?})", span),
                 Tag::Ret => w!("Ret"),
+                Tag::RetAt(span) => w!("RetAt({:?}", span),
                 Tag::Div(span) => w!("Div({:?})", span),
                 Tag::Rem(span) => w!("Rem({:?})", span),
                 Tag::Goto(span, bb) => {

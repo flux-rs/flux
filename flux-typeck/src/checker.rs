@@ -260,18 +260,29 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
+        let mut latest_src_info = None;
         for stmt in &data.statements {
             dbg::statement!("start", stmt, rcx, env);
             self.check_statement(&mut rcx, &mut env, stmt)?;
             dbg::statement!("end", stmt, rcx, env);
+            if !stmt.is_nop() {
+                latest_src_info = Some(stmt.source_info);
+            }
         }
+
         if let Some(terminator) = &data.terminator {
             dbg::terminator!("start", terminator, rcx, env);
-            let successors = self.check_terminator(&mut rcx, &mut env, terminator)?;
+            let successors =
+                self.check_terminator(&mut rcx, &mut env, terminator, latest_src_info)?;
             dbg::terminator!("end", terminator, rcx, env);
 
             self.snapshots[bb] = Some(rcx.snapshot());
-            self.check_successors(rcx, env, terminator.source_info, successors)?;
+            // self.check_successors(rcx, env, terminator.source_info, successors)?;
+            let term_source_info = match latest_src_info {
+                Some(src_info) => src_info,
+                None => terminator.source_info,
+            };
+            self.check_successors(rcx, env, term_source_info, successors)?;
         }
         Ok(())
     }
@@ -308,6 +319,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ok(())
     }
 
+    fn is_exit_block(&self, bb: BasicBlock) -> bool {
+        let data = &self.body.basic_blocks[bb];
+        let is_no_op = data.statements.iter().all(Statement::is_nop);
+        let is_ret = match &data.terminator {
+            None => false,
+            Some(term) => term.is_return(),
+        };
+        is_no_op && is_ret
+    }
+
     /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
     /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
@@ -317,9 +338,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator,
+        src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         match &terminator.kind {
-            TerminatorKind::Return => self.check_ret(rcx, env),
+            TerminatorKind::Return => self.check_ret(rcx, env, src_info),
             TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -379,8 +401,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
-        let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
+        let tag = match src_info {
+            Some(info) => Tag::RetAt(info.span),
+            None => Tag::Ret,
+        };
+        let gen = &mut self.phase.constr_gen(self.genv, rcx, tag);
         let ret_place_ty = env.lookup_place(rcx, gen, Place::RETURN);
 
         gen.subtyping(rcx, &ret_place_ty, &self.ret);
@@ -543,18 +570,23 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
     fn check_goto(
         &mut self,
-        rcx: RefineCtxt,
-        env: TypeEnv,
+        mut rcx: RefineCtxt,
+        mut env: TypeEnv,
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<(), ErrorGuaranteed> {
-        if self.body.is_join_point(target) {
-            if P::check_goto_join_point(self, rcx, env, src_info, target) {
-                self.queue.insert(target);
-            }
+        if self.is_exit_block(target) {
+            self.check_ret(&mut rcx, &mut env, src_info)?;
             Ok(())
         } else {
-            self.check_basic_block(rcx, env, target)
+            if self.body.is_join_point(target) {
+                if P::check_goto_join_point(self, rcx, env, src_info, target) {
+                    self.queue.insert(target);
+                }
+                Ok(())
+            } else {
+                self.check_basic_block(rcx, env, target)
+            }
         }
     }
 

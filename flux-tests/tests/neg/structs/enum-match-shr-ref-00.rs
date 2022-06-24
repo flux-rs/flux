@@ -5,9 +5,9 @@
 pub mod nat;
 
 #[flux::sig(fn(&Option<i32>) -> Nat)]
-pub fn foo(opt: &Option<i32>) -> i32 { //~ ERROR postcondition might not hold
+pub fn foo(opt: &Option<i32>) -> i32 {
     match opt {
-        Some(x) => *x,
+        Some(x) => *x, //~ ERROR postcondition might not hold
         None => 0,
     }
 }

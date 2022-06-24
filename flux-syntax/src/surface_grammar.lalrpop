@@ -74,7 +74,13 @@ Arg: surface::Arg = {
     <bind:Ident> ":" <path:Path>                       => surface::Arg::Indexed(bind, path, None),
     <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Indexed(bind, path, Some(pred)),
     <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(bind, path, indices),
-    <ty:Ty>                                            => surface::Arg::Ty(<>)
+    <bind:Ident> ":" "&" "mut" <ty:Ty> => {
+        let span = ty.span;
+        let kind = surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty));
+        let arg_ty = surface::Ty { kind, span };
+        surface::Arg::Ty(arg_ty)
+    },
+    <ty:Ty>                                            => surface::Arg::Ty(<>),
 }
 
 pub Ty: surface::Ty = {

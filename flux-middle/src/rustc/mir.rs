@@ -168,6 +168,18 @@ pub enum FakeReadCause {
     ForMatchedPlace(Option<DefId>),
 }
 
+impl Terminator {
+    pub fn is_return(&self) -> bool {
+        matches!(self.kind, TerminatorKind::Return)
+    }
+}
+
+impl Statement {
+    pub fn is_nop(&self) -> bool {
+        matches!(self.kind, StatementKind::Nop)
+    }
+}
+
 impl<'tcx> Body<'tcx> {
     pub fn span(&self) -> Span {
         self.rustc_mir.span
