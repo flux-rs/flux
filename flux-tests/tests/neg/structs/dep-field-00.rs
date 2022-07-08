@@ -1,7 +1,6 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-
 #[flux::refined_by(a: int)]
 pub struct Range {
   #[flux::field(i32[@a])]
