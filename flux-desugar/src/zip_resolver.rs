@@ -102,21 +102,61 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
         _ => panic!("incompatible type: `{rust_ty:?}`"),
     };
-    if path.args.len() != rust_args.len() {
+
+    let path_args_len = path.args.len();
+    if path_args_len > rust_args.len() {
         panic!(
-            "argument count mismatch, expected: {:?},  found: {:?}",
-            rust_args.len(),
-            path.args.len()
+            "argument count mismatch, expected: {:#?},  found: {:#?}",
+            rust_args, // rust_args.len(),
+            path.args  // path.args.len()
         );
     }
-    let args = iter::zip(path.args, rust_args)
+    let mut args: Vec<Ty<Res>> = iter::zip(path.args, rust_args)
         .map(|(arg, rust_arg)| zip_generic_arg(arg, rust_arg))
         .collect();
+
+    if path_args_len < rust_args.len() {
+        for rust_arg in &rust_args[path_args_len..] {
+            let ty = default_generic_arg(rust_arg, path.span);
+            args.push(ty)
+        }
+    }
+    // pad_path_args(path_args, rust_args);
     Path { ident: res, args, span: path.span }
+}
+
+fn default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
+    match rust_arg {
+        rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
+    }
 }
 
 fn zip_generic_arg(arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {
     match rust_arg {
         rustc_ty::GenericArg::Ty(ty) => zip_ty(arg, ty),
+    }
+}
+
+fn default_ty(rust_ty: &rustc_ty::Ty, span: rustc_span::Span) -> Ty<Res> {
+    match rust_ty.kind() {
+        rustc_ty::TyKind::Adt(def_id, substs) => {
+            let ident = Res::Adt(*def_id);
+            let args = substs
+                .iter()
+                .map(|arg| default_generic_arg(arg, span))
+                .collect();
+            let path = Path { ident, args, span };
+            Ty { kind: TyKind::Path(path), span }
+        }
+        _ => todo!(),
+        // rustc_ty::TyKind::Param(a) => Res::Param(*a),
+        // rustc_ty::TyKind::Bool => todo!(),
+        // rustc_ty::TyKind::Float(_) => todo!(),
+        // rustc_ty::TyKind::Int(_) => todo!(),
+        // rustc_ty::TyKind::Never => todo!(),
+        // rustc_ty::TyKind::Ref(_, _) => todo!(),
+        // rustc_ty::TyKind::Tuple(_) => todo!(),
+        // rustc_ty::TyKind::Uint(_) => todo!(),
+        // _ => panic!("default_ty: cannot handle {:?} at {:?}", rust_ty, span),
     }
 }
