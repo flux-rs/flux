@@ -353,7 +353,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 }
             }
             TerminatorKind::Call { func, substs, args, destination, target, .. } => {
-                let fn_sig = self.genv.lookup_fn_sig(*func);
+                let fn_sig = self.genv.lookup_fn_sig_with_args(*func, substs, args);
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
 

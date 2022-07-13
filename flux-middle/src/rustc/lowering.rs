@@ -3,8 +3,8 @@ use itertools::Itertools;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_middle::{
-    mir as rustc_mir, ty as rustc_ty,
-    ty::{subst::GenericArgKind, ParamEnv, TyCtxt},
+    mir as rustc_mir,
+    ty::{self as rustc_ty, subst::GenericArgKind, ParamEnv, TyCtxt, TypeFoldable},
 };
 use rustc_span::Span;
 
@@ -146,6 +146,22 @@ impl<'tcx> LoweringCtxt<'tcx> {
             } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
+                        if let Ok(exp_ty) = self.tcx.try_expand_impl_trait_type(*fn_def, substs) {
+                            let normal_exp_ty = self.tcx.subst_and_normalize_erasing_regions(
+                                substs,
+                                ParamEnv::empty(),
+                                exp_ty,
+                            );
+                            // .normalize_erasing_regions(ParamEnv::empty(), exp_ty);
+                            // .normalize_erasing_late_bound_regions(ParamEnv::empty(), exp_ty);
+
+                            println!(
+                                "TRACE: has_projections `{exp_ty:?}` = {:?}",
+                                exp_ty.has_projections()
+                            );
+                            println!("TRACE: expand_impl_trait says: `{exp_ty:?}`");
+                            println!("TRACE: normal_impl_trait says: `{normal_exp_ty:?}`");
+                        }
                         (*fn_def, lower_substs(self.tcx, substs)?)
                     }
                     _ => {
@@ -155,6 +171,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         );
                     }
                 };
+
                 let destination = self.lower_place(destination)?;
 
                 TerminatorKind::Call {
@@ -268,7 +285,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_aggregate_kind(
         &self,
-        aggregate_kind: &rustc_mir::AggregateKind,
+        aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, ErrorGuaranteed> {
         match aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
@@ -398,7 +415,7 @@ pub fn lower_fn_sig<'tcx>(
     Ok(FnSig { inputs_and_output })
 }
 
-pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorGuaranteed> {
+pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, ErrorGuaranteed> {
     match ty.kind() {
         rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))
@@ -419,13 +436,19 @@ pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorGuaranteed> {
         }
         rustc_middle::ty::Never => Ok(Ty::mk_never()),
         rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
+        rustc_middle::ty::TyKind::Projection(proj_ty) => {
+            // let ty = proj_ty.self_ty().kind();
+            let trait_def_id = proj_ty.trait_def_id(tcx);
+            let (trait_ref, own_substs) = proj_ty.trait_ref_and_own_substs(tcx);
+            panic!("projection-type = `{proj_ty:?}` trait_def_id = `{trait_def_id:?}` trait_ref = `{trait_ref:?}` own_substs = `{own_substs:?}`")
+        }
         _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
     }
 }
 
-fn lower_substs(
-    tcx: TyCtxt,
-    substs: rustc_middle::ty::subst::SubstsRef,
+fn lower_substs<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    substs: rustc_middle::ty::subst::SubstsRef<'tcx>,
 ) -> Result<List<GenericArg>, ErrorGuaranteed> {
     Ok(List::from_vec(
         substs
@@ -435,9 +458,9 @@ fn lower_substs(
     ))
 }
 
-fn lower_generic_arg(
-    tcx: TyCtxt,
-    arg: rustc_middle::ty::subst::GenericArg,
+fn lower_generic_arg<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    arg: rustc_middle::ty::subst::GenericArg<'tcx>,
 ) -> Result<GenericArg, ErrorGuaranteed> {
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),

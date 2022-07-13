@@ -78,6 +78,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .insert(def_id, ty::AdtDef::new(def_id, sorts));
     }
 
+    pub fn lookup_fn_sig_with_args(
+        &self,
+        def_id: DefId,
+        substs: &List<rustc::ty::GenericArg>,
+        args: &Vec<rustc::mir::Operand>,
+    ) -> ty::PolySig {
+        // let expand = self.tcx.try_expand_impl_trait_type(def_id, substs);
+        println!("TRACE: lookup_fn_sig_with_args: `{def_id:?}` `{substs:?}` `{args:?}`");
+
+        self.fn_sigs
+            .borrow_mut()
+            .entry(def_id)
+            .or_insert_with(|| self.default_fn_sig(def_id))
+            .clone()
+    }
+
     pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
         self.fn_sigs
             .borrow_mut()
@@ -154,7 +170,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
-        let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id));
+        let rust_fn_sig = self.tcx.fn_sig(def_id);
+        println!("TRACE: default_fn_sig id = {:?}, sig = {:?}", def_id, rust_fn_sig);
+        let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, rust_fn_sig);
         self.tcx.sess.abort_if_errors();
         self.refine_fn_sig(&fn_sig.unwrap(), &mut |_| ty::Pred::tt())
     }

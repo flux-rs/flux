@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use flux_common::{
     config::{self, AssertBehavior, CrateConfig},
@@ -15,10 +18,21 @@ use rustc_ast::{
 };
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
-use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    ImplItem, ImplItemKind, ItemKind, VariantData,
+};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
+
+/// We want to build a lookup table: `(trait_f, key) -> trait_f_ty_at_key` that maps
+/// (1) `trait_f` the generic method name `DefId` which appears at usage-sites,
+/// (2) `key` the particular type-args at the usage site
+/// to the `trait_f_ty_at_key` which is the specific method instance at the key
+///
+pub type TraitRefKey = DefId;
+pub type TraitImplMap = FxHashMap<(DefId, TraitRefKey), DefId>;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -34,6 +48,7 @@ pub(crate) struct Specs {
     pub qualifs: Vec<surface::Qualifier>,
     pub aliases: surface::AliasMap,
     pub crate_config: Option<config::CrateConfig>,
+    pub trait_impls: TraitImplMap,
 }
 
 pub(crate) struct FnSpec {
@@ -47,6 +62,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         sess: &'a FluxSession,
     ) -> Result<Specs, ErrorGuaranteed> {
         let mut collector = Self { tcx, sess, specs: Specs::new(), error_guaranteed: None };
+
+        let mut trait_impl_ids: HashSet<DefId> = HashSet::new();
 
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;
 
@@ -88,13 +105,84 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
                 let _ = collector.parse_fn_spec(impl_item.def_id, attrs);
+                collector.parse_trait_impl(impl_item, &mut trait_impl_ids);
             }
         }
+
+        println!("TRACE: trait_impls {:#?}", collector.specs.trait_impls);
 
         if let Some(e) = collector.error_guaranteed {
             Err(e)
         } else {
             Ok(collector.specs)
+        }
+    }
+
+    fn trait_ref_key(&self, trait_ref: rustc_middle::ty::TraitRef) -> Option<TraitRefKey> {
+        match trait_ref.substs.get(0)?.unpack() {
+            rustc_middle::ty::subst::GenericArgKind::Type(ty) => {
+                match ty.kind() {
+                    rustc_middle::ty::TyKind::Adt(def, _) => Some(def.did()),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn parse_trait_impl(&mut self, impl_item: &ImplItem, trait_impl_ids: &mut HashSet<DefId>) {
+        let impl_def_id = impl_item.def_id;
+        if let Some(real_impl_def_id) = self.tcx.impl_of_method(impl_def_id.to_def_id()) {
+            if !trait_impl_ids.contains(&real_impl_def_id) {
+                trait_impl_ids.insert(real_impl_def_id);
+                if let Some(trait_ref) = self.tcx.impl_trait_ref(real_impl_def_id) {
+                    if let Some(key) = self.trait_ref_key(trait_ref) {
+                        let impl_ids = self.tcx.impl_item_implementor_ids(real_impl_def_id);
+                        for (trait_f, trait_f_ty) in impl_ids {
+                            self.specs.trait_impls.insert((*trait_f, key), *trait_f_ty);
+                        }
+                    }
+                }
+            }
+        }
+        // if we have already handled this impl then move on
+        // // let trait_id = tcx.trait_id_of_impl(real_impl_def_id)?;
+        // let mega = tcx.impl_item_implementor_ids(real_impl_def_id);
+        // println!("TRACE: TRAIT-IMPL {real_impl_def_id:?}, {mega:#?}");
+        // let trait_ref = tcx.impl_trait_ref(real_impl_def_id)?;
+        // println!(
+        //     "TRACE: TRAIT_REF def_id = {:?}, substs = {:?}",
+        //     trait_ref.def_id, trait_ref.substs
+        // );
+        // // println!("TRACE: PUSH ME {impl_def_id:?}, real_impl_def_id = {real_impl_def_id:?}");
+        // // let impl_trait_def_id = Self::impl_item_trait_ref(tcx, impl_item);
+        // // println!("TRACE: collector {impl_def_id:?}, trait_def = {impl_trait_def_id:?}");
+        // // real_impl_def_id.map(|id| impl_ids.insert(id));
+    }
+
+    /// Returns the `DefId` of the trait being implemented by the `hir_id`
+    fn _impl_item_trait_ref(tcx: TyCtxt<'tcx>, impl_item: &ImplItem) -> Option<DefId> {
+        let hir_id = impl_item.hir_id();
+        let parent = tcx.hir().get_parent_node(hir_id);
+
+        let parent_node = tcx.hir().find(parent)?;
+
+        match parent_node {
+            rustc_hir::Node::Item(parent_item) => {
+                match parent_item.kind {
+                    ItemKind::Impl(parent_impl) => {
+                        let trait_ref = parent_impl.of_trait.as_ref()?;
+                        let self_ty = parent_impl.self_ty;
+                        let trait_def_id = trait_ref.trait_def_id()?;
+                        println!(
+                            "TRACE: impl_item_trait_ref `{trait_def_id:?}` has `{self_ty:#?}`"
+                        );
+                        Some(trait_def_id)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
         }
     }
 
@@ -308,6 +396,7 @@ impl Specs {
             qualifs: Vec::default(),
             aliases: FxHashMap::default(),
             crate_config: None,
+            trait_impls: FxHashMap::default(),
         }
     }
 }
