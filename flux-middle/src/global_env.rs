@@ -12,7 +12,7 @@ pub use rustc_span::symbol::Ident;
 use crate::{
     core::{self, VariantIdx},
     intern::List,
-    rustc::{self, ty::TraitImplMap},
+    rustc::{self, mir::CallSubsts, ty::TraitImplMap},
     ty::{self, fold::TypeFoldable, subst::BVarFolder},
 };
 
@@ -101,15 +101,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn lookup_fn_sig_with_args(
         &self,
         def_id0: DefId,
-        substs0: &List<rustc::ty::GenericArg>,
+        substs0: &CallSubsts, // &List<rustc::ty::GenericArg>,
         _args: &Vec<rustc::mir::Operand>,
     ) -> ty::PolySig {
-        let substs1 = substs0.tail();
-        let trait_impl = self.lookup_trait_impl(def_id0, substs0);
+        let trait_impl = self.lookup_trait_impl(def_id0, &substs0.lowered);
         // println!("TRACE: lookup_trait_impl def_id = `{def_id0:?}` substs = `{substs0:?}` result = `{trait_impl:?}`");
-        let (def_id, _substs) = match trait_impl {
-            Some(impl_did) => (impl_did, &substs1),
-            None => (def_id0, substs0),
+        let def_id = match trait_impl {
+            Some(impl_did) => impl_did,
+            None => def_id0,
         };
         // let expand = self.tcx.try_expand_impl_trait_type(def_id, substs);
         // println!("TRACE: lookup_fn_sig_with_args: `{def_id:?}` `{substs:?}` `{args:?}`");
