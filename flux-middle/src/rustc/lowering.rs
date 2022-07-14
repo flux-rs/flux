@@ -430,7 +430,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
             let substs = List::from_vec(
                 substs
                     .iter()
-                    .map(|arg| lower_generic_arg(tcx, arg))
+                    .filter_map(|arg| lower_generic_arg_opt(tcx, arg))
                     .try_collect()?,
             );
             Ok(Ty::mk_adt(adt_def.did(), substs))
@@ -454,12 +454,12 @@ fn lower_substs<'tcx>(
     Ok(List::from_vec(
         substs
             .iter()
-            .map(|arg| lower_generic_arg(tcx, arg))
+            .filter_map(|arg| lower_generic_arg_opt(tcx, arg))
             .try_collect()?,
     ))
 }
 
-fn lower_generic_arg<'tcx>(
+fn _lower_generic_arg<'tcx>(
     tcx: TyCtxt<'tcx>,
     arg: rustc_middle::ty::subst::GenericArg<'tcx>,
 ) -> Result<GenericArg, ErrorGuaranteed> {
@@ -468,6 +468,21 @@ fn lower_generic_arg<'tcx>(
         GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
             emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`"))
         }
+    }
+}
+
+fn lower_generic_arg_opt<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    arg: rustc_middle::ty::subst::GenericArg<'tcx>,
+) -> Option<Result<GenericArg, ErrorGuaranteed>> {
+    match arg.unpack() {
+        GenericArgKind::Type(ty) => {
+            match lower_ty(tcx, ty) {
+                Ok(lty) => Some(Ok(GenericArg::Ty(lty))),
+                Err(e) => Some(Err(e)),
+            }
+        }
+        _ => None,
     }
 }
 

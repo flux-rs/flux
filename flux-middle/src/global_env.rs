@@ -86,24 +86,35 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .insert(def_id, ty::AdtDef::new(def_id, sorts));
     }
 
-    fn _lookup_trait_impl_old(&self, trait_f: DefId, substs: &CallSubsts) -> Option<DefId> {
-        let key = rustc::ty::flux_substs_trait_ref_key(&substs.lowered)?;
-        let did_key = (trait_f, key);
-        let trait_impl_id = self.trait_impls.get(&did_key)?;
-        Some(*trait_impl_id)
-    }
+    // TODO: NUKE
+    // fn _lookup_trait_impl_old(&self, trait_f: DefId, substs: &CallSubsts) -> Option<DefId> {
+    //     let key = rustc::ty::flux_substs_trait_ref_key(&substs.lowered)?;
+    //     let did_key = (trait_f, key);
+    //     let trait_impl_id = self.trait_impls.get(&did_key)?;
+    //     Some(*trait_impl_id)
+    // }
 
     /// `lookup_trait_impl_new(trait_f, self_ty)` finds the specific `DefId` that
     /// implements a trait-method `trait_f` for the implementation of `self_ty` (obtained from `substs`)
     /// `trait_f` [`trait_of_item`] --> `trait_id` [`find_map_relevant_impl`] --> `impl_id` [`impl_item_implementor_ids`] --> `impl_f`
+
     fn lookup_trait_impl(&self, trait_f: DefId, substs: &CallSubsts<'tcx>) -> Option<DefId> {
         match substs.orig.get(0)?.unpack() {
             GenericArgKind::Type(self_ty) => {
                 let trait_id = self.tcx.trait_of_item(trait_f)?;
                 let impl_id = self
                     .tcx
-                    .find_map_relevant_impl(trait_id, self_ty, |id| Some(id))?;
+                    .find_map_relevant_impl(trait_id, self_ty, |impl_id| {
+                        let trait_ref = self.tcx.impl_trait_ref(impl_id)?;
+                        if trait_ref.substs.get(0) == substs.orig.get(0) {
+                            Some(impl_id)
+                        } else {
+                            None
+                        }
+                    })?;
                 let impl_f = self.tcx.impl_item_implementor_ids(impl_id).get(&trait_f)?;
+                // println!("TRACE: lookup_trait_impl trait_f = `{trait_f:?}` self_ty = `{self_ty:?}` trait_id = `{trait_id:?}` impl_id = `{impl_id:?}` impl_f = `{impl_f:?}`");
+                // println!("TRACE: {impl_f:?} ty = {:?}", self.tcx.fn_sig(impl_f));
                 Some(*impl_f)
             }
             _ => None,
@@ -116,7 +127,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         substs0: &CallSubsts<'tcx>,
         _args: &Vec<rustc::mir::Operand>,
     ) -> ty::PolySig {
-        // let trait_impl = self._lookup_trait_impl_old(def_id0, substs0);
         let trait_impl = self.lookup_trait_impl(def_id0, substs0);
         let def_id = trait_impl.unwrap_or(def_id0);
         self.fn_sigs
@@ -289,6 +299,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> ty::Ty {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
+            // rustc::ty::GenericArg::LifetimeOrConst => panic!("Cannot refine LifetimeOrConst"),
         }
     }
 }

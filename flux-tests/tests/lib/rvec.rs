@@ -77,3 +77,27 @@ impl<T> RVec<T> {
         vec
     }
 }
+
+pub struct RVecIter<T> {
+    vec: RVec<T>,
+    curr: usize,
+}
+
+impl<T> IntoIterator for RVec<T> {
+    type Item = T;
+    type IntoIter = RVecIter<T>;
+
+    #[flux::assume]
+    fn into_iter(self) -> RVecIter<T> {
+        RVecIter { vec: self, curr: 0 }
+    }
+}
+
+impl<T> Iterator for RVecIter<T> {
+    type Item = T;
+
+    #[flux::assume]
+    fn next(&mut self) -> Option<T> {
+        self.vec.inner.pop()
+    }
+}

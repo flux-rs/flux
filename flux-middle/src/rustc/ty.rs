@@ -39,6 +39,7 @@ pub enum TyKind {
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum GenericArg {
     Ty(Ty),
+    // LifetimeOrConst,
 }
 
 impl FnSig {
@@ -105,6 +106,7 @@ impl std::fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GenericArg::Ty(ty) => write!(f, "{ty:?}"),
+            // GenericArg::LifetimeOrConst => write!(f, "_|_"),
         }
     }
 }
