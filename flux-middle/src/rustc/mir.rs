@@ -8,7 +8,7 @@ use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir,
-    ty::{FloatTy, IntTy, UintTy},
+    ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
     mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
@@ -23,15 +23,15 @@ use super::ty::{GenericArg, Ty};
 use crate::intern::List;
 
 pub struct Body<'tcx> {
-    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
+    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
     pub(crate) rustc_mir: mir::Body<'tcx>,
 }
 
 #[derive(Debug)]
-pub struct BasicBlockData {
+pub struct BasicBlockData<'tcx> {
     pub statements: Vec<Statement>,
-    pub terminator: Option<Terminator>,
+    pub terminator: Option<Terminator<'tcx>>,
     pub is_cleanup: bool,
 }
 
@@ -40,17 +40,23 @@ pub struct LocalDecl {
     pub source_info: SourceInfo,
 }
 
-pub struct Terminator {
-    pub kind: TerminatorKind,
+pub struct Terminator<'tcx> {
+    pub kind: TerminatorKind<'tcx>,
     pub source_info: SourceInfo,
 }
 
 #[derive(Debug)]
-pub enum TerminatorKind {
+pub struct CallSubsts<'tcx> {
+    pub orig: SubstsRef<'tcx>,
+    pub lowered: List<GenericArg>,
+}
+
+#[derive(Debug)]
+pub enum TerminatorKind<'tcx> {
     Return,
     Call {
         func: DefId,
-        substs: List<GenericArg>,
+        substs: CallSubsts<'tcx>,
         args: Vec<Operand>,
         destination: Place,
         target: Option<BasicBlock>,
@@ -168,7 +174,7 @@ pub enum FakeReadCause {
     ForMatchedPlace(Option<DefId>),
 }
 
-impl Terminator {
+impl<'tcx> Terminator<'tcx> {
     pub fn is_return(&self) -> bool {
         matches!(self.kind, TerminatorKind::Return)
     }
@@ -281,7 +287,7 @@ impl fmt::Debug for Statement {
     }
 }
 
-impl fmt::Debug for Terminator {
+impl<'tcx> fmt::Debug for Terminator<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
@@ -293,8 +299,8 @@ impl fmt::Debug for Terminator {
                 });
                 write!(f, "{destination:?} = call {fname}")?;
 
-                if !substs.is_empty() {
-                    write!(f, "::<{:?}>", substs.iter().format(", "))?;
+                if !substs.lowered.is_empty() {
+                    write!(f, "::<{:?}>", substs.lowered.iter().format(", "))?;
                 }
 
                 write!(

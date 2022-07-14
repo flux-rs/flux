@@ -169,6 +169,9 @@ Pair of
 
 ### Nico Route (to avoid `key` shenanigan)
 
+- [ ] preserve `rustc::Subst` at lowering (sigh).
+- [ ] use `get_trait_impl`
+
 * stash the `rustc` Subst at the call-site (during lowering)
 
 * `self_ty`  for `find_map_relevant_impl` is the `0` elem of the `subst`
@@ -177,7 +180,13 @@ Pair of
 
 `impl_id` + `trait_f` -> `impl_f` via `impl_item_implementor_ids`
 
-
 HOW TO get from `trait_f` to `trait_id` ?
 
-trait_of_item
+
+```rust
+fn get_trait_impl(trait_f: DefId, substs: rustc::SubstRef) -> Option<DefId> {
+    let trait_id = tcx.trait_of_item(trait_f)?;
+    let impl_id = tcx.find_map_relevant_impl(trait_f, substs[0], |id| { Some(id) })?;
+    tcx.impl_item_implementor_ids(impl_id).get(trait_f)
+}
+```

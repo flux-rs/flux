@@ -12,8 +12,8 @@ use crate::intern::List;
 
 use super::{
     mir::{
-        AggregateKind, BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand,
-        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, BasicBlockData, BinOp, Body, CallSubsts, Constant, FakeReadCause, LocalDecl,
+        Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{FnSig, GenericArg, Ty},
 };
@@ -50,7 +50,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_basic_block_data(
         &self,
         data: &rustc_mir::BasicBlockData<'tcx>,
-    ) -> Result<BasicBlockData, ErrorGuaranteed> {
+    ) -> Result<BasicBlockData<'tcx>, ErrorGuaranteed> {
         let data = BasicBlockData {
             statements: data
                 .statements
@@ -138,7 +138,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_terminator(
         &self,
         terminator: &rustc_mir::Terminator<'tcx>,
-    ) -> Result<Terminator, ErrorGuaranteed> {
+    ) -> Result<Terminator<'tcx>, ErrorGuaranteed> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call {
@@ -162,7 +162,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         //     println!("TRACE: expand_impl_trait says: `{exp_ty:?}`");
                         //     println!("TRACE: normal_impl_trait says: `{normal_exp_ty:?}`");
                         // }
-                        (*fn_def, lower_substs(self.tcx, substs)?)
+                        let lowered_substs = lower_substs(self.tcx, substs)?;
+                        (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
                     _ => {
                         return self.emit_err(
