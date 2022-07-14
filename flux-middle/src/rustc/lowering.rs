@@ -146,22 +146,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        // if let Ok(exp_ty) = self.tcx.try_expand_impl_trait_type(*fn_def, substs) {
-                        //     let normal_exp_ty = self.tcx.subst_and_normalize_erasing_regions(
-                        //         substs,
-                        //         ParamEnv::empty(),
-                        //         exp_ty,
-                        //     );
-                        //     // .normalize_erasing_regions(ParamEnv::empty(), exp_ty);
-                        //     // .normalize_erasing_late_bound_regions(ParamEnv::empty(), exp_ty);
-
-                        //     println!(
-                        //         "TRACE: has_projections `{exp_ty:?}` = {:?}",
-                        //         exp_ty.has_projections()
-                        //     );
-                        //     println!("TRACE: expand_impl_trait says: `{exp_ty:?}`");
-                        //     println!("TRACE: normal_impl_trait says: `{normal_exp_ty:?}`");
-                        // }
                         let lowered_substs = lower_substs(self.tcx, substs)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
@@ -437,12 +421,6 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
         }
         rustc_middle::ty::Never => Ok(Ty::mk_never()),
         rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
-        rustc_middle::ty::TyKind::Projection(proj_ty) => {
-            // let ty = proj_ty.self_ty().kind();
-            let trait_def_id = proj_ty.trait_def_id(tcx);
-            let (trait_ref, own_substs) = proj_ty.trait_ref_and_own_substs(tcx);
-            panic!("projection-type = `{proj_ty:?}` trait_def_id = `{trait_def_id:?}` trait_ref = `{trait_ref:?}` own_substs = `{own_substs:?}`")
-        }
         _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
     }
 }

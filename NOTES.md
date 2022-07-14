@@ -153,3 +153,46 @@ pub fn flux_substs_trait_ref_key(substs: &List<GenericArg>) -> Option<TraitRefKe
         }
     }
 }
+
+    // TODO: NUKE
+    // fn _lookup_trait_impl_old(&self, trait_f: DefId, substs: &CallSubsts) -> Option<DefId> {
+    //     let key = rustc::ty::flux_substs_trait_ref_key(&substs.lowered)?;
+    //     let did_key = (trait_f, key);
+    //     let trait_impl_id = self.trait_impls.get(&did_key)?;
+    //     Some(*trait_impl_id)
+    // }
+
+Normalizing Experiments
+
+in `lower_terminator`
+
+```
+                     // if let Ok(exp_ty) = self.tcx.try_expand_impl_trait_type(*fn_def, substs) {
+                        //     let normal_exp_ty = self.tcx.subst_and_normalize_erasing_regions(
+                        //         substs,
+                        //         ParamEnv::empty(),
+                        //         exp_ty,
+                        //     );
+                        //     // .normalize_erasing_regions(ParamEnv::empty(), exp_ty);
+                        //     // .normalize_erasing_late_bound_regions(ParamEnv::empty(), exp_ty);
+
+                        //     println!(
+                        //         "TRACE: has_projections `{exp_ty:?}` = {:?}",
+                        //         exp_ty.has_projections()
+                        //     );
+                        //     println!("TRACE: expand_impl_trait says: `{exp_ty:?}`");
+                        //     println!("TRACE: normal_impl_trait says: `{normal_exp_ty:?}`");
+                        // }
+```
+
+
+From `lower_ty`
+
+```rust
+        rustc_middle::ty::TyKind::Projection(proj_ty) => {
+            // let ty = proj_ty.self_ty().kind();
+            let trait_def_id = proj_ty.trait_def_id(tcx);
+            let (trait_ref, own_substs) = proj_ty.trait_ref_and_own_substs(tcx);
+            panic!("projection-type = `{proj_ty:?}` trait_def_id = `{trait_def_id:?}` trait_ref = `{trait_ref:?}` own_substs = `{own_substs:?}`")
+        }
+```

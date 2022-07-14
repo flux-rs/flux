@@ -78,14 +78,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .insert(def_id, ty::AdtDef::new(def_id, sorts));
     }
 
-    // TODO: NUKE
-    // fn _lookup_trait_impl_old(&self, trait_f: DefId, substs: &CallSubsts) -> Option<DefId> {
-    //     let key = rustc::ty::flux_substs_trait_ref_key(&substs.lowered)?;
-    //     let did_key = (trait_f, key);
-    //     let trait_impl_id = self.trait_impls.get(&did_key)?;
-    //     Some(*trait_impl_id)
-    // }
-
     /// `lookup_trait_impl_new(trait_f, self_ty)` finds the specific `DefId` that
     /// implements a trait-method `trait_f` for the implementation of `self_ty` (obtained from `substs`)
     /// `trait_f` [`trait_of_item`] --> `trait_id` [`find_map_relevant_impl`] --> `impl_id` [`impl_item_implementor_ids`] --> `impl_f`
@@ -204,9 +196,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
-        let rust_fn_sig = self.tcx.fn_sig(def_id);
-        // println!("TRACE: default_fn_sig id = {:?}, sig = {:?}", def_id, rust_fn_sig);
-        let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, rust_fn_sig);
+        let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id));
         self.tcx.sess.abort_if_errors();
         self.refine_fn_sig(&fn_sig.unwrap(), &mut |_| ty::Pred::tt())
     }
@@ -291,7 +281,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> ty::Ty {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
-            // rustc::ty::GenericArg::LifetimeOrConst => panic!("Cannot refine LifetimeOrConst"),
         }
     }
 }
