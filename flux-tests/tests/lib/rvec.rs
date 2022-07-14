@@ -78,6 +78,8 @@ impl<T> RVec<T> {
     }
 }
 
+/* Candidate for Iterator currently broken
+
 pub struct RVecIter<T> {
     vec: RVec<T>,
     curr: usize,
@@ -101,3 +103,5 @@ impl<T> Iterator for RVecIter<T> {
         self.vec.inner.pop()
     }
 }
+
+*/

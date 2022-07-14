@@ -155,8 +155,6 @@ pub fn trait_id_of_impl(self, def_id: DefId) -> Option<DefId>
 Given the DefId of an impl, returns the DefId of the trait it implements. If it implements no trait, returns None.
 source
 
-
-
 Complete Reference to a Trait
 
 https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/sty/struct.TraitRef.html
@@ -165,32 +163,3 @@ Pair of
 
 - `DefId`    (the trait)
 - `SubstRef` (the "args")
-
-
-### Nico Route (to avoid `key` shenanigan)
-
-- [x] preserve `rustc::Subst` at lowering (sigh).
-        - pub type SubstsRef<'tcx> = &'tcx InternalSubsts<'tcx>;
-
-- [ ] use `get_trait_impl`
-
-* stash the `rustc` Subst at the call-site (during lowering)
-
-
-
-* `self_ty`  for `find_map_relevant_impl` is the `0` elem of the `subst`
-
-
-
-`impl_id` + `trait_f` -> `impl_f` via `impl_item_implementor_ids`
-
-HOW TO get from `trait_f` to `trait_id` ?
-
-
-```rust
-fn get_trait_impl(trait_f: DefId, substs: rustc::SubstRef) -> Option<DefId> {
-    let trait_id = tcx.trait_of_item(trait_f)?;
-    let impl_id = tcx.find_map_relevant_impl(trait_f, substs[0], |id| { Some(id) })?;
-    tcx.impl_item_implementor_ids(impl_id).get(trait_f)
-}
-```
