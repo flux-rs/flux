@@ -169,14 +169,18 @@ Pair of
 
 ### Nico Route (to avoid `key` shenanigan)
 
-- [ ] preserve `rustc::Subst` at lowering (sigh).
+- [x] preserve `rustc::Subst` at lowering (sigh).
+        - pub type SubstsRef<'tcx> = &'tcx InternalSubsts<'tcx>;
+
 - [ ] use `get_trait_impl`
 
 * stash the `rustc` Subst at the call-site (during lowering)
 
+
+
 * `self_ty`  for `find_map_relevant_impl` is the `0` elem of the `subst`
 
-* `trait_f` --?-> `trait_id` ---use find_map_relevant_impl--> `impl_id` --?-> `impl_f`
+
 
 `impl_id` + `trait_f` -> `impl_f` via `impl_item_implementor_ids`
 

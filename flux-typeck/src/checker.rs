@@ -337,7 +337,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        terminator: &Terminator,
+        terminator: &Terminator<'tcx>,
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         match &terminator.kind {
