@@ -17,6 +17,6 @@ pub fn test_next() {
 
 pub fn test_for() {
     for val in Rng::new(110, 115) {
-        assert(110 <= val && val < 113)
+        assert(110 <= val && val < 115)
     }
 }

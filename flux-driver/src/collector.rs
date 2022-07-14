@@ -120,10 +120,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     if let Some(key) = rustc_substs_trait_ref_key(trait_ref.substs) {
                         let impl_ids = self.tcx.impl_item_implementor_ids(real_impl_def_id);
                         for (trait_f, ty_f) in impl_ids {
-                            println!(
-                                "TRACE: trait of `{trait_f:?}` = {:?}",
-                                self.tcx.trait_of_item(trait_f)
-                            );
+                            // println!(
+                            //     "TRACE: trait of `{trait_f:?}` = {:?}",
+                            //     self.tcx.trait_of_item(trait_f)
+                            // );
                             self.specs.trait_impls.insert((*trait_f, key), *ty_f);
                         }
                     }
