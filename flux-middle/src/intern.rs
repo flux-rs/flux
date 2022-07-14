@@ -285,6 +285,13 @@ where
             }
         }
     }
+
+    pub fn tail(&self) -> List<T>
+    where
+        T: Clone,
+    {
+        List::from(&self[1..])
+    }
 }
 
 impl<T> From<&[T]> for Interned<[T]>

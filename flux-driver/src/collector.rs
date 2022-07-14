@@ -8,6 +8,7 @@ use flux_common::{
     iter::IterExt,
 };
 use flux_errors::FluxSession;
+use flux_middle::rustc::ty::{rustc_substs_trait_ref_key, TraitImplMap};
 use flux_syntax::{
     parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
     ParseErrorKind, ParseResult,
@@ -25,14 +26,6 @@ use rustc_hir::{
 use rustc_middle::ty::TyCtxt;
 use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
-
-/// We want to build a lookup table: `(trait_f, key) -> trait_f_ty_at_key` that maps
-/// (1) `trait_f` the generic method name `DefId` which appears at usage-sites,
-/// (2) `key` the particular type-args at the usage site
-/// to the `trait_f_ty_at_key` which is the specific method instance at the key
-///
-pub type TraitRefKey = DefId;
-pub type TraitImplMap = FxHashMap<(DefId, TraitRefKey), DefId>;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -118,17 +111,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn trait_ref_key(&self, trait_ref: rustc_middle::ty::TraitRef) -> Option<TraitRefKey> {
-        match trait_ref.substs.get(0)?.unpack() {
-            rustc_middle::ty::subst::GenericArgKind::Type(ty) => {
-                match ty.kind() {
-                    rustc_middle::ty::TyKind::Adt(def, _) => Some(def.did()),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
+    // fn trait_ref_key(&self, trait_ref: rustc_middle::ty::TraitRef) -> Option<TraitRefKey> {
+    //     // let substs = trait_ref.substs;
+    //     rustc_substs_trait_ref_key(trait_ref.substs)
+    // }
 
     fn parse_trait_impl(&mut self, impl_item: &ImplItem, trait_impl_ids: &mut HashSet<DefId>) {
         let impl_def_id = impl_item.def_id;
@@ -136,7 +122,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             if !trait_impl_ids.contains(&real_impl_def_id) {
                 trait_impl_ids.insert(real_impl_def_id);
                 if let Some(trait_ref) = self.tcx.impl_trait_ref(real_impl_def_id) {
-                    if let Some(key) = self.trait_ref_key(trait_ref) {
+                    if let Some(key) = rustc_substs_trait_ref_key(trait_ref.substs) {
                         let impl_ids = self.tcx.impl_item_implementor_ids(real_impl_def_id);
                         for (trait_f, trait_f_ty) in impl_ids {
                             self.specs.trait_impls.insert((*trait_f, key), *trait_f_ty);

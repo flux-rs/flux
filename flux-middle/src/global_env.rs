@@ -12,7 +12,7 @@ pub use rustc_span::symbol::Ident;
 use crate::{
     core::{self, VariantIdx},
     intern::List,
-    rustc,
+    rustc::{self, ty::TraitImplMap},
     ty::{self, fold::TypeFoldable, subst::BVarFolder},
 };
 
@@ -24,6 +24,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
     check_asserts: AssertBehavior,
+    trait_impls: rustc::ty::TraitImplMap,
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
@@ -38,6 +39,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             tcx,
             sess,
             check_asserts,
+            trait_impls: FxHashMap::default(),
+        }
+    }
+
+    pub fn register_trait_impls(&mut self, impls: TraitImplMap) {
+        for (k, v) in impls {
+            self.trait_impls.insert(k, v);
         }
     }
 
@@ -78,12 +86,27 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .insert(def_id, ty::AdtDef::new(def_id, sorts));
     }
 
-    pub fn lookup_fn_sig_with_args(
+    fn lookup_trait_impl(
         &self,
         def_id: DefId,
         substs: &List<rustc::ty::GenericArg>,
+    ) -> Option<DefId> {
+        let key = rustc::ty::flux_substs_trait_ref_key(substs)?;
+        let trait_impl_id = self.trait_impls.get(&(def_id, key))?;
+        Some(*trait_impl_id)
+    }
+
+    pub fn lookup_fn_sig_with_args(
+        &self,
+        def_id0: DefId,
+        substs0: &List<rustc::ty::GenericArg>,
         args: &Vec<rustc::mir::Operand>,
     ) -> ty::PolySig {
+        let substs1 = substs0.tail();
+        let (def_id, substs) = match self.lookup_trait_impl(def_id0, substs0) {
+            Some(impl_did) => (impl_did, &substs1),
+            None => (def_id0, substs0),
+        };
         // let expand = self.tcx.try_expand_impl_trait_type(def_id, substs);
         println!("TRACE: lookup_fn_sig_with_args: `{def_id:?}` `{substs:?}` `{args:?}`");
 
