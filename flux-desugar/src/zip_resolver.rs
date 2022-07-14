@@ -104,28 +104,25 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
     };
 
     let path_args_len = path.args.len();
-    if path_args_len > rust_args.len() {
-        panic!(
-            "argument count mismatch, expected: {:#?},  found: {:#?}",
-            rust_args, // rust_args.len(),
-            path.args  // path.args.len()
-        );
+    if path_args_len != rust_args.len() {
+        panic!("type-argument mismatch, expected: {:#?},  found: {:#?}", rust_args, path.args);
     }
-    let mut args: Vec<Ty<Res>> = iter::zip(path.args, rust_args)
+    let args: Vec<Ty<Res>> = iter::zip(path.args, rust_args)
         .map(|(arg, rust_arg)| zip_generic_arg(arg, rust_arg))
         .collect();
 
-    if path_args_len < rust_args.len() {
-        for rust_arg in &rust_args[path_args_len..] {
-            let ty = default_generic_arg(rust_arg, path.span);
-            args.push(ty)
-        }
-    }
-    // pad_path_args(path_args, rust_args);
+    // TODO: Allow for more `rust_args` to account for lifetimes etc.
+    // if path_args_len < rust_args.len() {
+    // for rust_arg in &rust_args[path_args_len..] {
+    // let ty = _default_generic_arg(rust_arg, path.span);
+    // args.push(ty)
+    // }
+    // }
+
     Path { ident: res, args, span: path.span }
 }
 
-fn default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
+fn _default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
     match rust_arg {
         rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
     }
