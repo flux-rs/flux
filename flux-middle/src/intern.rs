@@ -290,7 +290,11 @@ where
     where
         T: Clone,
     {
-        List::from(&self[1..])
+        if !self.is_empty() {
+            List::from(&self[1..])
+        } else {
+            List::from(&self[0..])
+        }
     }
 }
 

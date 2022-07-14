@@ -137,6 +137,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let aliases = specs.aliases;
 
         // Trait Impls
+        genv.register_trait_impls(specs.trait_impls);
 
         // Function signatures
         specs

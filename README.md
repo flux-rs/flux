@@ -124,6 +124,9 @@ https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/context/struct.T
 
 All implementations of a trait!
 
+https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/context/struct.TyCtxt.html#method.find_map_relevant_impl
+
+
 https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/context/struct.TyCtxt.html#method.implementations_of_trait
 
 
@@ -162,3 +165,19 @@ Pair of
 
 - `DefId`    (the trait)
 - `SubstRef` (the "args")
+
+
+### Nico Route (to avoid `key` shenanigan)
+
+* stash the `rustc` Subst at the call-site (during lowering)
+
+* `self_ty`  for `find_map_relevant_impl` is the `0` elem of the `subst`
+
+* `trait_f` --?-> `trait_id` ---use find_map_relevant_impl--> `impl_id` --?-> `impl_f`
+
+`impl_id` + `trait_f` -> `impl_f` via `impl_item_implementor_ids`
+
+
+HOW TO get from `trait_f` to `trait_id` ?
+
+trait_of_item

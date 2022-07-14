@@ -92,7 +92,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         substs: &List<rustc::ty::GenericArg>,
     ) -> Option<DefId> {
         let key = rustc::ty::flux_substs_trait_ref_key(substs)?;
-        let trait_impl_id = self.trait_impls.get(&(def_id, key))?;
+        let did_key = (def_id, key);
+        // println!("TRACE: lookup_trait_impl0 `{did_key:?}` in `{:?}`", self.trait_impls);
+        let trait_impl_id = self.trait_impls.get(&did_key)?;
         Some(*trait_impl_id)
     }
 
@@ -100,15 +102,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self,
         def_id0: DefId,
         substs0: &List<rustc::ty::GenericArg>,
-        args: &Vec<rustc::mir::Operand>,
+        _args: &Vec<rustc::mir::Operand>,
     ) -> ty::PolySig {
         let substs1 = substs0.tail();
-        let (def_id, substs) = match self.lookup_trait_impl(def_id0, substs0) {
+        let trait_impl = self.lookup_trait_impl(def_id0, substs0);
+        // println!("TRACE: lookup_trait_impl def_id = `{def_id0:?}` substs = `{substs0:?}` result = `{trait_impl:?}`");
+        let (def_id, _substs) = match trait_impl {
             Some(impl_did) => (impl_did, &substs1),
             None => (def_id0, substs0),
         };
         // let expand = self.tcx.try_expand_impl_trait_type(def_id, substs);
-        println!("TRACE: lookup_fn_sig_with_args: `{def_id:?}` `{substs:?}` `{args:?}`");
+        // println!("TRACE: lookup_fn_sig_with_args: `{def_id:?}` `{substs:?}` `{args:?}`");
 
         self.fn_sigs
             .borrow_mut()
@@ -194,7 +198,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
         let rust_fn_sig = self.tcx.fn_sig(def_id);
-        println!("TRACE: default_fn_sig id = {:?}, sig = {:?}", def_id, rust_fn_sig);
+        // println!("TRACE: default_fn_sig id = {:?}, sig = {:?}", def_id, rust_fn_sig);
         let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, rust_fn_sig);
         self.tcx.sess.abort_if_errors();
         self.refine_fn_sig(&fn_sig.unwrap(), &mut |_| ty::Pred::tt())

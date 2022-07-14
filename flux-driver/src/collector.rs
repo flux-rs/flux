@@ -102,7 +102,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             }
         }
 
-        println!("TRACE: trait_impls {:#?}", collector.specs.trait_impls);
+        // println!("TRACE: trait_impls {:#?}", collector.specs.trait_impls);
 
         if let Some(e) = collector.error_guaranteed {
             Err(e)
@@ -110,11 +110,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             Ok(collector.specs)
         }
     }
-
-    // fn trait_ref_key(&self, trait_ref: rustc_middle::ty::TraitRef) -> Option<TraitRefKey> {
-    //     // let substs = trait_ref.substs;
-    //     rustc_substs_trait_ref_key(trait_ref.substs)
-    // }
 
     fn parse_trait_impl(&mut self, impl_item: &ImplItem, trait_impl_ids: &mut HashSet<DefId>) {
         let impl_def_id = impl_item.def_id;
@@ -124,8 +119,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 if let Some(trait_ref) = self.tcx.impl_trait_ref(real_impl_def_id) {
                     if let Some(key) = rustc_substs_trait_ref_key(trait_ref.substs) {
                         let impl_ids = self.tcx.impl_item_implementor_ids(real_impl_def_id);
-                        for (trait_f, trait_f_ty) in impl_ids {
-                            self.specs.trait_impls.insert((*trait_f, key), *trait_f_ty);
+                        for (trait_f, ty_f) in impl_ids {
+                            println!(
+                                "TRACE: trait of `{trait_f:?}` = {:?}",
+                                self.tcx.trait_of_item(trait_f)
+                            );
+                            self.specs.trait_impls.insert((*trait_f, key), *ty_f);
                         }
                     }
                 }

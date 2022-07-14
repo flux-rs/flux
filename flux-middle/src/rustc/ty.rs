@@ -154,6 +154,11 @@ impl std::fmt::Debug for Ty {
 /// (2) `key` the particular type-args at the usage site
 /// to the `trait_f_ty_at_key` which is the specific method instance at the key
 ///
+/// e.g. Given (std::Iterator.next, Rng) -> Rng.next
+/// Table is creating a map
+///
+///     method_def_id, subst -> impl_def_id
+///
 pub type TraitRefKey = DefId;
 pub type TraitImplMap = FxHashMap<(DefId, TraitRefKey), DefId>;
 

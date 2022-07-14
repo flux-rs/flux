@@ -4,7 +4,7 @@ use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_middle::{
     mir as rustc_mir,
-    ty::{self as rustc_ty, subst::GenericArgKind, ParamEnv, TyCtxt, TypeFoldable},
+    ty::{self as rustc_ty, subst::GenericArgKind, ParamEnv, TyCtxt},
 };
 use rustc_span::Span;
 
@@ -146,22 +146,22 @@ impl<'tcx> LoweringCtxt<'tcx> {
             } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        if let Ok(exp_ty) = self.tcx.try_expand_impl_trait_type(*fn_def, substs) {
-                            let normal_exp_ty = self.tcx.subst_and_normalize_erasing_regions(
-                                substs,
-                                ParamEnv::empty(),
-                                exp_ty,
-                            );
-                            // .normalize_erasing_regions(ParamEnv::empty(), exp_ty);
-                            // .normalize_erasing_late_bound_regions(ParamEnv::empty(), exp_ty);
+                        // if let Ok(exp_ty) = self.tcx.try_expand_impl_trait_type(*fn_def, substs) {
+                        //     let normal_exp_ty = self.tcx.subst_and_normalize_erasing_regions(
+                        //         substs,
+                        //         ParamEnv::empty(),
+                        //         exp_ty,
+                        //     );
+                        //     // .normalize_erasing_regions(ParamEnv::empty(), exp_ty);
+                        //     // .normalize_erasing_late_bound_regions(ParamEnv::empty(), exp_ty);
 
-                            println!(
-                                "TRACE: has_projections `{exp_ty:?}` = {:?}",
-                                exp_ty.has_projections()
-                            );
-                            println!("TRACE: expand_impl_trait says: `{exp_ty:?}`");
-                            println!("TRACE: normal_impl_trait says: `{normal_exp_ty:?}`");
-                        }
+                        //     println!(
+                        //         "TRACE: has_projections `{exp_ty:?}` = {:?}",
+                        //         exp_ty.has_projections()
+                        //     );
+                        //     println!("TRACE: expand_impl_trait says: `{exp_ty:?}`");
+                        //     println!("TRACE: normal_impl_trait says: `{normal_exp_ty:?}`");
+                        // }
                         (*fn_def, lower_substs(self.tcx, substs)?)
                     }
                     _ => {
