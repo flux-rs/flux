@@ -122,15 +122,16 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
     Path { ident: res, args, span: path.span }
 }
 
-fn _default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
-    match rust_arg {
-        rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
-    }
-}
-
 fn zip_generic_arg(arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {
     match rust_arg {
         rustc_ty::GenericArg::Ty(ty) => zip_ty(arg, ty),
+    }
+}
+
+/* TODO: Allow for more `rust_args`
+fn _default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
+    match rust_arg {
+        rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
     }
 }
 
@@ -146,14 +147,7 @@ fn default_ty(rust_ty: &rustc_ty::Ty, span: rustc_span::Span) -> Ty<Res> {
             Ty { kind: TyKind::Path(path), span }
         }
         _ => todo!(),
-        // rustc_ty::TyKind::Param(a) => Res::Param(*a),
-        // rustc_ty::TyKind::Bool => todo!(),
-        // rustc_ty::TyKind::Float(_) => todo!(),
-        // rustc_ty::TyKind::Int(_) => todo!(),
-        // rustc_ty::TyKind::Never => todo!(),
-        // rustc_ty::TyKind::Ref(_, _) => todo!(),
-        // rustc_ty::TyKind::Tuple(_) => todo!(),
-        // rustc_ty::TyKind::Uint(_) => todo!(),
-        // _ => panic!("default_ty: cannot handle {:?} at {:?}", rust_ty, span),
     }
 }
+
+*/

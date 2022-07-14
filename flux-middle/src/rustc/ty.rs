@@ -1,7 +1,6 @@
 //! A simplified version of rust types.
 
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
@@ -146,44 +145,6 @@ impl std::fmt::Debug for Ty {
                     tys.iter()
                         .format_with(", ", |ty, f| f(&format_args!("{:?}", ty)))
                 )
-            }
-        }
-    }
-}
-
-// TODO(RJ): TRAIT-OLD-STYLE
-/// We want to build a lookup table: `(trait_f, key) -> trait_f_ty_at_key` that maps
-/// (1) `trait_f` the generic method name `DefId` which appears at usage-sites,
-/// (2) `key` the particular type-args at the usage site
-/// to the `trait_f_ty_at_key` which is the specific method instance at the key
-///
-/// e.g. Given (std::Iterator.next, Rng) -> Rng.next
-/// Table is creating a map: (method_def_id, subst) -> impl_def_id
-///
-pub type TraitRefKey = DefId;
-pub type TraitImplMap = FxHashMap<(DefId, TraitRefKey), DefId>;
-
-pub fn rustc_substs_trait_ref_key(
-    substs: &rustc_middle::ty::List<rustc_middle::ty::subst::GenericArg>,
-) -> Option<TraitRefKey> {
-    match substs.get(0)?.unpack() {
-        rustc_middle::ty::subst::GenericArgKind::Type(ty) => {
-            match ty.kind() {
-                rustc_middle::ty::TyKind::Adt(def, _) => Some(def.did()),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-// TODO:RJ gross to have to duplicate ...
-pub fn flux_substs_trait_ref_key(substs: &List<GenericArg>) -> Option<TraitRefKey> {
-    match substs.get(0)? {
-        GenericArg::Ty(ty) => {
-            match ty.kind() {
-                TyKind::Adt(def_id, _) => Some(*def_id),
-                _ => None,
             }
         }
     }

@@ -67,3 +67,89 @@ Pair of
 
 - `DefId`    (the trait)
 - `SubstRef` (the "args")
+
+
+From `collector.rs`
+
+```rust
+    // TRAIT-IMPL-OLD
+    fn parse_trait_impl(&mut self, impl_item: &ImplItem, trait_impl_ids: &mut HashSet<DefId>) {
+        let impl_def_id = impl_item.def_id;
+        if let Some(real_impl_def_id) = self.tcx.impl_of_method(impl_def_id.to_def_id()) {
+            if !trait_impl_ids.contains(&real_impl_def_id) {
+                trait_impl_ids.insert(real_impl_def_id);
+                if let Some(trait_ref) = self.tcx.impl_trait_ref(real_impl_def_id) {
+                    if let Some(key) = rustc_substs_trait_ref_key(trait_ref.substs) {
+                        let impl_ids = self.tcx.impl_item_implementor_ids(real_impl_def_id);
+                        for (trait_f, ty_f) in impl_ids {
+                            self.specs.trait_impls.insert((*trait_f, key), *ty_f);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Returns the `DefId` of the trait being implemented by the `hir_id`
+    fn _impl_item_trait_ref(tcx: TyCtxt<'tcx>, impl_item: &ImplItem) -> Option<DefId> {
+        let hir_id = impl_item.hir_id();
+        let parent = tcx.hir().get_parent_node(hir_id);
+
+        let parent_node = tcx.hir().find(parent)?;
+
+        match parent_node {
+            rustc_hir::Node::Item(parent_item) => {
+                match parent_item.kind {
+                    ItemKind::Impl(parent_impl) => {
+                        let trait_ref = parent_impl.of_trait.as_ref()?;
+                        let self_ty = parent_impl.self_ty;
+                        let trait_def_id = trait_ref.trait_def_id()?;
+                        println!(
+                            "TRACE: impl_item_trait_ref `{trait_def_id:?}` has `{self_ty:#?}`"
+                        );
+                        Some(trait_def_id)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+```
+// TODO(RJ): TRAIT-OLD-STYLE
+/// We want to build a lookup table: `(trait_f, key) -> trait_f_ty_at_key` that maps
+/// (1) `trait_f` the generic method name `DefId` which appears at usage-sites,
+/// (2) `key` the particular type-args at the usage site
+/// to the `trait_f_ty_at_key` which is the specific method instance at the key
+///
+/// e.g. Given (std::Iterator.next, Rng) -> Rng.next
+/// Table is creating a map: (method_def_id, subst) -> impl_def_id
+///
+pub type TraitRefKey = DefId;
+pub type TraitImplMap = FxHashMap<(DefId, TraitRefKey), DefId>;
+
+pub fn rustc_substs_trait_ref_key(
+    substs: &rustc_middle::ty::List<rustc_middle::ty::subst::GenericArg>,
+) -> Option<TraitRefKey> {
+    match substs.get(0)?.unpack() {
+        rustc_middle::ty::subst::GenericArgKind::Type(ty) => {
+            match ty.kind() {
+                rustc_middle::ty::TyKind::Adt(def, _) => Some(def.did()),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+// TODO:RJ gross to have to duplicate ...
+pub fn flux_substs_trait_ref_key(substs: &List<GenericArg>) -> Option<TraitRefKey> {
+    match substs.get(0)? {
+        GenericArg::Ty(ty) => {
+            match ty.kind() {
+                TyKind::Adt(def_id, _) => Some(*def_id),
+                _ => None,
+            }
+        }
+    }
+}

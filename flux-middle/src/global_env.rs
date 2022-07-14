@@ -12,7 +12,7 @@ pub use rustc_span::symbol::Ident;
 use crate::{
     core::{self, VariantIdx},
     intern::List,
-    rustc::{self, mir::CallSubsts, ty::TraitImplMap},
+    rustc::{self, mir::CallSubsts},
     ty::{self, fold::TypeFoldable, subst::BVarFolder},
 };
 
@@ -24,7 +24,6 @@ pub struct GlobalEnv<'genv, 'tcx> {
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
     check_asserts: AssertBehavior,
-    trait_impls: rustc::ty::TraitImplMap,
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
@@ -39,13 +38,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             tcx,
             sess,
             check_asserts,
-            trait_impls: FxHashMap::default(),
-        }
-    }
-
-    pub fn register_trait_impls(&mut self, impls: TraitImplMap) {
-        for (k, v) in impls {
-            self.trait_impls.insert(k, v);
         }
     }
 
