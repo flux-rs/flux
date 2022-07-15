@@ -111,14 +111,6 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         .map(|(arg, rust_arg)| zip_generic_arg(arg, rust_arg))
         .collect();
 
-    // TODO(RJ): LIFETIME-ARGS
-    // if path_args_len < rust_args.len() {
-    // for rust_arg in &rust_args[path_args_len..] {
-    // let ty = _default_generic_arg(rust_arg, path.span);
-    // args.push(ty)
-    // }
-    // }
-
     Path { ident: res, args, span: path.span }
 }
 
