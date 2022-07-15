@@ -34,8 +34,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
         tcx: TyCtxt<'tcx>,
         rustc_mir: rustc_mir::Body<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let param_env = tcx.param_env(rustc_mir.source.def_id());
-
         let lower = Self { tcx, rustc_mir };
 
         let basic_blocks = lower
@@ -52,7 +50,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.rustc_mir, param_env })
+        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.rustc_mir })
     }
 
     fn lower_basic_block_data(

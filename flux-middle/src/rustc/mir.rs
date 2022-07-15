@@ -8,7 +8,7 @@ use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir,
-    ty::{subst::SubstsRef, FloatTy, IntTy, ParamEnv, UintTy},
+    ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
     mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
