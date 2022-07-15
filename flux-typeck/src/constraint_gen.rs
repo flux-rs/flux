@@ -43,6 +43,21 @@ pub enum Tag {
     Goto(Option<Span>, BasicBlock),
 }
 
+impl Tag {
+    pub fn span(&self) -> Option<Span> {
+        match *self {
+            Tag::Call(span)
+            | Tag::Assign(span)
+            | Tag::RetAt(span)
+            | Tag::Fold(span)
+            | Tag::Assert(_, span)
+            | Tag::Div(span)
+            | Tag::Rem(span)
+            | Tag::Goto(Some(span), _) => Some(span),
+            _ => None,
+        }
+    }
+}
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
@@ -232,7 +247,9 @@ fn bty_subtyping(
                 variance_subtyping(genv, constr, *variance, ty1, ty2, tag);
             }
         }
-        _ => unreachable!("unexpected base types: `{:?}` `{:?}`", bty1, bty2),
+        _ => {
+            unreachable!("unexpected base types: `{:?}` and `{:?}` at {:?}", bty1, bty2, tag.span())
+        }
     }
 }
 

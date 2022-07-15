@@ -9,7 +9,7 @@ use rvec::RVec;
 #[flux::refined_by(n: int)]
 pub struct Foo {
     #[flux::field(RVec<usize>[@n])]
-    inner: RVec<usize>,
+    pub inner: RVec<usize>,
 }
 
 impl Foo {
