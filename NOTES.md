@@ -219,3 +219,49 @@ From `lower_ty`
             panic!("projection-type = `{proj_ty:?}` trait_def_id = `{trait_def_id:?}` trait_ref = `{trait_ref:?}` own_substs = `{own_substs:?}`")
         }
 ```
+
+// TODO(RJ): LIFETIME-ARGS
+// if path_args_len < rust_args.len() {
+// for rust_arg in &rust_args[path_args_len..] {
+// let ty = _default_generic_arg(rust_arg, path.span);
+// args.push(ty)
+// }
+// }
+
+// TODO(RJ): LIFETIME-ARGS
+// fn _default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
+// match rust_arg {
+// rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
+// }
+// }
+//
+// fn default_ty(rust_ty: &rustc_ty::Ty, span: rustc_span::Span) -> Ty<Res> {
+// match rust_ty.kind() {
+// rustc_ty::TyKind::Adt(def_id, substs) => {
+// let ident = Res::Adt(*def_id);
+// let args = substs
+// .iter()
+// .map(|arg| default_generic_arg(arg, span))
+// .collect();
+// let path = Path { ident, args, span };
+// Ty { kind: TyKind::Path(path), span }
+// }
+// _ => todo!(),
+// }
+// }
+
+// TODO(RJ): LIFETIME-ARGS Keep this for next step where we "erase" lifetimes e.g. for real `Vec`
+fn _lower_generic_arg_opt<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    arg: rustc_middle::ty::subst::GenericArg<'tcx>,
+) -> Option<Result<GenericArg, ErrorGuaranteed>> {
+    match arg.unpack() {
+        GenericArgKind::Type(ty) => {
+            match lower_ty(tcx, ty) {
+                Ok(lty) => Some(Ok(GenericArg::Ty(lty))),
+                Err(e) => Some(Err(e)),
+            }
+        }
+        _ => None,
+    }
+}

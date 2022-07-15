@@ -111,14 +111,6 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         .map(|(arg, rust_arg)| zip_generic_arg(arg, rust_arg))
         .collect();
 
-    // TODO(RJ): LIFETIME-ARGS
-    // if path_args_len < rust_args.len() {
-    // for rust_arg in &rust_args[path_args_len..] {
-    // let ty = _default_generic_arg(rust_arg, path.span);
-    // args.push(ty)
-    // }
-    // }
-
     Path { ident: res, args, span: path.span }
 }
 
@@ -127,25 +119,3 @@ fn zip_generic_arg(arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {
         rustc_ty::GenericArg::Ty(ty) => zip_ty(arg, ty),
     }
 }
-
-// TODO(RJ): LIFETIME-ARGS
-// fn _default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
-// match rust_arg {
-// rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
-// }
-// }
-//
-// fn default_ty(rust_ty: &rustc_ty::Ty, span: rustc_span::Span) -> Ty<Res> {
-// match rust_ty.kind() {
-// rustc_ty::TyKind::Adt(def_id, substs) => {
-// let ident = Res::Adt(*def_id);
-// let args = substs
-// .iter()
-// .map(|arg| default_generic_arg(arg, span))
-// .collect();
-// let path = Path { ident, args, span };
-// Ty { kind: TyKind::Path(path), span }
-// }
-// _ => todo!(),
-// }
-// }

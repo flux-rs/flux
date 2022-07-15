@@ -481,22 +481,6 @@ fn lower_generic_arg<'tcx>(
     }
 }
 
-// TODO(RJ): LIFETIME-ARGS Keep this for next step where we "erase" lifetimes e.g. for real `Vec`
-fn _lower_generic_arg_opt<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    arg: rustc_middle::ty::subst::GenericArg<'tcx>,
-) -> Option<Result<GenericArg, ErrorGuaranteed>> {
-    match arg.unpack() {
-        GenericArgKind::Type(ty) => {
-            match lower_ty(tcx, ty) {
-                Ok(lty) => Some(Ok(GenericArg::Ty(lty))),
-                Err(e) => Some(Err(e)),
-            }
-        }
-        _ => None,
-    }
-}
-
 fn emit_err<S: AsRef<str>, T>(
     tcx: TyCtxt,
     span: Option<Span>,
