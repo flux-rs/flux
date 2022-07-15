@@ -8,7 +8,7 @@ use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir,
-    ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
+    ty::{subst::SubstsRef, FloatTy, IntTy, ParamEnv, UintTy},
 };
 pub use rustc_middle::{
     mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
@@ -26,6 +26,7 @@ pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
     pub(crate) rustc_mir: mir::Body<'tcx>,
+    pub param_env: ParamEnv<'tcx>,
 }
 
 #[derive(Debug)]
@@ -51,6 +52,13 @@ pub struct CallSubsts<'tcx> {
     pub lowered: List<GenericArg>,
 }
 
+/// An `Instance` is the resolved call-target at a particular trait-call-site
+#[derive(Debug)]
+pub struct Instance {
+    pub impl_f: DefId,
+    pub substs: List<GenericArg>,
+}
+
 #[derive(Debug)]
 pub enum TerminatorKind<'tcx> {
     Return,
@@ -61,6 +69,7 @@ pub enum TerminatorKind<'tcx> {
         destination: Place,
         target: Option<BasicBlock>,
         cleanup: Option<BasicBlock>,
+        instance: Option<Instance>,
     },
     SwitchInt {
         discr: Operand,
@@ -292,7 +301,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { func, substs, args, destination, target, cleanup } => {
+            TerminatorKind::Call { func, substs, args, destination, target, cleanup, .. } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")

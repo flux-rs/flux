@@ -2,9 +2,14 @@ use itertools::Itertools;
 
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
+use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir as rustc_mir,
-    ty::{self as rustc_ty, subst::GenericArgKind, ParamEnv, TyCtxt},
+    ty::{
+        self as rustc_ty,
+        subst::{GenericArgKind, SubstsRef},
+        ParamEnv, TyCtxt,
+    },
 };
 use rustc_span::Span;
 
@@ -12,8 +17,9 @@ use crate::intern::List;
 
 use super::{
     mir::{
-        AggregateKind, BasicBlockData, BinOp, Body, CallSubsts, Constant, FakeReadCause, LocalDecl,
-        Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, BasicBlockData, BinOp, Body, CallSubsts, Constant, FakeReadCause, Instance,
+        LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
+        TerminatorKind,
     },
     ty::{FnSig, GenericArg, Ty},
 };
@@ -28,6 +34,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
         tcx: TyCtxt<'tcx>,
         rustc_mir: rustc_mir::Body<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
+        let param_env = tcx.param_env(rustc_mir.source.def_id());
+
         let lower = Self { tcx, rustc_mir };
 
         let basic_blocks = lower
@@ -44,7 +52,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.rustc_mir })
+        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.rustc_mir, param_env })
     }
 
     fn lower_basic_block_data(
@@ -135,6 +143,28 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
+    fn lower_instance(
+        &self,
+        trait_f: DefId,
+        substs: SubstsRef<'tcx>,
+    ) -> Result<Option<Instance>, ErrorGuaranteed> {
+        let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
+        match rustc_middle::ty::Instance::resolve(self.tcx, param_env, trait_f, substs) {
+            Ok(Some(instance)) => {
+                // println!("TRACE: lookup_trait_impl finds {:?}", instance.substs);
+                let impl_f = instance.def_id();
+                let inst = if impl_f != trait_f {
+                    let substs = lower_substs(self.tcx, instance.substs)?;
+                    Some(Instance { impl_f, substs })
+                } else {
+                    None
+                };
+                Ok(inst)
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn lower_terminator(
         &self,
         terminator: &rustc_mir::Terminator<'tcx>,
@@ -159,6 +189,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
                 let destination = self.lower_place(destination)?;
 
+                let instance = self.lower_instance(func, substs.orig)?;
+
                 TerminatorKind::Call {
                     func,
                     substs,
@@ -169,6 +201,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .map(|arg| self.lower_operand(arg))
                         .try_collect()?,
                     cleanup: *cleanup,
+                    instance,
                 }
             }
             rustc_mir::TerminatorKind::SwitchInt { discr, targets, .. } => {

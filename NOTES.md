@@ -1,5 +1,19 @@
 # RJ Notes
 
+**Lowering**
+
+- [] Define `struct Instance { def_id: DefId, substs: GenericArgs }`
+- [] Change the lowered `Call` to have an exta field `instance: Option<Instance>`
+- [] At lowering time, compute the `instance` field using the [Instance API](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/instance/struct.Instance.html)
+
+
+**Checking**
+
+- [] If a `Call` has an `instance` field, then use that instead of the original `def_id` and `substs`.
+
+- [] stick `ParamEnv` inside the lowered BB
+- [] use the `ParamEnv` to get the impl-instance
+
 - default_fn_sig
 - refine_fn_sig
 

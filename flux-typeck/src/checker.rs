@@ -352,16 +352,17 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     Ok(self.check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { func, substs, args, destination, target, .. } => {
-                let fn_sig = self.genv.lookup_fn_sig_with_args(*func, substs, args);
-                let ret = self.check_call(
-                    rcx,
-                    env,
-                    terminator.source_info,
-                    fn_sig,
-                    &substs.lowered,
-                    args,
-                )?;
+            TerminatorKind::Call { func, substs, args, destination, target, instance, .. } => {
+                let (func_id, substs) = match instance {
+                    Some(inst) => (inst.impl_f, &inst.substs),
+                    None => (*func, &substs.lowered),
+                };
+                let fn_sig = self.genv.lookup_fn_sig(func_id);
+
+                // println!("TRACE: lookup_sig `{func:?}` :: `{fn_sig:?}` at `{substs:?}`");
+
+                let ret =
+                    self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
 
                 let ret = rcx.unpack(&ret, false);
                 let mut gen =

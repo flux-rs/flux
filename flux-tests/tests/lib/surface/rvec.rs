@@ -83,6 +83,7 @@ impl<T> IntoIterator for RVec<T> {
     type Item = T;
     type IntoIter = RVecIter<T>;
 
+    // TODO: cannot get variant of opaque struct
     #[flux::assume]
     #[flux::sig(fn(RVec<T>) -> RVecIter<T>)]
     fn into_iter(self) -> RVecIter<T> {
@@ -93,6 +94,7 @@ impl<T> IntoIterator for RVec<T> {
 impl<T> Iterator for RVecIter<T> {
     type Item = T;
 
+    // TODO: cannot get variant of opaque struct
     #[flux::assume]
     #[flux::sig(fn(&mut RVecIter<T>) -> Option<T>)]
     fn next(&mut self) -> Option<T> {
