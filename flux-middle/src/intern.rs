@@ -285,17 +285,6 @@ where
             }
         }
     }
-
-    pub fn tail(&self) -> List<T>
-    where
-        T: Clone,
-    {
-        if !self.is_empty() {
-            List::from(&self[1..])
-        } else {
-            List::from(&self[0..])
-        }
-    }
 }
 
 impl<T> From<&[T]> for Interned<[T]>

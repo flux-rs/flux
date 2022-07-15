@@ -447,7 +447,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
             let substs = List::from_vec(
                 substs
                     .iter()
-                    .filter_map(|arg| lower_generic_arg_opt(tcx, arg))
+                    .map(|arg| lower_generic_arg(tcx, arg))
                     .try_collect()?,
             );
             Ok(Ty::mk_adt(adt_def.did(), substs))
@@ -465,12 +465,12 @@ fn lower_substs<'tcx>(
     Ok(List::from_vec(
         substs
             .iter()
-            .filter_map(|arg| lower_generic_arg_opt(tcx, arg))
+            .map(|arg| lower_generic_arg(tcx, arg))
             .try_collect()?,
     ))
 }
 
-fn _lower_generic_arg<'tcx>(
+fn lower_generic_arg<'tcx>(
     tcx: TyCtxt<'tcx>,
     arg: rustc_middle::ty::subst::GenericArg<'tcx>,
 ) -> Result<GenericArg, ErrorGuaranteed> {
@@ -482,7 +482,8 @@ fn _lower_generic_arg<'tcx>(
     }
 }
 
-fn lower_generic_arg_opt<'tcx>(
+// TODO(RJ): LIFETIME-ARGS Keep this for next step where we "erase" lifetimes e.g. for real `Vec`
+fn _lower_generic_arg_opt<'tcx>(
     tcx: TyCtxt<'tcx>,
     arg: rustc_middle::ty::subst::GenericArg<'tcx>,
 ) -> Option<Result<GenericArg, ErrorGuaranteed>> {
