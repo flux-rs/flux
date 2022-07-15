@@ -26,7 +26,6 @@ pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
     pub(crate) rustc_mir: mir::Body<'tcx>,
-    pub param_env: ParamEnv<'tcx>,
 }
 
 #[derive(Debug)]
