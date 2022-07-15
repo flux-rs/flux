@@ -120,24 +120,3 @@ fn zip_generic_arg(arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {
     }
 }
 
-// TODO(RJ): LIFETIME-ARGS
-// fn _default_generic_arg(rust_arg: &rustc_ty::GenericArg, span: rustc_span::Span) -> Ty<Res> {
-// match rust_arg {
-// rustc_ty::GenericArg::Ty(ty) => default_ty(ty, span),
-// }
-// }
-//
-// fn default_ty(rust_ty: &rustc_ty::Ty, span: rustc_span::Span) -> Ty<Res> {
-// match rust_ty.kind() {
-// rustc_ty::TyKind::Adt(def_id, substs) => {
-// let ident = Res::Adt(*def_id);
-// let args = substs
-// .iter()
-// .map(|arg| default_generic_arg(arg, span))
-// .collect();
-// let path = Path { ident, args, span };
-// Ty { kind: TyKind::Path(path), span }
-// }
-// _ => todo!(),
-// }
-// }
