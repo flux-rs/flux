@@ -14,10 +14,7 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(
-    fn(self: &strg RVec<T>[@n], T) -> ()
-    ensures self: RVec<T>[n+1]
-    )]
+    #[flux::sig(fn(self: &strg RVec<T>[@n], T) -> () ensures self: RVec<T>[n+1])]
     pub fn push(&mut self, item: T) {
         self.inner.push(item);
     }
@@ -47,11 +44,9 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(
-    fn(self: &strg RVec<T>[@n]) -> T
-    requires n > 0
-    ensures self: RVec<T>[n-1]
-    )]
+    #[flux::sig(fn(self: &strg RVec<T>[@n]) -> T
+    		requires n > 0
+                ensures self: RVec<T>[n-1])]
     pub fn pop(&mut self) -> T {
         self.inner.pop().unwrap()
     }
@@ -75,5 +70,32 @@ impl<T> RVec<T> {
             i += 1;
         }
         vec
+    }
+}
+
+#[flux::opaque]
+pub struct RVecIter<T> {
+    vec: RVec<T>,
+    curr: usize,
+}
+
+impl<T> IntoIterator for RVec<T> {
+    type Item = T;
+    type IntoIter = RVecIter<T>;
+
+    #[flux::assume]
+    #[flux::sig(fn(RVec<T>) -> RVecIter<T>)]
+    fn into_iter(self) -> RVecIter<T> {
+        RVecIter { vec: self, curr: 0 }
+    }
+}
+
+impl<T> Iterator for RVecIter<T> {
+    type Item = T;
+
+    #[flux::assume]
+    #[flux::sig(fn(&mut RVecIter<T>) -> Option<T>)]
+    fn next(&mut self) -> Option<T> {
+        self.vec.inner.pop()
     }
 }
