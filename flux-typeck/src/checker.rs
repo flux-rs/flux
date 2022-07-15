@@ -337,7 +337,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        terminator: &Terminator,
+        terminator: &Terminator<'tcx>,
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
         match &terminator.kind {
@@ -352,8 +352,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     Ok(self.check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { func, substs, args, destination, target, .. } => {
-                let fn_sig = self.genv.lookup_fn_sig(*func);
+            TerminatorKind::Call { func, substs, args, destination, target, instance, .. } => {
+                let (func_id, substs) = match instance {
+                    Some(inst) => (inst.impl_f, &inst.substs),
+                    None => (*func, &substs.lowered),
+                };
+                let fn_sig = self.genv.lookup_fn_sig(func_id);
+
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
 

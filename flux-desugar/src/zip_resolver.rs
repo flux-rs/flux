@@ -102,16 +102,15 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
         _ => panic!("incompatible type: `{rust_ty:?}`"),
     };
-    if path.args.len() != rust_args.len() {
-        panic!(
-            "argument count mismatch, expected: {:?},  found: {:?}",
-            rust_args.len(),
-            path.args.len()
-        );
+
+    let path_args_len = path.args.len();
+    if path_args_len != rust_args.len() {
+        panic!("type-argument mismatch, expected: {:#?},  found: {:#?}", rust_args, path.args);
     }
-    let args = iter::zip(path.args, rust_args)
+    let args: Vec<Ty<Res>> = iter::zip(path.args, rust_args)
         .map(|(arg, rust_arg)| zip_generic_arg(arg, rust_arg))
         .collect();
+
     Path { ident: res, args, span: path.span }
 }
 

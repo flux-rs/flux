@@ -2,9 +2,14 @@ use itertools::Itertools;
 
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
+use rustc_hir::def_id::DefId;
 use rustc_middle::{
-    mir as rustc_mir, ty as rustc_ty,
-    ty::{subst::GenericArgKind, ParamEnv, TyCtxt},
+    mir as rustc_mir,
+    ty::{
+        self as rustc_ty,
+        subst::{GenericArgKind, SubstsRef},
+        ParamEnv, TyCtxt,
+    },
 };
 use rustc_span::Span;
 
@@ -12,8 +17,9 @@ use crate::intern::List;
 
 use super::{
     mir::{
-        AggregateKind, BasicBlockData, BinOp, Body, Constant, FakeReadCause, LocalDecl, Operand,
-        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, BasicBlockData, BinOp, Body, CallSubsts, Constant, FakeReadCause, Instance,
+        LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
+        TerminatorKind,
     },
     ty::{FnSig, GenericArg, Ty},
 };
@@ -50,7 +56,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_basic_block_data(
         &self,
         data: &rustc_mir::BasicBlockData<'tcx>,
-    ) -> Result<BasicBlockData, ErrorGuaranteed> {
+    ) -> Result<BasicBlockData<'tcx>, ErrorGuaranteed> {
         let data = BasicBlockData {
             statements: data
                 .statements
@@ -135,10 +141,31 @@ impl<'tcx> LoweringCtxt<'tcx> {
         }
     }
 
+    fn lower_instance(
+        &self,
+        trait_f: DefId,
+        substs: SubstsRef<'tcx>,
+    ) -> Result<Option<Instance>, ErrorGuaranteed> {
+        let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
+        match rustc_middle::ty::Instance::resolve(self.tcx, param_env, trait_f, substs) {
+            Ok(Some(instance)) => {
+                let impl_f = instance.def_id();
+                let inst = if impl_f != trait_f {
+                    let substs = lower_substs(self.tcx, instance.substs)?;
+                    Some(Instance { impl_f, substs })
+                } else {
+                    None
+                };
+                Ok(inst)
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn lower_terminator(
         &self,
         terminator: &rustc_mir::Terminator<'tcx>,
-    ) -> Result<Terminator, ErrorGuaranteed> {
+    ) -> Result<Terminator<'tcx>, ErrorGuaranteed> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call {
@@ -146,7 +173,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
             } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        (*fn_def, lower_substs(self.tcx, substs)?)
+                        let lowered_substs = lower_substs(self.tcx, substs)?;
+                        (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
                     _ => {
                         return self.emit_err(
@@ -155,7 +183,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         );
                     }
                 };
+
                 let destination = self.lower_place(destination)?;
+
+                let instance = self.lower_instance(func, substs.orig)?;
 
                 TerminatorKind::Call {
                     func,
@@ -167,6 +198,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                         .map(|arg| self.lower_operand(arg))
                         .try_collect()?,
                     cleanup: *cleanup,
+                    instance,
                 }
             }
             rustc_mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
@@ -268,7 +300,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
     fn lower_aggregate_kind(
         &self,
-        aggregate_kind: &rustc_mir::AggregateKind,
+        aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, ErrorGuaranteed> {
         match aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
@@ -398,7 +430,7 @@ pub fn lower_fn_sig<'tcx>(
     Ok(FnSig { inputs_and_output })
 }
 
-pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorGuaranteed> {
+pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, ErrorGuaranteed> {
     match ty.kind() {
         rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))
@@ -423,9 +455,9 @@ pub fn lower_ty(tcx: TyCtxt, ty: rustc_ty::Ty) -> Result<Ty, ErrorGuaranteed> {
     }
 }
 
-fn lower_substs(
-    tcx: TyCtxt,
-    substs: rustc_middle::ty::subst::SubstsRef,
+fn lower_substs<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    substs: rustc_middle::ty::subst::SubstsRef<'tcx>,
 ) -> Result<List<GenericArg>, ErrorGuaranteed> {
     Ok(List::from_vec(
         substs
@@ -435,9 +467,9 @@ fn lower_substs(
     ))
 }
 
-fn lower_generic_arg(
-    tcx: TyCtxt,
-    arg: rustc_middle::ty::subst::GenericArg,
+fn lower_generic_arg<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    arg: rustc_middle::ty::subst::GenericArg<'tcx>,
 ) -> Result<GenericArg, ErrorGuaranteed> {
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
