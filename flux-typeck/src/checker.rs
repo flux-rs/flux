@@ -359,8 +359,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 };
                 let fn_sig = self.genv.lookup_fn_sig(func_id);
 
-                // println!("TRACE: lookup_sig `{func:?}` :: `{fn_sig:?}` at `{substs:?}`");
-
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
 

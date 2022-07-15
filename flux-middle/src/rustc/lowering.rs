@@ -151,7 +151,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
         match rustc_middle::ty::Instance::resolve(self.tcx, param_env, trait_f, substs) {
             Ok(Some(instance)) => {
-                // println!("TRACE: lookup_trait_impl finds {:?}", instance.substs);
                 let impl_f = instance.def_id();
                 let inst = if impl_f != trait_f {
                     let substs = lower_substs(self.tcx, instance.substs)?;
