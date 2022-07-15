@@ -2,20 +2,26 @@
 
 **Lowering**
 
-- [] Define `struct Instance { def_id: DefId, substs: GenericArgs }`
-- [] Change the lowered `Call` to have an exta field `instance: Option<Instance>`
-- [] At lowering time, compute the `instance` field using the [Instance API](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/instance/struct.Instance.html)
+- Define `struct Instance { def_id: DefId, substs: GenericArgs }`
+- Change the lowered `Call` to have an field `instance: Option<Instance>`
+- At lowering time, compute the `instance` field using the [Instance API](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/instance/struct.Instance.html)
 
 
 **Checking**
 
-- [] If a `Call` has an `instance` field, then use that instead of the original `def_id` and `substs`.
+- If a `Call` has an `instance` field, then use that instead of the original `def_id` and `substs`
 
-- [] stick `ParamEnv` inside the lowered BB
-- [] use the `ParamEnv` to get the impl-instance
+**Extra Stuff**
 
-- default_fn_sig
-- refine_fn_sig
+This PR does some work that is somewhat unnecessary at the moment
+
+- `ParamEnv` inside the lowered mir
+- Original `SubstRef` inside each `Call` (in a `CallSubsts`)
+
+but perhaps will be needed to enable trait projection normalization
+for when we do not have an instance as described
+[here](https://internals.rust-lang.org/t/accessing-the-defid-of-a-trait-implementation/17001)
+
 
 https://internals.rust-lang.org/t/accessing-the-defid-of-a-trait-implementation/17001
 
