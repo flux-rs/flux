@@ -16,7 +16,10 @@ use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
 
-use crate::{collector::SpecCollector, mir_storage};
+use crate::{
+    collector::{Ignores, SpecCollector},
+    mir_storage,
+};
 
 #[derive(Default)]
 pub(crate) struct FluxCallbacks {
@@ -56,6 +59,10 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     let ck = CrateChecker::new(&mut genv)?;
 
+    if ck.ignores.contains_key(&None) {
+        return Ok(());
+    }
+
     let crate_items = tcx.hir_crate_items(());
     let items = crate_items.items().map(|item| item.def_id);
     let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
@@ -70,6 +77,7 @@ struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
     qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
+    ignores: Ignores,
 }
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
@@ -78,6 +86,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         let mut assume = FxHashSet::default();
         let mut adt_sorts = FxHashMap::default();
+
+        if specs.ignores.contains_key(&None) {
+            return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
+        }
 
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
@@ -159,7 +171,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 Ok(())
             })?;
 
-        Ok(CrateChecker { genv, qualifiers, assume })
+        Ok(CrateChecker { genv, qualifiers, assume, ignores: specs.ignores })
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
