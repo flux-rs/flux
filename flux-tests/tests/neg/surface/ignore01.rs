@@ -10,15 +10,20 @@ pub fn test(val: i32) {
         assert(100 < val) //~ ERROR precondition
     }
 }
-pub mod foo {
-    #![flux::ignore] // ignore checking this module
+mod foo {
+    #![flux::ignore] // ignore checking this module (and all its contents)
 
-    #[flux::sig(fn(Vec<i32{v:0 < v}>) -> ())]
-    pub fn test_map(vec: Vec<i32>) {
-        let _ = vec.into_iter().map(|val| super::assert(10 < val));
+    mod goo {
+
+        mod coo {
+            #[flux::sig(fn(Vec<i32{v:0 < v}>) -> ())]
+            pub fn test_map(vec: Vec<i32>) {
+                let _ = vec.into_iter().map(|val| assert!(10 < val));
+            }
+        }
     }
 
     pub fn test_crap(vec: Vec<i32>) {
-        let _ = vec.into_iter().map(|val| super::assert(10 < val));
+        let _ = vec.into_iter().map(|val| assert!(10 < val));
     }
 }
