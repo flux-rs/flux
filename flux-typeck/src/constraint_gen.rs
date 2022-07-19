@@ -185,7 +185,7 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idx2)) => {
             bty_subtyping(genv, constr, bty1, bty2, tag);
             for (idx1, idx2) in iter::zip(idxs1, idx2) {
-                if &idx1.expr != &idx2.expr {
+                if idx1.expr != idx2.expr {
                     constr.push_head(Expr::binary_op(BinOp::Eq, idx1.clone(), idx2.clone()), tag);
                 }
             }

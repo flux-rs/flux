@@ -583,15 +583,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         if self.is_exit_block(target) {
             self.check_ret(&mut rcx, &mut env, src_info)?;
             Ok(())
-        } else {
-            if self.body.is_join_point(target) {
-                if P::check_goto_join_point(self, rcx, env, src_info, target) {
-                    self.queue.insert(target);
-                }
-                Ok(())
-            } else {
-                self.check_basic_block(rcx, env, target)
+        } else if self.body.is_join_point(target) {
+            if P::check_goto_join_point(self, rcx, env, src_info, target) {
+                self.queue.insert(target);
             }
+            Ok(())
+        } else {
+            self.check_basic_block(rcx, env, target)
         }
     }
 
