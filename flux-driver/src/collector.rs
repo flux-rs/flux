@@ -100,8 +100,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             }
         }
 
-        println!("TRACE: ignores = {:?}", collector.specs.ignores);
-
         if let Some(e) = collector.error_guaranteed {
             Err(e)
         } else {

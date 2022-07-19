@@ -1,6 +1,6 @@
 # RJ Notes
 
-- [] `#[flux::ignore]`
+- [*] `#[flux::ignore]`
 
 - [] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
     - `Constr(T, p)`

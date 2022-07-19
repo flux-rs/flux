@@ -80,9 +80,16 @@ struct CrateChecker<'a, 'genv, 'tcx> {
     assume: FxHashSet<LocalDefId>,
     ignores: Ignores,
 }
+
+/// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
+/// any enclosing mod has been marked as `ignore`
 fn is_ignored(tcx: &TyCtxt, ignores: &Ignores, def_id: &LocalDefId) -> bool {
     let parent_def_id = tcx.parent_module_from_def_id(*def_id);
-    ignores.contains_key(&Some(parent_def_id))
+    if parent_def_id == *def_id {
+        false
+    } else {
+        ignores.contains_key(&Some(parent_def_id)) || is_ignored(tcx, ignores, &parent_def_id)
+    }
 }
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
