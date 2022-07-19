@@ -78,7 +78,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     let _ = collector.parse_enum_def(item.def_id, attrs);
                 }
                 ItemKind::Mod(..) => {
-                    // TODO: Parse mod level attributes
                     let hir_id = item.hir_id();
                     let attrs = tcx.hir().attrs(hir_id);
                     let _ = collector.parse_mod_spec(item.def_id, attrs);
@@ -100,6 +99,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let _ = collector.parse_fn_spec(impl_item.def_id, attrs);
             }
         }
+
+        println!("TRACE: ignores = {:?}", collector.specs.ignores);
 
         if let Some(e) = collector.error_guaranteed {
             Err(e)
