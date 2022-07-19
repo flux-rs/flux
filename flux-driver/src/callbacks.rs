@@ -70,6 +70,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     items
         .chain(impl_items)
         .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn | DefKind::AssocFn))
+        .filter(|def_id| !is_ignored(&tcx, &ck.ignores, def_id))
         .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
 }
 
@@ -79,6 +80,10 @@ struct CrateChecker<'a, 'genv, 'tcx> {
     assume: FxHashSet<LocalDefId>,
     ignores: Ignores,
 }
+fn is_ignored(tcx: &TyCtxt, ignores: &Ignores, def_id: &LocalDefId) -> bool {
+    let parent_def_id = tcx.parent_module_from_def_id(*def_id);
+    ignores.contains_key(&Some(parent_def_id))
+}
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>) -> Result<Self, ErrorGuaranteed> {
@@ -87,6 +92,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let mut assume = FxHashSet::default();
         let mut adt_sorts = FxHashMap::default();
 
+        // Ignore everything and go home
         if specs.ignores.contains_key(&None) {
             return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
         }
@@ -149,8 +155,13 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let aliases = specs.aliases;
 
         // Function signatures
-        specs
+        let fn_specs: Vec<(LocalDefId, crate::collector::FnSpec)> = specs
             .fns
+            .into_iter()
+            .filter(|(def_id, _)| !is_ignored(&genv.tcx, &specs.ignores, def_id))
+            .collect();
+
+        fn_specs
             .into_iter()
             .try_for_each_exhaust(|(def_id, spec)| {
                 if spec.assume {
