@@ -28,7 +28,11 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 }
 
 /// An IgnoreKey is either `Some(module_def_id)` or `None` indicating the entire crate
-pub type IgnoreKey = Option<LocalDefId>;
+#[derive(PartialEq, Eq, Hash)]
+pub enum IgnoreKey {
+    Crate,
+    Module(LocalDedIf)
+}
 
 /// Set of module (`LocalDefId`) that should be ignored by flux
 pub type Ignores = FxHashMap<IgnoreKey, ()>;
