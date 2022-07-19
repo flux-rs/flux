@@ -147,7 +147,7 @@ impl RefineCtxt<'_> {
     pub fn assume_pred(&mut self, expr: impl Into<Expr>) {
         let expr = expr.into();
         if !expr.is_true() {
-            self.ptr = self.ptr.push_node(NodeKind::Guard(expr.into()));
+            self.ptr = self.ptr.push_node(NodeKind::Guard(expr));
         }
     }
 

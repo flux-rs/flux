@@ -14,7 +14,7 @@ use rustc_ast::{
     tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs, MetaItemKind, NestedMetaItem,
 };
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::SessionDiagnostic;
@@ -27,12 +27,25 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     error_guaranteed: Option<ErrorGuaranteed>,
 }
 
+/// An IgnoreKey is either `Some(module_def_id)` or `None` indicating the entire crate
+#[derive(PartialEq, Eq, Hash)]
+pub enum IgnoreKey {
+    /// Ignore the entire crate
+    Crate,
+    /// (Transitively) ignore the module named `LocalDefId`
+    Module(LocalDefId),
+}
+
+/// Set of module (`LocalDefId`) that should be ignored by flux
+pub type Ignores = FxHashSet<IgnoreKey>;
+
 pub(crate) struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub aliases: surface::AliasMap,
+    pub ignores: Ignores,
     pub crate_config: Option<config::CrateConfig>,
 }
 
@@ -71,7 +84,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     let _ = collector.parse_enum_def(item.def_id, attrs);
                 }
                 ItemKind::Mod(..) => {
-                    // TODO: Parse mod level attributes
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_mod_spec(item.def_id, attrs);
                 }
                 ItemKind::TyAlias(..) => {
                     let hir_id = item.hir_id();
@@ -127,6 +142,18 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
+    fn parse_mod_spec(
+        &mut self,
+        def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        if attrs.ignore() {
+            self.specs.ignores.insert(IgnoreKey::Module(def_id));
+        }
+        Ok(())
+    }
+
     fn parse_enum_def(
         &mut self,
         def_id: LocalDefId,
@@ -175,6 +202,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // TODO(atgeller) error if >1 cfg attributes
 
         let mut attrs = self.parse_flux_attrs(attrs)?;
+        if attrs.ignore() {
+            self.specs.ignores.insert(IgnoreKey::Crate);
+        }
+
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
         let crate_config = attrs.crate_config();
@@ -230,6 +261,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
+
             ("cfg", MacArgs::Delimited(_, _, _)) => {
                 match FluxAttrCFG::parse_cfg(attr_item) {
                     Err(error) => return self.emit_err(error),
@@ -249,6 +281,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let ty = self.parse(tokens.clone(), span.entire(), parse_ty)?;
                 FluxAttrKind::Field(ty)
             }
+            ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
             ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
             _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
@@ -307,6 +340,7 @@ impl Specs {
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
             aliases: FxHashMap::default(),
+            ignores: FxHashSet::default(),
             crate_config: None,
         }
     }
@@ -333,6 +367,7 @@ enum FluxAttrKind {
     TypeAlias(surface::Alias),
     Field(surface::Ty),
     CrateConfig(config::CrateConfig),
+    Ignore,
 }
 
 macro_rules! read_attr {
@@ -379,6 +414,10 @@ impl FluxAttrs {
         self.map.get("assume").is_some()
     }
 
+    fn ignore(&mut self) -> bool {
+        self.map.get("ignore").is_some()
+    }
+
     fn opaque(&mut self) -> bool {
         self.map.get("opaque").is_some()
     }
@@ -419,6 +458,7 @@ impl FluxAttrKind {
             FluxAttrKind::Field(_) => "field",
             FluxAttrKind::TypeAlias(_) => "alias",
             FluxAttrKind::CrateConfig(_) => "crate_config",
+            FluxAttrKind::Ignore => "ignore",
         }
     }
 }

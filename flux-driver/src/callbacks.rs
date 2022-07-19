@@ -16,7 +16,10 @@ use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
 
-use crate::{collector::SpecCollector, mir_storage};
+use crate::{
+    collector::{IgnoreKey, Ignores, SpecCollector},
+    mir_storage,
+};
 
 #[derive(Default)]
 pub(crate) struct FluxCallbacks {
@@ -56,6 +59,10 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     let ck = CrateChecker::new(&mut genv)?;
 
+    if ck.ignores.contains(&IgnoreKey::Crate) {
+        return Ok(());
+    }
+
     let crate_items = tcx.hir_crate_items(());
     let items = crate_items.items().map(|item| item.def_id);
     let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
@@ -63,6 +70,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     items
         .chain(impl_items)
         .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn | DefKind::AssocFn))
+        .filter(|def_id| !is_ignored(&tcx, &ck.ignores, def_id))
         .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
 }
 
@@ -70,6 +78,19 @@ struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
     qualifiers: Vec<ty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
+    ignores: Ignores,
+}
+
+/// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
+/// any enclosing mod has been marked as `ignore`
+fn is_ignored(tcx: &TyCtxt, ignores: &Ignores, def_id: &LocalDefId) -> bool {
+    let parent_def_id = tcx.parent_module_from_def_id(*def_id);
+    if parent_def_id == *def_id {
+        false
+    } else {
+        ignores.contains(&IgnoreKey::Module(parent_def_id))
+            || is_ignored(tcx, ignores, &parent_def_id)
+    }
 }
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
@@ -78,6 +99,11 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         let mut assume = FxHashSet::default();
         let mut adt_sorts = FxHashMap::default();
+
+        // Ignore everything and go home
+        if specs.ignores.contains(&IgnoreKey::Crate) {
+            return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
+        }
 
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
@@ -144,22 +170,24 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 if spec.assume {
                     assume.insert(def_id);
                 }
-                if let Some(fn_sig) = spec.fn_sig {
-                    let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                    let fn_sig = desugar::desugar_fn_sig(
-                        genv.tcx,
-                        genv.sess,
-                        &adt_sorts,
-                        def_id.to_def_id(),
-                        fn_sig,
-                    )?;
-                    Wf::new(genv).check_fn_sig(&fn_sig)?;
-                    genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                    if let Some(fn_sig) = spec.fn_sig {
+                        let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
+                        let fn_sig = desugar::desugar_fn_sig(
+                            genv.tcx,
+                            genv.sess,
+                            &adt_sorts,
+                            def_id.to_def_id(),
+                            fn_sig,
+                        )?;
+                        Wf::new(genv).check_fn_sig(&fn_sig)?;
+                        genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                    }
                 }
                 Ok(())
             })?;
 
-        Ok(CrateChecker { genv, qualifiers, assume })
+        Ok(CrateChecker { genv, qualifiers, assume, ignores: specs.ignores })
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
