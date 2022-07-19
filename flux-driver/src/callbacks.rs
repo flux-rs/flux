@@ -17,7 +17,7 @@ use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
 
 use crate::{
-    collector::{Ignores, SpecCollector},
+    collector::{IgnoreKey, Ignores, SpecCollector},
     mir_storage,
 };
 
@@ -59,7 +59,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     let ck = CrateChecker::new(&mut genv)?;
 
-    if ck.ignores.contains_key(&None) {
+    if ck.ignores.contains(&IgnoreKey::Crate) {
         return Ok(());
     }
 
@@ -88,7 +88,8 @@ fn is_ignored(tcx: &TyCtxt, ignores: &Ignores, def_id: &LocalDefId) -> bool {
     if parent_def_id == *def_id {
         false
     } else {
-        ignores.contains_key(&Some(parent_def_id)) || is_ignored(tcx, ignores, &parent_def_id)
+        ignores.contains(&IgnoreKey::Module(parent_def_id))
+            || is_ignored(tcx, ignores, &parent_def_id)
     }
 }
 
@@ -100,7 +101,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let mut adt_sorts = FxHashMap::default();
 
         // Ignore everything and go home
-        if specs.ignores.contains_key(&None) {
+        if specs.ignores.contains(&IgnoreKey::Crate) {
             return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
         }
 
@@ -162,29 +163,26 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let aliases = specs.aliases;
 
         // Function signatures
-        let fn_specs: Vec<(LocalDefId, crate::collector::FnSpec)> = specs
+        specs
             .fns
-            .into_iter()
-            .filter(|(def_id, _)| !is_ignored(&genv.tcx, &specs.ignores, def_id))
-            .collect();
-
-        fn_specs
             .into_iter()
             .try_for_each_exhaust(|(def_id, spec)| {
                 if spec.assume {
                     assume.insert(def_id);
                 }
-                if let Some(fn_sig) = spec.fn_sig {
-                    let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                    let fn_sig = desugar::desugar_fn_sig(
-                        genv.tcx,
-                        genv.sess,
-                        &adt_sorts,
-                        def_id.to_def_id(),
-                        fn_sig,
-                    )?;
-                    Wf::new(genv).check_fn_sig(&fn_sig)?;
-                    genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                    if let Some(fn_sig) = spec.fn_sig {
+                        let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
+                        let fn_sig = desugar::desugar_fn_sig(
+                            genv.tcx,
+                            genv.sess,
+                            &adt_sorts,
+                            def_id.to_def_id(),
+                            fn_sig,
+                        )?;
+                        Wf::new(genv).check_fn_sig(&fn_sig)?;
+                        genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                    }
                 }
                 Ok(())
             })?;

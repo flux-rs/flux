@@ -14,7 +14,7 @@ use rustc_ast::{
     tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs, MetaItemKind, NestedMetaItem,
 };
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::SessionDiagnostic;
@@ -30,8 +30,10 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
 /// An IgnoreKey is either `Some(module_def_id)` or `None` indicating the entire crate
 #[derive(PartialEq, Eq, Hash)]
 pub enum IgnoreKey {
+    /// Ignore the entire crate
     Crate,
-    Module(LocalDedIf)
+    /// (Transitively) ignore the module named `LocalDefId`
+    Module(LocalDefId),
 }
 
 /// Set of module (`LocalDefId`) that should be ignored by flux
@@ -147,7 +149,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         if attrs.ignore() {
-            self.specs.ignores.insert(Some(def_id), ());
+            self.specs.ignores.insert(IgnoreKey::Module(def_id));
         }
         Ok(())
     }
@@ -201,7 +203,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut attrs = self.parse_flux_attrs(attrs)?;
         if attrs.ignore() {
-            self.specs.ignores.insert(None, ());
+            self.specs.ignores.insert(IgnoreKey::Crate);
         }
 
         let mut qualifiers = attrs.qualifiers();
@@ -338,7 +340,7 @@ impl Specs {
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
             aliases: FxHashMap::default(),
-            ignores: FxHashMap::default(),
+            ignores: FxHashSet::default(),
             crate_config: None,
         }
     }
