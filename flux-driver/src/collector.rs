@@ -35,7 +35,7 @@ pub enum IgnoreKey {
 }
 
 /// Set of module (`LocalDefId`) that should be ignored by flux
-pub type Ignores = FxHashMap<IgnoreKey, ()>;
+pub type Ignores = FxHashSet<IgnoreKey>;
 
 pub(crate) struct Specs {
     pub fns: FxHashMap<LocalDefId, FnSpec>,
