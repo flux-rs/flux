@@ -17,5 +17,5 @@ pub fn ref_join(b: bool, n: i32, m: i32) -> i32 {
 
 #[flux::sig(fn(x: &mut i32{v: 0 <= v}) -> ())]
 pub fn test4(x: &mut i32) {
-    *x -= 1; //~ ERROR missmatched type in assignment
+    *x -= 1; //~ ERROR assignment might be unsafe
 }

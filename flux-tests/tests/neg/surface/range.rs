@@ -22,7 +22,7 @@ impl Rng {
         let cur = self.cur;
         let hi = self.hi;
         if cur <= hi {
-            self.cur = cur + 1; //~ ERROR missmatched type in assignment
+            self.cur = cur + 1; //~ ERROR assignment might be unsafe
             Some(cur) //~ ERROR postcondition might not hold
         } else {
             None
