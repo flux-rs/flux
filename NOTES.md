@@ -2,56 +2,19 @@
 
 - [+] `#[flux::ignore]`
 
-- [-] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
-    - `Constr(T, p)`
+- [+] `Constr(T, p)` to allow struct-invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
 
-- [] Global constants e.g. `LINEAR_MEM_SIZE`
+- [ ] Global constants e.g. `LINEAR_MEM_SIZE`
 
-- [] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
+- [ ] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
     - Special case to allow `@` under `Box`
 
-- [] Projection? (Get `iter` working _without_ refinements... e.g. on plain `Vec`)
+- [ ] Projection? (Get `iter` working _without_ refinements... e.g. on plain `Vec`)
 
-- [] Closure/FnPtr?
-
-## Constrained Types and Struct Invariants
-
-Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
-
-Key idea: `Constr(T, p)`
-
-- [+] Tests
-    - [+] struct
-    - [+] function signature
-
-- [+] Surface Ty
-
-- [+] Parser
-
-- [ ] Core Ty
-
-- [ ] Desugar
-
-- [ ] Lowering
-
-- [ ] Subtyping: assume on left, assert on right
-
-```rust
-#[flux::refined_by(a: int, b: int)]
-pub struct Range {
-  #[flux::field(i32[@a])]
-  pub x: i32,
-  #[flux::field(i32[@b] where a < b)]
-  pub y: i32,
-}
-```
+- [ ] Closure/FnPtr?
 
 
-
-----
-
-
---- JUNK
+## JUNK
 
 
 https://internals.rust-lang.org/t/accessing-the-defid-of-a-trait-implementation/17001

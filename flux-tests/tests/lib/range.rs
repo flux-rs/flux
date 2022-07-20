@@ -19,7 +19,7 @@ impl RngIter {
 pub struct Rng {
     #[flux::field(i32[@lo])]
     lo: i32,
-    #[flux::field(i32[@hi])]
+    #[flux::field({i32[@hi] : lo <= hi})]
     hi: i32,
 }
 
@@ -50,7 +50,7 @@ impl IntoIterator for Rng {
     type Item = i32;
     type IntoIter = RngIter;
 
-    #[flux::sig(fn(Rng[@lo, @hi]) -> RngIter[lo, hi] requires lo <= hi)]
+    #[flux::sig(fn(Rng[@lo, @hi]) -> RngIter[lo, hi])]
     fn into_iter(self) -> RngIter {
         RngIter::new(self.lo, self.hi)
     }
