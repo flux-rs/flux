@@ -2,7 +2,7 @@
 
 - [+] `#[flux::ignore]`
 
-- [*] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
+- [-] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
     - `Constr(T, p)`
 
 - [] Global constants e.g. `LINEAR_MEM_SIZE`
@@ -26,13 +26,15 @@ Key idea: `Constr(T, p)`
 
 - [+] Surface Ty
 
-- [] Parser
+- [+] Parser
 
-- [] Core Ty
+- [ ] Core Ty
 
-- [] Lowering
+- [ ] Desugar
 
-- [] Subtyping: assume on left, assert on right
+- [ ] Lowering
+
+- [ ] Subtyping: assume on left, assert on right
 
 ```rust
 #[flux::refined_by(a: int, b: int)]

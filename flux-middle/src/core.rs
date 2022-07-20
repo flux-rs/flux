@@ -74,6 +74,9 @@ pub enum Ty {
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
     /// for two indices. (there's currently no equivalent surface syntax).
     Exists(BaseTy, Vec<Ident>, Expr),
+    /// Constrained types `{T : p}` are like existentials but without binders, and are useful
+    /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
+    Constr(Expr, Box<Ty>),
     Float(FloatTy),
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
@@ -250,6 +253,7 @@ impl fmt::Debug for Ty {
             Ty::Param(param) => write!(f, "{param}"),
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             Ty::Never => write!(f, "!"),
+            Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
         }
     }
 }

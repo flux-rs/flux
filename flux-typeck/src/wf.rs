@@ -141,6 +141,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
             core::Ty::Never | core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
+            core::Ty::Constr(pred, ty) => {
+                self.check_expr(env, pred, ty::Sort::Bool)?;
+                self.check_type(env, ty)
+            }
         }
     }
 

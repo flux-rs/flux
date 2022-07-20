@@ -216,6 +216,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 ty::Ty::tuple(tys)
             }
             core::Ty::Never => ty::Ty::never(),
+            core::Ty::Constr(_, _) => panic!("TODO: lower Constr"),
         }
     }
 

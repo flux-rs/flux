@@ -193,7 +193,11 @@ impl<'a> DesugarCtxt<'a> {
                 Ty::Ptr(loc)
             }
             surface::TyKind::Unit => Ty::Tuple(vec![]),
-            surface::TyKind::Constr(_, _) => panic!("TODO: desugar surface::TyKind::Constr"),
+            surface::TyKind::Constr(pred, ty) => {
+                let pred = self.params.desugar_expr(pred)?;
+                let ty = self.desugar_ty(*ty)?;
+                Ty::Constr(pred, Box::new(ty))
+            }
         };
         Ok(ty)
     }

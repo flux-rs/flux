@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn(&i32[@a], { &i32[b] : b <= a } ) -> i32[a-b])]
+#[flux::sig(fn(&i32[@a], { &i32[@b] : b <= a } ) -> i32[a-b])]
 fn sub(x: &i32, y: &i32) -> i32 {
     *y - *x
 }
