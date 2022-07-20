@@ -11,16 +11,15 @@ struct Foo {
 
 #[flux::sig(fn(&Foo) -> bool[true])]
 fn test1(foo: &Foo) -> bool {
-    foo.x < foo.y
+    foo.x < foo.y && 0 < foo.y
 }
 
-#[flux::sig(fn(foo: {&Foo[@a, @b] : b == 20}) -> i32[20])]
-fn test2(foo: &Foo) {
-    let r = foo.y;
-    r
+#[flux::sig(fn({&Foo[@a, @b] : b == 20}) -> i32[20])]
+fn test2(foo: &Foo) -> i32 {
+    foo.y
 }
 
-fn test2() {
+pub fn test() {
     let foo = Foo { x: 10, y: 20 };
     test1(&foo);
     test2(&foo);
