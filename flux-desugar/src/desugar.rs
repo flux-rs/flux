@@ -193,6 +193,7 @@ impl<'a> DesugarCtxt<'a> {
                 Ty::Ptr(loc)
             }
             surface::TyKind::Unit => Ty::Tuple(vec![]),
+            surface::TyKind::Constr(_, _) => panic!("TODO: desugar surface::TyKind::Constr"),
         };
         Ok(ty)
     }
@@ -405,9 +406,10 @@ impl ParamsCtxt<'_> {
             surface::TyKind::StrgRef(_, ty) | surface::TyKind::Ref(_, ty) => {
                 self.ty_gather_params(ty, adt_sorts)
             }
-            surface::TyKind::Path(_) | surface::TyKind::Exists { .. } | surface::TyKind::Unit => {
-                Ok(())
-            }
+            surface::TyKind::Path(_)
+            | surface::TyKind::Exists { .. }
+            | surface::TyKind::Unit
+            | surface::TyKind::Constr(_, _) => Ok(()),
         }
     }
 

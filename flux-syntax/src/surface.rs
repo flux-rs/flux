@@ -95,6 +95,8 @@ pub enum TyKind<T = Ident> {
     Ref(RefKind, Box<Ty<T>>),
     /// Strong reference, &strg<self: i32>
     StrgRef(Ident, Box<Ty<T>>),
+    /// Constrained type: an exists without binder
+    Constr(Expr, Box<Ty<T>>),
     /// ()
     Unit,
 }
@@ -345,6 +347,9 @@ pub mod expand {
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, &*t))),
             TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(expand_ty(aliases, &*t))),
             TyKind::Unit => TyKind::Unit,
+            TyKind::Constr(pred, t) => {
+                TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, &*t)))
+            }
         }
     }
 
@@ -454,6 +459,9 @@ pub mod expand {
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(subst_ty(subst, &*t))),
             TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(subst_ty(subst, &*t))),
             TyKind::Unit => TyKind::Unit,
+            TyKind::Constr(pred, t) => {
+                TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, &*t)))
+            }
         }
     }
 }

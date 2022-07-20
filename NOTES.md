@@ -20,13 +20,18 @@ Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
 
 Key idea: `Constr(T, p)`
 
-- [] Tests
-    - [] struct
-    - [] function signature
-- [] Surface Ty
+- [+] Tests
+    - [+] struct
+    - [+] function signature
+
+- [+] Surface Ty
+
 - [] Parser
+
 - [] Core Ty
+
 - [] Lowering
+
 - [] Subtyping: assume on left, assert on right
 
 ```rust

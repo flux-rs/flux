@@ -74,6 +74,7 @@ fn zip_ty(ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
         (TyKind::Exists { bind, path, pred }, _) => {
             TyKind::Exists { bind, path: zip_path(path, rust_ty), pred }
         }
+        (TyKind::Constr(pred, ty), _) => TyKind::Constr(pred, Box::new(zip_ty(*ty, rust_ty))),
         (TyKind::StrgRef(loc, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
             TyKind::StrgRef(loc, Box::new(zip_ty(*ty, rust_ty)))
         }
@@ -84,6 +85,7 @@ fn zip_ty(ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
             TyKind::Ref(RefKind::Shr, Box::new(zip_ty(*ty, rust_ty)))
         }
         (TyKind::Unit, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => TyKind::Unit,
+
         _ => panic!("incompatible types: `{rust_ty:?}`"),
     };
     Ty { kind, span: ty.span }
