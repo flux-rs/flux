@@ -313,7 +313,8 @@ impl TypeEnvInfer {
             | TyKind::Ptr(_)
             | TyKind::Uninit
             | TyKind::Ref(..)
-            | TyKind::Param(_) => ty.clone(),
+            | TyKind::Param(_)
+            | TyKind::Constr(_, _) => ty.clone(),
         }
     }
 

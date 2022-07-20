@@ -232,6 +232,7 @@ impl TypeFoldable for Ty {
             | TyKind::Param(_)
             | TyKind::Never
             | TyKind::Discr(..) => self.clone(),
+            TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
         }
     }
 
@@ -253,6 +254,10 @@ impl TypeFoldable for Ty {
             | TyKind::Discr(..)
             | TyKind::Float(_)
             | TyKind::Uninit => {}
+            TyKind::Constr(pred, ty) => {
+                pred.visit_with(visitor);
+                ty.visit_with(visitor)
+            }
         }
     }
 

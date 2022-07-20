@@ -152,6 +152,7 @@ impl PathsTree {
                     }
                     PlaceElem::Deref => {
                         let ty = node.expect_ty();
+                        let ty = ty.unconstr();
                         match ty.kind() {
                             TyKind::Ptr(ptr_path) => {
                                 path = ptr_path.clone();
@@ -160,7 +161,7 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            _ => panic!(),
+                            _ => panic!("YIKES: {elem:?} {ty:?}"),
                         }
                     }
                 }
