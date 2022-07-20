@@ -1,11 +1,9 @@
 # RJ Notes
 
-- [*] `#[flux::ignore]`
+- [+] `#[flux::ignore]`
 
-- [] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
+- [*] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
     - `Constr(T, p)`
-    - Parser
-    - Subtyping [assume on left, assert on right]
 
 - [] Global constants e.g. `LINEAR_MEM_SIZE`
 
@@ -16,15 +14,20 @@
 
 - [] Closure/FnPtr?
 
-```rust
-#[flux::refined_by(a: int, b: int where a < b)]
-pub struct Range {
-  #[flux::field(i32[@a])]
-  pub x: i32,
-  #[flux::field(i32[@b])]
-  pub y: i32,
-}
-```
+## Constrained Types and Struct Invariants
+
+Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
+
+Key idea: `Constr(T, p)`
+
+- [] Tests
+    - [] struct
+    - [] function signature
+- [] Surface Ty
+- [] Parser
+- [] Core Ty
+- [] Lowering
+- [] Subtyping: assume on left, assert on right
 
 ```rust
 #[flux::refined_by(a: int, b: int)]
@@ -36,15 +39,10 @@ pub struct Range {
 }
 ```
 
-```rust
-#[flux::refined_as(@self)]
-pub struct Range {
-  #[flux::field(i32[self.x])]
-  pub x: i32,
-  #[flux::field(i32[self.y] a < b)]
-  pub y: i32,
-}
-```
+
+
+----
+
 
 --- JUNK
 
