@@ -237,6 +237,10 @@ impl ConstrBuilder<'_> {
         ConstrBuilder { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
+    pub fn push_guard(&mut self, p: Expr) {
+        self.ptr.push_guard(p)
+    }
+
     pub fn push_binders(&mut self, p: &Binders<Pred>) -> Vec<Name> {
         self.ptr.push_foralls(p)
     }
@@ -252,6 +256,10 @@ impl ConstrBuilder<'_> {
 impl NodePtr {
     fn downgrade(this: &Self) -> WeakNodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
+    }
+
+    fn push_guard(&mut self, e: Expr) {
+        *self = self.push_node(NodeKind::Guard(e))
     }
 
     fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {

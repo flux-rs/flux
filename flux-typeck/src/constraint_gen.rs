@@ -225,6 +225,10 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             constr.push_head(p2.clone(), tag);
             subtyping(genv, constr, ty1, ty2, tag)
         }
+        (TyKind::Constr(p1, ty1), _) => {
+            constr.push_guard(p1.clone());
+            subtyping(genv, constr, ty1, ty2, tag)
+        }
 
         _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
     }
