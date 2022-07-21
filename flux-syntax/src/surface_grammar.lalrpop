@@ -96,6 +96,8 @@ TyKind: surface::TyKind = {
     "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut"  <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
+    "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+
     <path:Path>                                        => surface::TyKind::Path(<>),
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
     <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },

@@ -227,6 +227,7 @@ impl TypeFoldable for Ty {
                 )
             }
             TyKind::Ref(rk, ty) => Ty::mk_ref(*rk, ty.fold_with(folder)),
+            TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
             TyKind::Float(_)
             | TyKind::Uninit
             | TyKind::Param(_)
@@ -248,6 +249,10 @@ impl TypeFoldable for Ty {
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             TyKind::Ref(_, ty) => ty.visit_with(visitor),
             TyKind::Ptr(path) => path.to_expr().visit_with(visitor),
+            TyKind::Constr(pred, ty) => {
+                pred.visit_with(visitor);
+                ty.visit_with(visitor)
+            }
             TyKind::Param(_)
             | TyKind::Never
             | TyKind::Discr(..)

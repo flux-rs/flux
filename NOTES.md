@@ -1,52 +1,20 @@
 # RJ Notes
 
-- [*] `#[flux::ignore]`
+- [+] `#[flux::ignore]`
 
-- [] Struct invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
-    - `Constr(T, p)`
-    - Parser
-    - Subtyping [assume on left, assert on right]
+- [+] `Constr(T, p)` to allow struct-invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
 
-- [] Global constants e.g. `LINEAR_MEM_SIZE`
+- [ ] Global constants e.g. `LINEAR_MEM_SIZE`
 
-- [] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
+- [ ] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
     - Special case to allow `@` under `Box`
 
-- [] Projection? (Get `iter` working _without_ refinements... e.g. on plain `Vec`)
+- [ ] Projection? (Get `iter` working _without_ refinements... e.g. on plain `Vec`)
 
-- [] Closure/FnPtr?
+- [ ] Closure/FnPtr?
 
-```rust
-#[flux::refined_by(a: int, b: int where a < b)]
-pub struct Range {
-  #[flux::field(i32[@a])]
-  pub x: i32,
-  #[flux::field(i32[@b])]
-  pub y: i32,
-}
-```
 
-```rust
-#[flux::refined_by(a: int, b: int)]
-pub struct Range {
-  #[flux::field(i32[@a])]
-  pub x: i32,
-  #[flux::field(i32[@b] where a < b)]
-  pub y: i32,
-}
-```
-
-```rust
-#[flux::refined_as(@self)]
-pub struct Range {
-  #[flux::field(i32[self.x])]
-  pub x: i32,
-  #[flux::field(i32[self.y] a < b)]
-  pub y: i32,
-}
-```
-
---- JUNK
+## JUNK
 
 
 https://internals.rust-lang.org/t/accessing-the-defid-of-a-trait-implementation/17001
