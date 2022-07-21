@@ -46,11 +46,18 @@ pub(crate) struct Specs {
     pub qualifs: Vec<surface::Qualifier>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
+    pub consts: FxHashMap<LocalDefId, ConstSpec>,
     pub crate_config: Option<config::CrateConfig>,
 }
 
 pub(crate) struct FnSpec {
-    pub fn_sig: Option<surface::FnSig>,
+    pub sig: Option<surface::FnSig>,
+    pub assume: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct ConstSpec {
+    pub sig: Option<surface::Ty>,
     pub assume: bool,
 }
 
@@ -93,6 +100,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     let attrs = tcx.hir().attrs(hir_id);
                     let _ = collector.parse_tyalias_spec(item.def_id, attrs);
                 }
+                ItemKind::Const(_, _) => {
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_const_spec(item.def_id, attrs);
+                }
                 _ => {}
             }
         }
@@ -125,10 +137,26 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
 
-        self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
+        self.specs
+            .fns
+            .insert(def_id, FnSpec { sig: fn_sig, assume });
         Ok(())
     }
 
+    fn parse_const_spec(
+        &mut self,
+        def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+        let assume = attrs.assume();
+        let sig = attrs.const_sig();
+
+        self.specs.consts.insert(def_id, ConstSpec { sig, assume });
+
+        Ok(())
+    }
     fn parse_tyalias_spec(
         &mut self,
         _def_id: LocalDefId,
@@ -257,6 +285,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
                 FluxAttrKind::FnSig(fn_sig)
             }
+            ("constant", MacArgs::Delimited(span, _, tokens)) => {
+                let sig = self.parse(tokens.clone(), span.entire(), parse_ty)?;
+                FluxAttrKind::ConstSig(sig)
+            }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
@@ -341,6 +373,7 @@ impl Specs {
             qualifs: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
+            consts: FxHashMap::default(),
             crate_config: None,
         }
     }
@@ -366,6 +399,7 @@ enum FluxAttrKind {
     Qualifier(surface::Qualifier),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
+    ConstSig(surface::Ty),
     CrateConfig(config::CrateConfig),
     Ignore,
 }
@@ -426,6 +460,10 @@ impl FluxAttrs {
         read_attr!(self, "ty", FnSig)
     }
 
+    fn const_sig(&mut self) -> Option<surface::Ty> {
+        read_attr!(self, "const", ConstSig)
+    }
+
     fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
@@ -453,6 +491,7 @@ impl FluxAttrKind {
             FluxAttrKind::Assume => "assume",
             FluxAttrKind::Opaque => "opaque",
             FluxAttrKind::FnSig(_) => "ty",
+            FluxAttrKind::ConstSig(_) => "const",
             FluxAttrKind::RefinedBy(_) => "refined_by",
             FluxAttrKind::Qualifier(_) => "qualifier",
             FluxAttrKind::Field(_) => "field",

@@ -105,6 +105,24 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
         }
 
+        specs
+            .consts
+            .into_iter()
+            .try_for_each_exhaust(|(def_id, spec)| {
+                // println!("TRACE: {def_id:?} : {spec:?}");
+                if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                    if let Some(ty) = spec.sig {
+                        let did = def_id.to_def_id();
+
+                        // HEREHEREHEREHERE CONSTANTS
+                        let ty = desugar::desugar_ty(genv.tcx, genv.sess, did, ty)?;
+                        // Wf::new(genv).check_const_sig(&ty)?;
+                        // genv.register_const_sig(did, ty);
+                    }
+                }
+                Ok(())
+            })?;
+
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
@@ -171,7 +189,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     assume.insert(def_id);
                 }
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
-                    if let Some(fn_sig) = spec.fn_sig {
+                    if let Some(fn_sig) = spec.sig {
                         let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
                         let fn_sig = desugar::desugar_fn_sig(
                             genv.tcx,

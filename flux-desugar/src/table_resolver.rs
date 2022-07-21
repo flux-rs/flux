@@ -27,8 +27,6 @@ impl<'tcx> Resolver<'tcx> {
     ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
         let mut table = NameResTable::new();
 
-        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-
         if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
             let item_id = ItemId { def_id: impl_did.expect_local() };
             let item = tcx.hir().item(item_id);
@@ -37,10 +35,16 @@ impl<'tcx> Resolver<'tcx> {
                 table.insert_generics(tcx, parent.generics);
             }
         }
-
-        table.collect_from_fn_sig(tcx.sess, tcx.hir().fn_sig_by_hir_id(hir_id).unwrap())?;
         table.insert_generics(tcx, tcx.hir().get_generics(def_id).unwrap());
 
+        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+        table.collect_from_fn_sig(tcx.sess, tcx.hir().fn_sig_by_hir_id(hir_id).unwrap())?;
+
+        Ok(Resolver { sess: tcx.sess, table })
+    }
+
+    pub fn from_ty(tcx: TyCtxt<'tcx>, def_id: DefId) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
+        let mut table = NameResTable::new();
         Ok(Resolver { sess: tcx.sess, table })
     }
 
@@ -121,7 +125,7 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
+    pub fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
             surface::TyKind::Path(path) => surface::TyKind::Path(self.resolve_path(path)?),
             surface::TyKind::Indexed { path, indices } => {

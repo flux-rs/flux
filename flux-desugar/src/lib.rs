@@ -26,6 +26,18 @@ use rustc_middle::ty::TyCtxt;
 
 pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
 
+pub fn desugar_ty(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    def_id: DefId,
+    ty: surface::Ty,
+) -> Result<core::Ty, ErrorGuaranteed> {
+    let mut resolver = table_resolver::Resolver::from_ty(tcx, def_id)?;
+    let ty = resolver.resolve_ty(ty)?;
+    todo!("ASDASDA");
+    // desugar::desugar_ty(tcx, sess, ty)
+}
+
 pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
