@@ -88,6 +88,7 @@ pub enum TyKind {
     Uninit,
     Ptr(Path),
     Ref(RefKind, Ty),
+    Constr(Expr, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -281,6 +282,17 @@ impl Ty {
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
         TyKind::Tuple(tys.into()).intern()
+    }
+
+    pub fn constr(p: Expr, ty: Ty) -> Ty {
+        TyKind::Constr(p, ty).intern()
+    }
+
+    pub fn unconstr(&self) -> &Ty {
+        match self.kind() {
+            TyKind::Constr(_, ty) => Self::unconstr(ty),
+            _ => self,
+        }
     }
 
     pub fn uninit() -> Ty {
@@ -892,6 +904,7 @@ mod pretty {
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(place) => w!("discr({:?})", ^place),
+                TyKind::Constr(pred, ty) => w!("{{ {ty:?} : {pred:?} }}"),
             }
         }
 

@@ -216,6 +216,10 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 ty::Ty::tuple(tys)
             }
             core::Ty::Never => ty::Ty::never(),
+            core::Ty::Constr(pred, ty) => {
+                let pred = lower_expr(pred, &self.name_map, nbinders);
+                ty::Ty::constr(pred, self.lower_ty(ty, nbinders))
+            }
         }
     }
 

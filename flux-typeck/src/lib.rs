@@ -111,7 +111,6 @@ mod errors {
     #[error(code = "FLUX", slug = "refineck-call-error")]
     pub struct CallError {
         #[primary_span]
-        #[label]
         pub span: Span,
     }
 
@@ -119,7 +118,6 @@ mod errors {
     #[error(code = "FLUX", slug = "refineck-assign-error")]
     pub struct AssignError {
         #[primary_span]
-        #[label]
         pub span: Span,
     }
 
@@ -127,7 +125,6 @@ mod errors {
     #[error(code = "FLUX", slug = "refineck-ret-error")]
     pub struct RetError {
         #[primary_span]
-        #[label]
         pub span: Span,
     }
 
@@ -135,7 +132,6 @@ mod errors {
     #[error(code = "FLUX", slug = "refineck-div-error")]
     pub struct DivError {
         #[primary_span]
-        #[label]
         pub span: Span,
     }
 
@@ -143,7 +139,6 @@ mod errors {
     #[error(code = "FLUX", slug = "refineck-rem-error")]
     pub struct RemError {
         #[primary_span]
-        #[label]
         pub span: Span,
     }
 

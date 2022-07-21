@@ -160,7 +160,7 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            _ => panic!(),
+                            _ => panic!("YIKES: {elem:?} {ty:?}"),
                         }
                     }
                 }

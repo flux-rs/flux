@@ -57,7 +57,6 @@ pub fn check_inference(
     }
     Ok(())
 }
-
 fn infer_from_tys<M1: PathMap, M2: PathMap>(
     exprs: &mut Exprs,
     env1: &M1,
@@ -65,7 +64,7 @@ fn infer_from_tys<M1: PathMap, M2: PathMap>(
     env2: &M2,
     ty2: &Ty,
 ) {
-    match (ty1.kind(), ty2.kind()) {
+    match (ty1.unconstr().kind(), ty2.unconstr().kind()) {
         (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
             for (idx1, idx2) in iter::zip(indices1, indices2) {
                 if idx2.is_binder {
