@@ -167,10 +167,7 @@ impl RefineCtxt<'_> {
                 Ty::indexed(bty.clone(), indices)
             }
             TyKind::Constr(pred, ty) => {
-                match pred {
-                    Pred::Expr(e) => self.assume_pred(e.clone()),
-                    _ => todo!("TODO: how to assume other kinds of pred?"),
-                }
+                self.assume_pred(pred.clone());
                 self.unpack(ty, unpack_mut_refs)
             }
             TyKind::Ref(RefKind::Shr, ty) => {

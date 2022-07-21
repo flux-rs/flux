@@ -88,7 +88,7 @@ pub enum TyKind {
     Uninit,
     Ptr(Path),
     Ref(RefKind, Ty),
-    Constr(Pred, Ty),
+    Constr(Expr, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -284,7 +284,7 @@ impl Ty {
         TyKind::Tuple(tys.into()).intern()
     }
 
-    pub fn constr(p: Pred, ty: Ty) -> Ty {
+    pub fn constr(p: Expr, ty: Ty) -> Ty {
         TyKind::Constr(p, ty).intern()
     }
 

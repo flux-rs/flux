@@ -152,7 +152,6 @@ impl PathsTree {
                     }
                     PlaceElem::Deref => {
                         let ty = node.expect_ty();
-                        let ty = ty.unconstr();
                         match ty.kind() {
                             TyKind::Ptr(ptr_path) => {
                                 path = ptr_path.clone();
