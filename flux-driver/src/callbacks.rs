@@ -2,7 +2,10 @@ use flux_errors::FluxSession;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -12,9 +15,9 @@ use rustc_middle::ty::{
 use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_middle::{
+    core::{ConstSig, Ident, Name, Param, Sort},
     global_env::GlobalEnv,
-    rustc::{self, mir::Body},
-    ty,
+    rustc, ty,
 };
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
@@ -77,6 +80,10 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
+fn def_id_ident(def_id: DefId) -> Ident {
+    todo!("def_id_name")
+}
+
 struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
     qualifiers: Vec<ty::Qualifier>,
@@ -111,16 +118,26 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         specs
             .consts
             .into_iter()
-            .try_for_each_exhaust(|(def_id, spec)| {
-                if spec.assume {
-                    assume.insert(def_id);
-                }
+            .try_for_each_exhaust(|(def_id, const_sig)| {
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
-                    if let Some(ty) = spec.sig {
-                        let ty = desugar::desugar_const_sig(genv.tcx, genv.sess, def_id, ty)?;
-                        Wf::new(genv).check_const_sig(&ty)?;
-                        genv.register_const_sig(def_id.to_def_id(), ty);
-                    }
+                    let ty = match const_sig.ty {
+                        Some(ty) => {
+                            let ty = desugar::desugar_const_sig(genv.tcx, genv.sess, def_id, ty)?;
+                            Wf::new(genv).check_const_sig(&ty)?;
+                            ty
+                        }
+                        None => {
+                            let _ = genv.tcx.to_type(def_id);
+
+                            // todo!("generate ty from val")
+                        }
+                    };
+                    let did = def_id.to_def_id();
+                    let name = def_id_ident(did);
+                    let param = Param { name, sort: Sort::Int };
+                    let const_sig = ConstSig { ty, param, val: const_sig.val };
+                    genv.register_const_sig(did, const_sig);
+                    panic!("HEREHEREHEREHEREHEREHERE")
                 }
                 Ok(())
             })?;
@@ -214,7 +231,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         self.assume.contains(def_id)
     }
 
-    fn get_body(&self, def_id: LocalDefId) -> Result<Body<'tcx>, ErrorGuaranteed> {
+    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
 
         if flux_common::config::CONFIG.dump_mir {
@@ -230,24 +247,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
 
-        Ok(body)
-    }
-
-    fn check_const(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        // let body = self.get_body(def_id)?;
-        // println!("TRACE: check_const {def_id:?} with {body:?}");
-        panic!("TODO: check_const `{def_id:?}`")
-    }
-
-    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        let body = self.get_body(def_id)?;
         typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
 
     fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         match self.genv.tcx.def_kind(def_id.to_def_id()) {
             DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
-            DefKind::Const => self.check_const(def_id),
             _ => Ok(()),
         }
     }

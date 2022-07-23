@@ -3,9 +3,6 @@
 
 // Test definition and checking of const
 
-// #[flux::constant(usize[420])]
-// #[flux::assume]
-
 #[flux::constant]
 const FORTY_TWO: usize = 21 + 21;
 

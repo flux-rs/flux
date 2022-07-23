@@ -65,6 +65,12 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
+pub struct ConstSig {
+    pub ty: Ty,
+    pub param: Param,
+    pub val: rustc_middle::ty::ScalarInt,
+}
+
 pub enum Ty {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.

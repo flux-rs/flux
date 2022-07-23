@@ -13,6 +13,24 @@
 
 - [ ] Closure/FnPtr?
 
+Destructing `path` into `ident` ?
+
+```rust
+path.segments.last().unwrap().ident.span
+```
+
+```rust
+                let (ident, args) = match path.segments {
+                    [hir::PathSegment { ident, args, .. }] => (ident, args),
+                    _ => {
+                        return Err(sess.emit_err(errors::UnsupportedSignature {
+                            span: qpath.span(),
+                            msg: "multi-segment paths are not supported yet",
+                        }));
+                    }
+                };
+                self.res.insert(ident.name, path.res);
+```
 
 ## JUNK
 

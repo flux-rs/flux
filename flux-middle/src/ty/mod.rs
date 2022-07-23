@@ -72,6 +72,13 @@ pub struct Param {
     pub sort: Sort,
 }
 
+#[derive(Debug)]
+pub struct ConstSig {
+    pub ty: Ty,
+    pub param: Param,
+    pub val: rustc_middle::ty::ScalarInt,
+}
+
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]

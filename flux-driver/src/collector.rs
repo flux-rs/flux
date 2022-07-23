@@ -16,7 +16,7 @@ use rustc_ast::{
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
 
@@ -46,7 +46,7 @@ pub(crate) struct Specs {
     pub qualifs: Vec<surface::Qualifier>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
-    pub consts: FxHashMap<LocalDefId, ConstSpec>,
+    pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
 }
 
@@ -56,10 +56,9 @@ pub(crate) struct FnSpec {
 }
 
 #[derive(Debug)]
-pub(crate) struct ConstSpec {
-    pub sig: surface::ConstSig,
-    pub assume: bool,
-    pub val: i128,
+pub(crate) struct ConstSig {
+    pub ty: surface::ConstSig,
+    pub val: rustc_middle::ty::ScalarInt,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -151,18 +150,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
-        val: i128,
+        val: ScalarInt,
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        let assume = attrs.assume();
-        let sig = match attrs.const_sig() {
+        let ty = match attrs.const_sig() {
             Some(sig) => sig,
             None => None,
         };
-        self.specs
-            .consts
-            .insert(def_id, ConstSpec { sig, val, assume });
+        self.specs.consts.insert(def_id, ConstSig { ty, val });
 
         Ok(())
     }
@@ -374,17 +370,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 }
 
-fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<i128> {
+fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<ScalarInt> {
     let did = item.def_id;
     let const_result = tcx.const_eval_poly(did.to_def_id());
     if let Ok(const_val) = const_result {
-        if let Some(scalar_int) = const_val.try_to_scalar_int() {
-            let size = scalar_int.size();
-            if let Ok(val) = scalar_int.try_to_int(size) {
-                println!("TRACE: HEREHEREHEREHEREHERE {did:?} ===> {val:?}");
-                return Some(val);
-            }
-        }
+        return const_val.try_to_scalar_int();
+        // return Some(scalar_int);
+        // let size = scalar_int.size();
+        // if let Ok(val) = scalar_int.try_to_int(size) {
+        //     return Some(val);
+        // }
     }
     None
 }
