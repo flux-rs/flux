@@ -20,6 +20,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
+    const_sigs: RefCell<FxHashMap<DefId, ty::Ty>>,
     adt_sorts: RefCell<FxHashMap<DefId, List<ty::Sort>>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
@@ -32,6 +33,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
+            const_sigs: RefCell::new(FxHashMap::default()),
             adt_sorts: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(FxHashMap::default()),
             adt_variants: RefCell::new(FxHashMap::default()),
@@ -58,6 +60,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
         let fn_sig = ty::lowering::LoweringCtxt::lower_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
+    }
+
+    pub fn register_const_sig(&mut self, def_id: DefId, const_sig: core::Ty) {
+        let const_sig = ty::lowering::LoweringCtxt::lower_const_sig(self, const_sig);
+        self.const_sigs.get_mut().insert(def_id, const_sig);
     }
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {

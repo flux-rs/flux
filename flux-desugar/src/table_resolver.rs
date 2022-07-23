@@ -21,30 +21,16 @@ struct NameResTable {
 
 impl<'tcx> Resolver<'tcx> {
     #[allow(dead_code)]
+
     pub fn from_fn(
         tcx: TyCtxt<'tcx>,
         def_id: LocalDefId,
     ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
-        let mut table = NameResTable::new();
-
-        if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
-            let item_id = ItemId { def_id: impl_did.expect_local() };
-            let item = tcx.hir().item(item_id);
-            if let ItemKind::Impl(parent) = &item.kind {
-                table.collect_from_ty(tcx.sess, parent.self_ty)?;
-                table.insert_generics(tcx, parent.generics);
-            }
-        }
-        table.insert_generics(tcx, tcx.hir().get_generics(def_id).unwrap());
+        let mut table = init_table(tcx, def_id)?;
 
         let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
         table.collect_from_fn_sig(tcx.sess, tcx.hir().fn_sig_by_hir_id(hir_id).unwrap())?;
 
-        Ok(Resolver { sess: tcx.sess, table })
-    }
-
-    pub fn from_ty(tcx: TyCtxt<'tcx>, def_id: DefId) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
-        let mut table = NameResTable::new();
         Ok(Resolver { sess: tcx.sess, table })
     }
 
@@ -206,6 +192,23 @@ impl<'tcx> Resolver<'tcx> {
             _ => unreachable!("unexpected type resolution"),
         }
     }
+}
+
+fn init_table(tcx: TyCtxt, def_id: LocalDefId) -> Result<NameResTable, ErrorGuaranteed> {
+    let mut table = NameResTable::new();
+    if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
+        let item_id = ItemId { def_id: impl_did.expect_local() };
+        let item = tcx.hir().item(item_id);
+        if let ItemKind::Impl(parent) = &item.kind {
+            table.collect_from_ty(tcx.sess, parent.self_ty)?;
+            table.insert_generics(tcx, parent.generics);
+        }
+    }
+
+    if let Some(generics) = tcx.hir().get_generics(def_id) {
+        table.insert_generics(tcx, generics);
+    }
+    Ok(table)
 }
 
 impl NameResTable {

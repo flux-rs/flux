@@ -69,9 +69,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     items
         .chain(impl_items)
-        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn | DefKind::AssocFn))
-        .filter(|def_id| !is_ignored(&tcx, &ck.ignores, def_id))
-        .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
+        .filter(|def_id| !ck.is_assumed(def_id) && !is_ignored(&tcx, &ck.ignores, def_id))
+        .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
 struct CrateChecker<'a, 'genv, 'tcx> {
@@ -109,15 +108,15 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .consts
             .into_iter()
             .try_for_each_exhaust(|(def_id, spec)| {
-                // println!("TRACE: {def_id:?} : {spec:?}");
+                if spec.assume {
+                    assume.insert(def_id);
+                }
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
                     if let Some(ty) = spec.sig {
-                        let did = def_id.to_def_id();
-
-                        // HEREHEREHEREHERE CONSTANTS
-                        let ty = desugar::desugar_ty(genv.tcx, genv.sess, did, ty)?;
-                        // Wf::new(genv).check_const_sig(&ty)?;
-                        // genv.register_const_sig(did, ty);
+                        let ty = desugar::desugar_const_sig(genv.tcx, genv.sess, def_id, ty)?;
+                        // println!("TRACE:CONST {def_id:?} := {ty:?}");
+                        Wf::new(genv).check_const_sig(&ty)?;
+                        genv.register_const_sig(def_id.to_def_id(), ty);
                     }
                 }
                 Ok(())
@@ -208,10 +207,17 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         Ok(CrateChecker { genv, qualifiers, assume, ignores: specs.ignores })
     }
 
+    fn is_assumed(&self, def_id: &LocalDefId) -> bool {
+        self.assume.contains(def_id)
+    }
+
+    fn check_const(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        // let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
+        // println!("TRACE: check_const {:?}", self.genv.tcx.fn_sig(def_id));
+        panic!("TODO: check_const `{def_id:?}` -- use 'assume' for now")
+    }
+
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.assume.contains(&def_id) {
-            return Ok(());
-        }
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
 
         if flux_common::config::CONFIG.dump_mir {
@@ -227,6 +233,14 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
         typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
+    }
+
+    fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        match self.genv.tcx.def_kind(def_id.to_def_id()) {
+            DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
+            DefKind::Const => self.check_const(def_id),
+            _ => Ok(()),
+        }
     }
 }
 

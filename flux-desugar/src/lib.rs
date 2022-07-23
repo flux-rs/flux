@@ -21,22 +21,10 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
 pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
-
-pub fn desugar_ty(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    def_id: DefId,
-    ty: surface::Ty,
-) -> Result<core::Ty, ErrorGuaranteed> {
-    let mut resolver = table_resolver::Resolver::from_ty(tcx, def_id)?;
-    let ty = resolver.resolve_ty(ty)?;
-    todo!("ASDASDA");
-    // desugar::desugar_ty(tcx, sess, ty)
-}
 
 pub fn desugar_struct_def(
     tcx: TyCtxt,
@@ -46,6 +34,17 @@ pub fn desugar_struct_def(
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
     desugar::desugar_struct_def(tcx, sess, struct_def)
+}
+
+pub fn desugar_const_sig(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    def_id: LocalDefId,
+    ty: surface::Ty,
+) -> Result<core::Ty, ErrorGuaranteed> {
+    let rust_ty = rustc::lowering::lower_ty(tcx, tcx.type_of(def_id))?;
+    let ty = zip_resolver::zip_ty(ty, &rust_ty);
+    desugar::desugar_ty(sess, ty)
 }
 
 pub fn desugar_fn_sig(

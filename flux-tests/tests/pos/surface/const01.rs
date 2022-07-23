@@ -3,6 +3,7 @@
 
 // Test use of constant in fn-signature
 
+#[flux::assume]
 #[flux::constant(usize[42])]
 const FORTY_TWO: usize = 21 + 21;
 

@@ -66,6 +66,11 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
+    pub fn lower_const_sig(genv: &GlobalEnv, const_sig: core::Ty) -> ty::Ty {
+        let mut cx = LoweringCtxt::new(genv);
+        cx.lower_ty(&const_sig, 1)
+    }
+
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let mut cx = LoweringCtxt::new(genv);
 
@@ -171,7 +176,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
+    pub fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);

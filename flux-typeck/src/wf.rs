@@ -56,6 +56,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Wf { genv }
     }
 
+    pub fn check_const_sig(&self, const_sig: &core::Ty) -> Result<(), ErrorGuaranteed> {
+        let mut env = Env::new(&[]);
+        self.check_type(&mut env, const_sig)
+    }
+
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&fn_sig.params);
 

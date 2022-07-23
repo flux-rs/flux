@@ -73,6 +73,12 @@ pub fn desugar_enum_def(
     Ok(EnumDef { def_id, refined_by })
 }
 
+pub fn desugar_ty(sess: &FluxSession, ty: surface::Ty<Res>) -> Result<Ty, ErrorGuaranteed> {
+    let params = ParamsCtxt::new(sess);
+    let mut desugar = DesugarCtxt::with_params(params);
+    desugar.desugar_ty(ty)
+}
+
 pub fn desugar_fn_sig(
     sess: &FluxSession,
     refined_by: &impl AdtSortsMap,
