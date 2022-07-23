@@ -11,7 +11,11 @@ use rustc_middle::ty::{
 
 use flux_common::iter::IterExt;
 use flux_desugar as desugar;
-use flux_middle::{global_env::GlobalEnv, rustc, ty};
+use flux_middle::{
+    global_env::GlobalEnv,
+    rustc::{self, mir::Body},
+    ty,
+};
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
@@ -114,7 +118,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
                     if let Some(ty) = spec.sig {
                         let ty = desugar::desugar_const_sig(genv.tcx, genv.sess, def_id, ty)?;
-                        // println!("TRACE:CONST {def_id:?} := {ty:?}");
                         Wf::new(genv).check_const_sig(&ty)?;
                         genv.register_const_sig(def_id.to_def_id(), ty);
                     }
@@ -211,13 +214,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         self.assume.contains(def_id)
     }
 
-    fn check_const(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        // let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
-        // println!("TRACE: check_const {:?}", self.genv.tcx.fn_sig(def_id));
-        panic!("TODO: check_const `{def_id:?}` -- use 'assume' for now")
-    }
-
-    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+    fn get_body(&self, def_id: LocalDefId) -> Result<Body<'tcx>, ErrorGuaranteed> {
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
 
         if flux_common::config::CONFIG.dump_mir {
@@ -232,6 +229,18 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         }
 
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
+
+        Ok(body)
+    }
+
+    fn check_const(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        // let body = self.get_body(def_id)?;
+        // println!("TRACE: check_const {def_id:?} with {body:?}");
+        panic!("TODO: check_const `{def_id:?}`")
+    }
+
+    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        let body = self.get_body(def_id)?;
         typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
 

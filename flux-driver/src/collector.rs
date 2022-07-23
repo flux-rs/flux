@@ -100,7 +100,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     let attrs = tcx.hir().attrs(hir_id);
                     let _ = collector.parse_tyalias_spec(item.def_id, attrs);
                 }
-                ItemKind::Const(_, _) => {
+                ItemKind::Const(_ty, _body_id) => {
                     let hir_id = item.hir_id();
                     let attrs = tcx.hir().attrs(hir_id);
                     let _ = collector.parse_const_spec(item.def_id, attrs);
