@@ -57,8 +57,9 @@ pub(crate) struct FnSpec {
 
 #[derive(Debug)]
 pub(crate) struct ConstSpec {
-    pub sig: Option<surface::Ty>,
+    pub sig: surface::ConstSig,
     pub assume: bool,
+    pub val: i128,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -103,7 +104,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Const(_ty, _body_id) => {
                     let hir_id = item.hir_id();
                     let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_const_spec(item.def_id, attrs);
+                    let _ = match eval_const(tcx, item) {
+                        Some(val) => collector.parse_const_spec(item.def_id, attrs, val),
+                        None => collector.emit_err(errors::InvalidConstant { span: item.span }),
+                    };
                 }
                 _ => {}
             }
@@ -147,13 +151,18 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
+        val: i128,
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         let assume = attrs.assume();
-        let sig = attrs.const_sig();
-
-        self.specs.consts.insert(def_id, ConstSpec { sig, assume });
+        let sig = match attrs.const_sig() {
+            Some(sig) => sig,
+            None => None,
+        };
+        self.specs
+            .consts
+            .insert(def_id, ConstSpec { sig, val, assume });
 
         Ok(())
     }
@@ -287,8 +296,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             }
             ("constant", MacArgs::Delimited(span, _, tokens)) => {
                 let sig = self.parse(tokens.clone(), span.entire(), parse_ty)?;
-                FluxAttrKind::ConstSig(sig)
+                FluxAttrKind::ConstSig(Some(sig))
             }
+            ("constant", MacArgs::Empty) => FluxAttrKind::ConstSig(None),
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
@@ -364,6 +374,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 }
 
+fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<i128> {
+    let did = item.def_id;
+    let const_result = tcx.const_eval_poly(did.to_def_id());
+    if let Ok(const_val) = const_result {
+        if let Some(scalar_int) = const_val.try_to_scalar_int() {
+            let size = scalar_int.size();
+            if let Ok(val) = scalar_int.try_to_int(size) {
+                println!("TRACE: HEREHEREHEREHEREHERE {did:?} ===> {val:?}");
+                return Some(val);
+            }
+        }
+    }
+    None
+}
+
 impl Specs {
     fn new() -> Specs {
         Specs {
@@ -399,7 +424,7 @@ enum FluxAttrKind {
     Qualifier(surface::Qualifier),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
-    ConstSig(surface::Ty),
+    ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Ignore,
 }
@@ -460,7 +485,7 @@ impl FluxAttrs {
         read_attr!(self, "ty", FnSig)
     }
 
-    fn const_sig(&mut self) -> Option<surface::Ty> {
+    fn const_sig(&mut self) -> Option<surface::ConstSig> {
         read_attr!(self, "const", ConstSig)
     }
 
@@ -626,6 +651,13 @@ mod errors {
     #[derive(SessionDiagnostic)]
     #[error(code = "FLUX", slug = "parse-invalid-attr")]
     pub struct InvalidAttr {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(code = "FLUX", slug = "parse-invalid-constant")]
+    pub struct InvalidConstant {
         #[primary_span]
         pub span: Span,
     }

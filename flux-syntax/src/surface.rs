@@ -51,6 +51,9 @@ pub struct Param {
     pub sort: Ident,
 }
 
+/// Either the user specifies a type `Some(ty)` or says nothing and we auto-generate it by `eval`
+pub type ConstSig = Option<Ty>;
+
 #[derive(Debug)]
 pub struct FnSig<T = Ident> {
     /// example: `requires n > 0`
