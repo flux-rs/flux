@@ -87,6 +87,7 @@ pub fn desugar_fn_sig(
     let mut params = ParamsCtxt::new(sess);
     params.gather_fn_sig_params(&fn_sig, refined_by)?;
 
+    // HEREHEREHERE
     let mut desugar = DesugarCtxt::with_params(params);
 
     if let Some(e) = fn_sig.requires {
@@ -329,7 +330,10 @@ impl ParamsCtxt<'_> {
             let kind = ExprKind::Var(name, ident.name, ident.span);
             Ok(Expr { kind, span: Some(ident.span) })
         } else {
-            panic!("TRACE: desugar_var {ident:?}");
+            panic!(
+                "TRACE: desugar_var {ident:?} with map {:?} and params {:?}",
+                self.name_map, self.params
+            );
             // Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
         }
     }

@@ -13,24 +13,17 @@
 
 - [ ] Closure/FnPtr?
 
-Destructing `path` into `ident` ?
+## Adding Constant Symbols to Rename/Env/Constraint
 
-```rust
-path.segments.last().unwrap().ident.span
-```
+- `replace_bvars_with_fresh_vars`
+- `Checker::init` returns the `env: TypeEnv` starting off
 
-```rust
-                let (ident, args) = match path.segments {
-                    [hir::PathSegment { ident, args, .. }] => (ident, args),
-                    _ => {
-                        return Err(sess.emit_err(errors::UnsupportedSignature {
-                            span: qpath.span(),
-                            msg: "multi-segment paths are not supported yet",
-                        }));
-                    }
-                };
-                self.res.insert(ident.name, path.res);
-```
+2. To `genv` add a `global_consts: Constraints`
+    - each `Constraint` is  `Path` and a `Ty`
+    - each `Path` is a `FreeVar(Name)`
+
+3. To `Checker::init` pass in `global_consts`
+    - add the bindings in `init_constr`
 
 ## JUNK
 

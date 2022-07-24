@@ -177,6 +177,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
+        // TODO: CONST push the constant definitions here
+
         let fn_sig = genv
             .lookup_fn_sig(def_id)
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
@@ -214,16 +216,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
         for constr in fn_sig.requires() {
-            match constr {
-                ty::Constraint::Type(path, ty) => {
-                    assert!(path.projection().is_empty());
-                    let ty = rcx.unpack(ty, false);
-                    env.alloc_with_ty(path.loc, ty);
-                }
-                ty::Constraint::Pred(e) => {
-                    rcx.assume_pred(e.clone());
-                }
-            }
+            init_constr(constr, rcx, &mut env);
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
@@ -884,6 +877,24 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
         let dominator = self.dominators.immediate_dominator(bb);
         self.snapshots[dominator].as_ref().unwrap()
+    }
+}
+
+/// `init_constr` updates the `RefineCtxt` and `TypeEnv` with
+/// the bindings for a single `Constraint` which corresponds to
+/// - an input parameter of the function (from a .requires) or
+/// - a global type binding from a global constant
+
+fn init_constr(constr: &Constraint, rcx: &mut RefineCtxt, env: &mut TypeEnv) {
+    match constr {
+        ty::Constraint::Type(path, ty) => {
+            assert!(path.projection().is_empty());
+            let ty = rcx.unpack(ty, false);
+            env.alloc_with_ty(path.loc, ty);
+        }
+        ty::Constraint::Pred(e) => {
+            rcx.assume_pred(e.clone());
+        }
     }
 }
 
