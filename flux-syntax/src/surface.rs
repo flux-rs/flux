@@ -52,7 +52,11 @@ pub struct Param {
 }
 
 /// Either the user specifies a type `Some(ty)` or says nothing and we auto-generate it by `eval`
-pub type ConstSig = Option<Ty>;
+#[derive(Debug)]
+pub struct ConstSig {
+    pub ty: Option<Ty>,
+    pub span: Span,
+}
 
 #[derive(Debug)]
 pub struct FnSig<T = Ident> {

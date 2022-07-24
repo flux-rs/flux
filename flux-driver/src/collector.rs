@@ -154,12 +154,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        let ty = match attrs.const_sig() {
-            Some(sig) => sig,
-            None => None,
+        if let Some(ty) = attrs.const_sig() {
+            self.specs.consts.insert(def_id, ConstSig { ty, val });
         };
-        self.specs.consts.insert(def_id, ConstSig { ty, val });
-
         Ok(())
     }
     fn parse_tyalias_spec(
@@ -291,10 +288,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 FluxAttrKind::FnSig(fn_sig)
             }
             ("constant", MacArgs::Delimited(span, _, tokens)) => {
-                let sig = self.parse(tokens.clone(), span.entire(), parse_ty)?;
-                FluxAttrKind::ConstSig(Some(sig))
+                let span = span.entire();
+                let ty = self.parse(tokens.clone(), span, parse_ty)?;
+                FluxAttrKind::ConstSig(surface::ConstSig { ty: Some(ty), span })
             }
-            ("constant", MacArgs::Empty) => FluxAttrKind::ConstSig(None),
+            ("constant", MacArgs::Empty) => {
+                FluxAttrKind::ConstSig(surface::ConstSig { ty: None, span: attr_item.span() })
+            }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)

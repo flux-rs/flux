@@ -67,7 +67,8 @@ pub struct Qualifier {
 
 pub struct ConstSig {
     pub ty: Ty,
-    pub param: Param,
+    pub name: Symbol,
+    pub sort: Sort,
     pub val: rustc_middle::ty::ScalarInt,
 }
 
@@ -166,9 +167,18 @@ impl BaseTy {
         matches!(self, Self::Bool)
     }
 }
+impl Lit {
+    pub fn from_i128(v: i128) -> Lit {
+        Lit::Int(v)
+    }
+}
 
 impl Expr {
     pub const TRUE: Expr = Expr { kind: ExprKind::Literal(Lit::TRUE), span: None };
+
+    pub fn from_i128(v: i128) -> Expr {
+        Expr { kind: ExprKind::Literal(Lit::from_i128(v)), span: None }
+    }
 }
 
 impl Lit {

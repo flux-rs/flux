@@ -66,10 +66,10 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub fn lower_const_sig(genv: &GlobalEnv, const_sig: core::ConstSig) -> ty::ConstSig {
+    pub fn lower_const_sig(genv: &GlobalEnv, sig: core::ConstSig) -> ty::ConstSig {
         let mut cx = LoweringCtxt::new(genv);
-        // cx.lower_ty(&const_sig, 1)
-        todo!("lower_const_sig")
+        let ty = cx.lower_ty(&sig.ty, 1);
+        ty::ConstSig { ty, name: sig.name, sort: ty::Sort::Int, val: sig.val }
     }
 
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {

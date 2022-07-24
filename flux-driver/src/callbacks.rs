@@ -80,10 +80,6 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
-fn def_id_ident(def_id: DefId) -> Ident {
-    todo!("def_id_name")
-}
-
 struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
     qualifiers: Vec<ty::Qualifier>,
@@ -120,24 +116,14 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, const_sig)| {
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
-                    let ty = match const_sig.ty {
-                        Some(ty) => {
-                            let ty = desugar::desugar_const_sig(genv.tcx, genv.sess, def_id, ty)?;
-                            Wf::new(genv).check_const_sig(&ty)?;
-                            ty
-                        }
-                        None => {
-                            let _ = genv.tcx.to_type(def_id);
-
-                            // todo!("generate ty from val")
-                        }
-                    };
-                    let did = def_id.to_def_id();
-                    let name = def_id_ident(did);
-                    let param = Param { name, sort: Sort::Int };
-                    let const_sig = ConstSig { ty, param, val: const_sig.val };
-                    genv.register_const_sig(did, const_sig);
-                    panic!("HEREHEREHEREHEREHEREHERE")
+                    let const_sig = desugar::desugar_const_sig(
+                        genv.tcx,
+                        genv.sess,
+                        def_id,
+                        const_sig.ty,
+                        const_sig.val,
+                    )?;
+                    genv.register_const_sig(def_id.to_def_id(), const_sig);
                 }
                 Ok(())
             })?;

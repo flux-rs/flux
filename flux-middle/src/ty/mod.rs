@@ -11,6 +11,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
+use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
@@ -75,7 +76,8 @@ pub struct Param {
 #[derive(Debug)]
 pub struct ConstSig {
     pub ty: Ty,
-    pub param: Param,
+    pub name: Symbol,
+    pub sort: Sort,
     pub val: rustc_middle::ty::ScalarInt,
 }
 
