@@ -2,10 +2,7 @@ use flux_errors::FluxSession;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
-};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -14,11 +11,7 @@ use rustc_middle::ty::{
 
 use flux_common::iter::IterExt;
 use flux_desugar as desugar;
-use flux_middle::{
-    core::{ConstSig, Ident, Name, Param, Sort},
-    global_env::GlobalEnv,
-    rustc, ty,
-};
+use flux_middle::{global_env::GlobalEnv, rustc, ty};
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;

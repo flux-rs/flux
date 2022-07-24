@@ -66,10 +66,12 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub fn lower_const_sig(genv: &GlobalEnv, sig: core::ConstSig) -> ty::ConstSig {
+    pub fn lower_const_sig(genv: &GlobalEnv, sig: core::ConstSig, name: ty::Name) -> ty::ConstSig {
         let mut cx = LoweringCtxt::new(genv);
         let ty = cx.lower_ty(&sig.ty, 1);
-        ty::ConstSig { ty, name: sig.name, sort: ty::Sort::Int, val: sig.val }
+        let path = ty::Path::new(ty::Loc::Free(name), vec![]);
+        let constr = ty::Constraint::Type(path, ty);
+        ty::ConstSig { sym: sig.sym, sort: ty::Sort::Int, val: sig.val, name, constr }
     }
 
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {

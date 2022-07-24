@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 
-use flux_common::config::{AssertBehavior, CONFIG};
+use flux_common::{
+    config::{AssertBehavior, CONFIG},
+    index::IndexGen,
+};
 use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -25,6 +28,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
     check_asserts: AssertBehavior,
+    name_gen: IndexGen<ty::Name>,
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
@@ -40,6 +44,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             tcx,
             sess,
             check_asserts,
+            name_gen: IndexGen::new(),
         }
     }
 
@@ -62,13 +67,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
-    // pub fn register_const_sig(&mut self, def_id: DefId, const_sig: core::Ty) {
-    //     let const_sig = ty::lowering::LoweringCtxt::lower_const_sig(self, const_sig);
-    //     self.const_sigs.get_mut().insert(def_id, const_sig);
-    // }
-
     pub fn register_const_sig(&mut self, def_id: DefId, const_sig: core::ConstSig) {
-        let const_sig = ty::lowering::LoweringCtxt::lower_const_sig(self, const_sig);
+        let name = self.name_gen.fresh();
+        let const_sig = ty::lowering::LoweringCtxt::lower_const_sig(self, const_sig, name);
         self.const_sigs.get_mut().insert(def_id, const_sig);
     }
 

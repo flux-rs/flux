@@ -177,8 +177,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        // TODO: CONST push the constant definitions here
-
         let fn_sig = genv
             .lookup_fn_sig(def_id)
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));

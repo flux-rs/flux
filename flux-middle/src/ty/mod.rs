@@ -75,10 +75,12 @@ pub struct Param {
 
 #[derive(Debug)]
 pub struct ConstSig {
-    pub ty: Ty,
-    pub name: Symbol,
+    pub sym: Symbol,
     pub sort: Sort,
+    pub name: Name,
     pub val: rustc_middle::ty::ScalarInt,
+    /// Contains the `Path` (Name) and `Ty`
+    pub constr: Constraint,
 }
 
 pub type Ty = Interned<TyS>;

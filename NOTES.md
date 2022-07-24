@@ -18,11 +18,30 @@
 - `replace_bvars_with_fresh_vars`
 - `Checker::init` returns the `env: TypeEnv` starting off
 
-2. To `genv` add a `global_consts: Constraints`
+0. Use IndexGen to make a persistent/shared name_map
+        const_names: Vec<(Symbol, Name)>,
+        Map :: DefId ->
+                ConstInfo {
+                    def_id : LocalDefId,
+                    sym    : Symbol,
+                    name   : Name,
+                    sort   : Sort,
+                    constr : Constraint,
+                    val    : Val
+                }
+
+
+1. Create `global_consts: Vec<Constraint>` ...
+    - field in `genv` - in `register_const_sig`?
+
+2. Use the `global_consts.size()` to build ParamCtxt
+    - skip N elems where N is the size
+
+3. To `genv` add a `global_consts: Constraints`
     - each `Constraint` is  `Path` and a `Ty`
     - each `Path` is a `FreeVar(Name)`
 
-3. To `Checker::init` pass in `global_consts`
+4. To `Checker::init` pass in `global_consts` as extra param
     - add the bindings in `init_constr`
 
 ## JUNK

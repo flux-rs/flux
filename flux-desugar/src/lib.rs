@@ -55,9 +55,8 @@ pub fn desugar_const_sig(
         }
         None => const_ty(&rust_ty, val, const_sig.span),
     };
-    // let ty = desugar::desugar_ty(sess, ty)?;
-    let name = def_id_symbol(tcx, def_id);
-    Ok(ConstSig { ty, name, sort: Sort::Int, val })
+    let sym = def_id_symbol(tcx, def_id);
+    Ok(ConstSig { sym, sort: Sort::Int, val, ty })
 }
 
 pub fn const_ty(
