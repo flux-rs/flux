@@ -116,10 +116,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                         const_sig.ty,
                         const_sig.val,
                     )?;
-                    genv.register_const_sig(def_id.to_def_id(), const_sig);
+                    genv.register_const(def_id.to_def_id(), const_sig);
                 }
                 Ok(())
             })?;
+
+        println!("TRACE: const_infos {:?}", genv.consts);
 
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
@@ -144,7 +146,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .qualifs
             .into_iter()
             .map(|qualifier| {
-                let qualifier = desugar::desugar_qualifier(genv.sess, qualifier)?;
+                let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
                 Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
             })
@@ -162,7 +164,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let adt_def = desugar::desugar_struct_def(genv.tcx, genv.sess, struct_def)?;
+                let adt_def =
+                    desugar::desugar_struct_def(genv.tcx, genv.sess, &genv.consts, struct_def)?;
                 Wf::new(genv).check_struct_def(&adt_def)?;
                 genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())
@@ -171,7 +174,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let enum_def = desugar::desugar_enum_def(genv.sess, enum_def)?;
+                let enum_def = desugar::desugar_enum_def(genv.sess, &genv.consts, enum_def)?;
                 genv.register_enum_def(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;
@@ -187,17 +190,22 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     assume.insert(def_id);
                 }
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
-                    if let Some(fn_sig) = spec.sig {
-                        let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                        let fn_sig = desugar::desugar_fn_sig(
+                    let did = def_id.to_def_id();
+                    if let Some(sig) = spec.sig {
+                        let sig = surface::expand::expand_sig(&aliases, sig);
+                        // Desugar 'surface' into core
+                        let sig = desugar::desugar_fn_sig(
                             genv.tcx,
                             genv.sess,
+                            &genv.consts,
                             &adt_sorts,
-                            def_id.to_def_id(),
-                            fn_sig,
+                            did,
+                            sig,
                         )?;
-                        Wf::new(genv).check_fn_sig(&fn_sig)?;
-                        genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                        // WF check at 'core' level
+                        Wf::new(genv).check_fn_sig(&sig)?;
+                        // Register converts to 'lower' level for actual checking
+                        genv.register_fn_sig(def_id.to_def_id(), sig);
                     }
                 }
                 Ok(())

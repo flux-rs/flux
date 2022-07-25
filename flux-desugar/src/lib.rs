@@ -16,7 +16,8 @@ mod zip_resolver;
 
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::{self, AdtSortsMap, ConstSig, Sort},
+    core::{self, AdtSortsMap, ConstSig},
+    global_env::ConstInfo,
     rustc,
 };
 use flux_syntax::surface;
@@ -33,11 +34,12 @@ use rustc_span::{Span, Symbol};
 pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
+    consts: &Vec<ConstInfo>,
     struct_def: surface::StructDef,
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(tcx, sess, struct_def)
+    desugar::desugar_struct_def(tcx, sess, consts, struct_def)
 }
 
 pub fn desugar_const_sig(
@@ -51,12 +53,12 @@ pub fn desugar_const_sig(
     let ty = match const_sig.ty {
         Some(ty) => {
             let ty = zip_resolver::zip_ty(ty, &rust_ty);
-            desugar::desugar_ty(sess, ty)?
+            desugar::desugar_ty(sess, &vec![], ty)?
         }
         None => const_ty(&rust_ty, val, const_sig.span),
     };
     let sym = def_id_symbol(tcx, def_id);
-    Ok(ConstSig { sym, sort: Sort::Int, val, ty })
+    Ok(ConstSig { sym, val, ty })
 }
 
 pub fn const_ty(
@@ -95,11 +97,12 @@ fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> Symbol {
 pub fn desugar_fn_sig(
     tcx: TyCtxt,
     sess: &FluxSession,
+    consts: &Vec<ConstInfo>,
     sorts: &impl AdtSortsMap,
     def_id: DefId,
     fn_sig: surface::FnSig,
 ) -> Result<core::FnSig, ErrorGuaranteed> {
     let rust_sig = rustc::lowering::lower_fn_sig(tcx, tcx.fn_sig(def_id))?;
     let sig = zip_resolver::zip_bare_def(fn_sig, &rust_sig);
-    desugar::desugar_fn_sig(sess, sorts, sig)
+    desugar::desugar_fn_sig(sess, sorts, consts, sig)
 }

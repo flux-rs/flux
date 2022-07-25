@@ -67,7 +67,6 @@ pub struct Qualifier {
 
 pub struct ConstSig {
     pub sym: Symbol,
-    pub sort: Sort,
     pub val: rustc_middle::ty::ScalarInt,
     pub ty: Ty,
 }

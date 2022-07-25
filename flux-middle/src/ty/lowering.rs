@@ -63,15 +63,22 @@ impl NameMap {
 
 impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
     pub fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, name_map: NameMap::default() }
+        let mut name_map = NameMap::default();
+        for const_info in &genv.consts {
+            name_map.insert(const_info.core_name, const_info.ty_name);
+        }
+        Self { genv, name_map }
     }
 
-    pub fn lower_const_sig(genv: &GlobalEnv, sig: core::ConstSig, name: ty::Name) -> ty::ConstSig {
+    pub fn lower_const_sig(
+        genv: &GlobalEnv,
+        sig: core::ConstSig,
+        name: ty::Name,
+    ) -> ty::Constraint {
         let mut cx = LoweringCtxt::new(genv);
         let ty = cx.lower_ty(&sig.ty, 1);
         let path = ty::Path::new(ty::Loc::Free(name), vec![]);
-        let constr = ty::Constraint::Type(path, ty);
-        ty::ConstSig { sym: sig.sym, sort: ty::Sort::Int, val: sig.val, name, constr }
+        ty::Constraint::Type(path, ty)
     }
 
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {

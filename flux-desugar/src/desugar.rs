@@ -8,16 +8,20 @@ use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, Symbol};
 
-use flux_middle::core::{
-    AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-    Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+use flux_middle::{
+    core::{
+        AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
+        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+    },
+    global_env::ConstInfo,
 };
 
 pub fn desugar_qualifier(
     sess: &FluxSession,
+    consts: &Vec<ConstInfo>,
     qualifier: surface::Qualifier,
 ) -> Result<Qualifier, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
     let expr = params.desugar_expr(qualifier.expr);
@@ -39,10 +43,11 @@ pub fn resolve_sorts(
 pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
+    consts: &Vec<ConstInfo>,
     adt_def: surface::StructDef<Res>,
 ) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     let mut cx = DesugarCtxt::with_params(params);
@@ -64,17 +69,22 @@ pub fn desugar_struct_def(
 
 pub fn desugar_enum_def(
     sess: &FluxSession,
+    consts: &Vec<ConstInfo>,
     enum_def: surface::EnumDef,
 ) -> Result<EnumDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
     let refined_by = params.params;
     Ok(EnumDef { def_id, refined_by })
 }
 
-pub fn desugar_ty(sess: &FluxSession, ty: surface::Ty<Res>) -> Result<Ty, ErrorGuaranteed> {
-    let params = ParamsCtxt::new(sess);
+pub fn desugar_ty(
+    sess: &FluxSession,
+    consts: &Vec<ConstInfo>,
+    ty: surface::Ty<Res>,
+) -> Result<Ty, ErrorGuaranteed> {
+    let params = ParamsCtxt::new(sess, consts);
     let mut desugar = DesugarCtxt::with_params(params);
     desugar.desugar_ty(ty)
 }
@@ -82,9 +92,10 @@ pub fn desugar_ty(sess: &FluxSession, ty: surface::Ty<Res>) -> Result<Ty, ErrorG
 pub fn desugar_fn_sig(
     sess: &FluxSession,
     refined_by: &impl AdtSortsMap,
+    consts: &Vec<ConstInfo>,
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.gather_fn_sig_params(&fn_sig, refined_by)?;
 
     // HEREHEREHERE
@@ -271,13 +282,18 @@ fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorG
 }
 
 impl ParamsCtxt<'_> {
-    fn new(sess: &FluxSession) -> ParamsCtxt {
-        ParamsCtxt {
-            sess,
-            name_gen: IndexGen::new(),
-            name_map: FxHashMap::default(),
-            params: vec![],
+    fn new<'a>(sess: &'a FluxSession, consts: &Vec<ConstInfo>) -> ParamsCtxt<'a> {
+        // initialize name_gen
+        let name_gen = IndexGen::new();
+        name_gen.skip(consts.len());
+
+        // initialize name_map
+        let mut name_map = FxHashMap::default();
+        for const_info in consts {
+            name_map.insert(const_info.sym, const_info.core_name);
         }
+
+        ParamsCtxt { sess, name_gen, name_map, params: vec![] }
     }
 
     fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorGuaranteed> {
