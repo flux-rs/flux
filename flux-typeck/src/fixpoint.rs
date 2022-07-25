@@ -11,7 +11,10 @@ use flux_common::{
     index::{IndexGen, IndexVec},
 };
 use flux_fixpoint as fixpoint;
-use flux_middle::ty::{self, BoundVar, KVid};
+use flux_middle::{
+    global_env::ConstInfo,
+    ty::{self, BoundVar, KVid},
+};
 use rustc_middle::ty::TyCtxt;
 
 newtype_index! {
@@ -39,14 +42,14 @@ impl<T> FixpointCtxt<T>
 where
     T: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(kvars: KVarStore) -> Self {
-        Self {
-            kvars,
-            name_gen: IndexGen::new(),
-            name_map: FxHashMap::default(),
-            tags: IndexVec::new(),
-            tags_inv: FxHashMap::default(),
+    pub fn new(consts: &Vec<ConstInfo>, kvars: KVarStore) -> Self {
+        let name_gen = IndexGen::new();
+        let mut name_map = FxHashMap::default();
+        for const_info in consts {
+            let name = name_gen.fresh();
+            name_map.insert(const_info.ty_name, name);
         }
+        Self { kvars, name_gen, name_map, tags: IndexVec::new(), tags_inv: FxHashMap::default() }
     }
 
     pub fn with_name_map<R>(

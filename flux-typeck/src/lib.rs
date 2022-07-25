@@ -46,7 +46,8 @@ pub fn check<'a, 'tcx>(
         dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
     }
 
-    let mut fcx = fixpoint::FixpointCtxt::new(kvars);
+    // HEREHEREHEREHEREHERE FUCK ME
+    let mut fcx = fixpoint::FixpointCtxt::new(&genv.consts, kvars);
 
     let constraint = refine_tree.into_fixpoint(&mut fcx);
 
