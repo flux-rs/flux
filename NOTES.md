@@ -4,7 +4,7 @@
 
 - [+] `Constr(T, p)` to allow struct-invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
 
-- [ ] Global constants e.g. `LINEAR_MEM_SIZE`
+- [-] Global constants e.g. `LINEAR_MEM_SIZE`
 
 - [ ] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
     - Special case to allow `@` under `Box`
@@ -13,40 +13,6 @@
 
 - [ ] Closure/FnPtr?
 
-## Adding Constant Symbols to Rename/Env/Constraint
-
-- `replace_bvars_with_fresh_vars`
-- `Checker::init` returns the `env: TypeEnv` starting off
-
-
-- PRODUCE a `ty::NameMap` which is `core::Name -> Entry`
-- use this to CREATE `LoweringCtxt`
-
-
-0. Use IndexGen to make a persistent/shared name_map
-        const_names: Vec<(Symbol, Name)>,
-        Map :: DefId ->
-                ConstInfo {
-                    def_id : LocalDefId,
-                    sym    : Symbol,
-                    name   : Name,
-                    sort   : Sort,
-                    constr : Constraint,
-                    val    : Val
-                }
-
-1. Create `global_consts: Vec<Constraint>` ...
-    - field in `genv` - in `register_const_sig`?
-
-2. Use the `global_consts.size()` to build ParamCtxt
-    - skip N elems where N is the size
-
-3. To `genv` add a `global_consts: Constraints`
-    - each `Constraint` is  `Path` and a `Ty`
-    - each `Path` is a `FreeVar(Name)`
-
-4. To `Checker::init` pass in `global_consts` as extra param
-    - add the bindings in `init_constr`
 
 ## JUNK
 
