@@ -64,7 +64,7 @@ fn zip_arg(arg: Arg, rust_ty: &rustc_ty::Ty) -> Arg<Res> {
     }
 }
 
-pub fn zip_ty(ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
+fn zip_ty(ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
     let kind = match (ty.kind, rust_ty.kind()) {
         (TyKind::Path(path), _) => TyKind::Path(zip_path(path, rust_ty)),
         (TyKind::Indexed { path, indices }, _) => {
