@@ -101,7 +101,7 @@ where
         let kvars = self.kvars.into_fixpoint();
 
         let mut closed_constraint = constraint;
-        for (_did, const_info) in &self.const_map {
+        for const_info in self.const_map.values() {
             closed_constraint = Self::assume_const_val(closed_constraint, const_info);
         }
 
