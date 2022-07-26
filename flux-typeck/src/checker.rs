@@ -128,7 +128,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, ErrorGuaranteed> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
-            let mut refine_tree = RefineTree::new();
+            let mut refine_tree = RefineTree::new(genv.consts.len());
             let mut bb_envs = FxHashMap::default();
             Checker::run(
                 genv,
@@ -152,7 +152,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<RefineTree, ErrorGuaranteed> {
         dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
-            let mut refine_tree = RefineTree::new();
+            let mut refine_tree = RefineTree::new(genv.consts.len());
 
             Checker::run(
                 genv,

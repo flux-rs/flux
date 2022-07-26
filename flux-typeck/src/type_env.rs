@@ -263,7 +263,7 @@ impl TypeEnvInfer {
     }
 
     fn new(scope: Scope, TypeEnv { mut bindings }: TypeEnv) -> TypeEnvInfer {
-        let name_gen = scope.name_gen();
+        let name_gen = scope.name_gen(); // FUCK ME
         let mut names = FxHashMap::default();
         let mut params = FxHashMap::default();
         bindings

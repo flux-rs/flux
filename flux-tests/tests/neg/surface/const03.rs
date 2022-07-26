@@ -12,7 +12,7 @@ pub struct Silly {
     fld: usize,
 }
 
-#[flux::sig(fn() -> Silly[100])]
-pub fn mk_silly() -> Silly {
-    Silly { fld: 100 } //~ ERROR precondition
+#[flux::sig(fn(Silly) -> usize{v: v > 45})]
+pub fn bk_silly(s: Silly) -> usize {
+    s.fld //~ ERROR postcondition
 }

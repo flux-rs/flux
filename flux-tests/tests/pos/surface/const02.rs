@@ -3,9 +3,8 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::assume]
-#[flux::constant(usize[42])]
-const FORTY_TWO: usize = 21 + 21;
+#[flux::constant]
+pub const FORTY_TWO: usize = 21 + 21;
 
 #[flux::refined_by(a:int)]
 pub struct Silly {

@@ -121,6 +121,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 Ok(())
             })?;
 
+        // println!("TRACE: const_sigs = {:#?}", genv.consts);
+
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
@@ -164,6 +166,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .try_for_each_exhaust(|(def_id, struct_def)| {
                 let adt_def =
                     desugar::desugar_struct_def(genv.tcx, genv.sess, &genv.consts, struct_def)?;
+                // println!("TRACE: adt_def = {adt_def:?}");
                 Wf::new(genv).check_struct_def(&adt_def)?;
                 genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())

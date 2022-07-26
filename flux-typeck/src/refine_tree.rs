@@ -84,8 +84,8 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new() -> RefineTree {
-        let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
+    pub fn new(nbindings: usize) -> RefineTree {
+        let root = Node { kind: NodeKind::Conj, nbindings, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
