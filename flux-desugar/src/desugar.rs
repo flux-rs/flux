@@ -273,7 +273,7 @@ fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorG
 }
 
 impl ParamsCtxt<'_> {
-    fn new<'a>(sess: &'a FluxSession, consts: &Vec<ConstInfo>) -> ParamsCtxt<'a> {
+    fn new<'a>(sess: &'a FluxSession, consts: &[ConstInfo]) -> ParamsCtxt<'a> {
         let const_map: FxHashMap<Symbol, DefId> = consts
             .iter()
             .map(|const_info| (const_info.sym, const_info.def_id))
@@ -338,7 +338,7 @@ impl ParamsCtxt<'_> {
             return Ok(Expr { kind, span: Some(ident.span) });
         }
         if let Some(&did) = self.const_map.get(&ident.name) {
-            let kind = ExprKind::Const(did.clone(), ident.span);
+            let kind = ExprKind::Const(did, ident.span);
             return Ok(Expr { kind, span: Some(ident.span) });
         }
         Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))

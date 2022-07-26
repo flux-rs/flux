@@ -163,7 +163,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 return Ok(());
             };
         }
-        return self.emit_err(errors::InvalidConstant { span });
+        self.emit_err(errors::InvalidConstant { span })
     }
     fn parse_tyalias_spec(
         &mut self,
