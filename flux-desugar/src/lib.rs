@@ -61,11 +61,7 @@ pub fn desugar_const_sig(
     Ok(ConstSig { sym, val, ty })
 }
 
-pub fn const_ty(
-    rust_ty: &flux_middle::rustc::ty::Ty,
-    val: i128,
-    span: Span,
-) -> flux_middle::core::Ty {
+fn const_ty(rust_ty: &flux_middle::rustc::ty::Ty, val: i128, span: Span) -> flux_middle::core::Ty {
     let bty = match rust_ty.kind() {
         rustc::ty::TyKind::Int(i) => core::BaseTy::Int(*i),
         rustc::ty::TyKind::Uint(u) => core::BaseTy::Uint(*u),
@@ -83,7 +79,6 @@ fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> Symbol {
     let def_path = tcx.def_path(did);
     if let Some(dp) = def_path.data.last() {
         if let DefPathData::ValueNs(sym) = dp.data {
-            println!("def_id_symbol {def_id:?} with {sym:?}");
             return sym;
         }
     }

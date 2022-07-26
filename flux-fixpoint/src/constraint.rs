@@ -249,6 +249,9 @@ impl fmt::Display for Pred {
 impl Expr {
     pub const ZERO: Expr = Expr::Constant(Constant::ZERO);
     pub const ONE: Expr = Expr::Constant(Constant::ONE);
+    pub fn eq(self, other: Expr) -> Expr {
+        Expr::BinaryOp(BinOp::Eq, Box::new(self), Box::new(other))
+    }
 }
 
 impl fmt::Display for Expr {
@@ -496,5 +499,17 @@ impl From<i128> for Constant {
 impl From<bool> for Constant {
     fn from(b: bool) -> Self {
         Constant::Bool(b)
+    }
+}
+
+impl From<i128> for Expr {
+    fn from(c: i128) -> Self {
+        Expr::Constant(Constant::from(c))
+    }
+}
+
+impl From<Name> for Expr {
+    fn from(n: Name) -> Self {
+        Expr::Var(n)
     }
 }

@@ -18,6 +18,11 @@
 - `replace_bvars_with_fresh_vars`
 - `Checker::init` returns the `env: TypeEnv` starting off
 
+
+- PRODUCE a `ty::NameMap` which is `core::Name -> Entry`
+- use this to CREATE `LoweringCtxt`
+
+
 0. Use IndexGen to make a persistent/shared name_map
         const_names: Vec<(Symbol, Name)>,
         Map :: DefId ->
@@ -29,7 +34,6 @@
                     constr : Constraint,
                     val    : Val
                 }
-
 
 1. Create `global_consts: Vec<Constraint>` ...
     - field in `genv` - in `register_const_sig`?

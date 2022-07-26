@@ -34,7 +34,7 @@ pub struct FixpointCtxt<T> {
     kvars: KVarStore,
     name_gen: IndexGen<fixpoint::Name>,
     name_map: NameMap,
-    consts: Vec<Const>,
+    pub consts: Vec<Const>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: FxHashMap<T, TagIdx>,
 }

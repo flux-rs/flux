@@ -20,7 +20,7 @@ use rustc_middle::mir as rustc_mir;
 
 use flux_common::{config::AssertBehavior, index::IndexVec};
 use flux_middle::{
-    global_env::{ConstInfo, GlobalEnv},
+    global_env::GlobalEnv,
     rustc::{
         self,
         mir::{
@@ -181,7 +181,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .lookup_fn_sig(def_id)
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
-        let env = Self::init(&mut rcx, &genv.consts, body, &fn_sig);
+        let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
         let mut ck = Checker::new(
@@ -211,15 +211,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ok(())
     }
 
-    fn init(rcx: &mut RefineCtxt, consts: &Vec<ConstInfo>, body: &Body, fn_sig: &FnSig) -> TypeEnv {
+    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
-
-        for const_info in consts {
-            let constr = &const_info.constr;
-            println!("TRACE: init {constr:?}");
-            init_constr(&const_info.constr, rcx, &mut env);
-            HEREHEREHEREHERE_unpack();
-        }
 
         for constr in fn_sig.requires() {
             init_constr(constr, rcx, &mut env);
