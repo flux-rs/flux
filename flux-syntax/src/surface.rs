@@ -152,7 +152,6 @@ pub struct Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    Const(DefId),
     Var(Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
@@ -416,7 +415,6 @@ pub mod expand {
                     span: e.span,
                 }
             }
-            ExprKind::Const(did) => Expr { kind: ExprKind::Const(did.clone()), span: e.span },
         }
     }
 

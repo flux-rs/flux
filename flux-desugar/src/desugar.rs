@@ -296,12 +296,6 @@ impl ParamsCtxt<'_> {
                 let e2 = self.desugar_expr(*e2);
                 ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
-            surface::ExprKind::Const(_) => {
-                // IMPOSSIBLE: the input `expr` cannot have `DefId`
-                return Err(self
-                    .sess
-                    .emit_err(errors::UnexpectedLiteral { span: expr.span }));
-            }
         };
         Ok(Expr { kind, span: Some(expr.span) })
     }
