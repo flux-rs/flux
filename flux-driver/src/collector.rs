@@ -15,7 +15,7 @@ use rustc_ast::{
 };
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
+use rustc_hir::{def_id::LocalDefId, ImplItemKind, Item, ItemKind, VariantData};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
@@ -103,11 +103,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Const(_ty, _body_id) => {
                     let hir_id = item.hir_id();
                     let attrs = tcx.hir().attrs(hir_id);
-                    let span = item.span;
-                    let _ = match eval_const(tcx, item) {
-                        Some(val) => collector.parse_const_spec(item.def_id, attrs, val, span),
-                        None => collector.emit_err(errors::InvalidConstant { span }),
-                    };
+                    let _ = collector.parse_const_spec(item, attrs);
                 }
                 _ => {}
             }
@@ -147,11 +143,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_const_spec(
         &mut self,
-        def_id: LocalDefId,
+        item: &Item,
         attrs: &[Attribute],
-        val: ScalarInt,
-        span: Span,
     ) -> Result<(), ErrorGuaranteed> {
+        let def_id = item.def_id;
+        let span = item.span;
+        let val = match eval_const(self.tcx, item) {
+            Some(val) => val,
+            None => return self.emit_err(errors::InvalidConstant { span }),
+        };
+
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
 
