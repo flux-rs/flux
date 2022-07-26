@@ -78,16 +78,17 @@ where
         self.name_gen.fresh()
     }
 
-    fn with_const(
+    fn assume_const_val(
         cstr: fixpoint::Constraint<TagIdx>,
         const_info: &ConstInfo,
     ) -> fixpoint::Constraint<TagIdx> {
         let name = const_info.name;
-        let sort = fixpoint::Sort::Int;
         let e1 = fixpoint::Expr::from(name);
         let e2 = fixpoint::Expr::from(const_info.val);
-        let pred = fixpoint::Pred::Expr(e1.eq(e2));
-        fixpoint::Constraint::ForAll(name, sort, pred, Box::new(cstr))
+        fixpoint::Constraint::Guard(e1.eq(e2), Box::new(cstr))
+        // let sort = fixpoint::Sort::Int;
+        // let pred = fixpoint::Pred::Expr(e1.eq(e2));
+        // fixpoint::Constraint::ForAll(name, sort, pred, Box::new(cstr))
     }
 
     pub fn check(
@@ -101,12 +102,21 @@ where
 
         let mut closed_constraint = constraint;
         for (_did, const_info) in &self.const_map {
-            closed_constraint = Self::with_const(closed_constraint, const_info);
+            closed_constraint = Self::assume_const_val(closed_constraint, const_info);
         }
 
-        let qualifiers = qualifiers.iter().map(qualifier_to_fixpoint).collect();
+        let qualifiers = qualifiers
+            .iter()
+            .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
+            .collect();
 
-        let task = fixpoint::Task::new(kvars, closed_constraint, qualifiers);
+        let constants = self
+            .const_map
+            .iter()
+            .map(|(_, const_info)| (const_info.name, fixpoint::Sort::Int))
+            .collect();
+
+        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers);
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }
@@ -299,8 +309,9 @@ fn dump_constraint<C: std::fmt::Debug>(
     write!(file, "{:?}", c)
 }
 
-fn qualifier_to_fixpoint(qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
-    let name_gen = IndexGen::new();
+fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
+    // let name_gen = IndexGen::new();
+    let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
     let name = qualifier.name.clone();
     let args = qualifier
@@ -313,7 +324,8 @@ fn qualifier_to_fixpoint(qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
         })
         .collect();
 
-    let expr = expr_to_fixpoint(&qualifier.expr, &name_map, &FxHashMap::default());
+    // let expr = expr_to_fixpoint(&qualifier.expr, &name_map, &FxHashMap::default());
+    let expr = expr_to_fixpoint(&qualifier.expr, &name_map, const_map);
     fixpoint::Qualifier { name, args, expr }
 }
 

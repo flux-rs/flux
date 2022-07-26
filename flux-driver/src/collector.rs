@@ -51,7 +51,7 @@ pub(crate) struct Specs {
 }
 
 pub(crate) struct FnSpec {
-    pub sig: Option<surface::FnSig>,
+    pub fn_sig: Option<surface::FnSig>,
     pub assume: bool,
 }
 
@@ -141,9 +141,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let assume = attrs.assume();
         let fn_sig = attrs.fn_sig();
 
-        self.specs
-            .fns
-            .insert(def_id, FnSpec { sig: fn_sig, assume });
+        self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
         Ok(())
     }
 
@@ -294,7 +292,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 FluxAttrKind::FnSig(fn_sig)
             }
             ("constant", MacArgs::Empty) => {
-                FluxAttrKind::ConstSig(surface::ConstSig { ty: None, span: attr_item.span() })
+                FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
             // TODO(RJ): Parse and check types for constants
             // ("constant", MacArgs::Delimited(span, _, tokens)) => {

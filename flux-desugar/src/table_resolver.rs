@@ -111,7 +111,7 @@ impl<'tcx> Resolver<'tcx> {
         }
     }
 
-    pub fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
+    fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
             surface::TyKind::Path(path) => surface::TyKind::Path(self.resolve_path(path)?),
             surface::TyKind::Indexed { path, indices } => {

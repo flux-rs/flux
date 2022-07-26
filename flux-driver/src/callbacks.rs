@@ -165,7 +165,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .try_for_each_exhaust(|(def_id, struct_def)| {
                 let adt_def =
                     desugar::desugar_struct_def(genv.tcx, genv.sess, &genv.consts, struct_def)?;
-                // println!("TRACE: adt_def = {adt_def:?}");
                 Wf::new(genv).check_struct_def(&adt_def)?;
                 genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())
@@ -191,21 +190,18 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 }
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
                     let did = def_id.to_def_id();
-                    if let Some(sig) = spec.sig {
-                        let sig = surface::expand::expand_sig(&aliases, sig);
-                        // Desugar 'surface' into core
-                        let sig = desugar::desugar_fn_sig(
+                    if let Some(fn_sig) = spec.fn_sig {
+                        let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
+                        let fn_sig = desugar::desugar_fn_sig(
                             genv.tcx,
                             genv.sess,
                             &genv.consts,
                             &adt_sorts,
                             did,
-                            sig,
+                            fn_sig,
                         )?;
-                        // WF check at 'core' level
-                        Wf::new(genv).check_fn_sig(&sig)?;
-                        // Register converts to 'lower' level for actual checking
-                        genv.register_fn_sig(def_id.to_def_id(), sig);
+                        Wf::new(genv).check_fn_sig(&fn_sig)?;
+                        genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                     }
                 }
                 Ok(())

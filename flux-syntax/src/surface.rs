@@ -51,10 +51,8 @@ pub struct Param {
     pub sort: Ident,
 }
 
-/// Either the user specifies a type `Some(ty)` or says nothing and we auto-generate it by `eval`
 #[derive(Debug)]
 pub struct ConstSig {
-    pub ty: Option<Ty>,
     pub span: Span,
 }
 

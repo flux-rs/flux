@@ -22,6 +22,7 @@ use serde::{de, Deserialize};
 use crate::constraint::DEFAULT_QUALIFIERS;
 
 pub struct Task<Tag> {
+    pub constants: Vec<(Name, Sort)>,
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
@@ -57,8 +58,13 @@ pub struct CrashInfo(Vec<serde_json::Value>);
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
-    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>, qualifiers: Vec<Qualifier>) -> Self {
-        Task { kvars, constraint, qualifiers }
+    pub fn new(
+        constants: Vec<(Name, Sort)>,
+        kvars: Vec<KVar>,
+        constraint: Constraint<Tag>,
+        qualifiers: Vec<Qualifier>,
+    ) -> Self {
+        Task { constants, kvars, constraint, qualifiers }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
@@ -100,9 +106,14 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
+        for (name, sort) in &self.constants {
+            write!(f, "(constant {name:?} {sort:?})")?;
+        }
+
         for kvar in &self.kvars {
             writeln!(f, "{kvar}")?;
         }
+
         writeln!(f)?;
         write!(f, "(constraint")?;
         write!(PadAdapter::wrap_fmt(f, 2), "\n{}", self.constraint)?;
