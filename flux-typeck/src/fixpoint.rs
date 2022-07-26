@@ -310,7 +310,6 @@ fn dump_constraint<C: std::fmt::Debug>(
 }
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
-    // let name_gen = IndexGen::new();
     let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
     let name = qualifier.name.clone();
@@ -324,7 +323,6 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fix
         })
         .collect();
 
-    // let expr = expr_to_fixpoint(&qualifier.expr, &name_map, &FxHashMap::default());
     let expr = expr_to_fixpoint(&qualifier.expr, &name_map, const_map);
     fixpoint::Qualifier { name, args, expr }
 }

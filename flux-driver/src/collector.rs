@@ -294,12 +294,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("constant", MacArgs::Empty) => {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
-            // TODO(RJ): Parse and check types for constants
-            // ("constant", MacArgs::Delimited(span, _, tokens)) => {
-            //     let span = span.entire();
-            //     let ty = self.parse(tokens.clone(), span, parse_ty)?;
-            //     FluxAttrKind::ConstSig(surface::ConstSig { ty: Some(ty), span })
-            // }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
@@ -380,11 +374,6 @@ fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<ScalarInt> {
     let const_result = tcx.const_eval_poly(did.to_def_id());
     if let Ok(const_val) = const_result {
         return const_val.try_to_scalar_int();
-        // return Some(scalar_int);
-        // let size = scalar_int.size();
-        // if let Ok(val) = scalar_int.try_to_int(size) {
-        //     return Some(val);
-        // }
     }
     None
 }
