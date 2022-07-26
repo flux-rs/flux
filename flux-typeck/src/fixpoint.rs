@@ -1,6 +1,6 @@
 use std::{fs, io::Write, iter};
 
-use fixpoint::FixpointResult;
+use fixpoint::{Const, FixpointResult};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -34,6 +34,7 @@ pub struct FixpointCtxt<T> {
     kvars: KVarStore,
     name_gen: IndexGen<fixpoint::Name>,
     name_map: NameMap,
+    consts: Vec<Const>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: FxHashMap<T, TagIdx>,
 }
@@ -42,14 +43,23 @@ impl<T> FixpointCtxt<T>
 where
     T: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(consts: &Vec<ConstInfo>, kvars: KVarStore) -> Self {
+    pub fn new(const_infos: &Vec<ConstInfo>, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
         let mut name_map = FxHashMap::default();
-        for const_info in consts {
+        let mut consts: Vec<Const> = vec![];
+        for const_info in const_infos {
             let name = name_gen.fresh();
+            consts.push(Const { name, val: const_info.val });
             name_map.insert(const_info.ty_name, name);
         }
-        Self { kvars, name_gen, name_map, tags: IndexVec::new(), tags_inv: FxHashMap::default() }
+        Self {
+            kvars,
+            name_gen,
+            name_map,
+            consts,
+            tags: IndexVec::new(),
+            tags_inv: FxHashMap::default(),
+        }
     }
 
     pub fn with_name_map<R>(
@@ -79,7 +89,7 @@ where
 
         let qualifiers = qualifiers.iter().map(qualifier_to_fixpoint).collect();
 
-        let task = fixpoint::Task::new(kvars, constraint, qualifiers);
+        let task = fixpoint::Task::new(kvars, constraint, qualifiers, self.consts.clone());
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }

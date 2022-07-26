@@ -58,7 +58,7 @@ pub(crate) struct FnSpec {
 #[derive(Debug)]
 pub(crate) struct ConstSig {
     pub ty: surface::ConstSig,
-    pub val: rustc_middle::ty::ScalarInt,
+    pub val: i128,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -103,9 +103,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Const(_ty, _body_id) => {
                     let hir_id = item.hir_id();
                     let attrs = tcx.hir().attrs(hir_id);
+                    let span = item.span;
                     let _ = match eval_const(tcx, item) {
-                        Some(val) => collector.parse_const_spec(item.def_id, attrs, val),
-                        None => collector.emit_err(errors::InvalidConstant { span: item.span }),
+                        Some(val) => collector.parse_const_spec(item.def_id, attrs, val, span),
+                        None => collector.emit_err(errors::InvalidConstant { span }),
                     };
                 }
                 _ => {}
@@ -151,13 +152,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         attrs: &[Attribute],
         val: ScalarInt,
+        span: Span,
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        if let Some(ty) = attrs.const_sig() {
-            self.specs.consts.insert(def_id, ConstSig { ty, val });
-        };
-        Ok(())
+
+        let size = val.size();
+        if let Ok(val) = val.try_to_int(size) {
+            if let Some(ty) = attrs.const_sig() {
+                self.specs.consts.insert(def_id, ConstSig { ty, val });
+                return Ok(());
+            };
+        }
+        return self.emit_err(errors::InvalidConstant { span });
     }
     fn parse_tyalias_spec(
         &mut self,
@@ -166,7 +173,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         if let Some(alias) = attrs.alias() {
-            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
             self.specs.aliases.insert(alias.name, alias);
         }
         Ok(())

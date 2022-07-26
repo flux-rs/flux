@@ -8,8 +8,8 @@ use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
-use rustc_middle::ty::{ScalarInt, TyCtxt};
 pub use rustc_span::symbol::Ident;
 
 use crate::{
@@ -24,7 +24,7 @@ pub struct ConstInfo {
     _def_id: DefId,
     pub sym: rustc_span::Symbol,
     pub constr: ty::Constraint,
-    _val: ScalarInt,
+    pub val: i128,
     pub core_name: core::Name,
     pub ty_name: ty::Name,
 }
@@ -85,7 +85,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let val = const_sig.val;
         let sym = const_sig.sym;
         let constr = ty::lowering::LoweringCtxt::lower_const_sig(self, const_sig, ty_name);
-        let const_info = ConstInfo { _def_id: def_id, sym, _val: val, constr, core_name, ty_name };
+        let const_info = ConstInfo { _def_id: def_id, sym, val, constr, core_name, ty_name };
         self.consts.push(const_info);
     }
 

@@ -215,7 +215,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let mut env = TypeEnv::new();
 
         for const_info in consts {
+            let constr = &const_info.constr;
+            println!("TRACE: init {constr:?}");
             init_constr(&const_info.constr, rcx, &mut env);
+            HEREHEREHEREHERE_unpack();
         }
 
         for constr in fn_sig.requires() {

@@ -50,6 +50,12 @@ pub struct Qualifier {
     pub name: String,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Const {
+    pub name: Name,
+    pub val: i128,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
     Iff,

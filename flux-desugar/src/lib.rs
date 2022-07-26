@@ -26,7 +26,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
     definitions::DefPathData,
 };
-use rustc_middle::ty::{ScalarInt, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 
 pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
 use rustc_span::{Span, Symbol};
@@ -47,7 +47,7 @@ pub fn desugar_const_sig(
     sess: &FluxSession,
     def_id: LocalDefId,
     const_sig: surface::ConstSig,
-    val: rustc_middle::ty::ScalarInt,
+    val: i128,
 ) -> Result<core::ConstSig, ErrorGuaranteed> {
     let rust_ty = rustc::lowering::lower_ty(tcx, tcx.type_of(def_id))?;
     let ty = match const_sig.ty {
@@ -63,7 +63,7 @@ pub fn desugar_const_sig(
 
 pub fn const_ty(
     rust_ty: &flux_middle::rustc::ty::Ty,
-    val: ScalarInt,
+    val: i128,
     span: Span,
 ) -> flux_middle::core::Ty {
     let bty = match rust_ty.kind() {
@@ -71,12 +71,8 @@ pub fn const_ty(
         rustc::ty::TyKind::Uint(u) => core::BaseTy::Uint(*u),
         kind => panic!("const_ty: cannot handle {kind:?}"),
     };
-    let size = val.size();
-    let expr = if let Ok(v) = val.try_to_int(size) {
-        core::Expr::from_i128(v)
-    } else {
-        panic!("const_expr: cannot convert {val:?}");
-    };
+
+    let expr = core::Expr::from_i128(val);
     let idx = core::Index { expr, is_binder: false };
     let indices = core::Indices { indices: vec![idx], span };
     core::Ty::Indexed(bty, indices)
