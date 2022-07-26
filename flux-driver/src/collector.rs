@@ -374,11 +374,6 @@ fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<ScalarInt> {
     let const_result = tcx.const_eval_poly(did.to_def_id());
     if let Ok(const_val) = const_result {
         return const_val.try_to_scalar_int();
-        // return Some(scalar_int);
-        // let size = scalar_int.size();
-        // if let Ok(val) = scalar_int.try_to_int(size) {
-        //     return Some(val);
-        // }
     }
     None
 }
