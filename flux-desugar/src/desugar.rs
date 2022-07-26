@@ -346,11 +346,7 @@ impl ParamsCtxt<'_> {
             let kind = ExprKind::Var(name, ident.name, ident.span);
             Ok(Expr { kind, span: Some(ident.span) })
         } else {
-            panic!(
-                "TRACE: desugar_var {ident:?} with map {:?} and params {:?}",
-                self.name_map, self.params
-            );
-            // Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
+            Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
         }
     }
 
