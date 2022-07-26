@@ -323,7 +323,6 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fix
         })
         .collect();
 
-    // let expr = expr_to_fixpoint(&qualifier.expr, &name_map, &FxHashMap::default());
     let expr = expr_to_fixpoint(&qualifier.expr, &name_map, const_map);
     fixpoint::Qualifier { name, args, expr }
 }
