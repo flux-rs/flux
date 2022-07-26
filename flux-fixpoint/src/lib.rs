@@ -25,7 +25,6 @@ pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
-    pub consts: Vec<Const>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -58,13 +57,8 @@ pub struct CrashInfo(Vec<serde_json::Value>);
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
-    pub fn new(
-        kvars: Vec<KVar>,
-        constraint: Constraint<Tag>,
-        qualifiers: Vec<Qualifier>,
-        consts: Vec<Const>,
-    ) -> Self {
-        Task { kvars, constraint, qualifiers, consts }
+    pub fn new(kvars: Vec<KVar>, constraint: Constraint<Tag>, qualifiers: Vec<Qualifier>) -> Self {
+        Task { kvars, constraint, qualifiers }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {

@@ -63,22 +63,7 @@ impl NameMap {
 
 impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
     pub fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
-        let mut name_map = NameMap::default();
-        for const_info in &genv.consts {
-            name_map.insert(const_info.core_name, const_info.ty_name);
-        }
-        Self { genv, name_map }
-    }
-
-    pub fn lower_const_sig(
-        genv: &GlobalEnv,
-        sig: core::ConstSig,
-        name: ty::Name,
-    ) -> ty::Constraint {
-        let mut cx = LoweringCtxt::new(genv);
-        let ty = cx.lower_ty(&sig.ty, 1);
-        let path = ty::Path::new(ty::Loc::Free(name), vec![]);
-        ty::Constraint::Type(path, ty)
+        Self { genv, name_map: NameMap::default() }
     }
 
     pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
@@ -186,7 +171,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    pub fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
+    fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);
@@ -268,6 +253,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
 
 fn lower_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
     match &expr.kind {
+        core::ExprKind::Const(did, _) => ty::Expr::const_def_id(*did),
         core::ExprKind::Var(name, ..) => name_map.get(*name, nbinders),
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {

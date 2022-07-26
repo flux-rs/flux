@@ -16,20 +16,17 @@ mod zip_resolver;
 
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::{self, AdtSortsMap, ConstSig},
+    core::{self, AdtSortsMap},
     global_env::ConstInfo,
     rustc,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{
-    def_id::{DefId, LocalDefId},
-    definitions::DefPathData,
-};
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 
 pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 
 pub fn desugar_struct_def(
     tcx: TyCtxt,
@@ -42,26 +39,13 @@ pub fn desugar_struct_def(
     desugar::desugar_struct_def(tcx, sess, consts, struct_def)
 }
 
-pub fn desugar_const_sig(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    def_id: LocalDefId,
-    const_sig: surface::ConstSig,
+// TODO(RJ): This is not used but perhaps *could* used to generate default
+// type signatures for const (instead of the current "inline" method?)
+pub fn const_ty(
+    rust_ty: &flux_middle::rustc::ty::Ty,
     val: i128,
-) -> Result<core::ConstSig, ErrorGuaranteed> {
-    let rust_ty = rustc::lowering::lower_ty(tcx, tcx.type_of(def_id))?;
-    let ty = match const_sig.ty {
-        Some(ty) => {
-            let ty = zip_resolver::zip_ty(ty, &rust_ty);
-            desugar::desugar_ty(sess, &vec![], ty)?
-        }
-        None => const_ty(&rust_ty, val, const_sig.span),
-    };
-    let sym = def_id_symbol(tcx, def_id);
-    Ok(ConstSig { sym, val, ty })
-}
-
-fn const_ty(rust_ty: &flux_middle::rustc::ty::Ty, val: i128, span: Span) -> flux_middle::core::Ty {
+    span: Span,
+) -> flux_middle::core::Ty {
     let bty = match rust_ty.kind() {
         rustc::ty::TyKind::Int(i) => core::BaseTy::Int(*i),
         rustc::ty::TyKind::Uint(u) => core::BaseTy::Uint(*u),
@@ -72,17 +56,6 @@ fn const_ty(rust_ty: &flux_middle::rustc::ty::Ty, val: i128, span: Span) -> flux
     let idx = core::Index { expr, is_binder: false };
     let indices = core::Indices { indices: vec![idx], span };
     core::Ty::Indexed(bty, indices)
-}
-
-fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> Symbol {
-    let did = def_id.to_def_id();
-    let def_path = tcx.def_path(did);
-    if let Some(dp) = def_path.data.last() {
-        if let DefPathData::ValueNs(sym) = dp.data {
-            return sym;
-        }
-    }
-    panic!("def_id_symbol fails on {did:?}")
 }
 
 pub fn desugar_fn_sig(

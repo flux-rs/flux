@@ -5,6 +5,7 @@ use flux_errors::FluxSession;
 use flux_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, Symbol};
 
@@ -79,16 +80,6 @@ pub fn desugar_enum_def(
     Ok(EnumDef { def_id, refined_by })
 }
 
-pub fn desugar_ty(
-    sess: &FluxSession,
-    consts: &Vec<ConstInfo>,
-    ty: surface::Ty<Res>,
-) -> Result<Ty, ErrorGuaranteed> {
-    let params = ParamsCtxt::new(sess, consts);
-    let mut desugar = DesugarCtxt::with_params(params);
-    desugar.desugar_ty(ty)
-}
-
 pub fn desugar_fn_sig(
     sess: &FluxSession,
     refined_by: &impl AdtSortsMap,
@@ -98,7 +89,6 @@ pub fn desugar_fn_sig(
     let mut params = ParamsCtxt::new(sess, consts);
     params.gather_fn_sig_params(&fn_sig, refined_by)?;
 
-    // HEREHEREHERE
     let mut desugar = DesugarCtxt::with_params(params);
 
     if let Some(e) = fn_sig.requires {
@@ -142,6 +132,7 @@ struct ParamsCtxt<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
+    const_map: FxHashMap<Symbol, DefId>,
     params: Vec<Param>,
 }
 
@@ -283,17 +274,17 @@ fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorG
 
 impl ParamsCtxt<'_> {
     fn new<'a>(sess: &'a FluxSession, consts: &Vec<ConstInfo>) -> ParamsCtxt<'a> {
-        // initialize name_gen
-        let name_gen = IndexGen::new();
-        name_gen.skip(consts.len());
-
-        // initialize name_map
-        let mut name_map = FxHashMap::default();
-        for const_info in consts {
-            name_map.insert(const_info.sym, const_info.core_name);
+        let const_map: FxHashMap<Symbol, DefId> = consts
+            .iter()
+            .map(|const_info| (const_info.sym, const_info.def_id))
+            .collect();
+        ParamsCtxt {
+            sess,
+            name_gen: IndexGen::new(),
+            name_map: FxHashMap::default(),
+            params: vec![],
+            const_map,
         }
-
-        ParamsCtxt { sess, name_gen, name_map, params: vec![] }
     }
 
     fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorGuaranteed> {
@@ -304,6 +295,12 @@ impl ParamsCtxt<'_> {
                 let e1 = self.desugar_expr(*e1);
                 let e2 = self.desugar_expr(*e2);
                 ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
+            }
+            surface::ExprKind::Const(_) => {
+                // IMPOSSIBLE: the input `expr` cannot have `DefId`
+                return Err(self
+                    .sess
+                    .emit_err(errors::UnexpectedLiteral { span: expr.span }));
             }
         };
         Ok(Expr { kind, span: Some(expr.span) })
@@ -344,10 +341,13 @@ impl ParamsCtxt<'_> {
     fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorGuaranteed> {
         if let Some(&name) = self.name_map.get(&ident.name) {
             let kind = ExprKind::Var(name, ident.name, ident.span);
-            Ok(Expr { kind, span: Some(ident.span) })
-        } else {
-            Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
+            return Ok(Expr { kind, span: Some(ident.span) });
         }
+        if let Some(&did) = self.const_map.get(&ident.name) {
+            let kind = ExprKind::Const(did.clone(), ident.span);
+            return Ok(Expr { kind, span: Some(ident.span) });
+        }
+        Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
     }
 
     fn desugar_ident(&self, ident: surface::Ident) -> Result<Ident, ErrorGuaranteed> {

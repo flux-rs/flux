@@ -1,10 +1,7 @@
 use std::iter;
 
 use flux_common::iter::IterExt;
-use flux_middle::{
-    core,
-    global_env::{ConstInfo, GlobalEnv},
-};
+use flux_middle::{core, global_env::GlobalEnv};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_session::SessionDiagnostic;
@@ -20,14 +17,11 @@ struct Env {
 }
 
 impl Env {
-    fn new(consts: &Vec<ConstInfo>, params: &[core::Param]) -> Env {
-        let mut sorts = FxHashMap::default();
-        for const_info in consts {
-            sorts.insert(const_info.core_name, ty::Sort::Int);
-        }
-        for param in params {
-            sorts.insert(param.name.name, lower_sort(param.sort));
-        }
+    fn new(params: &[core::Param]) -> Env {
+        let sorts = params
+            .iter()
+            .map(|param| (param.name.name, lower_sort(param.sort)))
+            .collect();
         Env { sorts }
     }
 
@@ -62,13 +56,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Wf { genv }
     }
 
-    pub fn check_const_sig(&self, const_sig: &core::Ty) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&vec![], &[]);
-        self.check_type(&mut env, const_sig)
-    }
-
     pub fn check_fn_sig(&self, fn_sig: &core::FnSig) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&self.genv.consts, &fn_sig.params);
+        let mut env = Env::new(&fn_sig.params);
 
         let args = fn_sig
             .args
@@ -96,13 +85,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     pub fn check_qualifier(&self, qualifier: &core::Qualifier) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&self.genv.consts, &qualifier.args);
+        let env = Env::new(&qualifier.args);
 
         self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
     pub fn check_struct_def(&self, def: &core::StructDef) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&self.genv.consts, &def.refined_by);
+        let mut env = Env::new(&def.refined_by);
         if let core::StructKind::Transparent { fields } = &def.kind {
             fields
                 .iter()
@@ -239,6 +228,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             core::ExprKind::Var(var, ..) => Ok(env[var].clone()),
             core::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit)),
             core::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
+            core::ExprKind::Const(_, _) => Ok(ty::Sort::Int),
         }
     }
 

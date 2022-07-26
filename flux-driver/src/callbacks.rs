@@ -11,7 +11,10 @@ use rustc_middle::ty::{
 
 use flux_common::iter::IterExt;
 use flux_desugar as desugar;
-use flux_middle::{global_env::GlobalEnv, rustc, ty};
+use flux_middle::{
+    global_env::{ConstInfo, GlobalEnv},
+    rustc, ty,
+};
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
@@ -109,14 +112,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, const_sig)| {
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
-                    let const_sig = desugar::desugar_const_sig(
-                        genv.tcx,
-                        genv.sess,
-                        def_id,
-                        const_sig.ty,
-                        const_sig.val,
-                    )?;
-                    genv.register_const(def_id.to_def_id(), const_sig);
+                    let did = def_id.to_def_id();
+                    let sym = def_id_symbol(&genv.tcx, def_id);
+                    genv.consts
+                        .push(ConstInfo { def_id: did, sym, val: const_sig.val });
                 }
                 Ok(())
             })?;
@@ -244,6 +243,17 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             _ => Ok(()),
         }
     }
+}
+
+fn def_id_symbol(tcx: &TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
+    let did = def_id.to_def_id();
+    let def_path = tcx.def_path(did);
+    if let Some(dp) = def_path.data.last() {
+        if let rustc_hir::definitions::DefPathData::ValueNs(sym) = dp.data {
+            return sym;
+        }
+    }
+    panic!("def_id_symbol fails on {did:?}")
 }
 
 #[allow(clippy::needless_lifetimes)]

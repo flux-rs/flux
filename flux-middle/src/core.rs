@@ -66,7 +66,7 @@ pub struct Qualifier {
 }
 
 pub struct ConstSig {
-    pub sym: Symbol,
+    pub def_id: DefId,
     pub val: i128,
     pub ty: Ty,
 }
@@ -135,6 +135,7 @@ pub struct Expr {
 }
 
 pub enum ExprKind {
+    Const(DefId, Span),
     Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
@@ -332,6 +333,7 @@ impl fmt::Debug for Expr {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
+            ExprKind::Const(x, _) => write!(f, "{x:?}"),
         }
     }
 }

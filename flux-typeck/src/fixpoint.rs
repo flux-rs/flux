@@ -1,6 +1,6 @@
 use std::{fs, io::Write, iter};
 
-use fixpoint::{Const, FixpointResult};
+use fixpoint::FixpointResult;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -12,7 +12,7 @@ use flux_common::{
 };
 use flux_fixpoint as fixpoint;
 use flux_middle::{
-    global_env::ConstInfo,
+    global_env,
     ty::{self, BoundVar, KVid},
 };
 use rustc_middle::ty::TyCtxt;
@@ -29,34 +29,34 @@ pub struct KVarStore {
 }
 
 type NameMap = FxHashMap<ty::Name, fixpoint::Name>;
+type ConstMap = FxHashMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<T> {
     kvars: KVarStore,
     name_gen: IndexGen<fixpoint::Name>,
     name_map: NameMap,
-    pub consts: Vec<Const>,
+    const_map: ConstMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: FxHashMap<T, TagIdx>,
+}
+
+struct ConstInfo {
+    name: fixpoint::Name,
+    val: i128,
 }
 
 impl<T> FixpointCtxt<T>
 where
     T: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(const_infos: &Vec<ConstInfo>, kvars: KVarStore) -> Self {
+    pub fn new(const_infos: &Vec<global_env::ConstInfo>, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
-        let mut name_map = FxHashMap::default();
-        let mut consts: Vec<Const> = vec![];
-        for const_info in const_infos {
-            let name = name_gen.fresh();
-            consts.push(Const { name, val: const_info.val });
-            name_map.insert(const_info.ty_name, name);
-        }
+        let const_map = fixpoint_const_map(const_infos, &name_gen);
         Self {
             kvars,
             name_gen,
-            name_map,
-            consts,
+            name_map: FxHashMap::default(),
+            const_map,
             tags: IndexVec::new(),
             tags_inv: FxHashMap::default(),
         }
@@ -78,6 +78,18 @@ where
         self.name_gen.fresh()
     }
 
+    fn with_const(
+        cstr: fixpoint::Constraint<TagIdx>,
+        const_info: &ConstInfo,
+    ) -> fixpoint::Constraint<TagIdx> {
+        let name = const_info.name;
+        let sort = fixpoint::Sort::Int;
+        let e1 = fixpoint::Expr::from(name);
+        let e2 = fixpoint::Expr::from(const_info.val);
+        let pred = fixpoint::Pred::Expr(e1.eq(e2));
+        fixpoint::Constraint::ForAll(name, sort, pred, Box::new(cstr))
+    }
+
     pub fn check(
         self,
         tcx: TyCtxt,
@@ -87,9 +99,14 @@ where
     ) -> Result<(), Vec<T>> {
         let kvars = self.kvars.into_fixpoint();
 
+        let mut closed_constraint = constraint;
+        for (_did, const_info) in &self.const_map {
+            closed_constraint = Self::with_const(closed_constraint, const_info);
+        }
+
         let qualifiers = qualifiers.iter().map(qualifier_to_fixpoint).collect();
 
-        let task = fixpoint::Task::new(kvars, constraint, qualifiers, self.consts.clone());
+        let task = fixpoint::Task::new(kvars, closed_constraint, qualifiers);
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }
@@ -116,7 +133,7 @@ where
     }
 
     pub fn expr_to_fixpoint(&self, expr: &ty::Expr) -> fixpoint::Expr {
-        expr_to_fixpoint(expr, &self.name_map)
+        expr_to_fixpoint(expr, &self.name_map, &self.const_map)
     }
 
     pub fn pred_to_fixpoint(
@@ -125,7 +142,9 @@ where
         pred: &ty::Pred,
     ) -> fixpoint::Pred {
         match pred {
-            ty::Pred::Expr(expr) => fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map)),
+            ty::Pred::Expr(expr) => {
+                fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map, &self.const_map))
+            }
             ty::Pred::Kvars(kvars) => {
                 let kvars = kvars
                     .iter()
@@ -156,7 +175,7 @@ where
                     let pred = fixpoint::Expr::BinaryOp(
                         fixpoint::BinOp::Eq,
                         Box::new(fixpoint::Expr::Var(fresh)),
-                        Box::new(expr_to_fixpoint(arg, &self.name_map)),
+                        Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
                     );
                     bindings.push((fresh, sort.clone(), pred));
                     fresh
@@ -165,6 +184,20 @@ where
         });
         fixpoint::Pred::KVar(*kvid, args.collect())
     }
+}
+
+fn fixpoint_const_map(
+    const_infos: &Vec<global_env::ConstInfo>,
+    name_gen: &IndexGen<fixpoint::Name>,
+) -> FxHashMap<DefId, ConstInfo> {
+    const_infos
+        .iter()
+        .map(|const_info| {
+            let name = name_gen.fresh();
+            let cinfo = ConstInfo { name, val: const_info.val };
+            (const_info.def_id, cinfo)
+        })
+        .collect()
 }
 
 impl KVarStore {
@@ -280,11 +313,11 @@ fn qualifier_to_fixpoint(qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
         })
         .collect();
 
-    let expr = expr_to_fixpoint(&qualifier.expr, &name_map);
+    let expr = expr_to_fixpoint(&qualifier.expr, &name_map, &FxHashMap::default());
     fixpoint::Qualifier { name, args, expr }
 }
 
-fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap) -> fixpoint::Expr {
+fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {
     match expr.kind() {
         ty::ExprKind::FreeVar(name) => {
             let name = name_map
@@ -296,34 +329,39 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap) -> fixpoint::Expr {
         ty::ExprKind::BinaryOp(op, e1, e2) => {
             fixpoint::Expr::BinaryOp(
                 *op,
-                Box::new(expr_to_fixpoint(e1, name_map)),
-                Box::new(expr_to_fixpoint(e2, name_map)),
+                Box::new(expr_to_fixpoint(e1, name_map, const_map)),
+                Box::new(expr_to_fixpoint(e2, name_map, const_map)),
             )
         }
         ty::ExprKind::UnaryOp(op, e) => {
-            fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e, name_map)))
+            fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e, name_map, const_map)))
         }
         ty::ExprKind::TupleProj(e, field) => {
             itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])
-                .fold(expr_to_fixpoint(e, name_map), |e, proj| {
+                .fold(expr_to_fixpoint(e, name_map, const_map), |e, proj| {
                     fixpoint::Expr::Proj(Box::new(e), proj)
                 })
         }
-        ty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map),
+        ty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
         ty::ExprKind::Local(_) | ty::ExprKind::BoundVar(_) | ty::ExprKind::PathProj(..) => {
             panic!("unexpected expr: `{expr:?}`")
         }
+        ty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
     }
 }
 
-fn tuple_to_fixpoint(exprs: &[ty::Expr], name_map: &NameMap) -> fixpoint::Expr {
+fn tuple_to_fixpoint(
+    exprs: &[ty::Expr],
+    name_map: &NameMap,
+    const_map: &ConstMap,
+) -> fixpoint::Expr {
     match exprs {
         [] => fixpoint::Expr::Unit,
         [e, exprs @ ..] => {
             fixpoint::Expr::Pair(
-                Box::new(expr_to_fixpoint(e, name_map)),
-                Box::new(tuple_to_fixpoint(exprs, name_map)),
+                Box::new(expr_to_fixpoint(e, name_map, const_map)),
+                Box::new(tuple_to_fixpoint(exprs, name_map, const_map)),
             )
         }
     }

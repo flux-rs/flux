@@ -4,7 +4,6 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use fixpoint::Const;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::ty::{Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind};
@@ -84,8 +83,8 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new(nbindings: usize) -> RefineTree {
-        let root = Node { kind: NodeKind::Conj, nbindings, parent: None, children: vec![] };
+    pub fn new() -> RefineTree {
+        let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
@@ -104,28 +103,11 @@ impl RefineTree {
         }
     }
 
-    fn with_const(
-        cstr: fixpoint::Constraint<TagIdx>,
-        cnst: &Const,
-    ) -> fixpoint::Constraint<TagIdx> {
-        let name = cnst.name;
-        let sort = fixpoint::Sort::Int;
-        let e1 = fixpoint::Expr::from(name);
-        let e2 = fixpoint::Expr::from(cnst.val);
-        let pred = fixpoint::Pred::Expr(e1.eq(e2));
-        fixpoint::Constraint::ForAll(name, sort, pred, Box::new(cstr))
-    }
-
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
-        let mut cstr = self
-            .root
+        self.root
             .borrow()
             .to_fixpoint(cx)
-            .unwrap_or(fixpoint::Constraint::TRUE);
-        for cnst in cx.consts.iter() {
-            cstr = Self::with_const(cstr, cnst);
-        }
-        cstr
+            .unwrap_or(fixpoint::Constraint::TRUE)
     }
 }
 

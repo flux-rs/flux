@@ -1,9 +1,6 @@
 use std::cell::RefCell;
 
-use flux_common::{
-    config::{AssertBehavior, CONFIG},
-    index::IndexGen,
-};
+use flux_common::config::{AssertBehavior, CONFIG};
 use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -11,6 +8,7 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
+use rustc_span::Symbol;
 
 use crate::{
     core::{self, VariantIdx},
@@ -21,12 +19,9 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ConstInfo {
-    _def_id: DefId,
-    pub sym: rustc_span::Symbol,
-    pub constr: ty::Constraint,
+    pub def_id: DefId,
+    pub sym: Symbol,
     pub val: i128,
-    pub core_name: core::Name,
-    pub ty_name: ty::Name,
 }
 
 pub struct GlobalEnv<'genv, 'tcx> {
@@ -38,8 +33,6 @@ pub struct GlobalEnv<'genv, 'tcx> {
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
     check_asserts: AssertBehavior,
-    core_name_gen: IndexGen<core::Name>,
-    ty_name_gen: IndexGen<ty::Name>,
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
@@ -55,8 +48,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             tcx,
             sess,
             check_asserts,
-            core_name_gen: IndexGen::new(),
-            ty_name_gen: IndexGen::new(),
         }
     }
 
@@ -77,16 +68,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
         let fn_sig = ty::lowering::LoweringCtxt::lower_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
-    }
-
-    pub fn register_const(&mut self, def_id: DefId, const_sig: core::ConstSig) {
-        let ty_name = self.ty_name_gen.fresh();
-        let core_name = self.core_name_gen.fresh();
-        let val = const_sig.val;
-        let sym = const_sig.sym;
-        let constr = ty::lowering::LoweringCtxt::lower_const_sig(self, const_sig, ty_name);
-        let const_info = ConstInfo { _def_id: def_id, sym, val, constr, core_name, ty_name };
-        self.consts.push(const_info);
     }
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {

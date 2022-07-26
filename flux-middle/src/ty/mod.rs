@@ -156,6 +156,7 @@ pub struct ExprS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ExprKind {
+    ConstDefId(DefId),
     FreeVar(Name),
     BoundVar(BoundVar),
     Local(Local),
@@ -481,6 +482,10 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
+    pub fn const_def_id(c: DefId) -> Expr {
+        ExprKind::ConstDefId(c).intern()
+    }
+
     pub fn tuple(exprs: impl Into<List<Expr>>) -> Expr {
         ExprKind::Tuple(exprs.into()).intern()
     }
@@ -554,6 +559,7 @@ impl ExprS {
     pub fn simplify(&self) -> Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(*name),
+            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
             ExprKind::BoundVar(idx) => Expr::bvar(*idx),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
@@ -1019,6 +1025,7 @@ mod pretty {
             let e = if cx.simplify_exprs { self.simplify() } else { Interned::new(self.clone()) };
             match e.kind() {
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
+                ExprKind::ConstDefId(did) => w!("{:?}", ^did),
                 ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
                 ExprKind::BinaryOp(op, e1, e2) => {

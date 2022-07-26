@@ -418,6 +418,7 @@ pub mod expand {
                     span: e.span,
                 }
             }
+            ExprKind::Const(did) => Expr { kind: ExprKind::Const(did.clone()), span: e.span },
         }
     }
 
