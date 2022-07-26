@@ -294,12 +294,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("constant", MacArgs::Empty) => {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
-            // TODO(RJ): Parse and check types for constants
-            // ("constant", MacArgs::Delimited(span, _, tokens)) => {
-            //     let span = span.entire();
-            //     let ty = self.parse(tokens.clone(), span, parse_ty)?;
-            //     FluxAttrKind::ConstSig(surface::ConstSig { ty: Some(ty), span })
-            // }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
