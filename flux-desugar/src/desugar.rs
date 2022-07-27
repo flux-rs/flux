@@ -19,7 +19,7 @@ use flux_middle::{
 
 pub fn desugar_qualifier(
     sess: &FluxSession,
-    consts: &Vec<ConstInfo>,
+    consts: &[ConstInfo],
     qualifier: surface::Qualifier,
 ) -> Result<Qualifier, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);
@@ -44,7 +44,7 @@ pub fn resolve_sorts(
 pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
-    consts: &Vec<ConstInfo>,
+    consts: &[ConstInfo],
     adt_def: surface::StructDef<Res>,
 ) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
@@ -70,7 +70,7 @@ pub fn desugar_struct_def(
 
 pub fn desugar_enum_def(
     sess: &FluxSession,
-    consts: &Vec<ConstInfo>,
+    consts: &[ConstInfo],
     enum_def: surface::EnumDef,
 ) -> Result<EnumDef, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);
@@ -83,7 +83,7 @@ pub fn desugar_enum_def(
 pub fn desugar_fn_sig(
     sess: &FluxSession,
     refined_by: &impl AdtSortsMap,
-    consts: &Vec<ConstInfo>,
+    consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);

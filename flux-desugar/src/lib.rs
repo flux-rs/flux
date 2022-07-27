@@ -31,7 +31,7 @@ use rustc_span::Span;
 pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
-    consts: &Vec<ConstInfo>,
+    consts: &[ConstInfo],
     struct_def: surface::StructDef,
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
@@ -61,7 +61,7 @@ pub fn const_ty(
 pub fn desugar_fn_sig(
     tcx: TyCtxt,
     sess: &FluxSession,
-    consts: &Vec<ConstInfo>,
+    consts: &[ConstInfo],
     sorts: &impl AdtSortsMap,
     def_id: DefId,
     fn_sig: surface::FnSig,
