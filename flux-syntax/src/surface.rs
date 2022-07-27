@@ -52,6 +52,11 @@ pub struct Param {
 }
 
 #[derive(Debug)]
+pub struct ConstSig {
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct FnSig<T = Ident> {
     /// example: `requires n > 0`
     pub requires: Option<Expr>,

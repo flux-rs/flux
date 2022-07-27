@@ -65,6 +65,12 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
+pub struct ConstSig {
+    pub def_id: DefId,
+    pub val: i128,
+    pub ty: Ty,
+}
+
 pub enum Ty {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
@@ -129,6 +135,7 @@ pub struct Expr {
 }
 
 pub enum ExprKind {
+    Const(DefId, Span),
     Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
@@ -160,9 +167,18 @@ impl BaseTy {
         matches!(self, Self::Bool)
     }
 }
+impl Lit {
+    pub fn from_i128(v: i128) -> Lit {
+        Lit::Int(v)
+    }
+}
 
 impl Expr {
     pub const TRUE: Expr = Expr { kind: ExprKind::Literal(Lit::TRUE), span: None };
+
+    pub fn from_i128(v: i128) -> Expr {
+        Expr { kind: ExprKind::Literal(Lit::from_i128(v)), span: None }
+    }
 }
 
 impl Lit {
@@ -317,6 +333,7 @@ impl fmt::Debug for Expr {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
+            ExprKind::Const(x, _) => write!(f, "{x:?}"),
         }
     }
 }

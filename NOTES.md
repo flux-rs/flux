@@ -4,7 +4,7 @@
 
 - [+] `Constr(T, p)` to allow struct-invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
 
-- [ ] Global constants e.g. `LINEAR_MEM_SIZE`
+- [-] Global constants e.g. `LINEAR_MEM_SIZE`
 
 - [ ] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
     - Special case to allow `@` under `Box`

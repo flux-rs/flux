@@ -15,8 +15,8 @@ use rustc_ast::{
 };
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::LocalDefId, ImplItemKind, ItemKind, VariantData};
-use rustc_middle::ty::TyCtxt;
+use rustc_hir::{def_id::LocalDefId, ImplItemKind, Item, ItemKind, VariantData};
+use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
 
@@ -46,12 +46,19 @@ pub(crate) struct Specs {
     pub qualifs: Vec<surface::Qualifier>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
+    pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
 }
 
 pub(crate) struct FnSpec {
     pub fn_sig: Option<surface::FnSig>,
     pub assume: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct ConstSig {
+    pub _ty: surface::ConstSig,
+    pub val: i128,
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -93,6 +100,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     let attrs = tcx.hir().attrs(hir_id);
                     let _ = collector.parse_tyalias_spec(item.def_id, attrs);
                 }
+                ItemKind::Const(_ty, _body_id) => {
+                    let hir_id = item.hir_id();
+                    let attrs = tcx.hir().attrs(hir_id);
+                    let _ = collector.parse_const_spec(item, attrs);
+                }
                 _ => {}
             }
         }
@@ -129,6 +141,30 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
+    fn parse_const_spec(
+        &mut self,
+        item: &Item,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorGuaranteed> {
+        let def_id = item.def_id;
+        let span = item.span;
+        let val = match eval_const(self.tcx, item) {
+            Some(val) => val,
+            None => return self.emit_err(errors::InvalidConstant { span }),
+        };
+
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+
+        let size = val.size();
+        if let Ok(val) = val.try_to_int(size) {
+            if let Some(_ty) = attrs.const_sig() {
+                self.specs.consts.insert(def_id, ConstSig { _ty, val });
+                return Ok(());
+            };
+        }
+        self.emit_err(errors::InvalidConstant { span })
+    }
     fn parse_tyalias_spec(
         &mut self,
         _def_id: LocalDefId,
@@ -136,7 +172,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         if let Some(alias) = attrs.alias() {
-            // println!("ALIAS: insert {:?} -> {:?}", alias.name, alias);
             self.specs.aliases.insert(alias.name, alias);
         }
         Ok(())
@@ -257,6 +292,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
                 FluxAttrKind::FnSig(fn_sig)
             }
+            ("constant", MacArgs::Empty) => {
+                FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
+            }
             ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
@@ -332,6 +370,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 }
 
+fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<ScalarInt> {
+    let did = item.def_id;
+    let const_result = tcx.const_eval_poly(did.to_def_id());
+    if let Ok(const_val) = const_result {
+        return const_val.try_to_scalar_int();
+    }
+    None
+}
+
 impl Specs {
     fn new() -> Specs {
         Specs {
@@ -341,6 +388,7 @@ impl Specs {
             qualifs: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
+            consts: FxHashMap::default(),
             crate_config: None,
         }
     }
@@ -366,6 +414,7 @@ enum FluxAttrKind {
     Qualifier(surface::Qualifier),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
+    ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Ignore,
 }
@@ -426,6 +475,10 @@ impl FluxAttrs {
         read_attr!(self, "ty", FnSig)
     }
 
+    fn const_sig(&mut self) -> Option<surface::ConstSig> {
+        read_attr!(self, "const", ConstSig)
+    }
+
     fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
         read_all_attrs!(self, "qualifier", Qualifier)
     }
@@ -453,6 +506,7 @@ impl FluxAttrKind {
             FluxAttrKind::Assume => "assume",
             FluxAttrKind::Opaque => "opaque",
             FluxAttrKind::FnSig(_) => "ty",
+            FluxAttrKind::ConstSig(_) => "const",
             FluxAttrKind::RefinedBy(_) => "refined_by",
             FluxAttrKind::Qualifier(_) => "qualifier",
             FluxAttrKind::Field(_) => "field",
@@ -587,6 +641,13 @@ mod errors {
     #[derive(SessionDiagnostic)]
     #[error(code = "FLUX", slug = "parse-invalid-attr")]
     pub struct InvalidAttr {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(code = "FLUX", slug = "parse-invalid-constant")]
+    pub struct InvalidConstant {
         #[primary_span]
         pub span: Span,
     }

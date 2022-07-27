@@ -11,7 +11,10 @@ use rustc_middle::ty::{
 
 use flux_common::iter::IterExt;
 use flux_desugar as desugar;
-use flux_middle::{global_env::GlobalEnv, rustc, ty};
+use flux_middle::{
+    global_env::{ConstInfo, GlobalEnv},
+    rustc, ty,
+};
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
@@ -69,9 +72,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     items
         .chain(impl_items)
-        .filter(|def_id| matches!(tcx.def_kind(def_id.to_def_id()), DefKind::Fn | DefKind::AssocFn))
-        .filter(|def_id| !is_ignored(&tcx, &ck.ignores, def_id))
-        .try_for_each_exhaust(|def_id| ck.check_fn(def_id))
+        .filter(|def_id| !ck.is_assumed(def_id) && !is_ignored(&tcx, &ck.ignores, def_id))
+        .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
 struct CrateChecker<'a, 'genv, 'tcx> {
@@ -105,6 +107,19 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
         }
 
+        specs
+            .consts
+            .into_iter()
+            .try_for_each_exhaust(|(def_id, const_sig)| {
+                if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                    let did = def_id.to_def_id();
+                    let sym = def_id_symbol(&genv.tcx, def_id);
+                    genv.consts
+                        .push(ConstInfo { def_id: did, sym, val: const_sig.val });
+                }
+                Ok(())
+            })?;
+
         // Register adt sorts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
@@ -128,7 +143,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .qualifs
             .into_iter()
             .map(|qualifier| {
-                let qualifier = desugar::desugar_qualifier(genv.sess, qualifier)?;
+                let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
                 Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
             })
@@ -146,7 +161,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let adt_def = desugar::desugar_struct_def(genv.tcx, genv.sess, struct_def)?;
+                let adt_def =
+                    desugar::desugar_struct_def(genv.tcx, genv.sess, &genv.consts, struct_def)?;
                 Wf::new(genv).check_struct_def(&adt_def)?;
                 genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())
@@ -155,7 +171,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let enum_def = desugar::desugar_enum_def(genv.sess, enum_def)?;
+                let enum_def = desugar::desugar_enum_def(genv.sess, &genv.consts, enum_def)?;
                 genv.register_enum_def(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;
@@ -171,13 +187,15 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     assume.insert(def_id);
                 }
                 if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                    let did = def_id.to_def_id();
                     if let Some(fn_sig) = spec.fn_sig {
                         let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
                         let fn_sig = desugar::desugar_fn_sig(
                             genv.tcx,
                             genv.sess,
+                            &genv.consts,
                             &adt_sorts,
-                            def_id.to_def_id(),
+                            did,
                             fn_sig,
                         )?;
                         Wf::new(genv).check_fn_sig(&fn_sig)?;
@@ -190,10 +208,11 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         Ok(CrateChecker { genv, qualifiers, assume, ignores: specs.ignores })
     }
 
+    fn is_assumed(&self, def_id: &LocalDefId) -> bool {
+        self.assume.contains(def_id)
+    }
+
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.assume.contains(&def_id) {
-            return Ok(());
-        }
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
 
         if flux_common::config::CONFIG.dump_mir {
@@ -208,8 +227,27 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         }
 
         let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
+
         typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
+
+    fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        match self.genv.tcx.def_kind(def_id.to_def_id()) {
+            DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
+            _ => Ok(()),
+        }
+    }
+}
+
+fn def_id_symbol(tcx: &TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
+    let did = def_id.to_def_id();
+    let def_path = tcx.def_path(did);
+    if let Some(dp) = def_path.data.last() {
+        if let rustc_hir::definitions::DefPathData::ValueNs(sym) = dp.data {
+            return sym;
+        }
+    }
+    panic!("def_id_symbol fails on {did:?}")
 }
 
 #[allow(clippy::needless_lifetimes)]

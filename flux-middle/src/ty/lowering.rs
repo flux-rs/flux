@@ -253,6 +253,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
 
 fn lower_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
     match &expr.kind {
+        core::ExprKind::Const(did, _) => ty::Expr::const_def_id(*did),
         core::ExprKind::Var(name, ..) => name_map.get(*name, nbinders),
         core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {
