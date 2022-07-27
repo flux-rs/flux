@@ -9,3 +9,6 @@ parse-cfg-error =
 
 parse-syntax-err =
     syntax error: {$msg}
+
+parse-invalid-constant =
+    invalid constant

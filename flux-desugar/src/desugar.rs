@@ -5,19 +5,24 @@ use flux_errors::FluxSession;
 use flux_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, Symbol};
 
-use flux_middle::core::{
-    AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-    Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+use flux_middle::{
+    core::{
+        AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
+        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+    },
+    global_env::ConstInfo,
 };
 
 pub fn desugar_qualifier(
     sess: &FluxSession,
+    consts: &[ConstInfo],
     qualifier: surface::Qualifier,
 ) -> Result<Qualifier, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
     let expr = params.desugar_expr(qualifier.expr);
@@ -39,10 +44,11 @@ pub fn resolve_sorts(
 pub fn desugar_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
+    consts: &[ConstInfo],
     adt_def: surface::StructDef<Res>,
 ) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
     let mut cx = DesugarCtxt::with_params(params);
@@ -64,9 +70,10 @@ pub fn desugar_struct_def(
 
 pub fn desugar_enum_def(
     sess: &FluxSession,
+    consts: &[ConstInfo],
     enum_def: surface::EnumDef,
 ) -> Result<EnumDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
     let refined_by = params.params;
@@ -76,9 +83,10 @@ pub fn desugar_enum_def(
 pub fn desugar_fn_sig(
     sess: &FluxSession,
     refined_by: &impl AdtSortsMap,
+    consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.gather_fn_sig_params(&fn_sig, refined_by)?;
 
     let mut desugar = DesugarCtxt::with_params(params);
@@ -124,6 +132,7 @@ struct ParamsCtxt<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
+    const_map: FxHashMap<Symbol, DefId>,
     params: Vec<Param>,
 }
 
@@ -264,12 +273,17 @@ fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorG
 }
 
 impl ParamsCtxt<'_> {
-    fn new(sess: &FluxSession) -> ParamsCtxt {
+    fn new<'a>(sess: &'a FluxSession, consts: &[ConstInfo]) -> ParamsCtxt<'a> {
+        let const_map: FxHashMap<Symbol, DefId> = consts
+            .iter()
+            .map(|const_info| (const_info.sym, const_info.def_id))
+            .collect();
         ParamsCtxt {
             sess,
             name_gen: IndexGen::new(),
             name_map: FxHashMap::default(),
             params: vec![],
+            const_map,
         }
     }
 
@@ -321,10 +335,13 @@ impl ParamsCtxt<'_> {
     fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorGuaranteed> {
         if let Some(&name) = self.name_map.get(&ident.name) {
             let kind = ExprKind::Var(name, ident.name, ident.span);
-            Ok(Expr { kind, span: Some(ident.span) })
-        } else {
-            Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
+            return Ok(Expr { kind, span: Some(ident.span) });
         }
+        if let Some(&did) = self.const_map.get(&ident.name) {
+            let kind = ExprKind::Const(did, ident.span);
+            return Ok(Expr { kind, span: Some(ident.span) });
+        }
+        Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
     }
 
     fn desugar_ident(&self, ident: surface::Ident) -> Result<Ident, ErrorGuaranteed> {

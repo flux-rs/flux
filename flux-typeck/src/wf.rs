@@ -228,6 +228,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             core::ExprKind::Var(var, ..) => Ok(env[var].clone()),
             core::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit)),
             core::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
+            core::ExprKind::Const(_, _) => Ok(ty::Sort::Int), // TODO: generalize const sorts
         }
     }
 

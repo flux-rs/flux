@@ -1,10 +1,9 @@
 use std::{collections::HashMap, iter};
 
 use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
+use flux_syntax::surface::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 use itertools::Itertools;
 use rustc_span::Symbol;
-
-use flux_syntax::surface::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
@@ -92,18 +91,7 @@ fn zip_ty(ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
 }
 
 fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
-    let (res, rust_args) = match rust_ty.kind() {
-        rustc_ty::TyKind::Adt(def_id, substs) => {
-            let res = Res::Adt(*def_id);
-            (res, &substs[..])
-        }
-        rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
-        rustc_ty::TyKind::Bool => (Res::Bool, [].as_slice()),
-        rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
-        rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
-        rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
-        _ => panic!("incompatible type: `{rust_ty:?}`"),
-    };
+    let (res, rust_args) = rustc_ty_ident_args(rust_ty);
 
     let path_args_len = path.args.len();
     if path_args_len != rust_args.len() {
@@ -114,6 +102,21 @@ fn zip_path(path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         .collect();
 
     Path { ident: res, args, span: path.span }
+}
+
+fn rustc_ty_ident_args(rust_ty: &rustc_ty::Ty) -> (Res, &[rustc_ty::GenericArg]) {
+    match rust_ty.kind() {
+        rustc_ty::TyKind::Adt(def_id, substs) => {
+            let res = Res::Adt(*def_id);
+            (res, &substs[..])
+        }
+        rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
+        rustc_ty::TyKind::Bool => (Res::Bool, [].as_slice()),
+        rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
+        rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
+        rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
+        _ => panic!("incompatible type: `{rust_ty:?}`"),
+    }
 }
 
 fn zip_generic_arg(arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {

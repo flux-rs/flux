@@ -8,6 +8,7 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
+use rustc_span::Symbol;
 
 use crate::{
     core::{self, VariantIdx},
@@ -16,10 +17,18 @@ use crate::{
     ty::{self, fold::TypeFoldable, subst::BVarFolder},
 };
 
+#[derive(Debug)]
+pub struct ConstInfo {
+    pub def_id: DefId,
+    pub sym: Symbol,
+    pub val: i128,
+}
+
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
+    pub consts: Vec<ConstInfo>,
     adt_sorts: RefCell<FxHashMap<DefId, List<ty::Sort>>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
@@ -32,6 +41,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
+            consts: vec![],
             adt_sorts: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(FxHashMap::default()),
             adt_variants: RefCell::new(FxHashMap::default()),

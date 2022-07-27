@@ -213,6 +213,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
     fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
         let mut env = TypeEnv::new();
+
         for constr in fn_sig.requires() {
             match constr {
                 ty::Constraint::Type(path, ty) => {
