@@ -12,7 +12,7 @@ pub fn min_index(vec: RVec<i32>) -> usize {
     let mut i: usize = 0;
 
     while i < sz {
-        res = if *vec.get(i) < *vec.get(res) { i } else { res };
+        res = if vec[i] < vec[res] { i } else { res };
 
         i = i + 1;
     }

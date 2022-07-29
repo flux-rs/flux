@@ -20,17 +20,17 @@ pub fn binary_search(k: i32, items: &RVec<i32>) -> usize {
 
     while low <= high {
         let middle = high + ((high - low) / 2);
-        let current = items.get(middle); //~ ERROR precondition might not hold
-        if *current == k {
+        let current = items[middle]; //~ ERROR precondition might not hold
+        if current == k {
             return middle;
         }
-        if *current > k {
+        if current > k {
             if middle == 0 {
                 return size;
             }
             high = middle - 1
         }
-        if *current < k {
+        if current < k {
             low = middle + 1
         }
     }

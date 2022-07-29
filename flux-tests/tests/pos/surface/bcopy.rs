@@ -11,8 +11,7 @@ fn bcopy_aux(src: &RVec<i32>, dst: &mut RVec<i32>) -> i32 {
     let mut i = 0;
     let n = src.len();
     while i < n {
-        let r = dst.get_mut(i);
-        *r = *src.get(i);
+        dst[i] = src[i];
         i += 1;
     }
     0
