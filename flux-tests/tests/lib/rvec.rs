@@ -101,3 +101,19 @@ impl<T> Iterator for RVecIter<T> {
         self.vec.inner.pop()
     }
 }
+
+impl<T> std::ops::Index<usize> for RVec<T> {
+    type Output = T;
+
+    #[flux::sig(fn(&RVec<T>[@n], usize{v : 0 <= v && v < n}) -> &T)]
+    fn index(&self, index: usize) -> &T {
+        self.get(index)
+    }
+}
+
+impl<T> std::ops::IndexMut<usize> for RVec<T> {
+    #[flux::sig(fn(&mut RVec<T>[@n], usize{v : 0 <= v && v < n}) -> &mut T)]
+    fn index_mut(&mut self, index: usize) -> &mut T {
+        self.get_mut(index)
+    }
+}

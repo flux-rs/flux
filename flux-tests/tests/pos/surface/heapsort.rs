@@ -37,14 +37,14 @@ pub fn shift_down(vec: &mut RVec<i32>, start: usize, end: usize) -> i32 {
             break;
         } else {
             if child + 1 <= end {
-                let a = *vec.get(child);
-                let b = *vec.get(child + 1);
+                let a = vec[child];
+                let b = vec[child + 1];
                 if a < b {
                     child += 1;
                 }
             }
-            let a = *vec.get(root);
-            let b = *vec.get(child);
+            let a = vec[root];
+            let b = vec[child];
             if a < b {
                 vec.swap(root, child);
                 root = child;
