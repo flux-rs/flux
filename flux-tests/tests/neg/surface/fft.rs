@@ -2,25 +2,9 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[path = "../../lib/surface/rvec.rs"]
+#[path = "../../lib/rvec.rs"]
 pub mod rvec;
 use rvec::RVec;
-
-#[flux::sig(
-fn(&RVec<f32>[@n]) -> RVec<f32>[n]
-requires 0 <= n
-)]
-pub fn clone(src: &RVec<f32>) -> RVec<f32> {
-    let n = src.len();
-    let mut dst: RVec<f32> = RVec::new();
-    let mut i = 0;
-    while i < n {
-        let val = *src.get(i);
-        dst.push(val);
-        i += 1;
-    }
-    dst
-}
 
 #[flux::sig(fn() -> f32)]
 fn pi() -> f32 {
@@ -99,23 +83,23 @@ fn loop_a(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
                 while i3 <= n {
                     // INV 0 <= i0 <= i1 <= i2 <= i3, 0 <= id
 
-                    let r1 = *px.get(i0) - *px.get(i2);
-                    *px.get_mut(i0) = *px.get(i0) + *px.get(i2 + 2); //~ ERROR precondition might not hold
-                    let r2 = *px.get(i1) - *px.get(i3);
-                    *px.get_mut(i1) = *px.get(i1) + *px.get(i3);
-                    let s1 = *py.get(i0) - *py.get(i2);
-                    *py.get_mut(i0) = *py.get(i0) + *py.get(i2);
-                    let s2 = *py.get(i1) - *py.get(i3);
-                    *py.get_mut(i1) = *py.get(i1) + *py.get(i3);
+                    let r1 = px[i0] - px[i2];
+                    px[i0] = px[i0] + px[i2 + 2]; //~ ERROR precondition might not hold
+                    let r2 = px[i1] - px[i3];
+                    px[i1] = px[i1] + px[i3];
+                    let s1 = py[i0] - py[i2];
+                    py[i0] = py[i0] + py[i2];
+                    let s2 = py[i1] - py[i3];
+                    py[i1] = py[i1] + py[i3];
 
                     let s3 = r1 - s2;
                     let r1 = r1 + s2;
                     let s2 = r2 - s1;
                     let r2 = r2 + s1;
-                    *px.get_mut(i2) = r1 * cc1 - s2 * ss1;
-                    *py.get_mut(i2) = (0. - s2) * cc1 - r1 * ss1;
-                    *px.get_mut(i3) = s3 * cc3 + r2 * ss3;
-                    *py.get_mut(i3) = r2 * cc3 - s3 * ss3;
+                    px[i2] = r1 * cc1 - s2 * ss1;
+                    py[i2] = (0. - s2) * cc1 - r1 * ss1;
+                    px[i3] = s3 * cc3 + r2 * ss3;
+                    py[i3] = r2 * cc3 - s3 * ss3;
 
                     i0 = i0 + id;
                     i1 = i1 + id;
@@ -147,13 +131,13 @@ fn loop_b(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
         let mut i1 = is + 1;
         while i1 <= n {
             // INV: 0 <= i0 <= i1, 0 <= id
-            let r1 = *px.get(i0);
-            *px.get_mut(i0) = r1 + *px.get(i1);
-            *px.get_mut(i1) = r1 - *px.get(i1);
+            let r1 = px[i0];
+            px[i0] = r1 + px[i1];
+            px[i1] = r1 - px[i1];
 
-            let r1 = *py.get(i0);
-            *py.get_mut(i0) = r1 + *py.get(i1);
-            *py.get_mut(i1) = r1 - *py.get(i1);
+            let r1 = py[i0];
+            py[i0] = r1 + py[i1];
+            py[i1] = r1 - py[i1];
 
             i0 = i0 + id;
             i1 = i1 + id;
@@ -175,13 +159,13 @@ fn loop_c(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     while i < n {
         // INV: 0 <= i, 0 <= j <= n
         if i < j {
-            let xt = *px.get(j); //~ ERROR precondition might not hold
-            *px.get_mut(j) = *px.get(i); //~ ERROR precondition might not hold
-            *px.get_mut(i) = xt;
+            let xt = px[j]; //~ ERROR precondition might not hold
+            px[j] = px[i]; //~ ERROR precondition might not hold
+            px[i] = xt;
 
-            let xt = *py.get(j); //~ ERROR precondition might not hold
-            *py.get_mut(j) = *py.get(i); //~ ERROR precondition might not hold
-            *py.get_mut(i) = xt;
+            let xt = py[j]; //~ ERROR precondition might not hold
+            py[j] = py[i]; //~ ERROR precondition might not hold
+            py[i] = xt;
         }
         i += 1;
         j = loop_c1(j, n / 2);
@@ -206,19 +190,19 @@ pub fn fft_test(np: usize) -> f32 {
     let mut pxr = RVec::from_elem_n(0.0, np + 1);
     let mut pxi = RVec::from_elem_n(0.0, np + 1);
     let t = pi() / enp;
-    *pxr.get_mut(1) = (enp - 1.0) * 0.5;
-    *pxi.get_mut(1) = 0.0;
-    *pxr.get_mut(n2 + 1) = 0.0 - 0.5;
-    *pxi.get_mut(n2 + 1) = 0.0;
+    pxr[1] = (enp - 1.0) * 0.5;
+    pxi[1] = 0.0;
+    pxr[n2 + 1] = 0.0 - 0.5;
+    pxi[n2 + 1] = 0.0;
     let mut i = 1;
     while i <= npm {
         let j = np - i;
-        *pxr.get_mut(i + 1) = 0.0 - 0.5;
-        *pxr.get_mut(j + 1) = 0.0 - 0.5;
+        pxr[i + 1] = 0.0 - 0.5;
+        pxr[j + 1] = 0.0 - 0.5;
         let z = t * float_of_int(i);
         let y = 0.5 * cos(z) / sin(z);
-        *pxi.get_mut(i + 1) = 0.0 - y;
-        *pxi.get_mut(j + 1) = y;
+        pxi[i + 1] = 0.0 - y;
+        pxi[j + 1] = y;
         i += 1;
     }
 
@@ -230,12 +214,12 @@ pub fn fft_test(np: usize) -> f32 {
     let mut _ki = 0;
     let mut i = 0;
     while i < np {
-        let a = fabs(*pxr.get(i + 1) - float_of_int(i));
+        let a = fabs(pxr[i + 1] - float_of_int(i));
         if zr < a {
             zr = a;
             _kr = i;
         }
-        let a = fabs(*pxi.get(i + 1));
+        let a = fabs(pxi[i + 1]);
         if zi < a {
             zi = a;
             _ki = i;

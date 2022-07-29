@@ -104,3 +104,21 @@ fn emitter(
         }
     }
 }
+
+pub trait ResultExt<T, E> {
+    fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
+    where
+        E: SessionDiagnostic<'a>;
+}
+
+impl<T, E> ResultExt<T, E> for Result<T, E> {
+    fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
+    where
+        E: SessionDiagnostic<'a>,
+    {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(sess.emit_err(err)),
+        }
+    }
+}

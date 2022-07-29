@@ -4,10 +4,10 @@ use flux_common::{
     config::{self, AssertBehavior, CrateConfig},
     iter::IterExt,
 };
-use flux_errors::FluxSession;
+use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
     parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
-    ParseErrorKind, ParseResult,
+    ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -27,7 +27,6 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     error_guaranteed: Option<ErrorGuaranteed>,
 }
 
-/// An IgnoreKey is either `Some(module_def_id)` or `None` indicating the entire crate
 #[derive(PartialEq, Eq, Hash)]
 pub enum IgnoreKey {
     /// Ignore the entire crate
@@ -74,39 +73,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         for item_id in crate_items.items() {
             let item = tcx.hir().item(item_id);
-            match &item.kind {
-                ItemKind::Fn(..) => {
-                    let hir_id = item.hir_id();
-                    let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_fn_spec(item.def_id, attrs);
-                }
-                ItemKind::Struct(data, ..) => {
-                    let hir_id = item.hir_id();
-                    let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_struct_def(item.def_id, attrs, data);
-                }
-                ItemKind::Enum(..) => {
-                    let hir_id = item.hir_id();
-                    let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_enum_def(item.def_id, attrs);
-                }
-                ItemKind::Mod(..) => {
-                    let hir_id = item.hir_id();
-                    let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_mod_spec(item.def_id, attrs);
-                }
-                ItemKind::TyAlias(..) => {
-                    let hir_id = item.hir_id();
-                    let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_tyalias_spec(item.def_id, attrs);
-                }
-                ItemKind::Const(_ty, _body_id) => {
-                    let hir_id = item.hir_id();
-                    let attrs = tcx.hir().attrs(hir_id);
-                    let _ = collector.parse_const_spec(item, attrs);
-                }
-                _ => {}
-            }
+            let hir_id = item.hir_id();
+            let attrs = tcx.hir().attrs(hir_id);
+            let _ = match &item.kind {
+                ItemKind::Fn(..) => collector.parse_fn_spec(item.def_id, attrs),
+                ItemKind::Struct(data, ..) => collector.parse_struct_def(item.def_id, attrs, data),
+                ItemKind::Enum(..) => collector.parse_enum_def(item.def_id, attrs),
+                ItemKind::Mod(..) => collector.parse_mod_spec(item.def_id, attrs),
+                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(item.def_id, attrs),
+                ItemKind::Const(_ty, _body_id) => collector.parse_const_spec(item, attrs),
+                _ => Ok(()),
+            };
         }
 
         for impl_item_id in crate_items.impl_items() {
@@ -148,7 +125,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let def_id = item.def_id;
         let span = item.span;
-        let val = match eval_const(self.tcx, item) {
+        let val = match eval_const(self.tcx, def_id) {
             Some(val) => val,
             None => return self.emit_err(errors::InvalidConstant { span }),
         };
@@ -284,9 +261,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("alias", MacArgs::Delimited(span, _, tokens)) => {
-                let ty_alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
-                // println!("ALIAS: {:?}", ty_alias);
-                FluxAttrKind::TypeAlias(ty_alias)
+                let alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
+                FluxAttrKind::TypeAlias(alias)
             }
             ("sig", MacArgs::Delimited(span, _, tokens)) => {
                 let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
@@ -299,17 +275,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
-
             ("cfg", MacArgs::Delimited(_, _, _)) => {
-                match FluxAttrCFG::parse_cfg(attr_item) {
-                    Err(error) => return self.emit_err(error),
-                    Ok(mut cfg) => {
-                        match cfg.try_into_crate_cfg() {
-                            Err(error) => return self.emit_err(error),
-                            Ok(crate_cfg) => FluxAttrKind::CrateConfig(crate_cfg),
-                        }
-                    }
-                }
+                let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
+                    .emit(self.sess)?
+                    .try_into_crate_cfg()
+                    .emit(self.sess)?;
+                FluxAttrKind::CrateConfig(crate_cfg)
             }
             ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
                 let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
@@ -333,18 +304,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         input_span: Span,
         parser: impl FnOnce(TokenStream, Span) -> ParseResult<T>,
     ) -> Result<T, ErrorGuaranteed> {
-        match parser(tokens, input_span) {
-            Ok(result) => Ok(result),
-            Err(err) => {
-                let msg = match err.kind {
-                    ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
-                    ParseErrorKind::UnexpectedToken => "unexpected token",
-                    ParseErrorKind::IntTooLarge => "integer literal is too large",
-                };
-
-                self.emit_err(errors::SyntaxErr { span: err.span, msg })
-            }
-        }
+        parser(tokens, input_span)
+            .map_err(errors::SyntaxErr::from)
+            .emit(self.sess)
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
@@ -370,8 +332,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 }
 
-fn eval_const(tcx: TyCtxt, item: &rustc_hir::Item) -> Option<ScalarInt> {
-    let did = item.def_id;
+fn eval_const(tcx: TyCtxt, did: LocalDefId) -> Option<ScalarInt> {
     let const_result = tcx.const_eval_poly(did.to_def_id());
     if let Ok(const_val) = const_result {
         return const_val.try_to_scalar_int();
@@ -419,31 +380,34 @@ enum FluxAttrKind {
     Ignore,
 }
 
-macro_rules! read_attr {
-    ($self:expr, $name:literal, $kind:ident) => {
+macro_rules! attr_name {
+    ($kind:ident) => {{
+        let _ = FluxAttrKind::$kind;
+        stringify!($kind)
+    }};
+}
+
+macro_rules! read_flag {
+    ($self:expr, $kind:ident) => {{
+        $self.map.get(attr_name!($kind)).is_some()
+    }};
+}
+
+macro_rules! read_attrs {
+    ($self:expr, $kind:ident) => {
         $self
             .map
-            .remove($name)
+            .remove(attr_name!($kind))
             .unwrap_or_else(|| vec![])
             .into_iter()
-            .find_map(
-                |attr| if let FluxAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
-            )
+            .filter_map(|attr| if let FluxAttrKind::$kind(v) = attr.kind { Some(v) } else { None })
+            .collect::<Vec<_>>()
     };
 }
 
-// like read_attr, but returns all valid attributes
-macro_rules! read_all_attrs {
-    ($self:expr, $name:literal, $kind:ident) => {
-        $self
-            .map
-            .remove($name)
-            .unwrap_or_else(|| vec![])
-            .into_iter()
-            .filter_map(
-                |attr| if let FluxAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
-            )
-            .collect()
+macro_rules! read_attr {
+    ($self:expr, $kind:ident) => {
+        read_attrs!($self, $kind).pop()
     };
 }
 
@@ -460,59 +424,59 @@ impl FluxAttrs {
     }
 
     fn assume(&mut self) -> bool {
-        self.map.get("assume").is_some()
+        read_flag!(self, Assume)
     }
 
     fn ignore(&mut self) -> bool {
-        self.map.get("ignore").is_some()
+        read_flag!(self, Ignore)
     }
 
     fn opaque(&mut self) -> bool {
-        self.map.get("opaque").is_some()
+        read_flag!(self, Opaque)
     }
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
-        read_attr!(self, "ty", FnSig)
+        read_attr!(self, FnSig)
     }
 
     fn const_sig(&mut self) -> Option<surface::ConstSig> {
-        read_attr!(self, "const", ConstSig)
+        read_attr!(self, ConstSig)
     }
 
     fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
-        read_all_attrs!(self, "qualifier", Qualifier)
+        read_attrs!(self, Qualifier)
     }
 
     fn alias(&mut self) -> Option<surface::Alias> {
-        read_attr!(self, "alias", TypeAlias)
+        read_attr!(self, TypeAlias)
     }
 
     fn refined_by(&mut self) -> Option<surface::Params> {
-        read_attr!(self, "refined_by", RefinedBy)
+        read_attr!(self, RefinedBy)
     }
 
     fn field(&mut self) -> Option<surface::Ty> {
-        read_attr!(self, "field", Field)
+        read_attr!(self, Field)
     }
 
     fn crate_config(&mut self) -> Option<config::CrateConfig> {
-        read_attr!(self, "crate_config", CrateConfig)
+        read_attr!(self, CrateConfig)
     }
 }
 
 impl FluxAttrKind {
     fn name(&self) -> &'static str {
         match self {
-            FluxAttrKind::Assume => "assume",
-            FluxAttrKind::Opaque => "opaque",
-            FluxAttrKind::FnSig(_) => "ty",
-            FluxAttrKind::ConstSig(_) => "const",
-            FluxAttrKind::RefinedBy(_) => "refined_by",
-            FluxAttrKind::Qualifier(_) => "qualifier",
-            FluxAttrKind::Field(_) => "field",
-            FluxAttrKind::TypeAlias(_) => "alias",
-            FluxAttrKind::CrateConfig(_) => "crate_config",
-            FluxAttrKind::Ignore => "ignore",
+            FluxAttrKind::Assume => attr_name!(Assume),
+            FluxAttrKind::Opaque => attr_name!(Opaque),
+            FluxAttrKind::FnSig(_) => attr_name!(FnSig),
+            FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
+            FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
+            FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
+            FluxAttrKind::Field(_) => attr_name!(Field),
+            FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
+            FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
+            FluxAttrKind::Ignore => attr_name!(Ignore),
         }
     }
 }
@@ -587,13 +551,16 @@ impl FluxAttrCFG {
                     }
 
                     // TODO: support types of values other than strings
-                    let value_str = item.value_str().map(|symbol| symbol.to_ident_string());
+                    let value = item
+                        .value_str()
+                        .map(|symbol| symbol.to_ident_string())
+                        .ok_or_else(|| {
+                            errors::CFGError { span, message: "unsupported value".to_string() }
+                        })?;
 
-                    if let Some(value) = value_str {
-                        let setting = CFGSetting { setting: value, span: item.span };
-                        self.map.insert(name, setting);
-                        return Ok(());
-                    }
+                    let setting = CFGSetting { setting: value, span: item.span };
+                    self.map.insert(name, setting);
+                    return Ok(());
                 }
                 Err(errors::CFGError { span, message: "bad setting name".to_string() })
             }
@@ -666,5 +633,18 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
+    }
+
+    impl From<flux_syntax::ParseError> for SyntaxErr {
+        fn from(err: flux_syntax::ParseError) -> Self {
+            use flux_syntax::ParseErrorKind;
+            let msg = match err.kind {
+                ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
+                ParseErrorKind::UnexpectedToken => "unexpected token",
+                ParseErrorKind::IntTooLarge => "integer literal is too large",
+            };
+
+            SyntaxErr { span: err.span, msg }
+        }
     }
 }

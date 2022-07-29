@@ -2,7 +2,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[path = "../../lib/surface/rvec.rs"]
+#[path = "../../lib/rvec.rs"]
 pub mod rvec;
 use rvec::RVec;
 
@@ -11,8 +11,8 @@ fn bcopy_aux(src: &RVec<i32>, dst: &mut RVec<i32>) -> i32 {
     let mut i = 0;
     let n = src.len();
     while i <= n {
-        let r = dst.get_mut(i); //~ ERROR precondition might not hold
-        *r = *src.get(i); //~ ERROR precondition might not hold
+        let r = &mut dst[i]; //~ ERROR precondition might not hold
+        *r = src[i]; //~ ERROR precondition might not hold
         i += 1;
     }
     0
