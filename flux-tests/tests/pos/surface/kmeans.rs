@@ -85,8 +85,7 @@ fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
     let mut min = f32_max();
     let mut i = 0;
     while i < k {
-        let ci = cs.get(i);
-        let di = dist(ci, p);
+        let di = dist(&cs[i], p);
         if di < min {
             res = i;
             min = di;
@@ -102,7 +101,7 @@ fn normalize_centers(_n: usize, cs: &mut RVec<RVec<f32>>, weights: &RVec<usize>)
     let k = cs.len();
     let mut i = 0;
     while i < k {
-        normal(cs.get_mut(i), weights[i]);
+        normal(&mut cs[i], weights[i]);
         i += 1;
     }
     0
@@ -119,9 +118,8 @@ fn kmeans_step(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>) -> RVec<RVec
 
     let mut i = 0;
     while i < ps.len() {
-        let p = ps.get(i);
-        let j = nearest(p, &cs);
-        add(res_points.get_mut(j), p);
+        let j = nearest(&ps[i], &cs);
+        add(&mut res_points[j], &ps[i]);
         res_size[j] += 1;
         i += 1;
     }
