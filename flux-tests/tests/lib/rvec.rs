@@ -8,62 +8,57 @@ pub struct RVec<T> {
 
 impl<T> RVec<T> {
     #[flux::assume]
-    #[flux::ty(fn() -> RVec<T> @ 0)]
+    #[flux::sig(fn() -> RVec<T>[0])]
     pub fn new() -> Self {
         Self { inner: Vec::new() }
     }
 
     #[flux::assume]
-    #[flux::ty(fn<n: int>(self: RVec<T>@n; ref<self>, T) -> i32@0; self: RVec<T> @ {n + 1})]
-    pub fn push(&mut self, item: T) -> i32 {
+    #[flux::sig(fn(self: &strg RVec<T>[@n], T) -> () ensures self: RVec<T>[n+1])]
+    pub fn push(&mut self, item: T) {
         self.inner.push(item);
-        0
     }
 
     #[flux::assume]
-    #[flux::ty(fn<len: int>(&RVec<T>@len) -> usize@len)]
+    #[flux::sig(fn(&RVec<T>[@n]) -> usize[n])]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     #[flux::assume]
-    #[flux::ty(fn<len: int>(&RVec<T>@len) -> bool@{len == 0})]
+    #[flux::sig(fn(&RVec<T>[@n]) -> bool[n == 0])]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
     #[flux::assume]
-    #[flux::ty(fn<len:int>(&RVec<T>@len, usize{v: 0 <= v && v < len}) -> &T)]
+    #[flux::sig(fn(&RVec<T>[@n], i: usize{0 <= i && i < n}) -> &T)]
     pub fn get(&self, i: usize) -> &T {
         &self.inner[i]
     }
 
     #[flux::assume]
-    #[flux::ty(fn<len:int>(&weak RVec<T>@len, usize{v: 0 <= v && v < len}) -> &weak T)]
+    #[flux::sig(fn(&mut RVec<T>[@n], i: usize{ 0 <= i && i < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]
     }
 
     #[flux::assume]
-    #[flux::ty(fn<len: int {len > 0}>(self: RVec<T>@len; ref<self>) -> T; self: RVec<T>@{len - 1})]
+    #[flux::sig(fn(self: &strg RVec<T>[@n]) -> T
+    		requires n > 0
+                ensures self: RVec<T>[n-1])]
     pub fn pop(&mut self) -> T {
         self.inner.pop().unwrap()
     }
 
     #[flux::assume]
-    #[flux::ty(
-        fn<len: int>
-        (self: RVec<T>@len; ref<self>, usize{v : 0 <= v && v < len}, usize{v : 0 <= v && v < len})
-        ->
-        i32@0; self: RVec<T>@len
-    )]
-    pub fn swap(&mut self, a: usize, b: usize) -> i32 {
+    #[flux::sig(fn(&mut RVec<T>[@n], a: usize{0 <= a && a < n}, b: usize{0 <= b && b < n}) -> ())]
+    pub fn swap(&mut self, a: usize, b: usize) {
         self.inner.swap(a, b);
-        0
     }
 
     #[flux::assume]
-    #[flux::ty(fn<len: int>(T, usize @ len) -> RVec<T>@len)]
+    #[flux::sig(fn(T, n: usize) -> RVec<T>[n])]
     pub fn from_elem_n(elem: T, n: usize) -> Self
     where
         T: Copy,
@@ -75,5 +70,34 @@ impl<T> RVec<T> {
             i += 1;
         }
         vec
+    }
+}
+
+#[flux::opaque]
+pub struct RVecIter<T> {
+    vec: RVec<T>,
+    curr: usize,
+}
+
+impl<T> IntoIterator for RVec<T> {
+    type Item = T;
+    type IntoIter = RVecIter<T>;
+
+    // TODO: cannot get variant of opaque struct
+    #[flux::assume]
+    #[flux::sig(fn(RVec<T>) -> RVecIter<T>)]
+    fn into_iter(self) -> RVecIter<T> {
+        RVecIter { vec: self, curr: 0 }
+    }
+}
+
+impl<T> Iterator for RVecIter<T> {
+    type Item = T;
+
+    // TODO: cannot get variant of opaque struct
+    #[flux::assume]
+    #[flux::sig(fn(&mut RVecIter<T>) -> Option<T>)]
+    fn next(&mut self) -> Option<T> {
+        self.vec.inner.pop()
     }
 }
