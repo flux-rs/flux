@@ -3,7 +3,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[path = "../../lib/surface/rvec.rs"]
+#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
