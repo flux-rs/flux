@@ -380,31 +380,34 @@ enum FluxAttrKind {
     Ignore,
 }
 
-macro_rules! read_attr {
-    ($self:expr, $name:literal, $kind:ident) => {
+macro_rules! attr_name {
+    ($kind:ident) => {{
+        let _ = FluxAttrKind::$kind;
+        stringify!($kind)
+    }};
+}
+
+macro_rules! read_flag {
+    ($self:expr, $kind:ident) => {{
+        $self.map.get(attr_name!($kind)).is_some()
+    }};
+}
+
+macro_rules! read_attrs {
+    ($self:expr, $kind:ident) => {
         $self
             .map
-            .remove($name)
+            .remove(attr_name!($kind))
             .unwrap_or_else(|| vec![])
             .into_iter()
-            .find_map(
-                |attr| if let FluxAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
-            )
+            .filter_map(|attr| if let FluxAttrKind::$kind(v) = attr.kind { Some(v) } else { None })
+            .collect::<Vec<_>>()
     };
 }
 
-// like read_attr, but returns all valid attributes
-macro_rules! read_all_attrs {
-    ($self:expr, $name:literal, $kind:ident) => {
-        $self
-            .map
-            .remove($name)
-            .unwrap_or_else(|| vec![])
-            .into_iter()
-            .filter_map(
-                |attr| if let FluxAttrKind::$kind(sig) = attr.kind { Some(sig) } else { None },
-            )
-            .collect()
+macro_rules! read_attr {
+    ($self:expr, $kind:ident) => {
+        read_attrs!($self, $kind).pop()
     };
 }
 
@@ -421,59 +424,59 @@ impl FluxAttrs {
     }
 
     fn assume(&mut self) -> bool {
-        self.map.get("assume").is_some()
+        read_flag!(self, Assume)
     }
 
     fn ignore(&mut self) -> bool {
-        self.map.get("ignore").is_some()
+        read_flag!(self, Ignore)
     }
 
     fn opaque(&mut self) -> bool {
-        self.map.get("opaque").is_some()
+        read_flag!(self, Opaque)
     }
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
-        read_attr!(self, "ty", FnSig)
+        read_attr!(self, FnSig)
     }
 
     fn const_sig(&mut self) -> Option<surface::ConstSig> {
-        read_attr!(self, "const", ConstSig)
+        read_attr!(self, ConstSig)
     }
 
     fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
-        read_all_attrs!(self, "qualifier", Qualifier)
+        read_attrs!(self, Qualifier)
     }
 
     fn alias(&mut self) -> Option<surface::Alias> {
-        read_attr!(self, "alias", TypeAlias)
+        read_attr!(self, TypeAlias)
     }
 
     fn refined_by(&mut self) -> Option<surface::Params> {
-        read_attr!(self, "refined_by", RefinedBy)
+        read_attr!(self, RefinedBy)
     }
 
     fn field(&mut self) -> Option<surface::Ty> {
-        read_attr!(self, "field", Field)
+        read_attr!(self, Field)
     }
 
     fn crate_config(&mut self) -> Option<config::CrateConfig> {
-        read_attr!(self, "crate_config", CrateConfig)
+        read_attr!(self, CrateConfig)
     }
 }
 
 impl FluxAttrKind {
     fn name(&self) -> &'static str {
         match self {
-            FluxAttrKind::Assume => "assume",
-            FluxAttrKind::Opaque => "opaque",
-            FluxAttrKind::FnSig(_) => "ty",
-            FluxAttrKind::ConstSig(_) => "const",
-            FluxAttrKind::RefinedBy(_) => "refined_by",
-            FluxAttrKind::Qualifier(_) => "qualifier",
-            FluxAttrKind::Field(_) => "field",
-            FluxAttrKind::TypeAlias(_) => "alias",
-            FluxAttrKind::CrateConfig(_) => "crate_config",
-            FluxAttrKind::Ignore => "ignore",
+            FluxAttrKind::Assume => attr_name!(Assume),
+            FluxAttrKind::Opaque => attr_name!(Opaque),
+            FluxAttrKind::FnSig(_) => attr_name!(FnSig),
+            FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
+            FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
+            FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
+            FluxAttrKind::Field(_) => attr_name!(Field),
+            FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
+            FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
+            FluxAttrKind::Ignore => attr_name!(Ignore),
         }
     }
 }
