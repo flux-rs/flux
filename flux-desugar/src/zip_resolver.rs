@@ -4,7 +4,7 @@ use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
 use flux_syntax::surface::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 use itertools::Itertools;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
@@ -109,7 +109,7 @@ fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
     assert!(default_args_len <= rust_args_len);
 
     // zip the supplied args
-    let args: Vec<Ty<Res>> = iter::zip(path.args, rust_args)
+    let mut args: Vec<Ty<Res>> = iter::zip(path.args, rust_args)
         .map(|(arg, rust_arg)| zip_generic_arg(tcx, arg, rust_arg))
         .collect();
 
@@ -119,10 +119,10 @@ fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
             Res::Adt(def_id) => {
                 let generics = &tcx.generics_of(def_id).params[path_args_len..];
                 let default_args = &rust_args[path_args_len..];
-                for (generic, _arg) in iter::zip(generics, default_args) {
+                for (generic, arg) in iter::zip(generics, default_args) {
                     assert!(generic.has_default(), "missing value for generic without default!");
                     // println!("TRACE: EXTRA {generic:?} as {arg:?}");
-                    // TODO(RJ): TRIVIAL-ARG args.push(trivial_arg(arg));
+                    args.push(trivial_arg(arg, path.span));
                 }
             }
             _ => panic!("Extra parameters in non-adt type!"),
@@ -149,14 +149,16 @@ fn zip_generic_arg(tcx: TyCtxt, arg: Ty, rust_arg: &rustc_ty::GenericArg) -> Ty<
     }
 }
 
-// TODO(RJ): TRIVIAL-ARG
-//
-// fn trivial_arg(rust_arg: &rustc_ty::GenericArg) -> Ty<Res> {
-//     match rust_arg {
-//         rustc_ty::GenericArg::Ty(ty) => trivial_ty(ty),
-//     }
-// }
+fn trivial_arg(rust_arg: &rustc_ty::GenericArg, span: Span) -> Ty<Res> {
+    match rust_arg {
+        rustc_ty::GenericArg::Ty(ty) => trivial_ty(ty, span),
+    }
+}
 
-// fn trivial_ty(_ty: &rustc_ty::Ty) -> Ty<Res> {
-//     todo!()
-// }
+fn trivial_ty(ty: &rustc_ty::Ty, span: Span) -> Ty<Res> {
+    let (res, args) = rustc_ty_ident_args(ty);
+    let args = args.iter().map(|arg| trivial_arg(arg, span)).collect();
+    let path = Path { ident: res, args, span };
+    let kind = TyKind::Path(path);
+    Ty { kind, span }
+}
