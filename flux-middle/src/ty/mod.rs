@@ -9,8 +9,11 @@ use itertools::Itertools;
 pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-use rustc_middle::mir::{Field, Local};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
+use rustc_middle::{
+    mir::{Field, Local},
+    ty::TyCtxt,
+};
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
@@ -330,6 +333,13 @@ impl Ty {
     pub fn discr(place: Place) -> Ty {
         TyKind::Discr(place).intern()
     }
+
+    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+        match self.kind() {
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(tcx),
+            _ => false,
+        }
+    }
 }
 
 impl TyKind {
@@ -401,6 +411,16 @@ impl BaseTy {
 
     fn is_bool(&self) -> bool {
         matches!(self, BaseTy::Bool)
+    }
+
+    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+        match self {
+            BaseTy::Adt(adt_def, _) => {
+                let def_id = adt_def.def_id();
+                tcx.adt_def(def_id).is_box()
+            }
+            _ => false,
+        }
     }
 
     pub fn sorts(&self) -> &[Sort] {

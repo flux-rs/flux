@@ -20,6 +20,7 @@ pub struct PathsTree {
 pub enum LookupResult {
     Ptr(Path, Ty),
     Ref(RefKind, Ty),
+    Box(Ty),
 }
 
 impl LookupResult {
@@ -27,6 +28,7 @@ impl LookupResult {
         match self {
             LookupResult::Ptr(_, ty) => ty.clone(),
             LookupResult::Ref(_, ty) => ty.clone(),
+            LookupResult::Box(ty) => ty.clone(),
         }
     }
 }
@@ -160,12 +162,27 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
+                            TyKind::Indexed(bty, _) if bty.is_box(gen.genv.tcx) => {
+                                return self.lookup_place_box_ty(bty);
+                                //panic!("YIKES 0: {elem:?} {ty:?}")
+                            }
+                            TyKind::Exists(_, _) => panic!("YIKES 1: {elem:?} {ty:?}"),
                             _ => panic!("YIKES: {elem:?} {ty:?}"),
                         }
                     }
                 }
             }
             return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen));
+        }
+    }
+
+    fn lookup_place_box_ty(&self, bty: &BaseTy) -> LookupResult {
+        match bty {
+            BaseTy::Adt(_, substs) => {
+                let ty = substs[0].clone();
+                LookupResult::Box(ty)
+            }
+            _ => panic!("unexpected argument in lookup_place_box_ty"),
         }
     }
 
@@ -189,6 +206,7 @@ impl PathsTree {
                     return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
+                        LookupResult::Box(ty2) => LookupResult::Box(ty2),
                     }
                 }
                 (Field(field), TyKind::Tuple(tys)) => {

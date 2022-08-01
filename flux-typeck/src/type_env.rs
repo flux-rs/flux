@@ -85,8 +85,8 @@ impl TypeEnv {
         match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, _) => Ty::ptr(path),
             LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
-            LookupResult::Ref(RefKind::Shr, _) => {
-                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference")
+            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
+                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference or a Box")
             }
         }
     }
@@ -110,8 +110,8 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Mut, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            LookupResult::Ref(RefKind::Shr, _) => {
-                panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
+            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
+                panic!("cannot assign to `{place:?}`, which is behind a `&` reference or Box")
             }
         }
     }
@@ -125,8 +125,8 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Mut, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
-            LookupResult::Ref(RefKind::Shr, _) => {
-                panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
+            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
+                panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference or in a Box")
             }
         }
     }
