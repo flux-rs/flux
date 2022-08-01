@@ -70,22 +70,29 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
+    pub fn is_box_adt(&self, def_id: DefId) -> bool {
+        let adt_def = self.tcx.adt_def(def_id);
+        adt_def.is_box()
+    }
+
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
         let variants = ty::lowering::LoweringCtxt::lower_struct_def(self, &struct_def)
             .map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
 
         let sorts = self.sorts_of(def_id);
+        let is_box = self.is_box_adt(def_id);
         self.adt_defs
             .get_mut()
-            .insert(def_id, ty::AdtDef::new(def_id, sorts));
+            .insert(def_id, ty::AdtDef::new(def_id, sorts, is_box));
     }
 
     pub fn register_enum_def(&mut self, def_id: DefId, _enum_def: core::EnumDef) {
         let sorts = self.sorts_of(def_id);
+        let is_box = self.is_box_adt(def_id);
         self.adt_defs
             .get_mut()
-            .insert(def_id, ty::AdtDef::new(def_id, sorts));
+            .insert(def_id, ty::AdtDef::new(def_id, sorts, is_box));
     }
 
     pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -101,10 +108,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
+        let is_box = self.is_box_adt(def_id);
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| ty::AdtDef::new(def_id, self.sorts_of(def_id)))
+            .or_insert_with(|| ty::AdtDef::new(def_id, self.sorts_of(def_id), is_box))
             .clone()
     }
 

@@ -9,11 +9,8 @@ use itertools::Itertools;
 pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
+use rustc_middle::mir::{Field, Local};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
-use rustc_middle::{
-    mir::{Field, Local},
-    ty::TyCtxt,
-};
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
@@ -31,6 +28,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
+    is_box: bool,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -256,8 +254,8 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>) -> Self {
-        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into() }))
+    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>, is_box: bool) -> Self {
+        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into(), is_box }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -266,6 +264,10 @@ impl AdtDef {
 
     pub fn sorts(&self) -> &List<Sort> {
         &self.0.sorts
+    }
+
+    pub fn is_box(&self) -> bool {
+        self.0.is_box
     }
 }
 
@@ -299,6 +301,12 @@ impl Ty {
         }
     }
 
+    pub fn bty(&self) -> Option<&BaseTy> {
+        match self.unconstr().kind() {
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => Some(bty),
+            _ => None,
+        }
+    }
     pub fn uninit() -> Ty {
         TyKind::Uninit.intern()
     }
@@ -334,9 +342,9 @@ impl Ty {
         TyKind::Discr(place).intern()
     }
 
-    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+    pub fn is_box(&self) -> bool {
         match self.kind() {
-            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(tcx),
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(),
             _ => false,
         }
     }
@@ -413,12 +421,9 @@ impl BaseTy {
         matches!(self, BaseTy::Bool)
     }
 
-    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+    pub fn is_box(&self) -> bool {
         match self {
-            BaseTy::Adt(adt_def, _) => {
-                let def_id = adt_def.def_id();
-                tcx.adt_def(def_id).is_box()
-            }
+            BaseTy::Adt(adt_def, _) => adt_def.is_box(),
             _ => false,
         }
     }

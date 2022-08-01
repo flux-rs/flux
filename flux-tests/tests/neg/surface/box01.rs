@@ -12,3 +12,10 @@ pub fn inc_box(b: Box<i32>) -> Box<i32> {
     let x = *b;
     Box::new(x + 10)
 } //~ ERROR postcondition
+
+#[flux::sig(fn(n:i32) -> i32[n+2])]
+pub fn inc_test(n: i32) -> i32 {
+    let b0 = Box::new(n);
+    let b1 = inc_box(b0);
+    *b1
+} //~ ERROR postcondition

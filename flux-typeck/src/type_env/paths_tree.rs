@@ -162,12 +162,10 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            TyKind::Indexed(bty, _) if bty.is_box(gen.genv.tcx) => {
+                            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_box() => {
                                 return self.lookup_place_box_ty(bty);
-                                //panic!("YIKES 0: {elem:?} {ty:?}")
                             }
-                            TyKind::Exists(_, _) => panic!("YIKES 1: {elem:?} {ty:?}"),
-                            _ => panic!("YIKES: {elem:?} {ty:?}"),
+                            _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
                     }
                 }
