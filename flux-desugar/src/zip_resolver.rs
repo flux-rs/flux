@@ -113,7 +113,7 @@ fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         .map(|(arg, rust_arg)| zip_generic_arg(tcx, arg, rust_arg))
         .collect();
 
-    // copy over the 'default' args
+    // copy over the 'default' args with trivial refinements
     if 0 < default_args_len {
         match res {
             Res::Adt(def_id) => {
@@ -121,7 +121,6 @@ fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
                 let default_args = &rust_args[path_args_len..];
                 for (generic, arg) in iter::zip(generics, default_args) {
                     assert!(generic.has_default(), "missing value for generic without default!");
-                    // println!("TRACE: EXTRA {generic:?} as {arg:?}");
                     args.push(trivial_arg(arg, path.span));
                 }
             }
@@ -131,7 +130,7 @@ fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
     Path { ident: res, args, span: path.span }
 }
 
-fn rustc_ty_ident_args<'a>(rust_ty: &'a rustc_ty::Ty) -> (Res, &'a [rustc_ty::GenericArg]) {
+fn rustc_ty_ident_args(rust_ty: &rustc_ty::Ty) -> (Res, &[rustc_ty::GenericArg]) {
     match rust_ty.kind() {
         rustc_ty::TyKind::Adt(def_id, substs) => (Res::Adt(*def_id), &substs[..]),
         rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
