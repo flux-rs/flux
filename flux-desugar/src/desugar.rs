@@ -429,9 +429,14 @@ impl ParamsCtxt<'_> {
             }
             surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_sorts),
 
-            surface::TyKind::Path(_) | surface::TyKind::Exists { .. } | surface::TyKind::Unit => {
+            surface::TyKind::Path(path) => {
+                for ty in &path.args {
+                    let _ = self.ty_gather_params(ty, adt_sorts);
+                }
                 Ok(())
             }
+
+            surface::TyKind::Exists { .. } | surface::TyKind::Unit => Ok(()),
         }
     }
 
