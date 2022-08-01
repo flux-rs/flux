@@ -96,7 +96,6 @@ fn infer_from_btys<M1: PathMap, M2: PathMap>(
     env2: &M2,
     ty2: &Ty,
 ) {
-    println!("TRACE: infer_from_btys {ty1:?} <: {ty2:?}");
     if let Some(bt1) = ty1.bty() && let Some(bt2) = ty2.bty() && bt1.is_box() {
         if let BaseTy::Adt(_, args1) = bt1 && let BaseTy::Adt(_, args2) = bt2 {
             for (arg1, arg2) in iter::zip(args1, args2) {
