@@ -128,6 +128,12 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
+            // HACK: Strictly speaking if the environment is x: Box<T> and then you move out
+            // of *x you should end up with x: Box<uninit>. However, that's hard to implement
+            // now, it'll need some refactoring in paths tree. Instead,
+            // the code below is leaving the x: Box<T> behind which is technically wrong,
+            // but ok in practice as rustc will make sure you don't access *x again.
+            // Still we can revisit if it causes trouble!
             LookupResult::Box(ty) => ty,
         }
     }

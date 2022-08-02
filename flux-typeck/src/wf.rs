@@ -183,8 +183,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         expected: Vec<ty::Sort>,
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
-        let binders: Vec<_> = indices.indices.iter().filter(|i| i.is_binder).collect();
-        if !allow_binder && !binders.is_empty() {
+        if !allow_binder && indices.indices.iter().any(|i| i.is_binder) {
             return self.emit_err(errors::IllegalBinder::new(Some(indices.span)));
         }
 
