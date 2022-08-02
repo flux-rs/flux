@@ -5,7 +5,7 @@
 mod my_option;
 use my_option::MyOption;
 
-#[flux::sig(fn(MyOption<i32[@n]>) -> i32[n+1])]
+#[flux::sig(fn(MyOption<i32[@n]>) -> i32[n+1])] //~ ERROR illegal binder
 pub fn inc(b: MyOption<i32>) -> i32 {
     if b.is_some() {
         let n = b.unwrap();
