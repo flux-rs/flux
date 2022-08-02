@@ -17,5 +17,5 @@ pub fn inc(b: MyOption<i32>) -> i32 {
 
 pub fn inc_test(n: i32) -> i32 {
     let b0 = MyOption::some(n);
-    inc(b0) //~ ERROR parameter inference
+    inc(b0)
 }
