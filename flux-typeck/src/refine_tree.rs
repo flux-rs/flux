@@ -6,7 +6,7 @@ use std::{
 
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
-use flux_middle::ty::{Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind};
+use flux_middle::ty::{BaseTy, Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind};
 use itertools::Itertools;
 
 use crate::{
@@ -156,6 +156,16 @@ impl RefineCtxt<'_> {
         ConstrBuilder { _tree: self._tree, ptr }
     }
 
+    fn unpack_bty(&mut self, bty: &BaseTy, unpack_mut_refs: bool) -> BaseTy {
+        match bty {
+            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                let substs = substs.iter().map(|ty| self.unpack(ty, unpack_mut_refs));
+                BaseTy::adt(adt_def.clone(), substs)
+            }
+            _ => bty.clone(),
+        }
+    }
+
     pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, pred) => {
@@ -164,7 +174,8 @@ impl RefineCtxt<'_> {
                     .into_iter()
                     .map(|name| Expr::fvar(name).into())
                     .collect_vec();
-                Ty::indexed(bty.clone(), indices)
+                let bty = self.unpack_bty(bty, unpack_mut_refs);
+                Ty::indexed(bty, indices)
             }
             TyKind::Constr(pred, ty) => {
                 self.assume_pred(pred.clone());

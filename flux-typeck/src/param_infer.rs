@@ -3,7 +3,8 @@ use std::iter;
 use rustc_hash::FxHashMap;
 
 use flux_middle::ty::{
-    subst::FVarSubst, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind, INNERMOST,
+    subst::FVarSubst, BaseTy, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind,
+    INNERMOST,
 };
 
 use crate::type_env::PathMap;
@@ -85,6 +86,25 @@ fn infer_from_tys<M1: PathMap, M2: PathMap>(
         }
         _ => {}
     }
+    infer_from_btys(exprs, env1, ty1, env2, ty2)
+}
+
+fn infer_from_btys<M1: PathMap, M2: PathMap>(
+    exprs: &mut Exprs,
+    env1: &M1,
+    ty1: &Ty,
+    env2: &M2,
+    ty2: &Ty,
+) {
+    if let Some(bt1) = ty1.bty() &&
+       let Some(bt2) = ty2.bty() &&
+       let BaseTy::Adt(_, args1) = bt1 &&
+       let BaseTy::Adt(_, args2) = bt2 &&
+       bt1.is_box() {
+            for (arg1, arg2) in iter::zip(args1, args2) {
+                infer_from_tys(exprs, env1, arg1, env2, arg2)
+            }
+       }
 }
 
 pub fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {

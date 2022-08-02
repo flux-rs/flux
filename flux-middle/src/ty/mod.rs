@@ -28,6 +28,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     sorts: List<Sort>,
     def_id: DefId,
+    is_box: bool,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -253,8 +254,8 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>) -> Self {
-        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into() }))
+    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>, is_box: bool) -> Self {
+        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into(), is_box }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -263,6 +264,10 @@ impl AdtDef {
 
     pub fn sorts(&self) -> &List<Sort> {
         &self.0.sorts
+    }
+
+    pub fn is_box(&self) -> bool {
+        self.0.is_box
     }
 }
 
@@ -296,6 +301,12 @@ impl Ty {
         }
     }
 
+    pub fn bty(&self) -> Option<&BaseTy> {
+        match self.unconstr().kind() {
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => Some(bty),
+            _ => None,
+        }
+    }
     pub fn uninit() -> Ty {
         TyKind::Uninit.intern()
     }
@@ -329,6 +340,13 @@ impl Ty {
 
     pub fn discr(place: Place) -> Ty {
         TyKind::Discr(place).intern()
+    }
+
+    pub fn is_box(&self) -> bool {
+        match self.kind() {
+            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(),
+            _ => false,
+        }
     }
 }
 
@@ -401,6 +419,13 @@ impl BaseTy {
 
     fn is_bool(&self) -> bool {
         matches!(self, BaseTy::Bool)
+    }
+
+    pub fn is_box(&self) -> bool {
+        match self {
+            BaseTy::Adt(adt_def, _) => adt_def.is_box(),
+            _ => false,
+        }
     }
 
     pub fn sorts(&self) -> &[Sort] {

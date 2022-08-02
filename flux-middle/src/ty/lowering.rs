@@ -113,8 +113,10 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 .enumerate()
                 .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
                 .collect_vec();
+            let def_id = struct_def.def_id;
+            let is_box = genv.is_box_adt(def_id);
             let ret = ty::Ty::indexed(
-                ty::BaseTy::adt(ty::AdtDef::new(struct_def.def_id, sorts), substs),
+                ty::BaseTy::adt(ty::AdtDef::new(def_id, sorts, is_box), substs),
                 idxs,
             );
 
