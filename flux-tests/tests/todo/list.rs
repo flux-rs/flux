@@ -26,7 +26,7 @@ pub fn head<T>(l: &List<T>) -> &T {
 pub fn tail<T>(l: &List<T>) -> &List<T> {
     match l {
         List::Nil => never(0),
-        List::Cons(_, t) => &*t,
+        List::Cons(_, t) => t,
     }
 }
 
