@@ -123,11 +123,12 @@ impl TypeEnv {
                 ty
             }
             LookupResult::Ref(RefKind::Mut, _) => {
+                panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
+            }
+            LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
-            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
-                panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference or in a Box")
-            }
+            LookupResult::Box(ty) => ty,
         }
     }
 

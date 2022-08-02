@@ -114,6 +114,7 @@ fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
         .collect();
 
     // copy over the 'default' args with trivial refinements
+    // TODO: see https://github.com/liquid-rust/flux/pull/121#discussion_r935037124
     if 0 < default_args_len {
         match res {
             Res::Adt(def_id) => {
