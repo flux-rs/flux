@@ -431,7 +431,7 @@ impl ParamsCtxt<'_> {
 
             surface::TyKind::Path(path) => {
                 for ty in &path.args {
-                    let _ = self.ty_gather_params(ty, adt_sorts);
+                    self.ty_gather_params(ty, adt_sorts)?;
                 }
                 Ok(())
             }

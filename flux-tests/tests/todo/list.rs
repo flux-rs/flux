@@ -12,7 +12,7 @@ pub enum List<T> {
 pub fn len<T>(l: &List<T>) -> i32 {
     match l {
         List::Nil => 0,
-        List::Cons(_, tl) => 1 + len(&*tl),
+        List::Cons(_, tl) => 1 + len(tl),
     }
 }
 
@@ -26,7 +26,7 @@ pub fn head<T>(l: &List<T>) -> &T {
 pub fn tail<T>(l: &List<T>) -> &List<T> {
     match l {
         List::Nil => never(0),
-        List::Cons(_, t) => &*t,
+        List::Cons(_, t) => t,
     }
 }
 
