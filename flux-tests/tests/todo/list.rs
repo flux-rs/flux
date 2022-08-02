@@ -12,7 +12,7 @@ pub enum List<T> {
 pub fn len<T>(l: &List<T>) -> i32 {
     match l {
         List::Nil => 0,
-        List::Cons(_, tl) => 1 + len(&*tl),
+        List::Cons(_, tl) => 1 + len(tl),
     }
 }
 
