@@ -1,17 +1,30 @@
 # RJ Notes
 
-- [+] `#[flux::ignore]`
-
-- [+] `Constr(T, p)` to allow struct-invariants (Define `Rng[@lo, @hi]` with constraint `lo < hi`)
-
-- [-] Global constants e.g. `LINEAR_MEM_SIZE`
-
-- [ ] [Recursive-Types and Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
-    - Special case to allow `@` under `Box`
-
+- [ ] Special case to allow `@` under `Box`
+- [ ] [Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
 - [ ] Projection? (Get `iter` working _without_ refinements... e.g. on plain `Vec`)
-
 - [ ] Closure/FnPtr?
+
+## @-Box
+
+Allow matching under box
+
+- spec list indexed by size
+- check `head`, `tail`, `nth`
+
+## Measures
+
+See [this](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
+
+- spec `pred`
+- spec `is_var`
+- spec `is_nnf`
+- merge "manually" into single spec
+- test
+- merge "automatically" into single spec
+- test
+
+## List
 
 
 ## JUNK

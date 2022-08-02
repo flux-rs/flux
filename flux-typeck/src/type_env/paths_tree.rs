@@ -20,6 +20,7 @@ pub struct PathsTree {
 pub enum LookupResult {
     Ptr(Path, Ty),
     Ref(RefKind, Ty),
+    Box(Ty),
 }
 
 impl LookupResult {
@@ -27,6 +28,7 @@ impl LookupResult {
         match self {
             LookupResult::Ptr(_, ty) => ty.clone(),
             LookupResult::Ref(_, ty) => ty.clone(),
+            LookupResult::Box(ty) => ty.clone(),
         }
     }
 }
@@ -160,7 +162,13 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            _ => panic!("YIKES: {elem:?} {ty:?}"),
+                            TyKind::Indexed(BaseTy::Adt(def, substs), _)
+                            | TyKind::Exists(BaseTy::Adt(def, substs), _)
+                                if def.is_box() =>
+                            {
+                                return LookupResult::Box(substs[0].clone());
+                            }
+                            _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
                     }
                 }
@@ -189,6 +197,7 @@ impl PathsTree {
                     return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
+                        LookupResult::Box(ty2) => LookupResult::Ref(rk, ty2),
                     }
                 }
                 (Field(field), TyKind::Tuple(tys)) => {

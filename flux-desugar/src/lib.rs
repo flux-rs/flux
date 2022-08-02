@@ -67,6 +67,6 @@ pub fn desugar_fn_sig(
     fn_sig: surface::FnSig,
 ) -> Result<core::FnSig, ErrorGuaranteed> {
     let rust_sig = rustc::lowering::lower_fn_sig(tcx, tcx.fn_sig(def_id))?;
-    let sig = zip_resolver::zip_bare_def(fn_sig, &rust_sig);
+    let sig = zip_resolver::zip_bare_def(tcx, fn_sig, &rust_sig);
     desugar::desugar_fn_sig(sess, sorts, consts, sig)
 }
