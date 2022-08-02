@@ -9,3 +9,7 @@ wf-param-count-mismatch =
         *[other] {$found} were found
     }
     .label = expected {$expected} arguments, found {$found}
+
+wf-illegal-binder =
+    illegal binder
+    .label = binder not allowed under ADT parameter

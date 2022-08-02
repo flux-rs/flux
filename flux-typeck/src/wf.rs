@@ -4,6 +4,7 @@ use flux_common::iter::IterExt;
 use flux_middle::{core, global_env::GlobalEnv};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_session::SessionDiagnostic;
 
 use flux_middle::{ty, ty::lowering::lower_sort};
@@ -62,7 +63,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let args = fn_sig
             .args
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
+            .try_for_each_exhaust(|ty| self.check_type(&mut env, ty, true));
 
         let requires = fn_sig
             .requires
@@ -74,7 +75,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .iter()
             .try_for_each_exhaust(|constr| self.check_constr(&mut env, constr));
 
-        let ret = self.check_type(&mut env, &fn_sig.ret);
+        let ret = self.check_type(&mut env, &fn_sig.ret, false);
 
         args?;
         ret?;
@@ -95,7 +96,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         if let core::StructKind::Transparent { fields } = &def.kind {
             fields
                 .iter()
-                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty))?;
+                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty, true))?;
         }
         Ok(())
     }
@@ -107,7 +108,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match constr {
             core::Constraint::Type(loc, ty) => {
-                [self.check_loc(env, *loc), self.check_type(env, ty)]
+                [self.check_loc(env, *loc), self.check_type(env, ty, true)]
                     .into_iter()
                     .try_collect_exhaust()
             }
@@ -115,12 +116,17 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn check_type(&self, env: &mut Env, ty: &core::Ty) -> Result<(), ErrorGuaranteed> {
+    fn check_type(
+        &self,
+        env: &mut Env,
+        ty: &core::Ty,
+        allow_binder: bool,
+    ) -> Result<(), ErrorGuaranteed> {
         match ty {
-            core::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
+            core::Ty::BaseTy(bty) => self.check_base_ty(env, bty, allow_binder),
             core::Ty::Indexed(bty, refine) => {
-                self.check_indices(env, refine, self.sorts(bty))?;
-                self.check_base_ty(env, bty)
+                self.check_indices(env, refine, self.sorts(bty), allow_binder)?;
+                self.check_base_ty(env, bty, allow_binder)
             }
             core::Ty::Exists(bty, binders, pred) => {
                 let sorts = self.sorts(bty);
@@ -131,29 +137,39 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                         binders.len(),
                     ));
                 }
-                self.check_base_ty(env, bty)?;
+                self.check_base_ty(env, bty, allow_binder)?;
                 env.with_binders(binders, &sorts, |env| self.check_expr(env, pred, ty::Sort::Bool))
             }
             core::Ty::Ptr(loc) => self.check_loc(env, *loc),
-            core::Ty::Ref(_, ty) => self.check_type(env, ty),
+            core::Ty::Ref(_, ty) => self.check_type(env, ty, allow_binder),
             core::Ty::Tuple(tys) => {
                 tys.iter()
-                    .try_for_each_exhaust(|ty| self.check_type(env, ty))
+                    .try_for_each_exhaust(|ty| self.check_type(env, ty, allow_binder))
             }
             core::Ty::Constr(pred, ty) => {
                 self.check_expr(env, pred, ty::Sort::Bool)?;
-                self.check_type(env, ty)
+                self.check_type(env, ty, allow_binder)
             }
             core::Ty::Never | core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
         }
     }
 
-    fn check_base_ty(&self, env: &mut Env, bty: &core::BaseTy) -> Result<(), ErrorGuaranteed> {
+    fn is_box(&self, def_id: &DefId) -> bool {
+        self.genv.tcx.adt_def(def_id).is_box()
+    }
+
+    fn check_base_ty(
+        &self,
+        env: &mut Env,
+        bty: &core::BaseTy,
+        allow_binder: bool,
+    ) -> Result<(), ErrorGuaranteed> {
         match bty {
-            core::BaseTy::Adt(_, substs) => {
+            core::BaseTy::Adt(def, substs) => {
+                let allow_binder = allow_binder && self.is_box(def);
                 substs
                     .iter()
-                    .map(|ty| self.check_type(env, ty))
+                    .map(|ty| self.check_type(env, ty, allow_binder))
                     .try_collect_exhaust()
             }
             core::BaseTy::Int(_) | core::BaseTy::Uint(_) | core::BaseTy::Bool => Ok(()),
@@ -165,7 +181,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         env: &Env,
         indices: &core::Indices,
         expected: Vec<ty::Sort>,
+        allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
+        let binders: Vec<_> = indices.indices.iter().filter(|i| i.is_binder).collect();
+        if !allow_binder && !binders.is_empty() {
+            return self.emit_err(errors::IllegalBinder::new(Some(indices.span)));
+        }
+
         let found = self.synt_indices(env, indices)?;
         if expected.len() != found.len() {
             return self.emit_err(errors::ParamCountMismatch::new(
@@ -323,6 +345,20 @@ mod errors {
     impl ParamCountMismatch {
         pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(code = "FLUX", slug = "wf-illegal-binder")]
+    pub struct IllegalBinder {
+        #[primary_span]
+        #[label]
+        pub span: Option<Span>,
+    }
+
+    impl IllegalBinder {
+        pub fn new(span: Option<Span>) -> Self {
+            Self { span }
         }
     }
 }

@@ -162,8 +162,11 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_box() => {
-                                return self.lookup_place_box_ty(bty);
+                            TyKind::Indexed(BaseTy::Adt(def, substs), _)
+                            | TyKind::Exists(BaseTy::Adt(def, substs), _)
+                                if def.is_box() =>
+                            {
+                                return LookupResult::Box(substs[0].clone());
                             }
                             _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
@@ -171,16 +174,6 @@ impl PathsTree {
                 }
             }
             return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen));
-        }
-    }
-
-    fn lookup_place_box_ty(&self, bty: &BaseTy) -> LookupResult {
-        match bty {
-            BaseTy::Adt(_, substs) => {
-                let ty = substs[0].clone();
-                LookupResult::Box(ty)
-            }
-            _ => panic!("unexpected argument in lookup_place_box_ty"),
         }
     }
 
@@ -204,7 +197,7 @@ impl PathsTree {
                     return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
-                        LookupResult::Box(ty2) => LookupResult::Box(ty2),
+                        LookupResult::Box(ty2) => LookupResult::Ref(rk, ty2),
                     }
                 }
                 (Field(field), TyKind::Tuple(tys)) => {
