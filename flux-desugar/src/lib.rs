@@ -36,7 +36,7 @@ pub fn desugar_struct_def(
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(tcx, sess, consts, struct_def)
+    desugar::desugar_struct_def(sess, consts, struct_def)
 }
 
 // TODO(RJ): This is not used but perhaps *could* used to generate default

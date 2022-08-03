@@ -24,7 +24,6 @@ pub struct StructDef {
     pub def_id: DefId,
     pub kind: StructKind,
     pub refined_by: Vec<Param>,
-    pub generics: rustc_middle::ty::Generics,
 }
 
 #[derive(Debug)]

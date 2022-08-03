@@ -4,6 +4,7 @@ use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
+    middle::resolve_lifetime::Set1,
     mir as rustc_mir,
     ty::{
         self as rustc_ty,
@@ -21,7 +22,7 @@ use super::{
         LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
         TerminatorKind,
     },
-    ty::{FnSig, GenericArg, Ty},
+    ty::{FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty},
 };
 
 pub struct LoweringCtxt<'tcx> {
@@ -477,6 +478,35 @@ fn lower_generic_arg<'tcx>(
             emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`"))
         }
     }
+}
+
+pub fn lower_generics<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    generics: &'tcx rustc_ty::Generics,
+) -> Result<Generics<'tcx>, ErrorGuaranteed> {
+    let params = List::from_vec(
+        generics
+            .params
+            .iter()
+            .map(|generic| lower_generic_param_def(tcx, generic))
+            .try_collect()?,
+    );
+    Ok(Generics { params, rustc: generics })
+}
+
+fn lower_generic_param_def(
+    tcx: TyCtxt,
+    generic: &rustc_ty::GenericParamDef,
+) -> Result<GenericParamDef, ErrorGuaranteed> {
+    let kind = match generic.kind {
+        rustc_ty::GenericParamDefKind::Type {
+            has_default,
+            object_lifetime_default: Set1::Empty,
+            synthetic: false,
+        } => GenericParamDefKind::Type { has_default },
+        _ => emit_err(tcx, None, format!("unsupported generic parameter: `{generic:?}`"))?,
+    };
+    Ok(GenericParamDef { def_id: generic.def_id, kind })
 }
 
 fn emit_err<S: AsRef<str>, T>(

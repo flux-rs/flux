@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use flux_common::config::{AssertBehavior, CONFIG};
 use flux_errors::FluxSession;
 use itertools::Itertools;
+use rustc_errors::FatalError;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -171,16 +172,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         .clone()
     }
 
-    pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
-        let fn_sig = rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id));
-        self.tcx.sess.abort_if_errors();
-        self.refine_fn_sig(&fn_sig.unwrap(), &mut |_| ty::Pred::tt())
+    pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {
+        rustc::lowering::lower_generics(self.tcx, self.tcx.generics_of(def_id))
+            .unwrap_or_else(|_| FatalError.raise())
     }
 
-    fn default_ty(&self, def_id: DefId) -> ty::Ty {
-        let rust_ty = rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id));
-        self.tcx.sess.abort_if_errors();
-        self.refine_ty(&rust_ty.unwrap(), &mut |_| ty::Pred::tt())
+    pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
+        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id)) {
+            Ok(fn_sig) => self.refine_fn_sig(&fn_sig, &mut |_| ty::Pred::tt()),
+            Err(_) => FatalError.raise(),
+        }
+    }
+
+    pub fn default_type_of(&self, def_id: DefId) -> ty::Ty {
+        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id)) {
+            Ok(rustc_ty) => self.refine_ty(&rustc_ty, &mut |_| ty::Pred::tt()),
+            Err(_) => FatalError.raise(),
+        }
     }
 
     fn default_variant_def(
@@ -191,9 +199,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let fields = variant_def
             .fields
             .iter()
-            .map(|field| self.default_ty(field.did))
+            .map(|field| self.default_type_of(field.did))
             .collect();
-        let ret = self.default_ty(adt_def_id);
+        let ret = self.default_type_of(adt_def_id);
 
         ty::VariantDef::new(fields, ret)
     }

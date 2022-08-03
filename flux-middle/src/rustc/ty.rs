@@ -9,6 +9,22 @@ pub use rustc_middle::{
 
 use crate::intern::{impl_internable, Interned, List};
 
+pub struct Generics<'tcx> {
+    pub params: List<GenericParamDef>,
+    pub rustc: &'tcx rustc_middle::ty::Generics,
+}
+
+#[derive(Hash, Eq, PartialEq)]
+pub struct GenericParamDef {
+    pub def_id: DefId,
+    pub kind: GenericParamDefKind,
+}
+
+#[derive(Hash, Eq, PartialEq)]
+pub enum GenericParamDefKind {
+    Type { has_default: bool },
+}
+
 #[derive(Debug)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
@@ -98,7 +114,7 @@ impl Ty {
     }
 }
 
-impl_internable!(TyS, [Ty], [GenericArg]);
+impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef]);
 
 impl std::fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
