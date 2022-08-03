@@ -594,11 +594,11 @@ impl FluxAttrCFG {
 }
 
 mod errors {
-    use rustc_macros::SessionDiagnostic;
+    use flux_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "parse-duplicated-attr")]
+    #[error(parse::duplicated_attr, code = "FLUX")]
     pub struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
@@ -606,21 +606,21 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "parse-invalid-attr")]
+    #[error(parse::invalid_attr, code = "FLUX")]
     pub struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "parse-invalid-constant")]
+    #[error(parse::invalid_constant, code = "FLUX")]
     pub struct InvalidConstant {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "parse-cfg-error")]
+    #[error(parse::cfg_error, code = "FLUX")]
     pub struct CFGError {
         #[primary_span]
         pub span: Span,
@@ -628,7 +628,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "parse-syntax-err")]
+    #[error(parse::syntax_err, code = "FLUX")]
     pub struct SyntaxErr {
         #[primary_span]
         pub span: Span,

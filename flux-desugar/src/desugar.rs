@@ -483,11 +483,11 @@ static SORTS: std::lazy::SyncLazy<Sorts> =
     std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use rustc_macros::SessionDiagnostic;
+    use flux_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-unresolved-var")]
+    #[error(desugar::unresolved_var, code = "FLUX")]
     pub struct UnresolvedVar {
         #[primary_span]
         #[label]
@@ -502,7 +502,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-duplicate-param")]
+    #[error(desugar::duplicate_param, code = "FLUX")]
     pub struct DuplicateParam {
         #[primary_span]
         #[label]
@@ -517,7 +517,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-unresolved-sort")]
+    #[error(desugar::unresolved_sort, code = "FLUX")]
     pub struct UnresolvedSort {
         #[primary_span]
         #[label]
@@ -532,21 +532,21 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-int-too-large")]
+    #[error(desugar::int_too_large, code = "FLUX")]
     pub struct IntTooLarge {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-unexpected-literal")]
+    #[error(desugar::unexpected_literal, code = "FLUX")]
     pub struct UnexpectedLiteral {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-refined-type-param")]
+    #[error(desugar::refined_type_param, code = "FLUX")]
     pub struct RefinedTypeParam {
         #[primary_span]
         #[label]
@@ -554,7 +554,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-refined-float")]
+    #[error(desugar::refined_float, code = "FLUX")]
     pub struct RefinedFloat {
         #[primary_span]
         #[label]

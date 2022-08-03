@@ -334,12 +334,12 @@ impl NameResTable {
 }
 
 mod errors {
+    use flux_macros::SessionDiagnostic;
     use flux_syntax::surface;
-    use rustc_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "resolver-unsupported-signature")]
+    #[error(resolver::unsupported_signature, code = "FLUX")]
     pub struct UnsupportedSignature {
         #[primary_span]
         #[label]
@@ -348,7 +348,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "resolver-unresolved-path")]
+    #[error(resolver::unresolved_path, code = "FLUX")]
     pub struct UnresolvedPath {
         #[primary_span]
         #[label]
