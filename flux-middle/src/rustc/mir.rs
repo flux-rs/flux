@@ -5,7 +5,7 @@ use std::fmt;
 use itertools::Itertools;
 
 use rustc_data_structures::graph::dominators::Dominators;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::{
     mir,
     ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
@@ -178,8 +178,8 @@ pub enum Constant {
 }
 
 pub enum FakeReadCause {
-    ForLet(Option<DefId>),
-    ForMatchedPlace(Option<DefId>),
+    ForLet(Option<LocalDefId>),
+    ForMatchedPlace(Option<LocalDefId>),
 }
 
 impl<'tcx> Terminator<'tcx> {
@@ -221,12 +221,13 @@ impl<'tcx> Body<'tcx> {
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        self.rustc_mir.predecessors()[bb].len() > (if bb == START_BLOCK { 0 } else { 1 })
+        self.rustc_mir.basic_blocks.predecessors()[bb].len()
+            > (if bb == START_BLOCK { 0 } else { 1 })
     }
 
     #[inline]
     pub fn dominators(&self) -> Dominators<BasicBlock> {
-        self.rustc_mir.dominators()
+        self.rustc_mir.basic_blocks.dominators()
     }
 
     #[inline]

@@ -6,7 +6,6 @@ use flux_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use flux_middle::{
@@ -42,7 +41,6 @@ pub fn resolve_sorts(
 }
 
 pub fn desugar_struct_def(
-    tcx: TyCtxt,
     sess: &FluxSession,
     consts: &[ConstInfo],
     adt_def: surface::StructDef<Res>,
@@ -64,8 +62,7 @@ pub fn desugar_struct_def(
         StructKind::Transparent { fields }
     };
     let refined_by = cx.params.params;
-    let generics = tcx.generics_of(def_id).clone();
-    Ok(StructDef { def_id, kind, refined_by, generics })
+    Ok(StructDef { def_id, kind, refined_by })
 }
 
 pub fn desugar_enum_def(
@@ -482,15 +479,15 @@ struct Sorts {
     int: Symbol,
 }
 
-static SORTS: std::lazy::SyncLazy<Sorts> =
-    std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });
+static SORTS: std::sync::LazyLock<Sorts> =
+    std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use rustc_macros::SessionDiagnostic;
+    use flux_macros::SessionDiagnostic;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-unresolved-var")]
+    #[error(desugar::unresolved_var, code = "FLUX")]
     pub struct UnresolvedVar {
         #[primary_span]
         #[label]
@@ -505,7 +502,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-duplicate-param")]
+    #[error(desugar::duplicate_param, code = "FLUX")]
     pub struct DuplicateParam {
         #[primary_span]
         #[label]
@@ -520,7 +517,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-unresolved-sort")]
+    #[error(desugar::unresolved_sort, code = "FLUX")]
     pub struct UnresolvedSort {
         #[primary_span]
         #[label]
@@ -535,21 +532,21 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-int-too-large")]
+    #[error(desugar::int_too_large, code = "FLUX")]
     pub struct IntTooLarge {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-unexpected-literal")]
+    #[error(desugar::unexpected_literal, code = "FLUX")]
     pub struct UnexpectedLiteral {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-refined-type-param")]
+    #[error(desugar::refined_type_param, code = "FLUX")]
     pub struct RefinedTypeParam {
         #[primary_span]
         #[label]
@@ -557,7 +554,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "desugar-refined-float")]
+    #[error(desugar::refined_float, code = "FLUX")]
     pub struct RefinedFloat {
         #[primary_span]
         #[label]

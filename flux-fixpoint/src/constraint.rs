@@ -2,7 +2,7 @@ use itertools::Itertools;
 use rustc_index::newtype_index;
 use std::{
     fmt::{self, Write},
-    lazy::SyncLazy,
+    sync::LazyLock,
 };
 
 use flux_common::format::PadAdapter;
@@ -298,7 +298,7 @@ impl fmt::Display for Expr {
     }
 }
 
-pub(crate) static DEFAULT_QUALIFIERS: SyncLazy<Vec<Qualifier>> = SyncLazy::new(|| {
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|| {
     // Unary
 
     // (qualif EqZero ((v int)) (v == 0))

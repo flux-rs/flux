@@ -1048,11 +1048,11 @@ impl Ord for Item<'_> {
 }
 
 mod errors {
-    use rustc_macros::SessionDiagnostic;
+    use flux_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-param-inference-error")]
+    #[error(refineck::param_inference_error, code = "FLUX")]
     pub struct ParamInferenceError {
         #[primary_span]
         pub span: Span,

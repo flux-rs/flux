@@ -1,11 +1,10 @@
-#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_chains)]
+#![feature(rustc_private, min_specialization, once_cell, if_let_guard)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_index;
-extern crate rustc_macros;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
@@ -97,53 +96,53 @@ fn dump_constraint<C: std::fmt::Debug>(
 }
 
 mod errors {
-    use rustc_macros::SessionDiagnostic;
+    use flux_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-goto-error")]
+    #[error(refineck::goto_error, code = "FLUX")]
     pub struct GotoError {
         #[primary_span]
         pub span: Option<Span>,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-call-error")]
+    #[error(refineck::call_error, code = "FLUX")]
     pub struct CallError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-assign-error")]
+    #[error(refineck::assign_error, code = "FLUX")]
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-ret-error")]
+    #[error(refineck::ret_error, code = "FLUX")]
     pub struct RetError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-div-error")]
+    #[error(refineck::div_error, code = "FLUX")]
     pub struct DivError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-rem-error")]
+    #[error(refineck::rem_error, code = "FLUX")]
     pub struct RemError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-assert-error")]
+    #[error(refineck::assert_error, code = "FLUX")]
     pub struct AssertError {
         #[primary_span]
         pub span: Span,
@@ -151,7 +150,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "refineck-fold-error")]
+    #[error(refineck::fold_error, code = "FLUX")]
     pub struct FoldError {
         #[primary_span]
         pub span: Span,

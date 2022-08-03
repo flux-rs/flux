@@ -1,4 +1,4 @@
-#![feature(rustc_private, once_cell, if_let_guard, let_chains, min_specialization, box_patterns)]
+#![feature(rustc_private, once_cell, if_let_guard, min_specialization, box_patterns)]
 
 //! This crate contains common type definitions that are used by other crates.
 

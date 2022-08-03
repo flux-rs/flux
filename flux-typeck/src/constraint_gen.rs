@@ -19,6 +19,7 @@ use crate::{
     type_env::PathMap,
 };
 
+#[allow(clippy::type_complexity)]
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     fresh_kvar: Box<dyn FnMut(&[Sort]) -> Pred + 'a>,

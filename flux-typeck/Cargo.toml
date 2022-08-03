@@ -9,6 +9,7 @@ version = "0.1.0"
 flux-common = { path = "../flux-common" }
 flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }
+flux-macros = { path = "../flux-macros" }
 flux-middle = { path = "../flux-middle" }
 itertools = "0.10"
 tracing = "0.1"

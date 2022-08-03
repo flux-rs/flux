@@ -2,21 +2,21 @@
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-extern crate rustc_macros;
 extern crate rustc_session;
 extern crate rustc_span;
 
 use std::rc::Rc;
 
+use flux_macros::fluent_messages;
 use rustc_data_structures::sync;
+pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
     annotate_snippet_emitter_writer::AnnotateSnippetEmitterWriter,
     emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage,
+    DiagnosticMessage, SubdiagnosticMessage,
 };
-use rustc_macros::fluent_messages;
 use rustc_session::{config::ErrorOutputType, parse::ParseSess, SessionDiagnostic};
 use rustc_span::source_map::SourceMap;
 

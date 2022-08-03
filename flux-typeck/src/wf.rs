@@ -310,13 +310,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 }
 
 mod errors {
-    use rustc_macros::SessionDiagnostic;
+    use flux_macros::SessionDiagnostic;
     use rustc_span::Span;
 
     use crate::ty;
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "wf-sort-mismatch")]
+    #[error(wf::sort_mismatch, code = "FLUX")]
     pub struct SortMismatch {
         #[primary_span]
         #[label]
@@ -332,7 +332,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "wf-param-count-mismatch")]
+    #[error(wf::param_count_mismatch, code = "FLUX")]
     pub struct ParamCountMismatch {
         #[primary_span]
         #[label]
@@ -348,7 +348,7 @@ mod errors {
     }
 
     #[derive(SessionDiagnostic)]
-    #[error(code = "FLUX", slug = "wf-illegal-binder")]
+    #[error(wf::illegal_binder, code = "FLUX")]
     pub struct IllegalBinder {
         #[primary_span]
         #[label]
