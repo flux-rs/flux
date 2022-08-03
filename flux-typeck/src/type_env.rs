@@ -156,15 +156,15 @@ impl TypeEnv {
             }
         }
 
-        assert!(param_infer::check_inference(
+        param_infer::check_inference(
             &subst,
             bb_env
                 .params
                 .iter()
                 .filter(|param| !param.sort.is_loc())
-                .map(|param| param.name)
+                .map(|param| param.name),
         )
-        .is_ok());
+        .unwrap();
         subst
     }
 

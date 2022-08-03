@@ -1,6 +1,6 @@
 use config::Environment;
 use serde::Deserialize;
-use std::{io::Read, lazy::SyncLazy, path::PathBuf};
+use std::{io::Read, path::PathBuf, sync::LazyLock};
 pub use toml::Value;
 
 // serde small case
@@ -42,7 +42,7 @@ pub struct Config {
     pub dump_mir: bool,
 }
 
-pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
+pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     fn build() -> Result<Config, config::ConfigError> {
         config::Config::builder()
             .set_default("log_dir", "./log/")?
@@ -57,7 +57,7 @@ pub static CONFIG: SyncLazy<Config> = SyncLazy::new(|| {
     build().unwrap()
 });
 
-pub static CONFIG_PATH: SyncLazy<Option<PathBuf>> = SyncLazy::new(|| {
+pub static CONFIG_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
     if let Ok(file) = std::env::var("LR_CONFIG") {
         return Some(PathBuf::from(file));
     }
@@ -77,7 +77,7 @@ pub static CONFIG_PATH: SyncLazy<Option<PathBuf>> = SyncLazy::new(|| {
     }
 });
 
-pub static CONFIG_FILE: SyncLazy<Value> = SyncLazy::new(|| {
+pub static CONFIG_FILE: LazyLock<Value> = LazyLock::new(|| {
     if let Some(path) = &*CONFIG_PATH {
         let mut file = std::fs::File::open(path).unwrap();
         let mut contents = String::new();

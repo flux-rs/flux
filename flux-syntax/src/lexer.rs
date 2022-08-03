@@ -138,8 +138,8 @@ impl Iterator for Cursor {
         let top = self.stack.last_mut()?;
 
         match top.cursor.next() {
-            Some(TokenTree::Token(token)) => {
-                if let Some(TokenTree::Token(next)) = top.cursor.peek() {
+            Some(TokenTree::Token(token, _)) => {
+                if let Some(TokenTree::Token(next, _)) = top.cursor.peek() {
                     match (&token.kind, &next.kind) {
                         (TokenKind::Le, TokenKind::Gt) if token.span.hi() == next.span.lo() => {
                             let lo = Location(token.span.lo() - self.offset);

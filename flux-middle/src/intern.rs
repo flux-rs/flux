@@ -243,12 +243,11 @@ use std::{
     fmt::{self, Debug, Display},
     hash::{BuildHasherDefault, Hash, Hasher},
     ops::Deref,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use dashmap::{lock::RwLockWriteGuard, DashMap, SharedValue};
 use rustc_hash::FxHasher;
-use std::lazy::SyncOnceCell;
 
 type InternMap<T> = DashMap<Arc<T>, (), BuildHasherDefault<FxHasher>>;
 type Guard<T> =
@@ -493,12 +492,12 @@ where
 }
 
 pub struct InternStorage<T: ?Sized> {
-    map: SyncOnceCell<InternMap<T>>,
+    map: OnceLock<InternMap<T>>,
 }
 
 impl<T: ?Sized> InternStorage<T> {
     pub const fn new() -> Self {
-        Self { map: SyncOnceCell::new() }
+        Self { map: OnceLock::new() }
     }
 }
 

@@ -479,8 +479,8 @@ struct Sorts {
     int: Symbol,
 }
 
-static SORTS: std::lazy::SyncLazy<Sorts> =
-    std::lazy::SyncLazy::new(|| Sorts { int: Symbol::intern("int") });
+static SORTS: std::sync::LazyLock<Sorts> =
+    std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
     use flux_macros::SessionDiagnostic;
