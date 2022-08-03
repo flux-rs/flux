@@ -6,7 +6,6 @@ use flux_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 use flux_middle::{
@@ -42,7 +41,6 @@ pub fn resolve_sorts(
 }
 
 pub fn desugar_struct_def(
-    tcx: TyCtxt,
     sess: &FluxSession,
     consts: &[ConstInfo],
     adt_def: surface::StructDef<Res>,
@@ -64,8 +62,7 @@ pub fn desugar_struct_def(
         StructKind::Transparent { fields }
     };
     let refined_by = cx.params.params;
-    let generics = tcx.generics_of(def_id).clone();
-    Ok(StructDef { def_id, kind, refined_by, generics })
+    Ok(StructDef { def_id, kind, refined_by })
 }
 
 pub fn desugar_enum_def(

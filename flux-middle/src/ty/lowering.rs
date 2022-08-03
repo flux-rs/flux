@@ -1,5 +1,6 @@
 use crate::{
     global_env::GlobalEnv,
+    rustc::ty::GenericParamDefKind,
     ty::{self, DebruijnIndex},
 };
 use flux_common::index::IndexGen;
@@ -245,8 +246,20 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             core::BaseTy::Bool => ty::BaseTy::Bool,
             core::BaseTy::Adt(did, substs) => {
+                let generics = self.genv.generics_of(*did);
+                let defaults = generics.params.iter().skip(substs.len()).map(|generic| {
+                    match &generic.kind {
+                        GenericParamDefKind::Type { has_default } => {
+                            debug_assert!(has_default);
+                            self.genv.default_type_of(generic.def_id)
+                        }
+                    }
+                });
                 let adt_def = self.genv.adt_def(*did);
-                let substs = substs.iter().map(|ty| self.lower_ty(ty, nbinders));
+                let substs = substs
+                    .iter()
+                    .map(|ty| self.lower_ty(ty, nbinders))
+                    .chain(defaults);
                 ty::BaseTy::adt(adt_def, substs)
             }
         }
