@@ -133,7 +133,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
     ) -> Result<FakeReadCause, ErrorGuaranteed> {
         match cause {
             rustc_mir::FakeReadCause::ForLet(def_id) => Ok(FakeReadCause::ForLet(def_id)),
-            rustc_mir::FakeReadCause::ForMatchedPlace(z) => Ok(FakeReadCause::ForMatchedPlace(z)),
+            rustc_mir::FakeReadCause::ForMatchedPlace(def_id) => {
+                Ok(FakeReadCause::ForMatchedPlace(def_id))
+            }
             rustc_mir::FakeReadCause::ForMatchGuard
             | rustc_mir::FakeReadCause::ForGuardBinding
             | rustc_mir::FakeReadCause::ForIndex { .. } => {
@@ -293,6 +295,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | rustc_mir::Rvalue::Cast(_, _, _)
             | rustc_mir::Rvalue::CheckedBinaryOp(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
+            | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
             }
@@ -377,7 +380,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         use rustc_middle::ty::TyKind;
         let tcx = self.tcx;
         let span = constant.span;
-        if let Some((scalar, ty)) = constant_to_scalar(tcx, constant) {
+        if let Some((scalar, ty)) = constant_to_scalar_int(tcx, constant) {
             match ty.kind() {
                 TyKind::Int(int_ty) => {
                     Ok(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), *int_ty))
@@ -523,17 +526,20 @@ fn emit_err<S: AsRef<str>, T>(
     Err(diagnostic.emit())
 }
 
-fn constant_to_scalar<'tcx>(
+fn constant_to_scalar_int<'tcx>(
     tcx: TyCtxt<'tcx>,
     constant: &rustc_mir::Constant<'tcx>,
-) -> Option<(rustc_const_eval::interpret::Scalar, rustc_ty::Ty<'tcx>)> {
+) -> Option<(rustc_ty::ScalarInt, rustc_ty::Ty<'tcx>)> {
+    use rustc_mir::interpret::Scalar;
     match &constant.literal {
-        rustc_mir::ConstantKind::Val(ConstValue::Scalar(scalar), ty) => Some((*scalar, *ty)),
+        rustc_mir::ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) => {
+            Some((*scalar, *ty))
+        }
         rustc_mir::ConstantKind::Ty(c) => {
             // HACK(nilehmann) we evaluate the constant to support u32::MAX
             // we should instead lower it as is and refine its type.
             let c = c.eval(tcx, ParamEnv::empty());
-            if let rustc_ty::ConstKind::Value(ConstValue::Scalar(scalar)) = c.val() {
+            if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
                 Some((scalar, c.ty()))
             } else {
                 None
@@ -545,7 +551,7 @@ fn constant_to_scalar<'tcx>(
 
 fn scalar_to_bits<'tcx>(
     tcx: TyCtxt<'tcx>,
-    scalar: rustc_mir::interpret::Scalar,
+    scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty<'tcx>,
 ) -> Option<u128> {
     let size = tcx
@@ -557,24 +563,24 @@ fn scalar_to_bits<'tcx>(
 
 fn scalar_to_int<'tcx>(
     tcx: TyCtxt<'tcx>,
-    scalar: rustc_mir::interpret::Scalar,
-    ty: rustc_middle::ty::Ty<'tcx>,
+    scalar: rustc_ty::ScalarInt,
+    ty: rustc_ty::Ty<'tcx>,
 ) -> Option<i128> {
     let size = tcx
         .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
         .unwrap()
         .size;
-    scalar.to_int(size).ok()
+    scalar.try_to_int(size).ok()
 }
 
 fn scalar_to_uint<'tcx>(
     tcx: TyCtxt<'tcx>,
-    scalar: rustc_mir::interpret::Scalar,
+    scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty<'tcx>,
 ) -> Option<u128> {
     let size = tcx
         .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
         .unwrap()
         .size;
-    scalar.to_uint(size).ok()
+    scalar.try_to_uint(size).ok()
 }

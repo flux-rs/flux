@@ -2,7 +2,7 @@ pub mod fold;
 pub mod lowering;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, lazy::SyncOnceCell};
+use std::{borrow::Cow, fmt, sync::OnceLock};
 
 use itertools::Itertools;
 
@@ -469,7 +469,7 @@ impl ExprKind {
 
 impl Expr {
     pub fn tt() -> Expr {
-        static TRUE: SyncOnceCell<Expr> = SyncOnceCell::new();
+        static TRUE: OnceLock<Expr> = OnceLock::new();
         TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
             .clone()
     }
@@ -482,7 +482,7 @@ impl Expr {
     }
 
     pub fn zero() -> Expr {
-        static ZERO: SyncOnceCell<Expr> = SyncOnceCell::new();
+        static ZERO: OnceLock<Expr> = OnceLock::new();
         ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
             .clone()
     }
