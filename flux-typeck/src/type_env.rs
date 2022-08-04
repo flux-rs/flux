@@ -139,11 +139,7 @@ impl TypeEnv {
     }
 
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
-        for path in self.bindings.paths().collect_vec() {
-            let ty = self.bindings.get(&path);
-            let ty = rcx.unpack(&ty, false);
-            self.bindings.update(&path, ty);
-        }
+        self.bindings.fmap_mut(|ty| rcx.unpack(ty, false));
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
