@@ -50,6 +50,7 @@ pub struct Snapshot {
 }
 
 /// A ist of refinement variables and their sorts.
+#[derive(PartialEq, Eq)]
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
 }

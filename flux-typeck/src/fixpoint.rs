@@ -17,6 +17,8 @@ use flux_middle::{
 };
 use rustc_middle::ty::TyCtxt;
 
+use crate::refine_tree::Scope;
+
 newtype_index! {
     pub struct TagIdx {
         DEBUG_FORMAT = "TagIdx({})"
@@ -26,6 +28,21 @@ newtype_index! {
 #[derive(Default)]
 pub struct KVarStore {
     kvars: IndexVec<KVid, Vec<fixpoint::Sort>>,
+}
+
+pub trait KVarGen {
+    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    where
+        S: IntoIterator<Item = (ty::Name, ty::Sort)>;
+
+    fn chaining<'a>(&'a mut self, scope: &'a Scope) -> KVarGenScopeChain<'a, Self> {
+        KVarGenScopeChain { kvar_gen: self, scope }
+    }
+}
+
+pub struct KVarGenScopeChain<'a, G: ?Sized> {
+    kvar_gen: &'a mut G,
+    scope: &'a Scope,
 }
 
 type NameMap = FxHashMap<ty::Name, fixpoint::Name>;
@@ -86,9 +103,6 @@ where
         let e1 = fixpoint::Expr::from(name);
         let e2 = fixpoint::Expr::from(const_info.val);
         fixpoint::Constraint::Guard(e1.eq(e2), Box::new(cstr))
-        // let sort = fixpoint::Sort::Int;
-        // let pred = fixpoint::Pred::Expr(e1.eq(e2));
-        // fixpoint::Constraint::ForAll(name, sort, pred, Box::new(cstr))
     }
 
     pub fn check(
@@ -247,6 +261,27 @@ impl KVarStore {
             .into_iter_enumerated()
             .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
             .collect()
+    }
+}
+
+impl KVarGen for KVarStore {
+    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    where
+        S: IntoIterator<Item = (ty::Name, ty::Sort)>,
+    {
+        KVarStore::fresh(self, sorts, scope)
+    }
+}
+
+impl<G> KVarGen for KVarGenScopeChain<'_, G>
+where
+    G: KVarGen,
+{
+    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    where
+        S: IntoIterator<Item = (ty::Name, ty::Sort)>,
+    {
+        self.kvar_gen.fresh(sorts, self.scope.iter().chain(scope))
     }
 }
 
