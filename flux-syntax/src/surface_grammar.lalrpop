@@ -64,6 +64,20 @@ pub FnSig: surface::FnSig = {
     }
 }
 
+pub Variant: surface::VariantDef = {
+     <tys:Fields?> <ret:Ty> => {
+        let fields = match tys {
+            Some(fields) => fields,
+            None => vec![],
+        };
+        surface::VariantDef { fields, ret }
+    }
+}
+
+Fields: Vec<surface::Ty> = {
+    "{" <Comma<Ty>> "}" "->"
+}
+
 Env     = <Comma<(<Ident> "@" <Ty>)>>;
 Args    = <Comma<Arg>>;
 Ensures = <Comma<(<Ident> ":" <Ty>)>>;
