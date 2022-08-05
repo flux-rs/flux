@@ -347,19 +347,6 @@ impl TypeEnvInfer {
         // Unfold
         self.bindings.unfold_with(genv, rcx, &mut other.bindings);
 
-        // Weakening
-        let locs = self
-            .bindings
-            .locs()
-            .filter(|loc| !other.bindings.contains_loc(*loc))
-            .collect_vec();
-        for loc in locs {
-            if let Some(loc) = self.packed_loc(loc) {
-                self.params.remove(&loc);
-            }
-            self.bindings.remove(loc);
-        }
-
         let paths = self.bindings.paths().collect_vec();
 
         // Convert pointers to borrows
@@ -381,15 +368,14 @@ impl TypeEnvInfer {
                     other.bindings.update(path2, ty2);
                 }
                 (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    let bound = bound.with_holes();
                     self.bindings.update(ptr_path, bound.clone());
-                    self.bindings
-                        .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                    self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
                 }
                 (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
+                    let bound = bound.with_holes();
                     other.bindings.update(ptr_path, bound.clone());
-                    other
-                        .bindings
-                        .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                    other.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
                 }
                 _ => {}
             }
@@ -532,13 +518,6 @@ impl TypeEnvInfer {
 
     fn is_packed_expr(&self, expr: &Expr) -> bool {
         matches!(expr.kind(), ExprKind::FreeVar(name) if self.params.contains_key(name))
-    }
-
-    fn packed_loc(&self, loc: Loc) -> Option<Name> {
-        match loc {
-            Loc::Free(name) if self.params.contains_key(&name) => Some(name),
-            _ => None,
-        }
     }
 }
 
