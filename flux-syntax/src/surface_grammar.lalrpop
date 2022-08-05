@@ -74,6 +74,7 @@ pub Variant: surface::VariantDef = {
     }
 }
 
+// TODO(RJ): horrific parser error if I replace braces with parens
 Fields: Vec<surface::Ty> = {
     "{" <Comma<Ty>> "}" "->"
 }
