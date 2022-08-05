@@ -67,12 +67,6 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Param {
-    pub name: Name,
-    pub sort: Sort,
-}
-
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -842,7 +836,6 @@ impl_internable!(
     [Field],
     [KVar],
     [Constraint],
-    [Param],
     [Index],
     [Sort]
 );

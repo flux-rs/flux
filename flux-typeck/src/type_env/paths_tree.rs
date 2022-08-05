@@ -94,14 +94,6 @@ impl PathsTree {
         self.map.insert(loc, Node::Ty(ty));
     }
 
-    pub fn remove(&mut self, loc: Loc) {
-        self.map.remove(&loc);
-    }
-
-    pub fn locs(&self) -> impl Iterator<Item = Loc> + '_ {
-        self.map.keys().copied()
-    }
-
     pub fn contains_loc(&self, loc: Loc) -> bool {
         self.map.contains_key(&loc)
     }

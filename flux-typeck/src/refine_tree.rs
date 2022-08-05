@@ -24,7 +24,7 @@ pub struct RefineTree {
 }
 
 /// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
-/// available in a particular path during type-checking. For example consider the following
+/// available in a particular path during type-checking. For example, consider the following
 /// program:
 ///
 /// ```ignore
@@ -50,6 +50,7 @@ pub struct Snapshot {
 }
 
 /// A ist of refinement variables and their sorts.
+#[derive(PartialEq, Eq)]
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
 }
@@ -186,8 +187,8 @@ impl RefineCtxt<'_> {
                 Ty::mk_ref(RefKind::Shr, ty)
             }
             // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-            // that make the refered type too specific. We only have this as a workaround to
-            // to infer parameters under mutable references and should be removed once we implement
+            // that makes the refered type too specific. We only have this as a workaround to
+            // infer parameters under mutable references and it should be removed once we implement
             // opening of mutable references.
             TyKind::Ref(RefKind::Mut, ty) if unpack_mut_refs => {
                 let ty = self.unpack(ty, unpack_mut_refs);
@@ -199,8 +200,7 @@ impl RefineCtxt<'_> {
 }
 
 impl Snapshot {
-    /// Returns the [`scope`] at the snapshot if it is still valid or
-    /// [`None`] otherwise.
+    /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
     ///
     /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {

@@ -29,8 +29,8 @@ use flux_middle::{
         },
     },
     ty::{
-        self, BaseTy, BinOp, Binders, BoundVar, Constraint, Constraints, Expr, FnSig, Param,
-        PolySig, Pred, Sort, Ty, TyKind, VariantIdx,
+        self, BaseTy, BinOp, Binders, BoundVar, Constraint, Constraints, Expr, FnSig, PolySig,
+        Pred, Sort, Ty, TyKind, VariantIdx,
     },
 };
 
@@ -82,7 +82,6 @@ pub struct Inference<'a> {
 }
 
 pub struct Check<'a> {
-    bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
     kvars: &'a mut KVarStore,
 }
@@ -154,13 +153,12 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
             let mut refine_tree = RefineTree::new();
 
-            Checker::run(
-                genv,
-                &mut refine_tree,
-                body,
-                def_id,
-                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
-            )?;
+            let bb_envs = bb_envs_infer
+                .into_iter()
+                .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(kvars)))
+                .collect();
+
+            Checker::run(genv, &mut refine_tree, body, def_id, Check { bb_envs, kvars })?;
 
             Ok(refine_tree)
         })
@@ -278,7 +276,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             dbg::terminator!("end", terminator, rcx, env);
 
             self.snapshots[bb] = Some(rcx.snapshot());
-            // self.check_successors(rcx, env, terminator.source_info, successors)?;
             let term_source_info = match latest_src_info {
                 Some(src_info) => src_info,
                 None => terminator.source_info,
@@ -305,7 +302,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 env.write_place(rcx, gen, place, ty);
             }
             StatementKind::SetDiscriminant { .. } => {
-                // TODO(nilehmann) double chould check here that the place is unfolded to
+                // TODO(nilehmann) double check here that the place is unfolded to
                 // the corect variant. This should be guaranteed by rustc
             }
             StatementKind::FakeRead(_) => {
@@ -953,39 +950,17 @@ impl Phase for Check<'_> {
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool {
-        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-        let mut first = false;
-
-        let bb_env = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
-                let fresh_kvar = &mut |sorts: &[Sort], params: &[Param]| {
-                    ck.phase.kvars.fresh(
-                        sorts,
-                        scope
-                            .iter()
-                            .chain(params.iter().map(|param| (param.name, param.sort.clone()))),
-                    )
-                };
-                first = true;
-                entry.insert(
-                    ck.phase
-                        .bb_envs_infer
-                        .remove(&target)
-                        .unwrap()
-                        .into_bb_env(fresh_kvar),
-                )
-            }
-        };
+        let bb_env = &ck.phase.bb_envs[&target];
+        debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
-        let fresh_kvar = |sorts: &[Sort]| ck.phase.kvars.fresh(sorts, scope.iter());
+        let fresh_kvar = |sorts: &[Sort]| ck.phase.kvars.fresh(sorts, bb_env.scope().iter());
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let gen = &mut ConstrGen::new(ck.genv, fresh_kvar, tag);
         env.check_goto(&mut rcx, gen, bb_env);
 
-        first
+        !ck.visited.contains(target)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
