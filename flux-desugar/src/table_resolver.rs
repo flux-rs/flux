@@ -40,18 +40,37 @@ impl<'tcx> Resolver<'tcx> {
     ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
         let item = tcx.hir().expect_item(def_id);
 
-        if let ItemKind::Struct(data, generics) = &item.kind {
-            let mut table = NameResTable::new();
-            table.insert_generics(tcx, generics);
+        match &item.kind {
+            ItemKind::Struct(data, generics) => {
+                let mut table = NameResTable::new();
+                table.insert_generics(tcx, generics);
 
-            for field in data.fields() {
-                table.collect_from_ty(tcx.sess, field.ty)?;
+                for field in data.fields() {
+                    table.collect_from_ty(tcx.sess, field.ty)?;
+                }
+
+                Ok(Resolver { sess: tcx.sess, table })
             }
+            ItemKind::Enum(enum_def, generics) => {
+                let mut table = NameResTable::new();
+                table.insert_generics(tcx, generics);
 
-            Ok(Resolver { sess: tcx.sess, table })
-        } else {
-            panic!("expected a struct");
+                for variant in enum_def.variants {
+                    for field in variant.data.fields() {
+                        table.collect_from_ty(tcx.sess, field.ty)?;
+                    }
+                }
+                Ok(Resolver { sess: tcx.sess, table })
+            }
+            _ => panic!("expected a struct or enum"),
         }
+    }
+
+    pub fn resolve_enum_def(
+        &mut self,
+        enum_def: surface::EnumDef,
+    ) -> Result<surface::EnumDef<Res>, ErrorGuaranteed> {
+        HEREHEREHEREHERE todo!()
     }
 
     pub fn resolve_struct_def(

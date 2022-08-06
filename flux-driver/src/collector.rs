@@ -182,6 +182,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .map(|variant| self.parse_variant_spec(self.tcx.hir().attrs(variant.id)))
             .try_collect_exhaust()?;
 
+        let variants = match variants {
+            Some(v) => v,
+            None => vec![],
+        };
+
         self.specs
             .enums
             .insert(def_id, surface::EnumDef { def_id, refined_by, variants, opaque });

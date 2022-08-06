@@ -36,7 +36,7 @@ pub struct StructDef<T = Ident> {
 pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
-    pub variants: Option<Vec<VariantDef<T>>>,
+    pub variants: Vec<VariantDef<T>>,
     pub opaque: bool,
 }
 

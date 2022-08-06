@@ -88,7 +88,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .insert(def_id, ty::AdtDef::new(def_id, sorts, is_box));
     }
 
-    pub fn register_enum_def(&mut self, def_id: DefId, _enum_def: core::EnumDef) {
+    pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
         let sorts = self.sorts_of(def_id);
         let is_box = self.is_box_adt(def_id);
         self.adt_defs

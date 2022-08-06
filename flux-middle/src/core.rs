@@ -30,6 +30,14 @@ pub struct StructDef {
 pub struct EnumDef {
     pub def_id: DefId,
     pub refined_by: Vec<Param>,
+    pub variants: Vec<VariantDef>,
+}
+
+#[derive(Debug)]
+pub struct VariantDef {
+    pub params: Vec<Param>,
+    pub fields: Vec<Ty>,
+    pub ret: Ty,
 }
 
 #[derive(Debug)]
