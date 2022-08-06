@@ -1,12 +1,13 @@
 use std::{
     cell::RefCell,
-    iter,
     rc::{Rc, Weak},
 };
 
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
-use flux_middle::ty::{BaseTy, Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind};
+use flux_middle::ty::{
+    fold::TypeFoldable, BaseTy, Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind,
+};
 use itertools::Itertools;
 
 use crate::{
@@ -136,7 +137,7 @@ impl RefineCtxt<'_> {
 
     /// "Opens" and assumes a bound predicate generating fresh refinement variables
     /// for each binder. It returns the freshly generated names for the variables.
-    pub fn define_vars_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
+    fn define_vars_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
         self.ptr.push_foralls(pred)
     }
 
@@ -160,8 +161,8 @@ impl RefineCtxt<'_> {
     fn unpack_bty(&mut self, bty: &BaseTy, unpack_mut_refs: bool) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let substs = substs.iter().map(|ty| self.unpack(ty, unpack_mut_refs));
-                BaseTy::adt(adt_def.clone(), substs)
+                let ty = self.unpack(&substs[0], unpack_mut_refs);
+                BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
             }
             _ => bty.clone(),
         }
@@ -170,13 +171,13 @@ impl RefineCtxt<'_> {
     pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
         match ty.kind() {
             TyKind::Exists(bty, pred) => {
-                let indices = self
+                let idxs = self
                     .define_vars_for_binders(pred)
                     .into_iter()
                     .map(|name| Expr::fvar(name).into())
                     .collect_vec();
                 let bty = self.unpack_bty(bty, unpack_mut_refs);
-                Ty::indexed(bty, indices)
+                Ty::indexed(bty, idxs)
             }
             TyKind::Constr(pred, ty) => {
                 self.assume_pred(pred.clone());
@@ -189,7 +190,7 @@ impl RefineCtxt<'_> {
             // HACK(nilehmann) In general we shouldn't unpack through mutable references because
             // that makes the refered type too specific. We only have this as a workaround to
             // infer parameters under mutable references and it should be removed once we implement
-            // opening of mutable references.
+            // opening of mutable references. See also `ConstrGen::check_fn_call`.
             TyKind::Ref(RefKind::Mut, ty) if unpack_mut_refs => {
                 let ty = self.unpack(ty, unpack_mut_refs);
                 Ty::mk_ref(RefKind::Mut, ty)
@@ -241,6 +242,11 @@ impl Scope {
     pub fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
         iter.into_iter().all(|name| self.contains(name))
     }
+
+    /// Wether `t` has any free variables not in this scope
+    pub fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
+        !self.contains_all(t.fvars())
+    }
 }
 
 impl ConstrBuilder<'_> {
@@ -274,41 +280,10 @@ impl NodePtr {
     }
 
     fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
-        let name_gen = self.name_gen();
-
-        let mut bindings = vec![];
-        let mut exprs = vec![];
         let mut names = vec![];
-        for sort in pred.params() {
-            let fresh = name_gen.fresh();
-            bindings.push((fresh, sort.clone()));
-            exprs.push(Expr::fvar(fresh));
-            names.push(fresh);
-        }
-
-        let pred = pred.replace_bound_vars(&exprs);
-
-        match pred {
-            Pred::Kvars(kvars) => {
-                debug_assert_eq!(kvars.len(), bindings.len());
-                for ((name, sort), kvar) in iter::zip(bindings, &kvars) {
-                    let p = Pred::kvars(vec![kvar.clone()]);
-                    *self = self.push_node(NodeKind::ForAll(name, sort, p));
-                }
-            }
-            Pred::Expr(e) => {
-                for (name, sort) in bindings {
-                    *self = self.push_node(NodeKind::ForAll(name, sort, Pred::tt()));
-                }
-                if !e.is_true() {
-                    *self = self.push_node(NodeKind::Guard(e));
-                }
-            }
-            Pred::Hole => {
-                for (name, sort) in bindings {
-                    *self = self.push_node(NodeKind::ForAll(name, sort, Pred::Hole));
-                }
-            }
+        for (name, sort, pred) in pred.split_with_fresh_fvars(&self.name_gen()) {
+            *self = self.push_node(NodeKind::ForAll(name, sort, pred));
+            names.push(name);
         }
         names
     }

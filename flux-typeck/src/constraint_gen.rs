@@ -211,7 +211,6 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         (TyKind::Param(param1), TyKind::Param(param2)) => {
             debug_assert_eq!(param1, param2);
         }
-        (TyKind::Exists(..), _) => unreachable!("subtyping with unpacked existential"),
         (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
             debug_assert_eq!(float_ty1, float_ty2);
         }
@@ -221,7 +220,6 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
                 subtyping(genv, constr, ty1, ty2, tag);
             }
         }
-
         (_, TyKind::Constr(p2, ty2)) => {
             constr.push_head(p2.clone(), tag);
             subtyping(genv, constr, ty1, ty2, tag)
@@ -230,7 +228,6 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             constr.push_guard(p1.clone());
             subtyping(genv, constr, ty1, ty2, tag)
         }
-
         _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
     }
 }
