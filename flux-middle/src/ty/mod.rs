@@ -2,8 +2,9 @@ pub mod fold;
 pub mod lowering;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, sync::OnceLock};
+use std::{borrow::Cow, fmt, iter, sync::OnceLock};
 
+use flux_common::index::IndexGen;
 use itertools::Itertools;
 
 pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
@@ -98,6 +99,10 @@ pub enum TyKind {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Index {
     pub expr: Expr,
+    /// Whether the index was annotated as a binder in the surface. This is used as a hint for inferring
+    /// parameters at call sites. This is very hacky and we should have a different way to preserve this
+    /// information. The problem is that the extra field is preserved through substitutions and other
+    /// manipulations of types which makes it problematic to test for index equality.
     pub is_binder: bool,
 }
 
@@ -213,6 +218,40 @@ where
 
     pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
         self.value.fold_with(&mut BVarFolder::new(exprs))
+    }
+}
+
+impl Binders<Pred> {
+    pub fn split_with_fresh_fvars(&self, name_gen: &IndexGen<Name>) -> Vec<(Name, Sort, Pred)> {
+        let names = iter::repeat_with(|| name_gen.fresh())
+            .take(self.params.len())
+            .collect_vec();
+        let exprs = names.iter().copied().map(Expr::fvar).collect_vec();
+        match self.replace_bound_vars(&exprs) {
+            Pred::Hole => {
+                iter::zip(names, &self.params)
+                    .map(|(name, sort)| (name, sort.clone(), Pred::Hole))
+                    .collect()
+            }
+            Pred::Kvars(kvars) => {
+                debug_assert_eq!(kvars.len(), self.params.len());
+                itertools::izip!(names, &self.params, &kvars)
+                    .map(|(name, sort, kvar)| (name, sort.clone(), Pred::kvars(vec![kvar.clone()])))
+                    .collect()
+            }
+            Pred::Expr(e) => {
+                itertools::izip!(names, &self.params)
+                    .enumerate()
+                    .map(|(idx, (name, sort))| {
+                        if idx < self.params.len() - 1 {
+                            (name, sort.clone(), Pred::tt())
+                        } else {
+                            (name, sort.clone(), Pred::Expr(e.clone()))
+                        }
+                    })
+                    .collect()
+            }
+        }
     }
 }
 
@@ -385,6 +424,19 @@ impl List<Index> {
 }
 
 impl Index {
+    pub fn exprs_eq(idxs1: &[Index], idxs2: &[Index]) -> bool {
+        if idxs1.len() != idxs2.len() {
+            return false;
+        }
+
+        for (idx1, idx2) in iter::zip(idxs1, idxs2) {
+            if idx1.expr != idx2.expr {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn to_expr(&self) -> Expr {
         self.expr.clone()
     }

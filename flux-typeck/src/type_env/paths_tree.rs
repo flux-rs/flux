@@ -7,7 +7,10 @@ use rustc_hash::FxHashMap;
 use flux_middle::{
     global_env::GlobalEnv,
     rustc::mir::{Field, Place, PlaceElem},
-    ty::{fold::TypeFoldable, AdtDef, BaseTy, Loc, Path, RefKind, Substs, Ty, TyKind, VariantIdx},
+    ty::{
+        fold::{TypeFoldable, TypeFolder, TypeVisitor},
+        AdtDef, BaseTy, Loc, Path, RefKind, Substs, Ty, TyKind, VariantIdx,
+    },
 };
 
 use crate::{constraint_gen::ConstrGen, refine_tree::RefineCtxt};
@@ -61,29 +64,41 @@ impl PathsTree {
         self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
     }
 
-    pub fn get(&self, path: &Path) -> Ty {
+    pub fn get(&self, path: &Path) -> Binding {
         let mut node = self.map.get(&path.loc).unwrap();
         for f in path.projection() {
             match node {
-                Node::Ty(_) => panic!("expected `Node::Adt`"),
+                Node::Leaf(_) => panic!("expected `Node::Adt`"),
                 Node::Internal(.., children) => node = &children[f.as_usize()],
             }
         }
         match node {
-            Node::Ty(ty) => ty.clone(),
+            Node::Leaf(binding) => binding.clone(),
             Node::Internal(..) => panic!("expcted `Node::Ty`"),
         }
     }
 
+    pub fn update_binding(&mut self, path: &Path, binding: Binding) {
+        *self.get_node_mut(path) = Node::Leaf(binding);
+    }
+
     pub fn update(&mut self, path: &Path, new_ty: Ty) {
-        *self.get_node_mut(path).expect_ty_mut() = new_ty;
+        *self.get_node_mut(path).expect_owned_mut() = new_ty;
+    }
+
+    pub fn block(&mut self, path: &Path) {
+        let node = self.get_node_mut(path);
+        match node {
+            Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
+            _ => panic!("expected owned binding"),
+        }
     }
 
     fn get_node_mut(&mut self, path: &Path) -> &mut Node {
         let mut node = self.map.get_mut(&path.loc).unwrap();
         for f in path.projection() {
             match node {
-                Node::Ty(_) => panic!("expected `Node::Adt"),
+                Node::Leaf(_) => panic!("expected `Node::Adt"),
                 Node::Internal(.., children) => node = &mut children[f.as_usize()],
             }
         }
@@ -91,14 +106,14 @@ impl PathsTree {
     }
 
     pub fn insert(&mut self, loc: Loc, ty: Ty) {
-        self.map.insert(loc, Node::Ty(ty));
+        self.map.insert(loc, Node::owned(ty));
     }
 
     pub fn contains_loc(&self, loc: Loc) -> bool {
         self.map.contains_key(&loc)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Path, &Ty)> {
+    pub fn iter(&self) -> impl Iterator<Item = (Path, &Binding)> {
         self.map
             .iter()
             .flat_map(|(loc, node)| PathsIter::new(*loc, node))
@@ -145,7 +160,7 @@ impl PathsTree {
                         node.downcast(gen.genv, rcx, variant_idx);
                     }
                     PlaceElem::Deref => {
-                        let ty = node.expect_ty();
+                        let ty = node.expect_owned();
                         match ty.kind() {
                             TyKind::Ptr(ptr_path) => {
                                 path = ptr_path.clone();
@@ -165,7 +180,7 @@ impl PathsTree {
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen));
+            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen, true));
         }
     }
 
@@ -217,24 +232,29 @@ impl PathsTree {
     }
 
     #[must_use]
-    pub fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> PathsTree {
+    pub fn fmap(&self, f: impl FnMut(&Binding) -> Binding) -> PathsTree {
         let mut tree = self.clone();
         tree.fmap_mut(f);
         tree
     }
 
-    pub fn fmap_mut(&mut self, mut f: impl FnMut(&Ty) -> Ty) {
-        let f = &mut f;
+    pub fn fmap_mut(&mut self, mut f: impl FnMut(&Binding) -> Binding) {
         for node in self.map.values_mut() {
-            node.fmap_mut(f);
+            node.fmap_mut(&mut f);
         }
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum Node {
-    Ty(Ty),
+    Leaf(Binding),
     Internal(NodeKind, Vec<Node>),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Binding {
+    Owned(Ty),
+    Blocked(Ty),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -245,37 +265,42 @@ enum NodeKind {
 }
 
 impl Node {
-    fn expect_ty(&self) -> Ty {
+    fn owned(ty: Ty) -> Node {
+        Node::Leaf(Binding::Owned(ty))
+    }
+
+    #[track_caller]
+    fn expect_owned(&self) -> Ty {
         match self {
-            Node::Ty(ty) => ty.clone(),
+            Node::Leaf(Binding::Owned(ty)) => ty.clone(),
             _ => panic!("expected type"),
         }
     }
 
-    fn expect_ty_mut(&mut self) -> &mut Ty {
+    fn expect_owned_mut(&mut self) -> &mut Ty {
         match self {
-            Node::Ty(ty) => ty,
+            Node::Leaf(Binding::Owned(ty)) => ty,
             _ => panic!("expected type"),
         }
     }
 
     fn unfold_with(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, other: &mut Node) {
         match (&mut *self, &mut *other) {
-            (Node::Ty(_), Node::Ty(_)) => {}
-            (Node::Ty(_), Node::Internal(..)) => {
+            (Node::Leaf(_), Node::Leaf(_)) => {}
+            (Node::Leaf(_), Node::Internal(..)) => {
                 self.uninit();
                 self.split(genv, rcx);
                 self.unfold_with(genv, rcx, other);
             }
-            (Node::Internal(..), Node::Ty(_)) => {
+            (Node::Internal(..), Node::Leaf(_)) => {
                 other.uninit();
                 other.split(genv, rcx);
                 self.unfold_with(genv, rcx, other);
             }
             (Node::Internal(_, children1), Node::Internal(_, children2)) => {
                 let max = usize::max(children1.len(), children2.len());
-                children1.resize(max, Node::Ty(Ty::uninit()));
-                children2.resize(max, Node::Ty(Ty::uninit()));
+                children1.resize(max, Node::owned(Ty::uninit()));
+                children2.resize(max, Node::owned(Ty::uninit()));
                 for (node1, node2) in iter::zip(children1, children2) {
                     node1.unfold_with(genv, rcx, node2);
                 }
@@ -284,13 +309,13 @@ impl Node {
     }
 
     fn proj(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, field: Field) -> &mut Node {
-        if let Node::Ty(_) = self {
+        if let Node::Leaf(_) = self {
             self.split(genv, rcx);
         }
         match self {
             Node::Internal(NodeKind::Adt(..) | NodeKind::Uninit, children) => {
                 let max = usize::max(field.as_usize() + 1, children.len());
-                children.resize(max, Node::Ty(Ty::uninit()));
+                children.resize(max, Node::owned(Ty::uninit()));
                 &mut children[field.as_usize()]
             }
             _ => unreachable!(),
@@ -299,12 +324,12 @@ impl Node {
 
     fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
         match self {
-            Node::Ty(ty) => {
+            Node::Leaf(Binding::Owned(ty)) => {
                 if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
                     let fields = genv
                         .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
                         .into_iter()
-                        .map(|ty| Node::Ty(rcx.unpack(&ty, false)))
+                        .map(|ty| Node::owned(rcx.unpack(&ty, false)))
                         .collect();
                     let substs = substs.with_holes();
                     *self =
@@ -317,14 +342,15 @@ impl Node {
                 debug_assert_eq!(variant_idx, *variant_idx2);
             }
             Node::Internal(..) => panic!("invalid downcast"),
+            Node::Leaf(..) => panic!("blocked"),
         }
     }
 
     fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) {
-        let ty = self.expect_ty();
+        let ty = self.expect_owned();
         match ty.kind() {
             TyKind::Tuple(tys) => {
-                let children = tys.iter().cloned().map(Node::Ty).collect();
+                let children = tys.iter().cloned().map(Node::owned).collect();
                 *self = Node::Internal(NodeKind::Tuple, children);
             }
             // TODO(nilehmann) we should check here whether this is a struct and not an enum
@@ -337,50 +363,101 @@ impl Node {
     }
 
     fn uninit(&mut self) {
-        *self = Node::Ty(Ty::uninit());
+        *self = Node::owned(Ty::uninit());
     }
 
-    fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> Ty {
+    // NOTE(nilehmann) The extra `unblock` parameter is there on purpose to force future clients of
+    // this function to think harder about whether it should simply unblock bindings. Right now it's
+    // being used in a single place with `unblock = true`.
+    fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, unblock: bool) -> Ty {
         match self {
-            Node::Ty(ty) => ty.clone(),
+            Node::Leaf(Binding::Owned(ty)) => ty.clone(),
+            Node::Leaf(Binding::Blocked(ty)) => {
+                if unblock {
+                    let ty = rcx.unpack(ty, false);
+                    *self = Node::owned(ty.clone());
+                    ty
+                } else {
+                    panic!("I don't know what to do if you don't ask me to unblock.");
+                }
+            }
             Node::Internal(NodeKind::Tuple, children) => {
                 let tys = children
                     .iter_mut()
-                    .map(|node| node.fold(rcx, gen))
+                    .map(|node| node.fold(rcx, gen, unblock))
                     .collect_vec();
                 let ty = Ty::tuple(tys);
-                *self = Node::Ty(ty.clone());
+                *self = Node::owned(ty.clone());
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
                 let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
                 let actuals = children
                     .iter_mut()
-                    .map(|node| node.fold(rcx, gen))
+                    .map(|node| node.fold(rcx, gen, unblock))
                     .collect_vec();
                 let env = &mut FxHashMap::default();
                 let output = gen
                     .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
                     .unwrap();
                 assert!(output.ensures.is_empty());
-                *self = Node::Ty(output.ret.clone());
+                *self = Node::owned(output.ret.clone());
                 output.ret
             }
             Node::Internal(NodeKind::Uninit, _) => {
-                *self = Node::Ty(Ty::uninit());
+                *self = Node::owned(Ty::uninit());
                 Ty::uninit()
             }
         }
     }
 
-    fn fmap_mut(&mut self, f: &mut impl FnMut(&Ty) -> Ty) {
+    fn fmap_mut(&mut self, f: &mut impl FnMut(&Binding) -> Binding) {
         match self {
-            Node::Ty(ty) => *ty = f(ty),
+            Node::Leaf(binding) => *binding = f(binding),
             Node::Internal(.., fields) => {
                 for field in fields {
                     field.fmap_mut(f);
                 }
             }
+        }
+    }
+}
+
+impl Binding {
+    pub fn expect_owned(&self) -> Ty {
+        match self {
+            Binding::Owned(ty) => ty.clone(),
+            Binding::Blocked(_) => panic!("expected owned"),
+        }
+    }
+
+    pub fn ty(&self) -> &Ty {
+        match self {
+            Binding::Owned(ty) => ty,
+            Binding::Blocked(ty) => ty,
+        }
+    }
+
+    fn is_uninit(&self) -> bool {
+        match self {
+            Binding::Owned(ty) => ty.is_uninit(),
+            Binding::Blocked(ty) => ty.is_uninit(),
+        }
+    }
+}
+
+impl TypeFoldable for Binding {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            Binding::Owned(ty) => Binding::Owned(ty.fold_with(folder)),
+            Binding::Blocked(ty) => Binding::Blocked(ty.fold_with(folder)),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            Binding::Owned(ty) => ty.visit_with(visitor),
+            Binding::Blocked(ty) => ty.visit_with(visitor),
         }
     }
 }
@@ -391,13 +468,13 @@ enum PathsIter<'a> {
         loc: Loc,
         projection: Vec<Field>,
     },
-    Ty(Option<(Loc, &'a Ty)>),
+    Leaf(Option<(Loc, &'a Binding)>),
 }
 
 impl<'a> PathsIter<'a> {
     fn new(loc: Loc, root: &'a Node) -> Self {
         match root {
-            Node::Ty(ty) => PathsIter::Ty(Some((loc, ty))),
+            Node::Leaf(binding) => PathsIter::Leaf(Some((loc, binding))),
             Node::Internal(.., fields) => {
                 PathsIter::Adt { loc, projection: vec![], stack: vec![fields.iter().enumerate()] }
             }
@@ -406,7 +483,7 @@ impl<'a> PathsIter<'a> {
 }
 
 impl<'a> Iterator for PathsIter<'a> {
-    type Item = (Path, &'a Ty);
+    type Item = (Path, &'a Binding);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -418,11 +495,11 @@ impl<'a> Iterator for PathsIter<'a> {
                                 projection.push(Field::from(i));
                                 stack.push(fields.iter().enumerate());
                             }
-                            Node::Ty(ty) => {
+                            Node::Leaf(binding) => {
                                 projection.push(Field::from(i));
                                 let path = Path::new(*loc, projection.as_slice());
                                 projection.pop();
-                                return Some((path, ty));
+                                return Some((path, binding));
                             }
                         }
                     } else {
@@ -432,7 +509,7 @@ impl<'a> Iterator for PathsIter<'a> {
                 }
                 None
             }
-            PathsIter::Ty(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
+            PathsIter::Leaf(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
         }
     }
 }
@@ -455,8 +532,19 @@ mod pretty {
                 "{{{}}}",
                 ^bindings
                     .into_iter()
-                    .format_with(", ", |(loc, ty), f| f(&format_args_cx!("{:?}: {:?}", loc, ty)))
+                    .format_with(", ", |(loc, binding), f| {
+                        match binding {
+                            Binding::Owned(ty) => {
+                                f(&format_args_cx!("{:?}: {:?}", loc, ty))
+                            }
+                            Binding::Blocked(ty) => {
+                                f(&format_args_cx!("{:?}:† {:?}", loc, ty))
+                            }
+                        }
+                    })
             )
         }
     }
+
+    impl_debug_with_default_cx!(PathsTree);
 }
