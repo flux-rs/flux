@@ -102,8 +102,7 @@ pub struct Index {
     /// Whether the index was annotated as a binder in the surface. This is used as a hint for inferring
     /// parameters at call sites. This is very hacky and we should have a different way to preserve this
     /// information. The problem is that the extra field is preserved through substitutions and other
-    /// manipulations of types which makes it problematic to compare indices by equality. For the moment
-    /// be careful when comparing indices by equality.
+    /// manipulations of types which makes it problematic to test for index equality.
     pub is_binder: bool,
 }
 
