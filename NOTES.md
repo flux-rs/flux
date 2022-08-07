@@ -1,6 +1,6 @@
 # RJ Notes
 
-- [ ] [Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
+- [=] [Measures](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
 - [ ] Projection? (Get `iter` working _without_ refinements... e.g. on plain `Vec`)
 - [ ] Closure/FnPtr?
 
@@ -8,13 +8,20 @@
 
 See [this](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
 
-- spec `pred`
-- spec `is_var`
-- spec `is_nnf`
-- merge "manually" into single spec
-- test
-- merge "automatically" into single spec
-- test
+- [=] refactor to `PolyVariantDef` <-- HEREHEREHERE
+
+- [] `opt00.rs`
+
+- [] `list00.rs`
+
+- [] manually write multiple measures
+    - [] type `pred`
+    - [] spec `is_var`
+    - [] spec `is_nnf`
+
+- [] merge "automatically" into single spec
+
+
 
 ```rust
 spec size : int for List<T> {

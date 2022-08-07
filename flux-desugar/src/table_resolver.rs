@@ -70,9 +70,32 @@ impl<'tcx> Resolver<'tcx> {
         &mut self,
         enum_def: surface::EnumDef,
     ) -> Result<surface::EnumDef<Res>, ErrorGuaranteed> {
-        HEREHEREHEREHERE todo!()
+        let variants = enum_def
+            .variants
+            .into_iter()
+            .map(|variant| self.resolve_variant(variant))
+            .try_collect_exhaust()?;
+
+        Ok(surface::EnumDef {
+            def_id: enum_def.def_id,
+            refined_by: enum_def.refined_by,
+            opaque: enum_def.opaque,
+            variants,
+        })
     }
 
+    fn resolve_variant(
+        &self,
+        variant: surface::VariantDef,
+    ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
+        let fields = variant
+            .fields
+            .into_iter()
+            .map(|ty| self.resolve_ty(ty))
+            .try_collect_exhaust()?;
+        let ret = self.resolve_ty(variant.ret)?;
+        Ok(surface::VariantDef { fields, ret })
+    }
     pub fn resolve_struct_def(
         &mut self,
         struct_def: surface::StructDef,

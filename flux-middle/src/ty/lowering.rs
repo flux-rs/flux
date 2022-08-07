@@ -9,6 +9,8 @@ use rustc_hash::FxHashMap;
 
 use crate::core;
 
+use super::Binders;
+
 pub struct LoweringCtxt<'a, 'genv, 'tcx> {
     genv: &'a GlobalEnv<'genv, 'tcx>,
     name_map: NameMap,
@@ -95,7 +97,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn lower_struct_def(
         genv: &GlobalEnv,
         struct_def: &core::StructDef,
-    ) -> Option<ty::VariantDef> {
+    ) -> Option<ty::PolyVariant> {
         let mut cx = LoweringCtxt::new(genv);
         let sorts = cx.lower_params(&struct_def.refined_by);
         if let core::StructKind::Transparent { fields } = &struct_def.kind {
@@ -117,12 +119,12 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
             let def_id = struct_def.def_id;
             let is_box = genv.is_box_adt(def_id);
             let ret = ty::Ty::indexed(
-                ty::BaseTy::adt(ty::AdtDef::new(def_id, sorts, is_box), substs),
+                ty::BaseTy::adt(ty::AdtDef::new(def_id, sorts.clone(), is_box), substs),
                 idxs,
             );
 
             let variant = ty::VariantDef::new(fields, ret);
-            Some(variant)
+            Some(Binders::new(variant, sorts))
         } else {
             None
         }

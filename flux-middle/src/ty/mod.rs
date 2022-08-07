@@ -31,6 +31,8 @@ pub struct AdtDefData {
     is_box: bool,
 }
 
+pub(crate) type PolyVariant = Binders<VariantDef>;
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub(crate) struct VariantDef {
     pub(crate) fields: List<Ty>,
