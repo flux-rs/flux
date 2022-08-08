@@ -207,6 +207,7 @@ impl<'genv> Resolver<'genv> {
                 Ok(Res::Param(self.table.get_param_ty(did).unwrap()))
             }
             hir::def::Res::Def(hir::def::DefKind::Struct, did) => Ok(Res::Adt(did)),
+            hir::def::Res::Def(hir::def::DefKind::Enum, did) => Ok(Res::Adt(did)),
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
                 Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
             }
