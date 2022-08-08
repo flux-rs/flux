@@ -1,5 +1,5 @@
 use flux_common::iter::IterExt;
-use hir::{def_id::DefId, ItemId, ItemKind};
+use hir::{def::DefKind, def_id::DefId, Item, ItemId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
@@ -54,6 +54,9 @@ impl<'tcx> Resolver<'tcx> {
             ItemKind::Enum(enum_def, generics) => {
                 let mut table = NameResTable::new();
                 table.insert_generics(tcx, generics);
+
+                let res = rustc_hir::def::Res::Def(DefKind::Enum, def_id.to_def_id());
+                table.collect_from_item(item, res);
 
                 for variant in enum_def.variants {
                     for field in variant.data.fields() {
@@ -306,6 +309,10 @@ impl NameResTable {
         }
 
         Ok(())
+    }
+
+    fn collect_from_item(&mut self, item: &Item, res: rustc_hir::def::Res) {
+        self.res.insert(item.ident.name, res);
     }
 
     fn collect_from_ty(&mut self, sess: &Session, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
