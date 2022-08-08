@@ -175,7 +175,7 @@ impl PathsTree {
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            TyKind::Indexed(BaseTy::Adt(def, substs), _) if def.is_box() => {
+                            TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::Free(fresh);
                                 *node = Node::owned(Ty::box_ptr(fresh, substs[1].clone()));
@@ -207,6 +207,9 @@ impl PathsTree {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(*rk2);
                     ty = ty2.clone();
+                }
+                (Deref, TyKind::Indexed(BaseTy::Adt(_, substs), _)) if ty.is_box() => {
+                    ty = substs[0].clone();
                 }
                 (Deref, TyKind::Ptr(ptr_path)) => {
                     return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
