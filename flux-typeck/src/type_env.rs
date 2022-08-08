@@ -65,8 +65,8 @@ impl TypeEnv {
         self.bindings.insert(loc, Ty::uninit());
     }
 
-    pub fn into_infer(self, scope: Scope) -> TypeEnvInfer {
-        TypeEnvInfer::new(scope, self)
+    pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
+        TypeEnvInfer::new(genv, scope, self)
     }
 
     #[track_caller]
@@ -84,8 +84,8 @@ impl TypeEnv {
         match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, _) => Ty::ptr(path),
             LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
-            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
-                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference or a Box")
+            LookupResult::Ref(RefKind::Shr, _) => {
+                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&`")
             }
         }
     }
@@ -114,7 +114,7 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Mut, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
+            LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference or Box")
             }
         }
@@ -132,13 +132,23 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
-            // HACK: Strictly speaking if the environment is x: Box<T> and then you move out
-            // of *x you should end up with x: Box<uninit>. However, that's hard to implement
-            // now, it'll need some refactoring in paths tree. Instead,
-            // the code below is leaving the x: Box<T> behind which is technically wrong,
-            // but ok in practice as rustc will make sure you don't access *x again.
-            // Still we can revisit if it causes trouble!
-            LookupResult::Box(ty) => ty,
+        }
+    }
+
+    pub fn close_boxes(&mut self, genv: &GlobalEnv, scope: &Scope) {
+        let mut to_remove = vec![];
+        for path in self.bindings.paths().collect_vec() {
+            if let Binding::Owned(ty) = self.bindings.get(&path) &&
+               let TyKind::BoxPtr(loc, alloc) = ty.kind() &&
+               !scope.contains(*loc) {
+                let loc = Loc::Free(*loc);
+                to_remove.push(loc);
+                let ty = self.bindings.get(&Path::from(loc)).expect_owned();
+                self.bindings.update(&path, genv.mk_box(ty, alloc.clone()))
+            }
+        }
+        for loc in to_remove {
+            self.bindings.remove(loc);
         }
     }
 
@@ -159,7 +169,7 @@ impl TypeEnv {
             if bb_env.bindings.contains_loc(path.loc)
               && let Binding::Owned(ty1) = binding1
               && let Binding::Owned(ty2) = binding2 {
-                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
+                self.infer_subst_for_bb_env_ty(bb_env, &params, ty1, &ty2, &mut subst);
             }
         }
 
@@ -175,7 +185,7 @@ impl TypeEnv {
         subst
     }
 
-    fn infer_subst_for_bb_env_tys(
+    fn infer_subst_for_bb_env_ty(
         &self,
         bb_env: &BasicBlockEnv,
         params: &FxHashSet<Name>,
@@ -184,7 +194,8 @@ impl TypeEnv {
         subst: &mut FVarSubst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
+            (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
+                self.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
                 for (idx1, idx2) in iter::zip(indices1, indices2) {
                     subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
                 }
@@ -193,18 +204,37 @@ impl TypeEnv {
                 subst.infer_from_exprs(params, &path1.to_expr(), &path2.to_expr());
                 if let Binding::Owned(ty1) = self.bindings.get(path1) &&
                    let Binding::Owned(ty2) = bb_env.bindings.get(path2) {
-                    self.infer_subst_for_bb_env_tys(bb_env, params, &ty1, &ty2, subst);
+                    self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, &ty2, subst);
                 }
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
                 debug_assert_eq!(mode1, mode2);
-                self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
+                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
             }
             _ => {}
         }
     }
 
+    fn infer_subst_for_bb_env_bty(
+        &self,
+        bb_env: &BasicBlockEnv,
+        params: &FxHashSet<Name>,
+        bty1: &BaseTy,
+        bty2: &BaseTy,
+        subst: &mut FVarSubst,
+    ) {
+        if bty1.is_box()  &&
+           let BaseTy::Adt(_, substs1) = bty1 &&
+           let BaseTy::Adt(_, substs2) = bty2 {
+            for (ty1, ty2) in iter::zip(substs1, substs2) {
+                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+            }
+        }
+    }
+
     pub fn check_goto(mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, bb_env: &BasicBlockEnv) {
+        self.close_boxes(gen.genv, &bb_env.scope);
+
         // Look up path to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
             self.bindings.lookup_path(rcx, gen, &path);
@@ -273,7 +303,9 @@ impl TypeEnvInfer {
         TypeEnv { bindings: self.bindings.clone() }
     }
 
-    fn new(scope: Scope, TypeEnv { mut bindings }: TypeEnv) -> TypeEnvInfer {
+    fn new(genv: &GlobalEnv, scope: Scope, mut env: TypeEnv) -> TypeEnvInfer {
+        env.close_boxes(genv, &scope);
+        let mut bindings = env.bindings;
         bindings.fmap_mut(|binding| {
             match binding {
                 Binding::Owned(ty) => Binding::Owned(TypeEnvInfer::pack_ty(&scope, ty)),
@@ -310,7 +342,8 @@ impl TypeEnvInfer {
             | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_)
-            | TyKind::Constr(_, _) => ty.clone(),
+            | TyKind::Constr(_, _)
+            | TyKind::BoxPtr(_, _) => ty.clone(),
         }
     }
 
@@ -328,6 +361,8 @@ impl TypeEnvInfer {
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, mut other: TypeEnv) -> bool {
+        other.close_boxes(genv, &self.scope);
+
         // Unfold
         self.bindings.unfold_with(genv, rcx, &mut other.bindings);
 
@@ -402,6 +437,11 @@ impl TypeEnvInfer {
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
                 Ty::ptr(path1.clone())
+            }
+            (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
+                debug_assert_eq!(loc1, loc2);
+                debug_assert_eq!(alloc1, alloc2);
+                Ty::box_ptr(*loc1, alloc1.clone())
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
@@ -505,6 +545,10 @@ fn generalize(
     preds: &mut Vec<Pred>,
 ) -> Ty {
     match ty.kind() {
+        TyKind::Indexed(bty, idxs) => {
+            let bty = generalize_bty(name_gen, bty, params, preds);
+            Ty::indexed(bty, idxs.clone())
+        }
         TyKind::Exists(bty, pred) => {
             let bty = generalize_bty(name_gen, bty, params, preds);
             let mut idxs = vec![];
@@ -586,7 +630,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "[{:?}] ∃ {}. {:?}",
+                "{:?} ∃ {}. {:?}",
                 &self.scope,
                 ^iter::zip(&self.params, &self.constrs)
                     .format_with(", ", |((name, sort), constr), f| {

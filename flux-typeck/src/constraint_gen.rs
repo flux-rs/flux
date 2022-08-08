@@ -196,8 +196,12 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
             constr.push_head(pred.replace_bound_vars(&exprs), tag);
         }
-        (TyKind::Ptr(loc1), TyKind::Ptr(loc2)) => {
-            assert_eq!(loc1, loc2);
+        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+            assert_eq!(path1, path2);
+        }
+        (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
+            debug_assert_eq!(loc1, loc2);
+            debug_assert_eq!(alloc1, alloc2);
         }
         (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
             variance_subtyping(genv, constr, Variance::Invariant, ty1, ty2, tag);

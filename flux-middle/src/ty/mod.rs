@@ -83,6 +83,13 @@ pub enum TyKind {
     Float(FloatTy),
     Uninit,
     Ptr(Path),
+    /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
+    /// with two major differences:
+    /// 1. An open box can only point to a fresh location and not an arbitrary [`Path`], so we just
+    ///    store a [`Name`].
+    /// 2. We keep around the allocator to be able to put the box back together (you could say that
+    ///    the capability to deallocate the memory stays with the pointer).
+    BoxPtr(Name, Ty),
     Ref(RefKind, Ty),
     Constr(Expr, Ty),
     Param(ParamTy),
@@ -315,6 +322,10 @@ impl Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
+    pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
+        TyKind::BoxPtr(loc, alloc).intern()
+    }
+
     pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
         TyKind::Ref(mode, ty).intern()
     }
@@ -340,6 +351,7 @@ impl Ty {
             _ => None,
         }
     }
+
     pub fn uninit() -> Ty {
         TyKind::Uninit.intern()
     }
@@ -674,6 +686,13 @@ impl ExprS {
         }
     }
 
+    pub fn to_name(&self) -> Option<Name> {
+        match self.kind() {
+            ExprKind::FreeVar(name) => Some(*name),
+            _ => None,
+        }
+    }
+
     pub fn to_path(&self) -> Option<Path> {
         let mut expr = self;
         let mut proj = vec![];
@@ -974,6 +993,7 @@ mod pretty {
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(loc) => w!("ptr({:?})", loc),
+                TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),

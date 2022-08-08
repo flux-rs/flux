@@ -9,7 +9,7 @@ use flux_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Loc, Path, RefKind, Substs, Ty, TyKind, VariantIdx,
+        AdtDef, BaseTy, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
 
@@ -23,7 +23,6 @@ pub struct PathsTree {
 pub enum LookupResult {
     Ptr(Path, Ty),
     Ref(RefKind, Ty),
-    Box(Ty),
 }
 
 impl LookupResult {
@@ -31,7 +30,6 @@ impl LookupResult {
         match self {
             LookupResult::Ptr(_, ty) => ty.clone(),
             LookupResult::Ref(_, ty) => ty.clone(),
-            LookupResult::Box(ty) => ty.clone(),
         }
     }
 }
@@ -62,6 +60,10 @@ impl PathsTree {
             .iter()
             .map(|field| PlaceElem::Field(*field));
         self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
+    }
+
+    pub fn remove(&mut self, loc: Loc) {
+        self.map.remove(&loc);
     }
 
     pub fn get(&self, path: &Path) -> Binding {
@@ -166,14 +168,20 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
+                            TyKind::BoxPtr(loc, _) => {
+                                path = Path::from(Loc::Free(*loc));
+                                continue 'outer;
+                            }
                             TyKind::Ref(mode, ty) => {
                                 return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
-                            TyKind::Indexed(BaseTy::Adt(def, substs), _)
-                            | TyKind::Exists(BaseTy::Adt(def, substs), _)
-                                if def.is_box() =>
-                            {
-                                return LookupResult::Box(substs[0].clone());
+                            TyKind::Indexed(BaseTy::Adt(def, substs), _) if def.is_box() => {
+                                let fresh = rcx.define_var(&Sort::Loc);
+                                let loc = Loc::Free(fresh);
+                                *node = Node::owned(Ty::box_ptr(fresh, substs[1].clone()));
+                                self.map.insert(loc, Node::owned(substs[0].clone()));
+                                path = Path::from(loc);
+                                continue 'outer;
                             }
                             _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
@@ -204,7 +212,6 @@ impl PathsTree {
                     return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
                         LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
                         LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
-                        LookupResult::Box(ty2) => LookupResult::Ref(rk, ty2),
                     }
                 }
                 (Field(field), TyKind::Tuple(tys)) => {
