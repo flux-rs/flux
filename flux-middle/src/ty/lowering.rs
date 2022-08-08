@@ -180,8 +180,13 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         match ty {
             core::Ty::BaseTy(bty) => {
                 let bty = self.lower_base_ty(bty, nbinders);
-                let pred = ty::Binders::new(ty::Pred::tt(), bty.sorts());
-                ty::Ty::exists(bty, pred)
+                let sorts = bty.sorts();
+                if sorts.is_empty() {
+                    ty::Ty::indexed(bty, vec![])
+                } else {
+                    let pred = ty::Binders::new(ty::Pred::tt(), sorts);
+                    ty::Ty::exists(bty, pred)
+                }
             }
             core::Ty::Indexed(bty, indices) => {
                 let indices = indices

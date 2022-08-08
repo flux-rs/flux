@@ -5,7 +5,7 @@ use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
@@ -116,6 +116,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .entry(def_id)
             .or_insert_with(|| ty::AdtDef::new(def_id, self.sorts_of(def_id), is_box))
             .clone()
+    }
+
+    pub fn mk_box(&self, ty: ty::Ty, alloc: ty::Ty) -> ty::Ty {
+        let def_id = self.tcx.require_lang_item(LangItem::OwnedBox, None);
+        let adt_def = self.adt_def(def_id);
+
+        // this is harcoding that `Box` has two type parameters and
+        // it is indexed by unit. We leave this as a reminder in case
+        // that ever changes.
+        debug_assert_eq!(self.generics_of(def_id).params.len(), 2);
+        debug_assert!(adt_def.sorts().is_empty());
+
+        let bty = ty::BaseTy::adt(adt_def, vec![ty, alloc]);
+        ty::Ty::indexed(bty, vec![])
     }
 
     pub fn check_asserts(&self) -> &AssertBehavior {
@@ -259,8 +273,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
         };
-        let pred = ty::Binders::new(mk_pred(bty.sorts()), bty.sorts());
-        ty::Ty::exists(bty, pred)
+        let sorts = bty.sorts();
+        if sorts.is_empty() {
+            ty::Ty::indexed(bty, vec![])
+        } else {
+            let pred = ty::Binders::new(mk_pred(sorts), sorts);
+            ty::Ty::exists(bty, pred)
+        }
     }
 
     pub fn refine_generic_arg(

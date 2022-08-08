@@ -1,19 +1,19 @@
 pub mod paths_tree;
 
-use std::iter;
-
-use itertools::{izip, Itertools};
-
-use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_middle::ty::TyCtxt;
+use std::{iter, slice};
 
 use flux_common::index::IndexGen;
+use itertools::{izip, Itertools};
+
+use rustc_hash::FxHashSet;
+use rustc_middle::ty::TyCtxt;
+
 use flux_middle::{
     global_env::GlobalEnv,
     rustc::mir::Place,
     ty::{
-        fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, ExprKind, Index, Path,
-        RefKind, Ty, TyKind,
+        fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, Index, Path, RefKind, Ty,
+        TyKind,
     },
 };
 
@@ -24,7 +24,7 @@ use crate::{
     refine_tree::{RefineCtxt, Scope},
 };
 
-use self::paths_tree::{LookupResult, PathsTree};
+use self::paths_tree::{Binding, LookupResult, PathsTree};
 
 use super::ty::{Loc, Name, Pred, Sort};
 
@@ -39,9 +39,7 @@ pub struct TypeEnv {
 }
 
 pub struct TypeEnvInfer {
-    params: FxHashMap<Name, Sort>,
     scope: Scope,
-    name_gen: IndexGen<Name>,
     bindings: PathsTree,
 }
 
@@ -67,8 +65,8 @@ impl TypeEnv {
         self.bindings.insert(loc, Ty::uninit());
     }
 
-    pub fn into_infer(self, scope: Scope) -> TypeEnvInfer {
-        TypeEnvInfer::new(scope, self)
+    pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
+        TypeEnvInfer::new(genv, scope, self)
     }
 
     #[track_caller]
@@ -86,15 +84,20 @@ impl TypeEnv {
         match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, _) => Ty::ptr(path),
             LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
-            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
-                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&` reference or a Box")
+            LookupResult::Ref(RefKind::Shr, _) => {
+                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&`")
             }
         }
     }
 
     pub fn borrow_shr(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
-        let result = self.bindings.lookup_place(rcx, gen, place);
-        Ty::mk_ref(RefKind::Shr, result.ty())
+        match self.bindings.lookup_place(rcx, gen, place) {
+            LookupResult::Ptr(path, ty) => {
+                self.bindings.block(&path);
+                Ty::mk_ref(RefKind::Shr, ty)
+            }
+            result => Ty::mk_ref(RefKind::Shr, result.ty()),
+        }
     }
 
     pub fn write_place(
@@ -111,7 +114,7 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Mut, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            LookupResult::Ref(RefKind::Shr, _) | LookupResult::Box(_) => {
+            LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference or Box")
             }
         }
@@ -129,27 +132,44 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
-            // HACK: Strictly speaking if the environment is x: Box<T> and then you move out
-            // of *x you should end up with x: Box<uninit>. However, that's hard to implement
-            // now, it'll need some refactoring in paths tree. Instead,
-            // the code below is leaving the x: Box<T> behind which is technically wrong,
-            // but ok in practice as rustc will make sure you don't access *x again.
-            // Still we can revisit if it causes trouble!
-            LookupResult::Box(ty) => ty,
+        }
+    }
+
+    pub fn close_boxes(&mut self, genv: &GlobalEnv, scope: &Scope) {
+        let mut to_remove = vec![];
+        for path in self.bindings.paths().collect_vec() {
+            if let Binding::Owned(ty) = self.bindings.get(&path) &&
+               let TyKind::BoxPtr(loc, alloc) = ty.kind() &&
+               !scope.contains(*loc) {
+                let loc = Loc::Free(*loc);
+                to_remove.push(loc);
+                let ty = self.bindings.get(&Path::from(loc)).expect_owned();
+                self.bindings.update(&path, genv.mk_box(ty, alloc.clone()))
+            }
+        }
+        for loc in to_remove {
+            self.bindings.remove(loc);
         }
     }
 
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
-        self.bindings.fmap_mut(|ty| rcx.unpack(ty, false));
+        self.bindings.fmap_mut(|binding| {
+            match binding {
+                Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty, false)),
+                Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
+            }
+        });
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();
-        for (path, ty1) in self.bindings.iter() {
-            if bb_env.bindings.contains_loc(path.loc) {
-                let ty2 = bb_env.bindings.get(&path);
-                self.infer_subst_for_bb_env_tys(bb_env, &params, ty1, &ty2, &mut subst);
+        for (path, binding1) in self.bindings.iter() {
+            let binding2 = bb_env.bindings.get(&path);
+            if bb_env.bindings.contains_loc(path.loc)
+              && let Binding::Owned(ty1) = binding1
+              && let Binding::Owned(ty2) = binding2 {
+                self.infer_subst_for_bb_env_ty(bb_env, &params, ty1, &ty2, &mut subst);
             }
         }
 
@@ -165,7 +185,7 @@ impl TypeEnv {
         subst
     }
 
-    fn infer_subst_for_bb_env_tys(
+    fn infer_subst_for_bb_env_ty(
         &self,
         bb_env: &BasicBlockEnv,
         params: &FxHashSet<Name>,
@@ -174,26 +194,47 @@ impl TypeEnv {
         subst: &mut FVarSubst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
+            (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
+                self.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
                 for (idx1, idx2) in iter::zip(indices1, indices2) {
                     subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
                 }
             }
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 subst.infer_from_exprs(params, &path1.to_expr(), &path2.to_expr());
-                let ty1 = self.bindings.get(path1);
-                let ty2 = bb_env.bindings.get(path2);
-                self.infer_subst_for_bb_env_tys(bb_env, params, &ty1, &ty2, subst);
+                if let Binding::Owned(ty1) = self.bindings.get(path1) &&
+                   let Binding::Owned(ty2) = bb_env.bindings.get(path2) {
+                    self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, &ty2, subst);
+                }
             }
             (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
                 debug_assert_eq!(mode1, mode2);
-                self.infer_subst_for_bb_env_tys(bb_env, params, ty1, ty2, subst);
+                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
             }
             _ => {}
         }
     }
 
+    fn infer_subst_for_bb_env_bty(
+        &self,
+        bb_env: &BasicBlockEnv,
+        params: &FxHashSet<Name>,
+        bty1: &BaseTy,
+        bty2: &BaseTy,
+        subst: &mut FVarSubst,
+    ) {
+        if bty1.is_box()  &&
+           let BaseTy::Adt(_, substs1) = bty1 &&
+           let BaseTy::Adt(_, substs2) = bty2 {
+            for (ty1, ty2) in iter::zip(substs1, substs2) {
+                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+            }
+        }
+    }
+
     pub fn check_goto(mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, bb_env: &BasicBlockEnv) {
+        self.close_boxes(gen.genv, &bb_env.scope);
+
         // Look up path to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
             self.bindings.lookup_path(rcx, gen, &path);
@@ -207,33 +248,36 @@ impl TypeEnv {
             gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(*name)])));
         }
 
-        let bb_env = bb_env.bindings.fmap(|ty| subst.apply(ty));
+        let bb_env = bb_env.bindings.fmap(|binding| subst.apply(binding));
 
         // Convert pointers to borrows
-        for (path, ty2) in bb_env.iter() {
-            let ty1 = self.bindings.get(&path);
-            if let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) =
-                (ty1.kind(), ty2.kind())
+        for (path, binding2) in bb_env.iter() {
+            let binding1 = self.bindings.get(&path);
+            if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) &&
+               let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
             {
-                let ty = self.bindings.get(ptr_path);
+
+                let ty = self.bindings.get(ptr_path).expect_owned();
                 gen.subtyping(rcx, &ty, bound);
-                self.bindings.update(ptr_path, bound.clone());
-                self.bindings
-                    .update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+
+                self.bindings.update_binding(ptr_path, Binding::Blocked(bound.clone()));
+                self.bindings.update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
             }
         }
 
         // Check subtyping
-        for (path, ty2) in bb_env.iter() {
-            let ty1 = self.bindings.get(&path);
-            gen.subtyping(rcx, &ty1, ty2);
+        for (path, binding2) in bb_env.iter() {
+            let binding1 = self.bindings.get(&path);
+            let ty1 = binding1.ty();
+            let ty2 = binding2.ty();
+            gen.subtyping(rcx, ty1, ty2);
         }
     }
 }
 
 impl PathMap for TypeEnv {
     fn get(&self, path: &Path) -> Ty {
-        self.bindings.get(path)
+        self.bindings.get(path).expect_owned()
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
@@ -255,57 +299,37 @@ where
 }
 
 impl TypeEnvInfer {
-    pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
-        let mut subst = FVarSubst::empty();
-        // HACK(nilehmann) it is crucial that the order in this iteration is the same as
-        // [`TypeEnvInfer::into_bb_env`] otherwise names will be out of order in the checking phase.
-        for (name, sort) in self.params.iter() {
-            let fresh = rcx.define_var_for_binder(&Binders::new(Pred::Hole, vec![sort.clone()]));
-            subst.insert(*name, Expr::fvar(fresh));
-        }
-        TypeEnv { bindings: self.bindings.fmap(|ty| subst.apply(ty)) }
+    pub fn enter(&self) -> TypeEnv {
+        TypeEnv { bindings: self.bindings.clone() }
     }
 
-    fn new(scope: Scope, TypeEnv { mut bindings }: TypeEnv) -> TypeEnvInfer {
-        let name_gen = scope.name_gen();
-        let mut names = FxHashMap::default();
-        let mut params = FxHashMap::default();
-        bindings
-            .fmap_mut(|ty| TypeEnvInfer::pack_ty(&mut params, &scope, &mut names, &name_gen, ty));
-        TypeEnvInfer { params, name_gen, bindings, scope }
+    fn new(genv: &GlobalEnv, scope: Scope, mut env: TypeEnv) -> TypeEnvInfer {
+        env.close_boxes(genv, &scope);
+        let mut bindings = env.bindings;
+        bindings.fmap_mut(|binding| {
+            match binding {
+                Binding::Owned(ty) => Binding::Owned(TypeEnvInfer::pack_ty(&scope, ty)),
+                Binding::Blocked(ty) => Binding::Blocked(TypeEnvInfer::pack_ty(&scope, ty)),
+            }
+        });
+        TypeEnvInfer { bindings, scope }
     }
 
-    fn pack_ty(
-        params: &mut FxHashMap<Name, Sort>,
-        scope: &Scope,
-        names: &mut FxHashMap<Expr, Name>,
-        name_gen: &IndexGen<Name>,
-        ty: &Ty,
-    ) -> Ty {
+    fn pack_ty(scope: &Scope, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Indexed(bty, indices) => {
-                let indices = iter::zip(indices, bty.sorts())
-                    .map(|(idx, sort)| {
-                        let has_free_vars = !scope.contains_all(idx.fvars());
-                        if let Some(name) = names.get(&idx.expr) {
-                            Expr::fvar(*name).into()
-                        } else if has_free_vars {
-                            let fresh = name_gen.fresh();
-                            params.insert(fresh, sort.clone());
-                            names.insert(idx.expr.clone(), fresh);
-                            Expr::fvar(fresh).into()
-                        } else {
-                            idx.clone()
-                        }
-                    })
-                    .collect_vec();
-                let bty = TypeEnvInfer::pack_bty(params, scope, names, name_gen, bty);
-                Ty::indexed(bty, indices)
+            TyKind::Indexed(bty, idxs) => {
+                let bty = TypeEnvInfer::pack_bty(scope, bty);
+                if scope.has_free_vars(idxs) {
+                    let pred = Binders::new(Pred::Hole, bty.sorts());
+                    Ty::exists(bty, pred)
+                } else {
+                    Ty::indexed(bty, idxs.clone())
+                }
             }
             TyKind::Tuple(tys) => {
                 let tys = tys
                     .iter()
-                    .map(|ty| TypeEnvInfer::pack_ty(params, scope, names, name_gen, ty))
+                    .map(|ty| TypeEnvInfer::pack_ty(scope, ty))
                     .collect_vec();
                 Ty::tuple(tys)
             }
@@ -318,22 +342,15 @@ impl TypeEnvInfer {
             | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_)
-            | TyKind::Constr(_, _) => ty.clone(),
+            | TyKind::Constr(_, _)
+            | TyKind::BoxPtr(_, _) => ty.clone(),
         }
     }
 
-    fn pack_bty(
-        params: &mut FxHashMap<Name, Sort>,
-        scope: &Scope,
-        names: &mut FxHashMap<Expr, Name>,
-        name_gen: &IndexGen<Name>,
-        bty: &BaseTy,
-    ) -> BaseTy {
+    fn pack_bty(scope: &Scope, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) => {
-                let substs = substs
-                    .iter()
-                    .map(|ty| Self::pack_ty(params, scope, names, name_gen, ty));
+                let substs = substs.iter().map(|ty| Self::pack_ty(scope, ty));
                 BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
@@ -344,6 +361,8 @@ impl TypeEnvInfer {
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, mut other: TypeEnv) -> bool {
+        other.close_boxes(genv, &self.scope);
+
         // Unfold
         self.bindings.unfold_with(genv, rcx, &mut other.bindings);
 
@@ -351,95 +370,87 @@ impl TypeEnvInfer {
 
         // Convert pointers to borrows
         for path in &paths {
-            let ty1 = self.bindings.get(path);
-            let ty2 = other.bindings.get(path);
-            match (ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
-                    let ty1 = self.bindings.get(path1).with_holes();
-                    let ty2 = other.bindings.get(path2).with_holes();
+            let binding1 = self.bindings.get(path);
+            let binding2 = other.bindings.get(path);
+            if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
+                match (ty1.kind(), ty2.kind()) {
+                    (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
+                        let ty1 = self.bindings.get(path1).expect_owned().with_holes();
+                        let ty2 = other.bindings.get(path2).expect_owned().with_holes();
 
-                    self.bindings
-                        .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
-                    other
-                        .bindings
-                        .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
+                        self.bindings
+                            .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
+                        other
+                            .bindings
+                            .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
 
-                    self.bindings.update(path1, ty1);
-                    other.bindings.update(path2, ty2);
+                        self.bindings.update_binding(path1, Binding::Blocked(ty1));
+                        other.bindings.update_binding(path2, Binding::Blocked(ty2));
+                    }
+                    (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                        let bound = bound.with_holes();
+                        self.bindings
+                            .update_binding(ptr_path, Binding::Blocked(bound.clone()));
+                        self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                    }
+                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
+                        let bound = bound.with_holes();
+                        other
+                            .bindings
+                            .update_binding(ptr_path, Binding::Blocked(bound.clone()));
+                        other.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                    }
+                    _ => {}
                 }
-                (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    let bound = bound.with_holes();
-                    self.bindings.update(ptr_path, bound.clone());
-                    self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
-                }
-                (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
-                    let bound = bound.with_holes();
-                    other.bindings.update(ptr_path, bound.clone());
-                    other.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
-                }
-                _ => {}
             }
         }
 
         // Join types
         let mut modified = false;
         for path in &paths {
-            let ty1 = self.bindings.get(path);
-            let ty2 = other.bindings.get(path);
-            let ty = self.join_ty(genv, &ty1, &ty2);
-            modified |= ty1 != ty;
-            self.bindings.update(path, ty);
+            let binding1 = self.bindings.get(path);
+            let binding2 = other.bindings.get(path);
+            let binding = match (&binding1, &binding2) {
+                (Binding::Owned(ty1), Binding::Owned(ty2)) => {
+                    Binding::Owned(self.join_ty(genv, ty1, ty2))
+                }
+                (Binding::Owned(ty1), Binding::Blocked(ty2)) => {
+                    Binding::Blocked(self.join_ty(genv, ty1, ty2))
+                }
+                (Binding::Blocked(ty1), Binding::Owned(ty2)) => {
+                    Binding::Blocked(self.join_ty(genv, ty1, ty2))
+                }
+                (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
+                    Binding::Blocked(self.join_ty(genv, ty1, ty2))
+                }
+            };
+            modified |= binding1 != binding;
+            self.bindings.update_binding(path, binding);
         }
-
-        self.remove_dead_params();
 
         modified
     }
 
-    fn remove_dead_params(&mut self) {
-        let dead_names = self.dead_params();
-        for x in dead_names.iter() {
-            self.params.remove(x);
-        }
-    }
-
-    /// 'dead_params' returns the (ideally empty) subset of 'self.params' comprising
-    /// names that do not appear in types in 'env' (in a way that makes for easy solving).
-    fn dead_params(&self) -> Vec<Name> {
-        let mut used: FxHashSet<Name> = FxHashSet::default();
-        for (_, ty) in self.bindings.iter() {
-            for x in ty.fvars().iter() {
-                used.insert(*x);
-            }
-        }
-        self.params
-            .iter()
-            .filter(|(x, _)| !used.contains(x))
-            .map(|(x, _)| *x)
-            .collect()
-    }
-
-    fn join_ty(&mut self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn join_ty(&self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
                 debug_assert_eq!(path1, path2);
                 Ty::ptr(path1.clone())
             }
-            (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
+            (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
+                debug_assert_eq!(loc1, loc2);
+                debug_assert_eq!(alloc1, alloc2);
+                Ty::box_ptr(*loc1, alloc1.clone())
+            }
+            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(genv, bty1, bty2);
-                let exprs = izip!(indices1, indices2, bty.sorts())
-                    .map(|(Index { expr: e1, .. }, Index { expr: e2, .. }, sort)| {
-                        let e2_has_free_vars = !self.scope.contains_all(e2.fvars());
-                        if !self.is_packed_expr(e1) && (e2_has_free_vars || e1 != e2) {
-                            Expr::fvar(self.fresh(sort))
-                        } else {
-                            e1.clone()
-                        }
-                        .into()
-                    })
-                    .collect_vec();
-                Ty::indexed(bty, exprs)
+                if self.scope.has_free_vars(idxs2) || !Index::exprs_eq(idxs1, idxs2) {
+                    let pred = Binders::new(Pred::Hole, bty.sorts());
+                    Ty::exists(bty, pred)
+                } else {
+                    Ty::indexed(bty, idxs1.clone())
+                }
             }
             (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
@@ -470,7 +481,7 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_bty(&mut self, genv: &GlobalEnv, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
+    fn join_bty(&self, genv: &GlobalEnv, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
             debug_assert_eq!(def1.def_id(), def2.def_id());
             let variances = genv.variances_of(def1.def_id());
@@ -485,39 +496,89 @@ impl TypeEnvInfer {
         }
     }
 
-    fn fresh(&mut self, sort: &Sort) -> Name {
-        let fresh = self.name_gen.fresh();
-        self.params.insert(fresh, sort.clone());
-        fresh
-    }
-
     pub fn into_bb_env(self, kvar_gen: &mut impl KVarGen) -> BasicBlockEnv {
         let mut kvar_gen = kvar_gen.chaining(&self.scope);
 
         let mut params = vec![];
-        let mut constrs = vec![];
-        // HACK(nilehmann) it is crucial that the order in this iteration is the same as
-        // [`TypeEnvInfer::enter`] otherwise names will be out of order in the checking phase.
-        for (name, sort) in self.params {
-            if sort.is_loc() {
-                constrs.push(Binders::new(Pred::tt(), vec![sort.clone()]))
-            } else {
-                let kvar = kvar_gen.fresh(&[sort.clone()], params.iter().cloned());
-                constrs.push(Binders::new(kvar, vec![sort.clone()]));
-            }
-            params.push((name, sort));
-        }
-
-        let fresh_kvar = &mut |sorts: &[Sort]| kvar_gen.fresh(sorts, params.iter().cloned());
-
+        let mut preds = vec![];
         let mut bindings = self.bindings;
-        bindings.fmap_mut(|ty| ty.replace_holes(fresh_kvar));
+
+        let name_gen = self.scope.name_gen();
+        bindings.fmap_mut(|binding| {
+            match binding {
+                Binding::Owned(ty) => {
+                    let ty = generalize(&name_gen, ty, &mut params, &mut preds);
+                    Binding::Owned(ty)
+                }
+                Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
+            }
+        });
+
+        let mut scope = vec![];
+        let constrs = iter::zip(&params, preds)
+            .map(|((name, sort), pred)| {
+                let constr = if let Pred::Hole = pred {
+                    kvar_gen.fresh(slice::from_ref(sort), scope.iter().cloned())
+                } else {
+                    pred
+                };
+                scope.push((*name, sort.clone()));
+                Binders::new(constr, vec![sort.clone()])
+            })
+            .collect_vec();
+
+        let fresh_kvar = &mut |sorts: &[Sort]| kvar_gen.fresh(sorts, scope.iter().cloned());
+
+        bindings.fmap_mut(|binding| binding.replace_holes(fresh_kvar));
 
         BasicBlockEnv { params, constrs, bindings, scope: self.scope }
     }
+}
 
-    fn is_packed_expr(&self, expr: &Expr) -> bool {
-        matches!(expr.kind(), ExprKind::FreeVar(name) if self.params.contains_key(name))
+/// This is effectively doing the same than [`RefineCtxt::unpack`] but for moving existentials
+/// to the top level in a [`BasicBlockEnv`]. Given the way we currently handle kvars it is tricky
+/// to abstract over this in a way that can be used in both places.
+fn generalize(
+    name_gen: &IndexGen<Name>,
+    ty: &Ty,
+    params: &mut Vec<(Name, Sort)>,
+    preds: &mut Vec<Pred>,
+) -> Ty {
+    match ty.kind() {
+        TyKind::Indexed(bty, idxs) => {
+            let bty = generalize_bty(name_gen, bty, params, preds);
+            Ty::indexed(bty, idxs.clone())
+        }
+        TyKind::Exists(bty, pred) => {
+            let bty = generalize_bty(name_gen, bty, params, preds);
+            let mut idxs = vec![];
+            for (name, sort, pred) in pred.split_with_fresh_fvars(name_gen) {
+                params.push((name, sort));
+                preds.push(pred);
+                idxs.push(Expr::fvar(name).into())
+            }
+            Ty::indexed(bty, idxs)
+        }
+        TyKind::Ref(RefKind::Shr, ty) => {
+            let ty = generalize(name_gen, ty, params, preds);
+            Ty::mk_ref(RefKind::Shr, ty)
+        }
+        _ => ty.clone(),
+    }
+}
+
+fn generalize_bty(
+    name_gen: &IndexGen<Name>,
+    bty: &BaseTy,
+    params: &mut Vec<(Name, Sort)>,
+    preds: &mut Vec<Pred>,
+) -> BaseTy {
+    match bty {
+        BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+            let ty = generalize(name_gen, &substs[0], params, preds);
+            BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
+        }
+        _ => bty.clone(),
     }
 }
 
@@ -528,7 +589,7 @@ impl BasicBlockEnv {
             let fresh = rcx.define_var_for_binder(&subst.apply(constr));
             subst.insert(*name, Expr::fvar(fresh));
         }
-        let bindings = self.bindings.fmap(|ty| subst.apply(ty));
+        let bindings = self.bindings.fmap(|binding| subst.apply(binding));
         TypeEnv { bindings }
     }
 
@@ -557,14 +618,7 @@ mod pretty {
     impl Pretty for TypeEnvInfer {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!(
-                "{:?} ∃ {}. {:?}",
-                &self.scope,
-                ^self.params
-                    .iter()
-                    .format_with(", ", |(name, sort), f| f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))),
-                &self.bindings
-            )
+            w!("[{:?}] {:?}", &self.scope, &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
@@ -576,15 +630,14 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
-                "∃ {}. {:?}",
-                ^self.params
-                    .iter()
-                    .zip(&self.constrs)
+                "{:?} ∃ {}. {:?}",
+                &self.scope,
+                ^iter::zip(&self.params, &self.constrs)
                     .format_with(", ", |((name, sort), constr), f| {
                         if constr.is_true() {
                             f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))
                         } else {
-                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, ^sort, constr.skip_binders()))
+                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, ^sort, constr))
                         }
                     }),
                 &self.bindings

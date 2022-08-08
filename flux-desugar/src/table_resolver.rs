@@ -1,16 +1,17 @@
 use flux_common::iter::IterExt;
+use flux_errors::FluxSession;
+use flux_middle::global_env::GlobalEnv;
 use hir::{def::DefKind, def_id::DefId, Item, ItemId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
-use rustc_session::Session;
 use rustc_span::Symbol;
 
 use flux_syntax::surface::{self, Ident, Path, Res, Ty};
 
-pub struct Resolver<'tcx> {
-    sess: &'tcx Session,
+pub struct Resolver<'a> {
+    sess: &'a FluxSession,
     table: NameResTable,
 }
 
@@ -19,51 +20,51 @@ struct NameResTable {
     generics: FxHashMap<DefId, ParamTy>,
 }
 
-impl<'tcx> Resolver<'tcx> {
+impl<'genv> Resolver<'genv> {
     #[allow(dead_code)]
 
     pub fn from_fn(
-        tcx: TyCtxt<'tcx>,
+        genv: &GlobalEnv<'genv, '_>,
         def_id: LocalDefId,
-    ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
-        let mut table = init_table(tcx, def_id)?;
+    ) -> Result<Self, ErrorGuaranteed> {
+        let mut table = init_table(genv, def_id)?;
 
-        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-        table.collect_from_fn_sig(tcx.sess, tcx.hir().fn_sig_by_hir_id(hir_id).unwrap())?;
+        let hir_id = genv.tcx.hir().local_def_id_to_hir_id(def_id);
+        table.collect_from_fn_sig(genv.sess, genv.tcx.hir().fn_sig_by_hir_id(hir_id).unwrap())?;
 
-        Ok(Resolver { sess: tcx.sess, table })
+        Ok(Self { sess: genv.sess, table })
     }
 
     pub fn from_adt(
-        tcx: TyCtxt<'tcx>,
+        genv: &GlobalEnv<'genv, '_>,
         def_id: LocalDefId,
-    ) -> Result<Resolver<'tcx>, ErrorGuaranteed> {
-        let item = tcx.hir().expect_item(def_id);
+    ) -> Result<Self, ErrorGuaranteed> {
+        let item = genv.tcx.hir().expect_item(def_id);
 
         match &item.kind {
             ItemKind::Struct(data, generics) => {
                 let mut table = NameResTable::new();
-                table.insert_generics(tcx, generics);
+                table.insert_generics(genv.tcx, generics);
 
                 for field in data.fields() {
-                    table.collect_from_ty(tcx.sess, field.ty)?;
+                    table.collect_from_ty(genv.sess, field.ty)?;
                 }
 
-                Ok(Resolver { sess: tcx.sess, table })
+                Ok(Resolver { sess: genv.sess, table })
             }
             ItemKind::Enum(enum_def, generics) => {
                 let mut table = NameResTable::new();
-                table.insert_generics(tcx, generics);
+                table.insert_generics(genv.tcx, generics);
 
                 let res = rustc_hir::def::Res::Def(DefKind::Enum, def_id.to_def_id());
                 table.collect_from_item(item, res);
 
                 for variant in enum_def.variants {
                     for field in variant.data.fields() {
-                        table.collect_from_ty(tcx.sess, field.ty)?;
+                        table.collect_from_ty(genv.sess, field.ty)?;
                     }
                 }
-                Ok(Resolver { sess: tcx.sess, table })
+                Ok(Resolver { sess: genv.sess, table })
             }
             _ => panic!("expected a struct or enum"),
         }
@@ -241,19 +242,19 @@ impl<'tcx> Resolver<'tcx> {
     }
 }
 
-fn init_table(tcx: TyCtxt, def_id: LocalDefId) -> Result<NameResTable, ErrorGuaranteed> {
+fn init_table(genv: &GlobalEnv, def_id: LocalDefId) -> Result<NameResTable, ErrorGuaranteed> {
     let mut table = NameResTable::new();
-    if let Some(impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
+    if let Some(impl_did) = genv.tcx.impl_of_method(def_id.to_def_id()) {
         let item_id = ItemId { def_id: impl_did.expect_local() };
-        let item = tcx.hir().item(item_id);
+        let item = genv.tcx.hir().item(item_id);
         if let ItemKind::Impl(parent) = &item.kind {
-            table.collect_from_ty(tcx.sess, parent.self_ty)?;
-            table.insert_generics(tcx, parent.generics);
+            table.collect_from_ty(genv.sess, parent.self_ty)?;
+            table.insert_generics(genv.tcx, parent.generics);
         }
     }
 
-    if let Some(generics) = tcx.hir().get_generics(def_id) {
-        table.insert_generics(tcx, generics);
+    if let Some(generics) = genv.tcx.hir().get_generics(def_id) {
+        table.insert_generics(genv.tcx, generics);
     }
     Ok(table)
 }
@@ -287,7 +288,7 @@ impl NameResTable {
 
     fn collect_from_fn_sig(
         &mut self,
-        sess: &Session,
+        sess: &FluxSession,
         fn_sig: &hir::FnSig,
     ) -> Result<(), ErrorGuaranteed> {
         fn_sig
@@ -315,7 +316,7 @@ impl NameResTable {
         self.res.insert(item.ident.name, res);
     }
 
-    fn collect_from_ty(&mut self, sess: &Session, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
+    fn collect_from_ty(&mut self, sess: &FluxSession, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(sess, ty),
             hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
@@ -361,7 +362,7 @@ impl NameResTable {
 
     fn collect_from_generic_arg(
         &mut self,
-        sess: &Session,
+        sess: &FluxSession,
         arg: &hir::GenericArg,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
@@ -402,7 +403,6 @@ mod errors {
     #[error(resolver::unresolved_path, code = "FLUX")]
     pub struct UnresolvedPath {
         #[primary_span]
-        #[label]
         pub span: Span,
         pub path: Ident,
     }

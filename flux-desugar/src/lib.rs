@@ -16,7 +16,7 @@ mod zip_resolver;
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{self, AdtSortsMap},
-    global_env::ConstInfo,
+    global_env::{ConstInfo, GlobalEnv},
     rustc,
 };
 use flux_syntax::surface;
@@ -28,14 +28,12 @@ pub use desugar::{desugar_qualifier, resolve_sorts};
 use rustc_span::Span;
 
 pub fn desugar_struct_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    consts: &[ConstInfo],
+    genv: &GlobalEnv,
     struct_def: surface::StructDef,
 ) -> Result<core::StructDef, ErrorGuaranteed> {
-    let mut resolver = table_resolver::Resolver::from_adt(tcx, struct_def.def_id)?;
+    let mut resolver = table_resolver::Resolver::from_adt(genv, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(sess, consts, struct_def)
+    desugar::desugar_struct_def(genv.sess, &genv.consts, struct_def)
 }
 
 pub fn desugar_enum_def(
