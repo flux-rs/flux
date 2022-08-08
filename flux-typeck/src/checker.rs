@@ -38,7 +38,7 @@ use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
     fixpoint::KVarStore,
-    refine_tree::{RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{RefineCtxt, RefineTree, Scope, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
@@ -150,13 +150,13 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         kvars: &mut KVarStore,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
     ) -> Result<RefineTree, ErrorGuaranteed> {
-        dbg::check_span!(genv.tcx, def_id, bb_envs_infer).in_scope(|| {
-            let mut refine_tree = RefineTree::new();
+        let bb_envs = bb_envs_infer
+            .into_iter()
+            .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(kvars)))
+            .collect();
 
-            let bb_envs = bb_envs_infer
-                .into_iter()
-                .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(kvars)))
-                .collect();
+        dbg::check_span!(genv.tcx, def_id, bb_envs).in_scope(|| {
+            let mut refine_tree = RefineTree::new();
 
             Checker::run(genv, &mut refine_tree, body, def_id, Check { bb_envs, kvars })?;
 
@@ -406,6 +406,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
+        // HACK(nilehman) more generally we should close boxes whenever moving them
+        env.close_boxes(self.genv, &Scope::empty());
+
         let tag = match src_info {
             Some(info) => Tag::RetAt(info.span),
             None => Tag::Ret,
@@ -895,8 +898,8 @@ impl Phase for Inference<'_> {
         ConstrGen::new(genv, |_| Pred::Hole, tag)
     }
 
-    fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].enter(rcx)
+    fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
+        self.bb_envs[&bb].enter()
     }
 
     fn check_goto_join_point(
@@ -913,7 +916,7 @@ impl Phase for Inference<'_> {
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut rcx, env),
             Entry::Vacant(entry) => {
-                entry.insert(env.into_infer(scope));
+                entry.insert(env.into_infer(ck.genv, scope));
                 true
             }
         };

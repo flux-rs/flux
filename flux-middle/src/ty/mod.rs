@@ -2,8 +2,9 @@ pub mod fold;
 pub mod lowering;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, sync::OnceLock};
+use std::{borrow::Cow, fmt, iter, sync::OnceLock};
 
+use flux_common::index::IndexGen;
 use itertools::Itertools;
 
 pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
@@ -82,6 +83,13 @@ pub enum TyKind {
     Float(FloatTy),
     Uninit,
     Ptr(Path),
+    /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
+    /// with two major differences:
+    /// 1. An open box can only point to a fresh location and not an arbitrary [`Path`], so we just
+    ///    store a [`Name`].
+    /// 2. We keep around the allocator to be able to put the box back together (you could say that
+    ///    the capability to deallocate the memory stays with the pointer).
+    BoxPtr(Name, Ty),
     Ref(RefKind, Ty),
     Constr(Expr, Ty),
     Param(ParamTy),
@@ -98,6 +106,10 @@ pub enum TyKind {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Index {
     pub expr: Expr,
+    /// Whether the index was annotated as a binder in the surface. This is used as a hint for inferring
+    /// parameters at call sites. This is very hacky and we should have a different way to preserve this
+    /// information. The problem is that the extra field is preserved through substitutions and other
+    /// manipulations of types which makes it problematic to test for index equality.
     pub is_binder: bool,
 }
 
@@ -216,6 +228,40 @@ where
     }
 }
 
+impl Binders<Pred> {
+    pub fn split_with_fresh_fvars(&self, name_gen: &IndexGen<Name>) -> Vec<(Name, Sort, Pred)> {
+        let names = iter::repeat_with(|| name_gen.fresh())
+            .take(self.params.len())
+            .collect_vec();
+        let exprs = names.iter().copied().map(Expr::fvar).collect_vec();
+        match self.replace_bound_vars(&exprs) {
+            Pred::Hole => {
+                iter::zip(names, &self.params)
+                    .map(|(name, sort)| (name, sort.clone(), Pred::Hole))
+                    .collect()
+            }
+            Pred::Kvars(kvars) => {
+                debug_assert_eq!(kvars.len(), self.params.len());
+                itertools::izip!(names, &self.params, &kvars)
+                    .map(|(name, sort, kvar)| (name, sort.clone(), Pred::kvars(vec![kvar.clone()])))
+                    .collect()
+            }
+            Pred::Expr(e) => {
+                itertools::izip!(names, &self.params)
+                    .enumerate()
+                    .map(|(idx, (name, sort))| {
+                        if idx < self.params.len() - 1 {
+                            (name, sort.clone(), Pred::tt())
+                        } else {
+                            (name, sort.clone(), Pred::Expr(e.clone()))
+                        }
+                    })
+                    .collect()
+            }
+        }
+    }
+}
+
 impl FnSig {
     pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
     where
@@ -276,6 +322,10 @@ impl Ty {
         TyKind::Ptr(path.into()).intern()
     }
 
+    pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
+        TyKind::BoxPtr(loc, alloc).intern()
+    }
+
     pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
         TyKind::Ref(mode, ty).intern()
     }
@@ -301,6 +351,7 @@ impl Ty {
             _ => None,
         }
     }
+
     pub fn uninit() -> Ty {
         TyKind::Uninit.intern()
     }
@@ -385,6 +436,19 @@ impl List<Index> {
 }
 
 impl Index {
+    pub fn exprs_eq(idxs1: &[Index], idxs2: &[Index]) -> bool {
+        if idxs1.len() != idxs2.len() {
+            return false;
+        }
+
+        for (idx1, idx2) in iter::zip(idxs1, idxs2) {
+            if idx1.expr != idx2.expr {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn to_expr(&self) -> Expr {
         self.expr.clone()
     }
@@ -618,6 +682,13 @@ impl ExprS {
             ExprKind::FreeVar(name) => Some(Loc::Free(*name)),
             ExprKind::Local(local) => Some(Loc::Local(*local)),
             ExprKind::BoundVar(bvar) => Some(Loc::Bound(*bvar)),
+            _ => None,
+        }
+    }
+
+    pub fn to_name(&self) -> Option<Name> {
+        match self.kind() {
+            ExprKind::FreeVar(name) => Some(*name),
             _ => None,
         }
     }
@@ -922,6 +993,7 @@ mod pretty {
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(loc) => w!("ptr({:?})", loc),
+                TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),

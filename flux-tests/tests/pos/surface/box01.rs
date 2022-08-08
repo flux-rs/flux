@@ -31,3 +31,11 @@ pub fn inc_test(n: i32) -> i32 {
     let b1 = inc_box(b0);
     *b1
 }
+
+// update through a box
+#[flux::sig(fn() -> i32[2])]
+pub fn update() -> i32 {
+    let mut x = Box::new(1);
+    *x += 1;
+    *x
+}
