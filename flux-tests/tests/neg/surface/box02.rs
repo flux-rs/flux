@@ -1,14 +1,6 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn() -> i32[1])]
-pub fn update() -> i32 {
-    let mut x = Box::new(1);
-    // update through box
-    *x += 1;
-    *x //~ ERROR postcondition
-}
-
 #[flux::sig(fn() -> Box<i32[1]>)]
 pub fn close_at_return() -> Box<i32> {
     let mut x = Box::new(1);
@@ -29,8 +21,8 @@ pub fn close_at_join(b: bool) -> Box<i32> {
     x //~ ERROR postcondition
 }
 
-#[flux::sig(fn(bool) -> Box<i32{v : v > 3}>)]
-pub fn foo(b: bool) -> Box<i32> {
+#[flux::sig(fn(bool) -> i32{v : v > 3})]
+pub fn no_close_join(b: bool) -> i32 {
     let mut x = Box::new(1);
     *x += 1;
     if b {
@@ -38,6 +30,7 @@ pub fn foo(b: bool) -> Box<i32> {
     } else {
         *x += 2;
     }
-    // check if we handle the case where the box was open before branching
-    x //~ ERROR postcondition
+    // check if we handle the case where the box was open before
+    // branching and stays open.
+    *x //~ ERROR postcondition
 }
