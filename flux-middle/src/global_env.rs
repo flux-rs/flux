@@ -268,8 +268,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
         };
-        let pred = ty::Binders::new(mk_pred(bty.sorts()), bty.sorts());
-        ty::Ty::exists(bty, pred)
+        let sorts = bty.sorts();
+        if sorts.is_empty() {
+            ty::Ty::indexed(bty, vec![])
+        } else {
+            let pred = ty::Binders::new(mk_pred(sorts), sorts);
+            ty::Ty::exists(bty, pred)
+        }
     }
 
     pub fn refine_generic_arg(
