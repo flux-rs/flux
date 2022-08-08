@@ -170,6 +170,10 @@ impl RefineCtxt<'_> {
 
     pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
         match ty.kind() {
+            TyKind::Indexed(bty, idxs) => {
+                let bty = self.unpack_bty(bty, unpack_mut_refs);
+                Ty::indexed(bty, idxs.clone())
+            }
             TyKind::Exists(bty, pred) => {
                 let idxs = self
                     .define_vars_for_binders(pred)
@@ -224,6 +228,10 @@ impl Snapshot {
 }
 
 impl Scope {
+    pub fn empty() -> Scope {
+        Scope { bindings: IndexVec::new() }
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()

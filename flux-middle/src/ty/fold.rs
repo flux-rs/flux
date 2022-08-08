@@ -226,6 +226,15 @@ impl TypeFoldable for Ty {
                         .expect("folding produced an invalid path"),
                 )
             }
+            TyKind::BoxPtr(loc, alloc) => {
+                Ty::box_ptr(
+                    Expr::fvar(*loc)
+                        .fold_with(folder)
+                        .to_name()
+                        .expect("folding produced an invalid name"),
+                    alloc.fold_with(folder),
+                )
+            }
             TyKind::Ref(rk, ty) => Ty::mk_ref(*rk, ty.fold_with(folder)),
             TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
             TyKind::Float(_)
@@ -249,6 +258,10 @@ impl TypeFoldable for Ty {
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             TyKind::Ref(_, ty) => ty.visit_with(visitor),
             TyKind::Ptr(path) => path.to_expr().visit_with(visitor),
+            TyKind::BoxPtr(loc, ty) => {
+                Expr::fvar(*loc).visit_with(visitor);
+                ty.visit_with(visitor);
+            }
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor);
                 ty.visit_with(visitor)
