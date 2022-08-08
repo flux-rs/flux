@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 use crate::core;
 
-use super::Binders;
+use super::{Binders, PolyVariant};
 
 pub struct LoweringCtxt<'a, 'genv, 'tcx> {
     genv: &'a GlobalEnv<'genv, 'tcx>,
@@ -92,6 +92,31 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         let ret = cx.lower_ty(&fn_sig.ret, 1);
 
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
+    }
+
+    pub(crate) fn lower_enum_def(
+        genv: &mut GlobalEnv,
+        enum_def: core::EnumDef,
+    ) -> Option<Vec<PolyVariant>> {
+        let mut cx = LoweringCtxt::new(genv);
+        let variants = enum_def
+            .variants
+            .into_iter()
+            .map(|variant| cx.lower_variant(variant))
+            .collect();
+        Some(variants)
+    }
+
+    fn lower_variant(&mut self, variant: core::VariantDef) -> PolyVariant {
+        let sorts = self.lower_params(&variant.params);
+        let fields = variant
+            .fields
+            .iter()
+            .map(|ty| self.lower_ty(ty, 1))
+            .collect_vec();
+        let ret = self.lower_ty(&variant.ret, 1);
+        let variant = ty::VariantDef::new(fields, ret);
+        Binders::new(variant, sorts)
     }
 
     pub(crate) fn lower_struct_def(

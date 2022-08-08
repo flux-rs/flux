@@ -199,9 +199,7 @@ impl<'genv> Resolver<'genv> {
         let res = if let Some(res) = self.table.get(ident.name) {
             *res
         } else {
-            let span = ident.span;
-            panic!("errors::UnresolvedPath({ident:?} at {span:?}")
-            // FIXME: return Err(self.sess.emit_err(errors::UnresolvedPath::new(ident)));
+            return Err(self.sess.emit_err(errors::UnresolvedPath::new(ident)));
         };
 
         match res {

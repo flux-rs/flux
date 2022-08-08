@@ -78,7 +78,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
         let variants = ty::lowering::LoweringCtxt::lower_struct_def(self, &struct_def)
-            .map(|variant_def| vec![variant_def]);
+            .map(|poly_variant| vec![poly_variant]);
         self.adt_variants.get_mut().insert(def_id, variants);
 
         let sorts = self.sorts_of(def_id);
@@ -90,6 +90,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
         // TODO(enums); // lower_enum_def [with param shenanigans]
+        let variants = ty::lowering::LoweringCtxt::lower_enum_def(self, enum_def);
+        self.adt_variants.get_mut().insert(def_id, variants);
+
         let sorts = self.sorts_of(def_id);
         let is_box = self.is_box_adt(def_id);
         self.adt_defs
@@ -219,7 +222,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .fields
             .iter()
             .map(|field| self.default_type_of(field.did))
-            .collect();
+            .collect_vec();
         let ret = self.default_type_of(adt_def_id);
 
         Binders::new(ty::VariantDef::new(fields, ret), vec![])
