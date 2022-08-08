@@ -37,15 +37,13 @@ pub fn desugar_struct_def(
 }
 
 pub fn desugar_enum_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    consts: &[ConstInfo],
-    sorts: &impl AdtSortsMap,
+    genv: &GlobalEnv,
+    adt_sorts: &impl AdtSortsMap,
     enum_def: surface::EnumDef,
 ) -> Result<core::EnumDef, ErrorGuaranteed> {
-    let mut resolver = table_resolver::Resolver::from_adt(tcx, enum_def.def_id)?;
+    let mut resolver = table_resolver::Resolver::from_adt(genv, enum_def.def_id)?;
     let enum_def = resolver.resolve_enum_def(enum_def)?;
-    desugar::desugar_enum_def(sess, consts, sorts, enum_def)
+    desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
 }
 
 // TODO(RJ): This is not used but perhaps *could* used to generate default
