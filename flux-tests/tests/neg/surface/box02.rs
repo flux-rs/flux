@@ -1,6 +1,15 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
+#[flux::sig(fn() -> Vec<i32{v: v >  0}>)]
+pub fn move_out_of_box() -> Vec<i32> {
+    let mut vec = Vec::new();
+    vec.push(0);
+    vec.push(1);
+    // move out box
+    *Box::new(vec)
+} //~ ERROR postcondition
+
 #[flux::sig(fn() -> Box<i32[1]>)]
 pub fn close_at_return() -> Box<i32> {
     let mut x = Box::new(1);
