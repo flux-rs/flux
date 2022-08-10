@@ -102,12 +102,16 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         enum_def: core::EnumDef,
     ) -> Option<Vec<PolyVariant>> {
         let mut cx = LoweringCtxt::new(genv);
-        let variants = enum_def
+        let variants: Vec<PolyVariant> = enum_def
             .variants
             .into_iter()
             .map(|variant| cx.lower_variant(variant))
             .collect();
-        Some(variants)
+        if variants.is_empty() {
+            None
+        } else {
+            Some(variants)
+        }
     }
 
     fn lower_variant(&mut self, variant: core::VariantDef) -> PolyVariant {

@@ -80,9 +80,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
-        let variants = ty::lowering::LoweringCtxt::lower_enum_def(self, enum_def);
-        println!("TRACE: register_enum_def {variants:?}");
-        self.adt_variants.get_mut().insert(def_id, variants);
+        if let Some(variants) = ty::lowering::LoweringCtxt::lower_enum_def(self, enum_def) {
+            // println!("TRACE: register_enum_def {def_id:?} {variants:?}");
+            self.adt_variants.get_mut().insert(def_id, Some(variants));
+        }
 
         let sorts = self.sorts_of(def_id);
         self.adt_defs
@@ -155,7 +156,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         // TODO: self.variant(def_id, variant_idx).replace_bound_vars(exprs).replace_generic_types(substs).skip_binders().fields
         let variant = self.variant(def_id, variant_idx);
 
-        println!("TRACE: downcast {variant:?}");
+        // println!("TRACE: downcast {variant:?}");
 
         variant
             .skip_binders()
@@ -169,14 +170,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
+        let def_id_variants = self.tcx.adt_def(def_id).variants();
+        // println!("TRACE: variant: {def_id:?} at {variant_idx:?} {def_id_variants:?}");
+
         self.adt_variants
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
                 Some(
-                    self.tcx
-                        .adt_def(def_id)
-                        .variants()
+                    def_id_variants
                         .iter()
                         .map(|variant_def| self.default_variant_def(def_id, variant_def))
                         .collect(),

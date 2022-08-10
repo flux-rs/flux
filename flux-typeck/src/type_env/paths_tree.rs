@@ -203,7 +203,7 @@ impl PathsTree {
         use PlaceElem::*;
         let mut ty = ty.clone();
         while let Some(elem) = proj.next() {
-            println!("TRACE: lookup_place_iter_ty {elem:?}, {ty:?}");
+            // println!("TRACE: lookup_place_iter_ty {elem:?}, {ty:?}");
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(*rk2);
