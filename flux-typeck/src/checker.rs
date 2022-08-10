@@ -379,7 +379,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let mut gen = self.phase.constr_gen(self.genv, rcx, Tag::Ret);
+                let mut gen =
+                    self.phase
+                        .constr_gen(self.genv, rcx, Tag::Fold(terminator.source_info.span));
                 let _ = env.move_place(rcx, &mut gen, place);
                 Ok(vec![(*target, Guard::None)])
             }
