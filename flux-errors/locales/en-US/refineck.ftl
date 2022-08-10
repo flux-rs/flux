@@ -24,3 +24,6 @@ refineck-param-inference-error =
 
 refineck-fold-error =
     fold error
+
+refineck-unknown-error =
+    unknown error

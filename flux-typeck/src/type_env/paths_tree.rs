@@ -125,10 +125,10 @@ impl PathsTree {
         self.iter().map(|(path, _)| path)
     }
 
-    pub fn unfold_with(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, other: &mut PathsTree) {
+    pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get_mut(loc) {
-                node1.unfold_with(genv, rcx, node2);
+                node1.join_with(gen, rcx, node2);
             }
         }
     }
@@ -294,25 +294,43 @@ impl Node {
         }
     }
 
-    fn unfold_with(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, other: &mut Node) {
+    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
         match (&mut *self, &mut *other) {
-            (Node::Leaf(_), Node::Leaf(_)) => {}
-            (Node::Leaf(_), Node::Internal(..)) => {
-                self.uninit();
-                self.split(genv, rcx);
-                self.unfold_with(genv, rcx, other);
-            }
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.uninit();
-                other.split(genv, rcx);
-                self.unfold_with(genv, rcx, other);
+                other.join_with(gen, rcx, self);
             }
-            (Node::Internal(_, children1), Node::Internal(_, children2)) => {
+            (Node::Leaf(_), Node::Leaf(_)) => {}
+            (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
+                other.fold(rcx, gen, false);
+            }
+            (Node::Leaf(_), Node::Internal(..)) => {
+                self.split(gen.genv, rcx);
+                self.join_with(gen, rcx, other);
+            }
+            (
+                Node::Internal(NodeKind::Adt(_, variant1, _), children1),
+                Node::Internal(NodeKind::Adt(_, variant2, _), children2),
+            ) => {
+                if variant1 == variant2 {
+                    for (node1, node2) in iter::zip(children1, children2) {
+                        node1.join_with(gen, rcx, node2);
+                    }
+                } else {
+                    self.fold(rcx, gen, false);
+                    other.fold(rcx, gen, false);
+                }
+            }
+            (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
                 let max = usize::max(children1.len(), children2.len());
-                children1.resize(max, Node::owned(Ty::uninit()));
-                children2.resize(max, Node::owned(Ty::uninit()));
+                if let NodeKind::Uninit = kind1 {
+                    children1.resize(max, Node::owned(Ty::uninit()));
+                }
+                if let NodeKind::Uninit = kind2 {
+                    children1.resize(max, Node::owned(Ty::uninit()));
+                }
+
                 for (node1, node2) in iter::zip(children1, children2) {
-                    node1.unfold_with(genv, rcx, node2);
+                    node1.join_with(gen, rcx, node2);
                 }
             }
         };
@@ -323,9 +341,11 @@ impl Node {
             self.split(genv, rcx);
         }
         match self {
-            Node::Internal(NodeKind::Adt(..) | NodeKind::Uninit, children) => {
-                let max = usize::max(field.as_usize() + 1, children.len());
-                children.resize(max, Node::owned(Ty::uninit()));
+            Node::Internal(kind, children) => {
+                if let NodeKind::Uninit = kind {
+                    let max = usize::max(field.as_usize() + 1, children.len());
+                    children.resize(max, Node::owned(Ty::uninit()));
+                }
                 &mut children[field.as_usize()]
             }
             _ => unreachable!(),
@@ -370,10 +390,6 @@ impl Node {
             TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
             _ => panic!("type cannot be split: `{ty:?}`"),
         }
-    }
-
-    fn uninit(&mut self) {
-        *self = Node::owned(Ty::uninit());
     }
 
     // NOTE(nilehmann) The extra `unblock` parameter is there on purpose to force future clients of

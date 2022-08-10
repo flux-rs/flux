@@ -317,6 +317,10 @@ impl AdtDef {
     pub fn is_box(&self) -> bool {
         self.flags().contains(AdtFlags::IS_BOX)
     }
+
+    pub fn is_enum(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_ENUM)
+    }
 }
 
 impl VariantDef {

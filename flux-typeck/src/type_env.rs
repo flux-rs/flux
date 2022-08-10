@@ -360,11 +360,11 @@ impl TypeEnvInfer {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub fn join(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, mut other: TypeEnv) -> bool {
-        other.close_boxes(genv, &self.scope);
+    pub fn join(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, mut other: TypeEnv) -> bool {
+        other.close_boxes(gen.genv, &self.scope);
 
         // Unfold
-        self.bindings.unfold_with(genv, rcx, &mut other.bindings);
+        self.bindings.join_with(rcx, gen, &mut other.bindings);
 
         let paths = self.bindings.paths().collect_vec();
 
@@ -412,16 +412,16 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             let binding = match (&binding1, &binding2) {
                 (Binding::Owned(ty1), Binding::Owned(ty2)) => {
-                    Binding::Owned(self.join_ty(genv, ty1, ty2))
+                    Binding::Owned(self.join_ty(gen.genv, ty1, ty2))
                 }
                 (Binding::Owned(ty1), Binding::Blocked(ty2)) => {
-                    Binding::Blocked(self.join_ty(genv, ty1, ty2))
+                    Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
                 }
                 (Binding::Blocked(ty1), Binding::Owned(ty2)) => {
-                    Binding::Blocked(self.join_ty(genv, ty1, ty2))
+                    Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
                 }
                 (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
-                    Binding::Blocked(self.join_ty(genv, ty1, ty2))
+                    Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
                 }
             };
             modified |= binding1 != binding;
@@ -618,7 +618,7 @@ mod pretty {
     impl Pretty for TypeEnvInfer {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("[{:?}] {:?}", &self.scope, &self.bindings)
+            w!("{:?} {:?}", &self.scope, &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {

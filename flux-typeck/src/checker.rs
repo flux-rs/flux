@@ -914,7 +914,10 @@ impl Phase for Inference<'_> {
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
         let modified = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(ck.genv, &mut rcx, env),
+            Entry::Occupied(mut entry) => {
+                let mut gen = ConstrGen::new(ck.genv, |_| Pred::Hole, Tag::Other);
+                entry.get_mut().join(&mut rcx, &mut gen, env)
+            }
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(ck.genv, scope));
                 true
