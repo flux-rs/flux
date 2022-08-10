@@ -42,7 +42,7 @@ pub enum Tag {
     Div(Span),
     Rem(Span),
     Goto(Option<Span>, BasicBlock),
-    Other,
+    Unknown,
 }
 
 impl Tag {
@@ -309,7 +309,7 @@ mod pretty {
                 }
                 Tag::Assert(msg, span) => w!("Assert(\"{}\", {:?})", ^msg, span),
                 Tag::Fold(span) => w!("Fold({:?})", span),
-                Tag::Other => w!("Other"),
+                Tag::Unknown => w!("Other"),
             }
         }
     }

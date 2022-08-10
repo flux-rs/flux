@@ -72,7 +72,7 @@ fn report_errors(
             Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
             Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { msg, span }),
             Tag::Fold(span) => genv.sess.emit_err(errors::FoldError { span }),
-            Tag::Other => genv.sess.emit_err(errors::UnknownError { span: body_span }),
+            Tag::Unknown => genv.sess.emit_err(errors::UnknownError { span: body_span }),
         });
     }
 

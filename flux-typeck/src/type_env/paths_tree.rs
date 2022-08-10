@@ -125,15 +125,10 @@ impl PathsTree {
         self.iter().map(|(path, _)| path)
     }
 
-    pub fn unfold_with(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        other: &mut PathsTree,
-    ) {
+    pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
         for (loc, node1) in &mut self.map {
             if let Some(node2) = other.map.get_mut(loc) {
-                node1.unfold_with(gen, rcx, node2);
+                node1.join_with(gen, rcx, node2);
             }
         }
     }
@@ -299,10 +294,10 @@ impl Node {
         }
     }
 
-    fn unfold_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
+    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.unfold_with(gen, rcx, self);
+                other.join_with(gen, rcx, self);
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
@@ -310,7 +305,7 @@ impl Node {
             }
             (Node::Leaf(_), Node::Internal(..)) => {
                 self.split(gen.genv, rcx);
-                self.unfold_with(gen, rcx, other);
+                self.join_with(gen, rcx, other);
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -318,7 +313,7 @@ impl Node {
             ) => {
                 if variant1 == variant2 {
                     for (node1, node2) in iter::zip(children1, children2) {
-                        node1.unfold_with(gen, rcx, node2);
+                        node1.join_with(gen, rcx, node2);
                     }
                 } else {
                     self.fold(rcx, gen, false);
@@ -335,7 +330,7 @@ impl Node {
                 }
 
                 for (node1, node2) in iter::zip(children1, children2) {
-                    node1.unfold_with(gen, rcx, node2);
+                    node1.join_with(gen, rcx, node2);
                 }
             }
         };

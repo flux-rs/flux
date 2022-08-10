@@ -364,7 +364,7 @@ impl TypeEnvInfer {
         other.close_boxes(gen.genv, &self.scope);
 
         // Unfold
-        self.bindings.unfold_with(rcx, gen, &mut other.bindings);
+        self.bindings.join_with(rcx, gen, &mut other.bindings);
 
         let paths = self.bindings.paths().collect_vec();
 
