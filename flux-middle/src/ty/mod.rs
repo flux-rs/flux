@@ -317,6 +317,10 @@ impl AdtDef {
     pub fn is_box(&self) -> bool {
         self.flags().contains(AdtFlags::IS_BOX)
     }
+
+    pub fn is_struct(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_STRUCT)
+    }
 }
 
 impl VariantDef {
