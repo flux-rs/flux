@@ -318,8 +318,8 @@ impl AdtDef {
         self.flags().contains(AdtFlags::IS_BOX)
     }
 
-    pub fn is_struct(&self) -> bool {
-        self.flags().contains(AdtFlags::IS_STRUCT)
+    pub fn is_enum(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_ENUM)
     }
 }
 

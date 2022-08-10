@@ -301,43 +301,43 @@ impl Node {
 
     fn unfold_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
         match (&mut *self, &mut *other) {
-            (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Internal(..), Node::Leaf(_)) => {
                 other.unfold_with(gen, rcx, self);
             }
-            (Node::Leaf(_), Node::Internal(NodeKind::Tuple, _)) => {
-                self.split(gen.genv, rcx);
-                self.unfold_with(gen, rcx, other);
-            }
-            (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_struct() => {
-                self.split(gen.genv, rcx);
-                self.unfold_with(gen, rcx, other);
-            }
-            (Node::Leaf(_), Node::Internal(NodeKind::Adt(..), _)) => {
+            (Node::Leaf(_), Node::Leaf(_)) => {}
+            (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
                 other.fold(rcx, gen, false);
+            }
+            (Node::Leaf(_), Node::Internal(..)) => {
+                self.split(gen.genv, rcx);
+                self.unfold_with(gen, rcx, other);
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
                 Node::Internal(NodeKind::Adt(_, variant2, _), children2),
             ) => {
-                if variant1 != variant2 {
-                    self.fold(rcx, gen, false);
-                    other.fold(rcx, gen, false);
-                } else {
+                if variant1 == variant2 {
                     for (node1, node2) in iter::zip(children1, children2) {
                         node1.unfold_with(gen, rcx, node2);
                     }
+                } else {
+                    self.fold(rcx, gen, false);
+                    other.fold(rcx, gen, false);
                 }
             }
-            (
-                Node::Internal(NodeKind::Tuple, children1),
-                Node::Internal(NodeKind::Tuple, children2),
-            ) => {
+            (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
+                let max = usize::max(children1.len(), children2.len());
+                if let NodeKind::Uninit = kind1 {
+                    children1.resize(max, Node::owned(Ty::uninit()));
+                }
+                if let NodeKind::Uninit = kind2 {
+                    children1.resize(max, Node::owned(Ty::uninit()));
+                }
+
                 for (node1, node2) in iter::zip(children1, children2) {
                     node1.unfold_with(gen, rcx, node2);
                 }
             }
-            _ => unreachable!("incompatible nodes: `{self:?}` `{other:?}`"),
         };
     }
 
@@ -346,9 +346,11 @@ impl Node {
             self.split(genv, rcx);
         }
         match self {
-            Node::Internal(NodeKind::Adt(..) | NodeKind::Uninit, children) => {
-                let max = usize::max(field.as_usize() + 1, children.len());
-                children.resize(max, Node::owned(Ty::uninit()));
+            Node::Internal(kind, children) => {
+                if let NodeKind::Uninit = kind {
+                    let max = usize::max(field.as_usize() + 1, children.len());
+                    children.resize(max, Node::owned(Ty::uninit()));
+                }
                 &mut children[field.as_usize()]
             }
             _ => unreachable!(),
