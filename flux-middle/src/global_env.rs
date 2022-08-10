@@ -89,8 +89,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
-        // TODO(enums); // lower_enum_def [with param shenanigans]
         let variants = ty::lowering::LoweringCtxt::lower_enum_def(self, enum_def);
+        println!("TRACE: register_enum_def {variants:?}");
         self.adt_variants.get_mut().insert(def_id, variants);
 
         let sorts = self.sorts_of(def_id);
@@ -164,7 +164,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         exprs: &[ty::Expr],
     ) -> Vec<ty::Ty> {
         // TODO: self.variant(def_id, variant_idx).replace_bound_vars(exprs).replace_generic_types(substs).skip_binders().fields
-        self.variant(def_id, variant_idx)
+        let variant = self.variant(def_id, variant_idx);
+
+        println!("TRACE: downcast {variant:?}");
+
+        variant
             .skip_binders()
             .fields
             .iter()

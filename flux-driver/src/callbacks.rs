@@ -167,7 +167,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 Ok(())
             })?;
 
-        // HEREHEREHEREHEREHEREHERE enums
         specs
             .enums
             .into_iter()
