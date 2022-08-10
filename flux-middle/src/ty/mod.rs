@@ -11,7 +11,7 @@ pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
-pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
+pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, UintTy};
 pub use rustc_target::abi::VariantIdx;
 
 pub use crate::core::RefKind;
@@ -27,9 +27,9 @@ pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct AdtDefData {
-    sorts: List<Sort>,
     def_id: DefId,
-    is_box: bool,
+    sorts: List<Sort>,
+    flags: AdtFlags,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -294,8 +294,12 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, sorts: impl Into<List<Sort>>, is_box: bool) -> Self {
-        AdtDef(Interned::new(AdtDefData { def_id, sorts: sorts.into(), is_box }))
+    pub fn new(rustc_def: rustc_middle::ty::AdtDef, sorts: impl Into<List<Sort>>) -> Self {
+        AdtDef(Interned::new(AdtDefData {
+            def_id: rustc_def.did(),
+            sorts: sorts.into(),
+            flags: rustc_def.flags(),
+        }))
     }
 
     pub fn def_id(&self) -> DefId {
@@ -306,8 +310,20 @@ impl AdtDef {
         &self.0.sorts
     }
 
+    pub fn flags(&self) -> &AdtFlags {
+        &self.0.flags
+    }
+
     pub fn is_box(&self) -> bool {
-        self.0.is_box
+        self.flags().contains(AdtFlags::IS_BOX)
+    }
+
+    pub fn is_enum(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_ENUM)
+    }
+
+    pub fn is_struct(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_STRUCT)
     }
 }
 
