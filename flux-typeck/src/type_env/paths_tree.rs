@@ -361,9 +361,10 @@ impl Node {
                         .into_iter()
                         .map(|ty| Node::owned(rcx.unpack(&ty, false)))
                         .collect();
-                    let substs = substs.with_holes();
-                    *self =
-                        Node::Internal(NodeKind::Adt(adt_def.clone(), variant_idx, substs), fields);
+                    *self = Node::Internal(
+                        NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
+                        fields,
+                    );
                 } else {
                     panic!("type cannot be downcasted: `{ty:?}`")
                 }
@@ -383,8 +384,7 @@ impl Node {
                 let children = tys.iter().cloned().map(Node::owned).collect();
                 *self = Node::Internal(NodeKind::Tuple, children);
             }
-            // TODO(nilehmann) we should check here whether this is a struct and not an enum
-            TyKind::Indexed(BaseTy::Adt(..), ..) => {
+            TyKind::Indexed(BaseTy::Adt(def, ..), ..) if def.is_struct() => {
                 self.downcast(genv, rcx, VariantIdx::from_u32(0));
             }
             TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
@@ -392,9 +392,6 @@ impl Node {
         }
     }
 
-    // NOTE(nilehmann) The extra `unblock` parameter is there on purpose to force future clients of
-    // this function to think harder about whether it should simply unblock bindings. Right now it's
-    // being used in a single place with `unblock = true`.
     fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, unblock: bool) -> Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => ty.clone(),
@@ -422,13 +419,20 @@ impl Node {
                     .iter_mut()
                     .map(|node| node.fold(rcx, gen, unblock))
                     .collect_vec();
-                let env = &mut FxHashMap::default();
-                let output = gen
-                    .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
-                    .unwrap();
-                assert!(output.ensures.is_empty());
-                *self = Node::owned(output.ret.clone());
-                output.ret
+
+                let partially_moved = actuals.iter().any(|ty| ty.is_uninit());
+                if partially_moved {
+                    *self = Node::owned(Ty::uninit());
+                    Ty::uninit()
+                } else {
+                    let env = &mut FxHashMap::default();
+                    let output = gen
+                        .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
+                        .unwrap();
+                    assert!(output.ensures.is_empty());
+                    *self = Node::owned(output.ret.clone());
+                    output.ret
+                }
             }
             Node::Internal(NodeKind::Uninit, _) => {
                 *self = Node::owned(Ty::uninit());

@@ -321,6 +321,10 @@ impl AdtDef {
     pub fn is_enum(&self) -> bool {
         self.flags().contains(AdtFlags::IS_ENUM)
     }
+
+    pub fn is_struct(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_STRUCT)
+    }
 }
 
 impl VariantDef {

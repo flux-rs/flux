@@ -57,7 +57,7 @@ pub fn desugar_struct_def(
         let fields = adt_def
             .fields
             .into_iter()
-            .map(|ty| cx.desugar_ty(ty.unwrap()))
+            .map(|ty| ty.map(|ty| cx.desugar_ty(ty)).transpose())
             .try_collect_exhaust()?;
         StructKind::Transparent { fields }
     };

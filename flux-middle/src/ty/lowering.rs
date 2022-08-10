@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     global_env::GlobalEnv,
     rustc::ty::GenericParamDefKind,
@@ -6,6 +8,7 @@ use crate::{
 use flux_common::index::IndexGen;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
+use rustc_target::abi::VariantIdx;
 
 use crate::core;
 
@@ -100,9 +103,17 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         let sorts = cx.lower_params(&struct_def.refined_by);
 
         let def_id = struct_def.def_id;
-        let adt_def = ty::AdtDef::new(genv.tcx.adt_def(def_id), sorts.clone());
+        let rustc_adt = genv.tcx.adt_def(def_id);
+        let adt_def = ty::AdtDef::new(rustc_adt, sorts.clone());
         let variant = if let core::StructKind::Transparent { fields } = &struct_def.kind {
-            let fields = fields.iter().map(|ty| cx.lower_ty(ty, 1)).collect_vec();
+            let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
+                .map(|(ty, field)| {
+                    match ty {
+                        Some(ty) => cx.lower_ty(ty, 1),
+                        None => genv.default_type_of(field.did),
+                    }
+                })
+                .collect_vec();
 
             let substs = genv
                 .tcx
