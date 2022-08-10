@@ -392,10 +392,6 @@ impl Node {
         }
     }
 
-    // fn uninit(&mut self) {
-    //     *self = Node::owned(Ty::uninit());
-    // }
-
     // NOTE(nilehmann) The extra `unblock` parameter is there on purpose to force future clients of
     // this function to think harder about whether it should simply unblock bindings. Right now it's
     // being used in a single place with `unblock = true`.
