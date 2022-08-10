@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     global_env::GlobalEnv,
     rustc::ty::GenericParamDefKind,
@@ -6,6 +8,7 @@ use crate::{
 use flux_common::index::IndexGen;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
+use rustc_target::abi::VariantIdx;
 
 use crate::core;
 
@@ -122,11 +125,22 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn lower_struct_def(
         genv: &GlobalEnv,
         struct_def: &core::StructDef,
-    ) -> Option<ty::PolyVariant> {
+    ) -> (ty::AdtDef, Option<ty::PolyVariant>) {
         let mut cx = LoweringCtxt::new(genv);
         let sorts = cx.lower_params(&struct_def.refined_by);
-        if let core::StructKind::Transparent { fields } = &struct_def.kind {
-            let fields = fields.iter().map(|ty| cx.lower_ty(ty, 1)).collect_vec();
+
+        let def_id = struct_def.def_id;
+        let rustc_adt = genv.tcx.adt_def(def_id);
+        let adt_def = ty::AdtDef::new(rustc_adt, sorts.clone());
+        let variant = if let core::StructKind::Transparent { fields } = &struct_def.kind {
+            let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
+                .map(|(ty, field)| {
+                    match ty {
+                        Some(ty) => cx.lower_ty(ty, 1),
+                        None => genv.default_type_of(field.did),
+                    }
+                })
+                .collect_vec();
 
             let substs = genv
                 .tcx
@@ -141,18 +155,14 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 .enumerate()
                 .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
                 .collect_vec();
-            let def_id = struct_def.def_id;
-            let is_box = genv.is_box_adt(def_id);
-            let ret = ty::Ty::indexed(
-                ty::BaseTy::adt(ty::AdtDef::new(def_id, sorts.clone(), is_box), substs),
-                idxs,
-            );
+            let ret = ty::Ty::indexed(ty::BaseTy::adt(adt_def.clone(), substs), idxs);
 
             let variant = ty::VariantDef::new(fields, ret);
             Some(Binders::new(variant, sorts))
         } else {
             None
-        }
+        };
+        (adt_def, variant)
     }
 
     fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {

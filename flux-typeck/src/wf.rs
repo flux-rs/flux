@@ -94,9 +94,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     pub fn check_struct_def(&self, def: &core::StructDef) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&def.refined_by);
         if let core::StructKind::Transparent { fields } = &def.kind {
-            fields
-                .iter()
-                .try_for_each_exhaust(|ty| self.check_type(&mut env, ty, true))?;
+            fields.iter().try_for_each_exhaust(|ty| {
+                if let Some(ty) = ty {
+                    self.check_type(&mut env, ty, true)
+                } else {
+                    Ok(())
+                }
+            })?;
         }
         Ok(())
     }

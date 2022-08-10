@@ -42,7 +42,7 @@ pub struct VariantDef {
 
 #[derive(Debug)]
 pub enum StructKind {
-    Transparent { fields: Vec<Ty> },
+    Transparent { fields: Vec<Option<Ty>> },
     Opaque,
 }
 
