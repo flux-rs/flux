@@ -115,14 +115,37 @@ impl PathsTree {
         self.map.contains_key(&loc)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Path, &Binding)> {
-        self.map
-            .iter()
-            .flat_map(|(loc, node)| PathsIter::new(*loc, node))
+    pub fn iter(&self, mut f: impl FnMut(Path, &Binding)) {
+        fn go(node: &Node, loc: Loc, proj: &mut Vec<Field>, f: &mut impl FnMut(Path, &Binding)) {
+            match node {
+                Node::Leaf(binding) => {
+                    f(Path::new(loc, proj.as_slice()), binding);
+                }
+                Node::Internal(_, children) => {
+                    for (idx, node) in children.iter().enumerate() {
+                        proj.push(Field::from(idx));
+                        go(node, loc, proj, f);
+                        proj.pop();
+                    }
+                }
+            }
+        }
+        let mut proj = vec![];
+        for (loc, node) in &self.map {
+            go(node, *loc, &mut proj, &mut f)
+        }
     }
 
-    pub fn paths(&self) -> impl Iterator<Item = Path> + '_ {
-        self.iter().map(|(path, _)| path)
+    pub fn paths(&self) -> Vec<Path> {
+        let mut paths = vec![];
+        self.iter(|path, _| paths.push(path));
+        paths
+    }
+
+    pub fn flatten(&self) -> Vec<(Path, Binding)> {
+        let mut bindings = vec![];
+        self.iter(|path, binding| bindings.push((path, binding.clone())));
+        bindings
     }
 
     pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
@@ -492,58 +515,6 @@ impl TypeFoldable for Binding {
     }
 }
 
-enum PathsIter<'a> {
-    Adt {
-        stack: Vec<std::iter::Enumerate<std::slice::Iter<'a, Node>>>,
-        loc: Loc,
-        projection: Vec<Field>,
-    },
-    Leaf(Option<(Loc, &'a Binding)>),
-}
-
-impl<'a> PathsIter<'a> {
-    fn new(loc: Loc, root: &'a Node) -> Self {
-        match root {
-            Node::Leaf(binding) => PathsIter::Leaf(Some((loc, binding))),
-            Node::Internal(.., fields) => {
-                PathsIter::Adt { loc, projection: vec![], stack: vec![fields.iter().enumerate()] }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for PathsIter<'a> {
-    type Item = (Path, &'a Binding);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            PathsIter::Adt { stack, loc, projection } => {
-                while let Some(top) = stack.last_mut() {
-                    if let Some((i, node)) = top.next() {
-                        match node {
-                            Node::Internal(.., fields) => {
-                                projection.push(Field::from(i));
-                                stack.push(fields.iter().enumerate());
-                            }
-                            Node::Leaf(binding) => {
-                                projection.push(Field::from(i));
-                                let path = Path::new(*loc, projection.as_slice());
-                                projection.pop();
-                                return Some((path, binding));
-                            }
-                        }
-                    } else {
-                        projection.pop();
-                        stack.pop();
-                    }
-                }
-                None
-            }
-            PathsIter::Leaf(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
-        }
-    }
-}
-
 mod pretty {
     use super::*;
     use flux_middle::pretty::*;
@@ -554,14 +525,13 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let bindings = self
-                .iter()
+                .flatten()
+                .into_iter()
                 .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
-                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2))
-                .collect_vec();
+                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",
                 ^bindings
-                    .into_iter()
                     .format_with(", ", |(loc, binding), f| {
                         match binding {
                             Binding::Owned(ty) => {

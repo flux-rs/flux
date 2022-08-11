@@ -137,7 +137,7 @@ impl TypeEnv {
 
     pub fn close_boxes(&mut self, genv: &GlobalEnv, scope: &Scope) {
         let mut to_remove = vec![];
-        for path in self.bindings.paths().collect_vec() {
+        for path in self.bindings.paths() {
             if let Binding::Owned(ty) = self.bindings.get(&path) &&
                let TyKind::BoxPtr(loc, alloc) = ty.kind() &&
                !scope.contains(*loc) {
@@ -164,14 +164,14 @@ impl TypeEnv {
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();
-        for (path, binding1) in self.bindings.iter() {
+        self.bindings.iter(|path, binding1| {
             let binding2 = bb_env.bindings.get(&path);
             if bb_env.bindings.contains_loc(path.loc)
               && let Binding::Owned(ty1) = binding1
               && let Binding::Owned(ty2) = binding2 {
                 self.infer_subst_for_bb_env_ty(bb_env, &params, ty1, &ty2, &mut subst);
             }
-        }
+        });
 
         param_infer::check_inference(
             &subst,
@@ -248,11 +248,14 @@ impl TypeEnv {
             gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(*name)])));
         }
 
-        let bb_env = bb_env.bindings.fmap(|binding| subst.apply(binding));
+        let bb_env = bb_env
+            .bindings
+            .fmap(|binding| subst.apply(binding))
+            .flatten();
 
         // Convert pointers to borrows
-        for (path, binding2) in bb_env.iter() {
-            let binding1 = self.bindings.get(&path);
+        for (path, binding2) in &bb_env {
+            let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) &&
                let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
             {
@@ -261,12 +264,12 @@ impl TypeEnv {
                 gen.subtyping(rcx, &ty, bound);
 
                 self.bindings.update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                self.bindings.update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
             }
         }
 
         // Check subtyping
-        for (path, binding2) in bb_env.iter() {
+        for (path, binding2) in bb_env {
             let binding1 = self.bindings.get(&path);
             let ty1 = binding1.ty();
             let ty2 = binding2.ty();
@@ -366,7 +369,7 @@ impl TypeEnvInfer {
         // Unfold
         self.bindings.join_with(rcx, gen, &mut other.bindings);
 
-        let paths = self.bindings.paths().collect_vec();
+        let paths = self.bindings.paths();
 
         // Convert pointers to borrows
         for path in &paths {
