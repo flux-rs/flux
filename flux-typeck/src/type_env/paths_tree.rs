@@ -57,6 +57,7 @@ impl PathsTree {
             gen,
             Loc::Local(place.local),
             &mut place.projection.iter().copied(),
+            true,
         )
     }
 
@@ -70,7 +71,7 @@ impl PathsTree {
             .projection()
             .iter()
             .map(|field| PlaceElem::Field(*field));
-        self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
+        self.lookup_place_iter(rcx, gen, path.loc, &mut proj, false)
     }
 
     pub fn remove(&mut self, loc: Loc) {
@@ -165,12 +166,13 @@ impl PathsTree {
     }
 
     pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
-        for (loc, node1) in &mut self.map {
-            if let Some(node2) = other.map.get_mut(loc) {
-                node1
-                    .borrow_mut()
-                    .join_with(gen, rcx, &mut node2.borrow_mut());
-            }
+        for (loc, node1) in &self.map {
+            node1.borrow_mut().join_with(
+                &mut FxHashMap::default(),
+                gen,
+                rcx,
+                &mut other.map[loc].borrow_mut(),
+            );
         }
     }
 
@@ -180,13 +182,14 @@ impl PathsTree {
         gen: &mut ConstrGen,
         loc: Loc,
         place_proj: &mut impl Iterator<Item = PlaceElem>,
+        close_boxes: bool,
     ) -> LookupResult {
         let mut path = Path::from(loc);
         'outer: loop {
             let loc = path.loc;
             let mut path_proj = vec![];
 
-            let root = Rc::clone(self.map.get(&loc).unwrap());
+            let root = Rc::clone(&self.map[&loc]);
 
             let mut node = &mut *root.borrow_mut();
 
@@ -195,7 +198,7 @@ impl PathsTree {
                 path_proj.push(*field);
             }
 
-            while let Some(elem) = place_proj.next() {
+            for elem in place_proj.by_ref() {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
@@ -231,7 +234,10 @@ impl PathsTree {
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen, true));
+            return LookupResult::Ptr(
+                Path::new(loc, path_proj),
+                node.fold(&mut self.map, rcx, gen, true, close_boxes),
+            );
         }
     }
 
@@ -244,7 +250,7 @@ impl PathsTree {
     ) -> LookupResult {
         use PlaceElem::*;
         let mut ty = ty.clone();
-        while let Some(elem) = proj.next() {
+        for elem in proj.by_ref() {
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(*rk2);
@@ -332,18 +338,24 @@ impl Node {
         }
     }
 
-    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
+    fn join_with(
+        &mut self,
+        map: &mut FxHashMap<Loc, NodePtr>,
+        gen: &mut ConstrGen,
+        rcx: &mut RefineCtxt,
+        other: &mut Node,
+    ) {
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self);
+                other.join_with(map, gen, rcx, self);
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
-                other.fold(rcx, gen, false);
+                other.fold(map, rcx, gen, false, false);
             }
             (Node::Leaf(_), Node::Internal(..)) => {
                 self.split(gen.genv, rcx);
-                self.join_with(gen, rcx, other);
+                self.join_with(map, gen, rcx, other);
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -351,11 +363,11 @@ impl Node {
             ) => {
                 if variant1 == variant2 {
                     for (node1, node2) in iter::zip(children1, children2) {
-                        node1.join_with(gen, rcx, node2);
+                        node1.join_with(map, gen, rcx, node2);
                     }
                 } else {
-                    self.fold(rcx, gen, false);
-                    other.fold(rcx, gen, false);
+                    self.fold(map, rcx, gen, false, false);
+                    other.fold(map, rcx, gen, false, false);
                 }
             }
             (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
@@ -368,7 +380,7 @@ impl Node {
                 }
 
                 for (node1, node2) in iter::zip(children1, children2) {
-                    node1.join_with(gen, rcx, node2);
+                    node1.join_with(map, gen, rcx, node2);
                 }
             }
         };
@@ -430,9 +442,24 @@ impl Node {
         }
     }
 
-    fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, unblock: bool) -> Ty {
+    fn fold(
+        &mut self,
+        map: &mut FxHashMap<Loc, NodePtr>,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        unblock: bool,
+        close_boxes: bool,
+    ) -> Ty {
         match self {
-            Node::Leaf(Binding::Owned(ty)) => ty.clone(),
+            Node::Leaf(Binding::Owned(ty)) => {
+                if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
+                    let root = map.remove(&Loc::Free(*loc)).unwrap();
+                    let boxed_ty = root.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
+                    gen.genv.mk_box(boxed_ty, alloc.clone())
+                } else {
+                    ty.clone()
+                }
+            }
             Node::Leaf(Binding::Blocked(ty)) => {
                 if unblock {
                     let ty = rcx.unpack(ty, false);
@@ -445,7 +472,7 @@ impl Node {
             Node::Internal(NodeKind::Tuple, children) => {
                 let tys = children
                     .iter_mut()
-                    .map(|node| node.fold(rcx, gen, unblock))
+                    .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
                 let ty = Ty::tuple(tys);
                 *self = Node::owned(ty.clone());
@@ -455,7 +482,7 @@ impl Node {
                 let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
                 let actuals = children
                     .iter_mut()
-                    .map(|node| node.fold(rcx, gen, unblock))
+                    .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
 
                 let partially_moved = actuals.iter().any(|ty| ty.is_uninit());

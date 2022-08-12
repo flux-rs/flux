@@ -38,7 +38,7 @@ use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
     fixpoint::KVarStore,
-    refine_tree::{RefineCtxt, RefineTree, Scope, Snapshot},
+    refine_tree::{RefineCtxt, RefineTree, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
@@ -408,9 +408,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
-        // HACK(nilehman) more generally we should close boxes whenever moving them
-        env.close_boxes(self.genv, &Scope::empty());
-
         let tag = match src_info {
             Some(info) => Tag::RetAt(info.span),
             None => Tag::Ret,

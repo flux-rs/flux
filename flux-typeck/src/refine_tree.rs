@@ -228,10 +228,6 @@ impl Snapshot {
 }
 
 impl Scope {
-    pub fn empty() -> Scope {
-        Scope { bindings: IndexVec::new() }
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
