@@ -65,8 +65,13 @@ impl TypeEnv {
         self.bindings.insert(loc, Ty::uninit());
     }
 
-    pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
-        TypeEnvInfer::new(genv, scope, self)
+    pub fn into_infer(
+        self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        scope: Scope,
+    ) -> TypeEnvInfer {
+        TypeEnvInfer::new(rcx, gen, scope, self)
     }
 
     #[track_caller]
@@ -132,23 +137,6 @@ impl TypeEnv {
             LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
-        }
-    }
-
-    pub fn close_boxes(&mut self, genv: &GlobalEnv, scope: &Scope) {
-        let mut to_remove = vec![];
-        for path in self.bindings.paths() {
-            if let Binding::Owned(ty) = self.bindings.get(&path) &&
-               let TyKind::BoxPtr(loc, alloc) = ty.kind() &&
-               !scope.contains(*loc) {
-                let loc = Loc::Free(*loc);
-                to_remove.push(loc);
-                let ty = self.bindings.get(&Path::from(loc)).expect_owned();
-                self.bindings.update(&path, genv.mk_box(ty, alloc.clone()))
-            }
-        }
-        for loc in to_remove {
-            self.bindings.remove(loc);
         }
     }
 
@@ -233,7 +221,7 @@ impl TypeEnv {
     }
 
     pub fn check_goto(mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, bb_env: &BasicBlockEnv) {
-        self.close_boxes(gen.genv, &bb_env.scope);
+        self.bindings.close_boxes(rcx, gen, &bb_env.scope);
 
         // Look up path to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
@@ -306,8 +294,13 @@ impl TypeEnvInfer {
         TypeEnv { bindings: self.bindings.clone() }
     }
 
-    fn new(genv: &GlobalEnv, scope: Scope, mut env: TypeEnv) -> TypeEnvInfer {
-        env.close_boxes(genv, &scope);
+    fn new(
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        scope: Scope,
+        mut env: TypeEnv,
+    ) -> TypeEnvInfer {
+        env.bindings.close_boxes(rcx, gen, &scope);
         let mut bindings = env.bindings;
         bindings.fmap_mut(|binding| {
             match binding {
@@ -364,7 +357,7 @@ impl TypeEnvInfer {
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, mut other: TypeEnv) -> bool {
-        other.close_boxes(gen.genv, &self.scope);
+        other.bindings.close_boxes(rcx, gen, &self.scope);
 
         // Unfold
         self.bindings.join_with(rcx, gen, &mut other.bindings);

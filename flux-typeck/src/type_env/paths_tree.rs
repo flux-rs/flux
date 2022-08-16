@@ -13,7 +13,10 @@ use flux_middle::{
     },
 };
 
-use crate::{constraint_gen::ConstrGen, refine_tree::RefineCtxt};
+use crate::{
+    constraint_gen::ConstrGen,
+    refine_tree::{RefineCtxt, Scope},
+};
 
 #[derive(Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -74,10 +77,6 @@ impl PathsTree {
         self.lookup_place_iter(rcx, gen, path.loc, &mut proj, false)
     }
 
-    pub fn remove(&mut self, loc: Loc) {
-        self.map.remove(&loc);
-    }
-
     pub fn get(&self, path: &Path) -> Binding {
         let mut node = &*self.map.get(&path.loc).unwrap().borrow();
         for f in path.projection() {
@@ -93,19 +92,19 @@ impl PathsTree {
     }
 
     pub fn update_binding(&mut self, path: &Path, binding: Binding) {
-        self.get_node_mut(path, |node| {
+        self.get_node_mut(path, |node, _| {
             *node = Node::Leaf(binding);
         });
     }
 
     pub fn update(&mut self, path: &Path, new_ty: Ty) {
-        self.get_node_mut(path, |node| {
+        self.get_node_mut(path, |node, _| {
             *node.expect_owned_mut() = new_ty;
         });
     }
 
     pub fn block(&mut self, path: &Path) {
-        self.get_node_mut(path, |node| {
+        self.get_node_mut(path, |node, _| {
             match node {
                 Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
                 _ => panic!("expected owned binding"),
@@ -113,15 +112,20 @@ impl PathsTree {
         });
     }
 
-    fn get_node_mut(&mut self, path: &Path, f: impl FnOnce(&mut Node)) {
-        let mut node = &mut *self.map.get_mut(&path.loc).unwrap().borrow_mut();
+    fn get_node_mut(
+        &mut self,
+        path: &Path,
+        f: impl FnOnce(&mut Node, &mut FxHashMap<Loc, NodePtr>),
+    ) {
+        let root = Rc::clone(self.map.get(&path.loc).unwrap());
+        let mut node = &mut *root.borrow_mut();
         for f in path.projection() {
             match node {
                 Node::Leaf(_) => panic!("expected `Node::Adt"),
                 Node::Internal(.., children) => node = &mut children[f.as_usize()],
             }
         }
-        f(node)
+        f(node, &mut self.map)
     }
 
     pub fn insert(&mut self, loc: Loc, ty: Ty) {
@@ -281,6 +285,21 @@ impl PathsTree {
             }
         }
         LookupResult::Ref(rk, ty)
+    }
+
+    pub fn close_boxes(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, scope: &Scope) {
+        let mut paths = self.paths();
+        paths.sort();
+        for path in paths.into_iter().rev() {
+            self.get_node_mut(&path, |node, map| {
+                if let Node::Leaf(Binding::Owned(ty)) = node &&
+                   let TyKind::BoxPtr(loc, _) = ty.kind() &&
+                   !scope.contains(*loc)
+                {
+                    node.fold(map, rcx, gen, false, true);
+                }
+            });
+        }
     }
 
     #[must_use]
@@ -455,7 +474,9 @@ impl Node {
                 if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
                     let root = map.remove(&Loc::Free(*loc)).unwrap();
                     let boxed_ty = root.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
-                    gen.genv.mk_box(boxed_ty, alloc.clone())
+                    let ty = gen.genv.mk_box(boxed_ty, alloc.clone());
+                    *self = Node::owned(ty.clone());
+                    ty
                 } else {
                     ty.clone()
                 }
