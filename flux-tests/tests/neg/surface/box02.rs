@@ -43,3 +43,16 @@ pub fn no_close_join(b: bool) -> i32 {
     // branching and stays open.
     *x //~ ERROR postcondition
 }
+
+struct S {
+    #[flux::field(i32{v : v > 0})]
+    x: i32,
+}
+
+pub fn close_on_move() {
+    let mut b = Box::new(S { x: 1 });
+    // open the box and mutate the inner struct breaking the invariant
+    (*b).x -= 1;
+    // closing the box causes the struct to be folded and the invariant to be checked
+    std::mem::drop(b); //~ ERROR fold
+}

@@ -65,8 +65,13 @@ impl TypeEnv {
         self.bindings.insert(loc, Ty::uninit());
     }
 
-    pub fn into_infer(self, genv: &GlobalEnv, scope: Scope) -> TypeEnvInfer {
-        TypeEnvInfer::new(genv, scope, self)
+    pub fn into_infer(
+        self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        scope: Scope,
+    ) -> TypeEnvInfer {
+        TypeEnvInfer::new(rcx, gen, scope, self)
     }
 
     #[track_caller]
@@ -135,23 +140,6 @@ impl TypeEnv {
         }
     }
 
-    pub fn close_boxes(&mut self, genv: &GlobalEnv, scope: &Scope) {
-        let mut to_remove = vec![];
-        for path in self.bindings.paths().collect_vec() {
-            if let Binding::Owned(ty) = self.bindings.get(&path) &&
-               let TyKind::BoxPtr(loc, alloc) = ty.kind() &&
-               !scope.contains(*loc) {
-                let loc = Loc::Free(*loc);
-                to_remove.push(loc);
-                let ty = self.bindings.get(&Path::from(loc)).expect_owned();
-                self.bindings.update(&path, genv.mk_box(ty, alloc.clone()))
-            }
-        }
-        for loc in to_remove {
-            self.bindings.remove(loc);
-        }
-    }
-
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
         self.bindings.fmap_mut(|binding| {
             match binding {
@@ -164,14 +152,14 @@ impl TypeEnv {
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();
-        for (path, binding1) in self.bindings.iter() {
+        self.bindings.iter(|path, binding1| {
             let binding2 = bb_env.bindings.get(&path);
             if bb_env.bindings.contains_loc(path.loc)
               && let Binding::Owned(ty1) = binding1
               && let Binding::Owned(ty2) = binding2 {
                 self.infer_subst_for_bb_env_ty(bb_env, &params, ty1, &ty2, &mut subst);
             }
-        }
+        });
 
         param_infer::check_inference(
             &subst,
@@ -233,7 +221,7 @@ impl TypeEnv {
     }
 
     pub fn check_goto(mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, bb_env: &BasicBlockEnv) {
-        self.close_boxes(gen.genv, &bb_env.scope);
+        self.bindings.close_boxes(rcx, gen, &bb_env.scope);
 
         // Look up path to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
@@ -248,11 +236,14 @@ impl TypeEnv {
             gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(*name)])));
         }
 
-        let bb_env = bb_env.bindings.fmap(|binding| subst.apply(binding));
+        let bb_env = bb_env
+            .bindings
+            .fmap(|binding| subst.apply(binding))
+            .flatten();
 
         // Convert pointers to borrows
-        for (path, binding2) in bb_env.iter() {
-            let binding1 = self.bindings.get(&path);
+        for (path, binding2) in &bb_env {
+            let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) &&
                let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
             {
@@ -261,12 +252,12 @@ impl TypeEnv {
                 gen.subtyping(rcx, &ty, bound);
 
                 self.bindings.update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                self.bindings.update(&path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
             }
         }
 
         // Check subtyping
-        for (path, binding2) in bb_env.iter() {
+        for (path, binding2) in bb_env {
             let binding1 = self.bindings.get(&path);
             let ty1 = binding1.ty();
             let ty2 = binding2.ty();
@@ -303,8 +294,13 @@ impl TypeEnvInfer {
         TypeEnv { bindings: self.bindings.clone() }
     }
 
-    fn new(genv: &GlobalEnv, scope: Scope, mut env: TypeEnv) -> TypeEnvInfer {
-        env.close_boxes(genv, &scope);
+    fn new(
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        scope: Scope,
+        mut env: TypeEnv,
+    ) -> TypeEnvInfer {
+        env.bindings.close_boxes(rcx, gen, &scope);
         let mut bindings = env.bindings;
         bindings.fmap_mut(|binding| {
             match binding {
@@ -361,12 +357,12 @@ impl TypeEnvInfer {
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub fn join(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, mut other: TypeEnv) -> bool {
-        other.close_boxes(gen.genv, &self.scope);
+        other.bindings.close_boxes(rcx, gen, &self.scope);
 
         // Unfold
         self.bindings.join_with(rcx, gen, &mut other.bindings);
 
-        let paths = self.bindings.paths().collect_vec();
+        let paths = self.bindings.paths();
 
         // Convert pointers to borrows
         for path in &paths {
