@@ -171,12 +171,8 @@ impl PathsTree {
 
     pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
         for (loc, node1) in &self.map {
-            node1.borrow_mut().join_with(
-                &mut FxHashMap::default(),
-                gen,
-                rcx,
-                &mut other.map[loc].borrow_mut(),
-            );
+            let node2 = &mut *other.map[loc].borrow_mut();
+            node1.borrow_mut().join_with(gen, rcx, node2);
         }
     }
 
@@ -357,16 +353,11 @@ impl Node {
         }
     }
 
-    fn join_with(
-        &mut self,
-        map: &mut FxHashMap<Loc, NodePtr>,
-        gen: &mut ConstrGen,
-        rcx: &mut RefineCtxt,
-        other: &mut Node,
-    ) {
+    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
+        let map = &mut FxHashMap::default();
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(map, gen, rcx, self);
+                other.join_with(gen, rcx, self);
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
@@ -374,7 +365,7 @@ impl Node {
             }
             (Node::Leaf(_), Node::Internal(..)) => {
                 self.split(gen.genv, rcx);
-                self.join_with(map, gen, rcx, other);
+                self.join_with(gen, rcx, other);
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -382,7 +373,7 @@ impl Node {
             ) => {
                 if variant1 == variant2 {
                     for (node1, node2) in iter::zip(children1, children2) {
-                        node1.join_with(map, gen, rcx, node2);
+                        node1.join_with(gen, rcx, node2);
                     }
                 } else {
                     self.fold(map, rcx, gen, false, false);
@@ -399,7 +390,7 @@ impl Node {
                 }
 
                 for (node1, node2) in iter::zip(children1, children2) {
-                    node1.join_with(map, gen, rcx, node2);
+                    node1.join_with(gen, rcx, node2);
                 }
             }
         };
