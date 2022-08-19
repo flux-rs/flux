@@ -120,11 +120,11 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 Ok(())
             })?;
 
-        // Register adt sorts
+        // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
                 let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
-                genv.register_adt_sorts(def_id.to_def_id(), &sorts);
+                genv.register_adt_def(def_id.to_def_id(), &sorts);
                 adt_sorts.insert(def_id.to_def_id(), sorts);
             }
             Ok(())
@@ -132,11 +132,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
                 let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
-                genv.register_adt_sorts(def_id.to_def_id(), &sorts);
+                genv.register_adt_def(def_id.to_def_id(), &sorts);
                 adt_sorts.insert(def_id.to_def_id(), sorts);
             }
             Ok(())
         })?;
+        genv.finish_adt_registration();
 
         // Qualifiers
         let qualifiers: Vec<ty::Qualifier> = specs
