@@ -79,7 +79,7 @@ struct WeakNodePtr(Weak<RefCell<Node>>);
 
 enum NodeKind {
     Conj,
-    ForAll(Name, Sort, Pred),
+    ForAll(Name, Sort),
     Guard(Pred),
     Head(Pred, Tag),
 }
@@ -205,7 +205,7 @@ impl Snapshot {
         let bindings = parents
             .filter_map(|node| {
                 let node = node.borrow();
-                if let NodeKind::ForAll(_, sort, _) = &node.kind {
+                if let NodeKind::ForAll(_, sort) = &node.kind {
                     Some(sort.clone())
                 } else {
                     None
@@ -284,7 +284,7 @@ impl NodePtr {
         let pred = pred.replace_bvars_with_fresh_fvars(|sort| {
             let fresh = name_gen.fresh();
             names.push(fresh);
-            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone(), Pred::tt()));
+            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()));
             fresh
         });
         self.push_guard(pred);
@@ -343,19 +343,15 @@ impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
             NodeKind::Conj => children_to_fixpoint(cx, &self.children),
-            NodeKind::ForAll(_, Sort::Loc, _) => children_to_fixpoint(cx, &self.children),
-            NodeKind::ForAll(name, sort, pred) => {
+            NodeKind::ForAll(_, Sort::Loc) => children_to_fixpoint(cx, &self.children),
+            NodeKind::ForAll(name, sort) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
-                    let (bindings, pred) = cx.pred_to_fixpoint(pred);
-                    Some(stitch(
-                        bindings,
-                        fixpoint::Constraint::ForAll(
-                            fresh,
-                            sort_to_fixpoint(sort),
-                            pred,
-                            Box::new(children_to_fixpoint(cx, &self.children)?),
-                        ),
+                    Some(fixpoint::Constraint::ForAll(
+                        fresh,
+                        sort_to_fixpoint(sort),
+                        fixpoint::Pred::TRUE,
+                        Box::new(children_to_fixpoint(cx, &self.children)?),
                     ))
                 })
             }
@@ -451,14 +447,11 @@ mod pretty {
     use super::*;
     use flux_middle::pretty::*;
 
-    fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
-        fn go(
-            ptr: &NodePtr,
-            mut bindings: Vec<(Name, Sort, Pred)>,
-        ) -> (Vec<(Name, Sort, Pred)>, Vec<NodePtr>) {
+    fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut bindings: Vec<(Name, Sort)>) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::ForAll(name, sort, pred) = &node.kind {
-                bindings.push((*name, sort.clone(), pred.clone()));
+            if let NodeKind::ForAll(name, sort) = &node.kind {
+                bindings.push((*name, sort.clone()));
                 if let [child] = &node.children[..] {
                     go(child, bindings)
                 } else {
@@ -526,23 +519,19 @@ mod pretty {
                     let nodes = flatten_conjs(slice::from_ref(self));
                     w!("{:?}", join!("\n", nodes))
                 }
-                NodeKind::ForAll(name, sort, pred) => {
+                NodeKind::ForAll(name, sort) => {
                     let (bindings, children) = if cx.bindings_chain {
                         bindings_chain(self)
                     } else {
-                        (vec![(*name, sort.clone(), pred.clone())], node.children.clone())
+                        (vec![(*name, sort.clone())], node.children.clone())
                     };
 
                     w!(
                         "∀ {}.",
                         ^bindings
                             .into_iter()
-                            .format_with(", ", |(name, sort, pred), f| {
-                                if pred.is_true() {
-                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))
-                                } else {
-                                    f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, sort, pred))
-                                }
+                            .format_with(", ", |(name, sort), f| {
+                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             })
                     )?;
                     fmt_children(&children, cx, f)
@@ -618,12 +607,8 @@ mod pretty {
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {
-                            NodeKind::ForAll(name, sort, pred) => {
-                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
-                                if !pred.is_true() {
-                                    f(&format_args_cx!(", {:?}", pred))?;
-                                }
-                                Ok(())
+                            NodeKind::ForAll(name, sort) => {
+                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }
                             NodeKind::Guard(e) => f(&format_args!("{:?}", e)),
                             NodeKind::Conj | NodeKind::Head(..) => unreachable!(),

@@ -120,7 +120,11 @@ newtype_index! {
 }
 
 impl<Tag> Constraint<Tag> {
-    pub const TRUE: Self = Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))), None);
+    pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
+}
+
+impl Pred {
+    pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
 }
 
 impl BinOp {
