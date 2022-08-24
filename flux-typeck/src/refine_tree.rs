@@ -141,11 +141,6 @@ impl RefineCtxt<'_> {
         self.ptr.push_foralls(pred)
     }
 
-    /// Shorthand for when the bound predicate has a single binder.
-    pub fn define_var_for_binder(&mut self, pred: &Binders<Pred>) -> Name {
-        self.define_vars_for_binders(pred).pop().unwrap()
-    }
-
     pub fn assume_pred(&mut self, pred: impl Into<Pred>) {
         self.ptr.push_guard(pred);
     }
@@ -284,11 +279,19 @@ impl NodePtr {
     }
 
     fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
+        let name_gen = self.name_gen();
         let mut names = vec![];
-        for (name, sort, pred) in pred.split_with_fresh_fvars(&self.name_gen()) {
-            *self = self.push_node(NodeKind::ForAll(name, sort, pred));
-            names.push(name);
-        }
+        let pred = pred.replace_bvars_with_fresh_fvars(|sort| {
+            let fresh = name_gen.fresh();
+            names.push(fresh);
+            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone(), Pred::tt()));
+            fresh
+        });
+        self.push_guard(pred);
+        // for (name, sort, pred) in pred.split_with_fresh_fvars(&self.name_gen()) {
+        //     *self = self.push_node(NodeKind::ForAll(name, sort, pred));
+        //     names.push(name);
+        // }
         names
     }
 

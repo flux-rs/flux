@@ -164,7 +164,7 @@ where
                 }
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ Unit) ({body}))")?;
+                write!(f, "(forall ((_ Unit) {body})")?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }

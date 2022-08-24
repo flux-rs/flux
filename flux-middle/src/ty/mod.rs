@@ -4,7 +4,6 @@ pub mod subst;
 
 use std::{borrow::Cow, fmt, iter, sync::OnceLock};
 
-use flux_common::index::IndexGen;
 use itertools::Itertools;
 
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -235,40 +234,6 @@ where
 
     pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
         self.value.fold_with(&mut BVarFolder::new(exprs))
-    }
-}
-
-impl Binders<Pred> {
-    pub fn split_with_fresh_fvars(&self, name_gen: &IndexGen<Name>) -> Vec<(Name, Sort, Pred)> {
-        let names = iter::repeat_with(|| name_gen.fresh())
-            .take(self.params.len())
-            .collect_vec();
-        let exprs = names.iter().copied().map(Expr::fvar).collect_vec();
-        match self.replace_bound_vars(&exprs) {
-            Pred::Hole => {
-                iter::zip(names, &self.params)
-                    .map(|(name, sort)| (name, sort.clone(), Pred::Hole))
-                    .collect()
-            }
-            Pred::Kvars(kvars) => {
-                debug_assert_eq!(kvars.len(), self.params.len());
-                itertools::izip!(names, &self.params, &kvars)
-                    .map(|(name, sort, kvar)| (name, sort.clone(), Pred::kvars(vec![kvar.clone()])))
-                    .collect()
-            }
-            Pred::Expr(e) => {
-                itertools::izip!(names, &self.params)
-                    .enumerate()
-                    .map(|(idx, (name, sort))| {
-                        if idx < self.params.len() - 1 {
-                            (name, sort.clone(), Pred::tt())
-                        } else {
-                            (name, sort.clone(), Pred::Expr(e.clone()))
-                        }
-                    })
-                    .collect()
-            }
-        }
     }
 }
 

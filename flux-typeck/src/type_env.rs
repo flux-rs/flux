@@ -1,6 +1,6 @@
 pub mod paths_tree;
 
-use std::{iter, slice};
+use std::iter;
 
 use flux_common::index::IndexGen;
 use itertools::{izip, Itertools};
@@ -45,7 +45,7 @@ pub struct TypeEnvInfer {
 
 pub struct BasicBlockEnv {
     params: Vec<(Name, Sort)>,
-    constrs: Vec<Binders<Pred>>,
+    constrs: Vec<Pred>,
     scope: Scope,
     bindings: PathsTree,
 }
@@ -232,8 +232,11 @@ impl TypeEnv {
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        for ((name, _), constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-            gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(*name)])));
+        // for ((name, _), constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
+        //     gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(*name)])));
+        // }
+        for constr in &bb_env.constrs {
+            gen.check_pred(rcx, subst.apply(constr));
         }
 
         let bb_env = bb_env
@@ -510,20 +513,21 @@ impl TypeEnvInfer {
             }
         });
 
-        let mut scope = vec![];
-        let constrs = iter::zip(&params, preds)
-            .map(|((name, sort), pred)| {
-                let constr = if let Pred::Hole = pred {
-                    kvar_gen.fresh(slice::from_ref(sort), scope.iter().cloned())
-                } else {
-                    pred
-                };
-                scope.push((*name, sort.clone()));
-                Binders::new(constr, vec![sort.clone()])
-            })
+        let mut constrs = preds
+            .into_iter()
+            .filter(|pred| matches!(pred, Pred::Expr(..)))
             .collect_vec();
+        constrs.push({
+            let sorts = params.iter().map(|(_, sort)| sort.clone()).collect_vec();
+            let exprs = params
+                .iter()
+                .map(|(name, _)| Expr::fvar(*name))
+                .collect_vec();
+            let kvar = kvar_gen.fresh(&sorts, vec![]);
+            Binders::new(kvar, sorts).replace_bound_vars(&exprs)
+        });
 
-        let fresh_kvar = &mut |sorts: &[Sort]| kvar_gen.fresh(sorts, scope.iter().cloned());
+        let fresh_kvar = &mut |sorts: &[Sort]| kvar_gen.fresh(sorts, params.iter().cloned());
 
         bindings.fmap_mut(|binding| binding.replace_holes(fresh_kvar));
 
@@ -531,7 +535,7 @@ impl TypeEnvInfer {
     }
 }
 
-/// This is effectively doing the same than [`RefineCtxt::unpack`] but for moving existentials
+/// This is effectively doing the same as [`RefineCtxt::unpack`] but for moving existentials
 /// to the top level in a [`BasicBlockEnv`]. Given the way we currently handle kvars it is tricky
 /// to abstract over this in a way that can be used in both places.
 fn generalize(
@@ -547,12 +551,16 @@ fn generalize(
         }
         TyKind::Exists(bty, pred) => {
             let bty = generalize_bty(name_gen, bty, params, preds);
+
             let mut idxs = vec![];
-            for (name, sort, pred) in pred.split_with_fresh_fvars(name_gen) {
-                params.push((name, sort));
-                preds.push(pred);
-                idxs.push(Expr::fvar(name).into())
-            }
+            let pred = pred.replace_bvars_with_fresh_fvars(|sort| {
+                let fresh = name_gen.fresh();
+                params.push((fresh, sort.clone()));
+                idxs.push(Expr::fvar(fresh).into());
+                fresh
+            });
+            preds.push(pred);
+
             Ty::indexed(bty, idxs)
         }
         TyKind::Ref(RefKind::Shr, ty) => {
@@ -581,9 +589,12 @@ fn generalize_bty(
 impl BasicBlockEnv {
     pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
         let mut subst = FVarSubst::empty();
-        for ((name, _), constr) in iter::zip(&self.params, &self.constrs) {
-            let fresh = rcx.define_var_for_binder(&subst.apply(constr));
+        for (name, sort) in &self.params {
+            let fresh = rcx.define_var(sort);
             subst.insert(*name, Expr::fvar(fresh));
+        }
+        for constr in &self.constrs {
+            rcx.assume_pred(subst.apply(constr));
         }
         let bindings = self.bindings.fmap(|binding| subst.apply(binding));
         TypeEnv { bindings }
@@ -625,19 +636,22 @@ mod pretty {
     impl Pretty for BasicBlockEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!(
-                "{:?} ∃ {}. {:?}",
-                &self.scope,
-                ^iter::zip(&self.params, &self.constrs)
-                    .format_with(", ", |((name, sort), constr), f| {
-                        if constr.is_true() {
+            w!("{:?} ", &self.scope)?;
+
+            if !self.params.is_empty() {
+                w!(
+                    "∃ {}. ",
+                    ^self.params
+                        .iter()
+                        .format_with(", ", |(name, sort), f| {
                             f(&format_args_cx!("{:?}: {:?}", ^name, ^sort))
-                        } else {
-                            f(&format_args_cx!("{:?}: {:?}{{{:?}}}", ^name, ^sort, constr))
-                        }
-                    }),
-                &self.bindings
-            )
+                        })
+                )?;
+            }
+            if !self.constrs.is_empty() {
+                w!("{:?} ⇒ ", join!(", ", self.constrs.iter().filter(|pred| !pred.is_true())))?;
+            }
+            w!("{:?}", &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {

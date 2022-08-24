@@ -310,20 +310,15 @@ impl KVarStore {
             }
         }
 
-        let mut kvars = vec![];
-        for (idx, sort) in sorts.iter().enumerate() {
-            let arg = ty::Expr::bvar(BoundVar::innermost(idx));
+        let args = (0..sorts.len())
+            .map(|idx| ty::Expr::bvar(BoundVar::innermost(idx)))
+            .collect_vec();
 
-            let kvid = self
-                .kvars
-                .push(KVarSorts { args: vec![sort.clone()], scope: scope_sorts.clone() });
+        let kvid = self
+            .kvars
+            .push(KVarSorts { args: sorts.to_vec(), scope: scope_sorts.clone() });
 
-            kvars.push(ty::KVar::new(kvid, vec![arg.clone()], scope_exprs.clone()));
-
-            scope_sorts.push(sort.clone());
-            scope_exprs.push(arg)
-        }
-        ty::Pred::kvars(kvars)
+        ty::Pred::kvars(vec![ty::KVar::new(kvid, args, scope_exprs.clone())])
     }
 }
 
