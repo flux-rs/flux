@@ -172,9 +172,9 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         }
         (TyKind::Exists(bty, pred), _) => {
             let indices = constr
-                .push_binders(pred)
+                .push_bound_guard(pred)
                 .into_iter()
-                .map(|name| Index::from(Expr::fvar(name)))
+                .map(Index::from)
                 .collect_vec();
             let ty1 = Ty::indexed(bty.clone(), indices);
             subtyping(genv, constr, &ty1, ty2, tag);

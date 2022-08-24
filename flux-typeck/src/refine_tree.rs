@@ -1,12 +1,13 @@
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
+    slice,
 };
 
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::ty::{
-    fold::TypeFoldable, BaseTy, Binders, Expr, Name, Pred, RefKind, Sort, Ty, TyKind,
+    fold::TypeFoldable, BaseTy, Binders, Expr, Index, Name, Pred, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -129,16 +130,7 @@ impl RefineCtxt<'_> {
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
     /// generated name for the variable.
     pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.ptr
-            .push_foralls(&Binders::new(Pred::tt(), vec![sort.clone()]))
-            .pop()
-            .unwrap()
-    }
-
-    /// "Opens" and assumes a bound predicate generating fresh refinement variables
-    /// for each binder. It returns the freshly generated names for the variables.
-    fn define_vars_for_binders(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
-        self.ptr.push_foralls(pred)
+        self.ptr.push_foralls(slice::from_ref(sort)).pop().unwrap()
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Pred>) {
@@ -168,9 +160,10 @@ impl RefineCtxt<'_> {
             }
             TyKind::Exists(bty, pred) => {
                 let idxs = self
-                    .define_vars_for_binders(pred)
+                    .ptr
+                    .push_bound_guard(pred)
                     .into_iter()
-                    .map(|name| Expr::fvar(name).into())
+                    .map(Index::from)
                     .collect_vec();
                 let bty = self.unpack_bty(bty, unpack_mut_refs);
                 Ty::indexed(bty, idxs)
@@ -254,8 +247,8 @@ impl ConstrBuilder<'_> {
         self.ptr.push_guard(p)
     }
 
-    pub fn push_binders(&mut self, p: &Binders<Pred>) -> Vec<Name> {
-        self.ptr.push_foralls(p)
+    pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
+        self.ptr.push_bound_guard(pred)
     }
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
@@ -278,20 +271,24 @@ impl NodePtr {
         }
     }
 
-    fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
+    fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
+        let exprs = self
+            .push_foralls(pred.params())
+            .into_iter()
+            .map(Expr::fvar)
+            .collect_vec();
+        self.push_guard(pred.replace_bound_vars(&exprs));
+        exprs
+    }
+
+    fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {
         let name_gen = self.name_gen();
         let mut names = vec![];
-        let pred = pred.replace_bvars_with_fresh_fvars(|sort| {
+        for sort in sorts {
             let fresh = name_gen.fresh();
             names.push(fresh);
-            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()));
-            fresh
-        });
-        self.push_guard(pred);
-        // for (name, sort, pred) in pred.split_with_fresh_fvars(&self.name_gen()) {
-        //     *self = self.push_node(NodeKind::ForAll(name, sort, pred));
-        //     names.push(name);
-        // }
+            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()))
+        }
         names
     }
 
