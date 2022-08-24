@@ -894,7 +894,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         tag: Tag,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_| Pred::Hole, tag)
+        ConstrGen::new(genv, |sorts| Binders::new(Pred::Hole, sorts), tag)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -912,7 +912,7 @@ impl Phase for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
-        let mut gen = ConstrGen::new(ck.genv, |_| Pred::Hole, Tag::Other);
+        let mut gen = ConstrGen::new(ck.genv, |sorts| Binders::new(Pred::Hole, sorts), Tag::Other);
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {

@@ -62,19 +62,16 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`holes`]: Pred::Hole
     /// [`predicate`]: Pred
-    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Pred) -> Self {
+    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Binders<Pred>) -> Self {
         struct ReplaceHoles<'a, F>(&'a mut F);
 
         impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
         where
-            F: FnMut(&[Sort]) -> Pred,
+            F: FnMut(&[Sort]) -> Binders<Pred>,
         {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 if let TyKind::Exists(bty, Binders { params, value: Pred::Hole }) = ty.kind() {
-                    Ty::exists(
-                        bty.super_fold_with(self),
-                        Binders::new(self.0(params), params.clone()),
-                    )
+                    Ty::exists(bty.super_fold_with(self), self.0(params))
                 } else {
                     ty.super_fold_with(self)
                 }

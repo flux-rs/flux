@@ -13,7 +13,7 @@ use flux_common::{
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env,
-    ty::{self, BoundVar},
+    ty::{self, Binders, BoundVar},
 };
 use rustc_middle::ty::TyCtxt;
 
@@ -37,7 +37,7 @@ struct KVarSorts {
 }
 
 pub trait KVarGen {
-    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
     where
         S: IntoIterator<Item = (ty::Name, ty::Sort)>;
 
@@ -176,34 +176,33 @@ where
         &mut self,
         pred: &ty::Pred,
     ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
-        let mut bindings = vec![];
-        let pred = match pred {
+        match pred {
             ty::Pred::Expr(expr) => {
-                fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map, &self.const_map))
+                let expr = expr_to_fixpoint(expr, &self.name_map, &self.const_map);
+                (vec![], fixpoint::Pred::Expr(expr))
             }
-            ty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, &mut bindings),
+            ty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar),
             ty::Pred::Hole => panic!("unexpected hole"),
-        };
-        (bindings, pred)
+        }
     }
 
     fn kvar_to_fixpoint(
         &mut self,
         kvar: &ty::KVar,
-        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    ) -> fixpoint::Pred {
+    ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
+        let mut bindings = vec![];
         self.populate_kvid_map(kvar.kvid);
 
         let sorts = self.kvars.get(kvar.kvid);
 
         let mut scope = iter::zip(&kvar.scope, &sorts.scope)
-            .map(|(arg, sort)| self.imm(arg, sort, bindings))
+            .map(|(arg, sort)| self.imm(arg, sort, &mut bindings))
             .collect_vec();
 
         let kvids = &self.kvid_map[&kvar.kvid];
         let mut kvars = vec![];
         for (kvid, arg, sort) in itertools::izip!(kvids, &kvar.args, &sorts.args) {
-            let arg = self.imm(arg, sort, bindings);
+            let arg = self.imm(arg, sort, &mut bindings);
 
             let mut args = vec![arg];
             args.extend(scope.iter().copied());
@@ -213,7 +212,7 @@ where
             scope.push(arg)
         }
 
-        fixpoint::Pred::And(kvars)
+        (bindings, fixpoint::Pred::And(kvars))
     }
 
     fn imm(
@@ -291,7 +290,7 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    pub fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
     where
         S: IntoIterator<Item = (ty::Name, ty::Sort)>,
     {
@@ -312,12 +311,12 @@ impl KVarStore {
             .kvars
             .push(KVarSorts { args: sorts.to_vec(), scope: scope_sorts.clone() });
 
-        ty::Pred::Kvar(ty::KVar::new(kvid, args, scope_exprs.clone()))
+        Binders::new(ty::Pred::Kvar(ty::KVar::new(kvid, args, scope_exprs.clone())), sorts)
     }
 }
 
 impl KVarGen for KVarStore {
-    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
     where
         S: IntoIterator<Item = (ty::Name, ty::Sort)>,
     {
@@ -329,7 +328,7 @@ impl<G> KVarGen for KVarGenScopeChain<'_, G>
 where
     G: KVarGen,
 {
-    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
+    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
     where
         S: IntoIterator<Item = (ty::Name, ty::Sort)>,
     {
