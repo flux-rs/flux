@@ -27,7 +27,13 @@ newtype_index! {
 
 #[derive(Default)]
 pub struct KVarStore {
-    kvars: IndexVec<KVid, Vec<fixpoint::Sort>>,
+    kvars: IndexVec<KVid, KVarDecl>,
+}
+
+#[derive(Clone)]
+struct KVarDecl {
+    args: Vec<ty::Sort>,
+    scope: Vec<ty::Sort>,
 }
 
 pub trait KVarGen {
@@ -183,10 +189,10 @@ where
 
     fn kvar_to_fixpoint(
         &mut self,
-        ty::KVar { kvid, args }: &ty::KVar,
+        kvar: &ty::KVar,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Pred {
-        let args = iter::zip(args, &self.kvars[*kvid])
+        let args = iter::zip(kvar.all_args(), self.kvars.get(kvar.kvid).all_sorts())
             .map(|(arg, sort)| {
                 match arg.kind() {
                     ty::ExprKind::FreeVar(name) => {
@@ -203,13 +209,13 @@ where
                             Box::new(fixpoint::Expr::Var(fresh)),
                             Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
                         );
-                        bindings.push((fresh, sort.clone(), pred));
+                        bindings.push((fresh, sort_to_fixpoint(sort), pred));
                         fresh
                     }
                 }
             })
             .collect();
-        fixpoint::Pred::KVar(*kvid, args)
+        fixpoint::Pred::KVar(kvar.kvid, args)
     }
 }
 
@@ -232,29 +238,35 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
+    fn get(&self, kvid: KVid) -> &KVarDecl {
+        &self.kvars[kvid]
+    }
+
     pub fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> ty::Pred
     where
         S: IntoIterator<Item = (ty::Name, ty::Sort)>,
     {
-        let scope = scope.into_iter();
-
-        let mut args = scope
-            .filter(|(_, sort)| !sort.is_loc())
-            .map(|(name, sort)| (ty::Expr::fvar(name), sort))
-            .collect_vec();
+        let mut scope_sorts = vec![];
+        let mut scope_exprs = vec![];
+        for (name, sort) in scope {
+            if !sort.is_loc() {
+                scope_sorts.push(sort);
+                scope_exprs.push(ty::Expr::fvar(name));
+            }
+        }
 
         let mut kvars = vec![];
         for (idx, sort) in sorts.iter().enumerate() {
-            args.push((ty::Expr::bvar(BoundVar::innermost(idx)), sort.clone()));
+            let arg = ty::Expr::bvar(BoundVar::innermost(idx));
 
-            let kvid = self.kvars.push(
-                args.iter()
-                    .rev()
-                    .map(|(_, s)| sort_to_fixpoint(s))
-                    .collect(),
-            );
-            kvars
-                .push(ty::KVar::new(kvid, args.iter().rev().map(|(e, _)| e.clone()).collect_vec()));
+            let kvid = self
+                .kvars
+                .push(KVarDecl { args: vec![sort.clone()], scope: scope_sorts.clone() });
+
+            kvars.push(ty::KVar::new(kvid, vec![arg.clone()], scope_exprs.clone()));
+
+            scope_sorts.push(sort.clone());
+            scope_exprs.push(arg)
         }
         ty::Pred::kvars(kvars)
     }
@@ -262,7 +274,9 @@ impl KVarStore {
     pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
         self.kvars
             .into_iter_enumerated()
-            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+            .map(|(kvid, def)| {
+                fixpoint::KVar(kvid, def.all_sorts().map(sort_to_fixpoint).collect())
+            })
             .collect()
     }
 }
@@ -276,6 +290,12 @@ impl KVarGen for KVarStore {
     }
 }
 
+impl KVarDecl {
+    fn all_sorts(&self) -> impl Iterator<Item = &ty::Sort> {
+        self.args.iter().chain(&self.scope)
+    }
+}
+
 impl<G> KVarGen for KVarGenScopeChain<'_, G>
 where
     G: KVarGen,
@@ -285,14 +305,6 @@ where
         S: IntoIterator<Item = (ty::Name, ty::Sort)>,
     {
         self.kvar_gen.fresh(sorts, self.scope.iter().chain(scope))
-    }
-}
-
-impl std::ops::Index<KVid> for KVarStore {
-    type Output = Vec<fixpoint::Sort>;
-
-    fn index(&self, index: KVid) -> &Self::Output {
-        &self.kvars[index]
     }
 }
 

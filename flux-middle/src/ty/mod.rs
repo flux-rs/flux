@@ -147,6 +147,7 @@ pub enum Pred {
 pub struct KVar {
     pub kvid: KVid,
     pub args: List<Expr>,
+    pub scope: List<Expr>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -761,11 +762,12 @@ impl Binders<Pred> {
 }
 
 impl KVar {
-    pub fn new<T>(kvid: KVid, args: T) -> Self
-    where
-        List<Expr>: From<T>,
-    {
-        KVar { kvid, args: Interned::from(args) }
+    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
+        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
+    }
+
+    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
+        self.args.iter().chain(&self.scope)
     }
 }
 
@@ -1103,12 +1105,10 @@ mod pretty {
     impl Pretty for KVar {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let KVar { kvid, args } = self;
-
-            w!("{:?}", ^kvid)?;
+            w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
-                Visibility::Show => w!("({:?})", join!(", ", args))?,
-                Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
+                Visibility::Show => w!("({:?})", join!(", ", self.all_args()))?,
+                Visibility::Truncate(n) => w!("({:?})", join!(", ", self.all_args().take(n)))?,
                 Visibility::Hide => {}
             }
             Ok(())
