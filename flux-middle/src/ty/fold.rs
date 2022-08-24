@@ -334,12 +334,12 @@ impl TypeFoldable for Pred {
 
 impl TypeFoldable for KVar {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let KVar(kvid, args) = self;
+        let KVar { kvid, args } = self;
         KVar::new(*kvid, args.iter().map(|e| e.fold_with(folder)).collect_vec())
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.1.iter().for_each(|e| e.visit_with(visitor));
+        self.args.iter().for_each(|e| e.visit_with(visitor));
     }
 }
 

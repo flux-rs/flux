@@ -144,7 +144,10 @@ pub enum Pred {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar(pub KVid, pub List<Expr>);
+pub struct KVar {
+    pub kvid: KVid,
+    pub args: List<Expr>,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Sort {
@@ -762,11 +765,7 @@ impl KVar {
     where
         List<Expr>: From<T>,
     {
-        KVar(kvid, Interned::from(args))
-    }
-
-    pub fn dummy() -> KVar {
-        KVar::new(KVid::from(0usize), vec![])
+        KVar { kvid, args: Interned::from(args) }
     }
 }
 
@@ -1104,7 +1103,7 @@ mod pretty {
     impl Pretty for KVar {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let KVar(kvid, args) = self;
+            let KVar { kvid, args } = self;
 
             w!("{:?}", ^kvid)?;
             match cx.kvar_args {

@@ -344,8 +344,7 @@ impl Node {
             NodeKind::ForAll(name, sort, pred) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
-                    let mut bindings = vec![];
-                    let pred = cx.pred_to_fixpoint(&mut bindings, pred);
+                    let (bindings, pred) = cx.pred_to_fixpoint(pred);
                     Some(stitch(
                         bindings,
                         fixpoint::Constraint::ForAll(
@@ -364,8 +363,7 @@ impl Node {
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                let mut bindings = vec![];
-                let pred = cx.pred_to_fixpoint(&mut bindings, pred);
+                let (bindings, pred) = cx.pred_to_fixpoint(pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
         }

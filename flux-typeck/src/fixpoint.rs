@@ -162,51 +162,54 @@ where
 
     pub fn pred_to_fixpoint(
         &mut self,
-        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
         pred: &ty::Pred,
-    ) -> fixpoint::Pred {
-        match pred {
+    ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
+        let mut bindings = vec![];
+        let pred = match pred {
             ty::Pred::Expr(expr) => {
                 fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map, &self.const_map))
             }
             ty::Pred::Kvars(kvars) => {
                 let kvars = kvars
                     .iter()
-                    .map(|kvar| self.kvar_to_fixpoint(bindings, kvar))
+                    .map(|kvar| self.kvar_to_fixpoint(kvar, &mut bindings))
                     .collect();
                 fixpoint::Pred::And(kvars)
             }
             ty::Pred::Hole => panic!("unexpected hole"),
-        }
+        };
+        (bindings, pred)
     }
 
     fn kvar_to_fixpoint(
         &mut self,
+        ty::KVar { kvid, args }: &ty::KVar,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-        ty::KVar(kvid, args): &ty::KVar,
     ) -> fixpoint::Pred {
-        let args = iter::zip(args, &self.kvars[*kvid]).map(|(arg, sort)| {
-            match arg.kind() {
-                ty::ExprKind::FreeVar(name) => {
-                    *self
-                        .name_map
-                        .get(name)
-                        .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
+        let args = iter::zip(args, &self.kvars[*kvid])
+            .map(|(arg, sort)| {
+                match arg.kind() {
+                    ty::ExprKind::FreeVar(name) => {
+                        *self
+                            .name_map
+                            .get(name)
+                            .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
+                    }
+                    ty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
+                    _ => {
+                        let fresh = self.fresh_name();
+                        let pred = fixpoint::Expr::BinaryOp(
+                            fixpoint::BinOp::Eq,
+                            Box::new(fixpoint::Expr::Var(fresh)),
+                            Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
+                        );
+                        bindings.push((fresh, sort.clone(), pred));
+                        fresh
+                    }
                 }
-                ty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
-                _ => {
-                    let fresh = self.fresh_name();
-                    let pred = fixpoint::Expr::BinaryOp(
-                        fixpoint::BinOp::Eq,
-                        Box::new(fixpoint::Expr::Var(fresh)),
-                        Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
-                    );
-                    bindings.push((fresh, sort.clone(), pred));
-                    fresh
-                }
-            }
-        });
-        fixpoint::Pred::KVar(*kvid, args.collect())
+            })
+            .collect();
+        fixpoint::Pred::KVar(*kvid, args)
     }
 }
 
