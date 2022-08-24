@@ -181,13 +181,7 @@ where
             ty::Pred::Expr(expr) => {
                 fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map, &self.const_map))
             }
-            ty::Pred::Kvars(kvars) => {
-                let kvars = kvars
-                    .iter()
-                    .map(|kvar| self.kvar_to_fixpoint(kvar, &mut bindings))
-                    .collect();
-                fixpoint::Pred::And(kvars)
-            }
+            ty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, &mut bindings),
             ty::Pred::Hole => panic!("unexpected hole"),
         };
         (bindings, pred)
@@ -318,7 +312,7 @@ impl KVarStore {
             .kvars
             .push(KVarSorts { args: sorts.to_vec(), scope: scope_sorts.clone() });
 
-        ty::Pred::kvars(vec![ty::KVar::new(kvid, args, scope_exprs.clone())])
+        ty::Pred::Kvar(ty::KVar::new(kvid, args, scope_exprs.clone()))
     }
 }
 

@@ -138,7 +138,7 @@ pub type Substs = List<Ty>;
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
     Hole,
-    Kvars(List<KVar>),
+    Kvar(KVar),
     Expr(Expr),
 }
 
@@ -705,24 +705,17 @@ impl ExprS {
 }
 
 impl Pred {
-    pub fn kvars<T>(kvars: T) -> Pred
-    where
-        List<KVar>: From<T>,
-    {
-        Pred::Kvars(Interned::from(kvars))
-    }
-
     pub fn tt() -> Pred {
         Pred::Expr(Expr::tt())
     }
 
     pub fn is_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
-            || matches!(self, Pred::Kvars(kvars) if kvars.is_empty())
+            || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        matches!(self, Pred::Kvar(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
     }
 
     /// Simplify expression applying some simple rules like removing double negation. This is
@@ -1065,13 +1058,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Pred::Kvars(kvars) => {
-                    match &kvars[..] {
-                        [] => w!("true"),
-                        [kvar] => w!("{:?}", kvar),
-                        kvars => w!("{:?}", join!(" ∧ ", kvars)),
-                    }
-                }
+                Pred::Kvar(kvar) => w!("{:?}", kvar),
                 Pred::Expr(expr) => w!("{:?}", expr),
                 Pred::Hole => w!("*"),
             }
