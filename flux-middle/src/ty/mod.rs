@@ -7,7 +7,7 @@ use std::{borrow::Cow, fmt, iter, sync::OnceLock};
 use flux_common::index::IndexGen;
 use itertools::Itertools;
 
-pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
+pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
@@ -185,6 +185,12 @@ pub enum ExprKind {
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,
     pub index: usize,
+}
+
+newtype_index! {
+    pub struct KVid {
+        DEBUG_FORMAT = "$k{}"
+    }
 }
 
 newtype_index! {

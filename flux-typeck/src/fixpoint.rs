@@ -1,4 +1,4 @@
-use std::{fs, io::Write, iter};
+use std::{collections::hash_map, fs, io::Write, iter};
 
 use fixpoint::FixpointResult;
 use itertools::Itertools;
@@ -13,7 +13,7 @@ use flux_common::{
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env,
-    ty::{self, BoundVar, KVid},
+    ty::{self, BoundVar},
 };
 use rustc_middle::ty::TyCtxt;
 
@@ -27,11 +27,11 @@ newtype_index! {
 
 #[derive(Default)]
 pub struct KVarStore {
-    kvars: IndexVec<KVid, KVarDecl>,
+    kvars: IndexVec<ty::KVid, KVarSorts>,
 }
 
 #[derive(Clone)]
-struct KVarDecl {
+struct KVarSorts {
     args: Vec<ty::Sort>,
     scope: Vec<ty::Sort>,
 }
@@ -52,10 +52,13 @@ pub struct KVarGenScopeChain<'a, G: ?Sized> {
 }
 
 type NameMap = FxHashMap<ty::Name, fixpoint::Name>;
+type KVidMap = FxHashMap<ty::KVid, fixpoint::KVid>;
 type ConstMap = FxHashMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<T> {
     kvars: KVarStore,
+    fixpoint_kvars: IndexVec<fixpoint::KVid, Vec<fixpoint::Sort>>,
+    kvid_map: KVidMap,
     name_gen: IndexGen<fixpoint::Name>,
     name_map: NameMap,
     const_map: ConstMap,
@@ -78,7 +81,9 @@ where
         Self {
             kvars,
             name_gen,
-            name_map: FxHashMap::default(),
+            fixpoint_kvars: IndexVec::new(),
+            kvid_map: KVidMap::default(),
+            name_map: NameMap::default(),
             const_map,
             tags: IndexVec::new(),
             tags_inv: FxHashMap::default(),
@@ -118,7 +123,11 @@ where
         constraint: fixpoint::Constraint<TagIdx>,
         qualifiers: &[ty::Qualifier],
     ) -> Result<(), Vec<T>> {
-        let kvars = self.kvars.into_fixpoint();
+        let kvars = self
+            .fixpoint_kvars
+            .into_iter_enumerated()
+            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+            .collect_vec();
 
         let mut closed_constraint = constraint;
         for const_info in self.const_map.values() {
@@ -215,7 +224,23 @@ where
                 }
             })
             .collect();
-        fixpoint::Pred::KVar(kvar.kvid, args)
+        fixpoint::Pred::KVar(self.kvid_to_fixpoint(kvar.kvid), args)
+    }
+
+    fn kvid_to_fixpoint(&mut self, kvid: ty::KVid) -> fixpoint::KVid {
+        match self.kvid_map.entry(kvid) {
+            hash_map::Entry::Occupied(entry) => *entry.get(),
+            hash_map::Entry::Vacant(entry) => {
+                let sorts = self
+                    .kvars
+                    .get(kvid)
+                    .all_sorts()
+                    .map(sort_to_fixpoint)
+                    .collect();
+                let kvid = self.fixpoint_kvars.push(sorts);
+                *entry.insert(kvid)
+            }
+        }
     }
 }
 
@@ -238,7 +263,7 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    fn get(&self, kvid: KVid) -> &KVarDecl {
+    fn get(&self, kvid: ty::KVid) -> &KVarSorts {
         &self.kvars[kvid]
     }
 
@@ -261,7 +286,7 @@ impl KVarStore {
 
             let kvid = self
                 .kvars
-                .push(KVarDecl { args: vec![sort.clone()], scope: scope_sorts.clone() });
+                .push(KVarSorts { args: vec![sort.clone()], scope: scope_sorts.clone() });
 
             kvars.push(ty::KVar::new(kvid, vec![arg.clone()], scope_exprs.clone()));
 
@@ -269,15 +294,6 @@ impl KVarStore {
             scope_exprs.push(arg)
         }
         ty::Pred::kvars(kvars)
-    }
-
-    pub fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
-        self.kvars
-            .into_iter_enumerated()
-            .map(|(kvid, def)| {
-                fixpoint::KVar(kvid, def.all_sorts().map(sort_to_fixpoint).collect())
-            })
-            .collect()
     }
 }
 
@@ -290,7 +306,7 @@ impl KVarGen for KVarStore {
     }
 }
 
-impl KVarDecl {
+impl KVarSorts {
     fn all_sorts(&self) -> impl Iterator<Item = &ty::Sort> {
         self.args.iter().chain(&self.scope)
     }
