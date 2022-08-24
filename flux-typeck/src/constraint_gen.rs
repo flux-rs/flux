@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
     ty::{
-        fold::TypeFoldable, BaseTy, BinOp, Constraint, Constraints, Expr, Index, PolySig, Pred,
-        RefKind, Sort, Ty, TyKind,
+        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
+        Pred, RefKind, Sort, Ty, TyKind,
     },
 };
 
@@ -22,7 +22,7 @@ use crate::{
 #[allow(clippy::type_complexity)]
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Pred + 'a>,
+    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
     tag: Tag,
 }
 
@@ -63,7 +63,7 @@ impl Tag {
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
-        F: FnMut(&[Sort]) -> Pred + 'a,
+        F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
     {
         ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
     }
@@ -172,9 +172,9 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         }
         (TyKind::Exists(bty, pred), _) => {
             let indices = constr
-                .push_binders(pred)
+                .push_bound_guard(pred)
                 .into_iter()
-                .map(|name| Index::from(Expr::fvar(name)))
+                .map(Index::from)
                 .collect_vec();
             let ty1 = Ty::indexed(bty.clone(), indices);
             subtyping(genv, constr, &ty1, ty2, tag);

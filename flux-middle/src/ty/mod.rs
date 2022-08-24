@@ -4,10 +4,9 @@ pub mod subst;
 
 use std::{borrow::Cow, fmt, iter, sync::OnceLock};
 
-use flux_common::index::IndexGen;
 use itertools::Itertools;
 
-pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
+pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
@@ -139,12 +138,22 @@ pub type Substs = List<Ty>;
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
     Hole,
-    Kvars(List<KVar>),
+    Kvar(KVar),
     Expr(Expr),
 }
 
+/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
+/// fixpoint makes a diference between the first and the rest of the variables, the first one being
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers using this first argument.
+/// Flux generalizes the self argument to be a list in order to deal with multiple indices. When
+/// generating the fixpoint constraint, the kvar will be split into multiple kvars, one for each
+/// argument in the list.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar(pub KVid, pub List<Expr>);
+pub struct KVar {
+    pub kvid: KVid,
+    pub args: List<Expr>,
+    pub scope: List<Expr>,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Sort {
@@ -181,6 +190,12 @@ pub enum ExprKind {
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,
     pub index: usize,
+}
+
+newtype_index! {
+    pub struct KVid {
+        DEBUG_FORMAT = "$k{}"
+    }
 }
 
 newtype_index! {
@@ -225,40 +240,6 @@ where
 
     pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
         self.value.fold_with(&mut BVarFolder::new(exprs))
-    }
-}
-
-impl Binders<Pred> {
-    pub fn split_with_fresh_fvars(&self, name_gen: &IndexGen<Name>) -> Vec<(Name, Sort, Pred)> {
-        let names = iter::repeat_with(|| name_gen.fresh())
-            .take(self.params.len())
-            .collect_vec();
-        let exprs = names.iter().copied().map(Expr::fvar).collect_vec();
-        match self.replace_bound_vars(&exprs) {
-            Pred::Hole => {
-                iter::zip(names, &self.params)
-                    .map(|(name, sort)| (name, sort.clone(), Pred::Hole))
-                    .collect()
-            }
-            Pred::Kvars(kvars) => {
-                debug_assert_eq!(kvars.len(), self.params.len());
-                itertools::izip!(names, &self.params, &kvars)
-                    .map(|(name, sort, kvar)| (name, sort.clone(), Pred::kvars(vec![kvar.clone()])))
-                    .collect()
-            }
-            Pred::Expr(e) => {
-                itertools::izip!(names, &self.params)
-                    .enumerate()
-                    .map(|(idx, (name, sort))| {
-                        if idx < self.params.len() - 1 {
-                            (name, sort.clone(), Pred::tt())
-                        } else {
-                            (name, sort.clone(), Pred::Expr(e.clone()))
-                        }
-                    })
-                    .collect()
-            }
-        }
     }
 }
 
@@ -653,8 +634,8 @@ impl ExprS {
         )
     }
 
-    /// Simplify expression applying some rules like removing double negation. This is only used
-    /// for pretty printing.
+    /// Simplify expression applying some simple rules like removing double negation. This is
+    /// only used for pretty printing.
     pub fn simplify(&self) -> Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(*name),
@@ -730,24 +711,26 @@ impl ExprS {
 }
 
 impl Pred {
-    pub fn kvars<T>(kvars: T) -> Pred
-    where
-        List<KVar>: From<T>,
-    {
-        Pred::Kvars(Interned::from(kvars))
-    }
-
     pub fn tt() -> Pred {
         Pred::Expr(Expr::tt())
     }
 
     pub fn is_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
-            || matches!(self, Pred::Kvars(kvars) if kvars.is_empty())
+            || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
     }
 
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        matches!(self, Pred::Kvar(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+    }
+
+    /// Simplify expression applying some simple rules like removing double negation. This is
+    /// only used for pretty printing.
+    pub fn simplify(&self) -> Pred {
+        match self {
+            Pred::Expr(e) => Pred::Expr(e.simplify()),
+            _ => self.clone(),
+        }
     }
 }
 
@@ -758,15 +741,12 @@ impl Binders<Pred> {
 }
 
 impl KVar {
-    pub fn new<T>(kvid: KVid, args: T) -> Self
-    where
-        List<Expr>: From<T>,
-    {
-        KVar(kvid, Interned::from(args))
+    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
+        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
     }
 
-    pub fn dummy() -> KVar {
-        KVar::new(KVid::from(0usize), vec![])
+    fn all_args(&self) -> impl Iterator<Item = &Expr> {
+        self.args.iter().chain(&self.scope)
     }
 }
 
@@ -1084,13 +1064,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Pred::Kvars(kvars) => {
-                    match &kvars[..] {
-                        [] => w!("true"),
-                        [kvar] => w!("{:?}", kvar),
-                        kvars => w!("{:?}", join!(" ∧ ", kvars)),
-                    }
-                }
+                Pred::Kvar(kvar) => w!("{:?}", kvar),
                 Pred::Expr(expr) => w!("{:?}", expr),
                 Pred::Hole => w!("*"),
             }
@@ -1104,12 +1078,10 @@ mod pretty {
     impl Pretty for KVar {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let KVar(kvid, args) = self;
-
-            w!("{:?}", ^kvid)?;
+            w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
-                Visibility::Show => w!("({:?})", join!(", ", args))?,
-                Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
+                Visibility::Show => w!("({:?})", join!(", ", self.all_args()))?,
+                Visibility::Truncate(n) => w!("({:?})", join!(", ", self.all_args().take(n)))?,
                 Visibility::Hide => {}
             }
             Ok(())
