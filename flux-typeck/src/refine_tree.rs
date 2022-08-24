@@ -80,7 +80,7 @@ struct WeakNodePtr(Weak<RefCell<Node>>);
 enum NodeKind {
     Conj,
     ForAll(Name, Sort, Pred),
-    Guard(Expr),
+    Guard(Pred),
     Head(Pred, Tag),
 }
 
@@ -146,11 +146,8 @@ impl RefineCtxt<'_> {
         self.define_vars_for_binders(pred).pop().unwrap()
     }
 
-    pub fn assume_pred(&mut self, expr: impl Into<Expr>) {
-        let expr = expr.into();
-        if !expr.is_true() {
-            self.ptr = self.ptr.push_node(NodeKind::Guard(expr));
-        }
+    pub fn assume_pred(&mut self, pred: impl Into<Pred>) {
+        self.ptr.push_guard(pred);
     }
 
     pub fn check_constr(&mut self) -> ConstrBuilder {
@@ -279,8 +276,11 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_guard(&mut self, e: Expr) {
-        *self = self.push_node(NodeKind::Guard(e))
+    fn push_guard(&mut self, pred: impl Into<Pred>) {
+        let pred = pred.into();
+        if !pred.is_true() {
+            *self = self.push_node(NodeKind::Guard(pred));
+        }
     }
 
     fn push_foralls(&mut self, pred: &Binders<Pred>) -> Vec<Name> {
@@ -356,10 +356,14 @@ impl Node {
                     ))
                 })
             }
-            NodeKind::Guard(expr) => {
-                Some(fixpoint::Constraint::Guard(
-                    cx.expr_to_fixpoint(expr),
-                    Box::new(children_to_fixpoint(cx, &self.children)?),
+            NodeKind::Guard(pred) => {
+                let (bindings, pred) = cx.pred_to_fixpoint(pred);
+                Some(stitch(
+                    bindings,
+                    fixpoint::Constraint::Guard(
+                        pred,
+                        Box::new(children_to_fixpoint(cx, &self.children)?),
+                    ),
                 ))
             }
             NodeKind::Head(pred, tag) => {
@@ -482,11 +486,11 @@ mod pretty {
         children
     }
 
-    fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
-        fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
+    fn preds_chain(ptr: &NodePtr) -> (Vec<Pred>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut preds: Vec<Pred>) -> (Vec<Pred>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Guard(e) = &node.kind {
-                preds.push(e.clone());
+            if let NodeKind::Guard(pred) = &node.kind {
+                preds.push(pred.clone());
                 if let [child] = &node.children[..] {
                     go(child, preds)
                 } else {
@@ -546,8 +550,11 @@ mod pretty {
                     } else {
                         (vec![expr.clone()], node.children.clone())
                     };
-                    let guard = Expr::and(exprs).simplify();
-                    w!("{:?} ⇒", guard)?;
+                    let guard = exprs
+                        .iter()
+                        .map(Pred::simplify)
+                        .filter(|pred| !pred.is_true());
+                    w!("{:?} ⇒", join!(" ∧ ", guard))?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {

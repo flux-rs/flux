@@ -113,7 +113,8 @@ where
         let name = const_info.name;
         let e1 = fixpoint::Expr::from(name);
         let e2 = fixpoint::Expr::from(const_info.val);
-        fixpoint::Constraint::Guard(e1.eq(e2), Box::new(cstr))
+        let pred = fixpoint::Pred::Expr(e1.eq(e2));
+        fixpoint::Constraint::Guard(pred, Box::new(cstr))
     }
 
     pub fn check(
@@ -169,10 +170,6 @@ where
             .tags_inv
             .entry(tag)
             .or_insert_with(|| self.tags.push(tag))
-    }
-
-    pub fn expr_to_fixpoint(&self, expr: &ty::Expr) -> fixpoint::Expr {
-        expr_to_fixpoint(expr, &self.name_map, &self.const_map)
     }
 
     pub fn pred_to_fixpoint(

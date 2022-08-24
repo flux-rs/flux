@@ -663,8 +663,8 @@ impl ExprS {
         )
     }
 
-    /// Simplify expression applying some rules like removing double negation. This is only used
-    /// for pretty printing.
+    /// Simplify expression applying some simple rules like removing double negation. This is
+    /// only used for pretty printing.
     pub fn simplify(&self) -> Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(*name),
@@ -758,6 +758,15 @@ impl Pred {
 
     pub fn is_atom(&self) -> bool {
         matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+    }
+
+    /// Simplify expression applying some simple rules like removing double negation. This is
+    /// only used for pretty printing.
+    pub fn simplify(&self) -> Pred {
+        match self {
+            Pred::Expr(e) => Pred::Expr(e.simplify()),
+            _ => self.clone(),
+        }
     }
 }
 

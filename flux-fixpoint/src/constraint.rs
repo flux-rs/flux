@@ -10,7 +10,7 @@ use flux_common::format::PadAdapter;
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),
     Conj(Vec<Self>),
-    Guard(Expr, Box<Self>),
+    Guard(Pred, Box<Self>),
     ForAll(Name, Sort, Pred, Box<Self>),
 }
 
