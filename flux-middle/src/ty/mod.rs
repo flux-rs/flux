@@ -772,7 +772,7 @@ impl KVar {
         KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
     }
 
-    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
+    fn all_args(&self) -> impl Iterator<Item = &Expr> {
         self.args.iter().chain(&self.scope)
     }
 }

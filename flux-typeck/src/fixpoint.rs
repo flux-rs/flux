@@ -1,4 +1,4 @@
-use std::{collections::hash_map, fs, io::Write, iter};
+use std::{fs, io::Write, iter};
 
 use fixpoint::FixpointResult;
 use itertools::Itertools;
@@ -52,7 +52,7 @@ pub struct KVarGenScopeChain<'a, G: ?Sized> {
 }
 
 type NameMap = FxHashMap<ty::Name, fixpoint::Name>;
-type KVidMap = FxHashMap<ty::KVid, fixpoint::KVid>;
+type KVidMap = FxHashMap<ty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxHashMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<T> {
@@ -201,46 +201,79 @@ where
         kvar: &ty::KVar,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Pred {
-        let args = iter::zip(kvar.all_args(), self.kvars.get(kvar.kvid).all_sorts())
-            .map(|(arg, sort)| {
-                match arg.kind() {
-                    ty::ExprKind::FreeVar(name) => {
-                        *self
-                            .name_map
-                            .get(name)
-                            .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
-                    }
-                    ty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
-                    _ => {
-                        let fresh = self.fresh_name();
-                        let pred = fixpoint::Expr::BinaryOp(
-                            fixpoint::BinOp::Eq,
-                            Box::new(fixpoint::Expr::Var(fresh)),
-                            Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
-                        );
-                        bindings.push((fresh, sort_to_fixpoint(sort), pred));
-                        fresh
-                    }
-                }
-            })
-            .collect();
-        fixpoint::Pred::KVar(self.kvid_to_fixpoint(kvar.kvid), args)
+        self.populate_kvid_map(kvar.kvid);
+
+        let sorts = self.kvars.get(kvar.kvid);
+
+        let mut scope = iter::zip(&kvar.scope, &sorts.scope)
+            .map(|(arg, sort)| self.imm(arg, sort, bindings))
+            .collect_vec();
+
+        let kvids = &self.kvid_map[&kvar.kvid];
+        let mut kvars = vec![];
+        for (kvid, arg, sort) in itertools::izip!(kvids, &kvar.args, &sorts.args) {
+            let arg = self.imm(arg, sort, bindings);
+
+            let mut args = vec![arg];
+            args.extend(scope.iter().copied());
+
+            kvars.push(fixpoint::Pred::KVar(*kvid, args));
+
+            scope.push(arg)
+        }
+
+        fixpoint::Pred::And(kvars)
     }
 
-    fn kvid_to_fixpoint(&mut self, kvid: ty::KVid) -> fixpoint::KVid {
-        match self.kvid_map.entry(kvid) {
-            hash_map::Entry::Occupied(entry) => *entry.get(),
-            hash_map::Entry::Vacant(entry) => {
-                let sorts = self
-                    .kvars
-                    .get(kvid)
-                    .all_sorts()
-                    .map(sort_to_fixpoint)
-                    .collect();
-                let kvid = self.fixpoint_kvars.push(sorts);
-                *entry.insert(kvid)
+    fn imm(
+        &self,
+        arg: &ty::Expr,
+        sort: &ty::Sort,
+        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    ) -> fixpoint::Name {
+        match arg.kind() {
+            ty::ExprKind::FreeVar(name) => {
+                *self
+                    .name_map
+                    .get(name)
+                    .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
+            }
+            ty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
+            _ => {
+                let fresh = self.fresh_name();
+                let pred = fixpoint::Expr::BinaryOp(
+                    fixpoint::BinOp::Eq,
+                    Box::new(fixpoint::Expr::Var(fresh)),
+                    Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
+                );
+                bindings.push((fresh, sort_to_fixpoint(sort), pred));
+                fresh
             }
         }
+    }
+
+    fn populate_kvid_map(&mut self, kvid: ty::KVid) {
+        self.kvid_map.entry(kvid).or_insert_with(|| {
+            let sorts = self.kvars.get(kvid);
+
+            let mut scope = sorts.scope.iter().map(sort_to_fixpoint).collect_vec();
+
+            let mut kvids = vec![];
+            for sort in &sorts.args {
+                let sort = sort_to_fixpoint(sort);
+
+                let kvid = self.fixpoint_kvars.push({
+                    let mut sorts = vec![sort.clone()];
+                    sorts.extend(scope.iter().cloned());
+                    sorts
+                });
+                kvids.push(kvid);
+
+                scope.push(sort);
+            }
+
+            kvids
+        });
     }
 }
 
@@ -303,12 +336,6 @@ impl KVarGen for KVarStore {
         S: IntoIterator<Item = (ty::Name, ty::Sort)>,
     {
         KVarStore::fresh(self, sorts, scope)
-    }
-}
-
-impl KVarSorts {
-    fn all_sorts(&self) -> impl Iterator<Item = &ty::Sort> {
-        self.args.iter().chain(&self.scope)
     }
 }
 
