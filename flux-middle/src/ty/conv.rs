@@ -1,3 +1,4 @@
+//! Conversion from desugared types in [`crate::core`] to types in [`crate::ty`]
 use std::iter;
 
 use flux_common::index::IndexGen;
@@ -12,7 +13,7 @@ use crate::{
     ty::{self, DebruijnIndex},
 };
 
-pub struct LoweringCtxt<'a, 'genv, 'tcx> {
+pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: &'a GlobalEnv<'genv, 'tcx>,
     name_map: NameMap,
 }
@@ -65,42 +66,42 @@ impl NameMap {
     }
 }
 
-impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
+impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub fn lower_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
-        let mut cx = LoweringCtxt::new(genv);
+    pub fn conv_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
+        let mut cx = ConvCtxt::new(genv);
 
-        let params = cx.lower_params(&fn_sig.params);
+        let params = cx.conv_params(&fn_sig.params);
 
         let mut requires = vec![];
         for constr in fn_sig.requires {
-            requires.push(cx.lower_constr(&constr, 1));
+            requires.push(cx.conv_constr(&constr, 1));
         }
 
         let mut args = vec![];
         for ty in fn_sig.args {
-            args.push(cx.lower_ty(&ty, 1));
+            args.push(cx.conv_ty(&ty, 1));
         }
 
         let mut ensures = vec![];
         for constr in fn_sig.ensures {
-            ensures.push(cx.lower_constr(&constr, 1));
+            ensures.push(cx.conv_constr(&constr, 1));
         }
 
-        let ret = cx.lower_ty(&fn_sig.ret, 1);
+        let ret = cx.conv_ty(&fn_sig.ret, 1);
 
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub(crate) fn lower_struct_def(
+    pub(crate) fn conv_struct_def(
         genv: &GlobalEnv,
         struct_def: &core::StructDef,
     ) -> Option<ty::VariantDef> {
-        let mut cx = LoweringCtxt::new(genv);
-        let sorts = cx.lower_params(&struct_def.refined_by);
+        let mut cx = ConvCtxt::new(genv);
+        let sorts = cx.conv_params(&struct_def.refined_by);
 
         let def_id = struct_def.def_id;
         if let core::StructKind::Transparent { fields } = &struct_def.kind {
@@ -108,7 +109,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
             let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
                 .map(|(ty, field)| {
                     match ty {
-                        Some(ty) => cx.lower_ty(ty, 1),
+                        Some(ty) => cx.conv_ty(ty, 1),
                         None => genv.default_type_of(field.did),
                     }
                 })
@@ -135,19 +136,19 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lower_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
+    fn conv_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
         params
             .iter()
             .enumerate()
             .map(|(index, param)| {
                 self.name_map
                     .insert(param.name.name, Entry::Bound { index, level: 0 });
-                lower_sort(param.sort)
+                conv_sort(param.sort)
             })
             .collect()
     }
 
-    fn lower_constr(&mut self, constr: &core::Constraint, nbinders: u32) -> ty::Constraint {
+    fn conv_constr(&mut self, constr: &core::Constraint, nbinders: u32) -> ty::Constraint {
         match constr {
             core::Constraint::Type(loc, ty) => {
                 ty::Constraint::Type(
@@ -155,14 +156,14 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                         .get(loc.name, nbinders)
                         .to_path()
                         .expect("expected a valid path"),
-                    self.lower_ty(ty, nbinders),
+                    self.conv_ty(ty, nbinders),
                 )
             }
-            core::Constraint::Pred(e) => ty::Constraint::Pred(lower_expr(e, &self.name_map, 1)),
+            core::Constraint::Pred(e) => ty::Constraint::Pred(conv_expr(e, &self.name_map, 1)),
         }
     }
 
-    pub fn lower_qualifer(qualifier: &core::Qualifier) -> ty::Qualifier {
+    pub fn conv_qualifier(qualifier: &core::Qualifier) -> ty::Qualifier {
         let mut name_map = NameMap::default();
         let name_gen = IndexGen::new();
 
@@ -172,19 +173,19 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
             .map(|param| {
                 let fresh = name_gen.fresh();
                 name_map.insert(param.name.name, fresh);
-                (fresh, lower_sort(param.sort))
+                (fresh, conv_sort(param.sort))
             })
             .collect_vec();
 
-        let expr = lower_expr(&qualifier.expr, &name_map, 1);
+        let expr = conv_expr(&qualifier.expr, &name_map, 1);
 
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    fn lower_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
+    fn conv_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {
         match ty {
             core::Ty::BaseTy(bty) => {
-                let bty = self.lower_base_ty(bty, nbinders);
+                let bty = self.conv_base_ty(bty, nbinders);
                 let sorts = bty.sorts();
                 if sorts.is_empty() {
                     ty::Ty::indexed(bty, vec![])
@@ -197,15 +198,15 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 let indices = indices
                     .indices
                     .iter()
-                    .map(|idx| self.lower_index(idx, nbinders))
+                    .map(|idx| self.conv_index(idx, nbinders))
                     .collect_vec();
-                ty::Ty::indexed(self.lower_base_ty(bty, nbinders), indices)
+                ty::Ty::indexed(self.conv_base_ty(bty, nbinders), indices)
             }
             core::Ty::Exists(bty, binders, pred) => {
-                let bty = self.lower_base_ty(bty, nbinders);
+                let bty = self.conv_base_ty(bty, nbinders);
                 self.name_map
                     .with_binders(binders, nbinders, |name_map, nbinders| {
-                        let expr = lower_expr(pred, name_map, nbinders);
+                        let expr = conv_expr(pred, name_map, nbinders);
                         let pred = ty::Binders::new(ty::Pred::Expr(expr), bty.sorts());
                         ty::Ty::exists(bty, pred)
                     })
@@ -219,40 +220,37 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 )
             }
             core::Ty::Ref(rk, ty) => {
-                ty::Ty::mk_ref(Self::lower_ref_kind(*rk), self.lower_ty(ty, nbinders))
+                ty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty, nbinders))
             }
             core::Ty::Param(param) => ty::Ty::param(*param),
             core::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
             core::Ty::Tuple(tys) => {
                 let tys = tys
                     .iter()
-                    .map(|ty| self.lower_ty(ty, nbinders))
+                    .map(|ty| self.conv_ty(ty, nbinders))
                     .collect_vec();
                 ty::Ty::tuple(tys)
             }
             core::Ty::Never => ty::Ty::never(),
             core::Ty::Constr(pred, ty) => {
-                let pred = lower_expr(pred, &self.name_map, nbinders);
-                ty::Ty::constr(pred, self.lower_ty(ty, nbinders))
+                let pred = conv_expr(pred, &self.name_map, nbinders);
+                ty::Ty::constr(pred, self.conv_ty(ty, nbinders))
             }
         }
     }
 
-    fn lower_index(&self, idx: &core::Index, nbinders: u32) -> ty::Index {
-        ty::Index {
-            expr: lower_expr(&idx.expr, &self.name_map, nbinders),
-            is_binder: idx.is_binder,
-        }
+    fn conv_index(&self, idx: &core::Index, nbinders: u32) -> ty::Index {
+        ty::Index { expr: conv_expr(&idx.expr, &self.name_map, nbinders), is_binder: idx.is_binder }
     }
 
-    fn lower_ref_kind(rk: core::RefKind) -> ty::RefKind {
+    fn conv_ref_kind(rk: core::RefKind) -> ty::RefKind {
         match rk {
             core::RefKind::Mut => ty::RefKind::Mut,
             core::RefKind::Shr => ty::RefKind::Shr,
         }
     }
 
-    fn lower_base_ty(&mut self, bty: &core::BaseTy, nbinders: u32) -> ty::BaseTy {
+    fn conv_base_ty(&mut self, bty: &core::BaseTy, nbinders: u32) -> ty::BaseTy {
         match bty {
             core::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             core::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
@@ -270,7 +268,7 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
                 let adt_def = self.genv.adt_def(*did);
                 let substs = substs
                     .iter()
-                    .map(|ty| self.lower_ty(ty, nbinders))
+                    .map(|ty| self.conv_ty(ty, nbinders))
                     .chain(defaults);
                 ty::BaseTy::adt(adt_def, substs)
             }
@@ -278,29 +276,29 @@ impl<'a, 'genv, 'tcx> LoweringCtxt<'a, 'genv, 'tcx> {
     }
 }
 
-fn lower_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
+fn conv_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
     match &expr.kind {
         core::ExprKind::Const(did, _) => ty::Expr::const_def_id(*did),
         core::ExprKind::Var(name, ..) => name_map.get(*name, nbinders),
-        core::ExprKind::Literal(lit) => ty::Expr::constant(lower_lit(*lit)),
+        core::ExprKind::Literal(lit) => ty::Expr::constant(conv_lit(*lit)),
         core::ExprKind::BinaryOp(op, e1, e2) => {
             ty::Expr::binary_op(
                 *op,
-                lower_expr(e1, name_map, nbinders),
-                lower_expr(e2, name_map, nbinders),
+                conv_expr(e1, name_map, nbinders),
+                conv_expr(e2, name_map, nbinders),
             )
         }
     }
 }
 
-fn lower_lit(lit: core::Lit) -> ty::Constant {
+fn conv_lit(lit: core::Lit) -> ty::Constant {
     match lit {
         core::Lit::Int(n) => ty::Constant::from(n),
         core::Lit::Bool(b) => ty::Constant::from(b),
     }
 }
 
-pub fn lower_sort(sort: core::Sort) -> ty::Sort {
+pub fn conv_sort(sort: core::Sort) -> ty::Sort {
     match sort {
         core::Sort::Int => ty::Sort::Int,
         core::Sort::Bool => ty::Sort::Bool,

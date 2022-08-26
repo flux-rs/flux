@@ -1,7 +1,7 @@
 use std::iter;
 
 use flux_common::iter::IterExt;
-use flux_middle::{core, global_env::GlobalEnv, ty, ty::lowering::lower_sort};
+use flux_middle::{core, global_env::GlobalEnv, ty, ty::conv::conv_sort};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -19,7 +19,7 @@ impl Env {
     fn new(params: &[core::Param]) -> Env {
         let sorts = params
             .iter()
-            .map(|param| (param.name.name, lower_sort(param.sort)))
+            .map(|param| (param.name.name, conv_sort(param.sort)))
             .collect();
         Env { sorts }
     }

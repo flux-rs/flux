@@ -62,7 +62,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn register_adt_def(&mut self, def_id: DefId, sorts: &[core::Sort]) {
         let sorts = sorts
             .iter()
-            .map(|sort| ty::lowering::lower_sort(*sort))
+            .map(|sort| ty::conv::conv_sort(*sort))
             .collect_vec();
         self.adt_defs
             .get_mut()
@@ -75,12 +75,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
-        let fn_sig = ty::lowering::LoweringCtxt::lower_fn_sig(self, fn_sig);
+        let fn_sig = ty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
-        let variant = ty::lowering::LoweringCtxt::lower_struct_def(self, &struct_def);
+        let variant = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
     }

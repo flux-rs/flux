@@ -145,7 +145,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
-                Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
+                Ok(ty::conv::ConvCtxt::conv_qualifier(&qualifier))
             })
             .try_collect_exhaust()?;
 

@@ -1,5 +1,5 @@
+pub mod conv;
 pub mod fold;
-pub mod lowering;
 pub mod subst;
 
 use std::{borrow::Cow, fmt, iter, sync::OnceLock};
