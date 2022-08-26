@@ -1,14 +1,13 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_middle::global_env::GlobalEnv;
+use flux_syntax::surface::{self, Ident, Path, Res, Ty};
 use hir::{def_id::DefId, ItemId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
 use rustc_span::Symbol;
-
-use flux_syntax::surface::{self, Ident, Path, Res, Ty};
 
 pub struct Resolver<'a> {
     sess: &'a FluxSession,

@@ -438,11 +438,11 @@ mod pretty {
     };
 
     use flux_common::format::PadAdapter;
+    use flux_middle::pretty::*;
     use itertools::Itertools;
     use rustc_middle::ty::TyCtxt;
 
     use super::*;
-    use flux_middle::pretty::*;
 
     fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut bindings: Vec<(Name, Sort)>) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {

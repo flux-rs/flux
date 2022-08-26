@@ -1,9 +1,5 @@
 use std::{cell::RefCell, iter, rc::Rc};
 
-use itertools::Itertools;
-
-use rustc_hash::FxHashMap;
-
 use flux_middle::{
     global_env::GlobalEnv,
     rustc::mir::{Field, Place, PlaceElem},
@@ -12,6 +8,8 @@ use flux_middle::{
         AdtDef, BaseTy, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
+use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
 use crate::{
     constraint_gen::ConstrGen,
@@ -570,10 +568,12 @@ impl TypeFoldable for Binding {
 }
 
 mod pretty {
-    use super::*;
+    use std::fmt;
+
     use flux_middle::pretty::*;
     use itertools::Itertools;
-    use std::fmt;
+
+    use super::*;
 
     impl Pretty for PathsTree {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {

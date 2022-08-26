@@ -1,16 +1,16 @@
 use std::iter;
 
-use crate::{
-    global_env::GlobalEnv,
-    rustc::ty::GenericParamDefKind,
-    ty::{self, DebruijnIndex},
-};
 use flux_common::index::IndexGen;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_target::abi::VariantIdx;
 
-use crate::core;
+use crate::{
+    core,
+    global_env::GlobalEnv,
+    rustc::ty::GenericParamDefKind,
+    ty::{self, DebruijnIndex},
+};
 
 pub struct LoweringCtxt<'a, 'genv, 'tcx> {
     genv: &'a GlobalEnv<'genv, 'tcx>,

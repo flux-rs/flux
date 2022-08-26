@@ -1,11 +1,11 @@
-use itertools::Itertools;
-use rustc_index::newtype_index;
 use std::{
     fmt::{self, Write},
     sync::LazyLock,
 };
 
 use flux_common::format::PadAdapter;
+use itertools::Itertools;
+use rustc_index::newtype_index;
 
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),

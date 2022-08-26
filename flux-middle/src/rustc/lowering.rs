@@ -1,5 +1,4 @@
 use itertools::Itertools;
-
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_hir::def_id::DefId;
@@ -14,8 +13,6 @@ use rustc_middle::{
 };
 use rustc_span::Span;
 
-use crate::intern::List;
-
 use super::{
     mir::{
         AggregateKind, BasicBlockData, BinOp, Body, CallSubsts, Constant, FakeReadCause, Instance,
@@ -24,6 +21,7 @@ use super::{
     },
     ty::{FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty},
 };
+use crate::intern::List;
 
 pub struct LoweringCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -377,9 +375,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
         constant: &rustc_mir::Constant<'tcx>,
     ) -> Result<Constant, ErrorGuaranteed> {
         use rustc_middle::ty::TyKind;
-        use rustc_mir::ConstantKind;
         // use rustc_ty::ScalarInt;
         use rustc_mir::interpret::Scalar;
+        use rustc_mir::ConstantKind;
         let tcx = self.tcx;
         let span = constant.span;
 

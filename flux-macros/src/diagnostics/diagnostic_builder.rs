@@ -1,5 +1,15 @@
 #![deny(unused_must_use)]
 
+use std::{collections::HashMap, str::FromStr};
+
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::{format_ident, quote};
+use syn::{
+    parse_quote, spanned::Spanned, Attribute, Field, Meta, MetaList, MetaNameValue, NestedMeta,
+    Path, Type,
+};
+use synstructure::{BindingInfo, Structure};
+
 use crate::diagnostics::{
     error::{
         invalid_nested_attr, span_err, throw_invalid_attr, throw_invalid_nested_attr,
@@ -10,14 +20,6 @@ use crate::diagnostics::{
         Applicability, FieldInfo, FieldInnerTy, HasFieldMap, SetOnce,
     },
 };
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote};
-use std::{collections::HashMap, str::FromStr};
-use syn::{
-    parse_quote, spanned::Spanned, Attribute, Field, Meta, MetaList, MetaNameValue, NestedMeta,
-    Path, Type,
-};
-use synstructure::{BindingInfo, Structure};
 
 /// What kind of diagnostic is being derived - an error, a warning or a lint?
 #[derive(Copy, Clone)]

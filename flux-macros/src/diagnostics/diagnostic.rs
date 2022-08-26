@@ -1,14 +1,15 @@
 #![deny(unused_must_use)]
 
+use proc_macro2::TokenStream;
+use quote::quote;
+use syn::spanned::Spanned;
+use synstructure::Structure;
+
 use crate::diagnostics::{
     diagnostic_builder::{DiagnosticDeriveBuilder, DiagnosticDeriveKind},
     error::{span_err, DiagnosticDeriveError},
     utils::{build_field_mapping, SetOnce},
 };
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::spanned::Spanned;
-use synstructure::Structure;
 
 /// The central struct for constructing the `into_diagnostic` method from an annotated struct.
 pub(crate) struct SessionDiagnosticDerive<'a> {

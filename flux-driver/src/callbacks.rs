@@ -1,4 +1,12 @@
+use flux_common::iter::IterExt;
+use flux_desugar as desugar;
 use flux_errors::FluxSession;
+use flux_middle::{
+    global_env::{ConstInfo, GlobalEnv},
+    rustc, ty,
+};
+use flux_syntax::surface;
+use flux_typeck::{self as typeck, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -8,15 +16,6 @@ use rustc_middle::ty::{
     query::{query_values, Providers},
     TyCtxt, WithOptConstParam,
 };
-
-use flux_common::iter::IterExt;
-use flux_desugar as desugar;
-use flux_middle::{
-    global_env::{ConstInfo, GlobalEnv},
-    rustc, ty,
-};
-use flux_syntax::surface;
-use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
 
 use crate::{

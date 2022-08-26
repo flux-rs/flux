@@ -1,11 +1,6 @@
 use std::{fs, io::Write, iter};
 
 use fixpoint::FixpointResult;
-use itertools::Itertools;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
-use rustc_index::newtype_index;
-
 use flux_common::{
     config::CONFIG,
     index::{IndexGen, IndexVec},
@@ -15,6 +10,10 @@ use flux_middle::{
     global_env,
     ty::{self, Binders, BoundVar},
 };
+use itertools::Itertools;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 
 use crate::refine_tree::Scope;

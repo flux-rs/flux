@@ -1,3 +1,10 @@
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
+
 use annotate_snippets::{
     display_list::DisplayList,
     snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},
@@ -10,12 +17,6 @@ use fluent_syntax::{
 use proc_macro::{Diagnostic, Level, Span};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-};
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,

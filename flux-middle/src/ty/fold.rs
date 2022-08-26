@@ -4,11 +4,10 @@
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use crate::intern::{Internable, List};
-
 use super::{
     BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
 };
+use crate::intern::{Internable, List};
 
 pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {

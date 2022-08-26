@@ -1,9 +1,5 @@
 use std::iter;
 
-use itertools::{izip, Itertools};
-
-use rustc_span::Span;
-
 use flux_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
@@ -12,6 +8,8 @@ use flux_middle::{
         Pred, RefKind, Sort, Ty, TyKind,
     },
 };
+use itertools::{izip, Itertools};
+use rustc_span::Span;
 
 use crate::{
     param_infer::{self, InferenceError},
@@ -286,9 +284,11 @@ fn variance_subtyping(
 }
 
 mod pretty {
-    use super::*;
-    use flux_middle::pretty::*;
     use std::fmt;
+
+    use flux_middle::pretty::*;
+
+    use super::*;
 
     impl Pretty for Tag {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {

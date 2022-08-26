@@ -9,15 +9,6 @@ extern crate rustc_span;
 
 use std::collections::{hash_map::Entry, BinaryHeap};
 
-use itertools::Itertools;
-
-use rustc_data_structures::graph::dominators::Dominators;
-use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
-use rustc_index::bit_set::BitSet;
-use rustc_middle::mir as rustc_mir;
-
 use flux_common::{config::AssertBehavior, index::IndexVec};
 use flux_middle::{
     global_env::GlobalEnv,
@@ -33,6 +24,13 @@ use flux_middle::{
         Pred, Sort, Ty, TyKind, VariantIdx,
     },
 };
+use itertools::Itertools;
+use rustc_data_structures::graph::dominators::Dominators;
+use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_index::bit_set::BitSet;
+use rustc_middle::mir as rustc_mir;
 
 use crate::{
     constraint_gen::{ConstrGen, Tag},
