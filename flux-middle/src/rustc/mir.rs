@@ -2,8 +2,8 @@
 
 use std::fmt;
 
+use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
-
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::{
@@ -16,8 +16,6 @@ pub use rustc_middle::{
 };
 use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
-
-use flux_common::index::{Idx, IndexVec};
 
 use super::ty::{GenericArg, Ty};
 use crate::intern::List;

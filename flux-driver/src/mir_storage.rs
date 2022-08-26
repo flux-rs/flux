@@ -10,10 +10,11 @@
 //! that is used to show that the lifetime that the client provided is indeed
 //! `'tcx`.
 
+use std::{cell::RefCell, collections::HashMap, thread_local};
+
 use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
-use std::{cell::RefCell, collections::HashMap, thread_local};
 
 thread_local! {
     pub static SHARED_STATE:

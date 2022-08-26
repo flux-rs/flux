@@ -13,6 +13,7 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
+pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{self, AdtSortsMap},
@@ -23,8 +24,6 @@ use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-
-pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
 use rustc_span::Span;
 
 pub fn desugar_struct_def(

@@ -2,12 +2,6 @@ use std::iter;
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_syntax::surface::{self, Res};
-use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
-use rustc_span::{sym, symbol::kw, Symbol};
-
 use flux_middle::{
     core::{
         AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
@@ -15,6 +9,11 @@ use flux_middle::{
     },
     global_env::ConstInfo,
 };
+use flux_syntax::surface::{self, Res};
+use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_span::{sym, symbol::kw, Symbol};
 
 pub fn desugar_qualifier(
     sess: &FluxSession,

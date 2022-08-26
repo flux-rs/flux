@@ -1,11 +1,10 @@
 use std::iter;
 
-use rustc_hash::FxHashMap;
-
 use flux_middle::ty::{
     subst::FVarSubst, BaseTy, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind,
     INNERMOST,
 };
+use rustc_hash::FxHashMap;
 
 use crate::type_env::PathMap;
 

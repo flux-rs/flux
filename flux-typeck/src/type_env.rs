@@ -3,11 +3,6 @@ pub mod paths_tree;
 use std::iter;
 
 use flux_common::index::IndexGen;
-use itertools::{izip, Itertools};
-
-use rustc_hash::FxHashSet;
-use rustc_middle::ty::TyCtxt;
-
 use flux_middle::{
     global_env::GlobalEnv,
     rustc::mir::Place,
@@ -16,17 +11,18 @@ use flux_middle::{
         TyKind,
     },
 };
+use itertools::{izip, Itertools};
+use rustc_hash::FxHashSet;
+use rustc_middle::ty::TyCtxt;
 
+use self::paths_tree::{Binding, LookupResult, PathsTree};
+use super::ty::{Loc, Name, Pred, Sort};
 use crate::{
     constraint_gen::ConstrGen,
     fixpoint::KVarGen,
     param_infer,
     refine_tree::{RefineCtxt, Scope},
 };
-
-use self::paths_tree::{Binding, LookupResult, PathsTree};
-
-use super::ty::{Loc, Name, Pred, Sort};
 
 pub trait PathMap {
     fn get(&self, path: &Path) -> Ty;
@@ -606,10 +602,12 @@ impl BasicBlockEnv {
 }
 
 mod pretty {
-    use super::*;
+    use std::fmt;
+
     use flux_middle::pretty::*;
     use itertools::Itertools;
-    use std::fmt;
+
+    use super::*;
 
     impl Pretty for TypeEnv {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {

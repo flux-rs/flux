@@ -1,13 +1,11 @@
 use std::iter;
 
 use flux_common::iter::IterExt;
-use flux_middle::{core, global_env::GlobalEnv};
+use flux_middle::{core, global_env::GlobalEnv, ty, ty::lowering::lower_sort};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_session::SessionDiagnostic;
-
-use flux_middle::{ty, ty::lowering::lower_sort};
 
 pub struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
