@@ -7,39 +7,39 @@ pub fn never<T>(_x: i32) -> T {
 }
 
 #[flux::refined_by(n:int)]
-pub enum List<T> {
-    #[flux::ctor(List<T>[0])]
+pub enum List {
+    #[flux::variant(List[0])]
     Nil,
-    #[flux::ctor((T,Box<List<T>[@n]>) -> List<T>[n+1])]
-    Cons(T, Box<List<T>>),
+    #[flux::variant((h:i32, Box<List[@n]>) -> List[n+1])]
+    Cons(i32, Box<List>),
 }
 
-#[flux::sig(fn({&List<T>[@n] : 0 <= n}) -> bool[n == 0])]
-pub fn empty<T>(l: &List<T>) -> bool {
+#[flux::sig(fn({&List[@n] : 0 <= n}) -> bool[n == 0])]
+pub fn empty(l: &List) -> bool {
     match l {
         List::Nil => true,
         List::Cons(_, tl) => false,
     }
 }
 
-#[flux::sig(fn(l: &List<T>[n]) -> i32[n])]
-pub fn len<T>(l: &List<T>) -> i32 {
+#[flux::sig(fn(l: &List[n]) -> i32[n])]
+pub fn len(l: &List) -> i32 {
     match l {
         List::Nil => 0,
         List::Cons(_, tl) => 1 + len(tl),
     }
 }
 
-#[flux::sig(fn ({&List<T>[@n] : 0 < n}) -> &T)]
-pub fn head<T>(l: &List<T>) -> &T {
+#[flux::sig(fn ({&List[@n] : 0 < n}) -> i32)]
+pub fn head(l: &List) -> i32 {
     match l {
         List::Nil => never(0),
-        List::Cons(h, _) => h,
+        List::Cons(h, _) => *h,
     }
 }
 
-#[flux::sig(fn ({&List<T>[@n] : 0 < n}) -> &List<T>)]
-pub fn tail<T>(l: &List<T>) -> &List<T> {
+#[flux::sig(fn ({&List<[@n] : 0 < n}) -> &List)]
+pub fn tail(l: &List) -> &List {
     match l {
         List::Nil => never(0),
         List::Cons(_, t) => t,
