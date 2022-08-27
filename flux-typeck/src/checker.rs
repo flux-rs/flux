@@ -9,15 +9,6 @@ extern crate rustc_span;
 
 use std::collections::{hash_map::Entry, BinaryHeap};
 
-use itertools::Itertools;
-
-use rustc_data_structures::graph::dominators::Dominators;
-use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
-use rustc_index::bit_set::BitSet;
-use rustc_middle::mir as rustc_mir;
-
 use flux_common::{config::AssertBehavior, index::IndexVec};
 use flux_middle::{
     global_env::GlobalEnv,
@@ -33,12 +24,19 @@ use flux_middle::{
         Pred, Sort, Ty, TyKind, VariantIdx,
     },
 };
+use itertools::Itertools;
+use rustc_data_structures::graph::dominators::Dominators;
+use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_index::bit_set::BitSet;
+use rustc_middle::mir as rustc_mir;
 
 use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
     fixpoint::KVarStore,
-    refine_tree::{RefineCtxt, RefineTree, Scope, Snapshot},
+    refine_tree::{RefineCtxt, RefineTree, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
@@ -408,9 +406,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
-        // HACK(nilehman) more generally we should close boxes whenever moving them
-        env.close_boxes(self.genv, &Scope::empty());
-
         let tag = match src_info {
             Some(info) => Tag::RetAt(info.span),
             None => Tag::Ret,
@@ -897,7 +892,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         tag: Tag,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_| Pred::Hole, tag)
+        ConstrGen::new(genv, |sorts| Binders::new(Pred::Hole, sorts), tag)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -915,13 +910,11 @@ impl Phase for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
+        let mut gen = ConstrGen::new(ck.genv, |sorts| Binders::new(Pred::Hole, sorts), Tag::Other);
         let modified = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => {
-                let mut gen = ConstrGen::new(ck.genv, |_| Pred::Hole, Tag::Other);
-                entry.get_mut().join(&mut rcx, &mut gen, env)
-            }
+            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
-                entry.insert(env.into_infer(ck.genv, scope));
+                entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
                 true
             }
         };

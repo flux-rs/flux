@@ -4,11 +4,10 @@
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use crate::intern::{Internable, List};
-
 use super::{
     BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
 };
+use crate::intern::{Internable, List};
 
 pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
@@ -62,19 +61,16 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`holes`]: Pred::Hole
     /// [`predicate`]: Pred
-    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Pred) -> Self {
+    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Binders<Pred>) -> Self {
         struct ReplaceHoles<'a, F>(&'a mut F);
 
         impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
         where
-            F: FnMut(&[Sort]) -> Pred,
+            F: FnMut(&[Sort]) -> Binders<Pred>,
         {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 if let TyKind::Exists(bty, Binders { params, value: Pred::Hole }) = ty.kind() {
-                    Ty::exists(
-                        bty.super_fold_with(self),
-                        Binders::new(self.0(params), params.clone()),
-                    )
+                    Ty::exists(bty.super_fold_with(self), self.0(params))
                 } else {
                     ty.super_fold_with(self)
                 }
@@ -310,14 +306,7 @@ impl TypeFoldable for BaseTy {
 impl TypeFoldable for Pred {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
-            Pred::Kvars(kvars) => {
-                Pred::kvars(
-                    kvars
-                        .iter()
-                        .map(|kvar| kvar.fold_with(folder))
-                        .collect_vec(),
-                )
-            }
+            Pred::Kvar(kvar) => Pred::Kvar(kvar.fold_with(folder)),
             Pred::Expr(e) => Pred::Expr(e.fold_with(folder)),
             Pred::Hole => Pred::Hole,
         }
@@ -326,7 +315,7 @@ impl TypeFoldable for Pred {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Pred::Expr(e) => e.visit_with(visitor),
-            Pred::Kvars(kvars) => kvars.iter().for_each(|kvar| kvar.visit_with(visitor)),
+            Pred::Kvar(kvar) => kvar.visit_with(visitor),
             Pred::Hole => {}
         }
     }
@@ -334,12 +323,14 @@ impl TypeFoldable for Pred {
 
 impl TypeFoldable for KVar {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let KVar(kvid, args) = self;
-        KVar::new(*kvid, args.iter().map(|e| e.fold_with(folder)).collect_vec())
+        let KVar { kvid, args, scope } = self;
+        let args = args.iter().map(|e| e.fold_with(folder)).collect();
+        let scope = scope.iter().map(|e| e.fold_with(folder)).collect();
+        KVar::new(*kvid, args, scope)
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.1.iter().for_each(|e| e.visit_with(visitor));
+        self.args.iter().for_each(|e| e.visit_with(visitor));
     }
 }
 

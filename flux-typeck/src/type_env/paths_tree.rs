@@ -1,8 +1,4 @@
-use std::iter;
-
-use itertools::Itertools;
-
-use rustc_hash::FxHashMap;
+use std::{cell::RefCell, iter, rc::Rc};
 
 use flux_middle::{
     global_env::GlobalEnv,
@@ -12,12 +8,28 @@ use flux_middle::{
         AdtDef, BaseTy, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
+use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
-use crate::{constraint_gen::ConstrGen, refine_tree::RefineCtxt};
+use crate::{
+    constraint_gen::ConstrGen,
+    refine_tree::{RefineCtxt, Scope},
+};
 
-#[derive(Clone, Default, Eq, PartialEq)]
+#[derive(Default, Eq, PartialEq)]
 pub struct PathsTree {
-    map: FxHashMap<Loc, Node>,
+    map: FxHashMap<Loc, NodePtr>,
+}
+
+impl Clone for PathsTree {
+    fn clone(&self) -> Self {
+        let map = self
+            .map
+            .iter()
+            .map(|(loc, ptr)| (*loc, Rc::new(RefCell::new(ptr.borrow().clone()))))
+            .collect();
+        Self { map }
+    }
 }
 
 pub enum LookupResult {
@@ -46,6 +58,7 @@ impl PathsTree {
             gen,
             Loc::Local(place.local),
             &mut place.projection.iter().copied(),
+            true,
         )
     }
 
@@ -59,15 +72,11 @@ impl PathsTree {
             .projection()
             .iter()
             .map(|field| PlaceElem::Field(*field));
-        self.lookup_place_iter(rcx, gen, path.loc, &mut proj)
-    }
-
-    pub fn remove(&mut self, loc: Loc) {
-        self.map.remove(&loc);
+        self.lookup_place_iter(rcx, gen, path.loc, &mut proj, false)
     }
 
     pub fn get(&self, path: &Path) -> Binding {
-        let mut node = self.map.get(&path.loc).unwrap();
+        let mut node = &*self.map.get(&path.loc).unwrap().borrow();
         for f in path.projection() {
             match node {
                 Node::Leaf(_) => panic!("expected `Node::Adt`"),
@@ -81,55 +90,87 @@ impl PathsTree {
     }
 
     pub fn update_binding(&mut self, path: &Path, binding: Binding) {
-        *self.get_node_mut(path) = Node::Leaf(binding);
+        self.get_node_mut(path, |node, _| {
+            *node = Node::Leaf(binding);
+        });
     }
 
     pub fn update(&mut self, path: &Path, new_ty: Ty) {
-        *self.get_node_mut(path).expect_owned_mut() = new_ty;
+        self.get_node_mut(path, |node, _| {
+            *node.expect_owned_mut() = new_ty;
+        });
     }
 
     pub fn block(&mut self, path: &Path) {
-        let node = self.get_node_mut(path);
-        match node {
-            Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
-            _ => panic!("expected owned binding"),
-        }
+        self.get_node_mut(path, |node, _| {
+            match node {
+                Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
+                _ => panic!("expected owned binding"),
+            }
+        });
     }
 
-    fn get_node_mut(&mut self, path: &Path) -> &mut Node {
-        let mut node = self.map.get_mut(&path.loc).unwrap();
+    fn get_node_mut(
+        &mut self,
+        path: &Path,
+        f: impl FnOnce(&mut Node, &mut FxHashMap<Loc, NodePtr>),
+    ) {
+        let root = Rc::clone(self.map.get(&path.loc).unwrap());
+        let mut node = &mut *root.borrow_mut();
         for f in path.projection() {
             match node {
                 Node::Leaf(_) => panic!("expected `Node::Adt"),
                 Node::Internal(.., children) => node = &mut children[f.as_usize()],
             }
         }
-        node
+        f(node, &mut self.map)
     }
 
     pub fn insert(&mut self, loc: Loc, ty: Ty) {
-        self.map.insert(loc, Node::owned(ty));
+        self.map.insert(loc, Rc::new(RefCell::new(Node::owned(ty))));
     }
 
     pub fn contains_loc(&self, loc: Loc) -> bool {
         self.map.contains_key(&loc)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Path, &Binding)> {
-        self.map
-            .iter()
-            .flat_map(|(loc, node)| PathsIter::new(*loc, node))
+    pub fn iter(&self, mut f: impl FnMut(Path, &Binding)) {
+        fn go(node: &Node, loc: Loc, proj: &mut Vec<Field>, f: &mut impl FnMut(Path, &Binding)) {
+            match node {
+                Node::Leaf(binding) => {
+                    f(Path::new(loc, proj.as_slice()), binding);
+                }
+                Node::Internal(_, children) => {
+                    for (idx, node) in children.iter().enumerate() {
+                        proj.push(Field::from(idx));
+                        go(node, loc, proj, f);
+                        proj.pop();
+                    }
+                }
+            }
+        }
+        let mut proj = vec![];
+        for (loc, node) in &self.map {
+            go(&node.borrow(), *loc, &mut proj, &mut f)
+        }
     }
 
-    pub fn paths(&self) -> impl Iterator<Item = Path> + '_ {
-        self.iter().map(|(path, _)| path)
+    pub fn paths(&self) -> Vec<Path> {
+        let mut paths = vec![];
+        self.iter(|path, _| paths.push(path));
+        paths
+    }
+
+    pub fn flatten(&self) -> Vec<(Path, Binding)> {
+        let mut bindings = vec![];
+        self.iter(|path, binding| bindings.push((path, binding.clone())));
+        bindings
     }
 
     pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
-        for (loc, node1) in &mut self.map {
-            if let Some(node2) = other.map.get_mut(loc) {
-                node1.join_with(gen, rcx, node2);
-            }
+        for (loc, node1) in &self.map {
+            let node2 = &mut *other.map[loc].borrow_mut();
+            node1.borrow_mut().join_with(gen, rcx, node2);
         }
     }
 
@@ -137,22 +178,25 @@ impl PathsTree {
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
-        path: impl Into<Path>,
+        loc: Loc,
         place_proj: &mut impl Iterator<Item = PlaceElem>,
+        close_boxes: bool,
     ) -> LookupResult {
-        let mut path = path.into();
+        let mut path = Path::from(loc);
         'outer: loop {
             let loc = path.loc;
             let mut path_proj = vec![];
 
-            let mut node = self.map.get_mut(&loc).unwrap();
+            let root = Rc::clone(&self.map[&loc]);
+
+            let mut node = &mut *root.borrow_mut();
 
             for field in path.projection() {
                 node = node.proj(gen.genv, rcx, *field);
                 path_proj.push(*field);
             }
 
-            while let Some(elem) = place_proj.next() {
+            for elem in place_proj.by_ref() {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
@@ -173,13 +217,13 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
+                                return self.lookup_place_iter_ty(gen, *mode, &ty, place_proj);
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::Free(fresh);
                                 *node = Node::owned(Ty::box_ptr(fresh, substs[1].clone()));
-                                self.map.insert(loc, Node::owned(substs[0].clone()));
+                                self.insert(loc, substs[0].clone());
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -188,13 +232,15 @@ impl PathsTree {
                     }
                 }
             }
-            return LookupResult::Ptr(Path::new(loc, path_proj), node.fold(rcx, gen, true));
+            return LookupResult::Ptr(
+                Path::new(loc, path_proj),
+                node.fold(&mut self.map, rcx, gen, true, close_boxes),
+            );
         }
     }
 
     fn lookup_place_iter_ty(
         &mut self,
-        rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         mut rk: RefKind,
         ty: &Ty,
@@ -202,8 +248,8 @@ impl PathsTree {
     ) -> LookupResult {
         use PlaceElem::*;
         let mut ty = ty.clone();
-        while let Some(elem) = proj.next() {
-            // println!("TRACE: lookup_place_iter_ty {elem:?}, {ty:?}");
+        // MERGE while let Some(elem) = proj.next() {
+        for elem in proj.by_ref() {
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(*rk2);
@@ -211,12 +257,6 @@ impl PathsTree {
                 }
                 (Deref, TyKind::Indexed(BaseTy::Adt(_, substs), _)) if ty.is_box() => {
                     ty = substs[0].clone();
-                }
-                (Deref, TyKind::Ptr(ptr_path)) => {
-                    return match self.lookup_place_iter(rcx, gen, ptr_path.clone(), proj) {
-                        LookupResult::Ptr(_, ty2) => LookupResult::Ref(rk, ty2),
-                        LookupResult::Ref(rk2, ty2) => LookupResult::Ref(rk.min(rk2), ty2),
-                    }
                 }
                 (Field(field), TyKind::Tuple(tys)) => {
                     ty = tys[field.as_usize()].clone();
@@ -242,6 +282,21 @@ impl PathsTree {
         LookupResult::Ref(rk, ty)
     }
 
+    pub fn close_boxes(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, scope: &Scope) {
+        let mut paths = self.paths();
+        paths.sort();
+        for path in paths.into_iter().rev() {
+            self.get_node_mut(&path, |node, map| {
+                if let Node::Leaf(Binding::Owned(ty)) = node &&
+                   let TyKind::BoxPtr(loc, _) = ty.kind() &&
+                   !scope.contains(*loc)
+                {
+                    node.fold(map, rcx, gen, false, true);
+                }
+            });
+        }
+    }
+
     #[must_use]
     pub fn fmap(&self, f: impl FnMut(&Binding) -> Binding) -> PathsTree {
         let mut tree = self.clone();
@@ -251,10 +306,12 @@ impl PathsTree {
 
     pub fn fmap_mut(&mut self, mut f: impl FnMut(&Binding) -> Binding) {
         for node in self.map.values_mut() {
-            node.fmap_mut(&mut f);
+            node.borrow_mut().fmap_mut(&mut f);
         }
     }
 }
+
+type NodePtr = Rc<RefCell<Node>>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum Node {
@@ -296,13 +353,14 @@ impl Node {
     }
 
     fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
+        let map = &mut FxHashMap::default();
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
                 other.join_with(gen, rcx, self);
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
-                other.fold(rcx, gen, false);
+                other.fold(map, rcx, gen, false, false);
             }
             (Node::Leaf(_), Node::Internal(..)) => {
                 self.split(gen.genv, rcx);
@@ -317,8 +375,8 @@ impl Node {
                         node1.join_with(gen, rcx, node2);
                     }
                 } else {
-                    self.fold(rcx, gen, false);
-                    other.fold(rcx, gen, false);
+                    self.fold(map, rcx, gen, false, false);
+                    other.fold(map, rcx, gen, false, false);
                 }
             }
             (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
@@ -393,9 +451,26 @@ impl Node {
         }
     }
 
-    fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, unblock: bool) -> Ty {
+    fn fold(
+        &mut self,
+        map: &mut FxHashMap<Loc, NodePtr>,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        unblock: bool,
+        close_boxes: bool,
+    ) -> Ty {
         match self {
-            Node::Leaf(Binding::Owned(ty)) => ty.clone(),
+            Node::Leaf(Binding::Owned(ty)) => {
+                if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
+                    let root = map.remove(&Loc::Free(*loc)).unwrap();
+                    let boxed_ty = root.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
+                    let ty = gen.genv.mk_box(boxed_ty, alloc.clone());
+                    *self = Node::owned(ty.clone());
+                    ty
+                } else {
+                    ty.clone()
+                }
+            }
             Node::Leaf(Binding::Blocked(ty)) => {
                 if unblock {
                     let ty = rcx.unpack(ty, false);
@@ -408,7 +483,7 @@ impl Node {
             Node::Internal(NodeKind::Tuple, children) => {
                 let tys = children
                     .iter_mut()
-                    .map(|node| node.fold(rcx, gen, unblock))
+                    .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
                 let ty = Ty::tuple(tys);
                 *self = Node::owned(ty.clone());
@@ -418,7 +493,7 @@ impl Node {
                 let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
                 let actuals = children
                     .iter_mut()
-                    .map(|node| node.fold(rcx, gen, unblock))
+                    .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
 
                 let partially_moved = actuals.iter().any(|ty| ty.is_uninit());
@@ -493,76 +568,25 @@ impl TypeFoldable for Binding {
     }
 }
 
-enum PathsIter<'a> {
-    Adt {
-        stack: Vec<std::iter::Enumerate<std::slice::Iter<'a, Node>>>,
-        loc: Loc,
-        projection: Vec<Field>,
-    },
-    Leaf(Option<(Loc, &'a Binding)>),
-}
-
-impl<'a> PathsIter<'a> {
-    fn new(loc: Loc, root: &'a Node) -> Self {
-        match root {
-            Node::Leaf(binding) => PathsIter::Leaf(Some((loc, binding))),
-            Node::Internal(.., fields) => {
-                PathsIter::Adt { loc, projection: vec![], stack: vec![fields.iter().enumerate()] }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for PathsIter<'a> {
-    type Item = (Path, &'a Binding);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            PathsIter::Adt { stack, loc, projection } => {
-                while let Some(top) = stack.last_mut() {
-                    if let Some((i, node)) = top.next() {
-                        match node {
-                            Node::Internal(.., fields) => {
-                                projection.push(Field::from(i));
-                                stack.push(fields.iter().enumerate());
-                            }
-                            Node::Leaf(binding) => {
-                                projection.push(Field::from(i));
-                                let path = Path::new(*loc, projection.as_slice());
-                                projection.pop();
-                                return Some((path, binding));
-                            }
-                        }
-                    } else {
-                        projection.pop();
-                        stack.pop();
-                    }
-                }
-                None
-            }
-            PathsIter::Leaf(item) => item.take().map(|(loc, ty)| (Path::new(loc, vec![]), ty)),
-        }
-    }
-}
-
 mod pretty {
-    use super::*;
+    use std::fmt;
+
     use flux_middle::pretty::*;
     use itertools::Itertools;
-    use std::fmt;
+
+    use super::*;
 
     impl Pretty for PathsTree {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let bindings = self
-                .iter()
+                .flatten()
+                .into_iter()
                 .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
-                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2))
-                .collect_vec();
+                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",
                 ^bindings
-                    .into_iter()
                     .format_with(", ", |(loc, binding), f| {
                         match binding {
                             Binding::Owned(ty) => {

@@ -1,4 +1,12 @@
+use flux_common::iter::IterExt;
+use flux_desugar as desugar;
 use flux_errors::FluxSession;
+use flux_middle::{
+    global_env::{ConstInfo, GlobalEnv},
+    rustc, ty,
+};
+use flux_syntax::surface;
+use flux_typeck::{self as typeck, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -8,15 +16,6 @@ use rustc_middle::ty::{
     query::{query_values, Providers},
     TyCtxt, WithOptConstParam,
 };
-
-use flux_common::iter::IterExt;
-use flux_desugar as desugar;
-use flux_middle::{
-    global_env::{ConstInfo, GlobalEnv},
-    rustc, ty,
-};
-use flux_syntax::surface;
-use flux_typeck::{self as typeck, wf::Wf};
 use rustc_session::config::ErrorOutputType;
 
 use crate::{
@@ -120,11 +119,11 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 Ok(())
             })?;
 
-        // Register adt sorts
+        // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
                 let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
-                genv.register_adt_sorts(def_id.to_def_id(), &sorts);
+                genv.register_adt_def(def_id.to_def_id(), &sorts);
                 adt_sorts.insert(def_id.to_def_id(), sorts);
             }
             Ok(())
@@ -132,11 +131,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
                 let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
-                genv.register_adt_sorts(def_id.to_def_id(), &sorts);
+                genv.register_adt_def(def_id.to_def_id(), &sorts);
                 adt_sorts.insert(def_id.to_def_id(), sorts);
             }
             Ok(())
         })?;
+        genv.finish_adt_registration();
 
         // Qualifiers
         let qualifiers: Vec<ty::Qualifier> = specs
@@ -145,7 +145,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
-                Ok(ty::lowering::LoweringCtxt::lower_qualifer(&qualifier))
+                Ok(ty::conv::ConvCtxt::conv_qualifier(&qualifier))
             })
             .try_collect_exhaust()?;
 
