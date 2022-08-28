@@ -15,7 +15,6 @@ use crate::{
 
 use super::{Binders, PolyVariant};
 
-// MERGE pub struct LoweringCtxt<'a, 'genv, 'tcx> {
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: &'a GlobalEnv<'genv, 'tcx>,
     name_map: NameMap,
@@ -99,15 +98,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub(crate) fn lower_enum_def(
+    pub(crate) fn conv_enum_def(
         genv: &mut GlobalEnv,
         enum_def: core::EnumDef,
     ) -> Option<Vec<PolyVariant>> {
-        let mut cx = LoweringCtxt::new(genv);
+        let mut cx = ConvCtxt::new(genv);
         let variants: Vec<PolyVariant> = enum_def
             .variants
             .into_iter()
-            .map(|variant| cx.lower_variant(variant))
+            .map(|variant| cx.conv_variant(variant))
             .collect();
         if variants.is_empty() {
             None
@@ -116,14 +115,14 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lower_variant(&mut self, variant: core::VariantDef) -> PolyVariant {
-        let sorts = self.lower_params(&variant.params);
+    fn conv_variant(&mut self, variant: core::VariantDef) -> PolyVariant {
+        let sorts = self.conv_params(&variant.params);
         let fields = variant
             .fields
             .iter()
-            .map(|ty| self.lower_ty(ty, 1))
+            .map(|ty| self.conv_ty(ty, 1))
             .collect_vec();
-        let ret = self.lower_ty(&variant.ret, 1);
+        let ret = self.conv_ty(&variant.ret, 1);
         let variant = ty::VariantDef::new(fields, ret);
         Binders::new(variant, sorts)
     }
@@ -135,8 +134,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut cx = ConvCtxt::new(genv);
         let sorts = cx.conv_params(&struct_def.refined_by);
         let def_id = struct_def.def_id;
-        if let core::StructKind::Transparent { fields } = &struct_def.kind {
-            let rustc_adt = genv.tcx.adt_def(def_id);
+        let rustc_adt = genv.tcx.adt_def(def_id);
+        let adt_def = ty::AdtDef::new(rustc_adt, sorts.clone());
+        let variant = if let core::StructKind::Transparent { fields } = &struct_def.kind {
             let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
                 .map(|(ty, field)| {
                     match ty {
@@ -160,16 +160,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
                 .collect_vec();
             let ret = ty::Ty::indexed(ty::BaseTy::adt(genv.adt_def(def_id), substs), idxs);
-
-// <<<<<<< HEAD:flux-middle/src/ty/lowering.rs
             let variant = ty::VariantDef::new(fields, ret);
             Some(Binders::new(variant, sorts))
-// =======
-// MERGE    Some(ty::VariantDef::new(fields, ret))
-// >>>>>>> main:flux-middle/src/ty/conv.rs
         } else {
             None
-        }
+        };
+        (adt_def, variant)
     }
 
     fn conv_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {

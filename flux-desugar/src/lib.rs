@@ -13,7 +13,7 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
-pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
+pub use desugar::{desugar_qualifier, resolve_sorts};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{self, AdtSortsMap},
