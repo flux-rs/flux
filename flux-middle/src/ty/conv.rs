@@ -6,14 +6,13 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_target::abi::VariantIdx;
 
+use super::{Binders, PolyVariant};
 use crate::{
     core,
     global_env::GlobalEnv,
     rustc::ty::GenericParamDefKind,
     ty::{self, DebruijnIndex},
 };
-
-use super::{Binders, PolyVariant};
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: &'a GlobalEnv<'genv, 'tcx>,

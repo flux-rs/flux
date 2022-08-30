@@ -8,7 +8,8 @@
 
 See [this](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
 
-- [=] refactor to `PolyVariantDef` <-- HEREHEREHERE
+- [=] refactor to `PolyVariantDef` 
+    - `fn downcast_enum` <-- HEREHEREHERE
 
 - [] `opt00.rs`
 

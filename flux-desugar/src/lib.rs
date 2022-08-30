@@ -24,7 +24,6 @@ use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-// MERGE pub use desugar::{desugar_qualifier, resolve_sorts};
 use rustc_span::Span;
 
 pub fn desugar_struct_def(

@@ -414,6 +414,11 @@ impl Node {
     fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
+                // HEREHEREHEREHEREHERE: enums rcx.assume_pred(e) will add the constraint
+                //   let (tys, cstr) = genv.downcast(...); // return an Option<pred>
+                //   if let Some(e) = cstr { rcx.assume_pred(e) }
+                //   tys.into_iter...
+                
                 if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
                     let fields = genv
                         .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
