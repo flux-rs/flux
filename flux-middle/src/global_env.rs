@@ -153,8 +153,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// `downcast` on struct works as follows
     /// Given a struct definition
     ///     struct Foo<A..>[(i...)] { fld : T, ...}
-    /// and a 
-    ///     * "place" `x: T<t..>[e..]` 
+    /// and a
+    ///     * "place" `x: T<t..>[e..]`
     /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
     ///     * `x.fld : T[A := t ..]<i := e...>`
     /// i.e. by substituting the type and value indices using the types and values from `x`.
@@ -178,8 +178,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
-    /// Given 
-    ///     * a "place" `x : T[i..]` 
+    /// Given
+    ///     * a "place" `x : T[i..]`
     ///     * a "variant" of type `forall z..,(y:t...) => T[j...]`
     /// We want `downcast` to return a vector of types _and an assertion_ by
     ///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
@@ -193,12 +193,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         substs: &[ty::Ty],
         exprs: &[ty::Expr],
     ) -> Vec<ty::Ty> {
-
-        // HEREHEREHERE: currently this is the same as downcast_struct
+        // TODO:enums currently this is the same as downcast_struct
+        //      - make `variant` public and then 
+        //      - move `downcast` to flux-typeck or somewhere that RefineCtxt is in scope.
+        // 0. get vsig 
+        // 1. vsig1  := plug in the type `substs` into vsig
+        // 2. vsig2  := use replace_bvars(vsig1)... to get FRESH named variant 
+        // 3. constr := rcx.assume_pred(i' == exprs) where i' = OUTPUT index in vsig2
+        // 4. return input types of vsig2  
         // TODO: 1,2,3 above
         // to get fresh names, we need `rcx: RefineCtxt` and then we can try
         //            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
-        // we should also return an Option<pred> for the constraint, oh - can directly 
+        // we should also return an Option<pred> for the constraint, oh - can directly
         // rcx.assume_pred(...) with the onstraint without changing return types.
 
         self.variant(def_id, variant_idx)
@@ -214,6 +220,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn downcast(
         &self,
+        rcx: &mut RefineCtxt,
         def_id: DefId,
         variant_idx: VariantIdx,
         substs: &[ty::Ty],
@@ -231,7 +238,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
         let def_id_variants = self.tcx.adt_def(def_id).variants();
         // println!("TRACE: variant: {def_id:?} at {variant_idx:?} {def_id_variants:?}");
-
         self.adt_variants
             .borrow_mut()
             .entry(def_id)

@@ -217,7 +217,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(gen, *mode, &ty, place_proj);
+                                return self.lookup_place_iter_ty(rcx, gen, *mode, &ty, place_proj);
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let fresh = rcx.define_var(&Sort::Loc);
@@ -241,6 +241,7 @@ impl PathsTree {
 
     fn lookup_place_iter_ty(
         &mut self,
+        rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         mut rk: RefKind,
         ty: &Ty,
@@ -248,7 +249,6 @@ impl PathsTree {
     ) -> LookupResult {
         use PlaceElem::*;
         let mut ty = ty.clone();
-        // MERGE while let Some(elem) = proj.next() {
         for elem in proj.by_ref() {
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
@@ -263,6 +263,7 @@ impl PathsTree {
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
                     let fields = gen.genv.downcast(
+                        rcx,
                         adt.def_id(),
                         VariantIdx::from_u32(0),
                         substs,
@@ -418,7 +419,7 @@ impl Node {
                 //   let (tys, cstr) = genv.downcast(...); // return an Option<pred>
                 //   if let Some(e) = cstr { rcx.assume_pred(e) }
                 //   tys.into_iter...
-                
+
                 if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
                     let fields = genv
                         .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())

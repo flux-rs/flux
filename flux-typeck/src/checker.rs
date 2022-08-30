@@ -560,6 +560,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(_place, _variant_idx) => {
+                    // [TODO:enums] -- force a downcast here as for things like `Option` there is no explicit downcast.
+
                     // Since places in mir have explicit downcast projecion we don't use this
                     // extra control information and just assume places downcast to the correct variant
                     // (guaranteed by rust type system). In the future we may explicitly track
