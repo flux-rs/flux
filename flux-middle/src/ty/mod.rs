@@ -32,9 +32,9 @@ pub struct AdtDefData {
 pub(crate) type PolyVariant = Binders<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) struct VariantDef {
-    pub(crate) fields: List<Ty>,
-    pub(crate) ret: Ty,
+pub struct VariantDef {
+    pub fields: List<Ty>,
+    pub ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]

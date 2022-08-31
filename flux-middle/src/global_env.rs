@@ -15,7 +15,7 @@ use crate::{
     core::{self, VariantIdx},
     intern::List,
     rustc,
-    ty::{self, fold::TypeFoldable, subst::BVarFolder, Binders},
+    ty::{self, Binders},
 };
 
 #[derive(Debug)]
@@ -150,92 +150,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.adt_def(def_id).sorts().clone()
     }
 
-    /// `downcast` on struct works as follows
-    /// Given a struct definition
-    ///     struct Foo<A..>[(i...)] { fld : T, ...}
-    /// and a
-    ///     * "place" `x: T<t..>[e..]`
-    /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
-    ///     * `x.fld : T[A := t ..]<i := e...>`
-    /// i.e. by substituting the type and value indices using the types and values from `x`.
-
-    fn downcast_struct(
-        &self,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[ty::Ty],
-        exprs: &[ty::Expr],
-    ) -> Vec<ty::Ty> {
-        self.variant(def_id, variant_idx)
-            .skip_binders()
-            .fields
-            .iter()
-            .map(|ty| {
-                ty.fold_with(&mut BVarFolder::new(exprs))
-                    .replace_generic_types(substs)
-            })
-            .collect()
-    }
-
-    /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
-    /// Given
-    ///     * a "place" `x : T[i..]`
-    ///     * a "variant" of type `forall z..,(y:t...) => T[j...]`
-    /// We want `downcast` to return a vector of types _and an assertion_ by
-    ///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
-    ///     2. *Unpack* the fields using `y:t'...`
-    ///     3. *Assert* the constraint `i == j'...`
-
-    fn downcast_enum(
-        &self,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[ty::Ty],
-        exprs: &[ty::Expr],
-    ) -> Vec<ty::Ty> {
-        // TODO:enums currently this is the same as downcast_struct
-        //      - make `variant` public and then 
-        //      - move `downcast` to flux-typeck or somewhere that RefineCtxt is in scope.
-        // 0. get vsig 
-        // 1. vsig1  := plug in the type `substs` into vsig
-        // 2. vsig2  := use replace_bvars(vsig1)... to get FRESH named variant 
-        // 3. constr := rcx.assume_pred(i' == exprs) where i' = OUTPUT index in vsig2
-        // 4. return input types of vsig2  
-        // TODO: 1,2,3 above
-        // to get fresh names, we need `rcx: RefineCtxt` and then we can try
-        //            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
-        // we should also return an Option<pred> for the constraint, oh - can directly
-        // rcx.assume_pred(...) with the onstraint without changing return types.
-
-        self.variant(def_id, variant_idx)
-            .skip_binders()
-            .fields
-            .iter()
-            .map(|ty| {
-                ty.fold_with(&mut BVarFolder::new(exprs))
-                    .replace_generic_types(substs)
-            })
-            .collect()
-    }
-
-    pub fn downcast(
-        &self,
-        rcx: &mut RefineCtxt,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[ty::Ty],
-        exprs: &[ty::Expr],
-    ) -> Vec<ty::Ty> {
-        if self.tcx.adt_def(def_id).is_struct() {
-            self.downcast_struct(def_id, variant_idx, substs, exprs)
-        } else if self.tcx.adt_def(def_id).is_enum() {
-            self.downcast_enum(def_id, variant_idx, substs, exprs)
-        } else {
-            panic!("Downcast without struct or enum!")
-        }
-    }
-
-    fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
+    pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
         let def_id_variants = self.tcx.adt_def(def_id).variants();
         // println!("TRACE: variant: {def_id:?} at {variant_idx:?} {def_id_variants:?}");
         self.adt_variants
