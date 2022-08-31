@@ -5,22 +5,18 @@ use flux_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
-        subst::BVarFolder, 
-        // Binders
+        subst::BVarFolder,
+        AdtDef, BaseTy, Loc, Path, Pred, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
-
-use rustc_hir::def_id::DefId;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 
 use crate::{
     constraint_gen::ConstrGen,
     refine_tree::{RefineCtxt, Scope},
 };
-
-
 
 #[derive(Default, Eq, PartialEq)]
 pub struct PathsTree {
@@ -62,21 +58,21 @@ impl LookupResult {
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 
 fn downcast_struct(
-        genv: &GlobalEnv, 
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[flux_middle::ty::Ty],
-        exprs: &[flux_middle::ty::Expr],
+    genv: &GlobalEnv,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[flux_middle::ty::Ty],
+    exprs: &[flux_middle::ty::Expr],
 ) -> Vec<flux_middle::ty::Ty> {
-        genv.variant(def_id, variant_idx)
-            .skip_binders()
-            .fields
-            .iter()
-            .map(|ty| {
-                ty.fold_with(&mut BVarFolder::new(exprs))
-                    .replace_generic_types(substs)
-            })
-            .collect()
+    genv.variant(def_id, variant_idx)
+        .skip_binders()
+        .fields
+        .iter()
+        .map(|ty| {
+            ty.fold_with(&mut BVarFolder::new(exprs))
+                .replace_generic_types(substs)
+        })
+        .collect()
 }
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
@@ -88,58 +84,46 @@ fn downcast_struct(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 
-fn downcast_enum(
-        genv: &GlobalEnv, 
-        _rcx: &mut RefineCtxt,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[flux_middle::ty::Ty],
-        exprs: &[flux_middle::ty::Expr],
-) -> Vec<flux_middle::ty::Ty> {
-        // TODO:enums currently this is the same as downcast_struct
-        // 0. get vsig 
-        // 1. vsig1  := plug in the type `substs` into vsig
-        // 2. vsig2  := use replace_bvars(vsig1)... to get FRESH named variant 
-        // 3. constr := rcx.assume_pred(i' == exprs) where i' = OUTPUT index in vsig2
-        // 4. return input types of vsig2  
-        // TODO: 1,2,3 above
-        // to get fresh names, we need `rcx: RefineCtxt` and then we can try
-        //            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
-        // we should also return an Option<pred> for the constraint, oh - can directly
-        // rcx.assume_pred(...) with the onstraint without changing return types.
-
-        genv.variant(def_id, variant_idx)
-            .skip_binders()
-            .fields
-            .iter()
-            .map(|ty| {
-                ty.fold_with(&mut BVarFolder::new(exprs))
-                    .replace_generic_types(substs)
-            })
-            .collect()
+fn _enum_constraint(_scrutinee: flux_middle::ty::Ty, _exprs: &[flux_middle::ty::Expr]) -> Pred {
+    todo!()
 }
 
+fn downcast_enum(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[flux_middle::ty::Ty],
+    _exprs: &[flux_middle::ty::Expr],
+) -> Vec<flux_middle::ty::Ty> {
+    let variant_def = genv
+        .variant(def_id, variant_idx)
+        .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
+        .replace_generic_types(substs);
+
+    // TODO:enums
+    // let constr = enum_constraint(variant_def.ret, exprs);
+    // rcx.assume_pred(constr);
+
+    variant_def.fields.to_vec()
+}
 
 fn downcast_place(
-        genv: &GlobalEnv, 
-        rcx: &mut RefineCtxt,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[flux_middle::ty::Ty],
-        exprs: &[flux_middle::ty::Expr],
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[flux_middle::ty::Ty],
+    exprs: &[flux_middle::ty::Expr],
 ) -> Vec<flux_middle::ty::Ty> {
-        if genv.tcx.adt_def(def_id).is_struct() {
-            downcast_struct(genv, def_id, variant_idx, substs, exprs)
-        } else if genv.tcx.adt_def(def_id).is_enum() {
-            downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
-        } else {
-            panic!("Downcast without struct or enum!")
-        }
+    if genv.tcx.adt_def(def_id).is_struct() {
+        downcast_struct(genv, def_id, variant_idx, substs, exprs)
+    } else if genv.tcx.adt_def(def_id).is_enum() {
+        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
+    } else {
+        panic!("Downcast without struct or enum!")
+    }
 }
-    
-
-
-
 
 impl PathsTree {
     pub fn lookup_place(
@@ -357,7 +341,8 @@ impl PathsTree {
                     ty = tys[field.as_usize()].clone();
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
-                    let fields = downcast_place(gen.genv,
+                    let fields = downcast_place(
+                        gen.genv,
                         rcx,
                         adt.def_id(),
                         VariantIdx::from_u32(0),
@@ -367,7 +352,14 @@ impl PathsTree {
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let tys = downcast_place(gen.genv, rcx, adt_def.def_id(), variant_idx, substs, &idxs.to_exprs());
+                    let tys = downcast_place(
+                        gen.genv,
+                        rcx,
+                        adt_def.def_id(),
+                        variant_idx,
+                        substs,
+                        &idxs.to_exprs(),
+                    );
                     ty = Ty::tuple(tys)
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
@@ -390,8 +382,6 @@ impl PathsTree {
             });
         }
     }
-
-
 
     #[must_use]
     pub fn fmap(&self, f: impl FnMut(&Binding) -> Binding) -> PathsTree {
@@ -516,10 +506,17 @@ impl Node {
                 //   tys.into_iter...
 
                 if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
-                    let fields = downcast_place(genv, rcx, adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
-                        .into_iter()
-                        .map(|ty| Node::owned(rcx.unpack(&ty, false)))
-                        .collect();
+                    let fields = downcast_place(
+                        genv,
+                        rcx,
+                        adt_def.def_id(),
+                        variant_idx,
+                        substs,
+                        &idxs.to_exprs(),
+                    )
+                    .into_iter()
+                    .map(|ty| Node::owned(rcx.unpack(&ty, false)))
+                    .collect();
                     *self = Node::Internal(
                         NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
                         fields,
