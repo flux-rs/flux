@@ -594,6 +594,10 @@ impl Expr {
         ExprKind::UnaryOp(op, e.into()).intern()
     }
 
+    pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+    }
+
     pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
         ExprKind::TupleProj(e.into(), proj).intern()
     }

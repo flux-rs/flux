@@ -6,7 +6,7 @@ use flux_middle::{
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
         subst::BVarFolder,
-        AdtDef, BaseTy, Loc, Path, Pred, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
+        AdtDef, BaseTy, Expr, Loc, Path, Pred, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -84,8 +84,15 @@ fn downcast_struct(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 
-fn _enum_constraint(_scrutinee: flux_middle::ty::Ty, _exprs: &[flux_middle::ty::Expr]) -> Pred {
-    todo!()
+fn enum_constraint(scrutinee: flux_middle::ty::Ty, exprs: &[flux_middle::ty::Expr]) -> Pred {
+    if let TyKind::Indexed(_, ixs) = scrutinee.kind() {
+        assert_eq!(ixs.len(), exprs.len());
+        Pred::Expr(Expr::and(
+            iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())),
+        ))
+    } else {
+        panic!("unexpected: enum_constraint")
+    }
 }
 
 fn downcast_enum(
@@ -94,16 +101,15 @@ fn downcast_enum(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[flux_middle::ty::Ty],
-    _exprs: &[flux_middle::ty::Expr],
+    exprs: &[flux_middle::ty::Expr],
 ) -> Vec<flux_middle::ty::Ty> {
     let variant_def = genv
         .variant(def_id, variant_idx)
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_types(substs);
 
-    // TODO:enums
-    // let constr = enum_constraint(variant_def.ret, exprs);
-    // rcx.assume_pred(constr);
+    let constr = enum_constraint(variant_def.ret, exprs);
+    rcx.assume_pred(constr);
 
     variant_def.fields.to_vec()
 }

@@ -9,7 +9,7 @@
 See [this](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
 
 - [=] refactor to `PolyVariantDef` 
-    - `fn downcast_enum` <-- HEREHEREHERE
+    - `TODO:enums` in  `check_successors` <-- HEREHEREHERE
 
 - [] `opt00.rs`
 
