@@ -12,20 +12,20 @@ pub enum Opt {
 #[flux::sig(fn(Opt[@b]) -> bool[b])]
 pub fn is_some(x: Opt) -> bool {
     match x {
-        Opt::None => false,
         Opt::Some => true,
+        Opt::None => false,
     }
 }
 
-// #[flux::sig(fn(i32{v:false}) -> T)]
-// pub fn never<T>(_x: i32) -> T {
-//     loop {}
-// }
+#[flux::sig(fn(i32{v:false}) -> T)]
+pub fn never<T>(_x: i32) -> T {
+    loop {}
+}
 
-// #[flux::sig(fn(Opt[true]) -> i32)]
-// pub fn unwrap(x: Opt) -> i32 {
-//     match x {
-//         Opt::Some => 12,
-//         _ => never(0),
-//     }
-// }
+#[flux::sig(fn(Opt[true]) -> i32)]
+pub fn unwrap(x: Opt) -> i32 {
+    match x {
+        Opt::None => never(0),
+        Opt::Some => 12,
+    }
+}

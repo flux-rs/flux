@@ -74,6 +74,5 @@ pub fn desugar_fn_sig(
 ) -> Result<core::FnSig, ErrorGuaranteed> {
     let rust_sig = rustc::lowering::lower_fn_sig(tcx, tcx.fn_sig(def_id))?;
     let sig = zip_resolver::zip_bare_def(tcx, fn_sig, &rust_sig);
-    // println!("TRACE: desugar_fn_sig {def_id:?}");
     desugar::desugar_fn_sig(sess, sorts, consts, sig)
 }

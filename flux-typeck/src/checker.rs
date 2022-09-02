@@ -15,8 +15,9 @@ use flux_middle::{
     rustc::{
         self,
         mir::{
-            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
-            Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, PlaceElem, Rvalue,
+            SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
+            START_BLOCK,
         },
     },
     ty::{
@@ -553,19 +554,22 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorGuaranteed> {
         for (target, guard) in successors {
             let mut rcx = rcx.breadcrumb();
-            let env = env.clone();
+            let mut env = env.clone();
             match guard {
                 Guard::None => {}
                 Guard::Pred(expr) => {
                     rcx.assume_pred(expr);
                 }
-                Guard::Match(_place, _variant_idx) => {
-                    // TODO:enums -- force a `downcast_place` here as 
-                    // types like `Option` have no explicit downcast in MIR.
+                Guard::Match(place, variant_idx) => {
+                    // We force a `lookup_place` with a `Downcast` as some types
+                    // like `Option` have no explicit downcast in MIR.
                     // Since places in mir have explicit downcast projecion we don't use this
-                    // extra control information and just assume places downcast to the correct variant
-                    // (guaranteed by rust type system). In the future we may explicitly track
-                    // the "active" variant.
+                    let tag = Tag::Goto(Some(src_info.span), target);
+                    let gen = &mut self.phase.constr_gen(self.genv, &rcx, tag);
+                    let mut down_place = place.clone();
+                    down_place.projection.push(PlaceElem::Downcast(variant_idx));
+                    println!("TRACE: check_successors {down_place:?}");
+                    env.lookup_place(&mut rcx, gen, &down_place);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
