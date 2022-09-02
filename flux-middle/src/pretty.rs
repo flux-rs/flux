@@ -168,7 +168,7 @@ impl PPrintCx<'_> {
             kvar_args: Visibility::Show,
             fully_qualified_paths: false,
             simplify_exprs: true,
-            tags: false,
+            tags: true,
             bindings_chain: true,
             preds_chain: true,
             full_spans: false,

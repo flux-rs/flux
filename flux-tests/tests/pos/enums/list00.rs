@@ -22,7 +22,7 @@ pub fn empty(l: &List) -> bool {
     }
 }
 
-#[flux::sig(fn(l: &List[n]) -> i32[n])]
+#[flux::sig(fn(&List[n]) -> i32[n])]
 pub fn len(l: &List) -> i32 {
     match l {
         List::Nil => 0,
@@ -42,7 +42,7 @@ pub fn head(l: &List) -> i32 {
 // #[flux::sig(fn ({&List<[@n] : 0 < n}) -> &List)]
 //                       ^???
 
-#[flux::sig(fn ({&List<[@n] : 0 < n}) -> &List)]
+#[flux::sig(fn ({&List[@n] : 0 < n}) -> &List)]
 pub fn tail(l: &List) -> &List {
     match l {
         List::Nil => never(0),
