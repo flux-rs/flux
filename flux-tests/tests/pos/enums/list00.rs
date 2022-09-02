@@ -10,7 +10,7 @@ pub fn never<T>(_x: i32) -> T {
 pub enum List {
     #[flux::variant(List[0])]
     Nil,
-    #[flux::variant((h:i32, Box<List[@n]>) -> List[n+1])]
+    #[flux::variant({i32, Box<List[@n]>} -> List[n+1])]
     Cons(i32, Box<List>),
 }
 
@@ -18,7 +18,7 @@ pub enum List {
 pub fn empty(l: &List) -> bool {
     match l {
         List::Nil => true,
-        List::Cons(_, tl) => false,
+        List::Cons(_, _) => false,
     }
 }
 
@@ -37,6 +37,10 @@ pub fn head(l: &List) -> i32 {
         List::Cons(h, _) => *h,
     }
 }
+
+// TODO(RJ): fix this odd parse non-error -- silently accepted?!
+// #[flux::sig(fn ({&List<[@n] : 0 < n}) -> &List)]
+//                       ^???
 
 #[flux::sig(fn ({&List<[@n] : 0 < n}) -> &List)]
 pub fn tail(l: &List) -> &List {
