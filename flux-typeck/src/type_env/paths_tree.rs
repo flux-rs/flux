@@ -65,14 +65,10 @@ fn downcast_struct(
     exprs: &[flux_middle::ty::Expr],
 ) -> Vec<flux_middle::ty::Ty> {
     genv.variant(def_id, variant_idx)
-        .skip_binders()
+        .replace_bound_vars(exprs)
+        .replace_generic_types(substs)
         .fields
-        .iter()
-        .map(|ty| {
-            ty.fold_with(&mut BVarFolder::new(exprs))
-                .replace_generic_types(substs)
-        })
-        .collect()
+        .to_vec()
 }
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
