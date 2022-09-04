@@ -107,7 +107,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .into_iter()
             .map(|variant| cx.conv_variant(variant))
             .collect();
-        Some(variants)
+
+        // Return `None` if there are *no* refined variants as, in that case,
+        // we want to fall back to using "default" `rustc` variant-signatures
+        // at the match/downcast sites as done in `GlobalEnv::variant`.
+        if variants.is_empty() {
+            None
+        } else {
+            Some(variants)
+        }
     }
 
     fn conv_variant(&mut self, variant: core::VariantDef) -> PolyVariant {
