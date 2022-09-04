@@ -5,7 +5,6 @@ use flux_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        subst::BVarFolder,
         AdtDef, BaseTy, Expr, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
@@ -110,7 +109,7 @@ fn downcast_enum(
     variant_def.fields.to_vec()
 }
 
-fn downcast_place(
+fn downcast(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     def_id: DefId,
@@ -343,7 +342,7 @@ impl PathsTree {
                     ty = tys[field.as_usize()].clone();
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
-                    let fields = downcast_place(
+                    let fields = downcast(
                         gen.genv,
                         rcx,
                         adt.def_id(),
@@ -354,7 +353,7 @@ impl PathsTree {
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let tys = downcast_place(
+                    let tys = downcast(
                         gen.genv,
                         rcx,
                         adt_def.def_id(),
@@ -420,13 +419,6 @@ enum NodeKind {
     Uninit,
 }
 
-fn strip_constr(ty: &Ty) -> &Ty {
-    match ty.kind() {
-        TyKind::Indexed(_, _) => ty,
-        TyKind::Constr(_, ty1) => strip_constr(ty1),
-        _ => todo!(),
-    }
-}
 impl Node {
     fn owned(ty: Ty) -> Node {
         Node::Leaf(Binding::Owned(ty))
@@ -509,10 +501,10 @@ impl Node {
     fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                let ty = strip_constr(ty);
+                let ty = ty.unconstr();
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) => {
-                        let fields = downcast_place(
+                        let fields = downcast(
                             genv,
                             rcx,
                             adt_def.def_id(),

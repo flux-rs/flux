@@ -80,22 +80,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
-        let (adt_def, variant) = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
+        let (_adt_def, variant) = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
-        self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
     pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
         if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def(self, enum_def) {
-            // println!("TRACE: register_enum_def {def_id:?} {variants:?}");
             self.adt_variants.get_mut().insert(def_id, Some(variants));
         }
-
-        let sorts = self.sorts_of(def_id);
-        self.adt_defs
-            .get_mut()
-            .insert(def_id, ty::AdtDef::new(self.tcx.adt_def(def_id), sorts));
     }
 
     pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -152,7 +145,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
         let def_id_variants = self.tcx.adt_def(def_id).variants();
-        // println!("TRACE: variant: {def_id:?} at {variant_idx:?} {def_id_variants:?}");
         self.adt_variants
             .borrow_mut()
             .entry(def_id)

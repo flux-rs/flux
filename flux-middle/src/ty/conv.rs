@@ -107,11 +107,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .into_iter()
             .map(|variant| cx.conv_variant(variant))
             .collect();
-        if variants.is_empty() {
-            None
-        } else {
-            Some(variants)
-        }
+        Some(variants)
     }
 
     fn conv_variant(&mut self, variant: core::VariantDef) -> PolyVariant {

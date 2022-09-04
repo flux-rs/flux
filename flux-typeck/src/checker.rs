@@ -15,9 +15,8 @@ use flux_middle::{
     rustc::{
         self,
         mir::{
-            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, PlaceElem, Rvalue,
-            SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
-            START_BLOCK,
+            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
+            Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
     },
     ty::{
@@ -566,9 +565,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     // Since places in mir have explicit downcast projecion we don't use this
                     let tag = Tag::Goto(Some(src_info.span), target);
                     let gen = &mut self.phase.constr_gen(self.genv, &rcx, tag);
-                    let mut down_place = place.clone();
-                    down_place.projection.push(PlaceElem::Downcast(variant_idx));
-                    env.lookup_place(&mut rcx, gen, &down_place);
+                    env.downcast(&mut rcx, gen, &place, variant_idx);
+
+                    // let mut down_place = place.clone();
+                    // down_place.projection.push(PlaceElem::Downcast(variant_idx));
+                    // env.lookup_place(&mut rcx, gen, &down_place);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
