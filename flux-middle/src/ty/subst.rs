@@ -80,7 +80,7 @@ impl TypeFolder for FVarFolder<'_> {
     }
 }
 
-pub struct BVarFolder<'a> {
+pub(crate) struct BVarFolder<'a> {
     outer_binder: DebruijnIndex,
     exprs: &'a [Expr],
 }
