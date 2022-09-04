@@ -445,13 +445,11 @@ fn mk_fake_predecessors(
 
     for bb in basic_blocks {
         if let Some(terminator) = &bb.terminator {
-            match terminator.kind {
-                TerminatorKind::FalseEdge { imaginary_target, .. } => res[imaginary_target] += 1,
-                _ => (),
+            if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
+                res[imaginary_target] += 1
             }
         }
     }
-
     res
 }
 

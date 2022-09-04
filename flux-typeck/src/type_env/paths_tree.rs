@@ -297,7 +297,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(rcx, gen, *mode, &ty, place_proj);
+                                return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let fresh = rcx.define_var(&Sort::Loc);

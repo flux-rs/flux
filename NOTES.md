@@ -20,7 +20,6 @@ See [this](https://hackmd.io/q7KU5P4dTXG4t0F60aIiOg)
 - [] merge "automatically" into single spec
 
 
-
 ```rust
 spec size : int for List<T> {
     Nil -> 0

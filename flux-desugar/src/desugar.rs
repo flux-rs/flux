@@ -91,7 +91,7 @@ fn desugar_variant(
 ) -> Result<VariantDef, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);
     for ty in &variant.fields {
-        let _ = params.ty_gather_params(ty, adt_sorts)?;
+        params.ty_gather_params(ty, adt_sorts)?;
     }
     let mut desugar = DesugarCtxt::with_params(params);
 

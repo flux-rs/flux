@@ -25,15 +25,15 @@ pub fn is_some_flip(x: Opt) -> bool {
     }
 }
 
-// #[flux::sig(fn(i32{v:false}) -> T)]
-// pub fn never<T>(_x: i32) -> T {
-//     loop {}
-// }
+#[flux::sig(fn(i32{v:false}) -> T)]
+pub fn never<T>(_x: i32) -> T {
+    loop {}
+}
 
-// #[flux::sig(fn(Opt[true]) -> i32)]
-// pub fn unwrap(x: Opt) -> i32 {
-//     match x {
-//         Opt::None => never(0),
-//         Opt::Some => 12,
-//     }
-// }
+#[flux::sig(fn(Opt[true]) -> i32)]
+pub fn unwrap(x: Opt) -> i32 {
+    match x {
+        Opt::Some => 12,
+        Opt::None => never(0),
+    }
+}
