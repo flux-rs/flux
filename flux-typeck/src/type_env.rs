@@ -647,7 +647,10 @@ mod pretty {
                 )?;
             }
             if !self.constrs.is_empty() {
-                w!("{:?} ⇒ ", join!(", ", self.constrs.iter().filter(|pred| !pred.is_true())))?;
+                w!(
+                    "{:?} ⇒ ",
+                    join!(", ", self.constrs.iter().filter(|pred| !pred.is_trivially_true()))
+                )?;
             }
             w!("{:?}", &self.bindings)
         }

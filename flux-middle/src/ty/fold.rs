@@ -306,6 +306,9 @@ impl TypeFoldable for BaseTy {
 impl TypeFoldable for Pred {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
+            Pred::And(preds) => {
+                Pred::And(List::from_iter(preds.iter().map(|p| p.fold_with(folder))))
+            }
             Pred::Kvar(kvar) => Pred::Kvar(kvar.fold_with(folder)),
             Pred::Expr(e) => Pred::Expr(e.fold_with(folder)),
             Pred::Hole => Pred::Hole,
@@ -314,6 +317,11 @@ impl TypeFoldable for Pred {
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
+            Pred::And(preds) => {
+                for p in preds {
+                    p.visit_with(visitor);
+                }
+            }
             Pred::Expr(e) => e.visit_with(visitor),
             Pred::Kvar(kvar) => kvar.visit_with(visitor),
             Pred::Hole => {}
@@ -398,7 +406,7 @@ where
     [T]: Internable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        List::from_vec(self.iter().map(|t| t.fold_with(folder)).collect())
+        List::from_iter(self.iter().map(|t| t.fold_with(folder)))
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {

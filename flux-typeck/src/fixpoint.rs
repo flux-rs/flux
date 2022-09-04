@@ -175,12 +175,30 @@ where
         &mut self,
         pred: &ty::Pred,
     ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
+        let mut bindings = vec![];
+        let pred = self.pred_to_fixpoint_internal(pred, &mut bindings);
+        (bindings, pred)
+    }
+
+    fn pred_to_fixpoint_internal(
+        &mut self,
+        pred: &ty::Pred,
+        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    ) -> fixpoint::Pred {
         match pred {
+            ty::Pred::And(preds) => {
+                fixpoint::Pred::And(
+                    preds
+                        .iter()
+                        .map(|p| self.pred_to_fixpoint_internal(p, bindings))
+                        .collect(),
+                )
+            }
             ty::Pred::Expr(expr) => {
                 let expr = expr_to_fixpoint(expr, &self.name_map, &self.const_map);
-                (vec![], fixpoint::Pred::Expr(expr))
+                fixpoint::Pred::Expr(expr)
             }
-            ty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar),
+            ty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
             ty::Pred::Hole => panic!("unexpected hole"),
         }
     }
@@ -188,20 +206,20 @@ where
     fn kvar_to_fixpoint(
         &mut self,
         kvar: &ty::KVar,
-    ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
-        let mut bindings = vec![];
+        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
+    ) -> fixpoint::Pred {
         self.populate_kvid_map(kvar.kvid);
 
         let sorts = self.kvars.get(kvar.kvid);
 
         let mut scope = iter::zip(&kvar.scope, &sorts.scope)
-            .map(|(arg, sort)| self.imm(arg, sort, &mut bindings))
+            .map(|(arg, sort)| self.imm(arg, sort, bindings))
             .collect_vec();
 
         let kvids = &self.kvid_map[&kvar.kvid];
         let mut kvars = vec![];
         for (kvid, arg, sort) in itertools::izip!(kvids, &kvar.args, &sorts.args) {
-            let arg = self.imm(arg, sort, &mut bindings);
+            let arg = self.imm(arg, sort, bindings);
 
             let mut args = vec![arg];
             args.extend(scope.iter().copied());
@@ -211,7 +229,7 @@ where
             scope.push(arg)
         }
 
-        (bindings, fixpoint::Pred::And(kvars))
+        fixpoint::Pred::And(kvars)
     }
 
     fn imm(

@@ -232,7 +232,7 @@ impl Scope {
         iter.into_iter().all(|name| self.contains(name))
     }
 
-    /// Wether `t` has any free variables not in this scope
+    /// Whether `t` has any free variables not in this scope
     pub fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())
     }
@@ -253,7 +253,7 @@ impl ConstrBuilder<'_> {
 
     pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
         let pred = pred.into();
-        if !pred.is_true() {
+        if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }
@@ -266,7 +266,7 @@ impl NodePtr {
 
     fn push_guard(&mut self, pred: impl Into<Pred>) {
         let pred = pred.into();
-        if !pred.is_true() {
+        if !pred.is_trivially_true() {
             *self = self.push_node(NodeKind::Guard(pred));
         }
     }
@@ -438,7 +438,7 @@ mod pretty {
     };
 
     use flux_common::format::PadAdapter;
-    use flux_middle::pretty::*;
+    use flux_middle::{intern::List, pretty::*};
     use itertools::Itertools;
     use rustc_middle::ty::TyCtxt;
 
@@ -533,17 +533,18 @@ mod pretty {
                     )?;
                     fmt_children(&children, cx, f)
                 }
-                NodeKind::Guard(expr) => {
-                    let (exprs, children) = if cx.preds_chain {
+                NodeKind::Guard(pred) => {
+                    let (preds, children) = if cx.preds_chain {
                         preds_chain(self)
                     } else {
-                        (vec![expr.clone()], node.children.clone())
+                        (vec![pred.clone()], node.children.clone())
                     };
-                    let guard = exprs
-                        .iter()
-                        .map(Pred::simplify)
-                        .filter(|pred| !pred.is_true());
-                    w!("{:?} ⇒", join!(" ∧ ", guard))?;
+                    let guard = Pred::And(List::from_vec(preds)).simplify();
+                    if guard.is_atom() {
+                        w!("{:?} ⇒", guard)?;
+                    } else {
+                        w!("({:?}) ⇒", guard)?;
+                    }
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
@@ -597,7 +598,7 @@ mod pretty {
                         let node = ptr.borrow();
                         match &node.kind {
                             NodeKind::ForAll(..) => true,
-                            NodeKind::Guard(e) => !e.simplify().is_true(),
+                            NodeKind::Guard(e) => !e.simplify().is_trivially_true(),
                             _ => false,
                         }
                     })

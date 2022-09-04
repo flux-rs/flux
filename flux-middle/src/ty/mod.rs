@@ -138,6 +138,7 @@ pub enum Pred {
     Hole,
     Kvar(KVar),
     Expr(Expr),
+    And(List<Pred>),
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
@@ -619,17 +620,8 @@ impl ExprS {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
 
-    pub fn is_atom(&self) -> bool {
-        matches!(
-            self.kind,
-            ExprKind::FreeVar(_)
-                | ExprKind::Local(_)
-                | ExprKind::BoundVar(_)
-                | ExprKind::Constant(_)
-                | ExprKind::UnaryOp(..)
-                | ExprKind::Tuple(..)
-                | ExprKind::PathProj(..)
-        )
+    pub fn is_binary_op(&self) -> bool {
+        !matches!(self.kind, ExprKind::BinaryOp(..))
     }
 
     /// Simplify expression applying some simple rules like removing double negation. This is
@@ -713,19 +705,40 @@ impl Pred {
         Pred::Expr(Expr::tt())
     }
 
-    pub fn is_true(&self) -> bool {
+    /// Simple syntactic check to see if the predicate is true. This is used mostly for filtering
+    /// predicates when pretty printing but also to avoid adding unnecesary predicates to the constraint.
+    pub fn is_trivially_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
             || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
     }
 
+    /// A predicate is an atom if it "self-delimiting", i.e., it has a clear boundary
+    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::Kvar(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        match self {
+            Pred::Hole | Pred::Kvar(_) => true,
+            Pred::Expr(expr) => expr.is_binary_op(),
+            Pred::And(preds) => {
+                match &preds[..] {
+                    [] => true,
+                    [pred] => pred.is_atom(),
+                    _ => false,
+                }
+            }
+        }
     }
 
     /// Simplify expression applying some simple rules like removing double negation. This is
     /// only used for pretty printing.
     pub fn simplify(&self) -> Pred {
         match self {
+            Pred::And(preds) => {
+                let preds = preds
+                    .iter()
+                    .map(Pred::simplify)
+                    .filter(|p| !p.is_trivially_true());
+                Pred::And(List::from_iter(preds))
+            }
             Pred::Expr(e) => Pred::Expr(e.simplify()),
             _ => self.clone(),
         }
@@ -733,8 +746,9 @@ impl Pred {
 }
 
 impl Binders<Pred> {
-    pub fn is_true(&self) -> bool {
-        self.value.is_true()
+    /// See [`Pred::is_trivially_true`]
+    pub fn is_trivially_true(&self) -> bool {
+        self.value.is_trivially_true()
     }
 }
 
@@ -978,7 +992,7 @@ mod pretty {
             match self.kind() {
                 TyKind::Indexed(bty, indices) => fmt_bty(bty, indices, cx, f),
                 TyKind::Exists(bty, pred) => {
-                    if pred.is_true() {
+                    if pred.is_trivially_true() {
                         w!("{:?}{{}}", bty)
                     } else {
                         w!("{:?}{{{:?}}}", bty, &pred.value)
@@ -1048,7 +1062,7 @@ mod pretty {
     impl Pretty for Index {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if self.is_binder && self.expr.is_atom() {
+            if self.is_binder && self.expr.is_binary_op() {
                 w!("@{:?}", &self.expr)
             } else if self.is_binder {
                 w!("@({:?})", &self.expr)
@@ -1065,6 +1079,13 @@ mod pretty {
                 Pred::Kvar(kvar) => w!("{:?}", kvar),
                 Pred::Expr(expr) => w!("{:?}", expr),
                 Pred::Hole => w!("*"),
+                Pred::And(preds) => {
+                    if preds.is_empty() {
+                        w!("true")
+                    } else {
+                        w!("{:?}", join!(" ∧ ", preds))
+                    }
+                }
             }
         }
 
@@ -1124,14 +1145,14 @@ mod pretty {
                 }
                 ExprKind::Constant(c) => w!("{}", ^c),
                 ExprKind::UnaryOp(op, e) => {
-                    if e.is_atom() {
+                    if e.is_binary_op() {
                         w!("{:?}{:?}", op, e)
                     } else {
                         w!("{:?}({:?})", op, e)
                     }
                 }
                 ExprKind::TupleProj(e, field) => {
-                    if e.is_atom() {
+                    if e.is_binary_op() {
                         w!("{:?}.{:?}", e, ^field)
                     } else {
                         w!("({:?}).{:?}", e, ^field)
@@ -1141,7 +1162,7 @@ mod pretty {
                     w!("({:?})", join!(", ", exprs))
                 }
                 ExprKind::PathProj(e, field) => {
-                    if e.is_atom() {
+                    if e.is_binary_op() {
                         w!("{:?}.{:?}", e, field)
                     } else {
                         w!("({:?}).{:?}", e, field)

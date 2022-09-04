@@ -286,6 +286,15 @@ where
     }
 }
 
+impl<T> FromIterator<T> for List<T>
+where
+    [T]: Internable,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self::from_vec(iter.into_iter().collect())
+    }
+}
+
 impl<T> From<&[T]> for Interned<[T]>
 where
     [T]: Internable,
