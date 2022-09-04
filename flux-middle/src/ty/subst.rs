@@ -86,7 +86,7 @@ pub(crate) struct BVarFolder<'a> {
 }
 
 impl<'a> BVarFolder<'a> {
-    pub fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
+    pub(crate) fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
         BVarFolder { exprs, outer_binder: INNERMOST }
     }
 }
