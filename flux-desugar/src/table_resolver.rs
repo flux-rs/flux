@@ -45,6 +45,9 @@ impl<'genv> Resolver<'genv> {
                 let mut table = NameResTable::new();
                 table.insert_generics(genv.tcx, generics);
 
+                let res = rustc_hir::def::Res::Def(DefKind::Struct, def_id.to_def_id());
+                table.collect_from_item(item, res);
+
                 for field in data.fields() {
                     table.collect_from_ty(genv.sess, field.ty)?;
                 }

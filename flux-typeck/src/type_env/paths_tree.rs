@@ -61,9 +61,9 @@ fn downcast_struct(
     genv: &GlobalEnv,
     def_id: DefId,
     variant_idx: VariantIdx,
-    substs: &[flux_middle::ty::Ty],
-    exprs: &[flux_middle::ty::Expr],
-) -> Vec<flux_middle::ty::Ty> {
+    substs: &[Ty],
+    exprs: &[Expr],
+) -> Vec<Ty> {
     genv.variant(def_id, variant_idx)
         .skip_binders()
         .fields
@@ -84,13 +84,13 @@ fn downcast_struct(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 
-fn enum_constraint(scrutinee: &flux_middle::ty::Ty, exprs: &[flux_middle::ty::Expr]) -> Expr {
+fn enum_constraint(scrutinee: &Ty, exprs: &[Expr]) -> Expr {
     match scrutinee.kind() {
         TyKind::Indexed(_, ixs) => {
             assert_eq!(ixs.len(), exprs.len());
             Expr::and(iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())))
         }
-        TyKind::Constr(e, ty) => Expr::and2(e.clone(), enum_constraint(ty, exprs)),
+        TyKind::Constr(e, ty) => Expr::and([e.clone(), enum_constraint(ty, exprs)]),
         _ => panic!("unexpected: enum_constraint {scrutinee:?}"),
     }
 }
@@ -100,9 +100,9 @@ fn downcast_enum(
     rcx: &mut RefineCtxt,
     def_id: DefId,
     variant_idx: VariantIdx,
-    substs: &[flux_middle::ty::Ty],
-    exprs: &[flux_middle::ty::Expr],
-) -> Vec<flux_middle::ty::Ty> {
+    substs: &[Ty],
+    exprs: &[Expr],
+) -> Vec<Ty> {
     let variant_def = genv
         .variant(def_id, variant_idx)
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
@@ -119,9 +119,9 @@ fn downcast_place(
     rcx: &mut RefineCtxt,
     def_id: DefId,
     variant_idx: VariantIdx,
-    substs: &[flux_middle::ty::Ty],
-    exprs: &[flux_middle::ty::Expr],
-) -> Vec<flux_middle::ty::Ty> {
+    substs: &[Ty],
+    exprs: &[Expr],
+) -> Vec<Ty> {
     if genv.tcx.adt_def(def_id).is_struct() {
         downcast_struct(genv, def_id, variant_idx, substs, exprs)
     } else if genv.tcx.adt_def(def_id).is_enum() {
