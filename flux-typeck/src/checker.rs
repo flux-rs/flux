@@ -568,7 +568,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     let gen = &mut self.phase.constr_gen(self.genv, &rcx, tag);
                     let mut down_place = place.clone();
                     down_place.projection.push(PlaceElem::Downcast(variant_idx));
-                    println!("TRACE: check_successors {down_place:?}");
                     env.lookup_place(&mut rcx, gen, &down_place);
                 }
             }

@@ -529,10 +529,14 @@ impl Expr {
             .clone()
     }
 
+    pub fn and2(e1: Expr, e2: Expr) -> Expr {
+        Expr::binary_op(BinOp::And, e1, e2)
+    }
+
     pub fn and(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
+            .reduce(|acc, e| Expr::and2(acc, e))
             .unwrap_or_else(Expr::tt)
     }
 

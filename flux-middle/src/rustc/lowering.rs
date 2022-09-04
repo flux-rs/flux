@@ -1,3 +1,4 @@
+use flux_common::index::IndexVec;
 use itertools::Itertools;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
@@ -15,9 +16,9 @@ use rustc_span::Span;
 
 use super::{
     mir::{
-        AggregateKind, BasicBlockData, BinOp, Body, CallSubsts, Constant, FakeReadCause, Instance,
-        LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
-        TerminatorKind,
+        AggregateKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, Constant,
+        FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
     ty::{FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty},
 };
@@ -42,6 +43,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
+        let fake_predecessors = mk_fake_predecessors(&basic_blocks);
+
         let local_decls = lower
             .rustc_mir
             .local_decls
@@ -49,7 +52,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, rustc_mir: lower.rustc_mir })
+        Ok(Body { basic_blocks, local_decls, fake_predecessors, rustc_mir: lower.rustc_mir })
     }
 
     fn lower_basic_block_data(
@@ -423,6 +426,33 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorGuaranteed> {
         emit_err(self.tcx, span, msg)
     }
+}
+
+/// [NOTE:Fake Predecessors] The `FalseEdge/imaginary_target` edges mess up
+/// the "is_join_point" computation which creates spurious join points that
+/// lose information e.g. in match arms, the k+1-th arm has the k-th arm as
+/// a "fake" predecessor so we lose the assumptions specific to the k+1-th
+/// arm due to a spurious join. This code corrects for this problem by
+/// computing the number of "fake" predecessors and decreasing them from
+/// the total number of "predecessors" returned by `rustc`.
+/// The option is to recompute "predecessors" from scratch but we may miss
+/// some cases there. (see also `is_join_point`)
+
+fn mk_fake_predecessors(
+    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
+) -> IndexVec<BasicBlock, usize> {
+    let mut res: IndexVec<BasicBlock, usize> = basic_blocks.iter().map(|_| 0).collect();
+
+    for bb in basic_blocks {
+        if let Some(terminator) = &bb.terminator {
+            match terminator.kind {
+                TerminatorKind::FalseEdge { imaginary_target, .. } => res[imaginary_target] += 1,
+                _ => (),
+            }
+        }
+    }
+
+    res
 }
 
 pub fn lower_fn_sig<'tcx>(

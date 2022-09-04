@@ -6,7 +6,7 @@ use flux_middle::{
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
         subst::BVarFolder,
-        AdtDef, BaseTy, Expr, Loc, Path, Pred, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
+        AdtDef, BaseTy, Expr, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -84,14 +84,14 @@ fn downcast_struct(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 
-fn enum_constraint(scrutinee: flux_middle::ty::Ty, exprs: &[flux_middle::ty::Expr]) -> Pred {
-    if let TyKind::Indexed(_, ixs) = scrutinee.kind() {
-        assert_eq!(ixs.len(), exprs.len());
-        Pred::Expr(Expr::and(
-            iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())),
-        ))
-    } else {
-        panic!("unexpected: enum_constraint")
+fn enum_constraint(scrutinee: &flux_middle::ty::Ty, exprs: &[flux_middle::ty::Expr]) -> Expr {
+    match scrutinee.kind() {
+        TyKind::Indexed(_, ixs) => {
+            assert_eq!(ixs.len(), exprs.len());
+            Expr::and(iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())))
+        }
+        TyKind::Constr(e, ty) => Expr::and2(e.clone(), enum_constraint(ty, exprs)),
+        _ => panic!("unexpected: enum_constraint {scrutinee:?}"),
     }
 }
 
@@ -108,7 +108,7 @@ fn downcast_enum(
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_types(substs);
 
-    let constr = enum_constraint(variant_def.ret, exprs);
+    let constr = enum_constraint(&variant_def.ret, exprs);
     rcx.assume_pred(constr);
 
     variant_def.fields.to_vec()
@@ -424,6 +424,13 @@ enum NodeKind {
     Uninit,
 }
 
+fn strip_constr(ty: &Ty) -> &Ty {
+    match ty.kind() {
+        TyKind::Indexed(_, _) => ty,
+        TyKind::Constr(_, ty1) => strip_constr(ty1),
+        _ => todo!(),
+    }
+}
 impl Node {
     fn owned(ty: Ty) -> Node {
         Node::Leaf(Binding::Owned(ty))
@@ -506,29 +513,26 @@ impl Node {
     fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                // HEREHEREHEREHEREHERE: enums rcx.assume_pred(e) will add the constraint
-                //   let (tys, cstr) = genv.downcast(...); // return an Option<pred>
-                //   if let Some(e) = cstr { rcx.assume_pred(e) }
-                //   tys.into_iter...
-
-                if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
-                    let fields = downcast_place(
-                        genv,
-                        rcx,
-                        adt_def.def_id(),
-                        variant_idx,
-                        substs,
-                        &idxs.to_exprs(),
-                    )
-                    .into_iter()
-                    .map(|ty| Node::owned(rcx.unpack(&ty, false)))
-                    .collect();
-                    *self = Node::Internal(
-                        NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
-                        fields,
-                    );
-                } else {
-                    panic!("type cannot be downcasted: `{ty:?}`")
+                let ty = strip_constr(ty);
+                match ty.kind() {
+                    TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) => {
+                        let fields = downcast_place(
+                            genv,
+                            rcx,
+                            adt_def.def_id(),
+                            variant_idx,
+                            substs,
+                            &idxs.to_exprs(),
+                        )
+                        .into_iter()
+                        .map(|ty| Node::owned(rcx.unpack(&ty, false)))
+                        .collect();
+                        *self = Node::Internal(
+                            NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
+                            fields,
+                        );
+                    }
+                    _ => panic!("type cannot be downcasted: `{ty:?}`"),
                 }
             }
             Node::Internal(NodeKind::Adt(_, variant_idx2, _), _) => {
