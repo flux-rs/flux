@@ -166,11 +166,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 genv.register_struct_def(def_id.to_def_id(), adt_def);
                 Ok(())
             })?;
+
         specs
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let enum_def = desugar::desugar_enum_def(genv.sess, &genv.consts, enum_def)?;
+                let enum_def = desugar::desugar_enum_def(genv, &adt_sorts, enum_def)?;
                 genv.register_enum_def(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;

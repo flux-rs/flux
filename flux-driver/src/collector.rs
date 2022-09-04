@@ -6,8 +6,8 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias, surface,
-    ParseResult,
+    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
+    parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -15,7 +15,7 @@ use rustc_ast::{
 };
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::LocalDefId, ImplItemKind, Item, ItemKind, VariantData};
+use rustc_hir::{def_id::LocalDefId, EnumDef, ImplItemKind, Item, ItemKind, VariantData};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
@@ -78,7 +78,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let _ = match &item.kind {
                 ItemKind::Fn(..) => collector.parse_fn_spec(item.def_id, attrs),
                 ItemKind::Struct(data, ..) => collector.parse_struct_def(item.def_id, attrs, data),
-                ItemKind::Enum(..) => collector.parse_enum_def(item.def_id, attrs),
+                ItemKind::Enum(def, ..) => collector.parse_enum_def(item.def_id, attrs, def),
                 ItemKind::Mod(..) => collector.parse_mod_spec(item.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(item.def_id, attrs),
                 ItemKind::Const(_ty, _body_id) => collector.parse_const_spec(item, attrs),
@@ -170,14 +170,26 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
+        def: &EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         let opaque = attrs.opaque();
         let refined_by = attrs.refined_by();
+        let variants = def
+            .variants
+            .iter()
+            .map(|variant| self.parse_variant_spec(self.tcx.hir().attrs(variant.id)))
+            .try_collect_exhaust()?;
+
+        let variants = match variants {
+            Some(v) => v,
+            None => vec![],
+        };
+
         self.specs
             .enums
-            .insert(def_id, surface::EnumDef { def_id, refined_by, opaque });
+            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, opaque });
         Ok(())
     }
 
@@ -232,6 +244,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         Ok(attrs.field())
+    }
+
+    fn parse_variant_spec(
+        &mut self,
+        attrs: &[Attribute],
+    ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+        Ok(attrs.variant())
     }
 
     fn parse_flux_attrs(&mut self, attrs: &[Attribute]) -> Result<FluxAttrs, ErrorGuaranteed> {
@@ -290,6 +311,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let ty = self.parse(tokens.clone(), span.entire(), parse_ty)?;
                 FluxAttrKind::Field(ty)
             }
+            ("variant", MacArgs::Delimited(span, _, tokens)) => {
+                let variant = self.parse(tokens.clone(), span.entire(), parse_variant)?;
+                FluxAttrKind::Variant(variant)
+            }
+
             ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
             ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
@@ -375,6 +401,7 @@ enum FluxAttrKind {
     Qualifier(surface::Qualifier),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
+    Variant(surface::VariantDef),
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Ignore,
@@ -459,6 +486,10 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
+    fn variant(&mut self) -> Option<surface::VariantDef> {
+        read_attr!(self, Variant)
+    }
+
     fn crate_config(&mut self) -> Option<config::CrateConfig> {
         read_attr!(self, CrateConfig)
     }
@@ -474,6 +505,7 @@ impl FluxAttrKind {
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
             FluxAttrKind::Field(_) => attr_name!(Field),
+            FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),

@@ -6,6 +6,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_target::abi::VariantIdx;
 
+use super::{Binders, PolyVariant};
 use crate::{
     core,
     global_env::GlobalEnv,
@@ -96,16 +97,48 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
+    pub(crate) fn conv_enum_def(
+        genv: &mut GlobalEnv,
+        enum_def: core::EnumDef,
+    ) -> Option<Vec<PolyVariant>> {
+        let mut cx = ConvCtxt::new(genv);
+        let variants: Vec<PolyVariant> = enum_def
+            .variants
+            .into_iter()
+            .map(|variant| cx.conv_variant(variant))
+            .collect();
+
+        // Return `None` if there are *no* refined variants as, in that case,
+        // we want to fall back to using "default" `rustc` variant-signatures
+        // at the match/downcast sites as done in `GlobalEnv::variant`.
+        if variants.is_empty() {
+            None
+        } else {
+            Some(variants)
+        }
+    }
+
+    fn conv_variant(&mut self, variant: core::VariantDef) -> PolyVariant {
+        let sorts = self.conv_params(&variant.params);
+        let fields = variant
+            .fields
+            .iter()
+            .map(|ty| self.conv_ty(ty, 1))
+            .collect_vec();
+        let ret = self.conv_ty(&variant.ret, 1);
+        let variant = ty::VariantDef::new(fields, ret);
+        Binders::new(variant, sorts)
+    }
+
     pub(crate) fn conv_struct_def(
         genv: &GlobalEnv,
         struct_def: &core::StructDef,
-    ) -> Option<ty::VariantDef> {
+    ) -> Option<ty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
         let sorts = cx.conv_params(&struct_def.refined_by);
-
         let def_id = struct_def.def_id;
+        let rustc_adt = genv.tcx.adt_def(def_id);
         if let core::StructKind::Transparent { fields } = &struct_def.kind {
-            let rustc_adt = genv.tcx.adt_def(def_id);
             let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
                 .map(|(ty, field)| {
                     match ty {
@@ -129,8 +162,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
                 .collect_vec();
             let ret = ty::Ty::indexed(ty::BaseTy::adt(genv.adt_def(def_id), substs), idxs);
-
-            Some(ty::VariantDef::new(fields, ret))
+            let variant = ty::VariantDef::new(fields, ret);
+            Some(Binders::new(variant, sorts))
         } else {
             None
         }

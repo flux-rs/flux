@@ -13,7 +13,7 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
-pub use desugar::{desugar_enum_def, desugar_qualifier, resolve_sorts};
+pub use desugar::{desugar_qualifier, resolve_sorts};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{self, AdtSortsMap},
@@ -33,6 +33,16 @@ pub fn desugar_struct_def(
     let mut resolver = table_resolver::Resolver::from_adt(genv, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
     desugar::desugar_struct_def(genv.sess, &genv.consts, struct_def)
+}
+
+pub fn desugar_enum_def(
+    genv: &GlobalEnv,
+    adt_sorts: &impl AdtSortsMap,
+    enum_def: surface::EnumDef,
+) -> Result<core::EnumDef, ErrorGuaranteed> {
+    let mut resolver = table_resolver::Resolver::from_adt(genv, enum_def.def_id)?;
+    let enum_def = resolver.resolve_enum_def(enum_def)?;
+    desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
 }
 
 // TODO(RJ): This is not used but perhaps *could* used to generate default

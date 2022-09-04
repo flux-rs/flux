@@ -7,7 +7,10 @@ use rustc_hash::FxHashSet;
 use super::{
     BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
 };
-use crate::intern::{Internable, List};
+use crate::{
+    intern::{Internable, List},
+    ty::VariantDef,
+};
 
 pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
@@ -133,6 +136,23 @@ where
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_binders(self)
+    }
+}
+
+impl TypeFoldable for VariantDef {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        let fields = self
+            .fields
+            .iter()
+            .map(|ty| ty.fold_with(folder))
+            .collect_vec();
+        let ret = self.ret.fold_with(folder);
+        VariantDef::new(fields, ret)
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.fields.iter().for_each(|ty| ty.visit_with(visitor));
+        self.ret.visit_with(visitor);
     }
 }
 

@@ -29,10 +29,12 @@ pub struct AdtDefData {
     flags: AdtFlags,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub(crate) struct VariantDef {
-    pub(crate) fields: List<Ty>,
-    pub(crate) ret: Ty,
+pub(crate) type PolyVariant = Binders<VariantDef>;
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct VariantDef {
+    pub fields: List<Ty>,
+    pub ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -591,6 +593,10 @@ impl Expr {
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
         ExprKind::UnaryOp(op, e.into()).intern()
+    }
+
+    pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
     }
 
     pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {

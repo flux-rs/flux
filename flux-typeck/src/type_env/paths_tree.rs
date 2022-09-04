@@ -5,11 +5,12 @@ use flux_middle::{
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
+        AdtDef, BaseTy, Expr, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 
 use crate::{
     constraint_gen::ConstrGen,
@@ -43,6 +44,85 @@ impl LookupResult {
             LookupResult::Ptr(_, ty) => ty.clone(),
             LookupResult::Ref(_, ty) => ty.clone(),
         }
+    }
+}
+
+/// `downcast` on struct works as follows
+/// Given a struct definition
+///     struct Foo<A..>[(i...)] { fld : T, ...}
+/// and a
+///     * "place" `x: T<t..>[e..]`
+/// the `downcast` returns a vector of `ty` for each `fld` of `x` where
+///     * `x.fld : T[A := t ..]<i := e...>`
+/// i.e. by substituting the type and value indices using the types and values from `x`.
+
+fn downcast_struct(
+    genv: &GlobalEnv,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[Ty],
+    exprs: &[Expr],
+) -> Vec<Ty> {
+    genv.variant(def_id, variant_idx)
+        .replace_bound_vars(exprs)
+        .replace_generic_types(substs)
+        .fields
+        .to_vec()
+}
+
+/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
+/// Given
+///     * a "place" `x : T[i..]`
+///     * a "variant" of type `forall z..,(y:t...) => T[j...]`
+/// We want `downcast` to return a vector of types _and an assertion_ by
+///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
+///     2. *Unpack* the fields using `y:t'...`
+///     3. *Assert* the constraint `i == j'...`
+
+fn enum_constraint(scrutinee: &Ty, exprs: &[Expr]) -> Expr {
+    match scrutinee.kind() {
+        TyKind::Indexed(_, ixs) => {
+            assert_eq!(ixs.len(), exprs.len());
+            Expr::and(iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())))
+        }
+        TyKind::Constr(e, ty) => Expr::and([e.clone(), enum_constraint(ty, exprs)]),
+        _ => panic!("unexpected: enum_constraint {scrutinee:?}"),
+    }
+}
+
+fn downcast_enum(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[Ty],
+    exprs: &[Expr],
+) -> Vec<Ty> {
+    let variant_def = genv
+        .variant(def_id, variant_idx)
+        .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
+        .replace_generic_types(substs);
+
+    let constr = enum_constraint(&variant_def.ret, exprs);
+    rcx.assume_pred(constr);
+
+    variant_def.fields.to_vec()
+}
+
+fn downcast(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[Ty],
+    exprs: &[Expr],
+) -> Vec<Ty> {
+    if genv.tcx.adt_def(def_id).is_struct() {
+        downcast_struct(genv, def_id, variant_idx, substs, exprs)
+    } else if genv.tcx.adt_def(def_id).is_enum() {
+        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
+    } else {
+        panic!("Downcast without struct or enum!")
     }
 }
 
@@ -217,7 +297,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(gen, *mode, ty, place_proj);
+                                return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let fresh = rcx.define_var(&Sort::Loc);
@@ -241,6 +321,7 @@ impl PathsTree {
 
     fn lookup_place_iter_ty(
         &mut self,
+        rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         mut rk: RefKind,
         ty: &Ty,
@@ -261,7 +342,9 @@ impl PathsTree {
                     ty = tys[field.as_usize()].clone();
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
-                    let fields = gen.genv.downcast(
+                    let fields = downcast(
+                        gen.genv,
+                        rcx,
                         adt.def_id(),
                         VariantIdx::from_u32(0),
                         substs,
@@ -270,9 +353,14 @@ impl PathsTree {
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let tys =
-                        gen.genv
-                            .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs());
+                    let tys = downcast(
+                        gen.genv,
+                        rcx,
+                        adt_def.def_id(),
+                        variant_idx,
+                        substs,
+                        &idxs.to_exprs(),
+                    );
                     ty = Ty::tuple(tys)
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
@@ -413,18 +501,26 @@ impl Node {
     fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = ty.kind() {
-                    let fields = genv
-                        .downcast(adt_def.def_id(), variant_idx, substs, &idxs.to_exprs())
+                let ty = ty.unconstr();
+                match ty.kind() {
+                    TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) => {
+                        let fields = downcast(
+                            genv,
+                            rcx,
+                            adt_def.def_id(),
+                            variant_idx,
+                            substs,
+                            &idxs.to_exprs(),
+                        )
                         .into_iter()
                         .map(|ty| Node::owned(rcx.unpack(&ty, false)))
                         .collect();
-                    *self = Node::Internal(
-                        NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
-                        fields,
-                    );
-                } else {
-                    panic!("type cannot be downcasted: `{ty:?}`")
+                        *self = Node::Internal(
+                            NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
+                            fields,
+                        );
+                    }
+                    _ => panic!("type cannot be downcasted: `{ty:?}`"),
                 }
             }
             Node::Internal(NodeKind::Adt(_, variant_idx2, _), _) => {

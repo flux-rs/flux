@@ -33,10 +33,17 @@ pub struct StructDef<T = Ident> {
 }
 
 #[derive(Debug)]
-pub struct EnumDef {
+pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
+    pub variants: Vec<VariantDef<T>>,
     pub opaque: bool,
+}
+
+#[derive(Debug)]
+pub struct VariantDef<T = Ident> {
+    pub fields: Vec<Ty<T>>,
+    pub ret: Ty<T>,
 }
 
 #[derive(Debug)]

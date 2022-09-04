@@ -5,7 +5,7 @@ use std::iter;
 use flux_common::index::IndexGen;
 use flux_middle::{
     global_env::GlobalEnv,
-    rustc::mir::Place,
+    rustc::mir::{Place, PlaceElem},
     ty::{
         fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, Index, Path, RefKind, Ty,
         TyKind,
@@ -22,6 +22,7 @@ use crate::{
     fixpoint::KVarGen,
     param_infer,
     refine_tree::{RefineCtxt, Scope},
+    ty::VariantIdx,
 };
 
 pub trait PathMap {
@@ -262,6 +263,18 @@ impl TypeEnv {
             let ty2 = binding2.ty();
             gen.subtyping(rcx, ty1, ty2);
         }
+    }
+
+    pub fn downcast(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+        variant_idx: VariantIdx,
+    ) {
+        let mut down_place = place.clone();
+        down_place.projection.push(PlaceElem::Downcast(variant_idx));
+        self.lookup_place(rcx, gen, &down_place);
     }
 }
 
