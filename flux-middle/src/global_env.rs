@@ -80,7 +80,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
-        let (_adt_def, variant) = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
+        let variant = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
     }

@@ -133,13 +133,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn conv_struct_def(
         genv: &GlobalEnv,
         struct_def: &core::StructDef,
-    ) -> (ty::AdtDef, Option<ty::PolyVariant>) {
+    ) -> Option<ty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
         let sorts = cx.conv_params(&struct_def.refined_by);
         let def_id = struct_def.def_id;
         let rustc_adt = genv.tcx.adt_def(def_id);
-        let adt_def = ty::AdtDef::new(rustc_adt, sorts.clone());
-        let variant = if let core::StructKind::Transparent { fields } = &struct_def.kind {
+        if let core::StructKind::Transparent { fields } = &struct_def.kind {
             let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
                 .map(|(ty, field)| {
                     match ty {
@@ -167,8 +166,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             Some(Binders::new(variant, sorts))
         } else {
             None
-        };
-        (adt_def, variant)
+        }
     }
 
     fn conv_params(&mut self, params: &[core::Param]) -> Vec<ty::Sort> {
