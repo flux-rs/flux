@@ -82,17 +82,15 @@ impl TypeEnv {
 
     pub fn borrow(
         &mut self,
-        rk: RefKind,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
+        rk: RefKind,
         place: &Place,
     ) -> Ty {
         match self.bindings.lookup_place(rcx, gen, place) {
             LookupResult::Ptr(path, _) => Ty::ptr(rk, path),
             LookupResult::Ref(result_rk, ty) => {
-                if rk > result_rk {
-                    panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&`")
-                }
+                debug_assert!(rk <= result_rk);
                 Ty::mk_ref(rk, ty)
             }
         }
@@ -113,7 +111,7 @@ impl TypeEnv {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
             LookupResult::Ref(RefKind::Shr, _) => {
-                panic!("cannot assign to `{place:?}`, which is behind a `&` reference or Box")
+                panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }
     }

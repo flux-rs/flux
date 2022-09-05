@@ -129,12 +129,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 let formal = formal.unconstr();
                 match (actual.kind(), formal.kind()) {
                     (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        // FIXME: we should block path
+                        // FIXME(nilehmann) we should block path
                         subtyping(self.genv, constr, &env.get(path), bound, self.tag);
                         env.update(path, bound.clone());
                         Ty::mk_ref(RefKind::Mut, bound.clone())
                     }
                     (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
+                        // FIXME(nilehmann) we should block path
                         Ty::mk_ref(RefKind::Shr, env.get(path))
                     }
                     _ => actual.clone(),
