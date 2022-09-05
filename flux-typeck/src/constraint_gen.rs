@@ -121,17 +121,30 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
 
-        // Check arguments
         let constr = &mut rcx.check_constr();
+
+        // Convert pointers to borrows
+        let actuals = iter::zip(actuals, fn_sig.args())
+            .map(|(actual, formal)| {
+                let formal = formal.unconstr();
+                match (actual.kind(), formal.kind()) {
+                    (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                        // FIXME: we should block path
+                        subtyping(self.genv, constr, &env.get(path), bound, self.tag);
+                        env.update(path, bound.clone());
+                        Ty::mk_ref(RefKind::Mut, bound.clone())
+                    }
+                    (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
+                        Ty::mk_ref(RefKind::Shr, env.get(path))
+                    }
+                    _ => actual.clone(),
+                }
+            })
+            .collect_vec();
+
+        // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            if let (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) =
-                (actual.kind(), formal.kind())
-            {
-                subtyping(self.genv, constr, &env.get(path), bound, self.tag);
-                env.update(path, bound.clone());
-            } else {
-                subtyping(self.genv, constr, &actual, formal, self.tag);
-            }
+            subtyping(self.genv, constr, &actual, formal, self.tag);
         }
 
         // Check preconditions

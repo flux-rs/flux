@@ -94,9 +94,10 @@ impl TypeEnv {
 
     pub fn borrow_shr(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
         match self.bindings.lookup_place(rcx, gen, place) {
-            LookupResult::Ptr(path, ty) => {
-                self.bindings.block(&path);
-                Ty::mk_ref(RefKind::Shr, ty)
+            LookupResult::Ptr(path, _) => {
+                Ty::ptr(RefKind::Shr, path)
+                // self.bindings.block(&path);
+                // Ty::mk_ref(RefKind::Shr, ty)
             }
             result => Ty::mk_ref(RefKind::Shr, result.ty()),
         }
@@ -193,9 +194,15 @@ impl TypeEnv {
                     self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, &ty2, subst);
                 }
             }
-            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
-                debug_assert_eq!(mode1, mode2);
+            (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
+                debug_assert_eq!(rk1, rk2);
                 self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+            }
+            (TyKind::Ptr(rk1, path), TyKind::Ref(rk2, ty2)) => {
+                debug_assert_eq!(rk1, rk2);
+                if let Binding::Owned(ty1) = self.bindings.get(path) {
+                    self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, ty2, subst);
+                }
             }
             _ => {}
         }
@@ -230,9 +237,6 @@ impl TypeEnv {
         let subst = self.infer_subst_for_bb_env(bb_env);
 
         // Check constraints
-        // for ((name, _), constr) in iter::zip(&bb_env.params, &bb_env.constrs) {
-        //     gen.check_pred(rcx, subst.apply(&constr.replace_bound_vars(&[Expr::fvar(*name)])));
-        // }
         for constr in &bb_env.constrs {
             gen.check_pred(rcx, subst.apply(constr));
         }
@@ -245,15 +249,24 @@ impl TypeEnv {
         // Convert pointers to borrows
         for (path, binding2) in &bb_env {
             let binding1 = self.bindings.get(path);
-            if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) &&
-               let (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
-            {
+            if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
+                match (ty1.kind(), ty2.kind()) {
+                    (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                        let ty = self.bindings.get(ptr_path).expect_owned();
+                        gen.subtyping(rcx, &ty, bound);
 
-                let ty = self.bindings.get(ptr_path).expect_owned();
-                gen.subtyping(rcx, &ty, bound);
-
-                self.bindings.update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                        self.bindings
+                            .update_binding(ptr_path, Binding::Blocked(bound.clone()));
+                        self.bindings
+                            .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                    }
+                    (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                        let ty = self.bindings.get(ptr_path).expect_owned();
+                        self.bindings.block(ptr_path);
+                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                    }
+                    _ => (),
+                }
             }
         }
 
@@ -383,6 +396,28 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
+                    (TyKind::Ptr(RefKind::Shr, path1), TyKind::Ptr(RefKind::Shr, path2))
+                        if path1 != path2 =>
+                    {
+                        let ty1 = self.bindings.get(path1).expect_owned();
+                        let ty2 = other.bindings.get(path2).expect_owned();
+
+                        self.bindings.block(path1);
+                        other.bindings.block(path2);
+
+                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty1));
+                        other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty2));
+                    }
+                    (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                        let ty = self.bindings.get(ptr_path).expect_owned();
+                        self.bindings.block(ptr_path);
+                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                    }
+                    (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(RefKind::Shr, ptr_path)) => {
+                        let ty = other.bindings.get(ptr_path).expect_owned();
+                        other.bindings.block(ptr_path);
+                        other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                    }
                     (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2))
                         if path1 != path2 =>
                     {
@@ -470,9 +505,9 @@ impl TypeEnvInfer {
                 let pred = Binders::new(Pred::Hole, bty.sorts());
                 Ty::exists(bty, pred)
             }
-            (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
-                debug_assert_eq!(mode1, mode2);
-                Ty::mk_ref(*mode1, self.join_ty(genv, ty1, ty2))
+            (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
+                debug_assert_eq!(rk1, rk2);
+                Ty::mk_ref(*rk1, self.join_ty(genv, ty1, ty2))
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
