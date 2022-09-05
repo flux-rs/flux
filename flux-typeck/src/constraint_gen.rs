@@ -124,7 +124,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Check arguments
         let constr = &mut rcx.check_constr();
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
+            if let (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) =
                 (actual.kind(), formal.kind())
             {
                 subtyping(self.genv, constr, &env.get(path), bound, self.tag);
@@ -195,8 +195,9 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
             constr.push_head(pred.replace_bound_vars(&exprs), tag);
         }
-        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-            assert_eq!(path1, path2);
+        (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+            debug_assert_eq!(rk1, rk2);
+            debug_assert_eq!(path1, path2);
         }
         (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
             debug_assert_eq!(loc1, loc2);

@@ -81,7 +81,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Float(FloatTy),
     Uninit,
-    Ptr(Path),
+    Ptr(RefKind, Path),
     /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
     /// with two major differences:
     /// 1. An open box can only point to a fresh location and not an arbitrary [`Path`], so we just
@@ -316,8 +316,8 @@ impl VariantDef {
 }
 
 impl Ty {
-    pub fn ptr(path: impl Into<Path>) -> Ty {
-        TyKind::Ptr(path.into()).intern()
+    pub fn ptr(rk: RefKind, path: impl Into<Path>) -> Ty {
+        TyKind::Ptr(rk, path.into()).intern()
     }
 
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
@@ -1006,7 +1006,7 @@ mod pretty {
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
-                TyKind::Ptr(loc) => w!("ptr({:?})", loc),
+                TyKind::Ptr(rk, loc) => w!("ptr({:?}, {:?})", ^rk, loc),
                 TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),

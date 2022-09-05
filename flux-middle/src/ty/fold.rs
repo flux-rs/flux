@@ -234,8 +234,9 @@ impl TypeFoldable for Ty {
             TyKind::Tuple(tys) => {
                 Ty::tuple(tys.iter().map(|ty| ty.fold_with(folder)).collect_vec())
             }
-            TyKind::Ptr(path) => {
+            TyKind::Ptr(rk, path) => {
                 Ty::ptr(
+                    *rk,
                     path.to_expr()
                         .fold_with(folder)
                         .to_path()
@@ -273,7 +274,7 @@ impl TypeFoldable for Ty {
             }
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             TyKind::Ref(_, ty) => ty.visit_with(visitor),
-            TyKind::Ptr(path) => path.to_expr().visit_with(visitor),
+            TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
             TyKind::BoxPtr(loc, ty) => {
                 Expr::fvar(*loc).visit_with(visitor);
                 ty.visit_with(visitor);

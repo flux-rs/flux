@@ -84,7 +84,7 @@ impl TypeEnv {
     // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
     pub fn borrow_mut(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
         match self.bindings.lookup_place(rcx, gen, place) {
-            LookupResult::Ptr(path, _) => Ty::ptr(path),
+            LookupResult::Ptr(path, _) => Ty::ptr(RefKind::Mut, path),
             LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
             LookupResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&`")
@@ -185,7 +185,8 @@ impl TypeEnv {
                     subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
                 }
             }
-            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+                debug_assert_eq!(rk1, rk2);
                 subst.infer_from_exprs(params, &path1.to_expr(), &path2.to_expr());
                 if let Binding::Owned(ty1) = self.bindings.get(path1) &&
                    let Binding::Owned(ty2) = bb_env.bindings.get(path2) {
@@ -245,7 +246,7 @@ impl TypeEnv {
         for (path, binding2) in &bb_env {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) &&
-               let (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
+               let (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) = (ty1.kind(), ty2.kind())
             {
 
                 let ty = self.bindings.get(ptr_path).expect_owned();
@@ -346,7 +347,7 @@ impl TypeEnvInfer {
             | TyKind::Never
             | TyKind::Discr(..)
             | TyKind::Float(_)
-            | TyKind::Ptr(_)
+            | TyKind::Ptr(..)
             | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_)
@@ -382,7 +383,9 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(path1), TyKind::Ptr(path2)) if path1 != path2 => {
+                    (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2))
+                        if path1 != path2 =>
+                    {
                         let ty1 = self.bindings.get(path1).expect_owned().with_holes();
                         let ty2 = other.bindings.get(path2).expect_owned().with_holes();
 
@@ -395,13 +398,13 @@ impl TypeEnvInfer {
                         self.bindings.update_binding(path1, Binding::Blocked(ty1));
                         other.bindings.update_binding(path2, Binding::Blocked(ty2));
                     }
-                    (TyKind::Ptr(ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
                         let bound = bound.with_holes();
                         self.bindings
                             .update_binding(ptr_path, Binding::Blocked(bound.clone()));
                         self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
                     }
-                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(ptr_path)) => {
+                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(RefKind::Mut, ptr_path)) => {
                         let bound = bound.with_holes();
                         other
                             .bindings
@@ -442,9 +445,10 @@ impl TypeEnvInfer {
     fn join_ty(&self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
-            (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+                debug_assert_eq!(rk1, rk2);
                 debug_assert_eq!(path1, path2);
-                Ty::ptr(path1.clone())
+                Ty::ptr(*rk1, path1.clone())
             }
             (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
                 debug_assert_eq!(loc1, loc2);
