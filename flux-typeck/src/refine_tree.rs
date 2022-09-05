@@ -60,7 +60,7 @@ pub struct Scope {
 /// A *constr*aint *builder* is used to generate a constraint derived from subtyping when
 /// checking a function call or jumping to a basic block.
 pub struct ConstrBuilder<'a> {
-    _tree: &'a mut RefineTree,
+    tree: &'a mut RefineTree,
     ptr: NodePtr,
 }
 
@@ -100,6 +100,7 @@ impl RefineTree {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, _tree: self })
     }
 
+    #[allow(clippy::unused_self)]
     pub fn clear(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
@@ -139,7 +140,7 @@ impl RefineCtxt<'_> {
 
     pub fn check_constr(&mut self) -> ConstrBuilder {
         let ptr = self.ptr.push_node(NodeKind::Conj);
-        ConstrBuilder { _tree: self._tree, ptr }
+        ConstrBuilder { tree: self._tree, ptr }
     }
 
     fn unpack_bty(&mut self, bty: &BaseTy, unpack_mut_refs: bool) -> BaseTy {
@@ -240,11 +241,11 @@ impl Scope {
 
 impl ConstrBuilder<'_> {
     pub fn breadcrumb(&mut self) -> ConstrBuilder {
-        ConstrBuilder { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
+        ConstrBuilder { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
     pub fn push_guard(&mut self, p: Expr) {
-        self.ptr.push_guard(p)
+        self.ptr.push_guard(p);
     }
 
     pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
@@ -287,7 +288,7 @@ impl NodePtr {
         for sort in sorts {
             let fresh = name_gen.fresh();
             names.push(fresh);
-            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()))
+            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()));
         }
         names
     }
@@ -339,8 +340,9 @@ impl std::ops::Deref for NodePtr {
 impl Node {
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
-            NodeKind::Conj => children_to_fixpoint(cx, &self.children),
-            NodeKind::ForAll(_, Sort::Loc) => children_to_fixpoint(cx, &self.children),
+            NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
+                children_to_fixpoint(cx, &self.children)
+            }
             NodeKind::ForAll(name, sort) => {
                 let fresh = cx.fresh_name();
                 cx.with_name_map(*name, fresh, |cx| {
@@ -466,10 +468,10 @@ mod pretty {
             let node = ptr.borrow();
             if let NodeKind::Conj = node.kind {
                 for child in &node.children {
-                    go(child, children)
+                    go(child, children);
                 }
             } else {
-                children.push(NodePtr::clone(ptr))
+                children.push(NodePtr::clone(ptr));
             }
         }
         let mut children = vec![];

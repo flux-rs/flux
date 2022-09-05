@@ -291,7 +291,7 @@ impl PathMap for TypeEnv {
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty)
+        self.bindings.update(path, ty);
     }
 }
 
@@ -327,7 +327,7 @@ impl TypeEnvInfer {
                 Binding::Blocked(ty) => Binding::Blocked(TypeEnvInfer::pack_ty(&scope, ty)),
             }
         });
-        TypeEnvInfer { bindings, scope }
+        TypeEnvInfer { scope, bindings }
     }
 
     fn pack_ty(scope: &Scope, ty: &Ty) -> Ty {
@@ -453,13 +453,9 @@ impl TypeEnvInfer {
                 (Binding::Owned(ty1), Binding::Owned(ty2)) => {
                     Binding::Owned(self.join_ty(gen.genv, ty1, ty2))
                 }
-                (Binding::Owned(ty1), Binding::Blocked(ty2)) => {
-                    Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
-                }
-                (Binding::Blocked(ty1), Binding::Owned(ty2)) => {
-                    Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
-                }
-                (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
+                (Binding::Owned(ty1), Binding::Blocked(ty2))
+                | (Binding::Blocked(ty1), Binding::Owned(ty2))
+                | (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
                     Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
                 }
             };

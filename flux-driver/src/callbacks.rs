@@ -71,7 +71,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     items
         .chain(impl_items)
-        .filter(|def_id| !ck.is_assumed(def_id) && !is_ignored(&tcx, &ck.ignores, def_id))
+        .filter(|def_id| !ck.is_assumed(*def_id) && !is_ignored(tcx, &ck.ignores, *def_id))
         .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
@@ -84,13 +84,13 @@ struct CrateChecker<'a, 'genv, 'tcx> {
 
 /// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
 /// any enclosing mod has been marked as `ignore`
-fn is_ignored(tcx: &TyCtxt, ignores: &Ignores, def_id: &LocalDefId) -> bool {
-    let parent_def_id = tcx.parent_module_from_def_id(*def_id);
-    if parent_def_id == *def_id {
+fn is_ignored(tcx: TyCtxt, ignores: &Ignores, def_id: LocalDefId) -> bool {
+    let parent_def_id = tcx.parent_module_from_def_id(def_id);
+    if parent_def_id == def_id {
         false
     } else {
         ignores.contains(&IgnoreKey::Module(parent_def_id))
-            || is_ignored(tcx, ignores, &parent_def_id)
+            || is_ignored(tcx, ignores, parent_def_id)
     }
 }
 
@@ -110,9 +110,9 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .consts
             .into_iter()
             .try_for_each_exhaust(|(def_id, const_sig)| {
-                if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                if !is_ignored(genv.tcx, &specs.ignores, def_id) {
                     let did = def_id.to_def_id();
-                    let sym = def_id_symbol(&genv.tcx, def_id);
+                    let sym = def_id_symbol(genv.tcx, def_id);
                     genv.consts
                         .push(ConstInfo { def_id: did, sym, val: const_sig.val });
                 }
@@ -186,7 +186,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 if spec.assume {
                     assume.insert(def_id);
                 }
-                if !is_ignored(&genv.tcx, &specs.ignores, &def_id) {
+                if !is_ignored(genv.tcx, &specs.ignores, def_id) {
                     let did = def_id.to_def_id();
                     if let Some(fn_sig) = spec.fn_sig {
                         let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
@@ -208,8 +208,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         Ok(CrateChecker { genv, qualifiers, assume, ignores: specs.ignores })
     }
 
-    fn is_assumed(&self, def_id: &LocalDefId) -> bool {
-        self.assume.contains(def_id)
+    fn is_assumed(&self, def_id: LocalDefId) -> bool {
+        self.assume.contains(&def_id)
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -239,7 +239,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     }
 }
 
-fn def_id_symbol(tcx: &TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
+fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
     let did = def_id.to_def_id();
     let def_path = tcx.def_path(did);
     if let Some(dp) = def_path.data.last() {

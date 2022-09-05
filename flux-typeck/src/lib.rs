@@ -70,7 +70,7 @@ fn report_errors(
             Tag::Div(span) => genv.sess.emit_err(errors::DivError { span }),
             Tag::Rem(span) => genv.sess.emit_err(errors::RemError { span }),
             Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
-            Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { msg, span }),
+            Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { span, msg }),
             Tag::Fold(span) => genv.sess.emit_err(errors::FoldError { span }),
             Tag::Other => genv.sess.emit_err(errors::UnknownError { span: body_span }),
         });

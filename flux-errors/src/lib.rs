@@ -46,7 +46,7 @@ impl FluxSession {
     }
 
     pub fn abort_if_errors(&self) {
-        self.parse_sess.span_diagnostic.abort_if_errors()
+        self.parse_sess.span_diagnostic.abort_if_errors();
     }
 
     pub fn finish_diagnostics(&self) {

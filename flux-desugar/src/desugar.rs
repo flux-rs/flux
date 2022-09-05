@@ -428,7 +428,7 @@ impl ParamsCtxt<'_> {
                 self.ty_gather_params(ty, adt_sorts)?;
             }
             surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_sorts)?,
-            _ => panic!("unexpected: arg_gather_params"),
+            surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
     }
@@ -472,8 +472,7 @@ impl ParamsCtxt<'_> {
     ) -> Result<&'a [Sort], ErrorGuaranteed> {
         match path.ident {
             Res::Bool => Ok(&[Sort::Bool]),
-            Res::Int(_) => Ok(&[Sort::Int]),
-            Res::Uint(_) => Ok(&[Sort::Int]),
+            Res::Int(_) | Res::Uint(_) => Ok(&[Sort::Int]),
             Res::Adt(def_id) => Ok(adt_sorts.get(def_id).unwrap_or(&[])),
             Res::Float(_) => Err(self.sess.emit_err(errors::RefinedFloat { span: path.span })),
             Res::Param(_) => {

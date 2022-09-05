@@ -83,7 +83,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
     pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
         let mut constr = rcx.check_constr();
-        subtyping(self.genv, &mut constr, ty1, ty2, self.tag)
+        subtyping(self.genv, &mut constr, ty1, ty2, self.tag);
     }
 
     pub fn check_fn_call<Env: PathMap>(
@@ -240,11 +240,11 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         }
         (_, TyKind::Constr(p2, ty2)) => {
             constr.push_head(p2.clone(), tag);
-            subtyping(genv, constr, ty1, ty2, tag)
+            subtyping(genv, constr, ty1, ty2, tag);
         }
         (TyKind::Constr(p1, ty1), _) => {
             constr.push_guard(p1.clone());
-            subtyping(genv, constr, ty1, ty2, tag)
+            subtyping(genv, constr, ty1, ty2, tag);
         }
         _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
     }
@@ -306,8 +306,8 @@ mod pretty {
     use super::*;
 
     impl Pretty for Tag {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
             match self {
                 Tag::Call(span) => w!("Call({:?})", span),
                 Tag::Assign(span) => w!("Assign({:?})", span),
