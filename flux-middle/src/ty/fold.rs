@@ -41,7 +41,7 @@ pub trait TypeFoldable: Sized {
     }
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.super_visit_with(visitor)
+        self.super_visit_with(visitor);
     }
 
     /// Returns the set of all free variables.
@@ -131,7 +131,7 @@ where
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.value.visit_with(visitor)
+        self.value.visit_with(visitor);
     }
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
@@ -281,7 +281,7 @@ impl TypeFoldable for Ty {
             }
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor);
-                ty.visit_with(visitor)
+                ty.visit_with(visitor);
             }
             TyKind::Param(_)
             | TyKind::Never
@@ -417,7 +417,7 @@ impl TypeFoldable for Name {
     fn super_visit_with<V: TypeVisitor>(&self, _visitor: &mut V) {}
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        visitor.visit_fvar(*self)
+        visitor.visit_fvar(*self);
     }
 }
 

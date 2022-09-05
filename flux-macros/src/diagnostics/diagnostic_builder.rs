@@ -255,11 +255,11 @@ impl DiagnosticDeriveBuilder {
                     _ => {
                         invalid_nested_attr(attr, nested_attr)
                             .help("only `code` is a valid nested attributes following the slug")
-                            .emit()
+                            .emit();
                     }
                 }
             } else {
-                invalid_nested_attr(attr, nested_attr).emit()
+                invalid_nested_attr(attr, nested_attr).emit();
             }
         }
 

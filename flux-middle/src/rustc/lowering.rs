@@ -360,7 +360,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 rustc_mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
                 rustc_mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
                 rustc_mir::PlaceElem::Downcast(_, variant_idx) => {
-                    projection.push(PlaceElem::Downcast(variant_idx))
+                    projection.push(PlaceElem::Downcast(variant_idx));
                 }
                 _ => {
                     return Err(self
@@ -446,7 +446,7 @@ fn mk_fake_predecessors(
     for bb in basic_blocks {
         if let Some(terminator) = &bb.terminator {
             if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
-                res[imaginary_target] += 1
+                res[imaginary_target] += 1;
             }
         }
     }

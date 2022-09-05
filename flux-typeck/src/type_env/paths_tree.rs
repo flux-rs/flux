@@ -203,7 +203,7 @@ impl PathsTree {
                 Node::Internal(.., children) => node = &mut children[f.as_usize()],
             }
         }
-        f(node, &mut self.map)
+        f(node, &mut self.map);
     }
 
     pub fn insert(&mut self, loc: Loc, ty: Ty) {
@@ -231,7 +231,7 @@ impl PathsTree {
         }
         let mut proj = vec![];
         for (loc, node) in &self.map {
-            go(&node.borrow(), *loc, &mut proj, &mut f)
+            go(&node.borrow(), *loc, &mut proj, &mut f);
         }
     }
 
@@ -297,7 +297,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(mode, ty) => {
-                                return self.lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
+                                return Self::lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let fresh = rcx.define_var(&Sort::Loc);
@@ -320,7 +320,6 @@ impl PathsTree {
     }
 
     fn lookup_place_iter_ty(
-        &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         mut rk: RefKind,
@@ -361,7 +360,7 @@ impl PathsTree {
                         substs,
                         &idxs.to_exprs(),
                     );
-                    ty = Ty::tuple(tys)
+                    ty = Ty::tuple(tys);
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
             }
@@ -494,7 +493,7 @@ impl Node {
                 }
                 &mut children[field.as_usize()]
             }
-            _ => unreachable!(),
+            Node::Leaf(..) => unreachable!(),
         }
     }
 
@@ -634,15 +633,13 @@ impl Binding {
 
     pub fn ty(&self) -> &Ty {
         match self {
-            Binding::Owned(ty) => ty,
-            Binding::Blocked(ty) => ty,
+            Binding::Owned(ty) | Binding::Blocked(ty) => ty,
         }
     }
 
     fn is_uninit(&self) -> bool {
         match self {
-            Binding::Owned(ty) => ty.is_uninit(),
-            Binding::Blocked(ty) => ty.is_uninit(),
+            Binding::Owned(ty) | Binding::Blocked(ty) => ty.is_uninit(),
         }
     }
 }
@@ -657,8 +654,7 @@ impl TypeFoldable for Binding {
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
-            Binding::Owned(ty) => ty.visit_with(visitor),
-            Binding::Blocked(ty) => ty.visit_with(visitor),
+            Binding::Owned(ty) | Binding::Blocked(ty) => ty.visit_with(visitor),
         }
     }
 }

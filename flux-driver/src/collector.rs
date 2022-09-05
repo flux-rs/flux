@@ -596,7 +596,7 @@ impl FluxAttrCFG {
                 }
                 Err(errors::CFGError { span, message: "bad setting name".to_string() })
             }
-            _ => {
+            NestedMetaItem::Literal(_) => {
                 Err(errors::CFGError {
                     span: nested_item.span(),
                     message: "unsupported item".to_string(),

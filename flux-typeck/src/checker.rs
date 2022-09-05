@@ -325,10 +325,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         is_no_op && is_ret
     }
 
-    /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
+    /// For `check_terminator`, the output `Vec<BasicBlock, Guard>` denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
-    /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
-    ///    that is some predicate you can assume when checking the correspondnig successor.
+    /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`)
+    ///    you can assume when checking the correspondnig successor.
     fn check_terminator(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -343,9 +343,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(rcx, env, terminator.source_info, discr);
                 if discr_ty.is_integral() || discr_ty.is_bool() {
-                    Ok(self.check_if(&discr_ty, targets))
+                    Ok(Self::check_if(&discr_ty, targets))
                 } else {
-                    Ok(self.check_match(&discr_ty, targets))
+                    Ok(Self::check_match(&discr_ty, targets))
                 }
             }
             TerminatorKind::Call { func, substs, args, destination, target, instance, .. } => {
@@ -495,11 +495,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn check_if(
-        &mut self,
-        discr_ty: &Ty,
-        targets: &rustc_mir::SwitchTargets,
-    ) -> Vec<(BasicBlock, Guard)> {
+    fn check_if(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, indices) => {
@@ -527,17 +523,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         successors
     }
 
-    fn check_match(
-        &mut self,
-        discr_ty: &Ty,
-        targets: &rustc_mir::SwitchTargets,
-    ) -> Vec<(BasicBlock, Guard)> {
+    fn check_match(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let place = discr_ty.expect_discr();
 
         let mut successors = vec![];
         for (bits, bb) in targets.iter() {
             successors
-                .push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(bits as usize))))
+                .push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(bits as usize))));
         }
         successors.push((targets.otherwise(), Guard::None));
 
@@ -560,16 +552,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    // We force a `lookup_place` with a `Downcast` as some types
-                    // like `Option` have no explicit downcast in MIR.
-                    // Since places in mir have explicit downcast projecion we don't use this
                     let tag = Tag::Goto(Some(src_info.span), target);
                     let gen = &mut self.phase.constr_gen(self.genv, &rcx, tag);
                     env.downcast(&mut rcx, gen, &place, variant_idx);
-
-                    // let mut down_place = place.clone();
-                    // down_place.projection.push(PlaceElem::Downcast(variant_idx));
-                    // env.lookup_place(&mut rcx, gen, &down_place);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
@@ -639,22 +624,22 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty2 = self.check_operand(rcx, env, source_info, op2);
 
         match bin_op {
-            mir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
-            mir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
+            mir::BinOp::Eq => Self::check_eq(BinOp::Eq, &ty1, &ty2),
+            mir::BinOp::Ne => Self::check_eq(BinOp::Ne, &ty1, &ty2),
             mir::BinOp::Add => self.check_arith_op(rcx, source_info, BinOp::Add, &ty1, &ty2),
             mir::BinOp::Sub => self.check_arith_op(rcx, source_info, BinOp::Sub, &ty1, &ty2),
             mir::BinOp::Mul => self.check_arith_op(rcx, source_info, BinOp::Mul, &ty1, &ty2),
             mir::BinOp::Div => self.check_arith_op(rcx, source_info, BinOp::Div, &ty1, &ty2),
             mir::BinOp::Rem => self.check_rem(rcx, source_info, &ty1, &ty2),
-            mir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
-            mir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
-            mir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
-            mir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
-            mir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
+            mir::BinOp::Gt => Self::check_cmp_op(BinOp::Gt, &ty1, &ty2),
+            mir::BinOp::Ge => Self::check_cmp_op(BinOp::Ge, &ty1, &ty2),
+            mir::BinOp::Lt => Self::check_cmp_op(BinOp::Lt, &ty1, &ty2),
+            mir::BinOp::Le => Self::check_cmp_op(BinOp::Le, &ty1, &ty2),
+            mir::BinOp::BitAnd => Self::check_bitwise_op(BinOp::And, &ty1, &ty2),
         }
     }
 
-    fn check_bitwise_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn check_bitwise_op(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), _),
@@ -768,7 +753,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2).into()])
     }
 
-    fn check_cmp_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn check_cmp_op(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
@@ -793,7 +778,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ty::indexed(BaseTy::Bool, vec![Expr::binary_op(op, e1, e2).into()])
     }
 
-    fn check_eq(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn check_eq(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
                 debug_assert_eq!(bty1, bty2);
@@ -860,12 +845,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .constr_gen(self.genv, rcx, Tag::Fold(src_info.span));
                 env.move_place(rcx, gen, p)
             }
-            Operand::Constant(c) => self.check_constant(c),
+            Operand::Constant(c) => Self::check_constant(c),
         };
         rcx.unpack(&ty, false)
     }
 
-    fn check_constant(&self, c: &Constant) -> Ty {
+    fn check_constant(c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(ty::Constant::from(*n)).into();

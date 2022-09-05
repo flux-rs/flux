@@ -27,9 +27,9 @@ fn zip_ty_locs(tcx: TyCtxt, bindings: Vec<(Ident, Ty)>, locs: &Locs) -> Vec<(Ide
     for (ident, ty) in bindings {
         if let Some(rust_ty) = locs.get(&ident.name) {
             let dt = zip_ty(tcx, ty, rust_ty);
-            res.push((ident, dt))
+            res.push((ident, dt));
         } else {
-            panic!("missing location type for `{}`", ident)
+            panic!("missing location type for `{}`", ident);
         }
     }
     res
@@ -43,9 +43,13 @@ fn zip_args(
     rust_tys: &[rustc_ty::Ty],
     locs: &mut Locs,
 ) -> Vec<Arg<Res>> {
-    if binds.len() != rust_tys.len() {
-        panic!("bind count mismatch, expected: {:?},  found: {:?}", binds.len(), rust_tys.len());
-    }
+    assert_eq!(
+        binds.len(),
+        rust_tys.len(),
+        "bind count mismatch, expected: {:?},  found: {:?}",
+        binds.len(),
+        rust_tys.len()
+    );
     let binds = iter::zip(binds, rust_tys)
         .map(|(arg, rust_ty)| zip_arg(tcx, arg, rust_ty))
         .collect_vec();

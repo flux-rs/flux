@@ -87,7 +87,7 @@ fn infer_from_tys<M1: PathMap, M2: PathMap>(
         }
         _ => {}
     }
-    infer_from_btys(exprs, env1, ty1, env2, ty2)
+    infer_from_btys(exprs, env1, ty1, env2, ty2);
 }
 
 fn infer_from_btys<M1: PathMap, M2: PathMap>(
@@ -103,7 +103,7 @@ fn infer_from_btys<M1: PathMap, M2: PathMap>(
        let BaseTy::Adt(_, args2) = bt2 &&
        bt1.is_box() {
             for (arg1, arg2) in iter::zip(args1, args2) {
-                infer_from_tys(exprs, env1, arg1, env2, arg2)
+                infer_from_tys(exprs, env1, arg1, env2, arg2);
             }
        }
 }

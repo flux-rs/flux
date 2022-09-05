@@ -226,7 +226,7 @@ where
 
             kvars.push(fixpoint::Pred::KVar(*kvid, args));
 
-            scope.push(arg)
+            scope.push(arg);
         }
 
         fixpoint::Pred::And(kvars)
@@ -419,7 +419,7 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fix
         .collect();
 
     let expr = expr_to_fixpoint(&qualifier.expr, &name_map, const_map);
-    fixpoint::Qualifier { name, args, expr }
+    fixpoint::Qualifier { expr, args, name }
 }
 
 fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {

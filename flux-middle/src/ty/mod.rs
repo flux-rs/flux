@@ -811,10 +811,10 @@ impl Loc {
 }
 
 impl BoundVar {
-    pub const NU: BoundVar = BoundVar { index: 0, debruijn: INNERMOST };
+    pub const NU: BoundVar = BoundVar { debruijn: INNERMOST, index: 0 };
 
     pub fn new(index: usize, debruijn: DebruijnIndex) -> Self {
-        BoundVar { index, debruijn }
+        BoundVar { debruijn, index }
     }
 
     pub fn innermost(index: usize) -> BoundVar {
