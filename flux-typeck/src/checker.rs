@@ -215,7 +215,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 ty::Constraint::Type(path, ty) => {
                     assert!(path.projection().is_empty());
                     let ty = rcx.unpack(ty, false);
-                    env.alloc_with_ty(path.loc, ty);
+                    env.alloc_universal_loc(path.loc, ty);
                 }
                 ty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
