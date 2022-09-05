@@ -21,7 +21,7 @@ use flux_middle::{
     },
     ty::{
         self, BaseTy, BinOp, Binders, BoundVar, Constraint, Constraints, Expr, FnSig, PolySig,
-        Pred, Sort, Ty, TyKind, VariantIdx,
+        Pred, RefKind, Sort, Ty, TyKind, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -610,12 +610,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Ok(self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2))
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                Ok(env.borrow_mut(rcx, gen, place))
+                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+                Ok(env.borrow(rcx, gen, RefKind::Mut, place))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                Ok(env.borrow_shr(rcx, gen, place))
+                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+                Ok(env.borrow(rcx, gen, RefKind::Shr, place))
             }
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, src_info, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {

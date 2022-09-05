@@ -121,17 +121,31 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
 
-        // Check arguments
         let constr = &mut rcx.check_constr();
+
+        // Convert pointers to borrows
+        let actuals = iter::zip(actuals, fn_sig.args())
+            .map(|(actual, formal)| {
+                let formal = formal.unconstr();
+                match (actual.kind(), formal.kind()) {
+                    (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                        // FIXME(nilehmann) we should block path
+                        subtyping(self.genv, constr, &env.get(path), bound, self.tag);
+                        env.update(path, bound.clone());
+                        Ty::mk_ref(RefKind::Mut, bound.clone())
+                    }
+                    (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
+                        // FIXME(nilehmann) we should block path
+                        Ty::mk_ref(RefKind::Shr, env.get(path))
+                    }
+                    _ => actual.clone(),
+                }
+            })
+            .collect_vec();
+
+        // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
-                (actual.kind(), formal.kind())
-            {
-                subtyping(self.genv, constr, &env.get(path), bound, self.tag);
-                env.update(path, bound.clone());
-            } else {
-                subtyping(self.genv, constr, &actual, formal, self.tag);
-            }
+            subtyping(self.genv, constr, &actual, formal, self.tag);
         }
 
         // Check preconditions
@@ -195,8 +209,9 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
             constr.push_head(pred.replace_bound_vars(&exprs), tag);
         }
-        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-            assert_eq!(path1, path2);
+        (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+            debug_assert_eq!(rk1, rk2);
+            debug_assert_eq!(path1, path2);
         }
         (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
             debug_assert_eq!(loc1, loc2);

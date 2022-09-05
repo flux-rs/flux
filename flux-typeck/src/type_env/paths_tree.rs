@@ -288,7 +288,7 @@ impl PathsTree {
                     PlaceElem::Deref => {
                         let ty = node.expect_owned();
                         match ty.kind() {
-                            TyKind::Ptr(ptr_path) => {
+                            TyKind::Ptr(_, ptr_path) => {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }

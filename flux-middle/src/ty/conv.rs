@@ -246,6 +246,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             core::Ty::Ptr(loc) => {
                 ty::Ty::ptr(
+                    ty::RefKind::Mut,
                     self.name_map
                         .get(loc.name, nbinders)
                         .to_path()

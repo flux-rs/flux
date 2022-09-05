@@ -98,7 +98,7 @@ pub enum Ty {
     Never,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum RefKind {
     Shr,
     Mut,
@@ -331,6 +331,15 @@ impl fmt::Debug for Index {
             write!(f, "@")?;
         }
         write!(f, "{:?}", self.expr)
+    }
+}
+
+impl fmt::Debug for RefKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RefKind::Shr => write!(f, "shr"),
+            RefKind::Mut => write!(f, "mut"),
+        }
     }
 }
 
