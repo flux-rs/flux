@@ -1,6 +1,7 @@
+use std::{io::Read, path::PathBuf, sync::LazyLock};
+
 use config::Environment;
 use serde::Deserialize;
-use std::{io::Read, path::PathBuf, sync::LazyLock};
 pub use toml::Value;
 
 // serde small case

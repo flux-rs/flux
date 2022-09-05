@@ -15,7 +15,7 @@ extern crate rustc_target;
 
 pub mod core;
 pub mod global_env;
-mod intern;
+pub mod intern;
 pub mod pretty;
 pub mod rustc;
 pub mod ty;

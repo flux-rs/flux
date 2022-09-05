@@ -1,17 +1,15 @@
 use std::iter;
 
-use itertools::{izip, Itertools};
-
-use rustc_span::Span;
-
 use flux_middle::{
     global_env::{GlobalEnv, Variance},
     rustc::mir::BasicBlock,
     ty::{
-        fold::TypeFoldable, BaseTy, BinOp, Constraint, Constraints, Expr, Index, PolySig, Pred,
-        RefKind, Sort, Ty, TyKind,
+        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
+        Pred, RefKind, Sort, Ty, TyKind,
     },
 };
+use itertools::{izip, Itertools};
+use rustc_span::Span;
 
 use crate::{
     param_infer::{self, InferenceError},
@@ -22,7 +20,7 @@ use crate::{
 #[allow(clippy::type_complexity)]
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Pred + 'a>,
+    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
     tag: Tag,
 }
 
@@ -63,7 +61,7 @@ impl Tag {
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
-        F: FnMut(&[Sort]) -> Pred + 'a,
+        F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
     {
         ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
     }
@@ -85,7 +83,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
     pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
         let mut constr = rcx.check_constr();
-        subtyping(self.genv, &mut constr, ty1, ty2, self.tag)
+        subtyping(self.genv, &mut constr, ty1, ty2, self.tag);
     }
 
     pub fn check_fn_call<Env: PathMap>(
@@ -123,17 +121,31 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
 
-        // Check arguments
         let constr = &mut rcx.check_constr();
+
+        // Convert pointers to borrows
+        let actuals = iter::zip(actuals, fn_sig.args())
+            .map(|(actual, formal)| {
+                let formal = formal.unconstr();
+                match (actual.kind(), formal.kind()) {
+                    (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                        // FIXME(nilehmann) we should block path
+                        subtyping(self.genv, constr, &env.get(path), bound, self.tag);
+                        env.update(path, bound.clone());
+                        Ty::mk_ref(RefKind::Mut, bound.clone())
+                    }
+                    (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
+                        // FIXME(nilehmann) we should block path
+                        Ty::mk_ref(RefKind::Shr, env.get(path))
+                    }
+                    _ => actual.clone(),
+                }
+            })
+            .collect_vec();
+
+        // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            if let (TyKind::Ptr(path), TyKind::Ref(RefKind::Mut, bound)) =
-                (actual.kind(), formal.kind())
-            {
-                subtyping(self.genv, constr, &env.get(path), bound, self.tag);
-                env.update(path, bound.clone());
-            } else {
-                subtyping(self.genv, constr, &actual, formal, self.tag);
-            }
+            subtyping(self.genv, constr, &actual, formal, self.tag);
         }
 
         // Check preconditions
@@ -172,9 +184,9 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         }
         (TyKind::Exists(bty, pred), _) => {
             let indices = constr
-                .push_binders(pred)
+                .push_bound_guard(pred)
                 .into_iter()
-                .map(|name| Index::from(Expr::fvar(name)))
+                .map(Index::from)
                 .collect_vec();
             let ty1 = Ty::indexed(bty.clone(), indices);
             subtyping(genv, constr, &ty1, ty2, tag);
@@ -197,8 +209,9 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
             constr.push_head(pred.replace_bound_vars(&exprs), tag);
         }
-        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
-            assert_eq!(path1, path2);
+        (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+            debug_assert_eq!(rk1, rk2);
+            debug_assert_eq!(path1, path2);
         }
         (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
             debug_assert_eq!(loc1, loc2);
@@ -227,11 +240,11 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         }
         (_, TyKind::Constr(p2, ty2)) => {
             constr.push_head(p2.clone(), tag);
-            subtyping(genv, constr, ty1, ty2, tag)
+            subtyping(genv, constr, ty1, ty2, tag);
         }
         (TyKind::Constr(p1, ty1), _) => {
             constr.push_guard(p1.clone());
-            subtyping(genv, constr, ty1, ty2, tag)
+            subtyping(genv, constr, ty1, ty2, tag);
         }
         _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
     }
@@ -286,18 +299,20 @@ fn variance_subtyping(
 }
 
 mod pretty {
-    use super::*;
-    use flux_middle::pretty::*;
     use std::fmt;
 
+    use flux_middle::pretty::*;
+
+    use super::*;
+
     impl Pretty for Tag {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
             match self {
                 Tag::Call(span) => w!("Call({:?})", span),
                 Tag::Assign(span) => w!("Assign({:?})", span),
                 Tag::Ret => w!("Ret"),
-                Tag::RetAt(span) => w!("RetAt({:?}", span),
+                Tag::RetAt(span) => w!("RetAt({:?})", span),
                 Tag::Div(span) => w!("Div({:?})", span),
                 Tag::Rem(span) => w!("Rem({:?})", span),
                 Tag::Goto(span, bb) => {

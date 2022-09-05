@@ -2,19 +2,18 @@ use std::iter;
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
+use flux_middle::{
+    core::{
+        AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
+        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, VariantDef,
+    },
+    global_env::ConstInfo,
+};
 use flux_syntax::surface::{self, Res};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::{sym, symbol::kw, Symbol};
-
-use flux_middle::{
-    core::{
-        AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
-        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
-    },
-    global_env::ConstInfo,
-};
 
 pub fn desugar_qualifier(
     sess: &FluxSession,
@@ -68,13 +67,43 @@ pub fn desugar_struct_def(
 pub fn desugar_enum_def(
     sess: &FluxSession,
     consts: &[ConstInfo],
-    enum_def: surface::EnumDef,
+    adt_sorts: &impl AdtSortsMap,
+    enum_def: surface::EnumDef<Res>,
 ) -> Result<EnumDef, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
     let refined_by = params.params;
-    Ok(EnumDef { def_id, refined_by })
+    let variants = enum_def
+        .variants
+        .into_iter()
+        .map(|variant| desugar_variant(sess, adt_sorts, consts, variant))
+        .try_collect_exhaust()?;
+
+    Ok(EnumDef { def_id, refined_by, variants })
+}
+
+fn desugar_variant(
+    sess: &FluxSession,
+    adt_sorts: &impl AdtSortsMap,
+    consts: &[ConstInfo],
+    variant: surface::VariantDef<Res>,
+) -> Result<VariantDef, ErrorGuaranteed> {
+    let mut params = ParamsCtxt::new(sess, consts);
+    for ty in &variant.fields {
+        params.ty_gather_params(ty, adt_sorts)?;
+    }
+    let mut desugar = DesugarCtxt::with_params(params);
+
+    let fields = variant
+        .fields
+        .into_iter()
+        .map(|ty| desugar.desugar_ty(ty))
+        .try_collect_exhaust()?;
+
+    let ret = desugar.desugar_ty(variant.ret)?;
+
+    Ok(VariantDef { params: desugar.params.params, fields, ret })
 }
 
 pub fn desugar_fn_sig(
@@ -85,7 +114,6 @@ pub fn desugar_fn_sig(
 ) -> Result<FnSig, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);
     params.gather_fn_sig_params(&fn_sig, refined_by)?;
-
     let mut desugar = DesugarCtxt::with_params(params);
 
     if let Some(e) = fn_sig.requires {
@@ -400,7 +428,7 @@ impl ParamsCtxt<'_> {
                 self.ty_gather_params(ty, adt_sorts)?;
             }
             surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_sorts)?,
-            _ => panic!("unexpected: arg_gather_params"),
+            surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
     }
@@ -444,8 +472,7 @@ impl ParamsCtxt<'_> {
     ) -> Result<&'a [Sort], ErrorGuaranteed> {
         match path.ident {
             Res::Bool => Ok(&[Sort::Bool]),
-            Res::Int(_) => Ok(&[Sort::Int]),
-            Res::Uint(_) => Ok(&[Sort::Int]),
+            Res::Int(_) | Res::Uint(_) => Ok(&[Sort::Int]),
             Res::Adt(def_id) => Ok(adt_sorts.get(def_id).unwrap_or(&[])),
             Res::Float(_) => Err(self.sess.emit_err(errors::RefinedFloat { span: path.span })),
             Res::Param(_) => {

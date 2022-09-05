@@ -1,5 +1,6 @@
 chain_width = 60
 force_multiline_blocks = true
+group_imports = "StdExternalCrate"
 imports_granularity = "Crate"
 unstable_features = true
 use_field_init_shorthand = true

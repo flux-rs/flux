@@ -9,15 +9,6 @@ extern crate rustc_span;
 
 use std::collections::{hash_map::Entry, BinaryHeap};
 
-use itertools::Itertools;
-
-use rustc_data_structures::graph::dominators::Dominators;
-use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
-use rustc_index::bit_set::BitSet;
-use rustc_middle::mir as rustc_mir;
-
 use flux_common::{config::AssertBehavior, index::IndexVec};
 use flux_middle::{
     global_env::GlobalEnv,
@@ -30,15 +21,22 @@ use flux_middle::{
     },
     ty::{
         self, BaseTy, BinOp, Binders, BoundVar, Constraint, Constraints, Expr, FnSig, PolySig,
-        Pred, Sort, Ty, TyKind, VariantIdx,
+        Pred, RefKind, Sort, Ty, TyKind, VariantIdx,
     },
 };
+use itertools::Itertools;
+use rustc_data_structures::graph::dominators::Dominators;
+use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_index::bit_set::BitSet;
+use rustc_middle::mir as rustc_mir;
 
 use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
     fixpoint::KVarStore,
-    refine_tree::{RefineCtxt, RefineTree, Scope, Snapshot},
+    refine_tree::{RefineCtxt, RefineTree, Snapshot},
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
@@ -217,7 +215,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 ty::Constraint::Type(path, ty) => {
                     assert!(path.projection().is_empty());
                     let ty = rcx.unpack(ty, false);
-                    env.alloc_with_ty(path.loc, ty);
+                    env.alloc_universal_loc(path.loc, ty);
                 }
                 ty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -327,10 +325,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         is_no_op && is_ret
     }
 
-    /// For `check_terminator`, the output Vec<BasicBlock, Guard> denotes,
+    /// For `check_terminator`, the output `Vec<BasicBlock, Guard>` denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
-    /// - `Option<Expr>` are extra guard information from, e.g. the SwitchInt (or Assert ) case t
-    ///    that is some predicate you can assume when checking the correspondnig successor.
+    /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`)
+    ///    you can assume when checking the correspondnig successor.
     fn check_terminator(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -345,9 +343,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(rcx, env, terminator.source_info, discr);
                 if discr_ty.is_integral() || discr_ty.is_bool() {
-                    Ok(self.check_if(&discr_ty, targets))
+                    Ok(Self::check_if(&discr_ty, targets))
                 } else {
-                    Ok(self.check_match(&discr_ty, targets))
+                    Ok(Self::check_match(&discr_ty, targets))
                 }
             }
             TerminatorKind::Call { func, substs, args, destination, target, instance, .. } => {
@@ -408,9 +406,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, ErrorGuaranteed> {
-        // HACK(nilehman) more generally we should close boxes whenever moving them
-        env.close_boxes(self.genv, &Scope::empty());
-
         let tag = match src_info {
             Some(info) => Tag::RetAt(info.span),
             None => Tag::Ret,
@@ -500,11 +495,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn check_if(
-        &mut self,
-        discr_ty: &Ty,
-        targets: &rustc_mir::SwitchTargets,
-    ) -> Vec<(BasicBlock, Guard)> {
+    fn check_if(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, indices) => {
@@ -532,17 +523,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         successors
     }
 
-    fn check_match(
-        &mut self,
-        discr_ty: &Ty,
-        targets: &rustc_mir::SwitchTargets,
-    ) -> Vec<(BasicBlock, Guard)> {
+    fn check_match(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let place = discr_ty.expect_discr();
 
         let mut successors = vec![];
         for (bits, bb) in targets.iter() {
             successors
-                .push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(bits as usize))))
+                .push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(bits as usize))));
         }
         successors.push((targets.otherwise(), Guard::None));
 
@@ -558,17 +545,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<(), ErrorGuaranteed> {
         for (target, guard) in successors {
             let mut rcx = rcx.breadcrumb();
-            let env = env.clone();
+            let mut env = env.clone();
             match guard {
                 Guard::None => {}
                 Guard::Pred(expr) => {
                     rcx.assume_pred(expr);
                 }
-                Guard::Match(_place, _variant_idx) => {
-                    // Since places in mir have explicit downcast projecion we don't use this
-                    // extra control information and just assume places downcast to the correct variant
-                    // (guaranteed by rust type system). In the future we may explicitly track
-                    // the "active" variant.
+                Guard::Match(place, variant_idx) => {
+                    let tag = Tag::Goto(Some(src_info.span), target);
+                    let gen = &mut self.phase.constr_gen(self.genv, &rcx, tag);
+                    env.downcast(&mut rcx, gen, &place, variant_idx);
                 }
             }
             self.check_goto(rcx, env, Some(src_info), target)?;
@@ -609,12 +595,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Ok(self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2))
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                Ok(env.borrow_mut(rcx, gen, place))
+                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+                Ok(env.borrow(rcx, gen, RefKind::Mut, place))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Ret);
-                Ok(env.borrow_shr(rcx, gen, place))
+                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+                Ok(env.borrow(rcx, gen, RefKind::Shr, place))
             }
             Rvalue::UnaryOp(un_op, op) => Ok(self.check_unary_op(rcx, env, src_info, *un_op, op)),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
@@ -638,22 +624,22 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty2 = self.check_operand(rcx, env, source_info, op2);
 
         match bin_op {
-            mir::BinOp::Eq => self.check_eq(BinOp::Eq, &ty1, &ty2),
-            mir::BinOp::Ne => self.check_eq(BinOp::Ne, &ty1, &ty2),
+            mir::BinOp::Eq => Self::check_eq(BinOp::Eq, &ty1, &ty2),
+            mir::BinOp::Ne => Self::check_eq(BinOp::Ne, &ty1, &ty2),
             mir::BinOp::Add => self.check_arith_op(rcx, source_info, BinOp::Add, &ty1, &ty2),
             mir::BinOp::Sub => self.check_arith_op(rcx, source_info, BinOp::Sub, &ty1, &ty2),
             mir::BinOp::Mul => self.check_arith_op(rcx, source_info, BinOp::Mul, &ty1, &ty2),
             mir::BinOp::Div => self.check_arith_op(rcx, source_info, BinOp::Div, &ty1, &ty2),
             mir::BinOp::Rem => self.check_rem(rcx, source_info, &ty1, &ty2),
-            mir::BinOp::Gt => self.check_cmp_op(BinOp::Gt, &ty1, &ty2),
-            mir::BinOp::Ge => self.check_cmp_op(BinOp::Ge, &ty1, &ty2),
-            mir::BinOp::Lt => self.check_cmp_op(BinOp::Lt, &ty1, &ty2),
-            mir::BinOp::Le => self.check_cmp_op(BinOp::Le, &ty1, &ty2),
-            mir::BinOp::BitAnd => self.check_bitwise_op(BinOp::And, &ty1, &ty2),
+            mir::BinOp::Gt => Self::check_cmp_op(BinOp::Gt, &ty1, &ty2),
+            mir::BinOp::Ge => Self::check_cmp_op(BinOp::Ge, &ty1, &ty2),
+            mir::BinOp::Lt => Self::check_cmp_op(BinOp::Lt, &ty1, &ty2),
+            mir::BinOp::Le => Self::check_cmp_op(BinOp::Le, &ty1, &ty2),
+            mir::BinOp::BitAnd => Self::check_bitwise_op(BinOp::And, &ty1, &ty2),
         }
     }
 
-    fn check_bitwise_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn check_bitwise_op(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), _),
@@ -767,7 +753,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2).into()])
     }
 
-    fn check_cmp_op(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn check_cmp_op(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
@@ -792,7 +778,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ty::indexed(BaseTy::Bool, vec![Expr::binary_op(op, e1, e2).into()])
     }
 
-    fn check_eq(&self, op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn check_eq(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
                 debug_assert_eq!(bty1, bty2);
@@ -859,12 +845,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .constr_gen(self.genv, rcx, Tag::Fold(src_info.span));
                 env.move_place(rcx, gen, p)
             }
-            Operand::Constant(c) => self.check_constant(c),
+            Operand::Constant(c) => Self::check_constant(c),
         };
         rcx.unpack(&ty, false)
     }
 
-    fn check_constant(&self, c: &Constant) -> Ty {
+    fn check_constant(c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(ty::Constant::from(*n)).into();
@@ -897,7 +883,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         tag: Tag,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_| Pred::Hole, tag)
+        ConstrGen::new(genv, |sorts| Binders::new(Pred::Hole, sorts), tag)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -915,13 +901,11 @@ impl Phase for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
+        let mut gen = ConstrGen::new(ck.genv, |sorts| Binders::new(Pred::Hole, sorts), Tag::Other);
         let modified = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => {
-                let mut gen = ConstrGen::new(ck.genv, |_| Pred::Hole, Tag::Other);
-                entry.get_mut().join(&mut rcx, &mut gen, env)
-            }
+            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
-                entry.insert(env.into_infer(ck.genv, scope));
+                entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
                 true
             }
         };

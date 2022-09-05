@@ -1,14 +1,13 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_middle::global_env::GlobalEnv;
-use hir::{def_id::DefId, ItemId, ItemKind};
+use flux_syntax::surface::{self, Ident, Path, Res, Ty};
+use hir::{def::DefKind, def_id::DefId, Item, ItemId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
 use rustc_span::Symbol;
-
-use flux_syntax::surface::{self, Ident, Path, Res, Ty};
 
 pub struct Resolver<'a> {
     sess: &'a FluxSession,
@@ -41,20 +40,68 @@ impl<'genv> Resolver<'genv> {
     ) -> Result<Self, ErrorGuaranteed> {
         let item = genv.tcx.hir().expect_item(def_id);
 
-        if let ItemKind::Struct(data, generics) = &item.kind {
-            let mut table = NameResTable::new();
-            table.insert_generics(genv.tcx, generics);
+        match &item.kind {
+            ItemKind::Struct(data, generics) => {
+                let mut table = NameResTable::new();
+                table.insert_generics(genv.tcx, generics);
 
-            for field in data.fields() {
-                table.collect_from_ty(genv.sess, field.ty)?;
+                let res = rustc_hir::def::Res::Def(DefKind::Struct, def_id.to_def_id());
+                table.collect_from_item(item, res);
+
+                for field in data.fields() {
+                    table.collect_from_ty(genv.sess, field.ty)?;
+                }
+
+                Ok(Resolver { sess: genv.sess, table })
             }
+            ItemKind::Enum(enum_def, generics) => {
+                let mut table = NameResTable::new();
+                table.insert_generics(genv.tcx, generics);
 
-            Ok(Self { sess: genv.sess, table })
-        } else {
-            panic!("expected a struct");
+                let res = rustc_hir::def::Res::Def(DefKind::Enum, def_id.to_def_id());
+                table.collect_from_item(item, res);
+
+                for variant in enum_def.variants {
+                    for field in variant.data.fields() {
+                        table.collect_from_ty(genv.sess, field.ty)?;
+                    }
+                }
+                Ok(Resolver { sess: genv.sess, table })
+            }
+            _ => panic!("expected a struct or enum"),
         }
     }
 
+    pub fn resolve_enum_def(
+        &mut self,
+        enum_def: surface::EnumDef,
+    ) -> Result<surface::EnumDef<Res>, ErrorGuaranteed> {
+        let variants = enum_def
+            .variants
+            .into_iter()
+            .map(|variant| self.resolve_variant(variant))
+            .try_collect_exhaust()?;
+
+        Ok(surface::EnumDef {
+            def_id: enum_def.def_id,
+            refined_by: enum_def.refined_by,
+            opaque: enum_def.opaque,
+            variants,
+        })
+    }
+
+    fn resolve_variant(
+        &self,
+        variant: surface::VariantDef,
+    ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
+        let fields = variant
+            .fields
+            .into_iter()
+            .map(|ty| self.resolve_ty(ty))
+            .try_collect_exhaust()?;
+        let ret = self.resolve_ty(variant.ret)?;
+        Ok(surface::VariantDef { fields, ret })
+    }
     pub fn resolve_struct_def(
         &mut self,
         struct_def: surface::StructDef,
@@ -161,7 +208,8 @@ impl<'genv> Resolver<'genv> {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(Res::Param(self.table.get_param_ty(did).unwrap()))
             }
-            hir::def::Res::Def(hir::def::DefKind::Struct, did) => Ok(Res::Adt(did)),
+            hir::def::Res::Def(hir::def::DefKind::Struct, did)
+            | hir::def::Res::Def(hir::def::DefKind::Enum, did) => Ok(Res::Adt(did)),
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
                 Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
             }
@@ -263,6 +311,10 @@ impl NameResTable {
         }
 
         Ok(())
+    }
+
+    fn collect_from_item(&mut self, item: &Item, res: rustc_hir::def::Res) {
+        self.res.insert(item.ident.name, res);
     }
 
     fn collect_from_ty(&mut self, sess: &FluxSession, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {

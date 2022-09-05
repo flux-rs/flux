@@ -2,8 +2,8 @@
 
 use std::fmt;
 
+use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
-
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::{
@@ -17,14 +17,13 @@ pub use rustc_middle::{
 use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
-use flux_common::index::{Idx, IndexVec};
-
 use super::ty::{GenericArg, Ty};
 use crate::intern::List;
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
+    pub fake_predecessors: IndexVec<BasicBlock, usize>,
     pub(crate) rustc_mir: mir::Body<'tcx>,
 }
 
@@ -221,8 +220,9 @@ impl<'tcx> Body<'tcx> {
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        self.rustc_mir.basic_blocks.predecessors()[bb].len()
-            > (if bb == START_BLOCK { 0 } else { 1 })
+        let real_preds =
+            self.rustc_mir.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
+        real_preds > (if bb == START_BLOCK { 0 } else { 1 })
     }
 
     #[inline]

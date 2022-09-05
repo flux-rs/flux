@@ -1,16 +1,16 @@
-use itertools::Itertools;
-use rustc_index::newtype_index;
 use std::{
     fmt::{self, Write},
     sync::LazyLock,
 };
 
 use flux_common::format::PadAdapter;
+use itertools::Itertools;
+use rustc_index::newtype_index;
 
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),
     Conj(Vec<Self>),
-    Guard(Expr, Box<Self>),
+    Guard(Pred, Box<Self>),
     ForAll(Name, Sort, Pred, Box<Self>),
 }
 
@@ -120,7 +120,11 @@ newtype_index! {
 }
 
 impl<Tag> Constraint<Tag> {
-    pub const TRUE: Self = Self::Pred(Pred::Expr(Expr::Constant(Constant::Bool(true))), None);
+    pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
+}
+
+impl Pred {
+    pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
 }
 
 impl BinOp {
@@ -164,7 +168,7 @@ where
                 }
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ Unit) ({body}))")?;
+                write!(f, "(forall ((_ Unit) {body})")?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }

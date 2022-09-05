@@ -1,13 +1,15 @@
-use crate::diagnostics::error::{span_err, throw_span_err, DiagnosticDeriveError};
-use proc_macro::Span;
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
 use std::{
     collections::{BTreeSet, HashMap},
     str::FromStr,
 };
+
+use proc_macro::Span;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote, ToTokens};
 use syn::{spanned::Spanned, Attribute, Meta, Type, TypeTuple};
 use synstructure::{BindingInfo, Structure};
+
+use crate::diagnostics::error::{span_err, throw_span_err, DiagnosticDeriveError};
 
 /// Checks whether the type name of `ty` matches `name`.
 ///

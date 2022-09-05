@@ -1,26 +1,23 @@
+pub mod conv;
 pub mod fold;
-pub mod lowering;
 pub mod subst;
 
 use std::{borrow::Cow, fmt, iter, sync::OnceLock};
 
-use flux_common::index::IndexGen;
+pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
-
-pub use flux_fixpoint::{BinOp, Constant, KVid, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, UintTy};
 pub use rustc_target::abi::VariantIdx;
 
+use self::{fold::TypeFoldable, subst::BVarFolder};
 pub use crate::core::RefKind;
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::{Place, PlaceElem},
 };
-
-use self::{fold::TypeFoldable, subst::BVarFolder};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -32,10 +29,12 @@ pub struct AdtDefData {
     flags: AdtFlags,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub(crate) struct VariantDef {
-    pub(crate) fields: List<Ty>,
-    pub(crate) ret: Ty,
+pub(crate) type PolyVariant = Binders<VariantDef>;
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct VariantDef {
+    pub fields: List<Ty>,
+    pub ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -82,7 +81,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Float(FloatTy),
     Uninit,
-    Ptr(Path),
+    Ptr(RefKind, Path),
     /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
     /// with two major differences:
     /// 1. An open box can only point to a fresh location and not an arbitrary [`Path`], so we just
@@ -139,12 +138,23 @@ pub type Substs = List<Ty>;
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
     Hole,
-    Kvars(List<KVar>),
+    Kvar(KVar),
     Expr(Expr),
+    And(List<Pred>),
 }
 
+/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
+/// fixpoint makes a diference between the first and the rest of the variables, the first one being
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers using this first argument.
+/// Flux generalizes the self argument to be a list in order to deal with multiple indices. When
+/// generating the fixpoint constraint, the kvar will be split into multiple kvars, one for each
+/// argument in the list.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar(pub KVid, pub List<Expr>);
+pub struct KVar {
+    pub kvid: KVid,
+    pub args: List<Expr>,
+    pub scope: List<Expr>,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Sort {
@@ -181,6 +191,12 @@ pub enum ExprKind {
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,
     pub index: usize,
+}
+
+newtype_index! {
+    pub struct KVid {
+        DEBUG_FORMAT = "$k{}"
+    }
 }
 
 newtype_index! {
@@ -225,40 +241,6 @@ where
 
     pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
         self.value.fold_with(&mut BVarFolder::new(exprs))
-    }
-}
-
-impl Binders<Pred> {
-    pub fn split_with_fresh_fvars(&self, name_gen: &IndexGen<Name>) -> Vec<(Name, Sort, Pred)> {
-        let names = iter::repeat_with(|| name_gen.fresh())
-            .take(self.params.len())
-            .collect_vec();
-        let exprs = names.iter().copied().map(Expr::fvar).collect_vec();
-        match self.replace_bound_vars(&exprs) {
-            Pred::Hole => {
-                iter::zip(names, &self.params)
-                    .map(|(name, sort)| (name, sort.clone(), Pred::Hole))
-                    .collect()
-            }
-            Pred::Kvars(kvars) => {
-                debug_assert_eq!(kvars.len(), self.params.len());
-                itertools::izip!(names, &self.params, &kvars)
-                    .map(|(name, sort, kvar)| (name, sort.clone(), Pred::kvars(vec![kvar.clone()])))
-                    .collect()
-            }
-            Pred::Expr(e) => {
-                itertools::izip!(names, &self.params)
-                    .enumerate()
-                    .map(|(idx, (name, sort))| {
-                        if idx < self.params.len() - 1 {
-                            (name, sort.clone(), Pred::tt())
-                        } else {
-                            (name, sort.clone(), Pred::Expr(e.clone()))
-                        }
-                    })
-                    .collect()
-            }
-        }
     }
 }
 
@@ -334,8 +316,8 @@ impl VariantDef {
 }
 
 impl Ty {
-    pub fn ptr(path: impl Into<Path>) -> Ty {
-        TyKind::Ptr(path.into()).intern()
+    pub fn ptr(rk: RefKind, path: impl Into<Path>) -> Ty {
+        TyKind::Ptr(rk, path.into()).intern()
     }
 
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
@@ -613,6 +595,10 @@ impl Expr {
         ExprKind::UnaryOp(op, e.into()).intern()
     }
 
+    pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+    }
+
     pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
         ExprKind::TupleProj(e.into(), proj).intern()
     }
@@ -640,21 +626,12 @@ impl ExprS {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
 
-    pub fn is_atom(&self) -> bool {
-        matches!(
-            self.kind,
-            ExprKind::FreeVar(_)
-                | ExprKind::Local(_)
-                | ExprKind::BoundVar(_)
-                | ExprKind::Constant(_)
-                | ExprKind::UnaryOp(..)
-                | ExprKind::Tuple(..)
-                | ExprKind::PathProj(..)
-        )
+    pub fn is_binary_op(&self) -> bool {
+        !matches!(self.kind, ExprKind::BinaryOp(..))
     }
 
-    /// Simplify expression applying some rules like removing double negation. This is only used
-    /// for pretty printing.
+    /// Simplify expression applying some simple rules like removing double negation. This is
+    /// only used for pretty printing.
     pub fn simplify(&self) -> Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(*name),
@@ -730,43 +707,64 @@ impl ExprS {
 }
 
 impl Pred {
-    pub fn kvars<T>(kvars: T) -> Pred
-    where
-        List<KVar>: From<T>,
-    {
-        Pred::Kvars(Interned::from(kvars))
-    }
-
     pub fn tt() -> Pred {
         Pred::Expr(Expr::tt())
     }
 
-    pub fn is_true(&self) -> bool {
+    /// Simple syntactic check to see if the predicate is true. This is used mostly for filtering
+    /// predicates when pretty printing but also to avoid adding unnecesary predicates to the constraint.
+    pub fn is_trivially_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
-            || matches!(self, Pred::Kvars(kvars) if kvars.is_empty())
+            || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
     }
 
+    /// A predicate is an atom if it "self-delimiting", i.e., it has a clear boundary
+    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        matches!(self, Pred::Kvars(..)) || matches!(self, Pred::Expr(e) if e.is_atom())
+        match self {
+            Pred::Hole | Pred::Kvar(_) => true,
+            Pred::Expr(expr) => expr.is_binary_op(),
+            Pred::And(preds) => {
+                match &preds[..] {
+                    [] => true,
+                    [pred] => pred.is_atom(),
+                    _ => false,
+                }
+            }
+        }
+    }
+
+    /// Simplify expression applying some simple rules like removing double negation. This is
+    /// only used for pretty printing.
+    pub fn simplify(&self) -> Pred {
+        match self {
+            Pred::And(preds) => {
+                let preds = preds
+                    .iter()
+                    .map(Pred::simplify)
+                    .filter(|p| !p.is_trivially_true());
+                Pred::And(List::from_iter(preds))
+            }
+            Pred::Expr(e) => Pred::Expr(e.simplify()),
+            _ => self.clone(),
+        }
     }
 }
 
 impl Binders<Pred> {
-    pub fn is_true(&self) -> bool {
-        self.value.is_true()
+    /// See [`Pred::is_trivially_true`]
+    pub fn is_trivially_true(&self) -> bool {
+        self.value.is_trivially_true()
     }
 }
 
 impl KVar {
-    pub fn new<T>(kvid: KVid, args: T) -> Self
-    where
-        List<Expr>: From<T>,
-    {
-        KVar(kvid, Interned::from(args))
+    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
+        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
     }
 
-    pub fn dummy() -> KVar {
-        KVar::new(KVid::from(0usize), vec![])
+    fn all_args(&self) -> impl Iterator<Item = &Expr> {
+        self.args.iter().chain(&self.scope)
     }
 }
 
@@ -813,10 +811,10 @@ impl Loc {
 }
 
 impl BoundVar {
-    pub const NU: BoundVar = BoundVar { index: 0, debruijn: INNERMOST };
+    pub const NU: BoundVar = BoundVar { debruijn: INNERMOST, index: 0 };
 
     pub fn new(index: usize, debruijn: DebruijnIndex) -> Self {
-        BoundVar { index, debruijn }
+        BoundVar { debruijn, index }
     }
 
     pub fn innermost(index: usize) -> BoundVar {
@@ -1000,7 +998,7 @@ mod pretty {
             match self.kind() {
                 TyKind::Indexed(bty, indices) => fmt_bty(bty, indices, cx, f),
                 TyKind::Exists(bty, pred) => {
-                    if pred.is_true() {
+                    if pred.is_trivially_true() {
                         w!("{:?}{{}}", bty)
                     } else {
                         w!("{:?}{{{:?}}}", bty, &pred.value)
@@ -1008,7 +1006,7 @@ mod pretty {
                 }
                 TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
-                TyKind::Ptr(loc) => w!("ptr({:?})", loc),
+                TyKind::Ptr(rk, loc) => w!("ptr({:?}, {:?})", ^rk, loc),
                 TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
@@ -1070,7 +1068,7 @@ mod pretty {
     impl Pretty for Index {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if self.is_binder && self.expr.is_atom() {
+            if self.is_binder && self.expr.is_binary_op() {
                 w!("@{:?}", &self.expr)
             } else if self.is_binder {
                 w!("@({:?})", &self.expr)
@@ -1084,15 +1082,16 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Pred::Kvars(kvars) => {
-                    match &kvars[..] {
-                        [] => w!("true"),
-                        [kvar] => w!("{:?}", kvar),
-                        kvars => w!("{:?}", join!(" ∧ ", kvars)),
-                    }
-                }
+                Pred::Kvar(kvar) => w!("{:?}", kvar),
                 Pred::Expr(expr) => w!("{:?}", expr),
                 Pred::Hole => w!("*"),
+                Pred::And(preds) => {
+                    if preds.is_empty() {
+                        w!("true")
+                    } else {
+                        w!("{:?}", join!(" ∧ ", preds))
+                    }
+                }
             }
         }
 
@@ -1104,12 +1103,10 @@ mod pretty {
     impl Pretty for KVar {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let KVar(kvid, args) = self;
-
-            w!("{:?}", ^kvid)?;
+            w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
-                Visibility::Show => w!("({:?})", join!(", ", args))?,
-                Visibility::Truncate(n) => w!("({:?})", join!(", ", args.iter().take(n)))?,
+                Visibility::Show => w!("({:?})", join!(", ", self.all_args()))?,
+                Visibility::Truncate(n) => w!("({:?})", join!(", ", self.all_args().take(n)))?,
                 Visibility::Hide => {}
             }
             Ok(())
@@ -1154,14 +1151,14 @@ mod pretty {
                 }
                 ExprKind::Constant(c) => w!("{}", ^c),
                 ExprKind::UnaryOp(op, e) => {
-                    if e.is_atom() {
+                    if e.is_binary_op() {
                         w!("{:?}{:?}", op, e)
                     } else {
                         w!("{:?}({:?})", op, e)
                     }
                 }
                 ExprKind::TupleProj(e, field) => {
-                    if e.is_atom() {
+                    if e.is_binary_op() {
                         w!("{:?}.{:?}", e, ^field)
                     } else {
                         w!("({:?}).{:?}", e, ^field)
@@ -1171,7 +1168,7 @@ mod pretty {
                     w!("({:?})", join!(", ", exprs))
                 }
                 ExprKind::PathProj(e, field) => {
-                    if e.is_atom() {
+                    if e.is_binary_op() {
                         w!("{:?}.{:?}", e, field)
                     } else {
                         w!("({:?}).{:?}", e, field)

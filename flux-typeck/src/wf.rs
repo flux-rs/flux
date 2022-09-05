@@ -1,13 +1,11 @@
 use std::iter;
 
 use flux_common::iter::IterExt;
-use flux_middle::{core, global_env::GlobalEnv};
+use flux_middle::{core, global_env::GlobalEnv, ty, ty::conv::conv_sort};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_session::SessionDiagnostic;
-
-use flux_middle::{ty, ty::lowering::lower_sort};
 
 pub struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -21,7 +19,7 @@ impl Env {
     fn new(params: &[core::Param]) -> Env {
         let sorts = params
             .iter()
-            .map(|param| (param.name.name, lower_sort(param.sort)))
+            .map(|param| (param.name.name, conv_sort(param.sort)))
             .collect();
         Env { sorts }
     }
@@ -158,7 +156,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn is_box(&self, def_id: &DefId) -> bool {
+    fn is_box(&self, def_id: DefId) -> bool {
         self.genv.tcx.adt_def(def_id).is_box()
     }
 
@@ -170,7 +168,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match bty {
             core::BaseTy::Adt(def, substs) => {
-                let allow_binder = allow_binder && self.is_box(def);
+                let allow_binder = allow_binder && self.is_box(*def);
                 substs
                     .iter()
                     .map(|ty| self.check_type(env, ty, allow_binder))
@@ -251,7 +249,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn synth_expr(&self, env: &Env, e: &core::Expr) -> Result<ty::Sort, ErrorGuaranteed> {
         match &e.kind {
             core::ExprKind::Var(var, ..) => Ok(env[var].clone()),
-            core::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit)),
+            core::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             core::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
             core::ExprKind::Const(_, _) => Ok(ty::Sort::Int), // TODO: generalize const sorts
         }
@@ -292,17 +290,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn synth_lit(&self, lit: core::Lit) -> ty::Sort {
-        match lit {
-            core::Lit::Int(_) => ty::Sort::Int,
-            core::Lit::Bool(_) => ty::Sort::Bool,
-        }
-    }
-
     fn sorts(&self, bty: &core::BaseTy) -> Vec<ty::Sort> {
         match bty {
-            core::BaseTy::Int(_) => vec![ty::Sort::Int],
-            core::BaseTy::Uint(_) => vec![ty::Sort::Int],
+            core::BaseTy::Int(_) | core::BaseTy::Uint(_) => vec![ty::Sort::Int],
             core::BaseTy::Bool => vec![ty::Sort::Bool],
             core::BaseTy::Adt(def_id, _) => self.genv.sorts_of(*def_id).to_vec(),
         }
@@ -310,6 +300,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn emit_err<'b, R>(&'b self, err: impl SessionDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
         Err(self.genv.sess.emit_err(err))
+    }
+}
+
+fn synth_lit(lit: core::Lit) -> ty::Sort {
+    match lit {
+        core::Lit::Int(_) => ty::Sort::Int,
+        core::Lit::Bool(_) => ty::Sort::Bool,
     }
 }
 

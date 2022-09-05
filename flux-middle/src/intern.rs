@@ -286,6 +286,15 @@ where
     }
 }
 
+impl<T> FromIterator<T> for List<T>
+where
+    [T]: Internable,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self::from_vec(iter.into_iter().collect())
+    }
+}
+
 impl<T> From<&[T]> for Interned<[T]>
 where
     [T]: Internable,
@@ -408,7 +417,7 @@ impl<T> Eq for Interned<[T]> where [T]: Internable {}
 impl<T: Internable + ?Sized> Hash for Interned<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // NOTE: Cast disposes vtable pointer / slice/str length.
-        state.write_usize(Arc::as_ptr(&self.arc) as *const () as usize)
+        state.write_usize(Arc::as_ptr(&self.arc) as *const () as usize);
     }
 }
 

@@ -15,7 +15,7 @@ use crate::{
     core::{self, VariantIdx},
     intern::List,
     rustc,
-    ty::{self, fold::TypeFoldable, subst::BVarFolder},
+    ty::{self, Binders},
 };
 
 #[derive(Debug)]
@@ -30,10 +30,13 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub sess: &'genv FluxSession,
     fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
     pub consts: Vec<ConstInfo>,
-    adt_sorts: RefCell<FxHashMap<DefId, List<ty::Sort>>>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
-    adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::VariantDef>>>>,
+    adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::PolyVariant>>>>,
     check_asserts: AssertBehavior,
+    /// Some functions can only to be called after all annotated adts have been
+    /// registered. We use this flag to check at runtime that this is actually the
+    /// case.
+    adts_registered: bool,
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
@@ -43,12 +46,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
             consts: vec![],
-            adt_sorts: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(FxHashMap::default()),
             adt_variants: RefCell::new(FxHashMap::default()),
             tcx,
             sess,
             check_asserts,
+            adts_registered: false,
         }
     }
 
@@ -56,34 +59,36 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.check_asserts = behavior;
     }
 
-    pub fn register_adt_sorts(&mut self, def_id: DefId, sorts: &[core::Sort]) {
+    pub fn register_adt_def(&mut self, def_id: DefId, sorts: &[core::Sort]) {
         let sorts = sorts
             .iter()
-            .map(|sort| ty::lowering::lower_sort(*sort))
-            .collect();
-        self.adt_sorts
+            .map(|sort| ty::conv::conv_sort(*sort))
+            .collect_vec();
+        self.adt_defs
             .get_mut()
-            .insert(def_id, List::from_vec(sorts));
+            .insert(def_id, ty::AdtDef::new(self.tcx.adt_def(def_id), sorts));
+    }
+
+    /// This function must be called after all adts are registered
+    pub fn finish_adt_registration(&mut self) {
+        self.adts_registered = true;
     }
 
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
-        let fn_sig = ty::lowering::LoweringCtxt::lower_fn_sig(self, fn_sig);
+        let fn_sig = ty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
     pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
-        let (adt_def, variant) = ty::lowering::LoweringCtxt::lower_struct_def(self, &struct_def);
+        let variant = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
-
-        self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
-    pub fn register_enum_def(&mut self, def_id: DefId, _enum_def: core::EnumDef) {
-        let sorts = self.sorts_of(def_id);
-        self.adt_defs
-            .get_mut()
-            .insert(def_id, ty::AdtDef::new(self.tcx.adt_def(def_id), sorts));
+    pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
+        if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def(self, enum_def) {
+            self.adt_variants.get_mut().insert(def_id, Some(variants));
+        }
     }
 
     pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
@@ -99,10 +104,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
+        debug_assert!(self.adts_registered);
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), self.sorts_of(def_id)))
+            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![]))
             .clone()
     }
 
@@ -125,46 +131,26 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
-        let sorts = self.sorts_of(def_id);
-        let variant = self.variant(def_id, variant_idx);
-        let sig = ty::FnSig::new(vec![], variant.fields, variant.ret, vec![]);
+        // let sorts = self.sorts_of(def_id);
+        let poly_variant = self.variant(def_id, variant_idx);
+        let variant = poly_variant.skip_binders();
+        let sorts = poly_variant.params();
+        let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.clone(), vec![]);
         ty::Binders::new(sig, sorts)
     }
 
     pub fn sorts_of(&self, def_id: DefId) -> List<ty::Sort> {
-        self.adt_sorts
-            .borrow_mut()
-            .entry(def_id)
-            .or_insert_with(|| List::from_vec(vec![]))
-            .clone()
+        self.adt_def(def_id).sorts().clone()
     }
 
-    pub fn downcast(
-        &self,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-        substs: &[ty::Ty],
-        exprs: &[ty::Expr],
-    ) -> Vec<ty::Ty> {
-        self.variant(def_id, variant_idx)
-            .fields
-            .iter()
-            .map(|ty| {
-                ty.fold_with(&mut BVarFolder::new(exprs))
-                    .replace_generic_types(substs)
-            })
-            .collect()
-    }
-
-    fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::VariantDef {
+    pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
+        let def_id_variants = self.tcx.adt_def(def_id).variants();
         self.adt_variants
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
                 Some(
-                    self.tcx
-                        .adt_def(def_id)
-                        .variants()
+                    def_id_variants
                         .iter()
                         .map(|variant_def| self.default_variant_def(def_id, variant_def))
                         .collect(),
@@ -198,15 +184,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self,
         adt_def_id: DefId,
         variant_def: &rustc_middle::ty::VariantDef,
-    ) -> ty::VariantDef {
+    ) -> ty::PolyVariant {
         let fields = variant_def
             .fields
             .iter()
             .map(|field| self.default_type_of(field.did))
-            .collect();
+            .collect_vec();
         let ret = self.default_type_of(adt_def_id);
 
-        ty::VariantDef::new(fields, ret)
+        Binders::new(ty::VariantDef::new(fields, ret), vec![])
     }
 
     pub fn refine_fn_sig(

@@ -1,11 +1,10 @@
 use std::iter;
 
-use rustc_hash::FxHashMap;
-
 use flux_middle::ty::{
     subst::FVarSubst, BaseTy, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind,
     INNERMOST,
 };
+use rustc_hash::FxHashMap;
 
 use crate::type_env::PathMap;
 
@@ -73,20 +72,22 @@ fn infer_from_tys<M1: PathMap, M2: PathMap>(
                 }
             }
         }
-        (TyKind::Ptr(path1), TyKind::Ref(_, ty2)) => {
+        (TyKind::Ptr(rk1, path1), TyKind::Ref(rk2, ty2)) => {
+            debug_assert_eq!(rk1, rk2);
             infer_from_tys(exprs, env1, &env1.get(path1), env2, ty2);
         }
-        (TyKind::Ptr(path1), TyKind::Ptr(path2)) => {
+        (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+            debug_assert_eq!(rk1, rk2);
             infer_from_exprs(exprs, &path1.to_expr(), &path2.to_expr());
             infer_from_tys(exprs, env1, &env1.get(path1), env2, &env2.get(path2));
         }
-        (TyKind::Ref(mode1, ty1), TyKind::Ref(mode2, ty2)) => {
-            debug_assert_eq!(mode1, mode2);
+        (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
+            debug_assert_eq!(rk1, rk2);
             infer_from_tys(exprs, env1, ty1, env2, ty2);
         }
         _ => {}
     }
-    infer_from_btys(exprs, env1, ty1, env2, ty2)
+    infer_from_btys(exprs, env1, ty1, env2, ty2);
 }
 
 fn infer_from_btys<M1: PathMap, M2: PathMap>(
@@ -102,7 +103,7 @@ fn infer_from_btys<M1: PathMap, M2: PathMap>(
        let BaseTy::Adt(_, args2) = bt2 &&
        bt1.is_box() {
             for (arg1, arg2) in iter::zip(args1, args2) {
-                infer_from_tys(exprs, env1, arg1, env2, arg2)
+                infer_from_tys(exprs, env1, arg1, env2, arg2);
             }
        }
 }

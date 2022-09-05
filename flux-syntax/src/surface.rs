@@ -33,10 +33,17 @@ pub struct StructDef<T = Ident> {
 }
 
 #[derive(Debug)]
-pub struct EnumDef {
+pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
+    pub variants: Vec<VariantDef<T>>,
     pub opaque: bool,
+}
+
+#[derive(Debug)]
+pub struct VariantDef<T = Ident> {
+    pub fields: Vec<Ty<T>>,
+    pub ret: Ty<T>,
 }
 
 #[derive(Debug)]
@@ -377,9 +384,7 @@ pub mod expand {
     }
 
     fn mk_sub(src: &Vec<Ident>, dst: &Vec<Index>) -> Subst {
-        if src.len() != dst.len() {
-            panic!("mk_sub: invalid args")
-        }
+        assert_eq!(src.len(), dst.len(), "mk_sub: invalid args");
         let mut res = HashMap::new();
         for (src_id, dst_ix) in iter::zip(src, dst) {
             match dst_ix {
@@ -420,7 +425,7 @@ pub mod expand {
 
     fn subst_path(subst: &Subst, p: &Path) -> Path {
         let mut args = vec![];
-        for t in p.args.iter() {
+        for t in &p.args {
             args.push(subst_ty(subst, t));
         }
         Path { ident: p.ident, args, span: p.span }
@@ -432,7 +437,7 @@ pub mod expand {
 
     fn subst_indices(subst: &Subst, i_indices: &Indices) -> Indices {
         let mut indices = vec![];
-        for i in i_indices.indices.iter() {
+        for i in &i_indices.indices {
             indices.push(subst_index(subst, i));
         }
         Indices { indices, span: i_indices.span }
