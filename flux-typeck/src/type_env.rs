@@ -80,26 +80,21 @@ impl TypeEnv {
         self.bindings.update(path, new_ty);
     }
 
-    // TODO(nilehmann) find a better name for borrow in this context
-    // TODO(nilehmann) unify borrow_mut and borrow_shr and return ptr(l)
-    pub fn borrow_mut(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
+    pub fn borrow(
+        &mut self,
+        rk: RefKind,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+    ) -> Ty {
         match self.bindings.lookup_place(rcx, gen, place) {
-            LookupResult::Ptr(path, _) => Ty::ptr(RefKind::Mut, path),
-            LookupResult::Ref(RefKind::Mut, ty) => Ty::mk_ref(RefKind::Mut, ty),
-            LookupResult::Ref(RefKind::Shr, _) => {
-                panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&`")
+            LookupResult::Ptr(path, _) => Ty::ptr(rk, path),
+            LookupResult::Ref(result_rk, ty) => {
+                if rk > result_rk {
+                    panic!("cannot borrow `{place:?}` as mutable, as it is behind a `&`")
+                }
+                Ty::mk_ref(rk, ty)
             }
-        }
-    }
-
-    pub fn borrow_shr(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, place: &Place) -> Ty {
-        match self.bindings.lookup_place(rcx, gen, place) {
-            LookupResult::Ptr(path, _) => {
-                Ty::ptr(RefKind::Shr, path)
-                // self.bindings.block(&path);
-                // Ty::mk_ref(RefKind::Shr, ty)
-            }
-            result => Ty::mk_ref(RefKind::Shr, result.ty()),
         }
     }
 
