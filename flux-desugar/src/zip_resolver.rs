@@ -1,24 +1,33 @@
 use std::{collections::HashMap, iter};
 
+use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
 use flux_syntax::surface::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 use itertools::Itertools;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
+
+use crate::table_resolver::errors::MismatchedArgs;
 
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
 /// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
 /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-pub fn zip_bare_def(tcx: TyCtxt, sig: FnSig, rust_sig: &rustc_ty::FnSig) -> FnSig<Res> {
+pub fn zip_bare_def(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    sig: FnSig,
+    rust_sig: &rustc_ty::FnSig,
+) -> Result<FnSig<Res>, ErrorGuaranteed> {
     let mut locs = Locs::new();
-    FnSig {
-        args: zip_args(tcx, sig.args, rust_sig.inputs(), &mut locs),
+    let args = zip_args(tcx, sess, sig.span, sig.args, rust_sig.inputs(), &mut locs)?;
+    Ok(FnSig {
+        args,
         returns: zip_ty(tcx, sig.returns, &rust_sig.output()),
         ensures: zip_ty_locs(tcx, sig.ensures, &locs),
         requires: sig.requires,
         span: sig.span,
-    }
+    })
 }
 
 /// `zip_ty_locs` traverses the bare-outputs and zips with the location-types saved in `locs`
@@ -39,17 +48,18 @@ fn zip_ty_locs(tcx: TyCtxt, bindings: Vec<(Ident, Ty)>, locs: &Locs) -> Vec<(Ide
 /// saves the types of the references in `locs`
 fn zip_args(
     tcx: TyCtxt,
+    sess: &FluxSession,
+    span: Span,
     binds: Vec<Arg>,
     rust_tys: &[rustc_ty::Ty],
     locs: &mut Locs,
-) -> Vec<Arg<Res>> {
-    assert_eq!(
-        binds.len(),
-        rust_tys.len(),
-        "bind count mismatch, expected: {:?},  found: {:?}",
-        binds.len(),
-        rust_tys.len()
-    );
+) -> Result<Vec<Arg<Res>>, ErrorGuaranteed> {
+    let rust_args = rust_tys.len();
+    let flux_args = binds.len();
+    if rust_args != flux_args {
+        return Err(sess.emit_err(MismatchedArgs::new(span, rust_args, flux_args)));
+    }
+
     let binds = iter::zip(binds, rust_tys)
         .map(|(arg, rust_ty)| zip_arg(tcx, arg, rust_ty))
         .collect_vec();
@@ -60,7 +70,7 @@ fn zip_args(
             locs.insert(bind.name, rust_ty.clone());
         }
     }
-    binds
+    Ok(binds)
 }
 
 fn zip_arg(tcx: TyCtxt, arg: Arg, rust_ty: &rustc_ty::Ty) -> Arg<Res> {

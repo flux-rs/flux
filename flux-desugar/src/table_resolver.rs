@@ -386,7 +386,7 @@ impl NameResTable {
     }
 }
 
-mod errors {
+pub mod errors {
     use flux_macros::SessionDiagnostic;
     use flux_syntax::surface;
     use rustc_span::{symbol::Ident, Span};
@@ -411,6 +411,35 @@ mod errors {
     impl UnresolvedPath {
         pub fn new(ident: surface::Ident) -> Self {
             Self { span: ident.span, path: ident }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(resolver::mismatched_args, code = "FLUX")]
+    pub struct MismatchedArgs {
+        #[primary_span]
+        pub span: Span,
+        pub rust_args: usize,
+        pub flux_args: usize,
+    }
+
+    impl MismatchedArgs {
+        pub fn new(span: Span, rust_args: usize, flux_args: usize) -> Self {
+            Self { span, rust_args, flux_args }
+        }
+    }
+    #[derive(SessionDiagnostic)]
+    #[error(resolver::mismatched_type, code = "FLUX")]
+    pub struct MismatchedType {
+        #[primary_span]
+        pub span: Span,
+        pub rust_type: surface::Res,
+        pub flux_type: Ident,
+    }
+
+    impl MismatchedType {
+        pub fn new(rust_type: surface::Res, flux_type: Ident) -> Self {
+            Self { span: flux_type.span, rust_type, flux_type }
         }
     }
 }

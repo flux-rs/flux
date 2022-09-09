@@ -119,6 +119,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_variant(&mut self, variant: core::VariantDef) -> PolyVariant {
+        println!("TRACE: conv_variant {variant:?}");
         let sorts = self.conv_params(&variant.params);
         let fields = variant
             .fields
