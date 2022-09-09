@@ -34,10 +34,6 @@ pub fn never<T>(_x: i32) -> T {
 pub fn unwrap<T>(x: Opt<T>) -> T {
     match x {
         Opt::Some(v) => v,
-<<<<<<< HEAD
-        Opt::None => unwrap(x),
-=======
         Opt::None => never(0),
->>>>>>> 2366c608d420f4410e1bacd556040db15008cc14
     }
 }
