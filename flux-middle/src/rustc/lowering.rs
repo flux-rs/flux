@@ -469,6 +469,9 @@ pub fn lower_fn_sig<'tcx>(
 }
 
 pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, ErrorGuaranteed> {
+    let tys = ty.to_string();
+    println!("TRACE lower_ty {tys:?}");
+
     match ty.kind() {
         rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))

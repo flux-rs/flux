@@ -102,6 +102,7 @@ impl<'genv> Resolver<'genv> {
         let ret = self.resolve_ty(variant.ret)?;
         Ok(surface::VariantDef { fields, ret })
     }
+
     pub fn resolve_struct_def(
         &mut self,
         struct_def: surface::StructDef,
@@ -120,7 +121,7 @@ impl<'genv> Resolver<'genv> {
         })
     }
 
-    #[allow(dead_code)]
+    // #[allow(dead_code)]
     pub fn resolve_fn_sig(
         &mut self,
         fn_sig: surface::FnSig,
@@ -433,12 +434,13 @@ pub mod errors {
     pub struct MismatchedType {
         #[primary_span]
         pub span: Span,
-        pub rust_type: surface::Res,
+        pub rust_type: String,
         pub flux_type: Ident,
     }
 
     impl MismatchedType {
-        pub fn new(rust_type: surface::Res, flux_type: Ident) -> Self {
+        pub fn new(rust_res: surface::Res, flux_type: Ident) -> Self {
+            let rust_type = format!("{rust_res:?}");
             Self { span: flux_type.span, rust_type, flux_type }
         }
     }

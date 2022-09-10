@@ -15,6 +15,11 @@ pub fn bar(x: i32) -> bool {
     x > 0
 }
 
+#[flux::sig(fn(x:Vec<i32>) -> i32)] //~ ERROR incompatible type
+pub fn boo(x: i32) -> bool {
+    x > 0
+}
+
 #[flux::sig(fn(x:i32, y:i32) -> i32)] //~ ERROR mismatched args
 pub fn baz(x: i32) -> i32 {
     x + 1
