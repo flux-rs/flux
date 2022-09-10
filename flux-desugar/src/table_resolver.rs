@@ -2,21 +2,23 @@ use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_middle::global_env::GlobalEnv;
 use flux_syntax::surface::{self, Ident, Path, Res, Ty};
-use hir::{def::DefKind, def_id::DefId, Item, ItemId, ItemKind};
+use hir::{def::DefKind, def_id::DefId, ItemId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 pub struct Resolver<'a> {
     sess: &'a FluxSession,
-    table: NameResTable,
+    table: NameResTable<'a>,
 }
 
-struct NameResTable {
-    res: FxHashMap<Symbol, hir::def::Res>,
+struct NameResTable<'a> {
+    // res: FxHashMap<Symbol, hir::def::Res>,
+    res: FxHashMap<Symbol, Res>,
     generics: FxHashMap<DefId, ParamTy>,
+    sess: &'a FluxSession,
 }
 
 impl<'genv> Resolver<'genv> {
@@ -42,11 +44,11 @@ impl<'genv> Resolver<'genv> {
 
         match &item.kind {
             ItemKind::Struct(data, generics) => {
-                let mut table = NameResTable::new();
+                let mut table = NameResTable::new(genv.sess);
                 table.insert_generics(genv.tcx, generics);
 
                 let res = rustc_hir::def::Res::Def(DefKind::Struct, def_id.to_def_id());
-                table.collect_from_item(item, res);
+                table.collect_from_ident(item.ident, res)?;
 
                 for field in data.fields() {
                     table.collect_from_ty(genv.sess, field.ty)?;
@@ -55,11 +57,11 @@ impl<'genv> Resolver<'genv> {
                 Ok(Resolver { sess: genv.sess, table })
             }
             ItemKind::Enum(enum_def, generics) => {
-                let mut table = NameResTable::new();
+                let mut table = NameResTable::new(genv.sess);
                 table.insert_generics(genv.tcx, generics);
 
                 let res = rustc_hir::def::Res::Def(DefKind::Enum, def_id.to_def_id());
-                table.collect_from_item(item, res);
+                table.collect_from_ident(item.ident, res)?;
 
                 for variant in enum_def.variants {
                     for field in variant.data.fields() {
@@ -121,7 +123,7 @@ impl<'genv> Resolver<'genv> {
         })
     }
 
-    // #[allow(dead_code)]
+    #[allow(dead_code)]
     pub fn resolve_fn_sig(
         &mut self,
         fn_sig: surface::FnSig,
@@ -199,53 +201,20 @@ impl<'genv> Resolver<'genv> {
     }
 
     fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorGuaranteed> {
-        let res = if let Some(res) = self.table.get(ident.name) {
-            *res
+        if let Some(res) = self.table.get(ident.name) {
+            Ok(*res)
         } else {
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(ident)));
-        };
-
-        match res {
-            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                Ok(Res::Param(self.table.get_param_ty(did).unwrap()))
-            }
-            hir::def::Res::Def(hir::def::DefKind::Struct, did)
-            | hir::def::Res::Def(hir::def::DefKind::Enum, did) => Ok(Res::Adt(did)),
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
-                Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
-                Ok(Res::Uint(rustc_middle::ty::uint_ty(uint_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => Ok(Res::Bool),
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
-                Ok(Res::Float(rustc_middle::ty::float_ty(float_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span: ident.span,
-                    msg: "string slices are not supported yet",
-                }))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span: ident.span,
-                    msg: "chars are not suported yet",
-                }))
-            }
-            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy { .. } => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span: ident.span,
-                    msg: "path resolved to an unsupported type",
-                }))
-            }
-            _ => unreachable!("unexpected type resolution"),
         }
+        // self.resolve_hir_res(res, ident.span)
     }
 }
 
-fn init_table(genv: &GlobalEnv, def_id: LocalDefId) -> Result<NameResTable, ErrorGuaranteed> {
-    let mut table = NameResTable::new();
+fn init_table<'a>(
+    genv: &GlobalEnv<'a, '_>,
+    def_id: LocalDefId,
+) -> Result<NameResTable<'a>, ErrorGuaranteed> {
+    let mut table = NameResTable::new(genv.sess);
     if let Some(impl_did) = genv.tcx.impl_of_method(def_id.to_def_id()) {
         let item_id = ItemId { def_id: impl_did.expect_local() };
         let item = genv.tcx.hir().item(item_id);
@@ -261,12 +230,12 @@ fn init_table(genv: &GlobalEnv, def_id: LocalDefId) -> Result<NameResTable, Erro
     Ok(table)
 }
 
-impl NameResTable {
-    fn new() -> NameResTable {
-        NameResTable { res: FxHashMap::default(), generics: FxHashMap::default() }
+impl<'a> NameResTable<'a> {
+    fn new(sess: &'a FluxSession) -> NameResTable<'a> {
+        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default() }
     }
 
-    fn get(&self, sym: Symbol) -> Option<&hir::def::Res> {
+    fn get(&self, sym: Symbol) -> Option<&Res> {
         self.res.get(&sym)
     }
 
@@ -314,8 +283,53 @@ impl NameResTable {
         Ok(())
     }
 
-    fn collect_from_item(&mut self, item: &Item, res: rustc_hir::def::Res) {
-        self.res.insert(item.ident.name, res);
+    fn collect_from_ident(
+        &mut self,
+        ident: Ident,
+        res: rustc_hir::def::Res,
+    ) -> Result<(), ErrorGuaranteed> {
+        let res = self.collect_from_hir_res(res, ident.span)?;
+        self.res.insert(ident.name, res);
+        Ok(())
+    }
+
+    fn collect_from_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
+        match res {
+            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
+                Ok(Res::Param(self.get_param_ty(did).unwrap()))
+            }
+            hir::def::Res::Def(hir::def::DefKind::Struct, did)
+            | hir::def::Res::Def(hir::def::DefKind::Enum, did) => Ok(Res::Adt(did)),
+            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
+                Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
+                Ok(Res::Uint(rustc_middle::ty::uint_ty(uint_ty)))
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Bool) => Ok(Res::Bool),
+            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
+                Ok(Res::Float(rustc_middle::ty::float_ty(float_ty)))
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => {
+                Err(self.sess.emit_err(errors::UnsupportedSignature {
+                    span,
+                    msg: "string slices are not supported yet",
+                }))
+            }
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => {
+                Err(self.sess.emit_err(errors::UnsupportedSignature {
+                    span,
+                    msg: "chars are not suported yet",
+                }))
+            }
+            hir::def::Res::Def(_, _) | hir::def::Res::SelfTy { .. } => {
+                Err(self.sess.emit_err(errors::UnsupportedSignature {
+                    span,
+                    msg: "path resolved to an unsupported type",
+                }))
+            }
+            _ => unreachable!("unexpected type resolution"),
+        }
     }
 
     fn collect_from_ty(&mut self, sess: &FluxSession, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
@@ -344,7 +358,7 @@ impl NameResTable {
                         }));
                     }
                 };
-                self.res.insert(ident.name, path.res);
+                self.collect_from_ident(*ident, path.res)?;
 
                 args.map(|args| args.args)
                     .iter()

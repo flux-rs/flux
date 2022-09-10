@@ -112,17 +112,15 @@ fn zip_ty(tcx: TyCtxt, ty: Ty, rust_ty: &rustc_ty::Ty) -> Ty<Res> {
     Ty { kind, span: ty.span }
 }
 
-fn matches_ident_res(ident: Ident, res: Res) -> bool {
-    todo!()
-}
+// fn matches_ident_res(ident: Ident, res: Res) -> bool {
+//     todo!()
+// }
 
 fn zip_path(tcx: TyCtxt, path: Path, rust_ty: &rustc_ty::Ty) -> Path<Res> {
     let (res, rust_args) = rustc_ty_ident_args(rust_ty);
-
     // if !matches_ident_res(path.ident, res) {
     //     return Err(todo!());
     // }
-
     // let path_ident = path.ident;
     // println!("TRACE: zip_path {path_ident:?} vs {res:?}");
 
