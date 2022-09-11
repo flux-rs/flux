@@ -84,6 +84,7 @@ impl<'genv> Resolver<'genv> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn resolve_enum_def(
         &self,
         enum_def: surface::EnumDef,
@@ -112,7 +113,7 @@ impl<'genv> Resolver<'genv> {
             .map(|ty| self.resolve_ty(ty))
             .try_collect_exhaust()?;
         let ret = self.resolve_ty(variant.ret)?;
-        Ok(surface::VariantDef { fields, ret })
+        Ok(surface::VariantDef { fields, ret, span: variant.span })
     }
 
     pub fn resolve_struct_def(
@@ -494,6 +495,21 @@ pub mod errors {
     }
 
     #[derive(SessionDiagnostic)]
+    #[error(resolver::mismatched_fields, code = "FLUX")]
+    pub struct MismatchedFields {
+        #[primary_span]
+        pub span: Span,
+        pub rust_fields: usize,
+        pub flux_fields: usize,
+    }
+
+    impl MismatchedFields {
+        pub fn new(span: Span, rust_fields: usize, flux_fields: usize) -> Self {
+            Self { span, rust_fields, flux_fields }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
     #[error(resolver::mismatched_args, code = "FLUX")]
     pub struct MismatchedArgs {
         #[primary_span]
@@ -507,6 +523,7 @@ pub mod errors {
             Self { span, rust_args, flux_args }
         }
     }
+
     #[derive(SessionDiagnostic)]
     #[error(resolver::mismatched_type, code = "FLUX")]
     pub struct MismatchedType {

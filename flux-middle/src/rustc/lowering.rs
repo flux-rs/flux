@@ -456,7 +456,7 @@ fn mk_fake_predecessors(
 }
 
 fn lower_type_of<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> Result<Ty, ErrorGuaranteed> {
-    todo!()
+    lower_ty(tcx, tcx.type_of(def_id))
 }
 
 pub fn lower_enum_def<'tcx>(

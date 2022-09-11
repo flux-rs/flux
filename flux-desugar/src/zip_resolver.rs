@@ -2,12 +2,14 @@ use std::{collections::HashMap, iter};
 
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
-use flux_syntax::surface::{Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
+use flux_syntax::surface::{
+    Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef,
+};
 use itertools::Itertools;
 use rustc_span::{Span, Symbol};
 
 use crate::table_resolver::{
-    errors::{MismatchedArgs, MismatchedType},
+    errors::{MismatchedArgs, MismatchedFields, MismatchedType},
     Resolver,
 };
 
@@ -28,8 +30,47 @@ impl<'genv> ZipResolver<'genv> {
         enum_def: EnumDef,
         rust_enum_def: &rustc_ty::EnumDef,
     ) -> Result<EnumDef<Res>, ErrorGuaranteed> {
-        todo!()
+        let variants = iter::zip(enum_def.variants, &rust_enum_def.variants)
+            .map(|(variant, rust_variant)| self.zip_variant_def(variant, &rust_variant))
+            .collect_vec();
+
+        let variants: Result<Vec<VariantDef<Res>>, ErrorGuaranteed> =
+            variants.into_iter().collect();
+
+        let variants = variants?;
+
+        Ok(EnumDef {
+            def_id: enum_def.def_id,
+            opaque: enum_def.opaque,
+            refined_by: enum_def.refined_by,
+            variants,
+        })
     }
+
+    fn zip_variant_def(
+        &self,
+        variant_def: VariantDef,
+        rust_variant_def: &rustc_ty::VariantDef,
+    ) -> Result<VariantDef<Res>, ErrorGuaranteed> {
+        let flux_fields = variant_def.fields.len();
+        let rust_fields = rust_variant_def.fields.len();
+        if flux_fields != rust_fields {
+            return Err(self.sess.emit_err(MismatchedFields::new(
+                variant_def.span,
+                rust_fields,
+                flux_fields,
+            )));
+        }
+        let fields = iter::zip(variant_def.fields, rust_variant_def.fields.iter())
+            .map(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))
+            .collect_vec();
+        let fields: Result<Vec<Ty<Res>>, ErrorGuaranteed> = fields.into_iter().collect();
+        let fields = fields?;
+
+        let ret = self.zip_ty(variant_def.ret, &rust_variant_def.ret)?;
+        Ok(VariantDef { fields, ret, span: variant_def.span })
+    }
+
     /// `zip_fn_sig(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
     /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
     pub fn zip_fn_sig(

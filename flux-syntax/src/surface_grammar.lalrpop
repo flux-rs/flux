@@ -65,12 +65,12 @@ pub FnSig: surface::FnSig = {
 }
 
 pub Variant: surface::VariantDef = {
-     <tys:Fields?> <ret:Ty> => {
+    <lo:@L> <tys:Fields?> <ret:Ty> <hi:@L> => {
         let fields = match tys {
             Some(fields) => fields,
             None => vec![],
         };
-        surface::VariantDef { fields, ret }
+        surface::VariantDef { fields, ret, span: mk_span(lo, hi) }
     }
 }
 
