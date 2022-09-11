@@ -5,7 +5,7 @@
 pub enum Opt<T> {
     #[flux::variant(Opt<T>[false])]
     None,
-    #[flux::variant(Oqt<T>[true])]
+    #[flux::variant(Opt<T>[true])]
     Some(T),
 }
 
