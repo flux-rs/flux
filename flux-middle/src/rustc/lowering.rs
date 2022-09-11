@@ -455,7 +455,7 @@ fn mk_fake_predecessors(
     res
 }
 
-fn lower_type_of<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> Result<Ty, ErrorGuaranteed> {
+fn lower_type_of(tcx: TyCtxt, def_id: DefId) -> Result<Ty, ErrorGuaranteed> {
     lower_ty(tcx, tcx.type_of(def_id))
 }
 
@@ -471,8 +471,8 @@ pub fn lower_enum_def<'tcx>(
     Ok(EnumDef { variants })
 }
 
-pub fn lower_variant_def<'tcx>(
-    tcx: TyCtxt<'tcx>,
+pub fn lower_variant_def(
+    tcx: TyCtxt,
     adt_def_id: DefId,
     variant_def: &rustc_ty::VariantDef,
 ) -> Result<VariantDef, ErrorGuaranteed> {

@@ -215,9 +215,8 @@ impl<'genv> Resolver<'genv> {
         if let Some(res) = self.table.get(ident.name) {
             Ok(*res)
         } else {
-            return Err(self.sess.emit_err(errors::UnresolvedPath::new(ident)));
+            Err(self.sess.emit_err(errors::UnresolvedPath::new(ident)))
         }
-        // self.resolve_hir_res(res, ident.span)
     }
 }
 
@@ -369,10 +368,10 @@ impl<'a> NameResTable<'a> {
 
     // TODO: Clearly a hack, need some proper name resolution check!
     fn adt_def_sym(adt_def: &AdtDef) -> Option<Symbol> {
-        match format!("{adt_def:?}").split("::").last() {
-            Some(str) => Some(Symbol::intern(str)),
-            None => None,
-        }
+        format!("{adt_def:?}")
+            .split("::")
+            .last()
+            .map(Symbol::intern)
     }
 
     fn collect_from_rustc_ty(&mut self, ty: &rustc_middle::ty::Ty) -> Result<(), ErrorGuaranteed> {
@@ -382,11 +381,8 @@ impl<'a> NameResTable<'a> {
         match &ty.kind() {
             rustc_middle::ty::TyKind::Adt(_, args) => {
                 for arg in args.iter() {
-                    match arg.unpack() {
-                        rustc_middle::ty::GenericArgKind::Type(ty) => {
-                            self.collect_from_rustc_ty(&ty)?
-                        }
-                        _ => (),
+                    if let rustc_middle::ty::GenericArgKind::Type(ty) = arg.unpack() {
+                        self.collect_from_rustc_ty(&ty)?
                     }
                 }
             }

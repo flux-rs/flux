@@ -31,7 +31,7 @@ impl<'genv> ZipResolver<'genv> {
         rust_enum_def: &rustc_ty::EnumDef,
     ) -> Result<EnumDef<Res>, ErrorGuaranteed> {
         let variants = iter::zip(enum_def.variants, &rust_enum_def.variants)
-            .map(|(variant, rust_variant)| self.zip_variant_def(variant, &rust_variant))
+            .map(|(variant, rust_variant)| self.zip_variant_def(variant, rust_variant))
             .collect_vec();
 
         let variants: Result<Vec<VariantDef<Res>>, ErrorGuaranteed> =
