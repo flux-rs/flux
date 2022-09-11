@@ -20,7 +20,9 @@ use super::{
         FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
-    ty::{FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty},
+    ty::{
+        EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty, VariantDef,
+    },
 };
 use crate::intern::List;
 
@@ -452,11 +454,37 @@ fn mk_fake_predecessors(
     }
     res
 }
+
+fn lower_type_of<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> Result<Ty, ErrorGuaranteed> {
+    todo!()
+}
+
 pub fn lower_enum_def<'tcx>(
     tcx: TyCtxt<'tcx>,
     adt_def: rustc_ty::AdtDef<'tcx>,
-) -> Result<crate::rustc::ty::EnumDef, ErrorGuaranteed> {
-    todo!()
+) -> Result<EnumDef, ErrorGuaranteed> {
+    let adt_def_id = adt_def.did();
+    let mut variants = vec![];
+    for variant_def in adt_def.variants().into_iter() {
+        variants.push(lower_variant_def(tcx, adt_def_id, variant_def)?)
+    }
+    Ok(EnumDef { variants })
+}
+
+pub fn lower_variant_def<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    adt_def_id: DefId,
+    variant_def: &rustc_ty::VariantDef,
+) -> Result<VariantDef, ErrorGuaranteed> {
+    let fields = variant_def
+        .fields
+        .iter()
+        .map(|field| lower_type_of(tcx, field.did))
+        .collect_vec();
+    let fields: Result<Vec<Ty>, ErrorGuaranteed> = fields.into_iter().collect();
+    let fields = List::from_vec(fields?);
+    let ret = lower_type_of(tcx, adt_def_id)?;
+    Ok(VariantDef { fields, ret })
 }
 
 pub fn lower_fn_sig<'tcx>(

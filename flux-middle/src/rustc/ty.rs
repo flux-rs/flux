@@ -32,13 +32,13 @@ pub struct FnSig {
 
 #[derive(Debug)]
 pub struct EnumDef {
-    variants: Vec<Variant>,
+    pub variants: Vec<VariantDef>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Variant {
-    fields: List<Ty>,
-    ret: Ty,
+pub struct VariantDef {
+    pub fields: List<Ty>,
+    pub ret: Ty,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
