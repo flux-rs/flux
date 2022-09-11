@@ -6,7 +6,7 @@ use hir::{def::DefKind, def_id::DefId, ItemId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
-use rustc_middle::ty::{ParamTy, TyCtxt};
+use rustc_middle::ty::{AdtDef, ParamTy, TyCtxt};
 use rustc_span::{Span, Symbol};
 
 pub struct Resolver<'a> {
@@ -355,10 +355,7 @@ impl<'a> NameResTable<'a> {
                 Some((Symbol::intern(&ty.to_string()), Res::Float(*f)))
             }
             rustc_middle::ty::TyKind::Adt(adt_def, _) => {
-                let sym = Symbol::intern(adt_def.descr());
-                println!("TRACE: res_of_rustc {sym:?}");
-                let res = Res::Adt(adt_def.did());
-                Some((sym, res))
+                Some((Self::adt_def_sym(adt_def)?, Res::Adt(adt_def.did())))
             }
             rustc_middle::ty::TyKind::Param(pty) => {
                 let sym = pty.name;
@@ -366,6 +363,14 @@ impl<'a> NameResTable<'a> {
                 Some((sym, res))
             }
             _ => None,
+        }
+    }
+
+    // TODO: Clearly a hack, need some proper name resolution check!
+    fn adt_def_sym(adt_def: &AdtDef) -> Option<Symbol> {
+        match format!("{adt_def:?}").split("::").last() {
+            Some(str) => Some(Symbol::intern(str)),
+            None => None,
         }
     }
 
