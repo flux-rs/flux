@@ -190,14 +190,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     let did = def_id.to_def_id();
                     if let Some(fn_sig) = spec.fn_sig {
                         let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                        let fn_sig = desugar::desugar_fn_sig(
-                            genv.tcx,
-                            genv.sess,
-                            &genv.consts,
-                            &adt_sorts,
-                            did,
-                            fn_sig,
-                        )?;
+                        let fn_sig = desugar::desugar_fn_sig(genv, &adt_sorts, did, fn_sig)?;
                         Wf::new(genv).check_fn_sig(&fn_sig)?;
                         genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                     }

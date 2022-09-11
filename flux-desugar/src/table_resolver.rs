@@ -15,7 +15,6 @@ pub struct Resolver<'a> {
 }
 
 struct NameResTable<'a> {
-    // res: FxHashMap<Symbol, hir::def::Res>,
     res: FxHashMap<Symbol, Res>,
     generics: FxHashMap<DefId, ParamTy>,
     sess: &'a FluxSession,
@@ -36,6 +35,17 @@ impl<'genv> Resolver<'genv> {
         Ok(Self { sess: genv.sess, table })
     }
 
+    pub fn from_rust_fn_sig(
+        genv: &GlobalEnv<'genv, '_>,
+        fn_sig: rustc_middle::ty::Binder<rustc_middle::ty::FnSig>,
+    ) -> Result<Self, ErrorGuaranteed> {
+        let mut table = NameResTable::new(genv.sess);
+        for ty in fn_sig.skip_binder().inputs_and_output {
+            table.collect_from_rustc_ty(&ty)?;
+        }
+        Ok(Resolver { sess: genv.sess, table })
+    }
+
     pub fn from_adt(
         genv: &GlobalEnv<'genv, '_>,
         def_id: LocalDefId,
@@ -51,7 +61,7 @@ impl<'genv> Resolver<'genv> {
                 table.collect_from_ident(item.ident, res)?;
 
                 for field in data.fields() {
-                    table.collect_from_ty(genv.sess, field.ty)?;
+                    table.collect_from_ty(field.ty)?;
                 }
 
                 Ok(Resolver { sess: genv.sess, table })
@@ -65,7 +75,7 @@ impl<'genv> Resolver<'genv> {
 
                 for variant in enum_def.variants {
                     for field in variant.data.fields() {
-                        table.collect_from_ty(genv.sess, field.ty)?;
+                        table.collect_from_ty(field.ty)?;
                     }
                 }
                 Ok(Resolver { sess: genv.sess, table })
@@ -75,7 +85,7 @@ impl<'genv> Resolver<'genv> {
     }
 
     pub fn resolve_enum_def(
-        &mut self,
+        &self,
         enum_def: surface::EnumDef,
     ) -> Result<surface::EnumDef<Res>, ErrorGuaranteed> {
         let variants = enum_def
@@ -106,7 +116,7 @@ impl<'genv> Resolver<'genv> {
     }
 
     pub fn resolve_struct_def(
-        &mut self,
+        &self,
         struct_def: surface::StructDef,
     ) -> Result<surface::StructDef<Res>, ErrorGuaranteed> {
         let fields = struct_def
@@ -125,7 +135,7 @@ impl<'genv> Resolver<'genv> {
 
     #[allow(dead_code)]
     pub fn resolve_fn_sig(
-        &mut self,
+        &self,
         fn_sig: surface::FnSig,
     ) -> Result<surface::FnSig<Res>, ErrorGuaranteed> {
         let args = fn_sig
@@ -200,7 +210,7 @@ impl<'genv> Resolver<'genv> {
         Ok(Path { ident, args, span: path.span })
     }
 
-    fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorGuaranteed> {
+    pub fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorGuaranteed> {
         if let Some(res) = self.table.get(ident.name) {
             Ok(*res)
         } else {
@@ -219,7 +229,7 @@ fn init_table<'a>(
         let item_id = ItemId { def_id: impl_did.expect_local() };
         let item = genv.tcx.hir().item(item_id);
         if let ItemKind::Impl(parent) = &item.kind {
-            table.collect_from_ty(genv.sess, parent.self_ty)?;
+            table.collect_from_ty(parent.self_ty)?;
             table.insert_generics(genv.tcx, parent.generics);
         }
     }
@@ -266,7 +276,7 @@ impl<'a> NameResTable<'a> {
             .decl
             .inputs
             .iter()
-            .try_for_each_exhaust(|ty| self.collect_from_ty(sess, ty))?;
+            .try_for_each_exhaust(|ty| self.collect_from_ty(ty))?;
 
         match fn_sig.decl.output {
             hir::FnRetTy::DefaultReturn(span) => {
@@ -276,7 +286,7 @@ impl<'a> NameResTable<'a> {
                 }));
             }
             hir::FnRetTy::Return(ty) => {
-                self.collect_from_ty(sess, ty)?;
+                self.collect_from_ty(ty)?;
             }
         }
 
@@ -288,12 +298,12 @@ impl<'a> NameResTable<'a> {
         ident: Ident,
         res: rustc_hir::def::Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let res = self.collect_from_hir_res(res, ident.span)?;
+        let res = self.of_hir_res(res, ident.span)?;
         self.res.insert(ident.name, res);
         Ok(())
     }
 
-    fn collect_from_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn of_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(Res::Param(self.get_param_ty(did).unwrap()))
@@ -332,18 +342,71 @@ impl<'a> NameResTable<'a> {
         }
     }
 
-    fn collect_from_ty(&mut self, sess: &FluxSession, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
-        match &ty.kind {
-            hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(sess, ty),
-            hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
-                self.collect_from_ty(sess, mut_ty.ty)
+    fn res_of_rustc_ty(ty: &rustc_middle::ty::Ty) -> Option<(Symbol, Res)> {
+        match &ty.kind() {
+            rustc_middle::ty::TyKind::Bool => Some((Symbol::intern(&ty.to_string()), Res::Bool)),
+            rustc_middle::ty::TyKind::Int(i) => {
+                Some((Symbol::intern(&ty.to_string()), Res::Int(*i)))
             }
-            hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(sess, ty)),
+            rustc_middle::ty::TyKind::Uint(u) => {
+                Some((Symbol::intern(&ty.to_string()), Res::Uint(*u)))
+            }
+            rustc_middle::ty::TyKind::Float(f) => {
+                Some((Symbol::intern(&ty.to_string()), Res::Float(*f)))
+            }
+            rustc_middle::ty::TyKind::Adt(adt_def, _) => {
+                let sym = Symbol::intern(adt_def.descr());
+                println!("TRACE: res_of_rustc {sym:?}");
+                let res = Res::Adt(adt_def.did());
+                Some((sym, res))
+            }
+            rustc_middle::ty::TyKind::Param(pty) => {
+                let sym = pty.name;
+                let res = Res::Param(*pty);
+                Some((sym, res))
+            }
+            _ => None,
+        }
+    }
+
+    fn collect_from_rustc_ty(&mut self, ty: &rustc_middle::ty::Ty) -> Result<(), ErrorGuaranteed> {
+        if let Some((sym, res)) = Self::res_of_rustc_ty(ty) {
+            self.res.insert(sym, res);
+        }
+        match &ty.kind() {
+            rustc_middle::ty::TyKind::Adt(_, args) => {
+                for arg in args.iter() {
+                    match arg.unpack() {
+                        rustc_middle::ty::GenericArgKind::Type(ty) => {
+                            self.collect_from_rustc_ty(&ty)?
+                        }
+                        _ => (),
+                    }
+                }
+            }
+            rustc_middle::ty::TyKind::Ref(_, ty, _) => self.collect_from_rustc_ty(ty)?,
+            rustc_middle::ty::TyKind::Tuple(tys) => {
+                for ty in tys.iter() {
+                    self.collect_from_rustc_ty(&ty)?
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+
+    fn collect_from_ty(&mut self, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
+        match &ty.kind {
+            hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(ty),
+            hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
+                self.collect_from_ty(mut_ty.ty)
+            }
+            hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
                 let path = if let hir::QPath::Resolved(None, path) = qpath {
                     path
                 } else {
-                    return Err(sess.emit_err(errors::UnsupportedSignature {
+                    return Err(self.sess.emit_err(errors::UnsupportedSignature {
                         span: qpath.span(),
                         msg: "unsupported type",
                     }));
@@ -352,7 +415,7 @@ impl<'a> NameResTable<'a> {
                 let (ident, args) = match path.segments {
                     [hir::PathSegment { ident, args, .. }] => (ident, args),
                     _ => {
-                        return Err(sess.emit_err(errors::UnsupportedSignature {
+                        return Err(self.sess.emit_err(errors::UnsupportedSignature {
                             span: qpath.span(),
                             msg: "multi-segment paths are not supported yet",
                         }));
@@ -364,7 +427,7 @@ impl<'a> NameResTable<'a> {
                     .iter()
                     .copied()
                     .flatten()
-                    .try_for_each_exhaust(|arg| self.collect_from_generic_arg(sess, arg))
+                    .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))
             }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
@@ -376,21 +439,17 @@ impl<'a> NameResTable<'a> {
         }
     }
 
-    fn collect_from_generic_arg(
-        &mut self,
-        sess: &FluxSession,
-        arg: &hir::GenericArg,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn collect_from_generic_arg(&mut self, arg: &hir::GenericArg) -> Result<(), ErrorGuaranteed> {
         match arg {
-            hir::GenericArg::Type(ty) => self.collect_from_ty(sess, ty),
+            hir::GenericArg::Type(ty) => self.collect_from_ty(ty),
             hir::GenericArg::Lifetime(_) => {
-                Err(sess.emit_err(errors::UnsupportedSignature {
+                Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span: arg.span(),
                     msg: "lifetime parameters are not supported yet",
                 }))
             }
             hir::GenericArg::Const(_) => {
-                Err(sess.emit_err(errors::UnsupportedSignature {
+                Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span: arg.span(),
                     msg: "const generics are not supported yet",
                 }))

@@ -135,7 +135,7 @@ pub struct Path<R = Ident> {
     pub span: Span,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Res {
     Bool,
     Int(IntTy),
