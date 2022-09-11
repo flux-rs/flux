@@ -2,7 +2,7 @@ use std::{collections::HashMap, iter};
 
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
-use flux_syntax::surface::{Arg, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
+use flux_syntax::surface::{Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind};
 use itertools::Itertools;
 use rustc_span::{Span, Symbol};
 
@@ -23,9 +23,16 @@ impl<'genv> ZipResolver<'genv> {
         ZipResolver { sess, resolver }
     }
 
-    /// `zip_bare_def(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
+    pub fn zip_enum_def(
+        &self,
+        enum_def: EnumDef,
+        rust_enum_def: &rustc_ty::EnumDef,
+    ) -> Result<EnumDef<Res>, ErrorGuaranteed> {
+        todo!()
+    }
+    /// `zip_fn_sig(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
     /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-    pub fn zip_bare_def(
+    pub fn zip_fn_sig(
         &self,
         sig: FnSig,
         rust_sig: &rustc_ty::FnSig,

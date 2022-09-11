@@ -452,6 +452,12 @@ fn mk_fake_predecessors(
     }
     res
 }
+pub fn lower_enum_def<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    adt_def: rustc_ty::AdtDef<'tcx>,
+) -> Result<crate::rustc::ty::EnumDef, ErrorGuaranteed> {
+    todo!()
+}
 
 pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
