@@ -21,7 +21,7 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
 pub fn desugar_struct_def(
@@ -36,9 +36,9 @@ pub fn desugar_struct_def(
 pub fn desugar_enum_def(
     genv: &GlobalEnv,
     adt_sorts: &impl AdtSortsMap,
-    def_id: LocalDefId,
     enum_def: surface::EnumDef,
 ) -> Result<core::EnumDef, ErrorGuaranteed> {
+    let def_id = enum_def.def_id;
     let rust_adt_def = genv.tcx.adt_def(def_id.to_def_id());
     let resolver = table_resolver::Resolver::from_adt(genv, def_id)?;
     let rust_enum_def = rustc::lowering::lower_enum_def(genv.tcx, rust_adt_def)?;
