@@ -65,7 +65,7 @@ pub FnSig: surface::FnSig = {
 }
 
 pub Variant: surface::VariantDef = {
-    <lo:@L> <tys:Fields?> <ret:Ty> <hi:@L> => {
+    <lo:@L> <tys:Fields?> <ret:Ty> <hi:@R> => {
         let fields = match tys {
             Some(fields) => fields,
             None => vec![],
