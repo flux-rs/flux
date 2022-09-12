@@ -45,8 +45,6 @@ pub fn desugar_enum_def(
     let enum_def = zip_resolver::ZipResolver::new(genv.sess, &resolver)
         .zip_enum_def(enum_def, &rust_enum_def)?;
     desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
-    // // let resolver = table_resolver::Resolver::from_adt(genv, enum_def.def_id)?;
-    // // let enum_def = resolver.resolve_enum_def(enum_def)?;
 }
 
 pub fn desugar_fn_sig(
