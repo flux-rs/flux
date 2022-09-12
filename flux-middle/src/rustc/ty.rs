@@ -30,6 +30,17 @@ pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
 
+#[derive(Debug)]
+pub struct EnumDef {
+    pub variants: Vec<VariantDef>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct VariantDef {
+    pub fields: List<Ty>,
+    pub ret: Ty,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ty(Interned<TyS>);
 
