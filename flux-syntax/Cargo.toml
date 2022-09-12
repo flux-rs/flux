@@ -8,7 +8,6 @@ version = "0.1.0"
 [dependencies]
 lalrpop-util = "0.19"
 
-
 [build-dependencies]
 lalrpop = "0.19"
 

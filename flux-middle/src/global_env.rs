@@ -131,7 +131,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
-        // let sorts = self.sorts_of(def_id);
         let poly_variant = self.variant(def_id, variant_idx);
         let variant = poly_variant.skip_binders();
         let sorts = poly_variant.params();
@@ -173,9 +172,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
+    fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> ty::Ty {
+        self.refine_ty(rustc_ty, &mut |_| ty::Pred::tt())
+    }
+
     pub fn default_type_of(&self, def_id: DefId) -> ty::Ty {
         match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id)) {
-            Ok(rustc_ty) => self.refine_ty(&rustc_ty, &mut |_| ty::Pred::tt()),
+            Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
             Err(_) => FatalError.raise(),
         }
     }
@@ -185,14 +188,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         adt_def_id: DefId,
         variant_def: &rustc_middle::ty::VariantDef,
     ) -> ty::PolyVariant {
-        let fields = variant_def
-            .fields
-            .iter()
-            .map(|field| self.default_type_of(field.did))
-            .collect_vec();
-        let ret = self.default_type_of(adt_def_id);
-
-        Binders::new(ty::VariantDef::new(fields, ret), vec![])
+        if let Ok(variant_def) =
+            rustc::lowering::lower_variant_def(self.tcx, adt_def_id, variant_def)
+        {
+            let fields = variant_def
+                .fields
+                .iter()
+                .map(|ty| self.refine_ty_true(ty))
+                .collect_vec();
+            let ret = self.refine_ty_true(&variant_def.ret);
+            Binders::new(ty::VariantDef::new(fields, ret), vec![])
+        } else {
+            FatalError.raise()
+        }
     }
 
     pub fn refine_fn_sig(
