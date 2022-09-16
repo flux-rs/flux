@@ -6,23 +6,29 @@ use flux_syntax::surface::{
     Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef,
 };
 use itertools::Itertools;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
 use crate::table_resolver::{
-    errors::{MismatchedArgs, MismatchedFields, MismatchedType},
+    errors::{ArgCountMismatch, FieldCountMismatch, MismatchedType},
     Resolver,
 };
 
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
-pub struct ZipResolver<'genv> {
+pub struct ZipResolver<'genv, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     resolver: &'genv Resolver<'genv>,
 }
 
-impl<'genv> ZipResolver<'genv> {
-    pub fn new(sess: &'genv FluxSession, resolver: &'genv Resolver<'genv>) -> Self {
-        ZipResolver { sess, resolver }
+impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'genv FluxSession,
+        resolver: &'genv Resolver<'genv>,
+    ) -> Self {
+        ZipResolver { tcx, sess, resolver }
     }
 
     pub fn zip_enum_def(
@@ -55,7 +61,7 @@ impl<'genv> ZipResolver<'genv> {
         let flux_fields = variant_def.fields.len();
         let rust_fields = rust_variant_def.fields.len();
         if flux_fields != rust_fields {
-            return Err(self.sess.emit_err(MismatchedFields::new(
+            return Err(self.sess.emit_err(FieldCountMismatch::new(
                 variant_def.span,
                 rust_fields,
                 flux_fields,
@@ -121,7 +127,7 @@ impl<'genv> ZipResolver<'genv> {
         if rust_args != flux_args {
             return Err(self
                 .sess
-                .emit_err(MismatchedArgs::new(span, rust_args, flux_args)));
+                .emit_err(ArgCountMismatch::new(span, rust_args, flux_args)));
         }
 
         let binds = iter::zip(binds, rust_tys)
@@ -197,7 +203,9 @@ impl<'genv> ZipResolver<'genv> {
             _ => {
                 let path_res = self.resolver.resolve_ident(path.ident)?;
                 if path_res != res {
-                    return Err(self.sess.emit_err(MismatchedType::new(res, path.ident)));
+                    return Err(self
+                        .sess
+                        .emit_err(MismatchedType::new(self.tcx, res, path.ident)));
                 }
             }
         }

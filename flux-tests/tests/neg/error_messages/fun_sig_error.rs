@@ -25,7 +25,7 @@ pub fn goo(x: i32) -> Option<i32> {
     Some(x)
 }
 
-#[flux::sig(fn(x:i32, y:i32) -> i32)] //~ ERROR args mismatched
+#[flux::sig(fn(x:i32, y:i32) -> i32)] //~ ERROR arg count mismatch
 pub fn baz(x: i32) -> i32 {
     x + 1
 }

@@ -464,7 +464,9 @@ impl<'a> NameResTable<'a> {
 
 pub mod errors {
     use flux_macros::SessionDiagnostic;
-    use flux_syntax::surface;
+    use flux_syntax::surface::{self, Res};
+    use rustc_hir::def_id::DefId;
+    use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(SessionDiagnostic)]
@@ -492,14 +494,14 @@ pub mod errors {
 
     #[derive(SessionDiagnostic)]
     #[error(resolver::mismatched_fields, code = "FLUX")]
-    pub struct MismatchedFields {
+    pub struct FieldCountMismatch {
         #[primary_span]
         pub span: Span,
         pub rust_fields: usize,
         pub flux_fields: usize,
     }
 
-    impl MismatchedFields {
+    impl FieldCountMismatch {
         pub fn new(span: Span, rust_fields: usize, flux_fields: usize) -> Self {
             Self { span, rust_fields, flux_fields }
         }
@@ -507,14 +509,14 @@ pub mod errors {
 
     #[derive(SessionDiagnostic)]
     #[error(resolver::mismatched_args, code = "FLUX")]
-    pub struct MismatchedArgs {
+    pub struct ArgCountMismatch {
         #[primary_span]
         pub span: Span,
         pub rust_args: usize,
         pub flux_args: usize,
     }
 
-    impl MismatchedArgs {
+    impl ArgCountMismatch {
         pub fn new(span: Span, rust_args: usize, flux_args: usize) -> Self {
             Self { span, rust_args, flux_args }
         }
@@ -530,9 +532,25 @@ pub mod errors {
     }
 
     impl MismatchedType {
-        pub fn new(rust_res: surface::Res, flux_type: Ident) -> Self {
-            let rust_type = format!("{rust_res:?}");
+        pub fn new(tcx: TyCtxt, rust_res: Res, flux_type: Ident) -> Self {
+            let rust_type = print_res(tcx, rust_res);
             Self { span: flux_type.span, rust_type, flux_type }
         }
+    }
+
+    fn print_res(tcx: TyCtxt, res: Res) -> String {
+        match res {
+            Res::Bool => "bool".to_string(),
+            Res::Int(int_ty) => int_ty.name_str().to_string(),
+            Res::Uint(uint_ty) => uint_ty.name_str().to_string(),
+            Res::Float(float_ty) => float_ty.name_str().to_string(),
+            Res::Adt(def_id) => print_def_id(tcx, def_id),
+            Res::Param(_) => todo!(),
+        }
+    }
+
+    fn print_def_id(tcx: TyCtxt, def_id: DefId) -> String {
+        let crate_name = tcx.crate_name(def_id.krate);
+        format!("{crate_name}{}", tcx.def_path(def_id).to_string_no_crate_verbose())
     }
 }
