@@ -29,3 +29,8 @@ pub fn goo(x: i32) -> Option<i32> {
 pub fn baz(x: i32) -> i32 {
     x + 1
 }
+
+#[flux::sig(fn(x: &mut i32) -> i32)] //~ ERROR mutability mismatch
+pub fn ipa(x: &i32) -> i32 {
+    *x + 1
+}

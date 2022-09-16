@@ -464,7 +464,8 @@ impl<'a> NameResTable<'a> {
 
 pub mod errors {
     use flux_macros::SessionDiagnostic;
-    use flux_syntax::surface::{self, Res};
+    use flux_middle::rustc::ty::Mutability;
+    use flux_syntax::surface::{self, RefKind, Res};
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
@@ -535,6 +536,31 @@ pub mod errors {
         pub fn new(tcx: TyCtxt, rust_res: Res, flux_type: Ident) -> Self {
             let rust_type = print_res(tcx, rust_res);
             Self { span: flux_type.span, rust_type, flux_type }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(resolver::mutability_mismatch, code = "FLUX")]
+    pub struct RefKindMismatch {
+        #[primary_span]
+        pub span: Span,
+        pub flux_ref: String,
+        pub rust_ref: String,
+    }
+
+    impl RefKindMismatch {
+        pub fn new(span: Span, ref_kind: RefKind, mutability: Mutability) -> Self {
+            Self {
+                span,
+                flux_ref: match ref_kind {
+                    RefKind::Mut => format!("&mut"),
+                    RefKind::Shr => format!("&"),
+                },
+                rust_ref: match mutability {
+                    Mutability::Mut => format!("&mut"),
+                    Mutability::Not => format!("&"),
+                },
+            }
         }
     }
 

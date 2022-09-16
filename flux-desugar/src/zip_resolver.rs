@@ -10,7 +10,7 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
 use crate::table_resolver::{
-    errors::{ArgCountMismatch, FieldCountMismatch, MismatchedType},
+    errors::{ArgCountMismatch, FieldCountMismatch, MismatchedType, RefKindMismatch},
     Resolver,
 };
 
@@ -181,11 +181,11 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
             (TyKind::StrgRef(loc, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
                 TyKind::StrgRef(loc, Box::new(self.zip_ty(*ty, rust_ty)?))
             }
-            (TyKind::Ref(RefKind::Mut, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
-                TyKind::Ref(RefKind::Mut, Box::new(self.zip_ty(*ty, rust_ty)?))
-            }
-            (TyKind::Ref(RefKind::Shr, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Not)) => {
-                TyKind::Ref(RefKind::Shr, Box::new(self.zip_ty(*ty, rust_ty)?))
+            (TyKind::Ref(rk, ref_ty), rustc_ty::TyKind::Ref(rust_ty, mutability)) => {
+                TyKind::Ref(
+                    self.zip_mutability(ty.span, rk, *mutability)?,
+                    Box::new(self.zip_ty(*ref_ty, rust_ty)?),
+                )
             }
             (TyKind::Unit, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => TyKind::Unit,
 
@@ -225,6 +225,23 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
         match args.into_iter().collect() {
             Ok(args) => Ok(Path { ident: res, args, span: path.span }),
             Err(e) => Err(e),
+        }
+    }
+
+    fn zip_mutability(
+        &self,
+        span: Span,
+        ref_kind: RefKind,
+        mutability: rustc_ty::Mutability,
+    ) -> Result<RefKind, ErrorGuaranteed> {
+        match (ref_kind, mutability) {
+            (RefKind::Mut, Mutability::Mut) => Ok(RefKind::Mut),
+            (RefKind::Shr, Mutability::Not) => Ok(RefKind::Shr),
+            _ => {
+                Err(self
+                    .sess
+                    .emit_err(RefKindMismatch::new(span, ref_kind, mutability)))
+            }
         }
     }
 

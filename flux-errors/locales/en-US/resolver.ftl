@@ -13,3 +13,6 @@ resolver-mismatched-fields =
 
 resolver-mismatched-type =
     type mismatch in flux signature: expected `{$rust_type}` but saw `{$flux_type}`
+
+resolver-mutability-mismatch =
+    mutability mismatch in flux signature: rust signature has a `{$rust_ref}` reference but flux signature has a `{$flux_ref}` reference
