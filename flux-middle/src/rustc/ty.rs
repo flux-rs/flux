@@ -53,6 +53,7 @@ struct TyS {
 pub enum TyKind {
     Adt(DefId, List<GenericArg>),
     Bool,
+    Str,
     Float(FloatTy),
     Int(IntTy),
     Never,
@@ -120,6 +121,10 @@ impl Ty {
         TyKind::Uint(uint_ty).intern()
     }
 
+    pub fn mk_str() -> Ty {
+        TyKind::Str.intern()
+    }
+
     pub fn kind(&self) -> &TyKind {
         &self.0.kind
     }
@@ -156,6 +161,7 @@ impl std::fmt::Debug for Ty {
                 Ok(())
             }
             TyKind::Bool => write!(f, "bool"),
+            TyKind::Str => write!(f, "str"),
             TyKind::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             TyKind::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
             TyKind::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),

@@ -173,6 +173,8 @@ pub enum Constant {
     Uint(u128, UintTy),
     Float(u128, FloatTy),
     Bool(bool),
+    /// We only support opaque string slices, so no data stored here for now.
+    Str,
     Unit,
 }
 
@@ -432,6 +434,7 @@ impl fmt::Debug for Constant {
             Constant::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
             Constant::Bool(b) => write!(f, "{}", b),
             Constant::Unit => write!(f, "()"),
+            Constant::Str => write!(f, "\"<opaque str>\""),
         }
     }
 }
