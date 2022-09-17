@@ -390,6 +390,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
             (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 scalar_int_to_constant(tcx, *scalar, *ty)
             }
+            (ConstantKind::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
+                if ref_ty.is_str() =>
+            {
+                Some(Constant::Str)
+            }
             (ConstantKind::Ty(c), _) => {
                 // HACK(nilehmann) we evaluate the constant to support u32::MAX
                 // we should instead lower it as is and refine its type.
@@ -402,7 +407,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
             _ => {
-                return self.emit_err(Some(span), format!("constant not supported: `{constant:?}`"))
+                return self
+                    .emit_err(Some(span), format!("constant not supported: `{constant:?}`"));
             }
         };
         match constant {
@@ -522,6 +528,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
             Ok(Ty::mk_adt(adt_def.did(), substs))
         }
         rustc_middle::ty::Never => Ok(Ty::mk_never()),
+        rustc_middle::ty::Str => Ok(Ty::mk_str()),
         rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
         _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
     }
