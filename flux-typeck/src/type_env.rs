@@ -371,7 +371,7 @@ impl TypeEnvInfer {
                 let substs = substs.iter().map(|ty| Self::pack_ty(scope, ty));
                 BaseTy::adt(adt_def.clone(), substs)
             }
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => bty.clone(),
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Str => bty.clone(),
         }
     }
 

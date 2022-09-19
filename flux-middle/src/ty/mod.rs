@@ -130,6 +130,7 @@ pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
     Bool,
+    Str,
     Adt(AdtDef, Substs),
 }
 
@@ -376,6 +377,9 @@ impl Ty {
     pub fn unit() -> Ty {
         Ty::tuple(vec![])
     }
+    pub fn str() -> Ty {
+        Ty::exists(BaseTy::Str, Binders::new(Pred::tt(), vec![]))
+    }
 
     pub fn never() -> Ty {
         TyKind::Never.intern()
@@ -488,6 +492,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
+            BaseTy::Str => &[],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
         }
     }
@@ -583,7 +588,7 @@ impl Expr {
                 ExprKind::Constant(Constant::from(bits)).intern()
             }
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(_, _) => panic!(),
+            BaseTy::Adt(_, _) | BaseTy::Str => panic!(),
         }
     }
 
@@ -1040,27 +1045,23 @@ mod pretty {
             BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => w!("bool")?,
+            BaseTy::Str => w!("str")?,
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
         }
-        match bty {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
-                if !indices.is_empty() {
-                    w!("<{:?}>", join!(", ", indices))?;
-                }
+        if let BaseTy::Adt(_, args) = bty {
+            if !args.is_empty() || !indices.is_empty() {
+                w!("<")?;
             }
-            BaseTy::Adt(_, args) => {
-                if !args.is_empty() || !indices.is_empty() {
-                    w!("<")?;
-                }
-                w!("{:?}", join!(", ", args))?;
-                if !args.is_empty() && !indices.is_empty() {
-                    w!(", ")?;
-                }
-                w!("{:?}", join!(", ", indices))?;
-                if !args.is_empty() || !indices.is_empty() {
-                    w!(">")?;
-                }
+            w!("{:?}", join!(", ", args))?;
+            if !args.is_empty() && !indices.is_empty() {
+                w!(", ")?;
             }
+            w!("{:?}", join!(", ", indices))?;
+            if !args.is_empty() || !indices.is_empty() {
+                w!(">")?;
+            }
+        } else if !indices.is_empty() {
+            w!("<{:?}>", join!(", ", indices))?;
         }
         Ok(())
     }
