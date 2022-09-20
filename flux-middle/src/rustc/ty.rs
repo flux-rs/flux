@@ -2,6 +2,7 @@
 
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -64,18 +65,18 @@ pub enum TyKind {
     Uint(UintTy),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Const {
     pub ty: Ty,
     pub kind: ConstKind,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ConstKind {
     Value(ValTree),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ValTree {
     Leaf(ScalarInt),
 }
@@ -146,8 +147,23 @@ impl Ty {
         TyKind::Str.intern()
     }
 
+    pub fn mk_usize() -> Ty {
+        TyKind::Uint(UintTy::Usize).intern()
+    }
+
     pub fn kind(&self) -> &TyKind {
         &self.0.kind
+    }
+}
+
+impl Const {
+    pub fn from_usize<'tcx>(tcx: TyCtxt<'tcx>, bits: u128) -> Self {
+        let size = tcx
+            .layout_of(rustc_middle::ty::ParamEnv::empty().and(tcx.types.usize))
+            .unwrap()
+            .size;
+        let scalar = ScalarInt::try_from_uint(bits, size).unwrap();
+        Const { ty: Ty::mk_usize(), kind: ConstKind::Value(ValTree::Leaf(scalar)) }
     }
 }
 

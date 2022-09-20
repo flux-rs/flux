@@ -20,8 +20,8 @@ use flux_middle::{
         },
     },
     ty::{
-        self, BaseTy, BinOp, Binders, BoundVar, Constraint, Constraints, Expr, FnSig, PolySig,
-        Pred, RefKind, Sort, Ty, TyKind, VariantIdx,
+        self, BaseTy, BinOp, Binders, BoundVar, Const, Constraint, Constraints, Expr, FnSig,
+        PolySig, Pred, RefKind, Sort, Ty, TyKind, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -71,6 +71,8 @@ pub trait Phase: Sized {
         src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> bool;
+
+    fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred>;
 
     fn clear(&mut self, bb: BasicBlock);
 }
@@ -437,7 +439,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let substs = substs
             .iter()
-            .map(|arg| self.genv.refine_generic_arg(arg, &mut |_| Pred::Hole))
+            .map(|arg| {
+                self.genv
+                    .refine_generic_arg(arg, &mut |sorts| Binders::new(Pred::Hole, sorts))
+            })
             .collect_vec();
 
         let output = self
@@ -608,7 +613,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
-                todo!()
+                let c = Const::from_usize(self.genv.tcx, args.len() as u128);
+                let ty = self
+                    .genv
+                    .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts));
+                Ok(Ty::array(ty, c))
             }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
         }
@@ -921,6 +930,10 @@ impl Phase for Inference<'_> {
     fn clear(&mut self, bb: BasicBlock) {
         self.bb_envs.remove(&bb);
     }
+
+    fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred> {
+        Binders::new(Pred::Hole, sorts)
+    }
 }
 
 impl Phase for Check<'_> {
@@ -961,6 +974,10 @@ impl Phase for Check<'_> {
 
     fn clear(&mut self, _bb: BasicBlock) {
         unreachable!();
+    }
+
+    fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred> {
+        self.kvars.fresh(sorts, [])
     }
 }
 
