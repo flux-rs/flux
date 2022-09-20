@@ -5,7 +5,7 @@ use flux_middle::{
     rustc::mir::BasicBlock,
     ty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
-        Pred, RefKind, Sort, Ty, TyKind,
+        PolyVariant, Pred, RefKind, Sort, Ty, TyKind,
     },
 };
 use itertools::{izip, Itertools};
@@ -14,7 +14,7 @@ use rustc_span::Span;
 use crate::{
     param_infer::{self, InferenceError},
     refine_tree::{ConstrBuilder, RefineCtxt},
-    type_env::PathMap,
+    type_env::{PathMap, TypeEnv},
 };
 
 #[allow(clippy::type_complexity)]
@@ -66,14 +66,23 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
     }
 
-    pub fn check_constraint<Env: PathMap>(
+    pub fn check_constraint(
         &mut self,
         rcx: &mut RefineCtxt,
-        env: &mut Env,
+        env: &mut TypeEnv,
         constraint: &Constraint,
     ) {
-        let mut constr = rcx.check_constr();
-        check_constraint(self.genv, env, constraint, self.tag, &mut constr);
+        match constraint {
+            Constraint::Type(path, ty) => {
+                let actual_ty = env.lookup_path(rcx, self, path);
+                let mut constr = rcx.check_constr();
+                subtyping(self.genv, &mut constr, &actual_ty, ty, self.tag);
+            }
+            Constraint::Pred(e) => {
+                let constr = &mut rcx.check_constr();
+                constr.push_head(e.clone(), self.tag);
+            }
+        }
     }
 
     pub fn check_pred(&mut self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
@@ -86,10 +95,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         subtyping(self.genv, &mut constr, ty1, ty2, self.tag);
     }
 
-    pub fn check_fn_call<Env: PathMap>(
+    pub fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
-        env: &mut Env,
+        env: &mut TypeEnv,
         fn_sig: &PolySig,
         substs: &[Ty],
         actuals: &[Ty],
@@ -150,28 +159,39 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check preconditions
         for constraint in fn_sig.requires() {
-            check_constraint(self.genv, env, constraint, self.tag, constr);
+            self.check_constraint(rcx, env, constraint);
         }
 
         Ok(CallOutput { ret: fn_sig.ret().clone(), ensures: fn_sig.ensures().clone() })
     }
-}
 
-fn check_constraint<Env: PathMap>(
-    genv: &GlobalEnv,
-    env: &Env,
-    constraint: &Constraint,
-    tag: Tag,
-    constr: &mut ConstrBuilder,
-) {
-    match constraint {
-        Constraint::Type(path, ty) => {
-            let actual_ty = env.get(path);
-            subtyping(genv, constr, &actual_ty, ty, tag);
+    pub fn check_constructor(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        variant: &PolyVariant,
+        substs: &[Ty],
+        fields: &[Ty],
+    ) -> Result<Ty, InferenceError> {
+        // Generate fresh kvars for generic types
+        let substs = substs
+            .iter()
+            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .collect_vec();
+
+        // Infer refinement parameters
+        let exprs = param_infer::infer_from_constructor(&fields, variant)?;
+        let variant = variant
+            .replace_generic_types(&substs)
+            .replace_bound_vars(&exprs);
+
+        let constr = &mut rcx.check_constr();
+
+        // Check arguments
+        for (actual, formal) in iter::zip(fields, variant.fields()) {
+            subtyping(self.genv, constr, &actual, formal, self.tag);
         }
-        Constraint::Pred(e) => {
-            constr.push_head(e.clone(), tag);
-        }
+
+        Ok(variant.ret)
     }
 }
 

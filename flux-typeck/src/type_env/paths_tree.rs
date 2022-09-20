@@ -601,24 +601,22 @@ impl Node {
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let fn_sig = gen.genv.variant_sig(adt_def.def_id(), *variant_idx);
-                let actuals = children
+                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx);
+                let fields = children
                     .iter_mut()
                     .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
 
-                let partially_moved = actuals.iter().any(|ty| ty.is_uninit());
+                let partially_moved = fields.iter().any(|ty| ty.is_uninit());
                 if partially_moved {
                     *self = Node::owned(Ty::uninit());
                     Ty::uninit()
                 } else {
-                    let env = &mut FxHashMap::default();
                     let output = gen
-                        .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
+                        .check_constructor(rcx, &variant, substs, &fields)
                         .unwrap();
-                    assert!(output.ensures.is_empty());
-                    *self = Node::owned(output.ret.clone());
-                    output.ret
+                    *self = Node::owned(output.clone());
+                    output
                 }
             }
             Node::Internal(NodeKind::Uninit, _) => {
