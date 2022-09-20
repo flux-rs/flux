@@ -4,7 +4,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{FloatTy, IntTy, ParamTy, UintTy},
+    ty::{FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
 };
 
 use crate::intern::{impl_internable, Interned, List};
@@ -52,6 +52,7 @@ struct TyS {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Adt(DefId, List<GenericArg>),
+    Array(Ty, Const),
     Bool,
     Str,
     Float(FloatTy),
@@ -61,6 +62,22 @@ pub enum TyKind {
     Ref(Ty, Mutability),
     Tuple(List<Ty>),
     Uint(UintTy),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub struct Const {
+    pub ty: Ty,
+    pub kind: ConstKind,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum ConstKind {
+    Value(ValTree),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum ValTree {
+    Leaf(ScalarInt),
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -87,6 +104,10 @@ impl TyKind {
 impl Ty {
     pub fn mk_adt(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
         TyKind::Adt(def_id, substs.into()).intern()
+    }
+
+    pub fn mk_array(ty: Ty, c: Const) -> Ty {
+        TyKind::Array(ty, c).intern()
     }
 
     pub fn mk_bool() -> Ty {
@@ -169,6 +190,7 @@ impl std::fmt::Debug for Ty {
             TyKind::Param(param_ty) => write!(f, "{param_ty}"),
             TyKind::Ref(ty, Mutability::Mut) => write!(f, "&mut {ty:?}"),
             TyKind::Ref(ty, Mutability::Not) => write!(f, "&{ty:?}"),
+            TyKind::Array(ty, c) => write!(f, "[{ty:?}; {c:?}]"),
             TyKind::Tuple(tys) => {
                 write!(
                     f,
@@ -177,6 +199,22 @@ impl std::fmt::Debug for Ty {
                         .format_with(", ", |ty, f| f(&format_args!("{:?}", ty)))
                 )
             }
+        }
+    }
+}
+
+impl std::fmt::Debug for Const {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.kind {
+            ConstKind::Value(val) => write!(f, "{val:?}"),
+        }
+    }
+}
+
+impl std::fmt::Debug for ValTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValTree::Leaf(scalar) => write!(f, "{scalar:?}"),
         }
     }
 }

@@ -251,6 +251,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             rustc::ty::TyKind::Str => ty::BaseTy::Str,
+            rustc::ty::TyKind::Array(_, _) => todo!(),
         };
         let sorts = bty.sorts();
         if sorts.is_empty() {
