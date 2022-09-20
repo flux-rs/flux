@@ -607,6 +607,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let sig = self.genv.variant_sig(*def_id, *variant_idx);
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
+            Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
+                todo!()
+            }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
         }
     }

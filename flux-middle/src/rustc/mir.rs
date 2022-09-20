@@ -131,6 +131,7 @@ pub enum Rvalue {
 
 pub enum AggregateKind {
     Adt(DefId, VariantIdx, List<GenericArg>),
+    Array(Ty),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -411,6 +412,9 @@ impl fmt::Debug for Rvalue {
                         args.iter().format(", ")
                     )
                 }
+            }
+            Rvalue::Aggregate(AggregateKind::Array(_), args) => {
+                write!(f, "[{:?}]", args.iter().format(", "))
             }
         }
     }

@@ -313,8 +313,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
                 Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs)?))
             }
+            rustc_mir::AggregateKind::Array(ty) => {
+                Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
+            }
             rustc_mir::AggregateKind::Adt(..)
-            | rustc_mir::AggregateKind::Array(_)
             | rustc_mir::AggregateKind::Tuple
             | rustc_mir::AggregateKind::Closure(_, _)
             | rustc_mir::AggregateKind::Generator(_, _, _) => {
@@ -510,15 +512,15 @@ pub fn lower_fn_sig<'tcx>(
 
 pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, ErrorGuaranteed> {
     match ty.kind() {
-        rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
+        rustc_middle::ty::Ref(_region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))
         }
-        rustc_middle::ty::TyKind::Bool => Ok(Ty::mk_bool()),
-        rustc_middle::ty::TyKind::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
-        rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
-        rustc_middle::ty::TyKind::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
-        rustc_middle::ty::TyKind::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
-        rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
+        rustc_middle::ty::Bool => Ok(Ty::mk_bool()),
+        rustc_middle::ty::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
+        rustc_middle::ty::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
+        rustc_middle::ty::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
+        rustc_middle::ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
+        rustc_middle::ty::Adt(adt_def, substs) => {
             let substs = List::from_vec(
                 substs
                     .iter()
@@ -529,7 +531,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
         }
         rustc_middle::ty::Never => Ok(Ty::mk_never()),
         rustc_middle::ty::Str => Ok(Ty::mk_str()),
-        rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
+        rustc_middle::ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
         _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
     }
 }
