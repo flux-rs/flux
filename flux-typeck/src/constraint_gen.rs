@@ -5,7 +5,7 @@ use flux_middle::{
     rustc::mir::BasicBlock,
     ty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
-        Pred, RefKind, Sort, Ty, TyKind,
+        PolyVariant, Pred, RefKind, Sort, Ty, TyKind,
     },
 };
 use itertools::{izip, Itertools};
@@ -154,6 +154,35 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
 
         Ok(CallOutput { ret: fn_sig.ret().clone(), ensures: fn_sig.ensures().clone() })
+    }
+
+    pub fn check_constructor(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        variant: &PolyVariant,
+        substs: &[Ty],
+        fields: &[Ty],
+    ) -> Result<Ty, InferenceError> {
+        // Generate fresh kvars for generic types
+        let substs = substs
+            .iter()
+            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .collect_vec();
+
+        // Infer refinement parameters
+        let exprs = param_infer::infer_from_constructor(&fields, variant)?;
+        let variant = variant
+            .replace_generic_types(&substs)
+            .replace_bound_vars(&exprs);
+
+        let constr = &mut rcx.check_constr();
+
+        // Check arguments
+        for (actual, formal) in iter::zip(fields, variant.fields()) {
+            subtyping(self.genv, constr, &actual, formal, self.tag);
+        }
+
+        Ok(variant.ret)
     }
 }
 

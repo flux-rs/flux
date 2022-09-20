@@ -29,7 +29,7 @@ pub struct AdtDefData {
     flags: AdtFlags,
 }
 
-pub(crate) type PolyVariant = Binders<VariantDef>;
+pub type PolyVariant = Binders<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VariantDef {
@@ -313,6 +313,10 @@ impl AdtDef {
 impl VariantDef {
     pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
         VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
     }
 }
 
