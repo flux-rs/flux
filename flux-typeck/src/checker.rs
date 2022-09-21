@@ -927,12 +927,12 @@ impl Phase for Inference<'_> {
         modified
     }
 
-    fn clear(&mut self, bb: BasicBlock) {
-        self.bb_envs.remove(&bb);
-    }
-
     fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred> {
         Binders::new(Pred::Hole, sorts)
+    }
+
+    fn clear(&mut self, bb: BasicBlock) {
+        self.bb_envs.remove(&bb);
     }
 }
 
@@ -972,12 +972,12 @@ impl Phase for Check<'_> {
         !ck.visited.contains(target)
     }
 
-    fn clear(&mut self, _bb: BasicBlock) {
-        unreachable!();
-    }
-
     fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred> {
         self.kvars.fresh(sorts, [])
+    }
+
+    fn clear(&mut self, _bb: BasicBlock) {
+        unreachable!();
     }
 }
 
