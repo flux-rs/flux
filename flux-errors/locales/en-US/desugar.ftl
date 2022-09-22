@@ -23,3 +23,6 @@ desugar-refined-type-param =
 desugar-refined-float =
     floats cannot be refined
     .label = this float has a refinement
+
+desugar-invalid-array-len =
+    unsupported or invalid array length

@@ -232,6 +232,18 @@ impl<'a> DesugarCtxt<'a> {
                 let ty = self.desugar_ty(*ty)?;
                 Ty::Constr(pred, Box::new(ty))
             }
+            surface::TyKind::Array(ty, len) => {
+                let span = len.span;
+                let Lit::Int(len) = self.params.desugar_lit(len)? else {
+                    return Err(self.params.sess.emit_err(errors::InvalidArrayLen { span }))
+                };
+                let len: usize = len
+                    .try_into()
+                    .map_err(|_| self.params.sess.emit_err(errors::InvalidArrayLen { span }))?;
+
+                let ty = self.desugar_ty(*ty)?;
+                Ty::Array(Box::new(ty), len)
+            }
         };
         Ok(ty)
     }
@@ -449,18 +461,16 @@ impl ParamsCtxt<'_> {
                 }
                 Ok(())
             }
-            surface::TyKind::StrgRef(_, ty) | surface::TyKind::Ref(_, ty) => {
-                self.ty_gather_params(ty, adt_sorts)
-            }
+            surface::TyKind::StrgRef(_, ty)
+            | surface::TyKind::Ref(_, ty)
+            | surface::TyKind::Array(ty, _) => self.ty_gather_params(ty, adt_sorts),
             surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_sorts),
-
             surface::TyKind::Path(path) => {
                 for ty in &path.args {
                     self.ty_gather_params(ty, adt_sorts)?;
                 }
                 Ok(())
             }
-
             surface::TyKind::Exists { .. } | surface::TyKind::Unit => Ok(()),
         }
     }
@@ -585,6 +595,15 @@ mod errors {
     pub struct RefinedFloat {
         #[primary_span]
         #[label]
+        pub span: Span,
+    }
+
+    // TODO(nilehmann) this probably should be part of the code that checks
+    // if a flux signature is a valid refinement of a rust signature
+    #[derive(SessionDiagnostic)]
+    #[error(desugar::invalid_array_len, code = "FLUX")]
+    pub struct InvalidArrayLen {
+        #[primary_span]
         pub span: Span,
     }
 }

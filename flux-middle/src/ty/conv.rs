@@ -270,6 +270,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let pred = conv_expr(pred, &self.name_map, nbinders);
                 ty::Ty::constr(pred, self.conv_ty(ty, nbinders))
             }
+            core::Ty::Array(ty, len) => {
+                let len = ty::Const::from_usize(self.genv.tcx, *len as u128);
+                ty::Ty::array(self.conv_ty(ty, nbinders), len)
+            }
         }
     }
 
