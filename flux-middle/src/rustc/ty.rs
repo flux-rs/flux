@@ -157,7 +157,7 @@ impl Ty {
 }
 
 impl Const {
-    pub fn from_usize<'tcx>(tcx: TyCtxt<'tcx>, bits: u128) -> Self {
+    pub fn from_usize(tcx: TyCtxt, bits: u128) -> Self {
         let size = tcx
             .layout_of(rustc_middle::ty::ParamEnv::empty().and(tcx.types.usize))
             .unwrap()

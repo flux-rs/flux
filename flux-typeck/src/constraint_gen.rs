@@ -179,7 +179,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_constructor(&fields, variant)?;
+        let exprs = param_infer::infer_from_constructor(fields, variant)?;
         let variant = variant
             .replace_generic_types(&substs)
             .replace_bound_vars(&exprs);
@@ -188,7 +188,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
-            subtyping(self.genv, constr, &actual, formal, self.tag);
+            subtyping(self.genv, constr, actual, formal, self.tag);
         }
 
         Ok(variant.ret)

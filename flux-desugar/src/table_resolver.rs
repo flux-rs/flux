@@ -550,8 +550,8 @@ pub mod errors {
     pub struct RefKindMismatch {
         #[primary_span]
         pub span: Span,
-        pub flux_ref: String,
-        pub rust_ref: String,
+        pub flux_ref: &'static str,
+        pub rust_ref: &'static str,
     }
 
     impl RefKindMismatch {
@@ -559,12 +559,12 @@ pub mod errors {
             Self {
                 span,
                 flux_ref: match ref_kind {
-                    RefKind::Mut => format!("&mut"),
-                    RefKind::Shr => format!("&"),
+                    RefKind::Mut => "&mut",
+                    RefKind::Shr => "&",
                 },
                 rust_ref: match mutability {
-                    Mutability::Mut => format!("&mut"),
-                    Mutability::Not => format!("&"),
+                    Mutability::Mut => "&mut",
+                    Mutability::Not => "&",
                 },
             }
         }
