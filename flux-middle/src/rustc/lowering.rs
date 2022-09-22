@@ -21,7 +21,8 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty, VariantDef,
+        Const, ConstKind, EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
+        Generics, Ty, ValTree, VariantDef,
     },
 };
 use crate::intern::List;
@@ -313,8 +314,10 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
                 Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs)?))
             }
+            rustc_mir::AggregateKind::Array(ty) => {
+                Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
+            }
             rustc_mir::AggregateKind::Adt(..)
-            | rustc_mir::AggregateKind::Array(_)
             | rustc_mir::AggregateKind::Tuple
             | rustc_mir::AggregateKind::Closure(_, _)
             | rustc_mir::AggregateKind::Generator(_, _, _) => {
@@ -510,15 +513,13 @@ pub fn lower_fn_sig<'tcx>(
 
 pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, ErrorGuaranteed> {
     match ty.kind() {
-        rustc_middle::ty::TyKind::Ref(_region, ty, mutability) => {
-            Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability))
-        }
-        rustc_middle::ty::TyKind::Bool => Ok(Ty::mk_bool()),
-        rustc_middle::ty::TyKind::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
-        rustc_middle::ty::TyKind::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
-        rustc_middle::ty::TyKind::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
-        rustc_middle::ty::TyKind::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
-        rustc_middle::ty::TyKind::Adt(adt_def, substs) => {
+        rustc_ty::Ref(_region, ty, mutability) => Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability)),
+        rustc_ty::Bool => Ok(Ty::mk_bool()),
+        rustc_ty::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
+        rustc_ty::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
+        rustc_ty::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
+        rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
+        rustc_ty::Adt(adt_def, substs) => {
             let substs = List::from_vec(
                 substs
                     .iter()
@@ -527,10 +528,36 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
             );
             Ok(Ty::mk_adt(adt_def.did(), substs))
         }
-        rustc_middle::ty::Never => Ok(Ty::mk_never()),
-        rustc_middle::ty::Str => Ok(Ty::mk_str()),
-        rustc_middle::ty::TyKind::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
+        rustc_ty::Never => Ok(Ty::mk_never()),
+        rustc_ty::Str => Ok(Ty::mk_str()),
+        rustc_ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
+        rustc_ty::Array(ty, c) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *c)?)),
         _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
+    }
+}
+
+fn lower_const<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    c: rustc_ty::Const<'tcx>,
+) -> Result<Const, ErrorGuaranteed> {
+    let kind = match c.kind() {
+        rustc_ty::ConstKind::Value(val) => ConstKind::Value(lower_valtree(tcx, val)?),
+        rustc_ty::ConstKind::Param(_)
+        | rustc_ty::ConstKind::Infer(_)
+        | rustc_ty::ConstKind::Bound(_, _)
+        | rustc_ty::ConstKind::Placeholder(_)
+        | rustc_ty::ConstKind::Unevaluated(_)
+        | rustc_ty::ConstKind::Error(_) => {
+            return emit_err(tcx, None, format!("unsupported const `{c:?}`"));
+        }
+    };
+    Ok(Const { ty: lower_ty(tcx, c.ty())?, kind })
+}
+
+fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGuaranteed> {
+    match val {
+        rustc_ty::ValTree::Leaf(scalar) => Ok(ValTree::Leaf(scalar)),
+        rustc_ty::ValTree::Branch(_) => emit_err(tcx, None, format!("unsupported valtree {val:?}")),
     }
 }
 

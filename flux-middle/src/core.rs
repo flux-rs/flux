@@ -95,6 +95,7 @@ pub enum Ty {
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
     Tuple(Vec<Ty>),
+    Array(Box<Ty>, usize),
     Never,
 }
 
@@ -277,6 +278,7 @@ impl fmt::Debug for Ty {
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             Ty::Never => write!(f, "!"),
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
+            Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
         }
     }
 }

@@ -1,6 +1,6 @@
 #![feature(rustc_private)]
 #![feature(min_specialization)]
-#![feature(box_patterns, once_cell)]
+#![feature(box_patterns, once_cell, let_else)]
 
 extern crate rustc_errors;
 extern crate rustc_hash;

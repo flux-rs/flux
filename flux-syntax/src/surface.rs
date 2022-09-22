@@ -101,9 +101,16 @@ pub enum TyKind<T = Ident> {
     /// ty
     Path(Path<T>),
     /// t[e]
-    Indexed { path: Path<T>, indices: Indices },
+    Indexed {
+        path: Path<T>,
+        indices: Indices,
+    },
     /// ty{b:e}
-    Exists { bind: Ident, path: Path<T>, pred: Expr },
+    Exists {
+        bind: Ident,
+        path: Path<T>,
+        pred: Expr,
+    },
     /// Mutable or shared reference
     Ref(RefKind, Box<Ty<T>>),
     /// Strong reference, &strg<self: i32>
@@ -112,6 +119,7 @@ pub enum TyKind<T = Ident> {
     Constr(Expr, Box<Ty<T>>),
     /// ()
     Unit,
+    Array(Box<Ty<T>>, Lit),
 }
 
 #[derive(Debug, Clone)]
@@ -363,6 +371,7 @@ pub mod expand {
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
+            TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
         }
     }
 
@@ -473,6 +482,7 @@ pub mod expand {
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
+            TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
         }
     }
 }

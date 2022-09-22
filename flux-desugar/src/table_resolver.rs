@@ -197,6 +197,10 @@ impl<'genv> Resolver<'genv> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))
             }
+            surface::TyKind::Array(ty, len) => {
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::Array(Box::new(ty), len)
+            }
         };
         Ok(surface::Ty { kind, span: ty.span })
     }
@@ -379,15 +383,17 @@ impl<'a> NameResTable<'a> {
             self.res.insert(sym, res);
         }
         match &ty.kind() {
-            rustc_middle::ty::TyKind::Adt(_, args) => {
+            rustc_middle::ty::Adt(_, args) => {
                 for arg in args.iter() {
                     if let rustc_middle::ty::GenericArgKind::Type(ty) = arg.unpack() {
                         self.collect_from_rustc_ty(&ty)?
                     }
                 }
             }
-            rustc_middle::ty::TyKind::Ref(_, ty, _) => self.collect_from_rustc_ty(ty)?,
-            rustc_middle::ty::TyKind::Tuple(tys) => {
+            rustc_middle::ty::Ref(_, ty, _) | rustc_middle::ty::Array(ty, _) => {
+                self.collect_from_rustc_ty(ty)?
+            }
+            rustc_middle::ty::Tuple(tys) => {
                 for ty in tys.iter() {
                     self.collect_from_rustc_ty(&ty)?
                 }
@@ -544,8 +550,8 @@ pub mod errors {
     pub struct RefKindMismatch {
         #[primary_span]
         pub span: Span,
-        pub flux_ref: String,
-        pub rust_ref: String,
+        pub flux_ref: &'static str,
+        pub rust_ref: &'static str,
     }
 
     impl RefKindMismatch {
@@ -553,12 +559,12 @@ pub mod errors {
             Self {
                 span,
                 flux_ref: match ref_kind {
-                    RefKind::Mut => format!("&mut"),
-                    RefKind::Shr => format!("&"),
+                    RefKind::Mut => "&mut",
+                    RefKind::Shr => "&",
                 },
                 rust_ref: match mutability {
-                    Mutability::Mut => format!("&mut"),
-                    Mutability::Not => format!("&"),
+                    Mutability::Mut => "&mut",
+                    Mutability::Not => "&",
                 },
             }
         }
