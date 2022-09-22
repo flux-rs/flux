@@ -1,8 +1,8 @@
 use std::iter;
 
 use flux_middle::ty::{
-    subst::FVarSubst, BaseTy, Constraint, Expr, ExprKind, Name, Path, PolySig, Ty, TyKind,
-    INNERMOST,
+    subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, Name, Path, PolySig,
+    PolyVariant, Ty, TyKind, INNERMOST,
 };
 use rustc_hash::FxHashMap;
 
@@ -13,12 +13,26 @@ type Exprs = FxHashMap<usize, Expr>;
 #[derive(Debug, Eq, PartialEq)]
 pub struct InferenceError;
 
+pub fn infer_from_constructor(
+    fields: &[Ty],
+    variant: &PolyVariant,
+) -> Result<Vec<Expr>, InferenceError> {
+    debug_assert_eq!(fields.len(), variant.skip_binders().fields().len());
+    let mut exprs = Exprs::default();
+
+    for (actual, formal) in iter::zip(fields, variant.skip_binders().fields()) {
+        infer_from_tys(&mut exprs, &FxHashMap::default(), actual, &FxHashMap::default(), formal);
+    }
+
+    collect(variant, exprs)
+}
+
 pub fn infer_from_fn_call<M: PathMap>(
     env: &M,
     actuals: &[Ty],
     fn_sig: &PolySig,
 ) -> Result<Vec<Expr>, InferenceError> {
-    assert!(actuals.len() == fn_sig.skip_binders().args().len());
+    debug_assert_eq!(actuals.len(), fn_sig.skip_binders().args().len());
 
     let mut exprs = Exprs::default();
     let requires: FxHashMap<Path, Ty> = fn_sig
@@ -34,12 +48,15 @@ pub fn infer_from_fn_call<M: PathMap>(
         })
         .collect();
 
-    for (actual, formal) in actuals.iter().zip(fn_sig.skip_binders().args().iter()) {
+    for (actual, formal) in iter::zip(actuals, fn_sig.skip_binders().args()) {
         infer_from_tys(&mut exprs, env, actual, &requires, formal);
     }
 
-    fn_sig
-        .params()
+    collect(fn_sig, exprs)
+}
+
+fn collect<T>(t: &Binders<T>, mut exprs: Exprs) -> Result<Vec<Expr>, InferenceError> {
+    t.params()
         .iter()
         .enumerate()
         .map(|(idx, _)| exprs.remove(&idx).ok_or(InferenceError))

@@ -79,6 +79,10 @@ impl TypeEnv {
         self.bindings.lookup_place(rcx, gen, place).ty()
     }
 
+    pub fn lookup_path(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, path: &Path) -> Ty {
+        self.bindings.lookup_path(rcx, gen, path).ty()
+    }
+
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
         self.bindings.update(path, new_ty);
     }
@@ -371,6 +375,7 @@ impl TypeEnvInfer {
                 let substs = substs.iter().map(|ty| Self::pack_ty(scope, ty));
                 BaseTy::adt(adt_def.clone(), substs)
             }
+            BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Str => bty.clone(),
         }
     }

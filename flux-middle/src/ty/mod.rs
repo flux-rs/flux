@@ -9,11 +9,11 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
-pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, UintTy};
+pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
-pub use crate::core::RefKind;
+pub use crate::{core::RefKind, rustc::ty::Const};
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::{Place, PlaceElem},
@@ -29,7 +29,7 @@ pub struct AdtDefData {
     flags: AdtFlags,
 }
 
-pub(crate) type PolyVariant = Binders<VariantDef>;
+pub type PolyVariant = Binders<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VariantDef {
@@ -131,6 +131,7 @@ pub enum BaseTy {
     Uint(UintTy),
     Bool,
     Str,
+    Array(Ty, Const),
     Adt(AdtDef, Substs),
 }
 
@@ -314,11 +315,19 @@ impl VariantDef {
     pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
         VariantDef { fields: List::from_vec(fields), ret }
     }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
+    }
 }
 
 impl Ty {
     pub fn ptr(rk: RefKind, path: impl Into<Path>) -> Ty {
         TyKind::Ptr(rk, path.into()).intern()
+    }
+
+    pub fn array(ty: Ty, c: Const) -> Ty {
+        TyKind::Exists(BaseTy::Array(ty, c), Binders::new(Pred::tt(), vec![])).intern()
     }
 
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
@@ -492,7 +501,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Str => &[],
+            BaseTy::Str | BaseTy::Array(..) => &[],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
         }
     }
@@ -588,7 +597,7 @@ impl Expr {
                 ExprKind::Constant(Constant::from(bits)).intern()
             }
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(_, _) | BaseTy::Str => panic!(),
+            BaseTy::Adt(_, _) | BaseTy::Array(..) | BaseTy::Str => panic!(),
         }
     }
 
@@ -1047,6 +1056,7 @@ mod pretty {
             BaseTy::Bool => w!("bool")?,
             BaseTy::Str => w!("str")?,
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
+            BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
         }
         if let BaseTy::Adt(_, args) = bty {
             if !args.is_empty() || !indices.is_empty() {

@@ -167,13 +167,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
         match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id)) {
-            Ok(fn_sig) => self.refine_fn_sig(&fn_sig, &mut |_| ty::Pred::tt()),
+            Ok(fn_sig) => {
+                self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
+            }
             Err(_) => FatalError.raise(),
         }
     }
 
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> ty::Ty {
-        self.refine_ty(rustc_ty, &mut |_| ty::Pred::tt())
+        self.refine_ty(rustc_ty, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
     }
 
     pub fn default_type_of(&self, def_id: DefId) -> ty::Ty {
@@ -206,7 +208,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_fn_sig(
         &self,
         fn_sig: &rustc::ty::FnSig,
-        mk_pred: &mut impl FnMut(&[ty::Sort]) -> ty::Pred,
+        mk_pred: &mut impl FnMut(&[ty::Sort]) -> Binders<ty::Pred>,
     ) -> ty::PolySig {
         let args = fn_sig
             .inputs()
@@ -220,7 +222,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_ty(
         &self,
         ty: &rustc::ty::Ty,
-        mk_pred: &mut impl FnMut(&[ty::Sort]) -> ty::Pred,
+        mk_pred: &mut impl FnMut(&[ty::Sort]) -> Binders<ty::Pred>,
     ) -> ty::Ty {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Never => return ty::Ty::never(),
@@ -251,12 +253,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Int(int_ty) => ty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
             rustc::ty::TyKind::Str => ty::BaseTy::Str,
+            rustc::ty::TyKind::Array(ty, len) => {
+                ty::BaseTy::Array(self.refine_ty(ty, mk_pred), len.clone())
+            }
         };
         let sorts = bty.sorts();
         if sorts.is_empty() {
             ty::Ty::indexed(bty, vec![])
         } else {
-            let pred = ty::Binders::new(mk_pred(sorts), sorts);
+            let pred = mk_pred(sorts);
             ty::Ty::exists(bty, pred)
         }
     }
@@ -264,7 +269,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_generic_arg(
         &self,
         ty: &rustc::ty::GenericArg,
-        mk_pred: &mut impl FnMut(&[ty::Sort]) -> ty::Pred,
+        mk_pred: &mut impl FnMut(&[ty::Sort]) -> Binders<ty::Pred>,
     ) -> ty::Ty {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),

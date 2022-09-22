@@ -117,6 +117,8 @@ TyKind: surface::TyKind = {
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
     <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },
 
+    "[" <ty:Ty> ";"  <len:Lit> "]" => surface::TyKind::Array(Box::new(ty), len),
+
     "(" ")"  => surface::TyKind::Unit
 }
 
