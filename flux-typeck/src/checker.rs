@@ -613,11 +613,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
-                let c = Const::from_usize(self.genv.tcx, args.len() as u128);
+                let len = Const::from_usize(self.genv.tcx, args.len() as u128);
+                let args = args
+                    .iter()
+                    .map(|op| self.check_operand(rcx, env, src_info, op))
+                    .collect_vec();
                 let ty = self
                     .genv
                     .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts));
-                Ok(Ty::array(ty, c))
+                let mut gen = self.phase.constr_gen(self.genv, rcx, Tag::Other);
+                for arg in args {
+                    gen.subtyping(rcx, &arg, &ty);
+                }
+                Ok(Ty::array(ty, len))
             }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
         }
