@@ -17,8 +17,8 @@ use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
 pub trait AdtSortsMap {
-    fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]>;
-    fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]>;
+    fn get_sorts(&self, def_id: DefId) -> Option<Vec<Sort>>;
+    fn get_fields(&self, def_id: DefId) -> Option<Vec<Symbol>>;
 }
 
 #[derive(Debug)]
@@ -212,12 +212,14 @@ impl<S> AdtSortsMap for std::collections::HashMap<DefId, AdtSortInfo, S>
 where
     S: std::hash::BuildHasher,
 {
-    fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
-        self.get(&def_id).map(|info| info.sorts.as_slice())
+    fn get_sorts(&self, def_id: DefId) -> Option<Vec<Sort>> {
+        let info = self.get(&def_id)?;
+        Some(info.sorts.clone())
     }
 
-    fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
-        self.get(&def_id).map(|info| info.fields.as_slice())
+    fn get_fields(&self, def_id: DefId) -> Option<Vec<Symbol>> {
+        let info = self.get(&def_id)?;
+        Some(info.fields.clone())
     }
 }
 
