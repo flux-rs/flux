@@ -176,8 +176,11 @@ impl<'a> DesugarCtxt<'a> {
                         .push(Constraint::Pred(self.params.desugar_expr(pred)?));
                 }
                 let bty = self.desugar_path_into_bty(path);
-                let idx = Index { expr: self.params.desugar_var(bind)?, is_binder: true };
-                let indices = Indices { indices: vec![idx], span: bind.span };
+
+                let indices = Indices { indices: self.desugar_bind(bind)?, span: bind.span };
+                // let idx = Index { expr: self.params.desugar_var(bind)?, is_binder: true };
+                // let indices = Indices { indices: vec![idx], span: bind.span };
+
                 Ok(Ty::Indexed(bty?, indices))
             }
             surface::Arg::StrgRef(loc, ty) => {
