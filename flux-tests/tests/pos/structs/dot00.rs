@@ -15,10 +15,10 @@ pub fn sum_pair(p: Pair) -> i32 {
     p.x + p.y + 1
 }
 
-// #[flux::sig(fn (p:Pair) -> i32[p.x + p.y])]
-// pub fn sum_pair(p: Pair) -> i32 {
-// p.x + p.y
-// }
+#[flux::sig(fn (p:Pair) -> i32[p.x + p.y])]
+pub fn sum_pair(p: Pair) -> i32 {
+    p.x + p.y
+}
 
 // // forall a0: int, a1: int. fn(Pair<a0, a1>) -> i32<a0>
 // #[flux::sig(fn (p: Pair) -> i32[p.x])]
