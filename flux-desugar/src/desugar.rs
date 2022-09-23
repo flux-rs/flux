@@ -157,6 +157,7 @@ struct ParamsCtxt<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
+    dot_name_map: FxHashMap<(Symbol, Symbol), Name>,
     const_map: FxHashMap<Symbol, DefId>,
     params: Vec<Param>,
 }
@@ -319,6 +320,7 @@ impl ParamsCtxt<'_> {
             sess,
             name_gen: IndexGen::new(),
             name_map: FxHashMap::default(),
+            dot_name_map: FxHashMap::default(),
             params: vec![],
             const_map,
         }
@@ -333,8 +335,14 @@ impl ParamsCtxt<'_> {
                 let e2 = self.desugar_expr(*e2);
                 ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
+            surface::ExprKind::Dot(e, fld) => self.desugar_dot(*e, fld),
         };
         Ok(Expr { kind, span: Some(expr.span) })
+    }
+
+    fn desugar_dot(&self, expr: surface::Expr, fld: Symbol) -> Result<ExprKind, ErrorGuaranteed> {
+        if let surface::ExprKind::Var(var) = expr.kind {}
+        Err(self.sess.emit_err(errors::InvalidDotExpr::new(expr)))
     }
 
     fn fresh(&self) -> Name {
@@ -379,6 +387,14 @@ impl ParamsCtxt<'_> {
             return Ok(Expr { kind, span: Some(ident.span) });
         }
         Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
+    }
+
+    fn desugar_dot(&self, ident: surface::Ident, fld: Symbol) -> Result<Expr, ErrorGuaranteed> {
+        if let Some(&name) = self.dot_name_map.get((&ident.name, fld)) {
+            let kind = ExprKind::Var(name, ident.name, ident.span);
+            return Ok(Expr { kind, span: Some(ident.span) });
+        }
+        Err(self.sess.emit_err(errors::UnresolvedDotVar::new(ident)))
     }
 
     fn desugar_ident(&self, ident: surface::Ident) -> Result<Ident, ErrorGuaranteed> {

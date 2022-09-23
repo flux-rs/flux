@@ -169,6 +169,13 @@ Level7: surface::Expr = {
             span: mk_span(lo, hi),
         }
     },
+    <lo:@L> <var:Ident> "." <fld:Ident> <hi:@R> => {
+        let expr  = surface::Expr { kind: surface::ExprKind::Var(var), span: var.span};
+        surface::Expr {
+            kind: surface::ExprKind::Dot(Box::new(expr), fld),
+            span: mk_span(lo, hi),
+        }
+    },
     <lo:@L> <var:Ident> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::Var(var),
         span: mk_span(lo, hi),
