@@ -219,14 +219,12 @@ impl<'a> DesugarCtxt<'a> {
                 let bty = self.desugar_path_into_bty(path);
 
                 // HEREHEREHEREHEREHERE
-                let fresh = self.params.fresh();
-                let pred = self
+                // let fresh = self.params.fresh();
+                let (binders, pred) = self
                     .params
-                    .with_name_map(bind.name, fresh, |params| params.desugar_expr(pred))?;
+                    .with_name_map(bind, |params| params.desugar_expr(pred));
 
-                let binders = vec![Ident { name: fresh, source_info: (bind.span, bind.name) }];
-
-                Ty::Exists(bty?, binders, pred)
+                Ty::Exists(bty?, binders, pred?)
             }
             surface::TyKind::Ref(rk, ty) => {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
@@ -380,15 +378,22 @@ impl ParamsCtxt<'_> {
         self.name_gen.fresh()
     }
 
-    fn with_name_map<R>(&mut self, symb: Symbol, name: Name, f: impl FnOnce(&mut Self) -> R) -> R {
+    fn with_name_map<R>(
+        &mut self,
+        bind: surface::Ident,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> (Vec<Ident>, R) {
+        let name = self.fresh();
+        let symb = bind.name;
         let old = self.name_map.insert(symb, name);
         let r = f(self);
         if let Some(old) = old {
             self.name_map.insert(symb, old);
         } else {
             self.name_map.remove(&symb);
-        }
-        r
+        };
+        let binders = vec![Ident { name, source_info: (bind.span, symb) }];
+        (binders, r)
     }
 
     fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorGuaranteed> {
