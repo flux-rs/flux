@@ -9,6 +9,7 @@ use std::fmt::Write;
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
@@ -199,6 +200,8 @@ impl StructDef {
         self.refined_by.iter().map(|param| param.sort).collect()
     }
 }
+
+pub type AdtSorts = FxHashMap<DefId, AdtSortInfo>;
 
 pub struct AdtSortInfo {
     pub fields: Vec<Symbol>,

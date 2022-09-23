@@ -32,11 +32,11 @@ pub fn mk_pair1(a: i32, b: i32) -> Pair {
     Pair { x: a, y: b }
 }
 
-// // forall a: int, b: int. fn(i32<a>, i32<b>) -> Pair{v0 v1: v0 == a && v1 == b}
-// #[flux::sig(fn (a: i32, b: i32) -> Pair {v : v.x == a && v.y == b})]
-// pub fn mk_pair2(a: i32, b: i32) -> Pair {
-//     Pair { x: a, y: b }
-// }
+// forall a: int, b: int. fn(i32<a>, i32<b>) -> Pair{v0 v1: v0 == a && v1 == b}
+#[flux::sig(fn (a: i32, b: i32) -> Pair {v : v.x == a && v.y == b})]
+pub fn mk_pair2(a: i32, b: i32) -> Pair {
+    Pair { x: a, y: b }
+}
 
 // // forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 == a}
 // #[flux::sig(fn (a: i32) -> Pair{v : v.x == a})]

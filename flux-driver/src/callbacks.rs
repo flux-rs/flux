@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::{AdtSortInfo, Sort},
+    core::{AdtSortInfo, AdtSorts, Sort},
     global_env::{ConstInfo, GlobalEnv},
     rustc, ty,
 };
@@ -11,10 +11,7 @@ use flux_typeck::{self as typeck, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
-};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -103,7 +100,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let specs = SpecCollector::collect(genv.tcx, genv.sess)?;
 
         let mut assume = FxHashSet::default();
-        let mut adt_sorts: FxHashMap<DefId, AdtSortInfo> = FxHashMap::default();
+        let mut adt_sorts: AdtSorts = FxHashMap::default();
 
         // Ignore everything and go home
         if specs.ignores.contains(&IgnoreKey::Crate) {
@@ -237,7 +234,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 }
 
 fn register_adt_info(
-    adt_sorts: &mut FxHashMap<DefId, AdtSortInfo>,
+    adt_sorts: &mut AdtSorts,
     def_id: &LocalDefId,
     refined_by: &Params,
     sorts: Vec<Sort>,

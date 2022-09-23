@@ -4,8 +4,9 @@ use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{
-        AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
-        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, VariantDef,
+        AdtSorts, AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident,
+        Index, Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+        VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -67,7 +68,7 @@ pub fn desugar_struct_def(
 pub fn desugar_enum_def(
     sess: &FluxSession,
     consts: &[ConstInfo],
-    adt_sorts: &impl AdtSortsMap,
+    adt_sorts: &AdtSorts,
     enum_def: surface::EnumDef<Res>,
 ) -> Result<EnumDef, ErrorGuaranteed> {
     let mut params = ParamsCtxt::new(sess, consts);
@@ -85,7 +86,7 @@ pub fn desugar_enum_def(
 
 fn desugar_variant(
     sess: &FluxSession,
-    adt_sorts: &impl AdtSortsMap,
+    adt_sorts: &AdtSorts,
     consts: &[ConstInfo],
     variant: surface::VariantDef<Res>,
 ) -> Result<VariantDef, ErrorGuaranteed> {
@@ -108,7 +109,7 @@ fn desugar_variant(
 
 pub fn desugar_fn_sig(
     sess: &FluxSession,
-    refined_by: &impl AdtSortsMap,
+    refined_by: &AdtSorts,
     consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
@@ -217,10 +218,11 @@ impl<'a> DesugarCtxt<'a> {
                 let fresh = self.params.fresh();
                 let pred = self
                     .params
-                    .with_name_map(bind.name, fresh, |params| params.desugar_expr(pred));
+                    .with_name_map(bind.name, fresh, |params| params.desugar_expr(pred))?;
 
                 let binders = vec![Ident { name: fresh, source_info: (bind.span, bind.name) }];
-                Ty::Exists(bty?, binders, pred?)
+
+                Ty::Exists(bty?, binders, pred)
             }
             surface::TyKind::Ref(rk, ty) => {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
@@ -472,7 +474,7 @@ impl ParamsCtxt<'_> {
         &mut self,
         ident: surface::Ident,
         path: &Path<Res>,
-        adt_sorts: &impl AdtSortsMap,
+        adt_sorts: &AdtSorts,
     ) -> Result<(), ErrorGuaranteed> {
         let sorts = self.sorts(path, adt_sorts)?;
         let slen = sorts.len();
@@ -509,7 +511,7 @@ impl ParamsCtxt<'_> {
     fn gather_fn_sig_params(
         &mut self,
         fn_sig: &surface::FnSig<Res>,
-        adt_sorts: &impl AdtSortsMap,
+        adt_sorts: &AdtSorts,
     ) -> Result<(), ErrorGuaranteed> {
         for arg in &fn_sig.args {
             self.arg_gather_params(arg, adt_sorts)?;
@@ -520,7 +522,7 @@ impl ParamsCtxt<'_> {
     fn arg_gather_params(
         &mut self,
         arg: &surface::Arg<Res>,
-        adt_sorts: &impl AdtSortsMap,
+        adt_sorts: &AdtSorts,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Indexed(bind, path, _) => {
@@ -548,7 +550,7 @@ impl ParamsCtxt<'_> {
     fn ty_gather_params(
         &mut self,
         ty: &surface::Ty<Res>,
-        adt_sorts: &impl AdtSortsMap,
+        adt_sorts: &AdtSorts,
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
@@ -739,7 +741,7 @@ mod errors {
     }
     impl UnresolvedDotField {
         pub fn new(ident: Ident, field: Ident) -> Self {
-            Self { span: ident.span, ident, field }
+            Self { span: field.span, ident, field }
         }
     }
 }
