@@ -157,7 +157,8 @@ struct ParamsCtxt<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
-    dot_name_map: FxHashMap<(Symbol, Symbol), Name>,
+    field_map: FxHashMap<(Symbol, Symbol), Name>,
+    dot_map: FxHashMap<Symbol, Vec<Name>>,
     const_map: FxHashMap<Symbol, DefId>,
     params: Vec<Param>,
 }
@@ -250,21 +251,41 @@ impl<'a> DesugarCtxt<'a> {
     }
 
     fn desugar_indices(&self, indices: surface::Indices) -> Result<Indices, ErrorGuaranteed> {
-        let exprs = indices
-            .indices
-            .into_iter()
-            .map(|idx| self.desugar_index(idx))
-            .try_collect_exhaust()?;
+        let mut exprs = vec![];
+        for idx in indices.indices {
+            let idxs = self.desugar_index(idx)?;
+            for e in idxs {
+                exprs.push(e)
+            }
+        }
         Ok(Indices { indices: exprs, span: indices.span })
     }
 
-    fn desugar_index(&self, idx: surface::Index) -> Result<Index, ErrorGuaranteed> {
-        match idx {
-            surface::Index::Bind(ident) => {
-                Ok(Index { expr: self.params.desugar_var(ident)?, is_binder: true })
+    fn desugar_bind(
+        &self,
+        ident: rustc_span::symbol::Ident,
+    ) -> Result<Vec<Index>, ErrorGuaranteed> {
+        match self.params.dot_map.get(&ident.name) {
+            Some(names) => {
+                let indices = names
+                    .iter()
+                    .map(|name| {
+                        let kind = ExprKind::Var(*name, ident.name, ident.span);
+                        Index { expr: Expr { kind, span: Some(ident.span) }, is_binder: true }
+                    })
+                    .collect();
+                Ok(indices)
             }
+
+            None => Ok(vec![Index { expr: self.params.desugar_var(ident)?, is_binder: true }]),
+        }
+    }
+
+    fn desugar_index(&self, idx: surface::Index) -> Result<Vec<Index>, ErrorGuaranteed> {
+        match idx {
+            surface::Index::Bind(ident) => self.desugar_bind(ident),
             surface::Index::Expr(expr) => {
-                Ok(Index { expr: self.params.desugar_expr(expr)?, is_binder: false })
+                Ok(vec![Index { expr: self.params.desugar_expr(expr)?, is_binder: false }])
             }
         }
     }
@@ -320,7 +341,8 @@ impl ParamsCtxt<'_> {
             sess,
             name_gen: IndexGen::new(),
             name_map: FxHashMap::default(),
-            dot_name_map: FxHashMap::default(),
+            dot_map: FxHashMap::default(),
+            field_map: FxHashMap::default(),
             params: vec![],
             const_map,
         }
@@ -381,6 +403,8 @@ impl ParamsCtxt<'_> {
             let kind = ExprKind::Const(did, ident.span);
             return Ok(Expr { kind, span: Some(ident.span) });
         }
+        // let dn = &self.dot_map;
+        // panic!("TRACE: {ident:?} {dn:?}");
         Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
     }
 
@@ -390,7 +414,7 @@ impl ParamsCtxt<'_> {
         fld: surface::Ident,
     ) -> Result<Expr, ErrorGuaranteed> {
         if let surface::ExprKind::Var(ident) = expr.kind {
-            if let Some(&name) = self.dot_name_map.get(&(ident.name, fld.name)) {
+            if let Some(&name) = self.field_map.get(&(ident.name, fld.name)) {
                 let kind = ExprKind::Var(name, ident.name, ident.span);
                 return Ok(Expr { kind, span: Some(ident.span) });
             }
@@ -417,15 +441,15 @@ impl ParamsCtxt<'_> {
         ident: surface::Ident,
         fld: Symbol,
         sort: Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result<Name, ErrorGuaranteed> {
         let fresh = self.name_gen.fresh();
         let source_info = (ident.span, ident.name);
-        if self.dot_name_map.insert((ident.name, fld), fresh).is_some() {
+        if self.field_map.insert((ident.name, fld), fresh).is_some() {
             return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
         };
         self.params
             .push(Param { name: Ident { name: fresh, source_info }, sort });
-        Ok(())
+        Ok(fresh)
     }
 
     fn push_param(&mut self, ident: surface::Ident, sort: Sort) -> Result<(), ErrorGuaranteed> {
@@ -457,9 +481,14 @@ impl ParamsCtxt<'_> {
             let fields = self.fields(path, adt_sorts)?;
             // TODO error message
             assert_eq!(slen, fields.len());
+            let mut fresh_names = vec![];
             for (fld, sort) in iter::zip(fields, sorts) {
-                self.push_dot_param(ident, *fld, *sort)?;
+                let fld_name = self.push_dot_param(ident, *fld, *sort)?;
+                fresh_names.push(fld_name);
             }
+            if self.dot_map.insert(ident.name, fresh_names).is_some() {
+                return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
+            };
         }
         Ok(())
     }
