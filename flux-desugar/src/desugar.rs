@@ -168,7 +168,7 @@ struct ParamsCtxt<'a> {
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
     field_map: FxHashMap<(Symbol, Symbol), Name>,
-    dot_map: FxHashMap<Symbol, Vec<Name>>,
+    dot_map: FxHashMap<Symbol, Vec<(Symbol, Name)>>,
     const_map: FxHashMap<Symbol, DefId>,
     params: Vec<Param>,
 }
@@ -276,7 +276,7 @@ impl<'a> DesugarCtxt<'a> {
             Some(names) => {
                 let indices = names
                     .iter()
-                    .map(|name| {
+                    .map(|(_, name)| {
                         let kind = ExprKind::Var(*name, ident.name, ident.span);
                         Index { expr: Expr { kind, span: Some(ident.span) }, is_binder: true }
                     })
@@ -400,6 +400,16 @@ impl<'a> ParamsCtxt<'a> {
             let kind = ExprKind::Const(did, ident.span);
             return Ok(Expr { kind, span: Some(ident.span) });
         }
+        if let Some(syms) = self.dot_map.get(&ident.name) {
+            let msg: Vec<String> = syms
+                .iter()
+                .map(|(fld, _)| format!("{}.{}", ident.name.as_str(), fld.as_str()))
+                .collect();
+            let msg = msg.join(", ");
+            return Err(self
+                .sess
+                .emit_err(errors::UnresolvedDotVar::new(ident, msg)));
+        }
         Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
     }
 
@@ -480,7 +490,7 @@ impl<'a> ParamsCtxt<'a> {
         fields: &[Symbol],
         sorts: &[Sort],
     ) -> Vec<(Symbol, Param)> {
-        assert_eq!(sorts.len(), fields.len()); // TODO error message
+        assert_eq!(sorts.len(), fields.len());
         let mut res = vec![];
         for (fld, sort) in iter::zip(fields, sorts) {
             let param = self.fresh_param(ident, *sort);
@@ -496,8 +506,6 @@ impl<'a> ParamsCtxt<'a> {
     ) -> Result<FreshIdents, ErrorGuaranteed> {
         let sorts = sorts(self.sess, self.adt_sorts, path)?;
         let slen = sorts.len();
-        // TODO error message
-        assert!(slen >= 1);
         match slen.cmp(&1) {
             std::cmp::Ordering::Equal => {
                 let param = self.fresh_param(ident, sorts[0]);
@@ -508,7 +516,11 @@ impl<'a> ParamsCtxt<'a> {
                 let params = self.fresh_dot_params(ident, fields, sorts);
                 Ok(FreshIdents::Dot(params))
             }
-            std::cmp::Ordering::Less => panic!("TODO: proper error message"),
+            std::cmp::Ordering::Less => {
+                return Err(self
+                    .sess
+                    .emit_err(errors::ParamCountMismatch::new(ident.span, slen, 1)));
+            }
         }
     }
 
@@ -520,7 +532,7 @@ impl<'a> ParamsCtxt<'a> {
         match self.fresh_bind_idents(ident, path)? {
             FreshIdents::Single(param) => self.do_push_param(ident, param),
             FreshIdents::Dot(params) => {
-                let fresh_names = params.iter().map(|(_, p)| p.name.name).collect();
+                let fresh_names = params.iter().map(|(fld, p)| (*fld, p.name.name)).collect();
                 if self.dot_map.insert(ident.name, fresh_names).is_some() {
                     return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
                 };
@@ -613,7 +625,14 @@ impl<'a> ParamsCtxt<'a> {
                     self.push_bind(ident, path)?;
                 } else {
                     let sorts = sorts(self.sess, self.adt_sorts, path)?;
-                    assert_eq!(indices.indices.len(), sorts.len());
+                    let exp = sorts.len();
+                    let got = indices.indices.len();
+                    if exp != got {
+                        return Err(self
+                            .sess
+                            .emit_err(errors::ParamCountMismatch::new(ty.span, exp, got)));
+                    }
+
                     for (index, sort) in iter::zip(&indices.indices, sorts) {
                         if let surface::Index::Bind(bind) = index {
                             self.push_param(*bind, *sort)?;
@@ -792,6 +811,39 @@ mod errors {
     impl UnresolvedDotField {
         pub fn new(ident: Ident, field: Ident) -> Self {
             Self { span: field.span, ident, field }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(desugar::param_count_mismatch, code = "FLUX")]
+    pub struct ParamCountMismatch {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub expected: String,
+        pub found: usize,
+    }
+
+    impl ParamCountMismatch {
+        pub fn new(span: Span, exp: usize, found: usize) -> Self {
+            let expected = if exp > 1 { format!("1 or {exp:?}") } else { exp.to_string() };
+            Self { span, expected, found }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(desugar::unresolved_dot_var, code = "FLUX")]
+    pub struct UnresolvedDotVar {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub ident: Ident,
+        pub msg: String,
+    }
+
+    impl UnresolvedDotVar {
+        pub fn new(ident: Ident, msg: String) -> Self {
+            Self { span: ident.span, ident, msg }
         }
     }
 }

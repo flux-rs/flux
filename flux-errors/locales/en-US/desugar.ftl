@@ -2,6 +2,10 @@ desugar-unresolved-var =
     cannot find value `{$var}` in this scope
     .label = not found in this scope
 
+desugar-unresolved-dot-var =
+    cannot use `{$ident}` as index
+    .label = did you mean one of {$msg}?
+
 desugar-duplicate-param =
     the name `{$name}` is already used as a parameter
     .label = already used
@@ -32,3 +36,10 @@ desugar-invalid-dot-var =
 
 desugar-unresolved-dot-field =
     cannot find `{$ident}.{$field}` in this scope
+
+desugar-param-count-mismatch =
+    this type takes {$expected} refinement parameters but {$found ->
+        [one] {$found} was found
+        *[other] {$found} were found
+    }
+    .label = expected {$expected} arguments, found {$found}

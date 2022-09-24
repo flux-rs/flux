@@ -9,8 +9,12 @@ pub struct Pair {
     pub y: i32,
 }
 
-#[flux::sig(fn(Pair[@x]) -> i32)]
-pub fn mytuple(p:Pair) -> i32 {
+#[flux::sig(fn(Pair[@p,@q,@r]) -> i32[p])]
+pub fn mytuple1(p: Pair) -> i32 {
     p.x
 }
 
+#[flux::sig(fn(Pair[@p]) -> i32[p])]
+pub fn mytuple2(p: Pair) -> i32 {
+    p.x
+}
