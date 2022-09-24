@@ -169,6 +169,7 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Var(Ident),
+    Dot(Box<Expr>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
 }
@@ -429,6 +430,9 @@ pub mod expand {
                     ),
                     span: e.span,
                 }
+            }
+            ExprKind::Dot(e1, fld) => {
+                Expr { kind: ExprKind::Dot(Box::new(subst_expr(subst, e1)), *fld), span: e.span }
             }
         }
     }

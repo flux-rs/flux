@@ -9,15 +9,12 @@ use std::fmt::Write;
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
-
-pub trait AdtSortsMap {
-    fn get(&self, def_id: DefId) -> Option<&[Sort]>;
-}
 
 #[derive(Debug)]
 pub struct StructDef {
@@ -199,12 +196,27 @@ impl StructDef {
     }
 }
 
-impl<S> AdtSortsMap for std::collections::HashMap<DefId, Vec<Sort>, S>
-where
-    S: std::hash::BuildHasher,
-{
-    fn get(&self, def_id: DefId) -> Option<&[Sort]> {
-        self.get(&def_id).map(|sorts| sorts.as_slice())
+#[derive(Default)]
+pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
+
+pub struct AdtSortInfo {
+    pub fields: Vec<Symbol>,
+    pub sorts: Vec<Sort>,
+}
+
+impl AdtSorts {
+    pub fn insert(&mut self, def_id: DefId, sort_info: AdtSortInfo) {
+        self.0.insert(def_id, sort_info);
+    }
+
+    pub fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
+        let info = self.0.get(&def_id)?;
+        Some(&info.sorts)
+    }
+
+    pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
+        let info = self.0.get(&def_id)?;
+        Some(&info.fields)
     }
 }
 
