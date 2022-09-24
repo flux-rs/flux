@@ -16,6 +16,13 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::{sym, symbol::kw, Symbol};
 
+enum FreshIdents {
+    /// Is a single fresh ident generated for a bind
+    Single(Param),
+    /// Multiple idents, one per field of a bind
+    Dot(Vec<(Symbol, Param)>),
+}
+
 pub fn desugar_qualifier(
     sess: &FluxSession,
     consts: &[ConstInfo],
@@ -216,13 +223,12 @@ impl<'a> DesugarCtxt<'a> {
                 Ty::Indexed(bty?, indices?)
             }
             surface::TyKind::Exists { bind, path, pred } => {
-                let bty = self.desugar_path_into_bty(path);
-
                 // HEREHEREHEREHEREHERE
-                // let fresh = self.params.fresh();
                 let (binders, pred) = self
                     .params
-                    .with_name_map(bind, |params| params.desugar_expr(pred));
+                    .with_bind(bind, &path, |params| params.desugar_expr(pred));
+
+                let bty = self.desugar_path_into_bty(path);
 
                 Ty::Exists(bty?, binders, pred?)
             }
@@ -378,24 +384,6 @@ impl ParamsCtxt<'_> {
         self.name_gen.fresh()
     }
 
-    fn with_name_map<R>(
-        &mut self,
-        bind: surface::Ident,
-        f: impl FnOnce(&mut Self) -> R,
-    ) -> (Vec<Ident>, R) {
-        let name = self.fresh();
-        let symb = bind.name;
-        let old = self.name_map.insert(symb, name);
-        let r = f(self);
-        if let Some(old) = old {
-            self.name_map.insert(symb, old);
-        } else {
-            self.name_map.remove(&symb);
-        };
-        let binders = vec![Ident { name, source_info: (bind.span, symb) }];
-        (binders, r)
-    }
-
     fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorGuaranteed> {
         match lit.kind {
             surface::LitKind::Integer => {
@@ -455,33 +443,81 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn push_dot_param(
+    fn do_push_dot_param(
         &mut self,
         ident: surface::Ident,
         fld: Symbol,
-        sort: Sort,
-    ) -> Result<Name, ErrorGuaranteed> {
-        let fresh = self.name_gen.fresh();
-        let source_info = (ident.span, ident.name);
-        if self.field_map.insert((ident.name, fld), fresh).is_some() {
+        param: Param,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self
+            .field_map
+            .insert((ident.name, fld), param.name.name)
+            .is_some()
+        {
             return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
         };
-        self.params
-            .push(Param { name: Ident { name: fresh, source_info }, sort });
-        Ok(fresh)
+
+        self.params.push(param);
+
+        Ok(())
+    }
+
+    fn do_push_param(
+        &mut self,
+        ident: surface::Ident,
+        param: Param,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.name_map.insert(ident.name, param.name.name).is_some() {
+            return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
+        };
+        self.params.push(param);
+        Ok(())
     }
 
     fn push_param(&mut self, ident: surface::Ident, sort: Sort) -> Result<(), ErrorGuaranteed> {
-        let fresh = self.name_gen.fresh();
+        let param = self.fresh_param(ident, sort);
+        self.do_push_param(ident, param)
+    }
+
+    fn fresh_param(&mut self, ident: surface::Ident, sort: Sort) -> Param {
+        let fresh = self.fresh();
         let source_info = (ident.span, ident.name);
+        let name = Ident { name: fresh, source_info };
+        Param { name, sort }
+    }
 
-        if self.name_map.insert(ident.name, fresh).is_some() {
-            return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
-        };
-        self.params
-            .push(Param { name: Ident { name: fresh, source_info }, sort });
+    fn fresh_dot_params(
+        &mut self,
+        ident: surface::Ident,
+        fields: Vec<Symbol>,
+        sorts: Vec<Sort>,
+    ) -> Vec<(Symbol, Param)> {
+        assert_eq!(sorts.len(), fields.len()); // TODO error message
+        let mut res = vec![];
+        for (fld, sort) in iter::zip(fields, sorts) {
+            let param = self.fresh_param(ident, sort.clone());
+            res.push((fld.clone(), param));
+        }
+        res
+    }
 
-        Ok(())
+    fn fresh_bind_idents(
+        &mut self,
+        ident: surface::Ident,
+        path: &Path<Res>,
+    ) -> Result<FreshIdents, ErrorGuaranteed> {
+        let sorts = self.sorts(path)?;
+        let slen = sorts.len();
+        // TODO error message
+        assert!(slen >= 1);
+        if slen == 1 {
+            Ok(FreshIdents::Single(self.fresh_param(ident, sorts[0])))
+        } else if slen > 1 {
+            let fields = self.fields(path)?;
+            Ok(FreshIdents::Dot(self.fresh_dot_params(ident, fields, sorts)))
+        } else {
+            panic!("TODO: proper error message")
+        }
     }
 
     fn push_bind(
@@ -489,26 +525,55 @@ impl ParamsCtxt<'_> {
         ident: surface::Ident,
         path: &Path<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.sorts(path)?;
-        let slen = sorts.len();
-        // TODO error message
-        assert!(slen >= 1);
-        if slen == 1 {
-            self.push_param(ident, sorts[0])?;
-        } else if slen > 1 {
-            let fields = self.fields(path)?;
-            // TODO error message
-            assert_eq!(slen, fields.len());
-            let mut fresh_names = vec![];
-            for (fld, sort) in iter::zip(fields, sorts) {
-                let fld_name = self.push_dot_param(ident, fld, sort)?;
-                fresh_names.push(fld_name);
+        match self.fresh_bind_idents(ident, path)? {
+            FreshIdents::Single(param) => self.do_push_param(ident, param),
+            FreshIdents::Dot(params) => {
+                for (fld, param) in params.into_iter() {
+                    self.do_push_dot_param(ident, fld, param)?
+                }
+                Ok(())
             }
-            if self.dot_map.insert(ident.name, fresh_names).is_some() {
-                return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
-            };
         }
-        Ok(())
+        // let sorts = self.sorts(path)?;
+        // let slen = sorts.len();
+        // // TODO error message
+        // assert!(slen >= 1);
+        // if slen == 1 {
+        //     self.push_param(ident, sorts[0])?;
+        // } else if slen > 1 {
+        //     let fields = self.fields(path)?;
+        //     // TODO error message
+        //     assert_eq!(slen, fields.len());
+        //     let mut fresh_names = vec![];
+        //     for (fld, sort) in iter::zip(fields, sorts) {
+        //         let fld_name = self.push_dot_param(ident, fld, sort)?;
+        //         fresh_names.push(fld_name);
+        //     }
+        //     if self.dot_map.insert(ident.name, fresh_names).is_some() {
+        //         return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
+        //     };
+        // }
+        // Ok(())
+    }
+
+    fn with_bind<R>(
+        &mut self,
+        bind: surface::Ident,
+        path: &Path<Res>,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> (Vec<Ident>, R) {
+        let name = self.fresh();
+        let symb = bind.name;
+        let old = self.name_map.insert(symb, name);
+
+        let r = f(self);
+        if let Some(old) = old {
+            self.name_map.insert(symb, old);
+        } else {
+            self.name_map.remove(&symb);
+        };
+        let binders = vec![Ident { name, source_info: (bind.span, symb) }];
+        (binders, r)
     }
 
     fn insert_params(
