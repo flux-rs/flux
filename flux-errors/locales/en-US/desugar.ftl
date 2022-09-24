@@ -26,3 +26,9 @@ desugar-refined-float =
 
 desugar-invalid-array-len =
     unsupported or invalid array length
+
+desugar-invalid-dot-var =
+    unsupported field access in refinement
+
+desugar-unresolved-dot-field =
+    cannot find `{$ident}.{$field}` in this scope

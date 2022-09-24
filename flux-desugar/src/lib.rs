@@ -15,7 +15,7 @@ mod zip_resolver;
 
 pub use desugar::{desugar_qualifier, resolve_sorts};
 use flux_middle::{
-    core::{self, AdtSortsMap},
+    core::{self, AdtSorts},
     global_env::GlobalEnv,
     rustc,
 };
@@ -30,12 +30,12 @@ pub fn desugar_struct_def(
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(genv, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(genv.sess, &genv.consts, struct_def)
+    desugar::desugar_struct_def(genv.sess, &genv.consts, &Default::default(), struct_def)
 }
 
 pub fn desugar_enum_def(
     genv: &GlobalEnv,
-    adt_sorts: &impl AdtSortsMap,
+    adt_sorts: &AdtSorts,
     enum_def: surface::EnumDef,
 ) -> Result<core::EnumDef, ErrorGuaranteed> {
     let def_id = enum_def.def_id;
@@ -49,7 +49,7 @@ pub fn desugar_enum_def(
 
 pub fn desugar_fn_sig(
     genv: &GlobalEnv,
-    sorts: &impl AdtSortsMap,
+    sorts: &AdtSorts,
     def_id: LocalDefId,
     fn_sig: surface::FnSig,
 ) -> Result<core::FnSig, ErrorGuaranteed> {
