@@ -490,8 +490,8 @@ impl ParamsCtxt<'_> {
         assert_eq!(sorts.len(), fields.len()); // TODO error message
         let mut res = vec![];
         for (fld, sort) in iter::zip(fields, sorts) {
-            let param = self.fresh_param(ident, sort.clone());
-            res.push((fld.clone(), param));
+            let param = self.fresh_param(ident, sort);
+            res.push((fld, param));
         }
         res
     }
@@ -505,13 +505,17 @@ impl ParamsCtxt<'_> {
         let slen = sorts.len();
         // TODO error message
         assert!(slen >= 1);
-        if slen == 1 {
-            Ok(FreshIdents::Single(self.fresh_param(ident, sorts[0])))
-        } else if slen > 1 {
-            let fields = self.fields(path)?;
-            Ok(FreshIdents::Dot(self.fresh_dot_params(ident, fields, sorts)))
-        } else {
-            panic!("TODO: proper error message")
+        match slen.cmp(&1) {
+            std::cmp::Ordering::Equal => {
+                let param = self.fresh_param(ident, sorts[0]);
+                Ok(FreshIdents::Single(param))
+            }
+            std::cmp::Ordering::Greater => {
+                let fields = self.fields(path)?;
+                let params = self.fresh_dot_params(ident, fields, sorts);
+                Ok(FreshIdents::Dot(params))
+            }
+            std::cmp::Ordering::Less => panic!("TODO: proper error message"),
         }
     }
 
@@ -606,7 +610,7 @@ impl ParamsCtxt<'_> {
                 return Some(ident);
             }
         }
-        return None;
+        None
     }
 
     fn ty_gather_params(&mut self, ty: &surface::Ty<Res>) -> Result<(), ErrorGuaranteed> {
@@ -639,18 +643,18 @@ impl ParamsCtxt<'_> {
         }
     }
 
-    fn fields<'a>(&self, path: &surface::Path<Res>) -> Result<Vec<Symbol>, ErrorGuaranteed> {
+    fn fields(&self, path: &surface::Path<Res>) -> Result<Vec<Symbol>, ErrorGuaranteed> {
         match path.ident {
-            Res::Adt(def_id) => Ok(self.adt_sorts.get_fields(def_id).unwrap_or(vec![])),
+            Res::Adt(def_id) => Ok(self.adt_sorts.get_fields(def_id).unwrap_or_default()),
             _ => Ok(vec![]),
         }
     }
 
-    fn sorts<'a>(&self, path: &surface::Path<Res>) -> Result<Vec<Sort>, ErrorGuaranteed> {
+    fn sorts(&self, path: &surface::Path<Res>) -> Result<Vec<Sort>, ErrorGuaranteed> {
         match path.ident {
             Res::Bool => Ok(vec![Sort::Bool]),
             Res::Int(_) | Res::Uint(_) => Ok(vec![Sort::Int]),
-            Res::Adt(def_id) => Ok(self.adt_sorts.get_sorts(def_id).unwrap_or(vec![])),
+            Res::Adt(def_id) => Ok(self.adt_sorts.get_sorts(def_id).unwrap_or_default()),
             Res::Float(_) => Err(self.sess.emit_err(errors::RefinedFloat { span: path.span })),
             Res::Param(_) => {
                 Err(self
