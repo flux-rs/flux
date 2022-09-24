@@ -400,15 +400,10 @@ impl<'a> ParamsCtxt<'a> {
             let kind = ExprKind::Const(did, ident.span);
             return Ok(Expr { kind, span: Some(ident.span) });
         }
-        if let Some(syms) = self.dot_map.get(&ident.name) {
-            let msg: Vec<String> = syms
-                .iter()
-                .map(|(fld, _)| format!("{}.{}", ident.name.as_str(), fld.as_str()))
-                .collect();
-            let msg = msg.join(", ");
+        if let Some(fields) = self.dot_map.get(&ident.name) {
             return Err(self
                 .sess
-                .emit_err(errors::UnresolvedDotVar::new(ident, msg)));
+                .emit_err(errors::UnresolvedDotVar::new(ident, fields)));
         }
         Err(self.sess.emit_err(errors::UnresolvedVar::new(ident)))
     }
@@ -707,7 +702,7 @@ static SORTS: std::sync::LazyLock<Sorts> =
 
 mod errors {
     use flux_macros::SessionDiagnostic;
-    use rustc_span::{symbol::Ident, Span};
+    use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(SessionDiagnostic)]
     #[error(desugar::unresolved_var, code = "FLUX")]
@@ -842,7 +837,12 @@ mod errors {
     }
 
     impl UnresolvedDotVar {
-        pub fn new(ident: Ident, msg: String) -> Self {
+        pub fn new<T>(ident: Ident, fields: &Vec<(Symbol, T)>) -> Self {
+            let msg: Vec<String> = fields
+                .iter()
+                .map(|(fld, _)| format!("{}.{}", ident.name.as_str(), fld.as_str()))
+                .collect();
+            let msg = msg.join(", ");
             Self { span: ident.span, ident, msg }
         }
     }
