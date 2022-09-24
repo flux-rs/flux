@@ -3,7 +3,7 @@ desugar-unresolved-var =
     .label = not found in this scope
 
 desugar-unresolved-dot-var =
-    cannot use `{$ident}` as index
+    invalid use of refinement parameter
     .label = did you mean one of {$msg}?
 
 desugar-duplicate-param =
