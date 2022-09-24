@@ -528,6 +528,10 @@ impl ParamsCtxt<'_> {
         match self.fresh_bind_idents(ident, path)? {
             FreshIdents::Single(param) => self.do_push_param(ident, param),
             FreshIdents::Dot(params) => {
+                let fresh_names = params.iter().map(|(_, p)| p.name.name).collect();
+                if self.dot_map.insert(ident.name, fresh_names).is_some() {
+                    return Err(self.sess.emit_err(errors::DuplicateParam::new(ident)));
+                };
                 for (fld, param) in params.into_iter() {
                     self.do_push_dot_param(ident, fld, param)?
                 }
