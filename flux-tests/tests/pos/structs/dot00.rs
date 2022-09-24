@@ -38,20 +38,20 @@ pub fn mk_pair2(a: i32, b: i32) -> Pair {
     Pair { x: a, y: b }
 }
 
-// // forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 == a}
-// #[flux::sig(fn (a: i32) -> Pair{v : v.x == a})]
-// pub fn mk_pair_with_first(a: i32) -> Pair {
-//     Pair { x: a, y: 0 }
-// }
+// forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 == a}
+#[flux::sig(fn (a: i32) -> Pair{v : v.x == a})]
+pub fn mk_pair_with_first(a: i32) -> Pair {
+    Pair { x: a, y: 0 }
+}
 
-// // forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 == a && v1 > 0}
-// #[flux::sig(fn (a: i32) -> Pair{v : v.x == a && v.y > 0})]
-// pub fn mk_pair_with_pos(a: i32) -> Pair {
-//     Pair { x: a, y: 10 }
-// }
+// forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 == a && v1 > 0}
+#[flux::sig(fn (a: i32) -> Pair{v : v.x == a && v.y > 0})]
+pub fn mk_pair_with_pos(a: i32) -> Pair {
+    Pair { x: a, y: 10 }
+}
 
-// // forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 + v1 <= a}
-// #[flux::sig(fn (a: i32) -> Pair{v : v.x + v.y <= a })]
-// pub fn mk_pair_with_bound(a: i32) -> Pair {
-//     Pair { x: a, y: 0 }
-// }
+// forall a: int. fn(i32<a>) -> Pair{v0, v1 : v0 + v1 <= a}
+#[flux::sig(fn (a: i32) -> Pair{v : v.x + v.y <= a })]
+pub fn mk_pair_with_bound(a: i32) -> Pair {
+    Pair { x: a, y: 0 }
+}
