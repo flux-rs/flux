@@ -4,9 +4,8 @@ use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{
-        AdtSorts, AdtSortsMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident,
-        Index, Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
-        VariantDef,
+        AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
+        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -189,8 +188,6 @@ impl<'a> DesugarCtxt<'a> {
                 let bty = self.desugar_path_into_bty(path);
 
                 let indices = Indices { indices: self.desugar_bind(bind)?, span: bind.span };
-                // let idx = Index { expr: self.params.desugar_var(bind)?, is_binder: true };
-                // let indices = Indices { indices: vec![idx], span: bind.span };
 
                 Ok(Ty::Indexed(bty?, indices))
             }
@@ -341,12 +338,8 @@ fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorG
     }
 }
 
-impl ParamsCtxt<'_> {
-    fn new<'a>(
-        sess: &'a FluxSession,
-        consts: &[ConstInfo],
-        adt_sorts: &'a AdtSorts,
-    ) -> ParamsCtxt<'a> {
+impl<'a> ParamsCtxt<'a> {
+    fn new(sess: &'a FluxSession, consts: &[ConstInfo], adt_sorts: &'a AdtSorts) -> ParamsCtxt<'a> {
         let const_map: FxHashMap<Symbol, DefId> = consts
             .iter()
             .map(|const_info| (const_info.sym, const_info.def_id))
@@ -484,14 +477,14 @@ impl ParamsCtxt<'_> {
     fn fresh_dot_params(
         &mut self,
         ident: surface::Ident,
-        fields: Vec<Symbol>,
-        sorts: Vec<Sort>,
+        fields: &[Symbol],
+        sorts: &[Sort],
     ) -> Vec<(Symbol, Param)> {
         assert_eq!(sorts.len(), fields.len()); // TODO error message
         let mut res = vec![];
         for (fld, sort) in iter::zip(fields, sorts) {
-            let param = self.fresh_param(ident, sort);
-            res.push((fld, param));
+            let param = self.fresh_param(ident, *sort);
+            res.push((*fld, param));
         }
         res
     }
@@ -501,7 +494,7 @@ impl ParamsCtxt<'_> {
         ident: surface::Ident,
         path: &Path<Res>,
     ) -> Result<FreshIdents, ErrorGuaranteed> {
-        let sorts = self.sorts(path)?;
+        let sorts = sorts(self.sess, self.adt_sorts, path)?;
         let slen = sorts.len();
         // TODO error message
         assert!(slen >= 1);
@@ -511,7 +504,7 @@ impl ParamsCtxt<'_> {
                 Ok(FreshIdents::Single(param))
             }
             std::cmp::Ordering::Greater => {
-                let fields = self.fields(path)?;
+                let fields = fields(self.adt_sorts, path)?;
                 let params = self.fresh_dot_params(ident, fields, sorts);
                 Ok(FreshIdents::Dot(params))
             }
@@ -619,11 +612,11 @@ impl ParamsCtxt<'_> {
                 if let Some(ident) = ParamsCtxt::single_bind(&indices.indices) {
                     self.push_bind(ident, path)?;
                 } else {
-                    let sorts = self.sorts(path)?;
+                    let sorts = sorts(self.sess, self.adt_sorts, path)?;
                     assert_eq!(indices.indices.len(), sorts.len());
                     for (index, sort) in iter::zip(&indices.indices, sorts) {
                         if let surface::Index::Bind(bind) = index {
-                            self.push_param(*bind, sort)?;
+                            self.push_param(*bind, *sort)?;
                         }
                     }
                 }
@@ -642,26 +635,29 @@ impl ParamsCtxt<'_> {
             surface::TyKind::Exists { .. } | surface::TyKind::Unit => Ok(()),
         }
     }
+}
 
-    fn fields(&self, path: &surface::Path<Res>) -> Result<Vec<Symbol>, ErrorGuaranteed> {
-        match path.ident {
-            Res::Adt(def_id) => Ok(self.adt_sorts.get_fields(def_id).unwrap_or_default()),
-            _ => Ok(vec![]),
-        }
+fn fields<'a>(
+    adt_sorts: &'a AdtSorts,
+    path: &surface::Path<Res>,
+) -> Result<&'a [Symbol], ErrorGuaranteed> {
+    match path.ident {
+        Res::Adt(def_id) => Ok(adt_sorts.get_fields(def_id).unwrap_or_default()),
+        _ => Ok(&[]),
     }
+}
 
-    fn sorts(&self, path: &surface::Path<Res>) -> Result<Vec<Sort>, ErrorGuaranteed> {
-        match path.ident {
-            Res::Bool => Ok(vec![Sort::Bool]),
-            Res::Int(_) | Res::Uint(_) => Ok(vec![Sort::Int]),
-            Res::Adt(def_id) => Ok(self.adt_sorts.get_sorts(def_id).unwrap_or_default()),
-            Res::Float(_) => Err(self.sess.emit_err(errors::RefinedFloat { span: path.span })),
-            Res::Param(_) => {
-                Err(self
-                    .sess
-                    .emit_err(errors::RefinedTypeParam { span: path.span }))
-            }
-        }
+fn sorts<'a>(
+    sess: &FluxSession,
+    adt_sorts: &'a AdtSorts,
+    path: &surface::Path<Res>,
+) -> Result<&'a [Sort], ErrorGuaranteed> {
+    match path.ident {
+        Res::Bool => Ok(&[Sort::Bool]),
+        Res::Int(_) | Res::Uint(_) => Ok(&[Sort::Int]),
+        Res::Adt(def_id) => Ok(adt_sorts.get_sorts(def_id).unwrap_or_default()),
+        Res::Float(_) => Err(sess.emit_err(errors::RefinedFloat { span: path.span })),
+        Res::Param(_) => Err(sess.emit_err(errors::RefinedTypeParam { span: path.span })),
     }
 }
 

@@ -30,12 +30,7 @@ pub fn desugar_struct_def(
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(genv, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(
-        genv.sess,
-        &genv.consts,
-        &rustc_hash::FxHashMap::default(),
-        struct_def,
-    )
+    desugar::desugar_struct_def(genv.sess, &genv.consts, &Default::default(), struct_def)
 }
 
 pub fn desugar_enum_def(

@@ -2,15 +2,15 @@ use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::{AdtSortInfo, AdtSorts, Sort},
+    core::{AdtSortInfo, AdtSorts},
     global_env::{ConstInfo, GlobalEnv},
     rustc, ty,
 };
-use flux_syntax::surface::{self, Params};
+use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
@@ -100,7 +100,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let specs = SpecCollector::collect(genv.tcx, genv.sess)?;
 
         let mut assume = FxHashSet::default();
-        let mut adt_sorts: AdtSorts = FxHashMap::default();
+        let mut adt_sorts = AdtSorts::default();
 
         // Ignore everything and go home
         if specs.ignores.contains(&IgnoreKey::Crate) {
@@ -123,17 +123,21 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
-                let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
-                genv.register_adt_def(def_id.to_def_id(), &sorts);
-                register_adt_info(&mut adt_sorts, def_id, refined_by, sorts);
+                register_adt_info(genv.sess, &mut adt_sorts, def_id, refined_by)?;
+                genv.register_adt_def(
+                    def_id.to_def_id(),
+                    adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
+                );
             }
             Ok(())
         })?;
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
-                let sorts = desugar::resolve_sorts(genv.sess, refined_by)?;
-                genv.register_adt_def(def_id.to_def_id(), &sorts);
-                register_adt_info(&mut adt_sorts, def_id, refined_by, sorts);
+                register_adt_info(genv.sess, &mut adt_sorts, def_id, refined_by)?;
+                genv.register_adt_def(
+                    def_id.to_def_id(),
+                    adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
+                );
             }
             Ok(())
         })?;
@@ -234,14 +238,16 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 }
 
 fn register_adt_info(
+    sess: &FluxSession,
     adt_sorts: &mut AdtSorts,
     def_id: &LocalDefId,
-    refined_by: &Params,
-    sorts: Vec<Sort>,
-) {
+    refined_by: &surface::Params,
+) -> Result<(), ErrorGuaranteed> {
+    let sorts = desugar::resolve_sorts(sess, refined_by)?;
     let fields = refined_by.iter().map(|p| p.name.name).collect();
     let info = AdtSortInfo { fields, sorts };
     adt_sorts.insert(def_id.to_def_id(), info);
+    Ok(())
 }
 
 fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {

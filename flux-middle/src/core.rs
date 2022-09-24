@@ -16,11 +16,6 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-pub trait AdtSortsMap {
-    fn get_sorts(&self, def_id: DefId) -> Option<Vec<Sort>>;
-    fn get_fields(&self, def_id: DefId) -> Option<Vec<Symbol>>;
-}
-
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: DefId,
@@ -201,25 +196,27 @@ impl StructDef {
     }
 }
 
-pub type AdtSorts = FxHashMap<DefId, AdtSortInfo>;
+#[derive(Default)]
+pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
 
 pub struct AdtSortInfo {
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
 }
 
-impl<S> AdtSortsMap for std::collections::HashMap<DefId, AdtSortInfo, S>
-where
-    S: std::hash::BuildHasher,
-{
-    fn get_sorts(&self, def_id: DefId) -> Option<Vec<Sort>> {
-        let info = self.get(&def_id)?;
-        Some(info.sorts.clone())
+impl AdtSorts {
+    pub fn insert(&mut self, def_id: DefId, sort_info: AdtSortInfo) {
+        self.0.insert(def_id, sort_info);
     }
 
-    fn get_fields(&self, def_id: DefId) -> Option<Vec<Symbol>> {
-        let info = self.get(&def_id)?;
-        Some(info.fields.clone())
+    pub fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
+        let info = self.0.get(&def_id)?;
+        Some(&info.sorts)
+    }
+
+    pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
+        let info = self.0.get(&def_id)?;
+        Some(&info.fields)
     }
 }
 
