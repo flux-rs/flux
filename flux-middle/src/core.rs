@@ -144,6 +144,13 @@ pub enum ExprKind {
     Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+    App(UFun, Vec<Expr>),
+}
+
+/// representation of uninterpreted functions
+pub struct UFun {
+    name: Name,
+    symbol: Symbol,
 }
 
 #[derive(Clone, Copy)]
@@ -356,6 +363,12 @@ impl fmt::Debug for RefKind {
         }
     }
 }
+impl fmt::Debug for UFun {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sym = self.symbol;
+        write!(f, "{sym:?}")
+    }
+}
 
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -364,6 +377,7 @@ impl fmt::Debug for Expr {
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
+            ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
         }
     }
 }

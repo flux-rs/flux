@@ -366,6 +366,14 @@ impl<'a> ParamsCtxt<'a> {
                 ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
             surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
+            surface::ExprKind::App(f, es) => {
+                let uf = self.desugar_uf(f);
+                let es = es
+                    .into_iter()
+                    .map(|e| self.desugar_expr(e))
+                    .try_collect_exhaust()?;
+                ExprKind::App(uf, es)
+            }
         };
         Ok(Expr { kind, span: Some(expr.span) })
     }
@@ -648,6 +656,10 @@ impl<'a> ParamsCtxt<'a> {
             }
             surface::TyKind::Exists { .. } | surface::TyKind::Unit => Ok(()),
         }
+    }
+
+    fn desugar_uf(&self, f: surface::Ident) -> flux_middle::core::UFun {
+        todo!("desugar_uf")
     }
 }
 

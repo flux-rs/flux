@@ -172,6 +172,7 @@ pub enum ExprKind {
     Dot(Box<Expr>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+    App(Ident, Vec<Expr>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -433,6 +434,10 @@ pub mod expand {
             }
             ExprKind::Dot(e1, fld) => {
                 Expr { kind: ExprKind::Dot(Box::new(subst_expr(subst, e1)), *fld), span: e.span }
+            }
+            ExprKind::App(f, es) => {
+                let es = es.iter().map(|e| subst_expr(subst, e)).collect();
+                Expr { kind: ExprKind::App(*f, es), span: e.span }
             }
         }
     }

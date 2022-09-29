@@ -326,6 +326,7 @@ fn conv_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
                 conv_expr(e2, name_map, nbinders),
             )
         }
+        core::ExprKind::App(f, es) => todo!("conv_expr"),
     }
 }
 
