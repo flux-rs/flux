@@ -12,7 +12,7 @@ pub use rustc_span::symbol::Ident;
 use rustc_span::Symbol;
 
 use crate::{
-    core::{self, VariantIdx},
+    core::{self, UFDef, VariantIdx},
     intern::List,
     rustc,
     ty::{self, Binders},
@@ -32,6 +32,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub consts: Vec<ConstInfo>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::PolyVariant>>>>,
+    pub uf_sorts: FxHashMap<Symbol, ty::UFDef>,
     check_asserts: AssertBehavior,
     /// Some functions can only to be called after all annotated adts have been
     /// registered. We use this flag to check at runtime that this is actually the
@@ -52,11 +53,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             sess,
             check_asserts,
             adts_registered: false,
+            uf_sorts: FxHashMap::default(),
         }
     }
 
     pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
         self.check_asserts = behavior;
+    }
+
+    pub fn register_uf_def(&mut self, name: Symbol, uf_def: UFDef) {
+        let inputs = uf_def.inputs.into_iter().map(ty::conv::conv_sort).collect();
+        let output = ty::conv::conv_sort(uf_def.output);
+
+        self.uf_sorts.insert(name, ty::UFDef { inputs, output });
     }
 
     pub fn register_adt_def(&mut self, def_id: DefId, sorts: &[core::Sort]) {

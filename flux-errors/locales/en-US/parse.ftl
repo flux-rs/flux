@@ -12,3 +12,6 @@ parse-syntax-err =
 
 parse-invalid-constant =
     invalid constant
+
+parse-invalid-alias-application =
+    invalid alias application

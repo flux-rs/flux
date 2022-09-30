@@ -6,24 +6,25 @@ use hir::{def_id::DefId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
-use rustc_middle::ty::{ParamTy, TyCtxt};
+use rustc_middle::ty::{ParamTy, TyCtxt, TyKind};
 use rustc_span::{Span, Symbol};
 
-pub struct Resolver<'a> {
-    sess: &'a FluxSession,
-    table: NameResTable<'a>,
+pub struct Resolver<'genv, 'tcx> {
+    sess: &'genv FluxSession,
+    table: NameResTable<'genv, 'tcx>,
 }
 
-struct NameResTable<'a> {
+struct NameResTable<'genv, 'tcx> {
     res: FxHashMap<Symbol, Res>,
     generics: FxHashMap<DefId, ParamTy>,
-    sess: &'a FluxSession,
+    sess: &'genv FluxSession,
+    tcx: TyCtxt<'tcx>,
 }
 
-impl<'genv> Resolver<'genv> {
+impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
     #[allow(dead_code)]
 
-    pub fn new(genv: &GlobalEnv<'genv, '_>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
+    pub fn new(genv: &GlobalEnv<'genv, 'tcx>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
         let table = match genv.tcx.def_kind(def_id) {
             hir::def::DefKind::Struct | hir::def::DefKind::Enum | hir::def::DefKind::Fn => {
                 NameResTable::from_item(genv, def_id)?
@@ -175,10 +176,13 @@ impl<'genv> Resolver<'genv> {
     }
 }
 
-impl<'a> NameResTable<'a> {
-    fn from_item(genv: &GlobalEnv<'a, '_>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
+impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
+    fn from_item(
+        genv: &GlobalEnv<'genv, 'tcx>,
+        def_id: LocalDefId,
+    ) -> Result<Self, ErrorGuaranteed> {
         let item = genv.tcx.hir().expect_item(def_id);
-        let mut table = Self::new(genv.sess);
+        let mut table = Self::new(genv.sess, genv.tcx);
         match &item.kind {
             ItemKind::Struct(data, generics) => {
                 table.insert_generics(genv.tcx, generics);
@@ -212,12 +216,12 @@ impl<'a> NameResTable<'a> {
     }
 
     fn from_impl_item(
-        genv: &GlobalEnv<'a, '_>,
+        genv: &GlobalEnv<'genv, 'tcx>,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
         let impl_item = genv.tcx.hir().expect_impl_item(def_id);
 
-        let mut table = Self::new(genv.sess);
+        let mut table = Self::new(genv.sess, genv.tcx);
 
         // Insert generics from parent impl
         if let Some(parent_impl_did) = genv.tcx.impl_of_method(def_id.to_def_id()) {
@@ -239,8 +243,8 @@ impl<'a> NameResTable<'a> {
         Ok(table)
     }
 
-    fn new(sess: &'a FluxSession) -> NameResTable<'a> {
-        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default() }
+    fn new(sess: &'genv FluxSession, tcx: TyCtxt<'tcx>) -> NameResTable<'genv, 'tcx> {
+        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
     }
 
     fn get(&self, sym: Symbol) -> Option<&Res> {
@@ -289,6 +293,44 @@ impl<'a> NameResTable<'a> {
         Ok(())
     }
 
+    fn of_ty(&self, ty: rustc_middle::ty::Ty, span: Span) -> Result<Res, ErrorGuaranteed> {
+        match ty.kind() {
+            TyKind::Bool => Ok(Res::Bool),
+            TyKind::Int(int_ty) => Ok(Res::Int(*int_ty)),
+            TyKind::Uint(uint_ty) => Ok(Res::Uint(*uint_ty)),
+            TyKind::Float(float_ty) => Ok(Res::Float(*float_ty)),
+            TyKind::Param(pty) => Ok(Res::Param(*pty)),
+            // TyKind::Adt(did, what) => todo!(),
+            // TyKind::Char => todo!(),
+            _ => {
+            Err(self.sess.emit_err(errors::UnsupportedSignature {
+                span,
+                msg: "path resolved to an unsupported type",
+            }))
+        }
+            // rustc_type_ir::TyKind::Foreign(_) => todo!(),
+            // rustc_type_ir::TyKind::Str => todo!(),
+            // rustc_type_ir::TyKind::Array(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Slice(_) => todo!(),
+            // rustc_type_ir::TyKind::RawPtr(_) => todo!(),
+            // rustc_type_ir::TyKind::Ref(_, _, _) => todo!(),
+            // rustc_type_ir::TyKind::FnDef(_, _) => todo!(),
+            // rustc_type_ir::TyKind::FnPtr(_) => todo!(),
+            // rustc_type_ir::TyKind::Dynamic(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Closure(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Generator(_, _, _) => todo!(),
+            // rustc_type_ir::TyKind::GeneratorWitness(_) => todo!(),
+            // rustc_type_ir::TyKind::Never => todo!(),
+            // rustc_type_ir::TyKind::Tuple(_) => todo!(),
+            // rustc_type_ir::TyKind::Projection(_) => todo!(),
+            // rustc_type_ir::TyKind::Opaque(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Bound(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Placeholder(_) => todo!(),
+            // rustc_type_ir::TyKind::Infer(_) => todo!(),
+            // rustc_type_ir::TyKind::Error(_) => todo!(),
+        }
+    }
+
     fn of_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
@@ -316,9 +358,13 @@ impl<'a> NameResTable<'a> {
             hir::def::Res::PrimTy(hir::PrimTy::Char) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
-                    msg: "chars are not suported yet",
+                    msg: "chars are not supported yet",
                 }))
             }
+            hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
+                self.of_ty(self.tcx.type_of(did), span)
+            }
+
             _ => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,

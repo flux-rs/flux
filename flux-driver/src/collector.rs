@@ -7,7 +7,9 @@ use flux_common::{
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
     parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
-    parse_variant, surface, ParseResult,
+    parse_uf_def, parse_variant,
+    surface::{self},
+    ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -43,6 +45,7 @@ pub(crate) struct Specs {
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
+    pub uifs: Vec<surface::UFDef>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
@@ -232,6 +235,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
+
+        let mut uf_defs = attrs.uf_defs();
+        self.specs.uifs.append(&mut uf_defs);
+
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
         Ok(())
@@ -296,6 +303,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
+            ("uf", MacArgs::Delimited(span, _, tokens)) => {
+                let uf_def = self.parse(tokens.clone(), span.entire(), parse_uf_def)?;
+                FluxAttrKind::UFDef(uf_def)
+            }
             ("cfg", MacArgs::Delimited(_, _, _)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
                     .emit(self.sess)?
@@ -351,7 +362,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+    pub fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);
         Err(e)
@@ -373,6 +384,7 @@ impl Specs {
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
+            uifs: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
@@ -399,6 +411,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
+    UFDef(surface::UFDef),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
     Variant(surface::VariantDef),
@@ -474,6 +487,10 @@ impl FluxAttrs {
         read_attrs!(self, Qualifier)
     }
 
+    fn uf_defs(&mut self) -> Vec<surface::UFDef> {
+        read_attrs!(self, UFDef)
+    }
+
     fn alias(&mut self) -> Option<surface::Alias> {
         read_attr!(self, TypeAlias)
     }
@@ -509,6 +526,7 @@ impl FluxAttrKind {
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),
+            FluxAttrKind::UFDef(_) => attr_name!(UFDef),
         }
     }
 }

@@ -144,6 +144,13 @@ pub enum ExprKind {
     Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+    App(UFun, Vec<Expr>),
+}
+
+/// representation of uninterpreted functions
+pub struct UFun {
+    pub symbol: Symbol,
+    pub span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -202,6 +209,32 @@ pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
 pub struct AdtSortInfo {
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
+}
+
+#[derive(Default)]
+pub struct UFSorts(FxHashMap<Symbol, UFDef>);
+
+pub struct UFDef {
+    pub inputs: Vec<Sort>,
+    pub output: Sort,
+}
+
+impl UFSorts {
+    pub fn new() -> Self {
+        UFSorts(FxHashMap::default())
+    }
+
+    pub fn insert(&mut self, name: Symbol, uf_def: UFDef) {
+        self.0.insert(name, uf_def);
+    }
+
+    pub fn contains(&self, name: &Symbol) -> bool {
+        self.0.contains_key(name)
+    }
+
+    pub fn get(&self, name: &Symbol) -> Option<&UFDef> {
+        self.0.get(name)
+    }
 }
 
 impl AdtSorts {
@@ -356,6 +389,12 @@ impl fmt::Debug for RefKind {
         }
     }
 }
+impl fmt::Debug for UFun {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sym = self.symbol;
+        write!(f, "{sym:?}")
+    }
+}
 
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -364,6 +403,7 @@ impl fmt::Debug for Expr {
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
+            ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
         }
     }
 }

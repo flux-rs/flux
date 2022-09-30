@@ -29,6 +29,19 @@ pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
 }
 
+pub UFDef: surface::UFDef = {
+    <lo:@L>
+    "fn"
+    <name:Ident>
+    "(" <inputs:Comma<Ident>> ")"
+    "->"
+    <output:Ident>
+    <hi:@R> => {
+        surface::UFDef { name, inputs, output, span: mk_span(lo, hi) }
+    }
+}
+
+
 pub Qualifier: surface::Qualifier = {
     <lo:@L>
     <name:Ident>
@@ -176,6 +189,14 @@ Level7: surface::Expr = {
             span: mk_span(lo, hi),
         }
     },
+    <lo:@L> <f:Ident> "(" <args:Comma<Level1>> ")" <hi:@R> => {
+        surface::Expr {
+            kind: surface::ExprKind::App(f, args),
+            span: mk_span(lo, hi),
+        }
+    },
+
+
     <lo:@L> <var:Ident> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::Var(var),
         span: mk_span(lo, hi),

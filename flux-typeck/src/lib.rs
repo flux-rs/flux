@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization, once_cell, if_let_guard)]
+#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_else)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -49,7 +49,7 @@ pub fn check<'a, 'tcx>(
 
     let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-    match fcx.check(genv.tcx, def_id, constraint, qualifiers) {
+    match fcx.check(genv.tcx, def_id, constraint, qualifiers, &genv.uf_sorts) {
         Ok(_) => Ok(()),
         Err(tags) => report_errors(genv, body.span(), tags),
     }

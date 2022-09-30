@@ -13,7 +13,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UFArg,
+    UFDef, UnOp,
 };
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
@@ -26,6 +27,7 @@ pub struct Task<Tag> {
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
+    pub uifs: Vec<UFDef>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -63,8 +65,9 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         kvars: Vec<KVar>,
         constraint: Constraint<Tag>,
         qualifiers: Vec<Qualifier>,
+        uifs: Vec<UFDef>,
     ) -> Self {
-        Task { constants, kvars, constraint, qualifiers }
+        Task { constants, kvars, constraint, qualifiers, uifs }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
@@ -110,6 +113,10 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
             write!(f, "(constant {name:?} {sort:?})")?;
         }
 
+        for uf_def in &self.uifs {
+            writeln!(f, "{uf_def}")?;
+        }
+
         for kvar in &self.kvars {
             writeln!(f, "{kvar}")?;
         }
@@ -130,6 +137,20 @@ impl fmt::Display for KVar {
             self.1
                 .iter()
                 .format_with(" ", |sort, f| f(&format_args!("({})", sort)))
+        )
+    }
+}
+
+impl fmt::Display for UFDef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(constant {} (func(0, [{}{:?}])))",
+            self.name,
+            self.inputs
+                .iter()
+                .format_with(" ", |sort, f| f(&format_args!("{};", sort))),
+            self.output
         )
     }
 }

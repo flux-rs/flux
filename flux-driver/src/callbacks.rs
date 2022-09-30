@@ -107,6 +107,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
         }
 
+        // gather consts
         specs
             .consts
             .into_iter()
@@ -119,6 +120,14 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 }
                 Ok(())
             })?;
+
+        // Gather UFs
+        specs.uifs.into_iter().try_for_each_exhaust(|uf_def| {
+            let name = uf_def.name;
+            let uf_def = desugar::resolve_uf_def(genv.sess, uf_def)?;
+            genv.register_uf_def(name.name, uf_def);
+            Ok(())
+        })?;
 
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
@@ -194,7 +203,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 }
                 if !is_ignored(genv.tcx, &specs.ignores, def_id) {
                     if let Some(fn_sig) = spec.fn_sig {
-                        let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
+                        let fn_sig = surface::expand::expand_sig(genv.sess, &aliases, fn_sig)?;
                         let fn_sig = desugar::desugar_fn_sig(genv, &adt_sorts, def_id, fn_sig)?;
                         Wf::new(genv).check_fn_sig(&fn_sig)?;
                         genv.register_fn_sig(def_id.to_def_id(), fn_sig);
