@@ -329,11 +329,11 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 }))
             }
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
-                panic!("path resolved to an alias {did:?}");
-                // TyCtxt::type_of
+                let ty = self.tcx.type_of(did);
+                panic!("{ident:?} path resolved to an alias {did:?} of {ty:?}");
             }
 
-            thing => {
+            _ => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
                     msg: "path resolved to an unsupported type",
