@@ -17,7 +17,7 @@ fn bar(a: i32) -> i32 {
 #[flux::sig(fn() -> ())]
 pub fn test() {
     let a = 10;
-    let b = 30;
+    let b = 20;
     let c = foo(a, b);
-    bar(c); //~ ERROR precondition
+    bar(c);
 }
