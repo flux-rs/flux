@@ -10,6 +10,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
@@ -166,7 +167,7 @@ pub enum Sort {
     Tuple(List<Sort>),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct UFDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
@@ -187,6 +188,7 @@ pub enum ExprKind {
     Local(Local),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
+    App(Symbol, Vec<Expr>),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
@@ -611,6 +613,11 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
+    pub fn app(f: Symbol, es: Vec<impl Into<Expr>>) -> Expr {
+        let es = es.into_iter().map(|e| e.into()).collect();
+        ExprKind::App(f, es).intern()
+    }
+
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
         ExprKind::UnaryOp(op, e.into()).intern()
     }
@@ -687,6 +694,9 @@ impl ExprS {
             ExprKind::TupleProj(e, field) => Expr::proj(e.simplify(), *field),
             ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify()).collect_vec()),
             ExprKind::PathProj(e, field) => Expr::path_proj(e.clone(), *field),
+            ExprKind::App(f, exprs) => {
+                Expr::app(*f, exprs.iter().map(|e| e.simplify()).collect_vec())
+            }
         }
     }
 
@@ -1190,6 +1200,9 @@ mod pretty {
                     } else {
                         w!("({:?}).{:?}", e, field)
                     }
+                }
+                ExprKind::App(f, exprs) => {
+                    w!("{f:?}({:?})", join!(", ", exprs))
                 }
             }
         }

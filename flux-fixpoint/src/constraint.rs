@@ -32,6 +32,7 @@ pub enum Expr {
     Var(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
+    App(String, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
     Pair(Box<Expr>, Box<Expr>),
     Proj(Box<Expr>, Proj),
@@ -48,6 +49,12 @@ pub struct Qualifier {
     pub expr: Expr,
     pub args: Vec<(Name, Sort)>,
     pub name: String,
+}
+
+pub struct UFDef {
+    pub name: String,
+    pub inputs: Vec<Sort>,
+    pub output: Sort,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -298,6 +305,17 @@ impl fmt::Display for Expr {
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),
+            Expr::App(uf, exprs) => {
+                // TODO: Nico help!
+                write!(
+                    f,
+                    "({} {})",
+                    uf,
+                    exprs
+                        .iter()
+                        .format_with(" ", |expr, f| f(&format_args!("{expr}"))),
+                )
+            }
         }
     }
 }

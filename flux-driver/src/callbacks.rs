@@ -122,14 +122,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             })?;
 
         // TODO:UF gather UFs
-        specs
-            .uifs
-            .into_iter()
-            .try_for_each_exhaust(|(sym, uf_def)| {
-                let uf_def = desugar::resolve_uf_def(genv.sess, uf_def)?;
-                genv.register_uf_def(sym, uf_def);
-                Ok(())
-            })?;
+        specs.uifs.into_iter().try_for_each_exhaust(|uf_def| {
+            let name = uf_def.name;
+            let uf_def = desugar::resolve_uf_def(genv.sess, uf_def)?;
+            genv.register_uf_def(name.name, uf_def);
+            Ok(())
+        })?;
 
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
@@ -194,6 +192,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             })?;
 
         let aliases = specs.aliases;
+
+        println!("TRACE: UF_SORTS {:?}", genv.uf_sorts);
 
         // Function signatures
         specs

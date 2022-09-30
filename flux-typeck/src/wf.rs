@@ -326,7 +326,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             return self.emit_err(errors::ParamCountMismatch::new(span, expected, found));
         }
-        return self.emit_err(errors::IllegalBinder::new(Some(f.span)));
+        return self.emit_err(errors::UnresolvedFunction::new(f.span));
     }
 }
 
@@ -372,6 +372,20 @@ mod errors {
     impl ParamCountMismatch {
         pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(wf::unresolved_function, code = "FLUX")]
+    pub struct UnresolvedFunction {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+    }
+
+    impl UnresolvedFunction {
+        pub fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 

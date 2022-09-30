@@ -376,12 +376,17 @@ impl TypeFoldable for Expr {
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder))
             }
+
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder)),
             ExprKind::TupleProj(e, proj) => Expr::proj(e.fold_with(folder), *proj),
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
+            ExprKind::App(f, es) => {
+                let es = es.iter().map(|e| e.fold_with(folder)).collect();
+                Expr::app(*f, es)
+            }
         }
     }
 
@@ -403,6 +408,11 @@ impl TypeFoldable for Expr {
             | ExprKind::BoundVar(_)
             | ExprKind::Local(_)
             | ExprKind::ConstDefId(_) => {}
+            ExprKind::App(_, exprs) => {
+                for e in exprs {
+                    e.visit_with(visitor);
+                }
+            }
         }
     }
 

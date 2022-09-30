@@ -20,7 +20,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, EnumDef, ImplItemKind, Item, ItemKind, VariantData};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_session::SessionDiagnostic;
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -45,10 +45,10 @@ pub(crate) struct Specs {
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
+    pub uifs: Vec<surface::UFDef>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
-    pub uifs: FxHashMap<Symbol, surface::UFDef>,
     pub crate_config: Option<config::CrateConfig>,
 }
 
@@ -235,6 +235,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
+
+        let mut uf_defs = attrs.uf_defs();
+        self.specs.uifs.append(&mut uf_defs);
+
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
         Ok(())
@@ -380,10 +384,10 @@ impl Specs {
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
+            uifs: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
-            uifs: FxHashMap::default(),
             crate_config: None,
         }
     }
@@ -481,6 +485,10 @@ impl FluxAttrs {
 
     fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
         read_attrs!(self, Qualifier)
+    }
+
+    fn uf_defs(&mut self) -> Vec<surface::UFDef> {
+        read_attrs!(self, UFDef)
     }
 
     fn alias(&mut self) -> Option<surface::Alias> {
