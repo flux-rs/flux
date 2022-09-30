@@ -7,7 +7,7 @@ use flux_common::{
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
     parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
-    parse_variant, surface, ParseResult,
+    parse_uf_def, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -296,6 +296,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
+            ("uf", MacArgs::Delimited(span, _, tokens)) => {
+                let uf_def = self.parse(tokens.clone(), span.entire(), parse_uf_def)?;
+                FluxAttrKind::UFDef(uf_def)
+            }
             ("cfg", MacArgs::Delimited(_, _, _)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
                     .emit(self.sess)?
@@ -399,6 +403,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
+    UFDef(surface::UFDef),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
     Variant(surface::VariantDef),
@@ -509,6 +514,7 @@ impl FluxAttrKind {
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),
+            FluxAttrKind::UFDef(_) => attr_name!(UFDef),
         }
     }
 }

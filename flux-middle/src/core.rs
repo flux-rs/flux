@@ -149,8 +149,7 @@ pub enum ExprKind {
 
 /// representation of uninterpreted functions
 pub struct UFun {
-    name: Name,
-    symbol: Symbol,
+    pub symbol: Symbol,
 }
 
 #[derive(Clone, Copy)]
@@ -209,6 +208,28 @@ pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
 pub struct AdtSortInfo {
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
+}
+
+#[derive(Default)]
+pub struct UFSorts(FxHashMap<Symbol, UFDef>);
+
+pub struct UFDef {
+    pub inputs: Vec<Sort>,
+    pub output: Sort,
+}
+
+impl UFSorts {
+    pub fn new() -> Self {
+        UFSorts(FxHashMap::default())
+    }
+
+    pub fn insert(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
+        self.0.insert(name, UFDef { inputs, output });
+    }
+
+    pub fn contains(&self, name: &Symbol) -> bool {
+        self.0.contains_key(name)
+    }
 }
 
 impl AdtSorts {

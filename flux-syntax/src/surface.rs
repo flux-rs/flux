@@ -17,6 +17,18 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
+pub struct UFDef {
+    /// name of the uninterpreted function
+    pub name: Ident,
+    /// input sorts
+    pub inputs: Vec<Ident>,
+    /// output sort
+    pub output: Ident,
+    /// definition source position
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct Alias<T = Ident> {
     pub name: Ident,
     pub args: Vec<Ident>,

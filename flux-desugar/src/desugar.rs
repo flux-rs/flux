@@ -5,7 +5,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     core::{
         AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, VariantDef,
+        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFun, VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -117,11 +117,11 @@ fn desugar_variant(
 
 pub fn desugar_fn_sig(
     sess: &FluxSession,
-    refined_by: &AdtSorts,
+    adt_sorts: &AdtSorts,
     consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, refined_by);
+    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
     params.gather_fn_sig_params(&fn_sig)?;
     let mut desugar = DesugarCtxt::with_params(params);
 
@@ -659,7 +659,7 @@ impl<'a> ParamsCtxt<'a> {
     }
 
     fn desugar_uf(&self, f: surface::Ident) -> flux_middle::core::UFun {
-        todo!("desugar_uf")
+        UFun { symbol: f.name }
     }
 }
 

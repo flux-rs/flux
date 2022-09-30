@@ -12,7 +12,7 @@ pub use rustc_span::symbol::Ident;
 use rustc_span::Symbol;
 
 use crate::{
-    core::{self, VariantIdx},
+    core::{self, UFSorts, VariantIdx},
     intern::List,
     rustc,
     ty::{self, Binders},
@@ -32,6 +32,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub consts: Vec<ConstInfo>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::PolyVariant>>>>,
+    pub uf_sorts: core::UFSorts,
     check_asserts: AssertBehavior,
     /// Some functions can only to be called after all annotated adts have been
     /// registered. We use this flag to check at runtime that this is actually the
@@ -52,6 +53,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             sess,
             check_asserts,
             adts_registered: false,
+            uf_sorts: UFSorts::new(),
         }
     }
 

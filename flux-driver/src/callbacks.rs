@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::{AdtSortInfo, AdtSorts},
+    core::{AdtSortInfo, AdtSorts, UFSorts},
     global_env::{ConstInfo, GlobalEnv},
     rustc, ty,
 };
@@ -101,12 +101,14 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         let mut assume = FxHashSet::default();
         let mut adt_sorts = AdtSorts::default();
+        let mut uf_sorts = UFSorts::default();
 
         // Ignore everything and go home
         if specs.ignores.contains(&IgnoreKey::Crate) {
             return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
         }
 
+        // gather consts
         specs
             .consts
             .into_iter()
@@ -119,6 +121,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 }
                 Ok(())
             })?;
+
+        // TODO:UF gather UFs
 
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
