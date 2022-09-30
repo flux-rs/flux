@@ -274,15 +274,23 @@ impl fmt::Debug for BinOp {
 pub mod expand {
     use std::{collections::HashMap, iter};
 
-    use rustc_span::{symbol::Ident, Span};
+    use flux_errors::FluxSession;
+    use rustc_errors::ErrorGuaranteed;
+    use rustc_span::symbol::Ident;
 
-    use super::{AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Index, Indices, Path, Ty, TyKind};
+    use super::{
+        errors, AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Index, Indices, Path, Ty, TyKind,
+    };
 
     /// `expand_bare_sig(aliases, b_sig)` replaces all the alias-applications in `b_sig`
     /// with the corresponding type definitions from `aliases` (if any).
-    pub fn expand_sig(aliases: &AliasMap, fn_sig: FnSig) -> Result<FnSig, Span> {
+    pub fn expand_sig(
+        sess: &FluxSession,
+        aliases: &AliasMap,
+        fn_sig: FnSig,
+    ) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
-            args: expand_args(aliases, fn_sig.args)?,
+            args: expand_args(sess, aliases, fn_sig.args)?,
             returns: expand_ty(aliases, &fn_sig.returns),
             ensures: expand_locs(aliases, fn_sig.ensures),
             requires: fn_sig.requires,
@@ -290,20 +298,28 @@ pub mod expand {
         })
     }
 
-    fn expand_args(aliases: &AliasMap, args: Vec<Arg>) -> Result<Vec<Arg>, Span> {
+    fn expand_args(
+        sess: &FluxSession,
+        aliases: &AliasMap,
+        args: Vec<Arg>,
+    ) -> Result<Vec<Arg>, ErrorGuaranteed> {
         args.into_iter()
-            .map(|arg| expand_arg(aliases, arg))
+            .map(|arg| expand_arg(sess, aliases, arg))
             .collect()
     }
 
-    fn expand_arg(aliases: &AliasMap, arg: Arg) -> Result<Arg, Span> {
+    fn expand_arg(
+        sess: &FluxSession,
+        aliases: &AliasMap,
+        arg: Arg,
+    ) -> Result<Arg, ErrorGuaranteed> {
         match arg {
             Arg::Alias(x, path, indices) => {
                 match expand_alias(aliases, &path, &indices) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    _ => Err(path.span),
+                    _ => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
                 }
             }
             Arg::Indexed(x, path, None) => {
@@ -311,7 +327,7 @@ pub mod expand {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    Some(_) => Err(path.span),
+                    Some(_) => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
                     None => Ok(Arg::Indexed(x, expand_path(aliases, &path), None)),
                 }
             }
@@ -507,5 +523,16 @@ pub mod expand {
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
         }
+    }
+}
+
+mod errors {
+    use flux_macros::SessionDiagnostic;
+    use rustc_span::Span;
+    #[derive(SessionDiagnostic)]
+    #[error(parse::invalid_alias_application, code = "FLUX")]
+    pub struct InvalidAliasApplication {
+        #[primary_span]
+        pub span: Span,
     }
 }

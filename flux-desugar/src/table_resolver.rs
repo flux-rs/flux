@@ -288,7 +288,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
         ident: Ident,
         res: rustc_hir::def::Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let res = self.of_hir_res(ident, res, ident.span)?;
+        let res = self.of_hir_res(res, ident.span)?;
         self.res.insert(ident.name, res);
         Ok(())
     }
@@ -331,12 +331,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
         }
     }
 
-    fn of_hir_res(
-        &self,
-        ident: Ident,
-        res: hir::def::Res,
-        span: Span,
-    ) -> Result<Res, ErrorGuaranteed> {
+    fn of_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(Res::Param(self.get_param_ty(did).unwrap()))
