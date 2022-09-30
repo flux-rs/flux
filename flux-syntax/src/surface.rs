@@ -303,7 +303,7 @@ pub mod expand {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    _ => Err(path.span), // panic!("bad alias app: {:?}[{:?}]", &path, &indices),
+                    _ => Err(path.span),
                 }
             }
             Arg::Indexed(x, path, None) => {
@@ -311,7 +311,7 @@ pub mod expand {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    Some(_) => Err(path.span), // panic!("unexpected arg: expand_arg"),
+                    Some(_) => Err(path.span),
                     None => Ok(Arg::Indexed(x, expand_path(aliases, &path), None)),
                 }
             }
