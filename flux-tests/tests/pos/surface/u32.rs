@@ -8,7 +8,7 @@ pub fn inc(x: u32) -> u32 {
 
 pub type SboxPtr = i32;
 
-#[flux::sig(fn(ptr:i32) -> bool[true])]
-pub fn in_lin_mem(ptr: SboxPtr) -> bool {
+#[flux::sig(fn(SboxPtr) -> bool[true])]
+pub fn in_lin_mem(_ptr: SboxPtr) -> bool {
     true
 }

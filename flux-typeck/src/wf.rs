@@ -312,21 +312,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         es: &[core::Expr],
         span: Option<Span>,
     ) -> Result<ty::Sort, ErrorGuaranteed> {
-        if let Some(uf_def) = self.genv.uf_sorts.get(&f.symbol) {
-            let found = es.len();
-            let expected = uf_def.inputs.len();
-            if expected == found {
-                for (e, t) in es.iter().zip(uf_def.inputs.iter()) {
-                    let e_t = self.synth_expr(env, e)?;
-                    if e_t != *t {
-                        return self.emit_err(errors::SortMismatch::new(e.span, t.clone(), e_t));
-                    }
-                }
-                return Ok(uf_def.output.clone());
-            }
+        let Some(uf_def) = self.genv.uf_sorts.get(&f.symbol) else {
+            return self.emit_err(errors::UnresolvedFunction::new(f.span));
+        };
+        let found = es.len();
+        let expected = uf_def.inputs.len();
+        if expected != found {
             return self.emit_err(errors::ParamCountMismatch::new(span, expected, found));
         }
-        self.emit_err(errors::UnresolvedFunction::new(f.span))
+        for (e, t) in iter::zip(es, &uf_def.inputs) {
+            let e_t = self.synth_expr(env, e)?;
+            if e_t != *t {
+                return self.emit_err(errors::SortMismatch::new(e.span, t.clone(), e_t));
+            }
+        }
+        Ok(uf_def.output.clone())
     }
 }
 

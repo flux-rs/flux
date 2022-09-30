@@ -295,13 +295,13 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
 
     fn of_ty(&self, ty: rustc_middle::ty::Ty, span: Span) -> Result<Res, ErrorGuaranteed> {
         match ty.kind() {
-            TyKind::Bool => todo!(),
-            TyKind::Char => todo!(),
-            TyKind::Int(_) => todo!(),
-            TyKind::Uint(_) => todo!(),
-            TyKind::Float(_) => todo!(),
+            TyKind::Bool => Ok(Res::Bool),
+            TyKind::Int(int_ty) => Ok(Res::Int(*int_ty)),
+            TyKind::Uint(uint_ty) => Ok(Res::Uint(*uint_ty)),
+            TyKind::Float(float_ty) => Ok(Res::Float(*float_ty)),
             TyKind::Param(pty) => Ok(Res::Param(*pty)),
             // TyKind::Adt(did, what) => todo!(),
+            // TyKind::Char => todo!(),
             _ => {
             Err(self.sess.emit_err(errors::UnsupportedSignature {
                 span,
