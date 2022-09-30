@@ -15,6 +15,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Symbol;
 
 use crate::refine_tree::Scope;
 
@@ -122,6 +123,7 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
         qualifiers: &[ty::Qualifier],
+        uf_sorts: &FxHashMap<Symbol, ty::UFDef>,
     ) -> Result<(), Vec<T>> {
         let kvars = self
             .fixpoint_kvars
@@ -145,7 +147,12 @@ where
             .map(|(_, const_info)| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
-        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers);
+        let uifs = uf_sorts
+            .iter()
+            .map(|(sym, uf_def)| uf_def_to_fixpoint(sym, uf_def))
+            .collect_vec();
+
+        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }
@@ -402,6 +409,12 @@ fn dump_constraint<C: std::fmt::Debug>(
     fs::create_dir_all(&dir)?;
     let mut file = fs::File::create(dir.join(format!("{}{}", tcx.def_path_str(def_id), suffix)))?;
     write!(file, "{:?}", c)
+}
+
+fn uf_def_to_fixpoint(name: &Symbol, uf_def: &ty::UFDef) -> fixpoint::UFDef {
+    let inputs = uf_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
+    let output = sort_to_fixpoint(&uf_def.output);
+    fixpoint::UFDef::new(name.to_string(), inputs, output)
 }
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fixpoint::Qualifier {

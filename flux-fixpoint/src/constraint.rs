@@ -57,6 +57,11 @@ pub struct UFDef {
     pub output: Sort,
 }
 
+impl UFDef {
+    pub fn new(name: String, inputs: Vec<Sort>, output: Sort) -> Self {
+        UFDef { name, inputs, output }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct Const {
     pub name: Name,
