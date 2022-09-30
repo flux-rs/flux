@@ -310,19 +310,9 @@ impl fmt::Display for Expr {
             Expr::Var(x) => write!(f, "{:?}", x),
             Expr::Constant(c) => write!(f, "{}", c),
             Expr::BinaryOp(op, e1, e2) => {
-                // if  {
-                //     write!(f, "({})", e1)?;
-                // } else {
-                //     write!(f, "{}", e1)?;
-                // }
                 fmt_parens(should_parenthesize(*op, e1), e1, f)?;
                 write!(f, " {} ", op)?;
                 fmt_parens(should_parenthesize(*op, e2), e2, f)?;
-                // if should_parenthesize(*op, e2) {
-                //     write!(f, "({})", e2)?;
-                // } else {
-                //     write!(f, "{}", e2)?;
-                // }
                 Ok(())
             }
             Expr::UnaryOp(op, e) => {
