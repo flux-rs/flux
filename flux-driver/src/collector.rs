@@ -362,7 +362,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    pub fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+    fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);
         Err(e)
