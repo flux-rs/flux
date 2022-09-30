@@ -9,21 +9,22 @@ use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt};
 use rustc_span::{Span, Symbol};
 
-pub struct Resolver<'a> {
-    sess: &'a FluxSession,
-    table: NameResTable<'a>,
+pub struct Resolver<'genv, 'tcx> {
+    sess: &'genv FluxSession,
+    table: NameResTable<'genv, 'tcx>,
 }
 
-struct NameResTable<'a> {
+struct NameResTable<'genv, 'tcx> {
     res: FxHashMap<Symbol, Res>,
     generics: FxHashMap<DefId, ParamTy>,
-    sess: &'a FluxSession,
+    sess: &'genv FluxSession,
+    tcx: TyCtxt<'tcx>,
 }
 
-impl<'genv> Resolver<'genv> {
+impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
     #[allow(dead_code)]
 
-    pub fn new(genv: &GlobalEnv<'genv, '_>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
+    pub fn new(genv: &GlobalEnv<'genv, 'tcx>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
         let table = match genv.tcx.def_kind(def_id) {
             hir::def::DefKind::Struct | hir::def::DefKind::Enum | hir::def::DefKind::Fn => {
                 NameResTable::from_item(genv, def_id)?
@@ -175,10 +176,13 @@ impl<'genv> Resolver<'genv> {
     }
 }
 
-impl<'a> NameResTable<'a> {
-    fn from_item(genv: &GlobalEnv<'a, '_>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
+impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
+    fn from_item(
+        genv: &GlobalEnv<'genv, 'tcx>,
+        def_id: LocalDefId,
+    ) -> Result<Self, ErrorGuaranteed> {
         let item = genv.tcx.hir().expect_item(def_id);
-        let mut table = Self::new(genv.sess);
+        let mut table = Self::new(genv.sess, genv.tcx);
         match &item.kind {
             ItemKind::Struct(data, generics) => {
                 table.insert_generics(genv.tcx, generics);
@@ -212,12 +216,12 @@ impl<'a> NameResTable<'a> {
     }
 
     fn from_impl_item(
-        genv: &GlobalEnv<'a, '_>,
+        genv: &GlobalEnv<'genv, 'tcx>,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
         let impl_item = genv.tcx.hir().expect_impl_item(def_id);
 
-        let mut table = Self::new(genv.sess);
+        let mut table = Self::new(genv.sess, genv.tcx);
 
         // Insert generics from parent impl
         if let Some(parent_impl_did) = genv.tcx.impl_of_method(def_id.to_def_id()) {
@@ -239,8 +243,8 @@ impl<'a> NameResTable<'a> {
         Ok(table)
     }
 
-    fn new(sess: &'a FluxSession) -> NameResTable<'a> {
-        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default() }
+    fn new(sess: &'genv FluxSession, tcx: TyCtxt<'tcx>) -> NameResTable<'genv, 'tcx> {
+        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
     }
 
     fn get(&self, sym: Symbol) -> Option<&Res> {
@@ -284,12 +288,17 @@ impl<'a> NameResTable<'a> {
         ident: Ident,
         res: rustc_hir::def::Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let res = self.of_hir_res(res, ident.span)?;
+        let res = self.of_hir_res(ident, res, ident.span)?;
         self.res.insert(ident.name, res);
         Ok(())
     }
 
-    fn of_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn of_hir_res(
+        &self,
+        ident: Ident,
+        res: hir::def::Res,
+        span: Span,
+    ) -> Result<Res, ErrorGuaranteed> {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(Res::Param(self.get_param_ty(did).unwrap()))
@@ -316,10 +325,15 @@ impl<'a> NameResTable<'a> {
             hir::def::Res::PrimTy(hir::PrimTy::Char) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
-                    msg: "chars are not suported yet",
+                    msg: "chars are not supported yet",
                 }))
             }
-            _ => {
+            hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
+                panic!("path resolved to an alias {did:?}");
+                // TyCtxt::type_of
+            }
+
+            thing => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
                     msg: "path resolved to an unsupported type",
