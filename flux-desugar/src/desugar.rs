@@ -534,9 +534,9 @@ impl<'a> ParamsCtxt<'a> {
                 Ok(FreshIdents::Dot(params))
             }
             std::cmp::Ordering::Less => {
-                return Err(self
+                Err(self
                     .sess
-                    .emit_err(errors::ParamCountMismatch::new(ident.span, slen, 1)));
+                    .emit_err(errors::ParamCountMismatch::new(ident.span, slen, 1)))
             }
         }
     }
@@ -863,7 +863,7 @@ mod errors {
     }
 
     impl UnresolvedDotVar {
-        pub fn new<T>(ident: Ident, fields: &Vec<(Symbol, T)>) -> Self {
+        pub fn new<T>(ident: Ident, fields: &[(Symbol, T)]) -> Self {
             let msg: Vec<String> = fields
                 .iter()
                 .map(|(fld, _)| format!("{}.{}", ident.name.as_str(), fld.as_str()))

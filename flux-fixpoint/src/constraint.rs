@@ -289,10 +289,7 @@ fn fmt_parens(parens: bool, thing: impl fmt::Display, f: &mut fmt::Formatter<'_>
 
 impl fmt::Display for UFArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let parens = match &self.arg {
-            Expr::Var(_) | Expr::Constant(_) | Expr::Unit => false,
-            _ => true,
-        };
+        let parens = !matches!(&self.arg, Expr::Var(_) | Expr::Constant(_) | Expr::Unit);
         fmt_parens(parens, &self.arg, f)
     }
 }

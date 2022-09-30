@@ -326,7 +326,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             return self.emit_err(errors::ParamCountMismatch::new(span, expected, found));
         }
-        return self.emit_err(errors::UnresolvedFunction::new(f.span));
+        self.emit_err(errors::UnresolvedFunction::new(f.span))
     }
 }
 

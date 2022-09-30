@@ -62,11 +62,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_uf_def(&mut self, name: Symbol, uf_def: UFDef) {
-        let inputs = uf_def
-            .inputs
-            .into_iter()
-            .map(|t| ty::conv::conv_sort(t))
-            .collect();
+        let inputs = uf_def.inputs.into_iter().map(ty::conv::conv_sort).collect();
         let output = ty::conv::conv_sort(uf_def.output);
 
         self.uf_sorts.insert(name, ty::UFDef { inputs, output });
