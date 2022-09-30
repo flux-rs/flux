@@ -15,6 +15,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Symbol;
 
 use crate::refine_tree::Scope;
 
@@ -122,6 +123,7 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
         qualifiers: &[ty::Qualifier],
+        uf_sorts: &FxHashMap<Symbol, ty::UFDef>,
     ) -> Result<(), Vec<T>> {
         let kvars = self
             .fixpoint_kvars
@@ -145,7 +147,12 @@ where
             .map(|(_, const_info)| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
-        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers);
+        let uifs = uf_sorts
+            .iter()
+            .map(|(sym, uf_def)| uf_def_to_fixpoint(sym, uf_def))
+            .collect_vec();
+
+        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
         if CONFIG.dump_constraint {
             dump_constraint(tcx, did, &task, ".smt2").unwrap();
         }
@@ -404,6 +411,12 @@ fn dump_constraint<C: std::fmt::Debug>(
     write!(file, "{:?}", c)
 }
 
+fn uf_def_to_fixpoint(name: &Symbol, uf_def: &ty::UFDef) -> fixpoint::UFDef {
+    let inputs = uf_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
+    let output = sort_to_fixpoint(&uf_def.output);
+    fixpoint::UFDef::new(name.to_string(), inputs, output)
+}
+
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
     let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
@@ -453,6 +466,13 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -
             panic!("unexpected expr: `{expr:?}`")
         }
         ty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
+        ty::ExprKind::App(f, exprs) => {
+            let args = exprs
+                .iter()
+                .map(|e| fixpoint::UFArg::new(expr_to_fixpoint(e, name_map, const_map)))
+                .collect();
+            fixpoint::Expr::App(f.to_string(), args)
+        }
     }
 }
 

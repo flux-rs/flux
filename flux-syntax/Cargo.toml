@@ -7,6 +7,8 @@ version = "0.1.0"
 
 [dependencies]
 lalrpop-util = "0.19"
+flux-macros = { path = "../flux-macros" }
+flux-errors = { path = "../flux-errors" }
 
 [build-dependencies]
 lalrpop = "0.19"

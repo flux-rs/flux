@@ -1,9 +1,12 @@
 #![feature(rustc_private)]
 
+extern crate flux_errors;
 extern crate rustc_ast;
+extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_middle;
+extern crate rustc_session;
 extern crate rustc_span;
 
 pub mod lexer;
@@ -48,6 +51,10 @@ pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surf
 
 pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::Qualifier> {
     parse!(surface_grammar::QualifierParser, tokens, span)
+}
+
+pub fn parse_uf_def(tokens: TokenStream, span: Span) -> ParseResult<surface::UFDef> {
+    parse!(surface_grammar::UFDefParser, tokens, span)
 }
 
 pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {

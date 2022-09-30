@@ -326,6 +326,13 @@ fn conv_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
                 conv_expr(e2, name_map, nbinders),
             )
         }
+        core::ExprKind::App(f, exprs) => {
+            let exprs = exprs
+                .iter()
+                .map(|e| conv_expr(e, name_map, nbinders))
+                .collect();
+            ty::Expr::app(f.symbol, exprs)
+        }
     }
 }
 

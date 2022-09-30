@@ -6,6 +6,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_session::SessionDiagnostic;
+use rustc_span::Span;
 
 pub struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -253,6 +254,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             core::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             core::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
             core::ExprKind::Const(_, _) => Ok(ty::Sort::Int), // TODO: generalize const sorts
+            core::ExprKind::App(f, es) => self.synth_uf_app(env, f, es, e.span),
         }
     }
 
@@ -302,6 +304,30 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn emit_err<'b, R>(&'b self, err: impl SessionDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
         Err(self.genv.sess.emit_err(err))
     }
+
+    fn synth_uf_app(
+        &self,
+        env: &Env,
+        f: &core::UFun,
+        es: &[core::Expr],
+        span: Option<Span>,
+    ) -> Result<ty::Sort, ErrorGuaranteed> {
+        let Some(uf_def) = self.genv.uf_sorts.get(&f.symbol) else {
+            return self.emit_err(errors::UnresolvedFunction::new(f.span));
+        };
+        let found = es.len();
+        let expected = uf_def.inputs.len();
+        if expected != found {
+            return self.emit_err(errors::ParamCountMismatch::new(span, expected, found));
+        }
+        for (e, t) in iter::zip(es, &uf_def.inputs) {
+            let e_t = self.synth_expr(env, e)?;
+            if e_t != *t {
+                return self.emit_err(errors::SortMismatch::new(e.span, t.clone(), e_t));
+            }
+        }
+        Ok(uf_def.output.clone())
+    }
 }
 
 fn synth_lit(lit: core::Lit) -> ty::Sort {
@@ -346,6 +372,20 @@ mod errors {
     impl ParamCountMismatch {
         pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
+        }
+    }
+
+    #[derive(SessionDiagnostic)]
+    #[error(wf::unresolved_function, code = "FLUX")]
+    pub struct UnresolvedFunction {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+    }
+
+    impl UnresolvedFunction {
+        pub fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 

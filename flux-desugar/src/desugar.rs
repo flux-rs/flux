@@ -5,7 +5,8 @@ use flux_errors::FluxSession;
 use flux_middle::{
     core::{
         AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, VariantDef,
+        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef, UFun,
+        VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -34,6 +35,19 @@ pub fn desugar_qualifier(
     let expr = params.desugar_expr(qualifier.expr);
 
     Ok(Qualifier { name, args: params.params, expr: expr? })
+}
+
+pub fn resolve_uf_def(
+    sess: &FluxSession,
+    uf_def: surface::UFDef,
+) -> Result<UFDef, ErrorGuaranteed> {
+    let inputs = uf_def
+        .inputs
+        .into_iter()
+        .map(|ident| resolve_sort(sess, ident))
+        .try_collect_exhaust()?;
+    let output = resolve_sort(sess, uf_def.output)?;
+    Ok(UFDef { inputs, output })
 }
 
 pub fn resolve_sorts(
@@ -117,11 +131,11 @@ fn desugar_variant(
 
 pub fn desugar_fn_sig(
     sess: &FluxSession,
-    refined_by: &AdtSorts,
+    adt_sorts: &AdtSorts,
     consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, refined_by);
+    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
     params.gather_fn_sig_params(&fn_sig)?;
     let mut desugar = DesugarCtxt::with_params(params);
 
@@ -328,7 +342,7 @@ fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
     }
 }
 
-fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
+pub fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
     if sort.name == SORTS.int {
         Ok(Sort::Int)
     } else if sort.name == sym::bool {
@@ -366,6 +380,14 @@ impl<'a> ParamsCtxt<'a> {
                 ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
             surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
+            surface::ExprKind::App(f, es) => {
+                let uf = self.desugar_uf(f);
+                let es = es
+                    .into_iter()
+                    .map(|e| self.desugar_expr(e))
+                    .try_collect_exhaust()?;
+                ExprKind::App(uf, es)
+            }
         };
         Ok(Expr { kind, span: Some(expr.span) })
     }
@@ -512,9 +534,9 @@ impl<'a> ParamsCtxt<'a> {
                 Ok(FreshIdents::Dot(params))
             }
             std::cmp::Ordering::Less => {
-                return Err(self
+                Err(self
                     .sess
-                    .emit_err(errors::ParamCountMismatch::new(ident.span, slen, 1)));
+                    .emit_err(errors::ParamCountMismatch::new(ident.span, slen, 1)))
             }
         }
     }
@@ -648,6 +670,10 @@ impl<'a> ParamsCtxt<'a> {
             }
             surface::TyKind::Exists { .. } | surface::TyKind::Unit => Ok(()),
         }
+    }
+
+    fn desugar_uf(&self, f: surface::Ident) -> flux_middle::core::UFun {
+        UFun { symbol: f.name, span: f.span }
     }
 }
 
@@ -837,7 +863,7 @@ mod errors {
     }
 
     impl UnresolvedDotVar {
-        pub fn new<T>(ident: Ident, fields: &Vec<(Symbol, T)>) -> Self {
+        pub fn new<T>(ident: Ident, fields: &[(Symbol, T)]) -> Self {
             let msg: Vec<String> = fields
                 .iter()
                 .map(|(fld, _)| format!("{}.{}", ident.name.as_str(), fld.as_str()))

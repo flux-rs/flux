@@ -19,14 +19,14 @@ type Locs = HashMap<Symbol, rustc_ty::Ty>;
 pub struct ZipResolver<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
-    resolver: &'genv Resolver<'genv>,
+    resolver: &'genv Resolver<'genv, 'tcx>,
 }
 
 impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
     pub fn new(
         tcx: TyCtxt<'tcx>,
         sess: &'genv FluxSession,
-        resolver: &'genv Resolver<'genv>,
+        resolver: &'genv Resolver<'genv, 'tcx>,
     ) -> Self {
         ZipResolver { tcx, sess, resolver }
     }

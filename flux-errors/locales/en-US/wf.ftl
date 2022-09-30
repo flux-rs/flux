@@ -12,3 +12,7 @@ wf-param-count-mismatch =
 wf-illegal-binder =
     illegal binder
     .label = binder not allowed under ADT parameter
+
+wf-unresolved-function =
+    unresolved function
+    .label = function is not defined in this scope
