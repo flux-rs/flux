@@ -6,7 +6,7 @@ use hir::{def_id::DefId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
-use rustc_middle::ty::{ParamTy, TyCtxt};
+use rustc_middle::ty::{ParamTy, TyCtxt, TyKind};
 use rustc_span::{Span, Symbol};
 
 pub struct Resolver<'genv, 'tcx> {
@@ -293,6 +293,44 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
         Ok(())
     }
 
+    fn of_ty(&self, ty: rustc_middle::ty::Ty, span: Span) -> Result<Res, ErrorGuaranteed> {
+        match ty.kind() {
+            TyKind::Bool => todo!(),
+            TyKind::Char => todo!(),
+            TyKind::Int(_) => todo!(),
+            TyKind::Uint(_) => todo!(),
+            TyKind::Float(_) => todo!(),
+            TyKind::Param(pty) => Ok(Res::Param(*pty)),
+            // TyKind::Adt(did, what) => todo!(),
+            _ => {
+            Err(self.sess.emit_err(errors::UnsupportedSignature {
+                span,
+                msg: "path resolved to an unsupported type",
+            }))
+        }
+            // rustc_type_ir::TyKind::Foreign(_) => todo!(),
+            // rustc_type_ir::TyKind::Str => todo!(),
+            // rustc_type_ir::TyKind::Array(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Slice(_) => todo!(),
+            // rustc_type_ir::TyKind::RawPtr(_) => todo!(),
+            // rustc_type_ir::TyKind::Ref(_, _, _) => todo!(),
+            // rustc_type_ir::TyKind::FnDef(_, _) => todo!(),
+            // rustc_type_ir::TyKind::FnPtr(_) => todo!(),
+            // rustc_type_ir::TyKind::Dynamic(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Closure(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Generator(_, _, _) => todo!(),
+            // rustc_type_ir::TyKind::GeneratorWitness(_) => todo!(),
+            // rustc_type_ir::TyKind::Never => todo!(),
+            // rustc_type_ir::TyKind::Tuple(_) => todo!(),
+            // rustc_type_ir::TyKind::Projection(_) => todo!(),
+            // rustc_type_ir::TyKind::Opaque(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Bound(_, _) => todo!(),
+            // rustc_type_ir::TyKind::Placeholder(_) => todo!(),
+            // rustc_type_ir::TyKind::Infer(_) => todo!(),
+            // rustc_type_ir::TyKind::Error(_) => todo!(),
+        }
+    }
+
     fn of_hir_res(
         &self,
         ident: Ident,
@@ -329,8 +367,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 }))
             }
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
-                let ty = self.tcx.type_of(did);
-                panic!("{ident:?} path resolved to an alias {did:?} of {ty:?}");
+                self.of_ty(self.tcx.type_of(did), span)
             }
 
             _ => {
