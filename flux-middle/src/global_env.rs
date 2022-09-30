@@ -68,10 +68,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.uf_sorts.insert(name, ty::UFDef { inputs, output });
     }
 
-    // pub fn lookup_uf_def(&self, name: &Symbol) -> Option<&UFDef> {
-    //     self.uf_sorts.get(name)
-    // }
-
     pub fn register_adt_def(&mut self, def_id: DefId, sorts: &[core::Sort]) {
         let sorts = sorts
             .iter()
