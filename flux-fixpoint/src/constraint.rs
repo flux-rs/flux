@@ -32,11 +32,20 @@ pub enum Expr {
     Var(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
-    App(String, Vec<Self>),
+    App(String, Vec<UFArg>),
     UnaryOp(UnOp, Box<Self>),
     Pair(Box<Expr>, Box<Expr>),
     Proj(Box<Expr>, Proj),
     Unit,
+}
+pub struct UFArg {
+    arg: Expr,
+}
+
+impl UFArg {
+    pub fn new(arg: Expr) -> Self {
+        UFArg { arg }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -270,6 +279,24 @@ impl Expr {
     }
 }
 
+fn fmt_parens(parens: bool, thing: impl fmt::Display, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if parens {
+        write!(f, "({})", thing)
+    } else {
+        write!(f, "{}", thing)
+    }
+}
+
+impl fmt::Display for UFArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let parens = match &self.arg {
+            Expr::Var(_) | Expr::Constant(_) | Expr::Unit => false,
+            _ => true,
+        };
+        fmt_parens(parens, &self.arg, f)
+    }
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn should_parenthesize(op: BinOp, child: &Expr) -> bool {
@@ -286,17 +313,19 @@ impl fmt::Display for Expr {
             Expr::Var(x) => write!(f, "{:?}", x),
             Expr::Constant(c) => write!(f, "{}", c),
             Expr::BinaryOp(op, e1, e2) => {
-                if should_parenthesize(*op, e1) {
-                    write!(f, "({})", e1)?;
-                } else {
-                    write!(f, "{}", e1)?;
-                }
+                // if  {
+                //     write!(f, "({})", e1)?;
+                // } else {
+                //     write!(f, "{}", e1)?;
+                // }
+                fmt_parens(should_parenthesize(*op, e1), e1, f)?;
                 write!(f, " {} ", op)?;
-                if should_parenthesize(*op, e2) {
-                    write!(f, "({})", e2)?;
-                } else {
-                    write!(f, "{}", e2)?;
-                }
+                fmt_parens(should_parenthesize(*op, e2), e2, f)?;
+                // if should_parenthesize(*op, e2) {
+                //     write!(f, "({})", e2)?;
+                // } else {
+                //     write!(f, "{}", e2)?;
+                // }
                 Ok(())
             }
             Expr::UnaryOp(op, e) => {
@@ -310,14 +339,12 @@ impl fmt::Display for Expr {
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),
-            Expr::App(uf, exprs) => {
-                // TODO: Nico help!
+            Expr::App(uf, args) => {
                 write!(
                     f,
                     "({} {})",
                     uf,
-                    exprs
-                        .iter()
+                    args.iter()
                         .format_with(" ", |expr, f| f(&format_args!("{expr}"))),
                 )
             }

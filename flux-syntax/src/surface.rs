@@ -274,50 +274,52 @@ impl fmt::Debug for BinOp {
 pub mod expand {
     use std::{collections::HashMap, iter};
 
-    use rustc_span::symbol::Ident;
+    use rustc_span::{symbol::Ident, Span};
 
     use super::{AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Index, Indices, Path, Ty, TyKind};
 
     /// `expand_bare_sig(aliases, b_sig)` replaces all the alias-applications in `b_sig`
     /// with the corresponding type definitions from `aliases` (if any).
-    pub fn expand_sig(aliases: &AliasMap, fn_sig: FnSig) -> FnSig {
-        FnSig {
-            args: expand_args(aliases, fn_sig.args),
+    pub fn expand_sig(aliases: &AliasMap, fn_sig: FnSig) -> Result<FnSig, Span> {
+        Ok(FnSig {
+            args: expand_args(aliases, fn_sig.args)?,
             returns: expand_ty(aliases, &fn_sig.returns),
             ensures: expand_locs(aliases, fn_sig.ensures),
             requires: fn_sig.requires,
             span: fn_sig.span,
-        }
+        })
     }
 
-    fn expand_args(aliases: &AliasMap, args: Vec<Arg>) -> Vec<Arg> {
+    fn expand_args(aliases: &AliasMap, args: Vec<Arg>) -> Result<Vec<Arg>, Span> {
         args.into_iter()
             .map(|arg| expand_arg(aliases, arg))
             .collect()
     }
 
-    fn expand_arg(aliases: &AliasMap, arg: Arg) -> Arg {
+    fn expand_arg(aliases: &AliasMap, arg: Arg) -> Result<Arg, Span> {
         match arg {
             Arg::Alias(x, path, indices) => {
                 match expand_alias(aliases, &path, &indices) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                        expand_arg_exists(x, e_path, e_bind, e_pred)
+                        Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    _ => panic!("bad alias app: {:?}[{:?}]", &path, &indices),
+                    _ => Err(path.span), // panic!("bad alias app: {:?}[{:?}]", &path, &indices),
                 }
             }
             Arg::Indexed(x, path, None) => {
                 match expand_alias0(aliases, &path) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                        expand_arg_exists(x, e_path, e_bind, e_pred)
+                        Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    Some(_) => panic!("unexpected arg: expand_arg"),
-                    None => Arg::Indexed(x, expand_path(aliases, &path), None),
+                    Some(_) => Err(path.span), // panic!("unexpected arg: expand_arg"),
+                    None => Ok(Arg::Indexed(x, expand_path(aliases, &path), None)),
                 }
             }
-            Arg::Indexed(x, path, Some(e)) => Arg::Indexed(x, expand_path(aliases, &path), Some(e)),
-            Arg::Ty(t) => Arg::Ty(expand_ty(aliases, &t)),
-            Arg::StrgRef(x, t) => Arg::StrgRef(x, expand_ty(aliases, &t)),
+            Arg::Indexed(x, path, Some(e)) => {
+                Ok(Arg::Indexed(x, expand_path(aliases, &path), Some(e)))
+            }
+            Arg::Ty(t) => Ok(Arg::Ty(expand_ty(aliases, &t))),
+            Arg::StrgRef(x, t) => Ok(Arg::StrgRef(x, expand_ty(aliases, &t))),
         }
     }
 

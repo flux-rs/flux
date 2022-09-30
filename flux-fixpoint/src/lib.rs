@@ -13,7 +13,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UFDef, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UFArg,
+    UFDef, UnOp,
 };
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
@@ -144,7 +145,7 @@ impl fmt::Display for UFDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(constant {:?} (func(0, [{}{:?}])))",
+            "(constant {} (func(0, [{}{:?}])))",
             self.name,
             self.inputs
                 .iter()

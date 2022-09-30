@@ -467,13 +467,11 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -
         }
         ty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
         ty::ExprKind::App(f, exprs) => {
-            fixpoint::Expr::App(
-                f.to_string(),
-                exprs
-                    .iter()
-                    .map(|e| expr_to_fixpoint(e, name_map, const_map))
-                    .collect(),
-            )
+            let args = exprs
+                .iter()
+                .map(|e| fixpoint::UFArg::new(expr_to_fixpoint(e, name_map, const_map)))
+                .collect();
+            fixpoint::Expr::App(f.to_string(), args)
         }
     }
 }

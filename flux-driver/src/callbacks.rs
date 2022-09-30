@@ -121,7 +121,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 Ok(())
             })?;
 
-        // TODO:UF gather UFs
+        // Gather UFs
         specs.uifs.into_iter().try_for_each_exhaust(|uf_def| {
             let name = uf_def.name;
             let uf_def = desugar::resolve_uf_def(genv.sess, uf_def)?;
@@ -193,8 +193,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         let aliases = specs.aliases;
 
-        println!("TRACE: UF_SORTS {:?}", genv.uf_sorts);
-
         // Function signatures
         specs
             .fns
@@ -205,10 +203,17 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 }
                 if !is_ignored(genv.tcx, &specs.ignores, def_id) {
                     if let Some(fn_sig) = spec.fn_sig {
-                        let fn_sig = surface::expand::expand_sig(&aliases, fn_sig);
-                        let fn_sig = desugar::desugar_fn_sig(genv, &adt_sorts, def_id, fn_sig)?;
-                        Wf::new(genv).check_fn_sig(&fn_sig)?;
-                        genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                        match surface::expand::expand_sig(&aliases, fn_sig) {
+                            Ok(fn_sig) => {
+                                let fn_sig =
+                                    desugar::desugar_fn_sig(genv, &adt_sorts, def_id, fn_sig)?;
+                                Wf::new(genv).check_fn_sig(&fn_sig)?;
+                                genv.register_fn_sig(def_id.to_def_id(), fn_sig);
+                            }
+                            Err(span) => {
+                                genv.sess.emit_err(errors::InvalidAliasApplication { span });
+                            }
+                        }
                     }
                 }
                 Ok(())
@@ -287,4 +292,15 @@ fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> query_values::mi
     rustc_borrowck::provide(&mut providers);
     let original_mir_borrowck = providers.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
+}
+
+mod errors {
+    use flux_macros::SessionDiagnostic;
+    use rustc_span::Span;
+    #[derive(SessionDiagnostic)]
+    #[error(parse::invalid_alias_application, code = "FLUX")]
+    pub struct InvalidAliasApplication {
+        #[primary_span]
+        pub span: Span,
+    }
 }
