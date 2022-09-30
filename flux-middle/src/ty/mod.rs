@@ -166,6 +166,12 @@ pub enum Sort {
     Tuple(List<Sort>),
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct UFDef {
+    pub inputs: Vec<Sort>,
+    pub output: Sort,
+}
+
 pub type Expr = Interned<ExprS>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]

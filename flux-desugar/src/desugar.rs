@@ -5,7 +5,8 @@ use flux_errors::FluxSession;
 use flux_middle::{
     core::{
         AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFun, VariantDef,
+        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef, UFun,
+        VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -34,6 +35,19 @@ pub fn desugar_qualifier(
     let expr = params.desugar_expr(qualifier.expr);
 
     Ok(Qualifier { name, args: params.params, expr: expr? })
+}
+
+pub fn resolve_uf_def(
+    sess: &FluxSession,
+    uf_def: surface::UFDef,
+) -> Result<UFDef, ErrorGuaranteed> {
+    let inputs = uf_def
+        .inputs
+        .into_iter()
+        .map(|ident| resolve_sort(sess, ident))
+        .try_collect_exhaust()?;
+    let output = resolve_sort(sess, uf_def.output)?;
+    Ok(UFDef { inputs, output })
 }
 
 pub fn resolve_sorts(
@@ -328,7 +342,7 @@ fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
     }
 }
 
-fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
+pub fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, ErrorGuaranteed> {
     if sort.name == SORTS.int {
         Ok(Sort::Int)
     } else if sort.name == sym::bool {
@@ -659,7 +673,7 @@ impl<'a> ParamsCtxt<'a> {
     }
 
     fn desugar_uf(&self, f: surface::Ident) -> flux_middle::core::UFun {
-        UFun { symbol: f.name }
+        UFun { symbol: f.name, span: f.span }
     }
 }
 
