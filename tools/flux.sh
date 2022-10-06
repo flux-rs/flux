@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Path to root of liquid rust repository
+FLUX=/Users/rjhala/research/rust/flux
+
+CWD=`pwd`
+cd $FLUX
+TOOLCHAIN=`rustup show active-toolchain | cut -d' ' -f 1`
+
+cd "$CWD"
+rustup run "$TOOLCHAIN" cargo run --manifest-path "$FLUX/Cargo.toml" -- $@
+
