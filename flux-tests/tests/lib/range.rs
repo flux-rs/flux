@@ -1,15 +1,15 @@
-#[flux::refined_by(lo: int, hi: int)]
+#[flux::refined_by(lo: int, hi: int, cur: int)]
 pub struct RngIter {
     #[flux::field(i32[@lo])]
     _lo: i32,
     #[flux::field(i32[@hi])]
     hi: i32,
-    #[flux::field(i32{v:lo <= v && v <= hi})]
+    #[flux::field({i32[@cur]: lo <= cur && cur <= hi})]
     cur: i32,
 }
 
 impl RngIter {
-    #[flux::sig(fn(lo:i32, hi:i32{lo <= hi}) -> RngIter[lo, hi])]
+    #[flux::sig(fn(lo:i32, hi:i32{lo <= hi}) -> RngIter[lo, hi, lo])]
     pub fn new(lo: i32, hi: i32) -> RngIter {
         Self { _lo: lo, hi, cur: lo }
     }
@@ -33,7 +33,12 @@ impl Rng {
 impl Iterator for RngIter {
     type Item = i32;
 
-    #[flux::sig(fn(self: &mut RngIter[@lo, @hi]) -> Option<i32{v:lo <= v && v < hi}>)]
+    #[flux::sig(fn(self: &strg RngIter[@in]) 
+                -> Option<i32{nextV: in.lo <= nextV && nextV < in.hi 
+                                  && nextV == in.cur}> 
+                ensures self: RngIter{out: out.lo == in.lo && out.hi == in.hi 
+                                        && out.cur == (in.cur + 1) || out.cur == in.hi})
+     ]
     fn next(&mut self) -> Option<i32> {
         let cur = self.cur;
         let hi = self.hi;
@@ -50,7 +55,7 @@ impl IntoIterator for Rng {
     type Item = i32;
     type IntoIter = RngIter;
 
-    #[flux::sig(fn(Rng[@lo, @hi]) -> RngIter[lo, hi])]
+    #[flux::sig(fn(Rng[@lo, @hi]) -> RngIter[lo, hi, lo])]
     fn into_iter(self) -> RngIter {
         RngIter::new(self.lo, self.hi)
     }
