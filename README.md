@@ -54,6 +54,14 @@ default flags (like `-O` and `-Cpanic=abort`) because
 otherwise the resulting mir will have features
 not yet supported.
 
+### flux.sh
+
+To run `flux` on code outside the repo, use script in `tools/flux.sh`
+
+- copy it to some place on your `$PATH`
+- edit the variable `FLUX` to point to the root of your local `flux` repo. 
+
+
 ### A tiny example
 
 The following example declares a funcion `inc` that returns a integer greater than the input.
