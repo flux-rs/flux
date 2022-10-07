@@ -389,7 +389,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let tcx = self.tcx;
         let span = constant.span;
 
-        let constant = match (&constant.literal, constant.ty().kind()) {
+        match (&constant.literal, constant.ty().kind()) {
             (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 scalar_int_to_constant(tcx, *scalar, *ty)
             }
@@ -409,15 +409,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
-            _ => {
-                return self
-                    .emit_err(Some(span), format!("constant not supported: `{constant:?}`"));
-            }
-        };
-        match constant {
-            Some(constant) => Ok(constant),
-            None => self.emit_err(Some(span), format!("constant not supported: `{constant:?}`")),
+            _ => None,
         }
+        .ok_or_else(|| {
+            emit_err(self.tcx, Some(span), format!("constant not supported: `{constant:?}`"))
+        })
     }
 
     fn lower_assert_msg(
@@ -435,7 +431,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
     }
 
     fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorGuaranteed> {
-        emit_err(self.tcx, span, msg)
+        Err(emit_err(self.tcx, span, msg))
     }
 }
 
@@ -532,7 +528,9 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
         rustc_ty::Str => Ok(Ty::mk_str()),
         rustc_ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
         rustc_ty::Array(ty, c) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *c)?)),
-        _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
+        _ => {
+            Err(emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())))
+        }
     }
 }
 
@@ -548,7 +546,7 @@ fn lower_const<'tcx>(
         | rustc_ty::ConstKind::Placeholder(_)
         | rustc_ty::ConstKind::Unevaluated(_)
         | rustc_ty::ConstKind::Error(_) => {
-            return emit_err(tcx, None, format!("unsupported const `{c:?}`"));
+            return Err(emit_err(tcx, None, format!("unsupported const `{c:?}`")));
         }
     };
     Ok(Const { ty: lower_ty(tcx, c.ty())?, kind })
@@ -557,7 +555,9 @@ fn lower_const<'tcx>(
 fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGuaranteed> {
     match val {
         rustc_ty::ValTree::Leaf(scalar) => Ok(ValTree::Leaf(scalar)),
-        rustc_ty::ValTree::Branch(_) => emit_err(tcx, None, format!("unsupported valtree {val:?}")),
+        rustc_ty::ValTree::Branch(_) => {
+            Err(emit_err(tcx, None, format!("unsupported valtree {val:?}")))
+        }
     }
 }
 
@@ -580,7 +580,7 @@ fn lower_generic_arg<'tcx>(
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
         GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-            emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`"))
+            Err(emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`")))
         }
     }
 }
@@ -609,23 +609,25 @@ fn lower_generic_param_def(
             object_lifetime_default: Set1::Empty,
             synthetic: false,
         } => GenericParamDefKind::Type { has_default },
-        _ => emit_err(tcx, None, format!("unsupported generic parameter: `{generic:?}`"))?,
+        _ => {
+            return Err(emit_err(
+                tcx,
+                None,
+                format!("unsupported generic parameter: `{generic:?}`"),
+            ))
+        }
     };
     Ok(GenericParamDef { def_id: generic.def_id, kind })
 }
 
-fn emit_err<S: AsRef<str>, T>(
-    tcx: TyCtxt,
-    span: Option<Span>,
-    msg: S,
-) -> Result<T, ErrorGuaranteed> {
+fn emit_err<S: AsRef<str>>(tcx: TyCtxt, span: Option<Span>, msg: S) -> ErrorGuaranteed {
     let mut diagnostic = tcx
         .sess
         .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("flux".to_string()));
     if let Some(span) = span {
         diagnostic.set_span(span);
     }
-    Err(diagnostic.emit())
+    diagnostic.emit()
 }
 
 fn scalar_int_to_constant<'tcx>(
