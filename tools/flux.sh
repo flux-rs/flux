@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Path to root of liquid rust repository
+# Path to root of flux repository
 FLUX=/Users/rjhala/research/rust/flux
 
 CWD=`pwd`
