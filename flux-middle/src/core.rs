@@ -203,9 +203,10 @@ impl StructDef {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
 
+#[derive(Debug)]
 pub struct AdtSortInfo {
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
