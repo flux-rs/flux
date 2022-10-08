@@ -173,9 +173,10 @@ Level1 = NonAssoc<BinOp1, Level2>;  // <=>
 Level2 = LeftAssoc<BinOp2, Level3>; // =>
 Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
-Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
-Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
-Level7: surface::Expr = {
+Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=
+Level6 = LeftAssoc<BinOp6, Level7>; // +, -
+Level7 = LeftAssoc<BinOp7, Level8>; // *, %
+Level8: surface::Expr = {
     <lo:@L> <lit:Lit> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Literal(lit),
@@ -252,6 +253,10 @@ BinOp5: surface::BinOp = {
 BinOp6: surface::BinOp = {
     "+" => surface::BinOp::Add,
     "-" => surface::BinOp::Sub,
+}
+
+BinOp7: surface::BinOp = {
+    "*" => surface::BinOp::Mul,
     "%" => surface::BinOp::Mod,
 }
 
@@ -308,6 +313,7 @@ extern {
         "<=>" => Token::Iff,
         "+"  => Token::Plus,
         "-"  => Token::Minus,
+        "*"  => Token::Star,
         "|"  => Token::Caret,
         "("  => Token::OpenDelim(Delimiter::Parenthesis),
         ")"  => Token::CloseDelim(Delimiter::Parenthesis),
