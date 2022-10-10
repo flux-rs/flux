@@ -143,50 +143,73 @@ impl RefineCtxt<'_> {
         ConstrBuilder { tree: self._tree, ptr }
     }
 
-    fn unpack_bty(&mut self, bty: &BaseTy, unpack_mut_refs: bool) -> BaseTy {
+    fn unpack_bty(
+        &mut self,
+        bty: &BaseTy,
+        inside_mut_ref: bool,
+        unpack_existentials_inside_mut_refs: bool,
+    ) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let ty = self.unpack(&substs[0], unpack_mut_refs);
+                let ty = self.unpack_inner(
+                    &substs[0],
+                    inside_mut_ref,
+                    unpack_existentials_inside_mut_refs,
+                );
                 BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
             }
             _ => bty.clone(),
         }
     }
 
-    pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
+    fn unpack_inner(
+        &mut self,
+        ty: &Ty,
+        inside_mut_ref: bool,
+        unpack_existentials_inside_mut_refs: bool,
+    ) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => {
-                let bty = self.unpack_bty(bty, unpack_mut_refs);
+                let bty = self.unpack_bty(bty, inside_mut_ref, unpack_existentials_inside_mut_refs);
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(bty, pred) => {
-                let idxs = self
-                    .ptr
-                    .push_bound_guard(pred)
-                    .into_iter()
-                    .map(Index::from)
-                    .collect_vec();
-                let bty = self.unpack_bty(bty, unpack_mut_refs);
-                Ty::indexed(bty, idxs)
+                // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+                // that makes the refered type too specific. We only have this as a workaround to
+                // infer parameters under mutable references and it should be removed once we implement
+                // opening of mutable references. See also `ConstrGen::check_fn_call`.
+                if !inside_mut_ref || unpack_existentials_inside_mut_refs {
+                    let idxs = self
+                        .ptr
+                        .push_bound_guard(pred)
+                        .into_iter()
+                        .map(Index::from)
+                        .collect_vec();
+                    let bty =
+                        self.unpack_bty(bty, inside_mut_ref, unpack_existentials_inside_mut_refs);
+                    Ty::indexed(bty, idxs)
+                } else {
+                    ty.clone()
+                }
             }
             TyKind::Constr(pred, ty) => {
                 self.assume_pred(pred.clone());
-                self.unpack(ty, unpack_mut_refs)
+                self.unpack_inner(ty, inside_mut_ref, unpack_existentials_inside_mut_refs)
             }
             TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.unpack(ty, unpack_mut_refs);
+                let ty = self.unpack_inner(ty, inside_mut_ref, unpack_existentials_inside_mut_refs);
                 Ty::mk_ref(RefKind::Shr, ty)
             }
-            // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-            // that makes the refered type too specific. We only have this as a workaround to
-            // infer parameters under mutable references and it should be removed once we implement
-            // opening of mutable references. See also `ConstrGen::check_fn_call`.
-            TyKind::Ref(RefKind::Mut, ty) if unpack_mut_refs => {
-                let ty = self.unpack(ty, unpack_mut_refs);
+            TyKind::Ref(RefKind::Mut, ty) => {
+                let ty = self.unpack_inner(ty, true, unpack_existentials_inside_mut_refs);
                 Ty::mk_ref(RefKind::Mut, ty)
             }
             _ => ty.clone(),
         }
+    }
+
+    pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
+        self.unpack_inner(ty, false, unpack_mut_refs)
     }
 }
 
