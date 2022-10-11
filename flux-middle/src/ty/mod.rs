@@ -582,6 +582,12 @@ impl Expr {
             .clone()
     }
 
+    pub fn one() -> Expr {
+        static ONE: OnceLock<Expr> = OnceLock::new();
+        ONE.get_or_init(|| ExprKind::Constant(Constant::ONE).intern())
+            .clone()
+    }
+
     pub fn unit() -> Expr {
         Expr::tuple(vec![])
     }

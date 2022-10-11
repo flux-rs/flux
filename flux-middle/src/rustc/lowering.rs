@@ -15,7 +15,7 @@ use rustc_span::Span;
 
 use super::{
     mir::{
-        AggregateKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, Constant,
+        AggregateKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, CastKind, Constant,
         FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
@@ -291,17 +291,35 @@ impl<'tcx> LoweringCtxt<'tcx> {
             }
             rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(self.lower_place(place)?)),
+            rustc_mir::Rvalue::Cast(kind, op, ty) => {
+                let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
+                    emit_err(
+                        self.tcx,
+                        Some(source_info.span),
+                        format!("unsupported cast: `{rvalue:?}`"),
+                    )
+                })?;
+                let op = self.lower_operand(op)?;
+                let ty = lower_ty(self.tcx, *ty)?;
+                Ok(Rvalue::Cast(kind, op, ty))
+            }
             rustc_mir::Rvalue::Repeat(_, _)
             | rustc_mir::Rvalue::Ref(_, _, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::Cast(_, _, _)
             | rustc_mir::Rvalue::CheckedBinaryOp(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
             }
+        }
+    }
+
+    fn lower_cast_kind(&self, kind: rustc_mir::CastKind) -> Option<CastKind> {
+        match kind {
+            rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
+            _ => None,
         }
     }
 

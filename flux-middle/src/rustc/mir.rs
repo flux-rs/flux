@@ -128,6 +128,12 @@ pub enum Rvalue {
     Aggregate(AggregateKind, Vec<Operand>),
     Discriminant(Place),
     Len(Place),
+    Cast(CastKind, Operand, Ty),
+}
+
+#[derive(Copy, Clone)]
+pub enum CastKind {
+    IntToInt,
 }
 
 pub enum AggregateKind {
@@ -418,6 +424,7 @@ impl fmt::Debug for Rvalue {
                 write!(f, "[{:?}]", args.iter().format(", "))
             }
             Rvalue::Len(place) => write!(f, "Len({place:?})"),
+            Rvalue::Cast(CastKind::IntToInt, op, ty) => write!(f, "{op:?} as {ty:?}"),
         }
     }
 }
