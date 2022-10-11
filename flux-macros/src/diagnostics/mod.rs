@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::all)]
 
 mod diagnostic;
 mod diagnostic_builder;

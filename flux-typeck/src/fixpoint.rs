@@ -143,8 +143,8 @@ where
 
         let constants = self
             .const_map
-            .iter()
-            .map(|(_, const_info)| (const_info.name, fixpoint::Sort::Int))
+            .values()
+            .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
         let uifs = uf_sorts

@@ -232,7 +232,7 @@ impl<'tcx> Body<'tcx> {
         // an implicit goto from the environment at the beginning of the function.
         let real_preds =
             self.rustc_mir.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
-        real_preds > (if bb == START_BLOCK { 0 } else { 1 })
+        real_preds > usize::from(bb != START_BLOCK)
     }
 
     #[inline]

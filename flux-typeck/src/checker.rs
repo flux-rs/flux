@@ -983,38 +983,35 @@ fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
 
 fn is_lossless_uint_to_uint(uint_ty1: UintTy, uint_ty2: UintTy) -> bool {
     use UintTy::*;
-    match (uint_ty1, uint_ty2) {
+    matches!(
+        (uint_ty1, uint_ty2),
         (U8, Usize | U16 | U32 | U64 | U128)
-        | (U16, U16 | U32 | U64 | U128)
-        | (U32, U32 | U64 | U128)
-        | (U64, U64 | U128)
-        | (U128, U128) => true,
-        _ => false,
-    }
+            | (U16, U16 | U32 | U64 | U128)
+            | (U32, U32 | U64 | U128)
+            | (U64, U64 | U128)
+            | (U128, U128)
+    )
 }
 
 fn is_lossless_int_to_int(int_ty1: IntTy, int_ty2: IntTy) -> bool {
     use IntTy::*;
-    match (int_ty1, int_ty2) {
+    matches!(
+        (int_ty1, int_ty2),
         (I8, Isize | I16 | I32 | I64 | I128)
-        | (I16, I16 | I32 | I64 | I128)
-        | (I32, I32 | I64 | I128)
-        | (I64, I64 | I128)
-        | (I128, I128) => true,
-        _ => false,
-    }
+            | (I16, I16 | I32 | I64 | I128)
+            | (I32, I32 | I64 | I128)
+            | (I64, I64 | I128)
+            | (I128, I128)
+    )
 }
 
 fn is_lossless_uint_to_int(uint_ty: UintTy, int_ty: IntTy) -> bool {
     use IntTy::*;
     use UintTy::*;
-    match (uint_ty, int_ty) {
-        (U8, I16 | I32 | I64 | I128)
-        | (U16, I32 | I64 | I128)
-        | (U32, I64 | I128)
-        | (U64, I128) => true,
-        _ => false,
-    }
+    matches!(
+        (uint_ty, int_ty),
+        (U8, I16 | I32 | I64 | I128) | (U16, I32 | I64 | I128) | (U32, I64 | I128) | (U64, I128)
+    )
 }
 
 impl Phase for Inference<'_> {
