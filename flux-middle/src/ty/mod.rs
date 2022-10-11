@@ -193,6 +193,7 @@ pub enum ExprKind {
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
     PathProj(Expr, Field),
+    IfThenElse(Expr, Expr, Expr),
 }
 
 /// A bound *var*riable is represented as a debruijn index
@@ -609,6 +610,10 @@ impl Expr {
         }
     }
 
+    pub fn if_then_else(p: Expr, e1: Expr, e2: Expr) -> Expr {
+        ExprKind::IfThenElse(p, e1, e2).intern()
+    }
+
     pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
@@ -696,6 +701,9 @@ impl ExprS {
             ExprKind::PathProj(e, field) => Expr::path_proj(e.clone(), *field),
             ExprKind::App(f, exprs) => {
                 Expr::app(*f, exprs.iter().map(|e| e.simplify()).collect_vec())
+            }
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr::if_then_else(p.simplify(), e1.simplify(), e2.simplify())
             }
         }
     }
@@ -1203,6 +1211,9 @@ mod pretty {
                 }
                 ExprKind::App(f, exprs) => {
                     w!("{f:?}({:?})", join!(", ", exprs))
+                }
+                ExprKind::IfThenElse(p, e1, e2) => {
+                    w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
             }
         }

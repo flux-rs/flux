@@ -473,6 +473,13 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -
                 .collect();
             fixpoint::Expr::App(f.to_string(), args)
         }
+        ty::ExprKind::IfThenElse(p, e1, e2) => {
+            fixpoint::Expr::IfThenElse(
+                Box::new(expr_to_fixpoint(p, name_map, const_map)),
+                Box::new(expr_to_fixpoint(e1, name_map, const_map)),
+                Box::new(expr_to_fixpoint(e2, name_map, const_map)),
+            )
+        }
     }
 }
 

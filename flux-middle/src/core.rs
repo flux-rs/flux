@@ -145,6 +145,7 @@ pub enum ExprKind {
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
     App(UFun, Vec<Expr>),
+    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 /// representation of uninterpreted functions
@@ -405,6 +406,9 @@ impl fmt::Debug for Expr {
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
+            ExprKind::IfThenElse(p, e1, e2) => {
+                write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
+            }
         }
     }
 }

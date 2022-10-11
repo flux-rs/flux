@@ -185,6 +185,7 @@ pub enum ExprKind {
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
     App(Ident, Vec<Expr>),
+    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -468,6 +469,16 @@ pub mod expand {
             ExprKind::App(f, es) => {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();
                 Expr { kind: ExprKind::App(*f, es), span: e.span }
+            }
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr {
+                    kind: ExprKind::IfThenElse(
+                        Box::new(subst_expr(subst, p)),
+                        Box::new(subst_expr(subst, e1)),
+                        Box::new(subst_expr(subst, e2)),
+                    ),
+                    span: e.span,
+                }
             }
         }
     }

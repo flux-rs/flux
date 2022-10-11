@@ -387,6 +387,9 @@ impl TypeFoldable for Expr {
                 let es = es.iter().map(|e| e.fold_with(folder)).collect();
                 Expr::app(*f, es)
             }
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr::if_then_else(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
+            }
         }
     }
 
@@ -412,6 +415,11 @@ impl TypeFoldable for Expr {
                 for e in exprs {
                     e.visit_with(visitor);
                 }
+            }
+            ExprKind::IfThenElse(p, e1, e2) => {
+                p.visit_with(visitor);
+                e1.visit_with(visitor);
+                e2.visit_with(visitor);
             }
         }
     }
