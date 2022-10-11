@@ -628,6 +628,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Ok(Ty::array(ty, len))
             }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
+            Rvalue::Len(_) => Ok(Ty::usize()),
         }
     }
 
@@ -666,14 +667,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 TyKind::Indexed(BaseTy::Int(int_ty2), _),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                Ty::exists(BaseTy::Int(*int_ty1), Binders::new(Pred::tt(), vec![Sort::Int]))
+                Ty::int(*int_ty1)
             }
             (
                 TyKind::Indexed(BaseTy::Uint(uint_ty1), _),
                 TyKind::Indexed(BaseTy::Uint(uint_ty2), _),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                Ty::exists(BaseTy::Uint(*uint_ty1), Binders::new(Pred::tt(), vec![Sort::Int]))
+                Ty::uint(*uint_ty1)
             }
             (TyKind::Indexed(BaseTy::Bool, indices1), TyKind::Indexed(BaseTy::Bool, indices2)) => {
                 let e = Expr::binary_op(op, indices1[0].expr.clone(), indices2[0].expr.clone());
@@ -791,7 +792,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
-                return Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]));
+                return Ty::bool();
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
@@ -807,7 +808,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
-                Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
+                Ty::bool()
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         }

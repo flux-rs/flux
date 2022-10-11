@@ -291,11 +291,11 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
             rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
+            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(self.lower_place(place)?)),
             rustc_mir::Rvalue::Repeat(_, _)
             | rustc_mir::Rvalue::Ref(_, _, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::Len(_)
             | rustc_mir::Rvalue::Cast(_, _, _)
             | rustc_mir::Rvalue::CheckedBinaryOp(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
@@ -426,6 +426,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             RemainderByZero(_) => Ok("possible remainder with a divisor of zero"),
             Overflow(rustc_mir::BinOp::Div, _, _) => Ok("possible division with overflow"),
             Overflow(rustc_mir::BinOp::Rem, _, _) => Ok("possible remainder with overflow"),
+            BoundsCheck { .. } => Ok("index out of bounds"),
             _ => self.emit_err(None, format!("unsupported assert message: `{msg:?}`")),
         }
     }

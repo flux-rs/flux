@@ -127,6 +127,7 @@ pub enum Rvalue {
     UnaryOp(UnOp, Operand),
     Aggregate(AggregateKind, Vec<Operand>),
     Discriminant(Place),
+    Len(Place),
 }
 
 pub enum AggregateKind {
@@ -368,14 +369,14 @@ impl fmt::Debug for Place {
             match elem {
                 PlaceElem::Field(f) => {
                     if need_parens {
-                        p = format!("({}).{}", p, u32::from(*f));
+                        p = format!("({p}).{}", u32::from(*f));
                         need_parens = false;
                     } else {
-                        p = format!("{}.{}", p, u32::from(*f));
+                        p = format!("{p}.{}", u32::from(*f));
                     }
                 }
                 PlaceElem::Deref => {
-                    p = format!("*{}", p);
+                    p = format!("*{p}");
                     need_parens = true;
                 }
                 PlaceElem::Downcast(variant_idx) => {
@@ -416,6 +417,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))
             }
+            Rvalue::Len(place) => write!(f, "Len({place:?})"),
         }
     }
 }

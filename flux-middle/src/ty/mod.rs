@@ -413,6 +413,22 @@ impl Ty {
             _ => false,
         }
     }
+
+    pub fn bool() -> Ty {
+        Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
+    }
+
+    pub fn int(int_ty: IntTy) -> Ty {
+        Ty::exists(BaseTy::Int(int_ty), Binders::new(Pred::tt(), vec![Sort::Int]))
+    }
+
+    pub fn uint(uint_ty: UintTy) -> Ty {
+        Ty::exists(BaseTy::Uint(uint_ty), Binders::new(Pred::tt(), vec![Sort::Int]))
+    }
+
+    pub fn usize() -> Ty {
+        Ty::uint(UintTy::Usize)
+    }
 }
 
 impl TyKind {
