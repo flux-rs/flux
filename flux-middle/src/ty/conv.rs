@@ -333,6 +333,13 @@ fn conv_expr(expr: &core::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
                 .collect();
             ty::Expr::app(f.symbol, exprs)
         }
+        core::ExprKind::IfThenElse(p, e1, e2) => {
+            ty::Expr::if_then_else(
+                conv_expr(p, name_map, nbinders),
+                conv_expr(e1, name_map, nbinders),
+                conv_expr(e2, name_map, nbinders),
+            )
+        }
     }
 }
 

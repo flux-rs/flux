@@ -388,6 +388,12 @@ impl<'a> ParamsCtxt<'a> {
                     .try_collect_exhaust()?;
                 ExprKind::App(uf, es)
             }
+            surface::ExprKind::IfThenElse(p, e1, e2) => {
+                let p = self.desugar_expr(*p);
+                let e1 = self.desugar_expr(*e1);
+                let e2 = self.desugar_expr(*e2);
+                ExprKind::IfThenElse(Box::new(p?), Box::new(e1?), Box::new(e2?))
+            }
         };
         Ok(Expr { kind, span: Some(expr.span) })
     }

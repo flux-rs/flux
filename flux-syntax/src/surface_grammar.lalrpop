@@ -177,6 +177,12 @@ Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=
 Level6 = LeftAssoc<BinOp6, Level7>; // +, -
 Level7 = LeftAssoc<BinOp7, Level8>; // *, %
 Level8: surface::Expr = {
+    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
+        surface::Expr {
+            kind: surface::ExprKind::IfThenElse(Box::new(p), Box::new(e1), Box::new(e2)),
+            span: mk_span(lo, hi),
+        }
+    },
     <lo:@L> <lit:Lit> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Literal(lit),
@@ -331,6 +337,8 @@ extern {
         ","  => Token::Comma,
         "->" => Token::RArrow,
         "&"  => Token::And,
-        "%" => Token::Percent,
+        "%"  => Token::Percent,
+        "if"   => Token::If,
+        "else" => Token::Else,
     }
 }

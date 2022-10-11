@@ -255,6 +255,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             core::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
             core::ExprKind::Const(_, _) => Ok(ty::Sort::Int), // TODO: generalize const sorts
             core::ExprKind::App(f, es) => self.synth_uf_app(env, f, es, e.span),
+            core::ExprKind::IfThenElse(p, e1, e2) => {
+                self.check_expr(env, p, ty::Sort::Bool)?;
+                let sort = self.synth_expr(env, e1)?;
+                self.check_expr(env, e2, sort.clone())?;
+                Ok(sort)
+            }
         }
     }
 
