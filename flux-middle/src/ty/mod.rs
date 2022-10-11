@@ -80,7 +80,6 @@ pub enum TyKind {
     Indexed(BaseTy, List<Index>),
     Exists(BaseTy, Binders<Pred>),
     Tuple(List<Ty>),
-    Float(FloatTy),
     Uninit,
     Ptr(RefKind, Path),
     /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
@@ -134,6 +133,7 @@ pub enum BaseTy {
     Str,
     Array(Ty, Const),
     Adt(AdtDef, Substs),
+    Float(FloatTy),
 }
 
 pub type Substs = List<Ty>;
@@ -384,10 +384,6 @@ impl Ty {
         TyKind::Exists(bty, pred).intern()
     }
 
-    pub fn float(float_ty: FloatTy) -> Ty {
-        TyKind::Float(float_ty).intern()
-    }
-
     pub fn param(param: ParamTy) -> Ty {
         TyKind::Param(param).intern()
     }
@@ -428,6 +424,10 @@ impl Ty {
 
     pub fn usize() -> Ty {
         Ty::uint(UintTy::Usize)
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        Ty::exists(BaseTy::Float(float_ty), Binders::new(Pred::tt(), vec![]))
     }
 }
 
@@ -526,8 +526,8 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Str | BaseTy::Array(..) => &[],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Array(..) => &[],
         }
     }
 }
@@ -622,7 +622,7 @@ impl Expr {
                 ExprKind::Constant(Constant::from(bits)).intern()
             }
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(_, _) | BaseTy::Array(..) | BaseTy::Str => panic!(),
+            BaseTy::Adt(_, _) | BaseTy::Array(..) | BaseTy::Str | BaseTy::Float(_) => panic!(),
         }
     }
 
@@ -1058,7 +1058,6 @@ mod pretty {
                         w!("{:?}{{{:?}}}", bty, &pred.value)
                     }
                 }
-                TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(rk, loc) => w!("ptr({:?}, {:?})", ^rk, loc),
                 TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
@@ -1096,6 +1095,7 @@ mod pretty {
             BaseTy::Bool => w!("bool")?,
             BaseTy::Str => w!("str")?,
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
+            BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
         }
         if let BaseTy::Adt(_, args) = bty {

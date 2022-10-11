@@ -249,9 +249,6 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         (TyKind::Param(param1), TyKind::Param(param2)) => {
             debug_assert_eq!(param1, param2);
         }
-        (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
-            debug_assert_eq!(float_ty1, float_ty2);
-        }
         (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
             debug_assert_eq!(tys1.len(), tys2.len());
             for (ty1, ty2) in iter::zip(tys1, tys2) {
@@ -291,6 +288,9 @@ fn bty_subtyping(
             for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
                 variance_subtyping(genv, constr, *variance, ty1, ty2, tag);
             }
+        }
+        (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
+            debug_assert_eq!(float_ty1, float_ty2);
         }
         (BaseTy::Bool, BaseTy::Bool) | (BaseTy::Str, BaseTy::Str) => {}
         (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {

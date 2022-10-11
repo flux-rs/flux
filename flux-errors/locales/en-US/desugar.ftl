@@ -24,10 +24,6 @@ desugar-refined-type-param =
     type parameters cannot be refined
     .label = this type parameter has a refinement
 
-desugar-refined-float =
-    floats cannot be refined
-    .label = this float has a refinement
-
 desugar-invalid-array-len =
     unsupported or invalid array length
 

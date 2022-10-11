@@ -254,11 +254,7 @@ impl TypeFoldable for Ty {
             }
             TyKind::Ref(rk, ty) => Ty::mk_ref(*rk, ty.fold_with(folder)),
             TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
-            TyKind::Float(_)
-            | TyKind::Uninit
-            | TyKind::Param(_)
-            | TyKind::Never
-            | TyKind::Discr(..) => self.clone(),
+            TyKind::Uninit | TyKind::Param(_) | TyKind::Never | TyKind::Discr(..) => self.clone(),
         }
     }
 
@@ -283,11 +279,7 @@ impl TypeFoldable for Ty {
                 pred.visit_with(visitor);
                 ty.visit_with(visitor);
             }
-            TyKind::Param(_)
-            | TyKind::Never
-            | TyKind::Discr(..)
-            | TyKind::Float(_)
-            | TyKind::Uninit => {}
+            TyKind::Param(_) | TyKind::Never | TyKind::Discr(..) | TyKind::Uninit => {}
         }
     }
 
@@ -313,7 +305,9 @@ impl TypeFoldable for BaseTy {
                 BaseTy::adt(adt_def.clone(), substs.iter().map(|ty| ty.fold_with(folder)))
             }
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Str => self.clone(),
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {
+                self.clone()
+            }
         }
     }
 
@@ -321,7 +315,7 @@ impl TypeFoldable for BaseTy {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Str => {}
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {}
         }
     }
 }

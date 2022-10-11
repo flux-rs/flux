@@ -701,7 +701,7 @@ fn sorts<'a>(
         Res::Bool => Ok(&[Sort::Bool]),
         Res::Int(_) | Res::Uint(_) => Ok(&[Sort::Int]),
         Res::Adt(def_id) => Ok(adt_sorts.get_sorts(def_id).unwrap_or_default()),
-        Res::Float(_) => Err(sess.emit_err(errors::RefinedFloat { span: path.span })),
+        Res::Float(_) => Ok(&[]),
         Res::Param(_) => Err(sess.emit_err(errors::RefinedTypeParam { span: path.span })),
     }
 }
@@ -797,14 +797,6 @@ mod errors {
     #[derive(SessionDiagnostic)]
     #[error(desugar::refined_type_param, code = "FLUX")]
     pub struct RefinedTypeParam {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-    }
-
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::refined_float, code = "FLUX")]
-    pub struct RefinedFloat {
         #[primary_span]
         #[label]
         pub span: Span,
