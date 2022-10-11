@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_else)]
+#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_chains)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -97,68 +97,68 @@ fn dump_constraint<C: std::fmt::Debug>(
 }
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::goto_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::goto_error, code = "FLUX")]
     pub struct GotoError {
         #[primary_span]
         pub span: Option<Span>,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::call_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::call_error, code = "FLUX")]
     pub struct CallError {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::assign_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::assign_error, code = "FLUX")]
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::ret_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::ret_error, code = "FLUX")]
     pub struct RetError {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::div_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::div_error, code = "FLUX")]
     pub struct DivError {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::rem_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::rem_error, code = "FLUX")]
     pub struct RemError {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::assert_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::assert_error, code = "FLUX")]
     pub struct AssertError {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::fold_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::fold_error, code = "FLUX")]
     pub struct FoldError {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(refineck::unknown_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(refineck::unknown_error, code = "FLUX")]
     pub struct UnknownError {
         #[primary_span]
         pub span: Span,

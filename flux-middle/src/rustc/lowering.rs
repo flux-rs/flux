@@ -4,7 +4,6 @@ use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
-    middle::resolve_lifetime::Set1,
     mir as rustc_mir,
     ty::{
         self as rustc_ty,
@@ -41,7 +40,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
         let basic_blocks = lower
             .rustc_mir
-            .basic_blocks()
+            .basic_blocks
             .iter()
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
@@ -121,7 +120,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::CopyNonOverlapping(_) => {
+            | rustc_mir::StatementKind::Intrinsic(_) => {
                 return self.emit_err(
                     Some(stmt.source_info.span),
                     format!("unsupported statement: `{stmt:?}`"),
@@ -389,9 +388,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let tcx = self.tcx;
         let span = constant.span;
 
-        match (&constant.literal, constant.ty().kind()) {
+        // HACK(nilehmann) we evaluate the constant to support u32::MAX
+        // we should instead lower it as is and refine its type.
+        let kind = constant.literal.eval(tcx, ParamEnv::empty());
+        match (kind, constant.ty().kind()) {
             (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
-                scalar_int_to_constant(tcx, *scalar, *ty)
+                scalar_int_to_constant(tcx, scalar, ty)
             }
             (ConstantKind::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
                 if ref_ty.is_str() =>
@@ -399,9 +401,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Some(Constant::Str)
             }
             (ConstantKind::Ty(c), _) => {
-                // HACK(nilehmann) we evaluate the constant to support u32::MAX
-                // we should instead lower it as is and refine its type.
-                let c = c.eval(tcx, ParamEnv::empty());
                 if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
                     scalar_int_to_constant(tcx, scalar, c.ty())
                 } else {
@@ -412,6 +411,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             _ => None,
         }
         .ok_or_else(|| {
+            println!("{:?}", constant.literal);
             emit_err(self.tcx, Some(span), format!("constant not supported: `{constant:?}`"))
         })
     }
@@ -605,11 +605,9 @@ fn lower_generic_param_def(
     generic: &rustc_ty::GenericParamDef,
 ) -> Result<GenericParamDef, ErrorGuaranteed> {
     let kind = match generic.kind {
-        rustc_ty::GenericParamDefKind::Type {
-            has_default,
-            object_lifetime_default: Set1::Empty,
-            synthetic: false,
-        } => GenericParamDefKind::Type { has_default },
+        rustc_ty::GenericParamDefKind::Type { has_default, synthetic: false } => {
+            GenericParamDefKind::Type { has_default }
+        }
         _ => {
             return Err(emit_err(
                 tcx,

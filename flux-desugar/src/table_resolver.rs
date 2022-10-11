@@ -237,7 +237,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
             }
-            rustc_hir::ImplItemKind::Const(_, _) | rustc_hir::ImplItemKind::TyAlias(_) => {}
+            rustc_hir::ImplItemKind::Const(_, _) | rustc_hir::ImplItemKind::Type(_) => {}
         }
 
         Ok(table)
@@ -348,7 +348,9 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
                 Ok(Res::Float(rustc_middle::ty::float_ty(float_ty)))
             }
-            hir::def::Res::SelfTy { alias_to: Some((def_id, _)), .. } => Ok(Res::Adt(def_id)),
+            hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
+                Ok(Res::Adt(def_id))
+            }
             hir::def::Res::PrimTy(hir::PrimTy::Str) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
@@ -410,8 +412,8 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
-            | hir::TyKind::OpaqueDef(_, _)
-            | hir::TyKind::TraitObject(_, _, _)
+            | hir::TyKind::OpaqueDef(..)
+            | hir::TyKind::TraitObject(..)
             | hir::TyKind::Typeof(_)
             | hir::TyKind::Infer
             | hir::TyKind::Err => Ok(()),
@@ -440,15 +442,15 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
 }
 
 pub mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use flux_middle::rustc::ty::Mutability;
     use flux_syntax::surface::{self, RefKind, Res};
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
-    #[derive(SessionDiagnostic)]
-    #[error(resolver::unsupported_signature, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(resolver::unsupported_signature, code = "FLUX")]
     pub struct UnsupportedSignature {
         #[primary_span]
         #[label]
@@ -456,8 +458,8 @@ pub mod errors {
         pub msg: &'static str,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(resolver::unresolved_path, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(resolver::unresolved_path, code = "FLUX")]
     pub struct UnresolvedPath {
         #[primary_span]
         pub span: Span,
@@ -470,8 +472,8 @@ pub mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(resolver::mismatched_fields, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(resolver::mismatched_fields, code = "FLUX")]
     pub struct FieldCountMismatch {
         #[primary_span]
         pub span: Span,
@@ -485,8 +487,8 @@ pub mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(resolver::mismatched_args, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(resolver::mismatched_args, code = "FLUX")]
     pub struct ArgCountMismatch {
         #[primary_span]
         pub span: Span,
@@ -500,8 +502,8 @@ pub mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(resolver::mismatched_type, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(resolver::mismatched_type, code = "FLUX")]
     pub struct MismatchedType {
         #[primary_span]
         pub span: Span,
@@ -516,8 +518,8 @@ pub mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(resolver::mutability_mismatch, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(resolver::mutability_mismatch, code = "FLUX")]
     pub struct RefKindMismatch {
         #[primary_span]
         pub span: Span,

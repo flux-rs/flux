@@ -67,12 +67,14 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     }
 
     let crate_items = tcx.hir_crate_items(());
-    let items = crate_items.items().map(|item| item.def_id);
-    let impl_items = crate_items.impl_items().map(|impl_item| impl_item.def_id);
+    let items = crate_items.items().map(|item| item.def_id.def_id);
+    let impl_items = crate_items
+        .impl_items()
+        .map(|impl_item| impl_item.def_id.def_id);
 
     items
         .chain(impl_items)
-        .filter(|def_id| !ck.is_assumed(*def_id) && !is_ignored(tcx, &ck.ignores, *def_id))
+        .filter(|owner_id| !ck.is_assumed(*owner_id) && !is_ignored(tcx, &ck.ignores, *owner_id))
         .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
