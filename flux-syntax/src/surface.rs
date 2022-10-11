@@ -93,7 +93,7 @@ pub struct FnSig<T = Ident> {
 #[derive(Debug)]
 pub enum Arg<T = Ident> {
     /// example `a: i32{a > 0}`
-    Indexed(Ident, Path<T>, Option<Expr>),
+    Constr(Ident, Path<T>, Option<Expr>),
     /// example `x: nat` or `x: lb[0]`
     Alias(Ident, Path<T>, Indices),
     /// example `v: &strg i32`
@@ -323,17 +323,17 @@ pub mod expand {
                     _ => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
                 }
             }
-            Arg::Indexed(x, path, None) => {
+            Arg::Constr(x, path, None) => {
                 match expand_alias0(aliases, &path) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
                     Some(_) => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
-                    None => Ok(Arg::Indexed(x, expand_path(aliases, &path), None)),
+                    None => Ok(Arg::Constr(x, expand_path(aliases, &path), None)),
                 }
             }
-            Arg::Indexed(x, path, Some(e)) => {
-                Ok(Arg::Indexed(x, expand_path(aliases, &path), Some(e)))
+            Arg::Constr(x, path, Some(e)) => {
+                Ok(Arg::Constr(x, expand_path(aliases, &path), Some(e)))
             }
             Arg::Ty(t) => Ok(Arg::Ty(expand_ty(aliases, &t))),
             Arg::StrgRef(x, t) => Ok(Arg::StrgRef(x, expand_ty(aliases, &t))),
@@ -343,7 +343,7 @@ pub mod expand {
     fn expand_arg_exists(x: Ident, e_path: Path, e_bind: Ident, e_pred: Expr) -> Arg {
         let subst = mk_sub1(e_bind, x);
         let x_pred = subst_expr(&subst, &e_pred);
-        Arg::Indexed(x, e_path, Some(x_pred))
+        Arg::Constr(x, e_path, Some(x_pred))
     }
     fn expand_alias0(aliases: &AliasMap, path: &Path) -> Option<TyKind> {
         let indices = Indices { indices: vec![], span: path.span };

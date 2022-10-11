@@ -194,16 +194,15 @@ impl<'a> DesugarCtxt<'a> {
 
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<Ty, ErrorGuaranteed> {
         match arg {
-            surface::Arg::Indexed(bind, path, pred) => {
-                if let Some(pred) = pred {
-                    self.requires
-                        .push(Constraint::Pred(self.params.desugar_expr(pred)?));
-                }
-                let bty = self.desugar_path_into_bty(path);
-
+            surface::Arg::Constr(bind, path, pred) => {
+                let bty = self.desugar_path_into_bty(path)?;
                 let indices = Indices { indices: self.desugar_bind(bind)?, span: bind.span };
-
-                Ok(Ty::Indexed(bty?, indices))
+                let ty = Ty::Indexed(bty, indices);
+                if let Some(pred) = pred {
+                    Ok(Ty::Constr(self.params.desugar_expr(pred)?, Box::new(ty)))
+                } else {
+                    Ok(ty)
+                }
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let loc = self.params.desugar_ident(loc)?;
@@ -619,7 +618,7 @@ impl<'a> ParamsCtxt<'a> {
 
     fn arg_gather_params(&mut self, arg: &surface::Arg<Res>) -> Result<(), ErrorGuaranteed> {
         match arg {
-            surface::Arg::Indexed(bind, path, _) => {
+            surface::Arg::Constr(bind, path, _) => {
                 self.push_bind(*bind, path)?;
             }
             surface::Arg::StrgRef(loc, ty) => {

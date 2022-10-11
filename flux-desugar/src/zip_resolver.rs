@@ -156,8 +156,8 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
     fn zip_arg(&self, arg: Arg, rust_ty: &rustc_ty::Ty) -> Result<Arg<Res>, ErrorGuaranteed> {
         match (arg, rust_ty.kind()) {
             (Arg::Ty(ty), _) => Ok(Arg::Ty(self.zip_ty(ty, rust_ty)?)),
-            (Arg::Indexed(bind, path, pred), _) => {
-                Ok(Arg::Indexed(bind, self.zip_path(path, rust_ty)?, pred))
+            (Arg::Constr(bind, path, pred), _) => {
+                Ok(Arg::Constr(bind, self.zip_path(path, rust_ty)?, pred))
             }
             (Arg::StrgRef(bind, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
                 Ok(Arg::StrgRef(bind, self.zip_ty(ty, rust_ty)?))

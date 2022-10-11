@@ -99,8 +99,8 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>                => surface::Arg::StrgRef(bind, ty),
-    <bind:Ident> ":" <path:Path>                       => surface::Arg::Indexed(bind, path, None),
-    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Indexed(bind, path, Some(pred)),
+    <bind:Ident> ":" <path:Path>                       => surface::Arg::Constr(bind, path, None),
+    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Constr(bind, path, Some(pred)),
     <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(bind, path, indices),
     <bind:Ident> ":" "&" "mut" <ty:Ty> => {
         let span = ty.span;

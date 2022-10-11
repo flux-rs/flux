@@ -116,8 +116,8 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
 
     fn resolve_arg(&self, arg: surface::Arg) -> Result<surface::Arg<Res>, ErrorGuaranteed> {
         match arg {
-            surface::Arg::Indexed(bind, path, pred) => {
-                Ok(surface::Arg::Indexed(bind, self.resolve_path(path)?, pred))
+            surface::Arg::Constr(bind, path, pred) => {
+                Ok(surface::Arg::Constr(bind, self.resolve_path(path)?, pred))
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(ty) => Ok(surface::Arg::Ty(self.resolve_ty(ty)?)),
