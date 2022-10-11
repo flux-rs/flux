@@ -538,10 +538,10 @@ pub mod expand {
 }
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
-    #[derive(SessionDiagnostic)]
-    #[error(parse::invalid_alias_application, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::invalid_alias_application, code = "FLUX")]
     pub struct InvalidAliasApplication {
         #[primary_span]
         pub span: Span,

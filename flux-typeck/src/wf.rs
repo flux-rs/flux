@@ -2,10 +2,9 @@ use std::iter;
 
 use flux_common::iter::IterExt;
 use flux_middle::{core, global_env::GlobalEnv, ty, ty::conv::conv_sort};
-use rustc_errors::ErrorGuaranteed;
+use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
 
 pub struct Wf<'a, 'tcx> {
@@ -307,7 +306,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn emit_err<'b, R>(&'b self, err: impl SessionDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
+    fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
         Err(self.genv.sess.emit_err(err))
     }
 
@@ -344,13 +343,13 @@ fn synth_lit(lit: core::Lit) -> ty::Sort {
 }
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
 
     use crate::ty;
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::sort_mismatch, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::sort_mismatch, code = "FLUX")]
     pub struct SortMismatch {
         #[primary_span]
         #[label]
@@ -365,8 +364,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::param_count_mismatch, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::param_count_mismatch, code = "FLUX")]
     pub struct ParamCountMismatch {
         #[primary_span]
         #[label]
@@ -381,8 +380,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::unresolved_function, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::unresolved_function, code = "FLUX")]
     pub struct UnresolvedFunction {
         #[primary_span]
         #[label]
@@ -395,8 +394,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::illegal_binder, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::illegal_binder, code = "FLUX")]
     pub struct IllegalBinder {
         #[primary_span]
         #[label]

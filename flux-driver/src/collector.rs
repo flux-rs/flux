@@ -15,11 +15,10 @@ use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs, MetaItemKind, NestedMetaItem,
 };
-use rustc_errors::ErrorGuaranteed;
+use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, EnumDef, ImplItemKind, Item, ItemKind, VariantData};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
-use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
@@ -78,12 +77,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let item = tcx.hir().item(item_id);
             let hir_id = item.hir_id();
             let attrs = tcx.hir().attrs(hir_id);
+            let def_id = item.def_id.def_id;
             let _ = match &item.kind {
-                ItemKind::Fn(..) => collector.parse_fn_spec(item.def_id, attrs),
-                ItemKind::Struct(data, ..) => collector.parse_struct_def(item.def_id, attrs, data),
-                ItemKind::Enum(def, ..) => collector.parse_enum_def(item.def_id, attrs, def),
-                ItemKind::Mod(..) => collector.parse_mod_spec(item.def_id, attrs),
-                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(item.def_id, attrs),
+                ItemKind::Fn(..) => collector.parse_fn_spec(def_id, attrs),
+                ItemKind::Struct(data, ..) => collector.parse_struct_def(def_id, attrs, data),
+                ItemKind::Enum(def, ..) => collector.parse_enum_def(def_id, attrs, def),
+                ItemKind::Mod(..) => collector.parse_mod_spec(def_id, attrs),
+                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(def_id, attrs),
                 ItemKind::Const(_ty, _body_id) => collector.parse_const_spec(item, attrs),
                 _ => Ok(()),
             };
@@ -91,10 +91,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
+            let def_id = impl_item.def_id.def_id;
             if let ImplItemKind::Fn(..) = &impl_item.kind {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
-                let _ = collector.parse_fn_spec(impl_item.def_id, attrs);
+                let _ = collector.parse_fn_spec(def_id, attrs);
             }
         }
 
@@ -126,7 +127,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         item: &Item,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let def_id = item.def_id;
+        let def_id = item.def_id.def_id;
         let span = item.span;
         let val = match eval_const(self.tcx, def_id) {
             Some(val) => val,
@@ -267,7 +268,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .iter()
             .filter_map(|attr| {
                 if let AttrKind::Normal(attr_item, ..) = &attr.kind {
-                    match &attr_item.path.segments[..] {
+                    match &attr_item.item.path.segments[..] {
                         [first, ..] if first.ident.as_str() == "flux" => Some(attr_item),
                         _ => None,
                     }
@@ -275,7 +276,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     None
                 }
             })
-            .map(|attr_item| self.parse_flux_attr(attr_item))
+            .map(|attr_item| self.parse_flux_attr(&attr_item.item))
             .try_collect_exhaust()?;
 
         Ok(FluxAttrs::new(attrs))
@@ -362,7 +363,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn emit_err<T>(&mut self, err: impl SessionDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+    fn emit_err<T>(&mut self, err: impl IntoDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);
         Err(e)
@@ -644,41 +645,41 @@ impl FluxAttrCFG {
 }
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
 
-    #[derive(SessionDiagnostic)]
-    #[error(parse::duplicated_attr, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::duplicated_attr, code = "FLUX")]
     pub struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
         pub name: &'static str,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(parse::invalid_attr, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::invalid_attr, code = "FLUX")]
     pub struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(parse::invalid_constant, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::invalid_constant, code = "FLUX")]
     pub struct InvalidConstant {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(parse::cfg_error, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::cfg_error, code = "FLUX")]
     pub struct CFGError {
         #[primary_span]
         pub span: Span,
         pub message: String,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(parse::syntax_err, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::syntax_err, code = "FLUX")]
     pub struct SyntaxErr {
         #[primary_span]
         pub span: Span,

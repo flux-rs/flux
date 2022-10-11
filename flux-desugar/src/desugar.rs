@@ -732,11 +732,11 @@ static SORTS: std::sync::LazyLock<Sorts> =
     std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::unresolved_var, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::unresolved_var, code = "FLUX")]
     pub struct UnresolvedVar {
         #[primary_span]
         #[label]
@@ -750,8 +750,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::duplicate_param, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::duplicate_param, code = "FLUX")]
     pub struct DuplicateParam {
         #[primary_span]
         #[label]
@@ -765,8 +765,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::unresolved_sort, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::unresolved_sort, code = "FLUX")]
     pub struct UnresolvedSort {
         #[primary_span]
         #[label]
@@ -780,22 +780,22 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::int_too_large, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::int_too_large, code = "FLUX")]
     pub struct IntTooLarge {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::unexpected_literal, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::unexpected_literal, code = "FLUX")]
     pub struct UnexpectedLiteral {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::refined_type_param, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::refined_type_param, code = "FLUX")]
     pub struct RefinedTypeParam {
         #[primary_span]
         #[label]
@@ -804,22 +804,22 @@ mod errors {
 
     // TODO(nilehmann) this probably should be part of the code that checks
     // if a flux signature is a valid refinement of a rust signature
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::invalid_array_len, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::invalid_array_len, code = "FLUX")]
     pub struct InvalidArrayLen {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::invalid_dot_var, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::invalid_dot_var, code = "FLUX")]
     pub struct InvalidDotVar {
         #[primary_span]
         pub span: Span,
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::unresolved_dot_field, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::unresolved_dot_field, code = "FLUX")]
     pub struct UnresolvedDotField {
         #[primary_span]
         pub span: Span,
@@ -832,8 +832,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::param_count_mismatch, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::param_count_mismatch, code = "FLUX")]
     pub struct ParamCountMismatch {
         #[primary_span]
         #[label]
@@ -849,8 +849,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(desugar::unresolved_dot_var, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(desugar::unresolved_dot_var, code = "FLUX")]
     pub struct UnresolvedDotVar {
         #[primary_span]
         #[label]

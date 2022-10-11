@@ -10,7 +10,7 @@ pub(crate) enum DiagnosticDeriveError {
 }
 
 impl DiagnosticDeriveError {
-    pub(crate) fn into_compile_error(self) -> TokenStream {
+    pub(crate) fn to_compile_error(self) -> TokenStream {
         match self {
             DiagnosticDeriveError::SynError(e) => e.to_compile_error(),
             DiagnosticDeriveError::ErrorHandled => {
