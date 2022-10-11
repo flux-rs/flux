@@ -632,7 +632,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Len(_) => Ok(Ty::usize()),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, src_info, op);
-                Ok(Self::check_cast(*kind, from, to))
+                Ok(self.check_cast(*kind, from, to))
             }
         }
     }
@@ -862,7 +862,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn check_cast(kind: CastKind, from: Ty, to: &rustc::ty::Ty) -> Ty {
+    fn check_cast(&self, kind: CastKind, from: Ty, to: &rustc::ty::Ty) -> Ty {
         use rustc::ty::TyKind as RustTyKind;
         match kind {
             CastKind::IntToInt => {
@@ -889,6 +889,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                         panic!("invalid int to int cast")
                     }
                 }
+            }
+            CastKind::FloatToInt | CastKind::IntToFloat => {
+                self.genv
+                    .refine_ty(to, &mut |sorts| Binders::new(Pred::tt(), sorts))
             }
         }
     }

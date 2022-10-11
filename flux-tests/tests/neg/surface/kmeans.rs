@@ -6,22 +6,6 @@
 pub mod rvec;
 use rvec::RVec;
 
-/////////////////////////////////////////////////////////////
-
-#[flux::assume]
-#[flux::sig(fn() -> f32)]
-fn f32_max() -> f32 {
-    f32::MAX
-}
-
-#[flux::assume]
-#[flux::sig(fn(f32, d:usize) -> f32)]
-fn f32_div(n: f32, d: usize) -> f32 {
-    n / (d as f32)
-}
-
-/////////////////////////////////////////////////////////////
-
 /// distance between two points
 #[flux::sig(fn(&RVec<f32>[@n], &RVec<f32>[n]) -> f32)]
 fn dist(x: &RVec<f32>, y: &RVec<f32>) -> f32 {
@@ -55,7 +39,7 @@ fn normal(x: &mut RVec<f32>, w: usize) -> i32 {
     let mut i = 0;
     while i < x.len() {
         let xi = x[i];
-        x[i] = f32_div(xi, w);
+        x[i] = xi / (w as f32);
         i += 1;
     }
     0
@@ -80,7 +64,7 @@ fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
     // let n = p.len();
     let k = cs.len();
     let mut res = 0;
-    let mut min = f32_max();
+    let mut min = f32::MAX;
     let mut i = 0;
     while i < k {
         let di = dist(&cs[i], p);

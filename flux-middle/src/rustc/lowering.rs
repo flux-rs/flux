@@ -319,6 +319,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_cast_kind(&self, kind: rustc_mir::CastKind) -> Option<CastKind> {
         match kind {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
+            rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
+            rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
             _ => None,
         }
     }
