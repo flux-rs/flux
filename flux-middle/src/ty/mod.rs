@@ -582,6 +582,12 @@ impl Expr {
             .clone()
     }
 
+    pub fn one() -> Expr {
+        static ONE: OnceLock<Expr> = OnceLock::new();
+        ONE.get_or_init(|| ExprKind::Constant(Constant::ONE).intern())
+            .clone()
+    }
+
     pub fn unit() -> Expr {
         Expr::tuple(vec![])
     }
@@ -617,10 +623,7 @@ impl Expr {
                 let bits = bits as i128;
                 ExprKind::Constant(Constant::from(bits)).intern()
             }
-            BaseTy::Uint(_) => {
-                let bits = bits as u128;
-                ExprKind::Constant(Constant::from(bits)).intern()
-            }
+            BaseTy::Uint(_) => ExprKind::Constant(Constant::from(bits)).intern(),
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
             BaseTy::Adt(_, _) | BaseTy::Array(..) | BaseTy::Str | BaseTy::Float(_) => panic!(),
         }

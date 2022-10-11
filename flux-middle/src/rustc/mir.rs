@@ -128,6 +128,12 @@ pub enum Rvalue {
     Aggregate(AggregateKind, Vec<Operand>),
     Discriminant(Place),
     Len(Place),
+    Cast(CastKind, Operand, Ty),
+}
+
+#[derive(Copy, Clone)]
+pub enum CastKind {
+    IntToInt,
 }
 
 pub enum AggregateKind {
@@ -226,7 +232,7 @@ impl<'tcx> Body<'tcx> {
         // an implicit goto from the environment at the beginning of the function.
         let real_preds =
             self.rustc_mir.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
-        real_preds > (if bb == START_BLOCK { 0 } else { 1 })
+        real_preds > usize::from(bb != START_BLOCK)
     }
 
     #[inline]
@@ -418,6 +424,7 @@ impl fmt::Debug for Rvalue {
                 write!(f, "[{:?}]", args.iter().format(", "))
             }
             Rvalue::Len(place) => write!(f, "Len({place:?})"),
+            Rvalue::Cast(CastKind::IntToInt, op, ty) => write!(f, "{op:?} as {ty:?}"),
         }
     }
 }

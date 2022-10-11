@@ -15,13 +15,14 @@ use flux_middle::{
     rustc::{
         self,
         mir::{
-            self, AggregateKind, BasicBlock, Body, Constant, Operand, Place, Rvalue, SourceInfo,
-            Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+            self, AggregateKind, BasicBlock, Body, CastKind, Constant, Operand, Place, Rvalue,
+            SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
+            START_BLOCK,
         },
     },
     ty::{
-        self, BaseTy, BinOp, Binders, BoundVar, Const, Constraint, Constraints, Expr, FnSig,
-        PolySig, Pred, RefKind, Sort, Ty, TyKind, VariantIdx,
+        self, BaseTy, BinOp, Binders, BoundVar, Const, Constraint, Constraints, Expr, FnSig, IntTy,
+        PolySig, Pred, RefKind, Sort, Ty, TyKind, UintTy, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -629,6 +630,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
             Rvalue::Len(_) => Ok(Ty::usize()),
+            Rvalue::Cast(kind, op, to) => {
+                let from = self.check_operand(rcx, env, src_info, op);
+                Ok(Self::check_cast(*kind, from, to))
+            }
         }
     }
 
@@ -857,6 +862,37 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
+    fn check_cast(kind: CastKind, from: Ty, to: &rustc::ty::Ty) -> Ty {
+        use rustc::ty::TyKind as RustTyKind;
+        match kind {
+            CastKind::IntToInt => {
+                match (from.kind(), to.kind()) {
+                    (TyKind::Indexed(BaseTy::Bool, idxs), RustTyKind::Int(int_ty)) => {
+                        bool_int_cast(&idxs[0].expr, *int_ty)
+                    }
+                    (TyKind::Indexed(BaseTy::Bool, idxs), RustTyKind::Uint(uint_ty)) => {
+                        bool_uint_cast(&idxs[0].expr, *uint_ty)
+                    }
+                    (TyKind::Indexed(BaseTy::Int(int_ty1), idxs), RustTyKind::Int(int_ty2)) => {
+                        int_int_cast(&idxs[0].expr, *int_ty1, *int_ty2)
+                    }
+                    (TyKind::Indexed(BaseTy::Uint(uint_ty1), idxs), RustTyKind::Uint(uint_ty2)) => {
+                        uint_uint_cast(&idxs[0].expr, *uint_ty1, *uint_ty2)
+                    }
+                    (TyKind::Indexed(BaseTy::Uint(uint_ty), idxs), RustTyKind::Int(int_ty)) => {
+                        uint_int_cast(&idxs[0].expr, *uint_ty, *int_ty)
+                    }
+                    (TyKind::Indexed(BaseTy::Int(_), _), RustTyKind::Uint(uint_ty)) => {
+                        Ty::uint(*uint_ty)
+                    }
+                    _ => {
+                        panic!("invalid int to int cast")
+                    }
+                }
+            }
+        }
+    }
+
     fn check_operand(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -909,6 +945,73 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let dominator = self.dominators.immediate_dominator(bb);
         self.snapshots[dominator].as_ref().unwrap()
     }
+}
+
+fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
+    let expr = Expr::if_then_else(b.clone(), Expr::one(), Expr::zero()).into();
+    Ty::indexed(BaseTy::Int(int_ty), vec![expr])
+}
+
+fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
+    let expr = Expr::if_then_else(b.clone(), Expr::one(), Expr::zero()).into();
+    Ty::indexed(BaseTy::Uint(uint_ty), vec![expr])
+}
+
+fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
+    if is_lossless_int_to_int(int_ty1, int_ty2) {
+        Ty::indexed(BaseTy::Int(int_ty2), vec![idx.clone().into()])
+    } else {
+        Ty::int(int_ty2)
+    }
+}
+
+fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
+    if is_lossless_uint_to_int(uint_ty, int_ty) {
+        Ty::indexed(BaseTy::Int(int_ty), vec![idx.clone().into()])
+    } else {
+        Ty::int(int_ty)
+    }
+}
+
+fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
+    if is_lossless_uint_to_uint(uint_ty1, uint_ty2) {
+        Ty::indexed(BaseTy::Uint(uint_ty2), vec![idx.clone().into()])
+    } else {
+        Ty::uint(uint_ty2)
+    }
+}
+
+fn is_lossless_uint_to_uint(uint_ty1: UintTy, uint_ty2: UintTy) -> bool {
+    use UintTy::*;
+    matches!(
+        (uint_ty1, uint_ty2),
+        (U8, Usize | U16 | U32 | U64 | U128)
+            | (U16, U16 | U32 | U64 | U128)
+            | (U32, U32 | U64 | U128)
+            | (U64, U64 | U128)
+            | (U128, U128)
+    )
+}
+
+fn is_lossless_int_to_int(int_ty1: IntTy, int_ty2: IntTy) -> bool {
+    use IntTy::*;
+    matches!(
+        (int_ty1, int_ty2),
+        (I8, Isize | I16 | I32 | I64 | I128)
+            | (I16, I16 | I32 | I64 | I128)
+            | (I32, I32 | I64 | I128)
+            | (I64, I64 | I128)
+            | (I128, I128)
+    )
+}
+
+fn is_lossless_uint_to_int(uint_ty: UintTy, int_ty: IntTy) -> bool {
+    use IntTy::*;
+    use UintTy::*;
+    matches!(
+        (uint_ty, int_ty),
+        (U8, I16 | I32 | I64 | I128) | (U16, I32 | I64 | I128) | (U32, I64 | I128) | (U64, I128)
+    )
 }
 
 impl Phase for Inference<'_> {
