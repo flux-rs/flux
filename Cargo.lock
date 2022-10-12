@@ -428,6 +428,7 @@ dependencies = [
 name = "flux-typeck"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "flux-common",
  "flux-errors",
  "flux-fixpoint",

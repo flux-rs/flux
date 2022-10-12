@@ -141,7 +141,7 @@ impl TypeEnv {
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
         self.bindings.fmap_mut(|binding| {
             match binding {
-                Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty, false)),
+                Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty)),
                 Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
             }
         });
