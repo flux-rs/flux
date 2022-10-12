@@ -24,6 +24,12 @@ pub struct StructDef {
 }
 
 #[derive(Debug)]
+pub enum StructKind {
+    Transparent { fields: Vec<Option<Ty>> },
+    Opaque,
+}
+
+#[derive(Debug)]
 pub struct EnumDef {
     pub def_id: DefId,
     pub refined_by: Vec<Param>,
@@ -35,12 +41,6 @@ pub struct VariantDef {
     pub params: Vec<Param>,
     pub fields: Vec<Ty>,
     pub ret: Ty,
-}
-
-#[derive(Debug)]
-pub enum StructKind {
-    Transparent { fields: Vec<Option<Ty>> },
-    Opaque,
 }
 
 pub struct FnSig {
@@ -196,12 +196,6 @@ impl Expr {
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
-}
-
-impl StructDef {
-    pub fn sorts(&self) -> Vec<Sort> {
-        self.refined_by.iter().map(|param| param.sort).collect()
-    }
 }
 
 #[derive(Default, Debug)]

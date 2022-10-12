@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::{AdtSortInfo, AdtSorts},
+    core::AdtSorts,
     global_env::{ConstInfo, GlobalEnv},
     rustc, ty,
 };
