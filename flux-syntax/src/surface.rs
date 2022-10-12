@@ -49,6 +49,7 @@ pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
     pub variants: Vec<VariantDef<T>>,
+    pub invariants: Vec<Expr>,
     pub opaque: bool,
 }
 
@@ -59,7 +60,7 @@ pub struct VariantDef<T = Ident> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Params {
     pub params: Vec<Param>,
     pub span: Span,
@@ -212,6 +213,10 @@ pub enum BinOp {
     Mul,
 }
 
+impl Params {
+    pub const DUMMY: &Params = &Params { params: vec![], span: rustc_span::DUMMY_SP };
+}
+
 impl Path<Res> {
     pub fn is_bool(&self) -> bool {
         matches!(self.ident, Res::Bool)
@@ -238,6 +243,16 @@ impl Params {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Param> {
+        self.params.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Params {
+    type Item = &'a Param;
+
+    type IntoIter = std::slice::Iter<'a, Param>;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.params.iter()
     }
 }

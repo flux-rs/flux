@@ -65,6 +65,10 @@ pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::Va
     parse!(surface_grammar::VariantParser, tokens, span)
 }
 
+pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr> {
+    parse!(surface_grammar::ExprParser, tokens, span)
+}
+
 pub enum UserParseError {
     UnsupportedLiteral(Location, Location),
 }

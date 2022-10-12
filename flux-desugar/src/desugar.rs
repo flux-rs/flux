@@ -1,12 +1,12 @@
-use std::iter;
+use std::{borrow::Borrow, iter};
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{
-        AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef, UFun,
-        VariantDef,
+        AdtDef, AdtMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
+        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef,
+        UFun, VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -27,9 +27,8 @@ pub fn desugar_qualifier(
     sess: &FluxSession,
     consts: &[ConstInfo],
     qualifier: surface::Qualifier,
-    adt_sorts: &AdtSorts,
 ) -> Result<Qualifier, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
     let expr = params.desugar_expr(qualifier.expr);
@@ -61,17 +60,37 @@ pub fn resolve_sorts(
         .try_collect_exhaust()
 }
 
+pub fn desugar_adt_data(
+    sess: &FluxSession,
+    consts: &[ConstInfo],
+    def_id: DefId,
+    params: &surface::Params,
+    invariants: Vec<surface::Expr>,
+) -> Result<AdtDef, ErrorGuaranteed> {
+    let mut cx = ParamsCtxt::new(sess, consts);
+    cx.insert_params(params)?;
+
+    let sorts = cx.params.iter().map(|param| param.sort).collect();
+    let fields = params.params.iter().map(|param| param.name.name).collect();
+    let invariants = invariants
+        .into_iter()
+        .map(|invariant| cx.desugar_expr(invariant))
+        .try_collect_exhaust()?;
+    let refined_by = cx.params;
+    Ok(AdtDef { def_id, sorts, fields, refined_by, invariants })
+}
+
 pub fn desugar_struct_def(
     sess: &FluxSession,
     consts: &[ConstInfo],
-    adt_sorts: &AdtSorts,
+    adt_sorts: &AdtMap,
     adt_def: surface::StructDef<Res>,
 ) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
-    let mut cx = DesugarCtxt::with_params(params);
+    let mut cx = DesugarCtxt::with_params(params, adt_sorts);
 
     let kind = if adt_def.opaque {
         StructKind::Opaque
@@ -83,40 +102,40 @@ pub fn desugar_struct_def(
             .try_collect_exhaust()?;
         StructKind::Transparent { fields }
     };
-    let refined_by = cx.params.params;
-    Ok(StructDef { def_id, kind, refined_by })
+    Ok(StructDef { def_id, kind })
 }
 
 pub fn desugar_enum_def(
     sess: &FluxSession,
     consts: &[ConstInfo],
-    adt_sorts: &AdtSorts,
+    adt_sorts: &AdtMap,
     enum_def: surface::EnumDef<Res>,
 ) -> Result<EnumDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
-    let refined_by = params.params;
     let variants = enum_def
         .variants
         .into_iter()
         .map(|variant| desugar_variant(sess, adt_sorts, consts, variant))
         .try_collect_exhaust()?;
 
+    let refined_by = params.params;
+
     Ok(EnumDef { def_id, refined_by, variants })
 }
 
 fn desugar_variant(
     sess: &FluxSession,
-    adt_sorts: &AdtSorts,
+    adt_sorts: &AdtMap,
     consts: &[ConstInfo],
     variant: surface::VariantDef<Res>,
 ) -> Result<VariantDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     for ty in &variant.fields {
-        params.ty_gather_params(ty)?;
+        params.ty_gather_params(ty, adt_sorts)?;
     }
-    let mut desugar = DesugarCtxt::with_params(params);
+    let mut desugar = DesugarCtxt::with_params(params, adt_sorts);
 
     let fields = variant
         .fields
@@ -131,13 +150,13 @@ fn desugar_variant(
 
 pub fn desugar_fn_sig(
     sess: &FluxSession,
-    adt_sorts: &AdtSorts,
+    adt_sorts: &AdtMap,
     consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
-    params.gather_fn_sig_params(&fn_sig)?;
-    let mut desugar = DesugarCtxt::with_params(params);
+    let mut params = ParamsCtxt::new(sess, consts);
+    params.gather_fn_sig_params(&fn_sig, adt_sorts)?;
+    let mut desugar = DesugarCtxt::with_params(params, adt_sorts);
 
     if let Some(e) = fn_sig.requires {
         let e = desugar.params.desugar_expr(e)?;
@@ -174,11 +193,11 @@ pub fn desugar_fn_sig(
 pub struct DesugarCtxt<'a> {
     params: ParamsCtxt<'a>,
     requires: Vec<Constraint>,
+    adt_sorts: &'a AdtMap,
 }
 
 struct ParamsCtxt<'a> {
     sess: &'a FluxSession,
-    adt_sorts: &'a AdtSorts,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
     field_map: FxHashMap<(Symbol, Symbol), Name>,
@@ -188,8 +207,8 @@ struct ParamsCtxt<'a> {
 }
 
 impl<'a> DesugarCtxt<'a> {
-    fn with_params(params: ParamsCtxt) -> DesugarCtxt {
-        DesugarCtxt { params, requires: vec![] }
+    fn with_params(params: ParamsCtxt<'a>, adt_sorts: &'a AdtMap) -> DesugarCtxt<'a> {
+        DesugarCtxt { params, requires: vec![], adt_sorts }
     }
 
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<Ty, ErrorGuaranteed> {
@@ -233,9 +252,12 @@ impl<'a> DesugarCtxt<'a> {
                 Ty::Indexed(bty?, indices?)
             }
             surface::TyKind::Exists { bind, path, pred } => {
-                let (binders, pred) = self
-                    .params
-                    .with_bind(bind, &path, |params| params.desugar_expr(pred))?;
+                let (binders, pred) = self.params.with_bind(
+                    bind,
+                    &path,
+                    |params| params.desugar_expr(pred),
+                    self.adt_sorts,
+                )?;
                 let bty = self.desugar_path_into_bty(path);
                 Ty::Exists(bty?, binders, pred)
             }
@@ -352,7 +374,7 @@ pub fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, Er
 }
 
 impl<'a> ParamsCtxt<'a> {
-    fn new(sess: &'a FluxSession, consts: &[ConstInfo], adt_sorts: &'a AdtSorts) -> ParamsCtxt<'a> {
+    fn new(sess: &'a FluxSession, consts: &[ConstInfo]) -> ParamsCtxt<'a> {
         let const_map: FxHashMap<Symbol, DefId> = consts
             .iter()
             .map(|const_info| (const_info.sym, const_info.def_id))
@@ -365,7 +387,6 @@ impl<'a> ParamsCtxt<'a> {
             field_map: FxHashMap::default(),
             params: vec![],
             const_map,
-            adt_sorts,
         }
     }
 
@@ -525,8 +546,9 @@ impl<'a> ParamsCtxt<'a> {
         &mut self,
         ident: surface::Ident,
         path: &Path<Res>,
+        adt_sorts: &AdtMap,
     ) -> Result<FreshIdents, ErrorGuaranteed> {
-        let sorts = sorts(self.sess, self.adt_sorts, path)?;
+        let sorts = sorts(self.sess, adt_sorts, path)?;
         let slen = sorts.len();
         match slen.cmp(&1) {
             std::cmp::Ordering::Equal => {
@@ -534,7 +556,7 @@ impl<'a> ParamsCtxt<'a> {
                 Ok(FreshIdents::Single(param))
             }
             std::cmp::Ordering::Greater => {
-                let fields = fields(self.adt_sorts, path)?;
+                let fields = fields(adt_sorts, path)?;
                 let params = self.fresh_dot_params(ident, fields, sorts);
                 Ok(FreshIdents::Dot(params))
             }
@@ -550,8 +572,9 @@ impl<'a> ParamsCtxt<'a> {
         &mut self,
         ident: surface::Ident,
         path: &Path<Res>,
+        adt_sorts: &AdtMap,
     ) -> Result<(), ErrorGuaranteed> {
-        match self.fresh_bind_idents(ident, path)? {
+        match self.fresh_bind_idents(ident, path, adt_sorts)? {
             FreshIdents::Single(param) => self.do_push_param(ident, param),
             FreshIdents::Dot(params) => {
                 let fresh_names = params.iter().map(|(fld, p)| (*fld, p.name.name)).collect();
@@ -571,8 +594,9 @@ impl<'a> ParamsCtxt<'a> {
         bind: surface::Ident,
         path: &Path<Res>,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
+        adt_sorts: &AdtMap,
     ) -> Result<(Vec<Ident>, R), ErrorGuaranteed> {
-        match self.fresh_bind_idents(bind, path)? {
+        match self.fresh_bind_idents(bind, path, adt_sorts)? {
             FreshIdents::Single(param) => {
                 let symb = bind.name;
                 let old = self.name_map.insert(symb, param.name.name);
@@ -596,11 +620,15 @@ impl<'a> ParamsCtxt<'a> {
         }
     }
 
-    fn insert_params(
+    fn insert_params<P>(
         &mut self,
-        params: impl IntoIterator<Item = surface::Param>,
-    ) -> Result<(), ErrorGuaranteed> {
+        params: impl IntoIterator<Item = P>,
+    ) -> Result<(), ErrorGuaranteed>
+    where
+        P: Borrow<surface::Param>,
+    {
         for param in params {
+            let param = param.borrow();
             self.push_param(param.name, resolve_sort(self.sess, param.sort)?)?;
         }
         Ok(())
@@ -609,23 +637,28 @@ impl<'a> ParamsCtxt<'a> {
     fn gather_fn_sig_params(
         &mut self,
         fn_sig: &surface::FnSig<Res>,
+        adt_sorts: &AdtMap,
     ) -> Result<(), ErrorGuaranteed> {
         for arg in &fn_sig.args {
-            self.arg_gather_params(arg)?;
+            self.arg_gather_params(arg, adt_sorts)?;
         }
         Ok(())
     }
 
-    fn arg_gather_params(&mut self, arg: &surface::Arg<Res>) -> Result<(), ErrorGuaranteed> {
+    fn arg_gather_params(
+        &mut self,
+        arg: &surface::Arg<Res>,
+        adt_sorts: &AdtMap,
+    ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.push_bind(*bind, path)?;
+                self.push_bind(*bind, path, adt_sorts)?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.push_param(*loc, Sort::Loc)?;
-                self.ty_gather_params(ty)?;
+                self.ty_gather_params(ty, adt_sorts)?;
             }
-            surface::Arg::Ty(ty) => self.ty_gather_params(ty)?,
+            surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_sorts)?,
             surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
@@ -640,13 +673,17 @@ impl<'a> ParamsCtxt<'a> {
         None
     }
 
-    fn ty_gather_params(&mut self, ty: &surface::Ty<Res>) -> Result<(), ErrorGuaranteed> {
+    fn ty_gather_params(
+        &mut self,
+        ty: &surface::Ty<Res>,
+        adt_sorts: &AdtMap,
+    ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
                 if let Some(ident) = ParamsCtxt::single_bind(&indices.indices) {
-                    self.push_bind(ident, path)?;
+                    self.push_bind(ident, path, adt_sorts)?;
                 } else {
-                    let sorts = sorts(self.sess, self.adt_sorts, path)?;
+                    let sorts = sorts(self.sess, adt_sorts, path)?;
                     let exp = sorts.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -665,11 +702,11 @@ impl<'a> ParamsCtxt<'a> {
             }
             surface::TyKind::StrgRef(_, ty)
             | surface::TyKind::Ref(_, ty)
-            | surface::TyKind::Array(ty, _) => self.ty_gather_params(ty),
-            surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty),
+            | surface::TyKind::Array(ty, _) => self.ty_gather_params(ty, adt_sorts),
+            surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_sorts),
             surface::TyKind::Path(path) => {
                 for ty in &path.args {
-                    self.ty_gather_params(ty)?;
+                    self.ty_gather_params(ty, adt_sorts)?;
                 }
                 Ok(())
             }
@@ -683,7 +720,7 @@ impl<'a> ParamsCtxt<'a> {
 }
 
 fn fields<'a>(
-    adt_sorts: &'a AdtSorts,
+    adt_sorts: &'a AdtMap,
     path: &surface::Path<Res>,
 ) -> Result<&'a [Symbol], ErrorGuaranteed> {
     match path.ident {
@@ -694,7 +731,7 @@ fn fields<'a>(
 
 fn sorts<'a>(
     sess: &FluxSession,
-    adt_sorts: &'a AdtSorts,
+    adt_sorts: &'a AdtMap,
     path: &surface::Path<Res>,
 ) -> Result<&'a [Sort], ErrorGuaranteed> {
     match path.ident {

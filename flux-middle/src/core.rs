@@ -10,7 +10,7 @@ use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
@@ -20,7 +20,12 @@ pub use rustc_target::abi::VariantIdx;
 pub struct StructDef {
     pub def_id: DefId,
     pub kind: StructKind,
-    pub refined_by: Vec<Param>,
+}
+
+#[derive(Debug)]
+pub enum StructKind {
+    Transparent { fields: Vec<Option<Ty>> },
+    Opaque,
 }
 
 #[derive(Debug)]
@@ -35,12 +40,6 @@ pub struct VariantDef {
     pub params: Vec<Param>,
     pub fields: Vec<Ty>,
     pub ret: Ty,
-}
-
-#[derive(Debug)]
-pub enum StructKind {
-    Transparent { fields: Vec<Option<Ty>> },
-    Opaque,
 }
 
 pub struct FnSig {
@@ -198,19 +197,16 @@ impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
-impl StructDef {
-    pub fn sorts(&self) -> Vec<Sort> {
-        self.refined_by.iter().map(|param| param.sort).collect()
-    }
-}
-
 #[derive(Default, Debug)]
-pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
+pub struct AdtMap(FxHashMap<LocalDefId, AdtDef>);
 
 #[derive(Debug)]
-pub struct AdtSortInfo {
+pub struct AdtDef {
+    pub def_id: DefId,
+    pub refined_by: Vec<Param>,
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Default)]
@@ -239,19 +235,27 @@ impl UFSorts {
     }
 }
 
-impl AdtSorts {
-    pub fn insert(&mut self, def_id: DefId, sort_info: AdtSortInfo) {
+impl AdtMap {
+    pub fn insert(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
         self.0.insert(def_id, sort_info);
     }
 
     pub fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
-        let info = self.0.get(&def_id)?;
+        let info = self.0.get(&def_id.as_local()?)?;
         Some(&info.sorts)
     }
 
     pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
-        let info = self.0.get(&def_id)?;
+        let info = self.0.get(&def_id.as_local()?)?;
         Some(&info.fields)
+    }
+}
+
+impl std::ops::Index<LocalDefId> for AdtMap {
+    type Output = AdtDef;
+
+    fn index(&self, def_id: LocalDefId) -> &Self::Output {
+        &self.0[&def_id]
     }
 }
 

@@ -26,6 +26,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct AdtDefData {
     def_id: DefId,
+    invariants: Vec<Binders<Expr>>,
     sorts: List<Sort>,
     flags: AdtFlags,
 }
@@ -287,9 +288,14 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn new(rustc_def: rustc_middle::ty::AdtDef, sorts: impl Into<List<Sort>>) -> Self {
+    pub(crate) fn new(
+        rustc_def: rustc_middle::ty::AdtDef,
+        sorts: impl Into<List<Sort>>,
+        invariants: Vec<Binders<Expr>>,
+    ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
+            invariants,
             sorts: sorts.into(),
             flags: rustc_def.flags(),
         }))
@@ -317,6 +323,10 @@ impl AdtDef {
 
     pub fn is_struct(&self) -> bool {
         self.flags().contains(AdtFlags::IS_STRUCT)
+    }
+
+    pub fn invariants(&self) -> &[Binders<Expr>] {
+        &self.0.invariants
     }
 }
 
@@ -519,6 +529,18 @@ impl BaseTy {
         match self {
             BaseTy::Adt(adt_def, _) => adt_def.is_box(),
             _ => false,
+        }
+    }
+
+    pub fn invariants(&self) -> &[Binders<Expr>] {
+        match self {
+            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
+            BaseTy::Int(_)
+            | BaseTy::Uint(_)
+            | BaseTy::Bool
+            | BaseTy::Str
+            | BaseTy::Array(_, _)
+            | BaseTy::Float(_) => &[],
         }
     }
 
