@@ -378,6 +378,12 @@ impl DebruijnIndex {
     }
 }
 
+impl From<&Expr> for Expr {
+    fn from(e: &Expr) -> Self {
+        e.clone()
+    }
+}
+
 impl From<Loc> for Expr {
     fn from(loc: Loc) -> Self {
         loc.to_expr()
