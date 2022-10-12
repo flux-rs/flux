@@ -70,7 +70,8 @@ pub fn desugar_adt_data(
 
     let sorts = cx.params.iter().map(|param| param.sort).collect();
     let fields = params.params.iter().map(|param| param.name.name).collect();
-    Ok(AdtSortInfo { sorts, fields })
+    let refined_by = cx.params;
+    Ok(AdtSortInfo { sorts, fields, refined_by })
 }
 
 pub fn desugar_struct_def(
@@ -95,8 +96,7 @@ pub fn desugar_struct_def(
             .try_collect_exhaust()?;
         StructKind::Transparent { fields }
     };
-    let refined_by = cx.params.params;
-    Ok(StructDef { def_id, kind, refined_by })
+    Ok(StructDef { def_id, kind })
 }
 
 pub fn desugar_enum_def(

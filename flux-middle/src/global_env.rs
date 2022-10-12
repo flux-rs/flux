@@ -88,13 +88,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
-    pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
-        let variant = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
+    pub fn register_struct_def_variant(
+        &mut self,
+        def_id: DefId,
+        adt_data: &core::AdtSortInfo,
+        struct_def: core::StructDef,
+    ) {
+        let variant = ty::conv::ConvCtxt::conv_struct_def(self, &adt_data, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
     }
 
-    pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
+    pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: core::EnumDef) {
         if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def(self, enum_def) {
             self.adt_variants.get_mut().insert(def_id, Some(variants));
         }

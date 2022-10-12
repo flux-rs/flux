@@ -60,7 +60,7 @@ pub struct VariantDef<T = Ident> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Params {
     pub params: Vec<Param>,
     pub span: Span,
@@ -211,6 +211,10 @@ pub enum BinOp {
     Sub,
     Mod,
     Mul,
+}
+
+impl Params {
+    pub const DUMMY: &Params = &Params { params: vec![], span: rustc_span::DUMMY_SP };
 }
 
 impl Path<Res> {

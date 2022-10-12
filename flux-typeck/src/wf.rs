@@ -89,8 +89,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
-    pub fn check_struct_def(&self, def: &core::StructDef) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&def.refined_by);
+    pub fn check_struct_def(
+        &self,
+        adt_data: &core::AdtSortInfo,
+        def: &core::StructDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut env = Env::new(&adt_data.refined_by);
         if let core::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
                 if let Some(ty) = ty {

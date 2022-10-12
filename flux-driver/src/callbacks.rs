@@ -133,29 +133,27 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
-            if let Some(refined_by) = &def.refined_by {
-                adt_sorts.insert(
-                    def_id.to_def_id(),
-                    desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
-                );
-                genv.register_adt_def(
-                    def_id.to_def_id(),
-                    adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
-                );
-            }
+            let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
+            adt_sorts.insert(
+                def_id.to_def_id(),
+                desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
+            );
+            genv.register_adt_def(
+                def_id.to_def_id(),
+                adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
+            );
             Ok(())
         })?;
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
-            if let Some(refined_by) = &def.refined_by {
-                adt_sorts.insert(
-                    def_id.to_def_id(),
-                    desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
-                );
-                genv.register_adt_def(
-                    def_id.to_def_id(),
-                    adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
-                );
-            }
+            let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
+            adt_sorts.insert(
+                def_id.to_def_id(),
+                desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
+            );
+            genv.register_adt_def(
+                def_id.to_def_id(),
+                adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
+            );
             Ok(())
         })?;
         genv.finish_adt_registration();
@@ -183,9 +181,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let adt_def = desugar::desugar_struct_def(genv, &adt_sorts, struct_def)?;
-                Wf::new(genv).check_struct_def(&adt_def)?;
-                genv.register_struct_def(def_id.to_def_id(), adt_def);
+                let adt_data = &adt_sorts[def_id.to_def_id()];
+                let struct_def = desugar::desugar_struct_def(genv, &adt_sorts, struct_def)?;
+                Wf::new(genv).check_struct_def(adt_data, &struct_def)?;
+                genv.register_struct_def_variant(def_id.to_def_id(), adt_data, struct_def);
                 Ok(())
             })?;
 
@@ -194,7 +193,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
                 let enum_def = desugar::desugar_enum_def(genv, &adt_sorts, enum_def)?;
-                genv.register_enum_def(def_id.to_def_id(), enum_def);
+                genv.register_enum_def_variants(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;
 

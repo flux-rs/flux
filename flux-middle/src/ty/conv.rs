@@ -8,7 +8,7 @@ use rustc_target::abi::VariantIdx;
 
 use super::{Binders, PolyVariant};
 use crate::{
-    core,
+    core::{self, AdtSortInfo},
     global_env::GlobalEnv,
     rustc::ty::GenericParamDefKind,
     ty::{self, DebruijnIndex},
@@ -132,10 +132,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_struct_def(
         genv: &GlobalEnv,
+        adt_data: &AdtSortInfo,
         struct_def: &core::StructDef,
     ) -> Option<ty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
-        let sorts = cx.conv_params(&struct_def.refined_by);
+        let sorts = cx.conv_params(&adt_data.refined_by);
         let def_id = struct_def.def_id;
         let rustc_adt = genv.tcx.adt_def(def_id);
         if let core::StructKind::Transparent { fields } = &struct_def.kind {

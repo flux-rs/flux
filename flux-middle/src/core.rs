@@ -20,7 +20,6 @@ pub use rustc_target::abi::VariantIdx;
 pub struct StructDef {
     pub def_id: DefId,
     pub kind: StructKind,
-    pub refined_by: Vec<Param>,
 }
 
 #[derive(Debug)]
@@ -203,6 +202,7 @@ pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
 
 #[derive(Debug)]
 pub struct AdtSortInfo {
+    pub refined_by: Vec<Param>,
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
 }
@@ -246,6 +246,14 @@ impl AdtSorts {
     pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
         let info = self.0.get(&def_id)?;
         Some(&info.fields)
+    }
+}
+
+impl std::ops::Index<DefId> for AdtSorts {
+    type Output = AdtSortInfo;
+
+    fn index(&self, def_id: DefId) -> &Self::Output {
+        &self.0[&def_id]
     }
 }
 
