@@ -1,14 +1,14 @@
 //! Conversion from desugared types in [`crate::core`] to types in [`crate::ty`]
 use std::iter;
 
-use flux_common::index::IndexGen;
+use flux_common::{index::IndexGen, iter::IterExt};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_target::abi::VariantIdx;
 
 use super::{Binders, PolyVariant};
 use crate::{
-    core::{self, AdtSortInfo},
+    core::{self, AdtDef},
     global_env::GlobalEnv,
     rustc::ty::GenericParamDefKind,
     ty::{self, DebruijnIndex},
@@ -68,11 +68,11 @@ impl NameMap {
 }
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
-    pub fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
+    pub(crate) fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub fn conv_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
+    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: core::FnSig) -> ty::Binders<ty::FnSig> {
         let mut cx = ConvCtxt::new(genv);
 
         let params = cx.conv_params(&fn_sig.params);
@@ -97,7 +97,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub(crate) fn conv_enum_def(
+    pub(crate) fn conv_adt_def(genv: &GlobalEnv, adt: &core::AdtDef) -> ty::AdtDef {
+        let mut cx = ConvCtxt::new(genv);
+        let sorts = cx.conv_params(&adt.refined_by);
+        let invariants = adt
+            .invariants
+            .iter()
+            .map(|invariant| cx.conv_expr(invariant))
+            .collect_vec();
+
+        ty::AdtDef::new(genv.tcx.adt_def(adt.def_id), sorts, invariants)
+    }
+
+    pub(crate) fn conv_enum_def_variants(
         genv: &mut GlobalEnv,
         enum_def: core::EnumDef,
     ) -> Option<Vec<PolyVariant>> {
@@ -130,9 +142,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Binders::new(variant, sorts)
     }
 
-    pub(crate) fn conv_struct_def(
+    pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
-        adt_data: &AdtSortInfo,
+        adt_data: &AdtDef,
         struct_def: &core::StructDef,
     ) -> Option<ty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
@@ -214,6 +226,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let expr = conv_expr(&qualifier.expr, &name_map, 1);
 
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
+    }
+
+    fn conv_expr(&self, expr: &core::Expr) -> ty::Expr {
+        conv_expr(expr, &self.name_map, 1)
     }
 
     fn conv_ty(&mut self, ty: &core::Ty, nbinders: u32) -> ty::Ty {

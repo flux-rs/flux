@@ -26,6 +26,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct AdtDefData {
     def_id: DefId,
+    invariants: List<Expr>,
     sorts: List<Sort>,
     flags: AdtFlags,
 }
@@ -287,9 +288,14 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn new(rustc_def: rustc_middle::ty::AdtDef, sorts: impl Into<List<Sort>>) -> Self {
+    pub(crate) fn new(
+        rustc_def: rustc_middle::ty::AdtDef,
+        sorts: impl Into<List<Sort>>,
+        invariants: impl Into<List<Expr>>,
+    ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
+            invariants: invariants.into(),
             sorts: sorts.into(),
             flags: rustc_def.flags(),
         }))

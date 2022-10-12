@@ -198,13 +198,15 @@ impl Lit {
 }
 
 #[derive(Default, Debug)]
-pub struct AdtSorts(FxHashMap<LocalDefId, AdtSortInfo>);
+pub struct AdtMap(FxHashMap<LocalDefId, AdtDef>);
 
 #[derive(Debug)]
-pub struct AdtSortInfo {
+pub struct AdtDef {
+    pub def_id: DefId,
     pub refined_by: Vec<Param>,
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Default)]
@@ -233,8 +235,8 @@ impl UFSorts {
     }
 }
 
-impl AdtSorts {
-    pub fn insert(&mut self, def_id: LocalDefId, sort_info: AdtSortInfo) {
+impl AdtMap {
+    pub fn insert(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
         self.0.insert(def_id, sort_info);
     }
 
@@ -249,8 +251,8 @@ impl AdtSorts {
     }
 }
 
-impl std::ops::Index<LocalDefId> for AdtSorts {
-    type Output = AdtSortInfo;
+impl std::ops::Index<LocalDefId> for AdtMap {
+    type Output = AdtDef;
 
     fn index(&self, def_id: LocalDefId) -> &Self::Output {
         &self.0[&def_id]

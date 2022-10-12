@@ -91,7 +91,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     pub fn check_struct_def(
         &self,
-        adt_data: &core::AdtSortInfo,
+        adt_data: &core::AdtDef,
         def: &core::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&adt_data.refined_by);
