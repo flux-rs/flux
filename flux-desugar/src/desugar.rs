@@ -27,9 +27,8 @@ pub fn desugar_qualifier(
     sess: &FluxSession,
     consts: &[ConstInfo],
     qualifier: surface::Qualifier,
-    adt_sorts: &AdtSorts,
 ) -> Result<Qualifier, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
     let expr = params.desugar_expr(qualifier.expr);
@@ -68,10 +67,10 @@ pub fn desugar_struct_def(
     adt_def: surface::StructDef<Res>,
 ) -> Result<StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
-    let mut cx = DesugarCtxt::with_params(params);
+    let mut cx = DesugarCtxt::with_params(params, adt_sorts);
 
     let kind = if adt_def.opaque {
         StructKind::Opaque
@@ -93,7 +92,7 @@ pub fn desugar_enum_def(
     adt_sorts: &AdtSorts,
     enum_def: surface::EnumDef<Res>,
 ) -> Result<EnumDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
     let variants = enum_def
@@ -113,11 +112,11 @@ fn desugar_variant(
     consts: &[ConstInfo],
     variant: surface::VariantDef<Res>,
 ) -> Result<VariantDef, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
+    let mut params = ParamsCtxt::new(sess, consts);
     for ty in &variant.fields {
-        params.ty_gather_params(ty)?;
+        params.ty_gather_params(ty, adt_sorts)?;
     }
-    let mut desugar = DesugarCtxt::with_params(params);
+    let mut desugar = DesugarCtxt::with_params(params, adt_sorts);
 
     let fields = variant
         .fields
@@ -136,9 +135,9 @@ pub fn desugar_fn_sig(
     consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
-    params.gather_fn_sig_params(&fn_sig)?;
-    let mut desugar = DesugarCtxt::with_params(params);
+    let mut params = ParamsCtxt::new(sess, consts);
+    params.gather_fn_sig_params(&fn_sig, adt_sorts)?;
+    let mut desugar = DesugarCtxt::with_params(params, adt_sorts);
 
     if let Some(e) = fn_sig.requires {
         let e = desugar.params.desugar_expr(e)?;
@@ -175,11 +174,11 @@ pub fn desugar_fn_sig(
 pub struct DesugarCtxt<'a> {
     params: ParamsCtxt<'a>,
     requires: Vec<Constraint>,
+    adt_sorts: &'a AdtSorts,
 }
 
 struct ParamsCtxt<'a> {
     sess: &'a FluxSession,
-    adt_sorts: &'a AdtSorts,
     name_gen: IndexGen<Name>,
     name_map: FxHashMap<Symbol, Name>,
     field_map: FxHashMap<(Symbol, Symbol), Name>,
@@ -189,8 +188,8 @@ struct ParamsCtxt<'a> {
 }
 
 impl<'a> DesugarCtxt<'a> {
-    fn with_params(params: ParamsCtxt) -> DesugarCtxt {
-        DesugarCtxt { params, requires: vec![] }
+    fn with_params(params: ParamsCtxt<'a>, adt_sorts: &'a AdtSorts) -> DesugarCtxt<'a> {
+        DesugarCtxt { params, requires: vec![], adt_sorts }
     }
 
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<Ty, ErrorGuaranteed> {
@@ -234,9 +233,12 @@ impl<'a> DesugarCtxt<'a> {
                 Ty::Indexed(bty?, indices?)
             }
             surface::TyKind::Exists { bind, path, pred } => {
-                let (binders, pred) = self
-                    .params
-                    .with_bind(bind, &path, |params| params.desugar_expr(pred))?;
+                let (binders, pred) = self.params.with_bind(
+                    bind,
+                    &path,
+                    |params| params.desugar_expr(pred),
+                    self.adt_sorts,
+                )?;
                 let bty = self.desugar_path_into_bty(path);
                 Ty::Exists(bty?, binders, pred)
             }
@@ -353,7 +355,7 @@ pub fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<Sort, Er
 }
 
 impl<'a> ParamsCtxt<'a> {
-    fn new(sess: &'a FluxSession, consts: &[ConstInfo], adt_sorts: &'a AdtSorts) -> ParamsCtxt<'a> {
+    fn new(sess: &'a FluxSession, consts: &[ConstInfo]) -> ParamsCtxt<'a> {
         let const_map: FxHashMap<Symbol, DefId> = consts
             .iter()
             .map(|const_info| (const_info.sym, const_info.def_id))
@@ -366,7 +368,6 @@ impl<'a> ParamsCtxt<'a> {
             field_map: FxHashMap::default(),
             params: vec![],
             const_map,
-            adt_sorts,
         }
     }
 
@@ -526,8 +527,9 @@ impl<'a> ParamsCtxt<'a> {
         &mut self,
         ident: surface::Ident,
         path: &Path<Res>,
+        adt_sorts: &AdtSorts,
     ) -> Result<FreshIdents, ErrorGuaranteed> {
-        let sorts = sorts(self.sess, self.adt_sorts, path)?;
+        let sorts = sorts(self.sess, adt_sorts, path)?;
         let slen = sorts.len();
         match slen.cmp(&1) {
             std::cmp::Ordering::Equal => {
@@ -535,7 +537,7 @@ impl<'a> ParamsCtxt<'a> {
                 Ok(FreshIdents::Single(param))
             }
             std::cmp::Ordering::Greater => {
-                let fields = fields(self.adt_sorts, path)?;
+                let fields = fields(adt_sorts, path)?;
                 let params = self.fresh_dot_params(ident, fields, sorts);
                 Ok(FreshIdents::Dot(params))
             }
@@ -551,8 +553,9 @@ impl<'a> ParamsCtxt<'a> {
         &mut self,
         ident: surface::Ident,
         path: &Path<Res>,
+        adt_sorts: &AdtSorts,
     ) -> Result<(), ErrorGuaranteed> {
-        match self.fresh_bind_idents(ident, path)? {
+        match self.fresh_bind_idents(ident, path, adt_sorts)? {
             FreshIdents::Single(param) => self.do_push_param(ident, param),
             FreshIdents::Dot(params) => {
                 let fresh_names = params.iter().map(|(fld, p)| (*fld, p.name.name)).collect();
@@ -572,8 +575,9 @@ impl<'a> ParamsCtxt<'a> {
         bind: surface::Ident,
         path: &Path<Res>,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
+        adt_sorts: &AdtSorts,
     ) -> Result<(Vec<Ident>, R), ErrorGuaranteed> {
-        match self.fresh_bind_idents(bind, path)? {
+        match self.fresh_bind_idents(bind, path, adt_sorts)? {
             FreshIdents::Single(param) => {
                 let symb = bind.name;
                 let old = self.name_map.insert(symb, param.name.name);
@@ -610,23 +614,28 @@ impl<'a> ParamsCtxt<'a> {
     fn gather_fn_sig_params(
         &mut self,
         fn_sig: &surface::FnSig<Res>,
+        adt_sorts: &AdtSorts,
     ) -> Result<(), ErrorGuaranteed> {
         for arg in &fn_sig.args {
-            self.arg_gather_params(arg)?;
+            self.arg_gather_params(arg, adt_sorts)?;
         }
         Ok(())
     }
 
-    fn arg_gather_params(&mut self, arg: &surface::Arg<Res>) -> Result<(), ErrorGuaranteed> {
+    fn arg_gather_params(
+        &mut self,
+        arg: &surface::Arg<Res>,
+        adt_sorts: &AdtSorts,
+    ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.push_bind(*bind, path)?;
+                self.push_bind(*bind, path, adt_sorts)?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.push_param(*loc, Sort::Loc)?;
-                self.ty_gather_params(ty)?;
+                self.ty_gather_params(ty, adt_sorts)?;
             }
-            surface::Arg::Ty(ty) => self.ty_gather_params(ty)?,
+            surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_sorts)?,
             surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
@@ -641,13 +650,17 @@ impl<'a> ParamsCtxt<'a> {
         None
     }
 
-    fn ty_gather_params(&mut self, ty: &surface::Ty<Res>) -> Result<(), ErrorGuaranteed> {
+    fn ty_gather_params(
+        &mut self,
+        ty: &surface::Ty<Res>,
+        adt_sorts: &AdtSorts,
+    ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
                 if let Some(ident) = ParamsCtxt::single_bind(&indices.indices) {
-                    self.push_bind(ident, path)?;
+                    self.push_bind(ident, path, adt_sorts)?;
                 } else {
-                    let sorts = sorts(self.sess, self.adt_sorts, path)?;
+                    let sorts = sorts(self.sess, adt_sorts, path)?;
                     let exp = sorts.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -666,11 +679,11 @@ impl<'a> ParamsCtxt<'a> {
             }
             surface::TyKind::StrgRef(_, ty)
             | surface::TyKind::Ref(_, ty)
-            | surface::TyKind::Array(ty, _) => self.ty_gather_params(ty),
-            surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty),
+            | surface::TyKind::Array(ty, _) => self.ty_gather_params(ty, adt_sorts),
+            surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_sorts),
             surface::TyKind::Path(path) => {
                 for ty in &path.args {
-                    self.ty_gather_params(ty)?;
+                    self.ty_gather_params(ty, adt_sorts)?;
                 }
                 Ok(())
             }

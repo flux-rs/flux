@@ -159,8 +159,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .qualifs
             .into_iter()
             .map(|qualifier| {
-                let qualifier =
-                    desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier, &adt_sorts)?;
+                let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
                 Ok(ty::conv::ConvCtxt::conv_qualifier(&qualifier))
             })
