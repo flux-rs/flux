@@ -49,6 +49,7 @@ pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
     pub variants: Vec<VariantDef<T>>,
+    pub invariants: Vec<Expr>,
     pub opaque: bool,
 }
 

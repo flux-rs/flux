@@ -96,12 +96,13 @@ pub fn desugar_enum_def(
     let mut params = ParamsCtxt::new(sess, consts, adt_sorts);
     params.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
-    let refined_by = params.params;
     let variants = enum_def
         .variants
         .into_iter()
         .map(|variant| desugar_variant(sess, adt_sorts, consts, variant))
         .try_collect_exhaust()?;
+
+    let refined_by = params.params;
 
     Ok(EnumDef { def_id, refined_by, variants })
 }

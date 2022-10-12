@@ -6,10 +6,8 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty, parse_type_alias,
-    parse_uf_def, parse_variant,
-    surface::{self},
-    ParseResult,
+    parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    parse_type_alias, parse_uf_def, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -191,9 +189,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             None => vec![],
         };
 
+        let invariants = attrs.invariants();
+
         self.specs
             .enums
-            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, opaque });
+            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, opaque, invariants });
         Ok(())
     }
 
@@ -327,7 +327,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let variant = self.parse(tokens.clone(), span.entire(), parse_variant)?;
                 FluxAttrKind::Variant(variant)
             }
-
+            ("invariant", MacArgs::Delimited(span, _, tokens)) => {
+                let invariant = self.parse(tokens.clone(), span.entire(), parse_expr)?;
+                FluxAttrKind::Invariant(invariant)
+            }
             ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
             ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
@@ -418,6 +421,7 @@ enum FluxAttrKind {
     Variant(surface::VariantDef),
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
+    Invariant(surface::Expr),
     Ignore,
 }
 
@@ -511,6 +515,10 @@ impl FluxAttrs {
     fn crate_config(&mut self) -> Option<config::CrateConfig> {
         read_attr!(self, CrateConfig)
     }
+
+    fn invariants(&mut self) -> Vec<surface::Expr> {
+        read_attrs!(self, Invariant)
+    }
 }
 
 impl FluxAttrKind {
@@ -528,6 +536,7 @@ impl FluxAttrKind {
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),
             FluxAttrKind::UFDef(_) => attr_name!(UFDef),
+            FluxAttrKind::Invariant(_) => attr_name!(Invariant),
         }
     }
 }

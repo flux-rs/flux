@@ -24,7 +24,6 @@ pub Alias: surface::Alias = {
     }
 }
 
-
 pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
 }
@@ -139,8 +138,6 @@ GenericArgs: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">"
 }
 
-// The code below is duplicated from grammar.lalrpop ---------------------------------
-
 Path: surface::Path = {
     <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args: args.unwrap_or_default(), span: mk_span(lo, hi) }
 }
@@ -168,6 +165,7 @@ Index: surface::Index = {
     <Level1>    => surface::Index::Expr(<>),
 };
 
+pub Expr = Level1;
 
 Level1 = NonAssoc<BinOp1, Level2>;  // <=>
 Level2 = LeftAssoc<BinOp2, Level3>; // =>

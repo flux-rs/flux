@@ -51,6 +51,7 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             def_id: enum_def.def_id,
             refined_by: enum_def.refined_by,
             opaque: enum_def.opaque,
+            invariants: enum_def.invariants,
             variants,
         })
     }
