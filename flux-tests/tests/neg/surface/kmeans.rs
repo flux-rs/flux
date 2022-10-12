@@ -58,7 +58,7 @@ fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> {
 }
 
 /// finding the nearest center to a point
-#[flux::sig(fn(&RVec<f32>[@n], &RVec<RVec<f32>[n]>[@k]) -> usize{v:0 <= v && v < k}
+#[flux::sig(fn(&RVec<f32>[@n], &RVec<RVec<f32>[n]>[@k]) -> usize{v: v < k}
               requires 0 < k)]
 fn nearest(p: &RVec<f32>, cs: &RVec<RVec<f32>>) -> usize {
     // let n = p.len();

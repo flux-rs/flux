@@ -6,7 +6,7 @@ mod rvec;
 use rvec::RVec;
 
 #[flux::sig(
-fn(&RVec<u8>[@len]) -> RVec<usize{v: 0 <= v && v < len}>[len]
+fn(&RVec<u8>[@len]) -> RVec<usize{v: v < len}>[len]
 requires len > 0
 )]
 fn kmp_table(p: &RVec<u8>) -> RVec<usize> {

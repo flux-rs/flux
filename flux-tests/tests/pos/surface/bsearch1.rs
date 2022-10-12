@@ -9,7 +9,7 @@ use rvec::RVec;
 // CREDIT: https://shane-o.dev/blog/binary-search-rust
 
 #[flux::sig(
-fn(i32, &RVec<i32>[@n]) -> usize{v : 0 <= v  && v <= n}
+fn(i32, &RVec<i32>[@n]) -> usize{v : v <= n}
 requires n >= 0
 )]
 pub fn binary_search(k: i32, items: &RVec<i32>) -> usize {
