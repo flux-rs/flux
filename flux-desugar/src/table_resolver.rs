@@ -84,6 +84,7 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             refined_by: struct_def.refined_by,
             fields,
             opaque: struct_def.opaque,
+            invariants: struct_def.invariants,
         })
     }
 

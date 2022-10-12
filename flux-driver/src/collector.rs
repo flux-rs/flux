@@ -218,9 +218,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .map(|field| self.parse_field_spec(self.tcx.hir().attrs(field.hir_id)))
             .try_collect_exhaust()?;
 
+        let invariants = attrs.invariants();
+
         self.specs
             .structs
-            .insert(def_id, surface::StructDef { def_id, refined_by, fields, opaque });
+            .insert(def_id, surface::StructDef { def_id, refined_by, fields, opaque, invariants });
 
         Ok(())
     }

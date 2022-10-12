@@ -42,6 +42,7 @@ pub struct StructDef<T = Ident> {
     pub refined_by: Option<Params>,
     pub fields: Vec<Option<Ty<T>>>,
     pub opaque: bool,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]

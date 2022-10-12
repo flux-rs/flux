@@ -316,7 +316,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match bty {
             core::BaseTy::Int(_) | core::BaseTy::Uint(_) => vec![ty::Sort::Int],
             core::BaseTy::Bool => vec![ty::Sort::Bool],
-            core::BaseTy::Adt(def_id, _) => self.genv.sorts_of(*def_id).to_vec(),
+            core::BaseTy::Adt(def_id, _) => self.genv.adt_def(*def_id).sorts().to_vec(),
         }
     }
 

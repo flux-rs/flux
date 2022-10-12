@@ -171,10 +171,7 @@ impl RefineCtxt<'_> {
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => {
                 let bty = self.unpack_bty(bty, inside_mut_ref, unpack_existentials_inside_mut_refs);
-                let exprs = idxs.iter().map(Index::to_expr).collect_vec();
-                for invariant in bty.invariants() {
-                    self.assume_pred(invariant.replace_bound_vars(&exprs));
-                }
+                self.assume_invariants(&bty, idxs);
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(bty, pred) => {
@@ -191,6 +188,7 @@ impl RefineCtxt<'_> {
                         .collect_vec();
                     let bty =
                         self.unpack_bty(bty, inside_mut_ref, unpack_existentials_inside_mut_refs);
+                    self.assume_invariants(&bty, &idxs);
                     Ty::indexed(bty, idxs)
                 } else {
                     ty.clone()
@@ -223,6 +221,13 @@ impl RefineCtxt<'_> {
 
     pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
         self.unpack_inner(ty, false, unpack_mut_refs)
+    }
+
+    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &[Index]) {
+        let exprs = idxs.iter().map(Index::to_expr).collect_vec();
+        for invariant in bty.invariants() {
+            self.assume_pred(invariant.replace_bound_vars(&exprs));
+        }
     }
 }
 

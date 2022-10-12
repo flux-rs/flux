@@ -13,7 +13,6 @@ use rustc_span::Symbol;
 
 use crate::{
     core::{self, UFDef, VariantIdx},
-    intern::List,
     rustc,
     ty::{self, Binders},
 };
@@ -146,10 +145,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let sorts = poly_variant.params();
         let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.clone(), vec![]);
         ty::Binders::new(sig, sorts)
-    }
-
-    pub fn sorts_of(&self, def_id: DefId) -> List<ty::Sort> {
-        self.adt_def(def_id).sorts().clone()
     }
 
     pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {

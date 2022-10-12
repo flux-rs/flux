@@ -27,7 +27,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     def_id: DefId,
     invariants: Vec<Binders<Expr>>,
-    sorts: List<Sort>,
+    sorts: Vec<Sort>,
     flags: AdtFlags,
 }
 
@@ -290,13 +290,13 @@ impl FnSig {
 impl AdtDef {
     pub(crate) fn new(
         rustc_def: rustc_middle::ty::AdtDef,
-        sorts: impl Into<List<Sort>>,
+        sorts: Vec<Sort>,
         invariants: Vec<Binders<Expr>>,
     ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
             invariants,
-            sorts: sorts.into(),
+            sorts,
             flags: rustc_def.flags(),
         }))
     }
@@ -305,7 +305,7 @@ impl AdtDef {
         self.0.def_id
     }
 
-    pub fn sorts(&self) -> &List<Sort> {
+    pub fn sorts(&self) -> &[Sort] {
         &self.0.sorts
     }
 

@@ -132,20 +132,23 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         })?;
 
         // Register adts
-        specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
-            let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-            let adt_def = desugar::desugar_adt_data(
-                genv.sess,
-                &genv.consts,
-                def_id.to_def_id(),
-                refined_by,
-                vec![],
-            )?;
-            Wf::new(genv).check_adt_def(&adt_def)?;
-            adt_map.insert(*def_id, adt_def);
-            genv.register_adt_def(&adt_map[*def_id]);
-            Ok(())
-        })?;
+        specs
+            .structs
+            .iter_mut()
+            .try_for_each_exhaust(|(def_id, def)| {
+                let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
+                let adt_def = desugar::desugar_adt_data(
+                    genv.sess,
+                    &genv.consts,
+                    def_id.to_def_id(),
+                    refined_by,
+                    std::mem::take(&mut def.invariants),
+                )?;
+                Wf::new(genv).check_adt_def(&adt_def)?;
+                adt_map.insert(*def_id, adt_def);
+                genv.register_adt_def(&adt_map[*def_id]);
+                Ok(())
+            })?;
         specs
             .enums
             .iter_mut()
