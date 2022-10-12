@@ -7,10 +7,11 @@ pub fn never<T>(_x: i32) -> T {
 }
 
 #[flux::refined_by(n:int)]
+#[flux::invariant(n >= 0)]
 pub enum List {
     #[flux::variant(List[0])]
     Nil,
-    #[flux::variant({i32, Box<List[@n]>} -> {List[n+1]: 0 <= n})]
+    #[flux::variant({i32, Box<List[@n]>} -> List[n+1])]
     Cons(i32, Box<List>),
 }
 
@@ -46,7 +47,7 @@ pub fn append(l1: List, l2: List) -> List {
     }
 } //~ ERROR postcondition
 
-#[flux::sig(fn(&List[@n], k:usize{0 <= k && k <= n} ) -> i32)]
+#[flux::sig(fn(&List[@n], k:usize{k <= n} ) -> i32)]
 pub fn get_nth(l: &List, k: usize) -> i32 {
     match l {
         List::Cons(h, tl) => {

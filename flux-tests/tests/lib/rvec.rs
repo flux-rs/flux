@@ -32,13 +32,13 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(fn(&RVec<T>[@n], i: usize{0 <= i && i < n}) -> &T)]
+    #[flux::sig(fn(&RVec<T>[@n], i: usize{i < n}) -> &T)]
     pub fn get(&self, i: usize) -> &T {
         &self.inner[i]
     }
 
     #[flux::assume]
-    #[flux::sig(fn(&mut RVec<T>[@n], i: usize{ 0 <= i && i < n}) -> &mut T)]
+    #[flux::sig(fn(&mut RVec<T>[@n], i: usize{i < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize) -> &mut T {
         &mut self.inner[i]
     }
@@ -52,12 +52,11 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(fn(&mut RVec<T>[@n], a: usize{0 <= a && a < n}, b: usize{0 <= b && b < n}) -> ())]
+    #[flux::sig(fn(&mut RVec<T>[@n], a: usize{a < n}, b: usize{b < n}) -> ())]
     pub fn swap(&mut self, a: usize, b: usize) {
         self.inner.swap(a, b);
     }
 
-    #[flux::assume]
     #[flux::sig(fn(T, n: usize) -> RVec<T>[n])]
     pub fn from_elem_n(elem: T, n: usize) -> Self
     where
@@ -105,14 +104,14 @@ impl<T> Iterator for RVecIter<T> {
 impl<T> std::ops::Index<usize> for RVec<T> {
     type Output = T;
 
-    #[flux::sig(fn(&RVec<T>[@n], usize{v : 0 <= v && v < n}) -> &T)]
+    #[flux::sig(fn(&RVec<T>[@n], usize{v : v < n}) -> &T)]
     fn index(&self, index: usize) -> &T {
         self.get(index)
     }
 }
 
 impl<T> std::ops::IndexMut<usize> for RVec<T> {
-    #[flux::sig(fn(&mut RVec<T>[@n], usize{v : 0 <= v && v < n}) -> &mut T)]
+    #[flux::sig(fn(&mut RVec<T>[@n], usize{v : v < n}) -> &mut T)]
     fn index_mut(&mut self, index: usize) -> &mut T {
         self.get_mut(index)
     }

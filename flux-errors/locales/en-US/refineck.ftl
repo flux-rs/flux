@@ -27,3 +27,6 @@ refineck_fold_error =
 
 refineck_unknown_error =
     unknown error
+
+refineck_overflow_error =
+    arithmetic operation may overflow

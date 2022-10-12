@@ -32,13 +32,13 @@ impl<T> RMat<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(fn(&RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v:0 <= v && v < n}) -> &T)]
+    #[flux::sig(fn(&RMat<T>[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &T)]
     pub fn get(&self, i: usize, j: usize) -> &T {
         &self.inner[i][j]
     }
 
     #[flux::assume]
-    #[flux::sig(fn(&mut RMat<T>[@m, @n], usize{v: 0 <= v && v < m}, usize{v: 0 <= v && v < n}) -> &mut T)]
+    #[flux::sig(fn(&mut RMat<T>[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {
         &mut self.inner[i][j]
     }

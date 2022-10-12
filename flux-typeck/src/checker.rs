@@ -752,18 +752,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Ty {
         let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
-                TyKind::Indexed(BaseTy::Int(int_ty2), indices2),
+                TyKind::Indexed(BaseTy::Int(int_ty1), idxs1),
+                TyKind::Indexed(BaseTy::Int(int_ty2), idxs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (BaseTy::Int(*int_ty1), indices1[0].expr.clone(), indices2[0].expr.clone())
+                (BaseTy::Int(*int_ty1), idxs1[0].expr.clone(), idxs2[0].expr.clone())
             }
             (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), indices2),
+                TyKind::Indexed(BaseTy::Uint(uint_ty1), idxs1),
+                TyKind::Indexed(BaseTy::Uint(uint_ty2), idxs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (BaseTy::Uint(*uint_ty1), indices1[0].expr.clone(), indices2[0].expr.clone())
+
+                (BaseTy::Uint(*uint_ty1), idxs1[0].expr.clone(), idxs2[0].expr.clone())
             }
             (
                 TyKind::Indexed(BaseTy::Float(float_ty1), _),
@@ -774,29 +775,35 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
+        let e = Expr::binary_op(op, e1, e2.clone());
         if matches!(op, BinOp::Div) {
             self.phase
                 .constr_gen(self.genv, rcx, Tag::Div(source_info.span))
-                .check_pred(rcx, Expr::binary_op(BinOp::Ne, e2.clone(), Expr::zero()));
+                .check_pred(rcx, Expr::binary_op(BinOp::Ne, e2, Expr::zero()));
         }
-        Ty::indexed(bty, vec![Expr::binary_op(op, e1, e2).into()])
+        if ty1.is_uint() {
+            self.phase
+                .constr_gen(self.genv, rcx, Tag::Overflow(source_info.span))
+                .check_pred(rcx, Expr::binary_op(BinOp::Ge, e.clone(), Expr::zero()));
+        }
+        Ty::indexed(bty, vec![e.into()])
     }
 
     fn check_cmp_op(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         let (e1, e2) = match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
-                TyKind::Indexed(BaseTy::Int(int_ty2), indices2),
+                TyKind::Indexed(BaseTy::Int(int_ty1), idxs1),
+                TyKind::Indexed(BaseTy::Int(int_ty2), idxs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (indices1[0].expr.clone(), indices2[0].expr.clone())
+                (idxs1[0].expr.clone(), idxs2[0].expr.clone())
             }
             (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), indices2),
+                TyKind::Indexed(BaseTy::Uint(uint_ty1), idxs1),
+                TyKind::Indexed(BaseTy::Uint(uint_ty2), idxs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (indices1[0].expr.clone(), indices2[0].expr.clone())
+                (idxs1[0].expr.clone(), idxs2[0].expr.clone())
             }
             (
                 TyKind::Indexed(BaseTy::Float(float_ty1), _),
@@ -813,19 +820,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn check_eq(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (
-                TyKind::Indexed(BaseTy::Int(int_ty1), indices1),
-                TyKind::Indexed(BaseTy::Int(int_ty2), indices2),
+                TyKind::Indexed(BaseTy::Int(int_ty1), idxs1),
+                TyKind::Indexed(BaseTy::Int(int_ty2), idxs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                let e = Expr::binary_op(op, indices1[0].clone(), indices2[0].clone());
+                let e = Expr::binary_op(op, idxs1[0].clone(), idxs2[0].clone());
                 Ty::indexed(BaseTy::Bool, vec![e.into()])
             }
             (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), indices1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), indices2),
+                TyKind::Indexed(BaseTy::Uint(uint_ty1), idxs1),
+                TyKind::Indexed(BaseTy::Uint(uint_ty2), idxs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                let e = Expr::binary_op(op, indices1[0].clone(), indices2[0].clone());
+                let e = Expr::binary_op(op, idxs1[0].clone(), idxs2[0].clone());
                 Ty::indexed(BaseTy::Bool, vec![e.into()])
             }
             _ => Ty::bool(),
@@ -844,16 +851,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match un_op {
             mir::UnOp::Not => {
                 match ty.kind() {
-                    TyKind::Indexed(BaseTy::Bool, indices) => {
-                        Ty::indexed(BaseTy::Bool, vec![indices[0].expr.not().into()])
+                    TyKind::Indexed(BaseTy::Bool, idxs) => {
+                        Ty::indexed(BaseTy::Bool, vec![idxs[0].expr.not().into()])
                     }
                     _ => unreachable!("incompatible type: `{:?}`", ty),
                 }
             }
             mir::UnOp::Neg => {
                 match ty.kind() {
-                    TyKind::Indexed(BaseTy::Int(int_ty), indices) => {
-                        Ty::indexed(BaseTy::Int(*int_ty), vec![indices[0].expr.neg().into()])
+                    TyKind::Indexed(BaseTy::Int(int_ty), idxs) => {
+                        Ty::indexed(BaseTy::Int(*int_ty), vec![idxs[0].expr.neg().into()])
                     }
                     TyKind::Indexed(BaseTy::Float(float_ty), _) => Ty::float(*float_ty),
                     _ => unreachable!("incompatible type: `{:?}`", ty),

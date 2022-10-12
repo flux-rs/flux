@@ -2,7 +2,11 @@ pub mod conv;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, iter, sync::OnceLock};
+use std::{
+    borrow::Cow,
+    fmt, iter,
+    sync::{LazyLock, OnceLock},
+};
 
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
@@ -420,6 +424,10 @@ impl Ty {
         }
     }
 
+    pub fn is_uint(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(bty, _) if bty.is_uint())
+    }
+
     pub fn bool() -> Ty {
         Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
     }
@@ -517,6 +525,10 @@ impl BaseTy {
         BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
     }
 
+    fn is_uint(&self) -> bool {
+        matches!(self, BaseTy::Uint(_))
+    }
+
     fn is_integral(&self) -> bool {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
@@ -533,10 +545,17 @@ impl BaseTy {
     }
 
     pub fn invariants(&self) -> &[Binders<Expr>] {
+        static GE0: LazyLock<Binders<Expr>> = LazyLock::new(|| {
+            Binders::new(
+                Expr::binary_op(BinOp::Ge, Expr::bvar(BoundVar::NU), Expr::zero()),
+                vec![Sort::Int],
+            )
+        });
+
         match self {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
+            BaseTy::Uint(_) => std::slice::from_ref(&GE0),
             BaseTy::Int(_)
-            | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Str
             | BaseTy::Array(_, _)

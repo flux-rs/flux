@@ -72,6 +72,7 @@ fn report_errors(
             Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
             Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { span, msg }),
             Tag::Fold(span) => genv.sess.emit_err(errors::FoldError { span }),
+            Tag::Overflow(span) => genv.sess.emit_err(errors::OverflowError { span }),
             Tag::Other => genv.sess.emit_err(errors::UnknownError { span: body_span }),
         });
     }
@@ -153,6 +154,13 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(refineck::fold_error, code = "FLUX")]
     pub struct FoldError {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck::overflow_error, code = "FLUX")]
+    pub struct OverflowError {
         #[primary_span]
         pub span: Span,
     }
