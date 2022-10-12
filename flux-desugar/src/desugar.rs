@@ -1,12 +1,12 @@
-use std::iter;
+use std::{borrow::Borrow, iter};
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{
-        AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index, Indices,
-        Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef, UFun,
-        VariantDef,
+        AdtSortInfo, AdtSorts, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident,
+        Index, Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+        UFDef, UFun, VariantDef,
     },
     global_env::ConstInfo,
 };
@@ -58,6 +58,19 @@ pub fn resolve_sorts(
         .iter()
         .map(|param| resolve_sort(sess, param.sort))
         .try_collect_exhaust()
+}
+
+pub fn desugar_adt_data(
+    sess: &FluxSession,
+    consts: &[ConstInfo],
+    params: &surface::Params,
+) -> Result<AdtSortInfo, ErrorGuaranteed> {
+    let mut cx = ParamsCtxt::new(sess, consts);
+    cx.insert_params(params)?;
+
+    let sorts = cx.params.iter().map(|param| param.sort).collect();
+    let fields = params.params.iter().map(|param| param.name.name).collect();
+    Ok(AdtSortInfo { sorts, fields })
 }
 
 pub fn desugar_struct_def(
@@ -601,11 +614,15 @@ impl<'a> ParamsCtxt<'a> {
         }
     }
 
-    fn insert_params(
+    fn insert_params<P>(
         &mut self,
-        params: impl IntoIterator<Item = surface::Param>,
-    ) -> Result<(), ErrorGuaranteed> {
+        params: impl IntoIterator<Item = P>,
+    ) -> Result<(), ErrorGuaranteed>
+    where
+        P: Borrow<surface::Param>,
+    {
         for param in params {
+            let param = param.borrow();
             self.push_param(param.name, resolve_sort(self.sess, param.sort)?)?;
         }
         Ok(())

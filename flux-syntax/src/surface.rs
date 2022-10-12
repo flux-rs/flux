@@ -243,6 +243,16 @@ impl Params {
     }
 }
 
+impl<'a> IntoIterator for &'a Params {
+    type Item = &'a Param;
+
+    type IntoIter = std::slice::Iter<'a, Param>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.params.iter()
+    }
+}
+
 impl IntoIterator for Params {
     type Item = Param;
 

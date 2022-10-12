@@ -134,7 +134,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
-                register_adt_info(genv.sess, &mut adt_sorts, def_id, refined_by)?;
+                adt_sorts.insert(
+                    def_id.to_def_id(),
+                    desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
+                );
                 genv.register_adt_def(
                     def_id.to_def_id(),
                     adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
@@ -144,7 +147,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         })?;
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             if let Some(refined_by) = &def.refined_by {
-                register_adt_info(genv.sess, &mut adt_sorts, def_id, refined_by)?;
+                adt_sorts.insert(
+                    def_id.to_def_id(),
+                    desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
+                );
                 genv.register_adt_def(
                     def_id.to_def_id(),
                     adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
@@ -245,19 +251,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             _ => Ok(()),
         }
     }
-}
-
-fn register_adt_info(
-    sess: &FluxSession,
-    adt_sorts: &mut AdtSorts,
-    def_id: &LocalDefId,
-    refined_by: &surface::Params,
-) -> Result<(), ErrorGuaranteed> {
-    let sorts = desugar::resolve_sorts(sess, refined_by)?;
-    let fields = refined_by.iter().map(|p| p.name.name).collect();
-    let info = AdtSortInfo { fields, sorts };
-    adt_sorts.insert(def_id.to_def_id(), info);
-    Ok(())
 }
 
 fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
