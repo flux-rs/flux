@@ -372,7 +372,7 @@ impl PathsTree {
                         substs,
                         &idxs.to_exprs(),
                     );
-                    ty = Ty::tuple(tys);
+                    ty = rcx.unpack(&Ty::tuple(tys), false);
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
             }

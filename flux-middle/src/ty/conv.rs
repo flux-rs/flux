@@ -1,7 +1,7 @@
 //! Conversion from desugared types in [`crate::core`] to types in [`crate::ty`]
 use std::iter;
 
-use flux_common::{index::IndexGen, iter::IterExt};
+use flux_common::index::IndexGen;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_target::abi::VariantIdx;
@@ -103,7 +103,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let invariants = adt
             .invariants
             .iter()
-            .map(|invariant| cx.conv_expr(invariant))
+            .map(|invariant| Binders::new(cx.conv_expr(invariant), sorts.as_slice()))
             .collect_vec();
 
         ty::AdtDef::new(genv.tcx.adt_def(adt.def_id), sorts, invariants)
