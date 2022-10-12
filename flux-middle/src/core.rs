@@ -10,7 +10,7 @@ use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol};
@@ -198,7 +198,7 @@ impl Lit {
 }
 
 #[derive(Default, Debug)]
-pub struct AdtSorts(FxHashMap<DefId, AdtSortInfo>);
+pub struct AdtSorts(FxHashMap<LocalDefId, AdtSortInfo>);
 
 #[derive(Debug)]
 pub struct AdtSortInfo {
@@ -234,25 +234,25 @@ impl UFSorts {
 }
 
 impl AdtSorts {
-    pub fn insert(&mut self, def_id: DefId, sort_info: AdtSortInfo) {
+    pub fn insert(&mut self, def_id: LocalDefId, sort_info: AdtSortInfo) {
         self.0.insert(def_id, sort_info);
     }
 
     pub fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
-        let info = self.0.get(&def_id)?;
+        let info = self.0.get(&def_id.as_local()?)?;
         Some(&info.sorts)
     }
 
     pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
-        let info = self.0.get(&def_id)?;
+        let info = self.0.get(&def_id.as_local()?)?;
         Some(&info.fields)
     }
 }
 
-impl std::ops::Index<DefId> for AdtSorts {
+impl std::ops::Index<LocalDefId> for AdtSorts {
     type Output = AdtSortInfo;
 
-    fn index(&self, def_id: DefId) -> &Self::Output {
+    fn index(&self, def_id: LocalDefId) -> &Self::Output {
         &self.0[&def_id]
     }
 }

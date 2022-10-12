@@ -134,10 +134,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         // Register adts
         specs.structs.iter().try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-            adt_sorts.insert(
-                def_id.to_def_id(),
-                desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
-            );
+            adt_sorts
+                .insert(*def_id, desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?);
             genv.register_adt_def(
                 def_id.to_def_id(),
                 adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
@@ -146,10 +144,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         })?;
         specs.enums.iter().try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-            adt_sorts.insert(
-                def_id.to_def_id(),
-                desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?,
-            );
+            adt_sorts
+                .insert(*def_id, desugar::desugar_adt_data(genv.sess, &genv.consts, refined_by)?);
             genv.register_adt_def(
                 def_id.to_def_id(),
                 adt_sorts.get_sorts(def_id.to_def_id()).unwrap(),
@@ -181,10 +177,13 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let adt_data = &adt_sorts[def_id.to_def_id()];
                 let struct_def = desugar::desugar_struct_def(genv, &adt_sorts, struct_def)?;
-                Wf::new(genv).check_struct_def(adt_data, &struct_def)?;
-                genv.register_struct_def_variant(def_id.to_def_id(), adt_data, struct_def);
+                Wf::new(genv).check_struct_def(&adt_sorts[def_id], &struct_def)?;
+                genv.register_struct_def_variant(
+                    def_id.to_def_id(),
+                    &adt_sorts[def_id],
+                    struct_def,
+                );
                 Ok(())
             })?;
 
