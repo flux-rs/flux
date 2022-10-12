@@ -141,6 +141,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 refined_by,
                 vec![],
             )?;
+            Wf::new(genv).check_adt_def(&adt_def)?;
             adt_map.insert(*def_id, adt_def);
             genv.register_adt_def(&adt_map[*def_id]);
             Ok(())
@@ -157,6 +158,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     refined_by,
                     std::mem::take(&mut def.invariants),
                 )?;
+                Wf::new(genv).check_adt_def(&adt_def)?;
                 adt_map.insert(*def_id, adt_def);
                 genv.register_adt_def(&adt_map[*def_id]);
                 Ok(())
