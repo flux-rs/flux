@@ -19,6 +19,7 @@ mod type_env;
 pub mod wf;
 
 mod fixpoint;
+mod sigs;
 
 use std::{fs, io::Write};
 

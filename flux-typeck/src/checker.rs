@@ -21,8 +21,8 @@ use flux_middle::{
         },
     },
     ty::{
-        self, BaseTy, BinOp, Binders, BoundVar, Const, Constraint, Constraints, Expr, FnSig, IntTy,
-        PolySig, Pred, RefKind, Sort, Ty, TyKind, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binders, Const, Constraint, Constraints, Expr, FnSig, IntTy, PolySig,
+        Pred, RefKind, Sort, Ty, TyKind, UintTy, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -38,6 +38,7 @@ use crate::{
     dbg,
     fixpoint::KVarStore,
     refine_tree::{RefineCtxt, RefineTree, Snapshot, Unpack},
+    sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
@@ -652,16 +653,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match bin_op {
             mir::BinOp::Eq => Self::check_eq(BinOp::Eq, &ty1, &ty2),
             mir::BinOp::Ne => Self::check_eq(BinOp::Ne, &ty1, &ty2),
-            mir::BinOp::Add => self.check_arith_op(rcx, source_info, BinOp::Add, &ty1, &ty2),
-            mir::BinOp::Sub => self.check_arith_op(rcx, source_info, BinOp::Sub, &ty1, &ty2),
-            mir::BinOp::Mul => self.check_arith_op(rcx, source_info, BinOp::Mul, &ty1, &ty2),
-            mir::BinOp::Div => self.check_arith_op(rcx, source_info, BinOp::Div, &ty1, &ty2),
-            mir::BinOp::Rem => self.check_rem(rcx, source_info, &ty1, &ty2),
             mir::BinOp::Gt => Self::check_cmp_op(BinOp::Gt, &ty1, &ty2),
             mir::BinOp::Ge => Self::check_cmp_op(BinOp::Ge, &ty1, &ty2),
             mir::BinOp::Lt => Self::check_cmp_op(BinOp::Lt, &ty1, &ty2),
             mir::BinOp::Le => Self::check_cmp_op(BinOp::Le, &ty1, &ty2),
             mir::BinOp::BitAnd => Self::check_bitwise_op(BinOp::And, &ty1, &ty2),
+            mir::BinOp::Add
+            | mir::BinOp::Sub
+            | mir::BinOp::Mul
+            | mir::BinOp::Div
+            | mir::BinOp::Rem => self.check_arith_op(rcx, source_info, bin_op, &ty1, &ty2),
         }
     }
 
@@ -689,82 +690,38 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    // Rem is a special case due to differing semantics with negative numbers
-    fn check_rem(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        source_info: SourceInfo,
-        ty1: &Ty,
-        ty2: &Ty,
-    ) -> Ty {
-        let gen = &mut self
-            .phase
-            .constr_gen(self.genv, rcx, Tag::Rem(source_info.span));
-        let ty = match (ty1.kind(), ty2.kind()) {
-            (
-                TyKind::Indexed(BaseTy::Int(int_ty1), idxs1),
-                TyKind::Indexed(BaseTy::Int(int_ty2), idxs2),
-            ) => {
-                debug_assert_eq!(int_ty1, int_ty2);
-                let (e1, e2) = (&idxs1[0].expr, &idxs2[0].expr);
-                gen.check_pred(rcx, Expr::binary_op(BinOp::Ne, e2, Expr::zero()));
-
-                let bty = BaseTy::Int(*int_ty1);
-                let binding = Expr::binary_op(
-                    BinOp::Eq,
-                    Expr::bvar(BoundVar::NU),
-                    Expr::binary_op(BinOp::Mod, e1, e2),
-                );
-                let guard = Expr::binary_op(
-                    BinOp::And,
-                    Expr::binary_op(BinOp::Ge, e1, Expr::zero()),
-                    Expr::binary_op(BinOp::Ge, e2, Expr::zero()),
-                );
-                let expr = Expr::binary_op(BinOp::Imp, guard, binding);
-                Ty::exists(bty, Binders::new(Pred::Expr(expr), vec![Sort::Int]))
-            }
-            (
-                TyKind::Indexed(BaseTy::Uint(uint_ty1), idx1),
-                TyKind::Indexed(BaseTy::Uint(uint_ty2), idx2),
-            ) => {
-                debug_assert_eq!(uint_ty1, uint_ty2);
-                let (e1, e2) = (&idx1[0].expr, &idx2[0].expr);
-                gen.check_pred(rcx, Expr::binary_op(BinOp::Ne, e2, Expr::zero()));
-
-                Ty::indexed(
-                    BaseTy::Uint(*uint_ty1),
-                    vec![Expr::binary_op(BinOp::Mod, e1, e2).into()],
-                )
-            }
-            _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
-        };
-
-        ty
-    }
-
     fn check_arith_op(
         &mut self,
         rcx: &mut RefineCtxt,
         source_info: SourceInfo,
-        op: BinOp,
+        op: mir::BinOp,
         ty1: &Ty,
         ty2: &Ty,
     ) -> Ty {
-        let (bty, e1, e2) = match (ty1.kind(), ty2.kind()) {
+        let (bty, e1, e2, sig) = match (ty1.kind(), ty2.kind()) {
             (
                 TyKind::Indexed(BaseTy::Int(int_ty1), idxs1),
                 TyKind::Indexed(BaseTy::Int(int_ty2), idxs2),
             ) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (BaseTy::Int(*int_ty1), &idxs1[0].expr, &idxs2[0].expr)
+                (
+                    BaseTy::Int(*int_ty1),
+                    idxs1[0].to_expr(),
+                    idxs2[0].to_expr(),
+                    sigs::signed_arith(op),
+                )
             }
             (
                 TyKind::Indexed(BaseTy::Uint(uint_ty1), idxs1),
                 TyKind::Indexed(BaseTy::Uint(uint_ty2), idxs2),
             ) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-
-                (BaseTy::Uint(*uint_ty1), &idxs1[0].expr, &idxs2[0].expr)
+                (
+                    BaseTy::Uint(*uint_ty1),
+                    idxs1[0].to_expr(),
+                    idxs2[0].to_expr(),
+                    sigs::unsigned_arith(op),
+                )
             }
             (
                 TyKind::Indexed(BaseTy::Float(float_ty1), _),
@@ -775,18 +732,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
-        let e = Expr::binary_op(op, e1, e2);
-        if matches!(op, BinOp::Div) {
+        if let sigs::Pre::Some(tag, constr) = sig.pre {
             self.phase
-                .constr_gen(self.genv, rcx, Tag::Div(source_info.span))
-                .check_pred(rcx, Expr::binary_op(BinOp::Ne, e2, Expr::zero()));
+                .constr_gen(self.genv, rcx, tag(source_info.span))
+                .check_pred(rcx, constr(e1.clone(), e2.clone()));
         }
-        if ty1.is_uint() {
-            self.phase
-                .constr_gen(self.genv, rcx, Tag::Overflow(source_info.span))
-                .check_pred(rcx, Expr::binary_op(BinOp::Ge, &e, Expr::zero()));
+
+        match sig.out {
+            sigs::Output::Indexed(mk) => Ty::indexed(bty, vec![mk(e1, e2).into()]),
+            sigs::Output::Exists(mk) => {
+                let pred = Pred::Expr(mk(Expr::nu(), e1, e2));
+                Ty::exists(bty, Binders::new(pred, vec![Sort::Int]))
+            }
         }
-        Ty::indexed(bty, vec![e.into()])
     }
 
     fn check_cmp_op(op: BinOp, ty1: &Ty, ty2: &Ty) -> Ty {

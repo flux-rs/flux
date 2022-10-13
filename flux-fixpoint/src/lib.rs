@@ -13,7 +13,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sort, UFArg,
+    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sign, Sort, UFArg,
     UFDef, UnOp,
 };
 use flux_common::format::PadAdapter;

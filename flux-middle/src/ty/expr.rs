@@ -1,5 +1,6 @@
 use std::{fmt, sync::OnceLock};
 
+use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -102,6 +103,10 @@ impl Expr {
             .clone()
     }
 
+    pub fn nu() -> Expr {
+        Expr::bvar(BoundVar::NU)
+    }
+
     pub fn unit() -> Expr {
         Expr::tuple(vec![])
     }
@@ -162,6 +167,18 @@ impl Expr {
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+    }
+
+    pub fn ne(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Ne, e1.into(), e2.into()).intern()
+    }
+
+    pub fn ge(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Ge, e1.into(), e2.into()).intern()
+    }
+
+    pub fn implies(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
     pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
@@ -375,6 +392,43 @@ impl DebruijnIndex {
     /// Update in place by shifting out from `amount` binders.
     pub fn shift_out(&mut self, amount: u32) {
         *self = self.shifted_out(amount);
+    }
+}
+
+macro_rules! impl_ops {
+    ($($op:ident: $method:ident),*) => {$(
+        impl<Rhs> std::ops::$op<Rhs> for Expr
+        where
+            Rhs: Into<Expr>,
+        {
+            type Output = Expr;
+
+            fn $method(self, rhs: Rhs) -> Self::Output {
+                Expr::binary_op(BinOp::$op, self, rhs.into())
+            }
+        }
+
+        impl<Rhs> std::ops::$op<Rhs> for &Expr
+        where
+            Rhs: Into<Expr>,
+        {
+            type Output = Expr;
+
+            fn $method(self, rhs: Rhs) -> Self::Output {
+                Expr::binary_op(BinOp::$op, self, rhs.into())
+            }
+        }
+    )*};
+}
+impl_ops!(Add: add, Sub: sub, Mul: mul, Div: div);
+
+impl From<i32> for Expr {
+    fn from(value: i32) -> Self {
+        if value < 0 {
+            Expr::constant(Constant::Int(Sign::Negative, -(value as i64) as u128))
+        } else {
+            Expr::constant(Constant::Int(Sign::Negative, value as u128))
+        }
     }
 }
 

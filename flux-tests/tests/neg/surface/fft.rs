@@ -23,7 +23,7 @@ pub fn fft(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
 fn loop_a(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     let n = px.len() - 1; //~ ERROR overflow
     let mut n2 = n;
-    let mut n4 = n / 4; //~ ERROR overflow
+    let mut n4 = n / 4;
 
     while 2 < n2 {
         let e = (2.0 * PI) / (n2 as f32);
@@ -83,7 +83,7 @@ fn loop_a(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
             j += 1
         }
         n2 = n2 / 2;
-        n4 = n4 / 2; //~ ERROR overflow
+        n4 = n4 / 2;
     }
     0
 }
