@@ -82,7 +82,7 @@ fn invocation_relative_path_to_absolute(span: Span, path: &str) -> PathBuf {
     }
 }
 
-/// See [rustc_macros::fluent_messages].
+/// See [flux-macros::fluent_messages].
 pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let resources = parse_macro_input!(input as Resources);
 

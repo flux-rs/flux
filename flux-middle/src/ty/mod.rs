@@ -607,6 +607,38 @@ impl KVar {
 
 impl_internable!(AdtDefData, TyS, [Ty], [Pred], [Field], [KVar], [Constraint], [Index], [Sort]);
 
+#[macro_export]
+macro_rules! _Int {
+    ($int_ty:pat, $idxs:pat) => {
+        TyKind::Indexed(BaseTy::Int($int_ty), $idxs)
+    };
+}
+pub use crate::_Int as Int;
+
+#[macro_export]
+macro_rules! _Uint {
+    ($uint_ty:pat, $idxs:pat) => {
+        TyKind::Indexed(BaseTy::Uint($uint_ty), $idxs)
+    };
+}
+pub use crate::_Uint as Uint;
+
+#[macro_export]
+macro_rules! _Bool {
+    ($idxs:pat) => {
+        TyKind::Indexed(BaseTy::Bool, $idxs)
+    };
+}
+pub use crate::_Bool as Bool;
+
+#[macro_export]
+macro_rules! _Float {
+    ($float_ty:pat, $idxs:pat) => {
+        TyKind::Indexed(BaseTy::Float($float_ty), $idxs)
+    };
+}
+pub use crate::_Float as Float;
+
 mod pretty {
     use rustc_middle::ty::TyCtxt;
 

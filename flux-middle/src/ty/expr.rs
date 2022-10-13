@@ -52,6 +52,8 @@ pub enum Loc {
 
 /// A bound *var*riable is represented as a debruijn index
 /// into a list of [`Binders`] and index into that list.
+///
+/// [`Binders`]: super::Binders
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,
@@ -148,8 +150,8 @@ impl Expr {
         }
     }
 
-    pub fn if_then_else(p: Expr, e1: Expr, e2: Expr) -> Expr {
-        ExprKind::IfThenElse(p, e1, e2).intern()
+    pub fn ite(p: impl Into<Expr>, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
     pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -175,6 +177,18 @@ impl Expr {
 
     pub fn ge(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::BinaryOp(BinOp::Ge, e1.into(), e2.into()).intern()
+    }
+
+    pub fn gt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Gt, e1.into(), e2.into()).intern()
+    }
+
+    pub fn lt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Lt, e1.into(), e2.into()).intern()
+    }
+
+    pub fn le(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Le, e1.into(), e2.into()).intern()
     }
 
     pub fn implies(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -253,7 +267,7 @@ impl ExprS {
                 Expr::app(*f, exprs.iter().map(|e| e.simplify()).collect_vec())
             }
             ExprKind::IfThenElse(p, e1, e2) => {
-                Expr::if_then_else(p.simplify(), e1.simplify(), e2.simplify())
+                Expr::ite(p.simplify(), e1.simplify(), e2.simplify())
             }
         }
     }

@@ -114,7 +114,7 @@ pub struct Ty<R = Ident> {
 pub enum TyKind<T = Ident> {
     /// ty
     Path(Path<T>),
-    /// t[e]
+    /// `t[e]`
     Indexed {
         path: Path<T>,
         indices: Indices,
