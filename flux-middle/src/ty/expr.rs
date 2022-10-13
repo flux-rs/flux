@@ -441,7 +441,7 @@ impl From<i32> for Expr {
         if value < 0 {
             Expr::constant(Constant::Int(Sign::Negative, -(value as i64) as u128))
         } else {
-            Expr::constant(Constant::Int(Sign::Negative, value as u128))
+            Expr::constant(Constant::Int(Sign::Positive, value as u128))
         }
     }
 }
