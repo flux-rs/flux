@@ -4,10 +4,12 @@ pub use rustc_index::vec::{Idx, IndexVec};
 
 /// A generator of fresh indices.
 ///
-/// It can generate any index created with the [newtype_index] macro.
+/// It can generate any index created with the [`newtype_index`] macro.
 ///
 /// If you use more than one [IndexGen] uniqueness is only guaranteed for indices that come from
 /// the same generator.
+///
+/// [`newtype_index`]: rustc_index::newtype_index
 pub struct IndexGen<I> {
     count: AtomicUsize,
     _marker: PhantomData<I>,

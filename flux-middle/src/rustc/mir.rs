@@ -143,7 +143,7 @@ pub enum AggregateKind {
     Array(Ty),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum BinOp {
     Gt,
     Ge,

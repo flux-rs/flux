@@ -382,7 +382,7 @@ impl TypeFoldable for Expr {
                 Expr::app(*f, es)
             }
             ExprKind::IfThenElse(p, e1, e2) => {
-                Expr::if_then_else(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
+                Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
             }
         }
     }

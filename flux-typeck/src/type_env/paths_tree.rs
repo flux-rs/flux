@@ -99,7 +99,7 @@ fn enum_constraint(scrutinee: &Ty, exprs: &[Expr]) -> Expr {
     match scrutinee.kind() {
         TyKind::Indexed(_, ixs) => {
             assert_eq!(ixs.len(), exprs.len());
-            Expr::and(iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())))
+            Expr::and(iter::zip(ixs, exprs).map(|(idx, e)| Expr::eq(&idx.expr, e)))
         }
         TyKind::Constr(e, ty) => Expr::and([e.clone(), enum_constraint(ty, exprs)]),
         _ => panic!("unexpected: enum_constraint {scrutinee:?}"),
