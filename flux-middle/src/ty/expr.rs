@@ -418,7 +418,7 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs.into())
+                Expr::binary_op(BinOp::$op, self, rhs)
             }
         }
 
@@ -429,7 +429,7 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs.into())
+                Expr::binary_op(BinOp::$op, self, rhs)
             }
         }
     )*};
