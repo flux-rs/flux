@@ -9,7 +9,10 @@ extern crate rustc_span;
 
 use std::collections::{hash_map::Entry, BinaryHeap};
 
-use flux_common::{config::AssertBehavior, index::IndexVec};
+use flux_common::{
+    config::{AssertBehavior, CONFIG},
+    index::IndexVec,
+};
 use flux_middle::{
     global_env::GlobalEnv,
     rustc::{
@@ -868,7 +871,7 @@ fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
 }
 
 fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
-    if is_lossless_int_to_int(int_ty1, int_ty2) {
+    if int_bit_width(int_ty1) <= int_bit_width(int_ty2) {
         Ty::indexed(BaseTy::Int(int_ty2), vec![idx.clone().into()])
     } else {
         Ty::int(int_ty2)
@@ -876,7 +879,7 @@ fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
 }
 
 fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
-    if is_lossless_uint_to_int(uint_ty, int_ty) {
+    if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
         Ty::indexed(BaseTy::Int(int_ty), vec![idx.clone().into()])
     } else {
         Ty::int(int_ty)
@@ -884,44 +887,19 @@ fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
 }
 
 fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
-    if is_lossless_uint_to_uint(uint_ty1, uint_ty2) {
+    if uint_bit_width(uint_ty1) <= uint_bit_width(uint_ty2) {
         Ty::indexed(BaseTy::Uint(uint_ty2), vec![idx.clone().into()])
     } else {
         Ty::uint(uint_ty2)
     }
 }
 
-fn is_lossless_uint_to_uint(uint_ty1: UintTy, uint_ty2: UintTy) -> bool {
-    use UintTy::*;
-    matches!(
-        (uint_ty1, uint_ty2),
-        (U8, Usize | U16 | U32 | U64 | U128)
-            | (U16, U16 | U32 | U64 | U128)
-            | (U32, U32 | U64 | U128)
-            | (U64, U64 | U128)
-            | (U128, U128)
-    )
+fn uint_bit_width(uint_ty: UintTy) -> u64 {
+    uint_ty.bit_width().unwrap_or(CONFIG.pointer_width)
 }
 
-fn is_lossless_int_to_int(int_ty1: IntTy, int_ty2: IntTy) -> bool {
-    use IntTy::*;
-    matches!(
-        (int_ty1, int_ty2),
-        (I8, Isize | I16 | I32 | I64 | I128)
-            | (I16, I16 | I32 | I64 | I128)
-            | (I32, I32 | I64 | I128)
-            | (I64, I64 | I128)
-            | (I128, I128)
-    )
-}
-
-fn is_lossless_uint_to_int(uint_ty: UintTy, int_ty: IntTy) -> bool {
-    use IntTy::*;
-    use UintTy::*;
-    matches!(
-        (uint_ty, int_ty),
-        (U8, I16 | I32 | I64 | I128) | (U16, I32 | I64 | I128) | (U32, I64 | I128) | (U64, I128)
-    )
+fn int_bit_width(int_ty: IntTy) -> u64 {
+    int_ty.bit_width().unwrap_or(CONFIG.pointer_width)
 }
 
 impl Phase for Inference<'_> {
