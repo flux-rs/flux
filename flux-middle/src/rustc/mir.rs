@@ -127,6 +127,15 @@ pub enum Rvalue {
     UnaryOp(UnOp, Operand),
     Aggregate(AggregateKind, Vec<Operand>),
     Discriminant(Place),
+    Len(Place),
+    Cast(CastKind, Operand, Ty),
+}
+
+#[derive(Copy, Clone)]
+pub enum CastKind {
+    IntToInt,
+    FloatToInt,
+    IntToFloat,
 }
 
 pub enum AggregateKind {
@@ -134,7 +143,7 @@ pub enum AggregateKind {
     Array(Ty),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum BinOp {
     Gt,
     Ge,
@@ -225,7 +234,7 @@ impl<'tcx> Body<'tcx> {
         // an implicit goto from the environment at the beginning of the function.
         let real_preds =
             self.rustc_mir.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
-        real_preds > (if bb == START_BLOCK { 0 } else { 1 })
+        real_preds > usize::from(bb != START_BLOCK)
     }
 
     #[inline]
@@ -368,14 +377,14 @@ impl fmt::Debug for Place {
             match elem {
                 PlaceElem::Field(f) => {
                     if need_parens {
-                        p = format!("({}).{}", p, u32::from(*f));
+                        p = format!("({p}).{}", u32::from(*f));
                         need_parens = false;
                     } else {
-                        p = format!("{}.{}", p, u32::from(*f));
+                        p = format!("{p}.{}", u32::from(*f));
                     }
                 }
                 PlaceElem::Deref => {
-                    p = format!("*{}", p);
+                    p = format!("*{p}");
                     need_parens = true;
                 }
                 PlaceElem::Downcast(variant_idx) => {
@@ -416,6 +425,18 @@ impl fmt::Debug for Rvalue {
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))
             }
+            Rvalue::Len(place) => write!(f, "Len({place:?})"),
+            Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
+        }
+    }
+}
+
+impl fmt::Debug for CastKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CastKind::IntToInt => write!(f, "IntToInt"),
+            CastKind::FloatToInt => write!(f, "FloatToInt"),
+            CastKind::IntToFloat => write!(f, "IntToFloat"),
         }
     }
 }

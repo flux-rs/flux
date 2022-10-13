@@ -14,7 +14,7 @@ use rustc_hir::def_id::DefId;
 
 use crate::{
     constraint_gen::ConstrGen,
-    refine_tree::{RefineCtxt, Scope},
+    refine_tree::{RefineCtxt, Scope, Unpack},
 };
 
 #[derive(Default, Eq, PartialEq, Clone)]
@@ -99,7 +99,7 @@ fn enum_constraint(scrutinee: &Ty, exprs: &[Expr]) -> Expr {
     match scrutinee.kind() {
         TyKind::Indexed(_, ixs) => {
             assert_eq!(ixs.len(), exprs.len());
-            Expr::and(iter::zip(ixs, exprs).map(|(i, e)| Expr::eq(i.expr.clone(), e.clone())))
+            Expr::and(iter::zip(ixs, exprs).map(|(idx, e)| Expr::eq(&idx.expr, e)))
         }
         TyKind::Constr(e, ty) => Expr::and([e.clone(), enum_constraint(ty, exprs)]),
         _ => panic!("unexpected: enum_constraint {scrutinee:?}"),
@@ -372,7 +372,7 @@ impl PathsTree {
                         substs,
                         &idxs.to_exprs(),
                     );
-                    ty = Ty::tuple(tys);
+                    ty = rcx.unpack_with(&Ty::tuple(tys), Unpack::INVARIANTS);
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
             }
@@ -528,7 +528,7 @@ impl Node {
                             &idxs.to_exprs(),
                         )
                         .into_iter()
-                        .map(|ty| Node::owned(rcx.unpack(&ty, false)))
+                        .map(|ty| Node::owned(rcx.unpack(&ty)))
                         .collect();
                         *self = Node::Internal(
                             NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
@@ -584,7 +584,7 @@ impl Node {
             }
             Node::Leaf(Binding::Blocked(ty)) => {
                 if unblock {
-                    let ty = rcx.unpack(ty, false);
+                    let ty = rcx.unpack(ty);
                     *self = Node::owned(ty.clone());
                     ty
                 } else {

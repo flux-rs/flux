@@ -1,43 +1,39 @@
-desugar-unresolved-var =
+desugar_unresolved_var =
     cannot find value `{$var}` in this scope
     .label = not found in this scope
 
-desugar-unresolved-dot-var =
+desugar_unresolved_dot_var =
     invalid use of refinement parameter
     .label = did you mean one of {$msg}?
 
-desugar-duplicate-param =
+desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
     .label = already used
 
-desugar-unresolved-sort =
+desugar_unresolved_sort =
     cannot find sort `{$sort}` in this scope
     .label = not found in this scope
 
-desugar-int-too-large =
+desugar_int_too_large =
     integer literal is too large
 
-desugar-unexpected-literal =
+desugar_unexpected_literal =
     unexpected literal
 
-desugar-refined-type-param =
+desugar_refined_type_param =
     type parameters cannot be refined
     .label = this type parameter has a refinement
 
-desugar-refined-float =
-    floats cannot be refined
-    .label = this float has a refinement
-
-desugar-invalid-array-len =
+desugar_invalid_array_len =
     unsupported or invalid array length
 
-desugar-invalid-dot-var =
+desugar_invalid_dot_var =
     unsupported field access in refinement
 
-desugar-unresolved-dot-field =
+desugar_unresolved_dot_field =
     cannot find `{$ident}.{$field}` in this scope
 
-desugar-param-count-mismatch =
+desugar_param_count_mismatch =
     this type takes {$expected} refinement parameters but {$found ->
         [one] {$found} was found
         *[other] {$found} were found

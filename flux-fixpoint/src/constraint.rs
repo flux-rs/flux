@@ -36,6 +36,7 @@ pub enum Expr {
     UnaryOp(UnOp, Box<Self>),
     Pair(Box<Expr>, Box<Expr>),
     Proj(Box<Expr>, Proj),
+    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
     Unit,
 }
 pub struct UFArg {
@@ -297,12 +298,14 @@ impl fmt::Display for UFArg {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn should_parenthesize(op: BinOp, child: &Expr) -> bool {
-            if let Expr::BinaryOp(child_op, ..) = child {
-                child_op.precedence() < op.precedence()
-                    || (child_op.precedence() == op.precedence()
-                        && !op.precedence().is_associative())
-            } else {
-                false
+            match child {
+                Expr::BinaryOp(child_op, ..) => {
+                    child_op.precedence() < op.precedence()
+                        || (child_op.precedence() == op.precedence()
+                            && !op.precedence().is_associative())
+                }
+                Expr::IfThenElse(..) => true,
+                _ => false,
             }
         }
 
@@ -334,6 +337,9 @@ impl fmt::Display for Expr {
                     args.iter()
                         .format_with(" ", |expr, f| f(&format_args!("{expr}"))),
                 )
+            }
+            Expr::IfThenElse(p, e1, e2) => {
+                write!(f, "if {p} then {e1} else {e2}")
             }
         }
     }

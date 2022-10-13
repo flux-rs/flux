@@ -4,6 +4,7 @@ use std::{
     slice,
 };
 
+use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::ty::{
@@ -143,49 +144,79 @@ impl RefineCtxt<'_> {
         ConstrBuilder { tree: self._tree, ptr }
     }
 
-    fn unpack_bty(&mut self, bty: &BaseTy, unpack_mut_refs: bool) -> BaseTy {
+    fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: Unpack) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let ty = self.unpack(&substs[0], unpack_mut_refs);
+                let ty = self.unpack_inner(&substs[0], inside_mut_ref, flags);
                 BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
             }
             _ => bty.clone(),
         }
     }
 
-    pub fn unpack(&mut self, ty: &Ty, unpack_mut_refs: bool) -> Ty {
+    fn unpack_inner(&mut self, ty: &Ty, in_mut_ref: bool, flags: Unpack) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => {
-                let bty = self.unpack_bty(bty, unpack_mut_refs);
+                let bty = self.unpack_bty(bty, in_mut_ref, flags);
+                if flags.contains(Unpack::INVARIANTS) {
+                    self.assume_invariants(&bty, idxs);
+                }
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(bty, pred) => {
-                let idxs = self
-                    .ptr
-                    .push_bound_guard(pred)
-                    .into_iter()
-                    .map(Index::from)
-                    .collect_vec();
-                let bty = self.unpack_bty(bty, unpack_mut_refs);
-                Ty::indexed(bty, idxs)
+                // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+                // that makes the refered type too specific. We only have this as a workaround to
+                // infer parameters under mutable references and it should be removed once we implement
+                // opening of mutable references. See also `ConstrGen::check_fn_call`.
+                if !in_mut_ref || flags.contains(Unpack::EXISTS_IN_MUT_REF) {
+                    let idxs = self
+                        .ptr
+                        .push_bound_guard(pred)
+                        .into_iter()
+                        .map(Index::from)
+                        .collect_vec();
+                    let bty = self.unpack_bty(bty, in_mut_ref, flags);
+                    self.assume_invariants(&bty, &idxs);
+                    Ty::indexed(bty, idxs)
+                } else {
+                    ty.clone()
+                }
             }
             TyKind::Constr(pred, ty) => {
                 self.assume_pred(pred.clone());
-                self.unpack(ty, unpack_mut_refs)
+                self.unpack_inner(ty, in_mut_ref, flags)
             }
             TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.unpack(ty, unpack_mut_refs);
+                let ty = self.unpack_inner(ty, in_mut_ref, flags);
                 Ty::mk_ref(RefKind::Shr, ty)
             }
-            // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-            // that makes the refered type too specific. We only have this as a workaround to
-            // infer parameters under mutable references and it should be removed once we implement
-            // opening of mutable references. See also `ConstrGen::check_fn_call`.
-            TyKind::Ref(RefKind::Mut, ty) if unpack_mut_refs => {
-                let ty = self.unpack(ty, unpack_mut_refs);
+            TyKind::Ref(RefKind::Mut, ty) => {
+                let ty = self.unpack_inner(ty, true, flags);
                 Ty::mk_ref(RefKind::Mut, ty)
             }
+            TyKind::Tuple(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|ty| self.unpack_inner(ty, in_mut_ref, flags))
+                    .collect_vec();
+                Ty::tuple(tys)
+            }
             _ => ty.clone(),
+        }
+    }
+
+    pub fn unpack_with(&mut self, ty: &Ty, flags: Unpack) -> Ty {
+        self.unpack_inner(ty, false, flags)
+    }
+
+    pub fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.unpack_inner(ty, false, Unpack::empty())
+    }
+
+    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &[Index]) {
+        let exprs = idxs.iter().map(Index::to_expr).collect_vec();
+        for invariant in bty.invariants() {
+            self.assume_pred(invariant.replace_bound_vars(&exprs));
         }
     }
 }
@@ -312,6 +343,13 @@ impl NodePtr {
 
     fn next_name_idx(&self) -> usize {
         self.borrow().nbindings + usize::from(self.borrow().is_forall())
+    }
+}
+
+bitflags! {
+    pub struct Unpack: u8 {
+        const EXISTS_IN_MUT_REF = 0b01;
+        const INVARIANTS         = 0b10;
     }
 }
 

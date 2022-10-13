@@ -47,6 +47,8 @@ pub enum Token {
     Ignore,
     Assume,
     Check,
+    If,
+    Else,
 }
 
 pub(crate) struct Cursor {
@@ -118,6 +120,8 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) if symb == kw::Type => Token::Type,
+            TokenKind::Ident(symb, _) if symb == kw::If => Token::If,
+            TokenKind::Ident(symb, _) if symb == kw::Else => Token::Else,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,

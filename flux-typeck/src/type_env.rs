@@ -141,7 +141,7 @@ impl TypeEnv {
     pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
         self.bindings.fmap_mut(|binding| {
             match binding {
-                Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty, false)),
+                Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty)),
                 Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
             }
         });
@@ -359,7 +359,6 @@ impl TypeEnvInfer {
             TyKind::Exists(_, _)
             | TyKind::Never
             | TyKind::Discr(..)
-            | TyKind::Float(_)
             | TyKind::Ptr(..)
             | TyKind::Uninit
             | TyKind::Ref(..)
@@ -376,7 +375,9 @@ impl TypeEnvInfer {
                 BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Str => bty.clone(),
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {
+                bty.clone()
+            }
         }
     }
 
@@ -505,10 +506,6 @@ impl TypeEnvInfer {
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
                 Ty::mk_ref(*rk1, self.join_ty(genv, ty1, ty2))
-            }
-            (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
-                debug_assert_eq!(float_ty1, float_ty2);
-                Ty::float(*float_ty1)
             }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);

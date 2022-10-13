@@ -1,18 +1,18 @@
-wf-sort-mismatch =
+wf_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
 
-wf-param-count-mismatch =
+wf_param_count_mismatch =
     this type takes {$expected} refinement parameters but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
     .label = expected {$expected} arguments, found {$found}
 
-wf-illegal-binder =
+wf_illegal_binder =
     illegal binder
     .label = binder not allowed under ADT parameter
 
-wf-unresolved-function =
+wf_unresolved_function =
     unresolved function
     .label = function is not defined in this scope

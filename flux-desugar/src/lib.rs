@@ -1,6 +1,6 @@
 #![feature(rustc_private)]
 #![feature(min_specialization)]
-#![feature(box_patterns, once_cell, let_else)]
+#![feature(box_patterns, once_cell)]
 
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -13,9 +13,9 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
-pub use desugar::{desugar_qualifier, resolve_sorts, resolve_uf_def};
+pub use desugar::{desugar_adt_data, desugar_qualifier, resolve_sorts, resolve_uf_def};
 use flux_middle::{
-    core::{self, AdtSorts},
+    core::{self, AdtMap},
     global_env::GlobalEnv,
     rustc,
 };
@@ -26,16 +26,17 @@ use rustc_span::Span;
 
 pub fn desugar_struct_def(
     genv: &GlobalEnv,
+    adt_sorts: &AdtMap,
     struct_def: surface::StructDef,
 ) -> Result<core::StructDef, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(genv, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(genv.sess, &genv.consts, &Default::default(), struct_def)
+    desugar::desugar_struct_def(genv.sess, &genv.consts, adt_sorts, struct_def)
 }
 
 pub fn desugar_enum_def(
     genv: &GlobalEnv,
-    adt_sorts: &AdtSorts,
+    adt_sorts: &AdtMap,
     enum_def: surface::EnumDef,
 ) -> Result<core::EnumDef, ErrorGuaranteed> {
     let def_id = enum_def.def_id;
@@ -49,7 +50,7 @@ pub fn desugar_enum_def(
 
 pub fn desugar_fn_sig(
     genv: &GlobalEnv,
-    sorts: &AdtSorts,
+    sorts: &AdtMap,
     def_id: LocalDefId,
     fn_sig: surface::FnSig,
 ) -> Result<core::FnSig, ErrorGuaranteed> {

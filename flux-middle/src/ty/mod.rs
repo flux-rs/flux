@@ -1,23 +1,24 @@
 pub mod conv;
+mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, iter, sync::OnceLock};
+use std::{borrow::Cow, fmt, iter, sync::LazyLock};
 
+pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-use rustc_middle::mir::{Field, Local};
+use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
-use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
 pub use crate::{core::RefKind, rustc::ty::Const};
 use crate::{
     intern::{impl_internable, Interned, List},
-    rustc::mir::{Place, PlaceElem},
+    rustc::mir::Place,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -26,7 +27,8 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct AdtDefData {
     def_id: DefId,
-    sorts: List<Sort>,
+    invariants: Vec<Binders<Expr>>,
+    sorts: Vec<Sort>,
     flags: AdtFlags,
 }
 
@@ -80,7 +82,6 @@ pub enum TyKind {
     Indexed(BaseTy, List<Index>),
     Exists(BaseTy, Binders<Pred>),
     Tuple(List<Ty>),
-    Float(FloatTy),
     Uninit,
     Ptr(RefKind, Path),
     /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
@@ -113,19 +114,6 @@ pub struct Index {
     pub is_binder: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Path {
-    pub loc: Loc,
-    projection: List<Field>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Loc {
-    Local(Local),
-    Free(Name),
-    Bound(BoundVar),
-}
-
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum BaseTy {
     Int(IntTy),
@@ -134,6 +122,7 @@ pub enum BaseTy {
     Str,
     Array(Ty, Const),
     Adt(AdtDef, Substs),
+    Float(FloatTy),
 }
 
 pub type Substs = List<Ty>;
@@ -173,52 +162,9 @@ pub struct UFDef {
     pub output: Sort,
 }
 
-pub type Expr = Interned<ExprS>;
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ExprS {
-    kind: ExprKind,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum ExprKind {
-    ConstDefId(DefId),
-    FreeVar(Name),
-    BoundVar(BoundVar),
-    Local(Local),
-    Constant(Constant),
-    BinaryOp(BinOp, Expr, Expr),
-    App(Symbol, Vec<Expr>),
-    UnaryOp(UnOp, Expr),
-    TupleProj(Expr, u32),
-    Tuple(List<Expr>),
-    PathProj(Expr, Field),
-}
-
-/// A bound *var*riable is represented as a debruijn index
-/// into a list of [`Binders`] and index into that list.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BoundVar {
-    pub debruijn: DebruijnIndex,
-    pub index: usize,
-}
-
 newtype_index! {
     pub struct KVid {
         DEBUG_FORMAT = "$k{}"
-    }
-}
-
-newtype_index! {
-    pub struct Name {
-        DEBUG_FORMAT = "a{}",
-    }
-}
-
-newtype_index! {
-    pub struct DebruijnIndex {
-        DEBUG_FORMAT = "DebruijnIndex({})",
-        const INNERMOST = 0,
     }
 }
 
@@ -286,10 +232,15 @@ impl FnSig {
 }
 
 impl AdtDef {
-    pub fn new(rustc_def: rustc_middle::ty::AdtDef, sorts: impl Into<List<Sort>>) -> Self {
+    pub(crate) fn new(
+        rustc_def: rustc_middle::ty::AdtDef,
+        sorts: Vec<Sort>,
+        invariants: Vec<Binders<Expr>>,
+    ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
-            sorts: sorts.into(),
+            invariants,
+            sorts,
             flags: rustc_def.flags(),
         }))
     }
@@ -298,7 +249,7 @@ impl AdtDef {
         self.0.def_id
     }
 
-    pub fn sorts(&self) -> &List<Sort> {
+    pub fn sorts(&self) -> &[Sort] {
         &self.0.sorts
     }
 
@@ -316,6 +267,10 @@ impl AdtDef {
 
     pub fn is_struct(&self) -> bool {
         self.flags().contains(AdtFlags::IS_STRUCT)
+    }
+
+    pub fn invariants(&self) -> &[Binders<Expr>] {
+        &self.0.invariants
     }
 }
 
@@ -383,10 +338,6 @@ impl Ty {
         TyKind::Exists(bty, pred).intern()
     }
 
-    pub fn float(float_ty: FloatTy) -> Ty {
-        TyKind::Float(float_ty).intern()
-    }
-
     pub fn param(param: ParamTy) -> Ty {
         TyKind::Param(param).intern()
     }
@@ -411,6 +362,30 @@ impl Ty {
             TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(),
             _ => false,
         }
+    }
+
+    pub fn is_uint(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(bty, _) if bty.is_uint())
+    }
+
+    pub fn bool() -> Ty {
+        Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
+    }
+
+    pub fn int(int_ty: IntTy) -> Ty {
+        Ty::exists(BaseTy::Int(int_ty), Binders::new(Pred::tt(), vec![Sort::Int]))
+    }
+
+    pub fn uint(uint_ty: UintTy) -> Ty {
+        Ty::exists(BaseTy::Uint(uint_ty), Binders::new(Pred::tt(), vec![Sort::Int]))
+    }
+
+    pub fn usize() -> Ty {
+        Ty::uint(UintTy::Usize)
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        Ty::exists(BaseTy::Float(float_ty), Binders::new(Pred::tt(), vec![]))
     }
 }
 
@@ -473,6 +448,12 @@ impl Index {
     }
 }
 
+impl From<Expr> for Pred {
+    fn from(e: Expr) -> Self {
+        Pred::Expr(e)
+    }
+}
+
 impl From<Expr> for Index {
     fn from(expr: Expr) -> Index {
         Index { expr, is_binder: false }
@@ -490,6 +471,10 @@ impl BaseTy {
         BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
     }
 
+    fn is_uint(&self) -> bool {
+        matches!(self, BaseTy::Uint(_))
+    }
+
     fn is_integral(&self) -> bool {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
@@ -505,12 +490,31 @@ impl BaseTy {
         }
     }
 
+    pub fn invariants(&self) -> &[Binders<Expr>] {
+        static GE0: LazyLock<Binders<Expr>> = LazyLock::new(|| {
+            Binders::new(
+                Expr::binary_op(BinOp::Ge, Expr::bvar(BoundVar::NU), Expr::zero()),
+                vec![Sort::Int],
+            )
+        });
+
+        match self {
+            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
+            BaseTy::Uint(_) => std::slice::from_ref(&GE0),
+            BaseTy::Int(_)
+            | BaseTy::Bool
+            | BaseTy::Str
+            | BaseTy::Array(_, _)
+            | BaseTy::Float(_) => &[],
+        }
+    }
+
     pub fn sorts(&self) -> &[Sort] {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Str | BaseTy::Array(..) => &[],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Array(..) => &[],
         }
     }
 }
@@ -536,203 +540,6 @@ impl Sort {
 impl rustc_errors::IntoDiagnosticArg for Sort {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
-    }
-}
-
-impl ExprKind {
-    fn intern(self) -> Expr {
-        Interned::new(ExprS { kind: self })
-    }
-}
-
-impl Expr {
-    pub fn tt() -> Expr {
-        static TRUE: OnceLock<Expr> = OnceLock::new();
-        TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
-            .clone()
-    }
-
-    pub fn and(exprs: impl IntoIterator<Item = Expr>) -> Expr {
-        exprs
-            .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
-            .unwrap_or_else(Expr::tt)
-    }
-
-    pub fn zero() -> Expr {
-        static ZERO: OnceLock<Expr> = OnceLock::new();
-        ZERO.get_or_init(|| ExprKind::Constant(Constant::ZERO).intern())
-            .clone()
-    }
-
-    pub fn unit() -> Expr {
-        Expr::tuple(vec![])
-    }
-
-    pub fn fvar(name: Name) -> Expr {
-        ExprKind::FreeVar(name).intern()
-    }
-
-    pub fn bvar(bvar: BoundVar) -> Expr {
-        ExprKind::BoundVar(bvar).intern()
-    }
-
-    pub fn local(local: Local) -> Expr {
-        ExprKind::Local(local).intern()
-    }
-
-    pub fn constant(c: Constant) -> Expr {
-        ExprKind::Constant(c).intern()
-    }
-
-    pub fn const_def_id(c: DefId) -> Expr {
-        ExprKind::ConstDefId(c).intern()
-    }
-
-    pub fn tuple(exprs: impl Into<List<Expr>>) -> Expr {
-        ExprKind::Tuple(exprs.into()).intern()
-    }
-
-    pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
-        // FIXME: We are assuming the higher bits are not set. check this assumption
-        match bty {
-            BaseTy::Int(_) => {
-                let bits = bits as i128;
-                ExprKind::Constant(Constant::from(bits)).intern()
-            }
-            BaseTy::Uint(_) => {
-                let bits = bits as u128;
-                ExprKind::Constant(Constant::from(bits)).intern()
-            }
-            BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(_, _) | BaseTy::Array(..) | BaseTy::Str => panic!(),
-        }
-    }
-
-    pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
-    }
-
-    pub fn app(f: Symbol, es: Vec<impl Into<Expr>>) -> Expr {
-        let es = es.into_iter().map(|e| e.into()).collect();
-        ExprKind::App(f, es).intern()
-    }
-
-    pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
-        ExprKind::UnaryOp(op, e.into()).intern()
-    }
-
-    pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
-    }
-
-    pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
-        ExprKind::TupleProj(e.into(), proj).intern()
-    }
-
-    pub fn path_proj(base: Expr, field: Field) -> Expr {
-        ExprKind::PathProj(base, field).intern()
-    }
-
-    pub fn not(&self) -> Expr {
-        ExprKind::UnaryOp(UnOp::Not, self.clone()).intern()
-    }
-
-    pub fn neg(&self) -> Expr {
-        ExprKind::UnaryOp(UnOp::Neg, self.clone()).intern()
-    }
-}
-
-impl ExprS {
-    pub fn kind(&self) -> &ExprKind {
-        &self.kind
-    }
-
-    /// Whether the expression is literally the constant true.
-    pub fn is_true(&self) -> bool {
-        matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
-    }
-
-    pub fn is_binary_op(&self) -> bool {
-        !matches!(self.kind, ExprKind::BinaryOp(..))
-    }
-
-    /// Simplify expression applying some simple rules like removing double negation. This is
-    /// only used for pretty printing.
-    pub fn simplify(&self) -> Expr {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Expr::fvar(*name),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
-            ExprKind::BoundVar(idx) => Expr::bvar(*idx),
-            ExprKind::Local(local) => Expr::local(*local),
-            ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = e1.simplify();
-                let e2 = e2.simplify();
-                match (op, e1.kind(), e2.kind()) {
-                    (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _)
-                    | (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                        Expr::constant(Constant::Bool(false))
-                    }
-                    (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
-                    (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
-                    _ => Expr::binary_op(*op, e1, e2),
-                }
-            }
-            ExprKind::UnaryOp(UnOp::Not, e) => {
-                let e = e.simplify();
-                match e.kind() {
-                    ExprKind::Constant(Constant::Bool(b)) => Expr::constant(Constant::Bool(!b)),
-                    ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
-                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                        Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone())
-                    }
-                    _ => Expr::unary_op(UnOp::Not, e),
-                }
-            }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.simplify()),
-            ExprKind::TupleProj(e, field) => Expr::proj(e.simplify(), *field),
-            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify()).collect_vec()),
-            ExprKind::PathProj(e, field) => Expr::path_proj(e.clone(), *field),
-            ExprKind::App(f, exprs) => {
-                Expr::app(*f, exprs.iter().map(|e| e.simplify()).collect_vec())
-            }
-        }
-    }
-
-    pub fn to_loc(&self) -> Option<Loc> {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Some(Loc::Free(*name)),
-            ExprKind::Local(local) => Some(Loc::Local(*local)),
-            ExprKind::BoundVar(bvar) => Some(Loc::Bound(*bvar)),
-            _ => None,
-        }
-    }
-
-    pub fn to_name(&self) -> Option<Name> {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Some(*name),
-            _ => None,
-        }
-    }
-
-    pub fn to_path(&self) -> Option<Path> {
-        let mut expr = self;
-        let mut proj = vec![];
-        let loc = loop {
-            match expr.kind() {
-                ExprKind::PathProj(e, field) => {
-                    proj.push(*field);
-                    expr = e;
-                }
-                ExprKind::FreeVar(name) => break Loc::Free(*name),
-                ExprKind::BoundVar(bvar) => break Loc::Bound(*bvar),
-                ExprKind::Local(local) => break Loc::Local(*local),
-                _ => return None,
-            }
-        };
-        proj.reverse();
-        Some(Path::new(loc, proj))
     }
 }
 
@@ -798,162 +605,39 @@ impl KVar {
     }
 }
 
-impl Path {
-    pub fn new<T>(loc: Loc, projection: T) -> Path
-    where
-        List<Field>: From<T>,
-    {
-        Path { loc, projection: Interned::from(projection) }
-    }
+impl_internable!(AdtDefData, TyS, [Ty], [Pred], [Field], [KVar], [Constraint], [Index], [Sort]);
 
-    pub fn from_place(place: &Place) -> Option<Path> {
-        let mut proj = vec![];
-        for elem in &place.projection {
-            if let PlaceElem::Field(field) = elem {
-                proj.push(*field);
-            } else {
-                return None;
-            }
-        }
-        Some(Path::new(Loc::Local(place.local), proj))
-    }
-
-    pub fn projection(&self) -> &[Field] {
-        &self.projection[..]
-    }
-
-    pub fn to_expr(&self) -> Expr {
-        self.projection
-            .iter()
-            .rev()
-            .fold(self.loc.to_expr(), |e, f| Expr::path_proj(e, *f))
-    }
+#[macro_export]
+macro_rules! _Int {
+    ($int_ty:pat, $idxs:pat) => {
+        TyKind::Indexed(BaseTy::Int($int_ty), $idxs)
+    };
 }
+pub use crate::_Int as Int;
 
-impl Loc {
-    pub fn to_expr(&self) -> Expr {
-        match self {
-            Loc::Local(local) => Expr::local(*local),
-            Loc::Free(name) => Expr::fvar(*name),
-            Loc::Bound(bvar) => Expr::bvar(*bvar),
-        }
-    }
+#[macro_export]
+macro_rules! _Uint {
+    ($uint_ty:pat, $idxs:pat) => {
+        TyKind::Indexed(BaseTy::Uint($uint_ty), $idxs)
+    };
 }
+pub use crate::_Uint as Uint;
 
-impl BoundVar {
-    pub const NU: BoundVar = BoundVar { debruijn: INNERMOST, index: 0 };
-
-    pub fn new(index: usize, debruijn: DebruijnIndex) -> Self {
-        BoundVar { debruijn, index }
-    }
-
-    pub fn innermost(index: usize) -> BoundVar {
-        BoundVar::new(index, INNERMOST)
-    }
+#[macro_export]
+macro_rules! _Bool {
+    ($idxs:pat) => {
+        TyKind::Indexed(BaseTy::Bool, $idxs)
+    };
 }
+pub use crate::_Bool as Bool;
 
-impl DebruijnIndex {
-    pub fn new(depth: u32) -> DebruijnIndex {
-        DebruijnIndex::from_u32(depth)
-    }
-
-    pub fn depth(&self) -> u32 {
-        self.as_u32()
-    }
-
-    /// Returns the resulting index when this value is moved into
-    /// `amount` number of new binders. So, e.g., if you had
-    ///
-    /// ```ignore
-    ///    for<a: int> fn(i32[a])
-    /// ```
-    ///
-    /// and you wanted to change it to
-    ///
-    /// ```ignore
-    ///    for<a: int> fn(for<b: int> fn(i32[a]))
-    /// ```
-    ///
-    /// you would need to shift the index for `a` into a new binder.
-    #[must_use]
-    pub fn shifted_in(self, amount: u32) -> DebruijnIndex {
-        DebruijnIndex::from_u32(self.as_u32() + amount)
-    }
-
-    /// Update this index in place by shifting it "in" through
-    /// `amount` number of binders.
-    pub fn shift_in(&mut self, amount: u32) {
-        *self = self.shifted_in(amount);
-    }
-
-    /// Returns the resulting index when this value is moved out from
-    /// `amount` number of new binders.
-    #[must_use]
-    pub fn shifted_out(self, amount: u32) -> DebruijnIndex {
-        DebruijnIndex::from_u32(self.as_u32() - amount)
-    }
-
-    /// Update in place by shifting out from `amount` binders.
-    pub fn shift_out(&mut self, amount: u32) {
-        *self = self.shifted_out(amount);
-    }
+#[macro_export]
+macro_rules! _Float {
+    ($float_ty:pat, $idxs:pat) => {
+        TyKind::Indexed(BaseTy::Float($float_ty), $idxs)
+    };
 }
-
-impl From<Loc> for Expr {
-    fn from(loc: Loc) -> Self {
-        loc.to_expr()
-    }
-}
-
-impl From<Path> for Expr {
-    fn from(path: Path) -> Self {
-        path.to_expr()
-    }
-}
-
-impl From<Name> for Expr {
-    fn from(name: Name) -> Self {
-        Expr::fvar(name)
-    }
-}
-
-impl From<Expr> for Pred {
-    fn from(expr: Expr) -> Self {
-        Pred::Expr(expr)
-    }
-}
-
-impl From<Loc> for Path {
-    fn from(loc: Loc) -> Self {
-        Path::new(loc, vec![])
-    }
-}
-
-impl From<Name> for Loc {
-    fn from(name: Name) -> Self {
-        Loc::Free(name)
-    }
-}
-
-impl From<Local> for Loc {
-    fn from(local: Local) -> Self {
-        Loc::Local(local)
-    }
-}
-
-impl_internable!(
-    AdtDefData,
-    TyS,
-    ExprS,
-    [Ty],
-    [Pred],
-    [Expr],
-    [Field],
-    [KVar],
-    [Constraint],
-    [Index],
-    [Sort]
-);
+pub use crate::_Float as Float;
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
@@ -1034,7 +718,6 @@ mod pretty {
                         w!("{:?}{{{:?}}}", bty, &pred.value)
                     }
                 }
-                TyKind::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(rk, loc) => w!("ptr({:?}, {:?})", ^rk, loc),
                 TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
@@ -1072,6 +755,7 @@ mod pretty {
             BaseTy::Bool => w!("bool")?,
             BaseTy::Str => w!("str")?,
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
+            BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
         }
         if let BaseTy::Adt(_, args) = bty {
@@ -1140,96 +824,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for ExprS {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            fn should_parenthesize(op: BinOp, child: &ExprS) -> bool {
-                if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    child_op.precedence() < op.precedence()
-                        || (child_op.precedence() == op.precedence()
-                            && !op.precedence().is_associative())
-                } else {
-                    false
-                }
-            }
-            let e = if cx.simplify_exprs { self.simplify() } else { Interned::new(self.clone()) };
-            match e.kind() {
-                ExprKind::FreeVar(name) => w!("{:?}", ^name),
-                ExprKind::ConstDefId(did) => w!("{:?}", ^did),
-                ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
-                ExprKind::Local(local) => w!("{:?}", ^local),
-                ExprKind::BinaryOp(op, e1, e2) => {
-                    if should_parenthesize(*op, e1) {
-                        w!("({:?})", e1)?;
-                    } else {
-                        w!("{:?}", e1)?;
-                    }
-                    if matches!(op, BinOp::Div) {
-                        w!("{:?}", op)?;
-                    } else {
-                        w!(" {:?} ", op)?;
-                    }
-                    if should_parenthesize(*op, e2) {
-                        w!("({:?})", e2)?;
-                    } else {
-                        w!("{:?}", e2)?;
-                    }
-                    Ok(())
-                }
-                ExprKind::Constant(c) => w!("{}", ^c),
-                ExprKind::UnaryOp(op, e) => {
-                    if e.is_binary_op() {
-                        w!("{:?}{:?}", op, e)
-                    } else {
-                        w!("{:?}({:?})", op, e)
-                    }
-                }
-                ExprKind::TupleProj(e, field) => {
-                    if e.is_binary_op() {
-                        w!("{:?}.{:?}", e, ^field)
-                    } else {
-                        w!("({:?}).{:?}", e, ^field)
-                    }
-                }
-                ExprKind::Tuple(exprs) => {
-                    w!("({:?})", join!(", ", exprs))
-                }
-                ExprKind::PathProj(e, field) => {
-                    if e.is_binary_op() {
-                        w!("{:?}.{:?}", e, field)
-                    } else {
-                        w!("({:?}).{:?}", e, field)
-                    }
-                }
-                ExprKind::App(f, exprs) => {
-                    w!("{f:?}({:?})", join!(", ", exprs))
-                }
-            }
-        }
-    }
-
-    impl Pretty for Path {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", self.loc)?;
-            for field in self.projection.iter() {
-                w!(".{}", ^u32::from(*field))?;
-            }
-            Ok(())
-        }
-    }
-
-    impl Pretty for Loc {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Free(name) => w!("{:?}", ^name),
-                Loc::Bound(bvar) => w!("{:?}", bvar),
-            }
-        }
-    }
-
     impl Pretty for Sort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1238,46 +832,6 @@ mod pretty {
                 Sort::Bool => w!("bool"),
                 Sort::Loc => w!("loc"),
                 Sort::Tuple(sorts) => w!("({:?})", join!(", ", sorts)),
-            }
-        }
-    }
-
-    impl Pretty for BoundVar {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
-            w!("^{}.{:?}", ^self.debruijn.as_u32(), ^self.index)
-        }
-    }
-
-    impl Pretty for BinOp {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                BinOp::Iff => w!("⇔"),
-                BinOp::Imp => w!("⇒"),
-                BinOp::Or => w!("∨"),
-                BinOp::And => w!("∧"),
-                BinOp::Eq => w!("="),
-                BinOp::Ne => w!("≠"),
-                BinOp::Gt => w!(">"),
-                BinOp::Ge => w!("≥"),
-                BinOp::Lt => w!("<"),
-                BinOp::Le => w!("≤"),
-                BinOp::Add => w!("+"),
-                BinOp::Sub => w!("-"),
-                BinOp::Mul => w!("*"),
-                BinOp::Div => w!("/"),
-                BinOp::Mod => w!("mod"),
-            }
-        }
-    }
-
-    impl Pretty for UnOp {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                UnOp::Not => w!("¬"),
-                UnOp::Neg => w!("-"),
             }
         }
     }
@@ -1294,11 +848,7 @@ mod pretty {
         BaseTy,
         Pred,
         Sort,
-        ExprS,
-        Loc,
-        Path,
         KVar,
-        BoundVar,
         FnSig,
         Index,
     );

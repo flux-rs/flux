@@ -2,10 +2,9 @@ use std::iter;
 
 use flux_common::iter::IterExt;
 use flux_middle::{core, global_env::GlobalEnv, ty, ty::conv::conv_sort};
-use rustc_errors::ErrorGuaranteed;
+use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_session::SessionDiagnostic;
 use rustc_span::Span;
 
 pub struct Wf<'a, 'tcx> {
@@ -90,8 +89,22 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_expr(&env, &qualifier.expr, ty::Sort::Bool)
     }
 
-    pub fn check_struct_def(&self, def: &core::StructDef) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&def.refined_by);
+    pub fn check_adt_def(&self, adt_def: &core::AdtDef) -> Result<(), ErrorGuaranteed> {
+        let env = Env::new(&adt_def.refined_by);
+        adt_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| self.check_expr(&env, invariant, ty::Sort::Bool))?;
+
+        Ok(())
+    }
+
+    pub fn check_struct_def(
+        &self,
+        adt_data: &core::AdtDef,
+        def: &core::StructDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut env = Env::new(&adt_data.refined_by);
         if let core::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
                 if let Some(ty) = ty {
@@ -255,6 +268,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             core::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
             core::ExprKind::Const(_, _) => Ok(ty::Sort::Int), // TODO: generalize const sorts
             core::ExprKind::App(f, es) => self.synth_uf_app(env, f, es, e.span),
+            core::ExprKind::IfThenElse(p, e1, e2) => {
+                self.check_expr(env, p, ty::Sort::Bool)?;
+                let sort = self.synth_expr(env, e1)?;
+                self.check_expr(env, e2, sort.clone())?;
+                Ok(sort)
+            }
         }
     }
 
@@ -297,11 +316,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match bty {
             core::BaseTy::Int(_) | core::BaseTy::Uint(_) => vec![ty::Sort::Int],
             core::BaseTy::Bool => vec![ty::Sort::Bool],
-            core::BaseTy::Adt(def_id, _) => self.genv.sorts_of(*def_id).to_vec(),
+            core::BaseTy::Adt(def_id, _) => self.genv.adt_def(*def_id).sorts().to_vec(),
         }
     }
 
-    fn emit_err<'b, R>(&'b self, err: impl SessionDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
+    fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
         Err(self.genv.sess.emit_err(err))
     }
 
@@ -338,13 +357,13 @@ fn synth_lit(lit: core::Lit) -> ty::Sort {
 }
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
 
     use crate::ty;
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::sort_mismatch, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::sort_mismatch, code = "FLUX")]
     pub struct SortMismatch {
         #[primary_span]
         #[label]
@@ -359,8 +378,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::param_count_mismatch, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::param_count_mismatch, code = "FLUX")]
     pub struct ParamCountMismatch {
         #[primary_span]
         #[label]
@@ -375,8 +394,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::unresolved_function, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::unresolved_function, code = "FLUX")]
     pub struct UnresolvedFunction {
         #[primary_span]
         #[label]
@@ -389,8 +408,8 @@ mod errors {
         }
     }
 
-    #[derive(SessionDiagnostic)]
-    #[error(wf::illegal_binder, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(wf::illegal_binder, code = "FLUX")]
     pub struct IllegalBinder {
         #[primary_span]
         #[label]

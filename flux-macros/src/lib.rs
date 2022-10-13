@@ -1,4 +1,4 @@
-#![feature(proc_macro_diagnostic, never_type, let_else, proc_macro_span)]
+#![feature(proc_macro_diagnostic, never_type, proc_macro_span)]
 
 mod diagnostics;
 
@@ -6,14 +6,12 @@ use proc_macro::TokenStream;
 use synstructure::decl_derive;
 
 decl_derive!(
-    [SessionDiagnostic, attributes(
+    [Diagnostic, attributes(
         // struct attributes
-        warning,
-        error,
-        lint,
+        diag,
         help,
         note,
-        warn_,
+        warning,
         // field attributes
         skip_arg,
         primary_span,
@@ -22,7 +20,7 @@ decl_derive!(
         suggestion,
         suggestion_short,
         suggestion_hidden,
-        suggestion_verbose)] => diagnostics::session_diagnostic_derive
+        suggestion_verbose)] => diagnostics::diagnostic_derive
 );
 
 #[proc_macro]

@@ -28,7 +28,7 @@ pub fn heap_sort(vec: &mut RVec<i32>) -> i32 {
     0
 }
 
-#[flux::sig(fn(&mut RVec<i32>[@len], usize{v : 0 <= v && v < len}, usize{v : 0 <= v && v < len}) -> i32)]
+#[flux::sig(fn(&mut RVec<i32>[@len], usize{v : v < len}, usize{v : v < len}) -> i32)]
 pub fn shift_down(vec: &mut RVec<i32>, start: usize, end: usize) -> i32 {
     let mut root = start;
     loop {

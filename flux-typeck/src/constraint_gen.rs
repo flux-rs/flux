@@ -13,7 +13,7 @@ use rustc_span::Span;
 
 use crate::{
     param_infer::{self, InferenceError},
-    refine_tree::{ConstrBuilder, RefineCtxt},
+    refine_tree::{ConstrBuilder, RefineCtxt, Unpack},
     type_env::{PathMap, TypeEnv},
 };
 
@@ -40,6 +40,7 @@ pub enum Tag {
     Div(Span),
     Rem(Span),
     Goto(Option<Span>, BasicBlock),
+    Overflow(Span),
     Other,
 }
 
@@ -111,7 +112,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|(actual, formal)| {
                 if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind() {
-                    rcx.unpack(actual, true)
+                    rcx.unpack_with(actual, Unpack::EXISTS_IN_MUT_REF)
                 } else {
                     actual.clone()
                 }
@@ -249,9 +250,6 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
         (TyKind::Param(param1), TyKind::Param(param2)) => {
             debug_assert_eq!(param1, param2);
         }
-        (TyKind::Float(float_ty1), TyKind::Float(float_ty2)) => {
-            debug_assert_eq!(float_ty1, float_ty2);
-        }
         (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
             debug_assert_eq!(tys1.len(), tys2.len());
             for (ty1, ty2) in iter::zip(tys1, tys2) {
@@ -291,6 +289,9 @@ fn bty_subtyping(
             for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
                 variance_subtyping(genv, constr, *variance, ty1, ty2, tag);
             }
+        }
+        (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
+            debug_assert_eq!(float_ty1, float_ty2);
         }
         (BaseTy::Bool, BaseTy::Bool) | (BaseTy::Str, BaseTy::Str) => {}
         (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
@@ -349,6 +350,7 @@ mod pretty {
                 Tag::Assert(msg, span) => w!("Assert(\"{}\", {:?})", ^msg, span),
                 Tag::Fold(span) => w!("Fold({:?})", span),
                 Tag::Other => w!("Other"),
+                Tag::Overflow(span) => w!("Overflow({:?})", span),
             }
         }
     }

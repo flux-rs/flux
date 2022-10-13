@@ -143,8 +143,8 @@ where
 
         let constants = self
             .const_map
-            .iter()
-            .map(|(_, const_info)| (const_info.name, fixpoint::Sort::Int))
+            .values()
+            .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
         let uifs = uf_sorts
@@ -472,6 +472,13 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -
                 .map(|e| fixpoint::UFArg::new(expr_to_fixpoint(e, name_map, const_map)))
                 .collect();
             fixpoint::Expr::App(f.to_string(), args)
+        }
+        ty::ExprKind::IfThenElse(p, e1, e2) => {
+            fixpoint::Expr::IfThenElse(
+                Box::new(expr_to_fixpoint(p, name_map, const_map)),
+                Box::new(expr_to_fixpoint(e1, name_map, const_map)),
+                Box::new(expr_to_fixpoint(e2, name_map, const_map)),
+            )
         }
     }
 }

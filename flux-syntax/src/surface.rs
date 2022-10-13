@@ -42,6 +42,7 @@ pub struct StructDef<T = Ident> {
     pub refined_by: Option<Params>,
     pub fields: Vec<Option<Ty<T>>>,
     pub opaque: bool,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
@@ -49,6 +50,7 @@ pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
     pub refined_by: Option<Params>,
     pub variants: Vec<VariantDef<T>>,
+    pub invariants: Vec<Expr>,
     pub opaque: bool,
 }
 
@@ -59,7 +61,7 @@ pub struct VariantDef<T = Ident> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Params {
     pub params: Vec<Param>,
     pub span: Span,
@@ -93,7 +95,7 @@ pub struct FnSig<T = Ident> {
 #[derive(Debug)]
 pub enum Arg<T = Ident> {
     /// example `a: i32{a > 0}`
-    Indexed(Ident, Path<T>, Option<Expr>),
+    Constr(Ident, Path<T>, Option<Expr>),
     /// example `x: nat` or `x: lb[0]`
     Alias(Ident, Path<T>, Indices),
     /// example `v: &strg i32`
@@ -112,7 +114,7 @@ pub struct Ty<R = Ident> {
 pub enum TyKind<T = Ident> {
     /// ty
     Path(Path<T>),
-    /// t[e]
+    /// `t[e]`
     Indexed {
         path: Path<T>,
         indices: Indices,
@@ -185,6 +187,7 @@ pub enum ExprKind {
     Literal(Lit),
     BinaryOp(BinOp, Box<Expr>, Box<Expr>),
     App(Ident, Vec<Expr>),
+    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -209,6 +212,10 @@ pub enum BinOp {
     Sub,
     Mod,
     Mul,
+}
+
+impl Params {
+    pub const DUMMY: &Params = &Params { params: vec![], span: rustc_span::DUMMY_SP };
 }
 
 impl Path<Res> {
@@ -237,6 +244,16 @@ impl Params {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Param> {
+        self.params.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Params {
+    type Item = &'a Param;
+
+    type IntoIter = std::slice::Iter<'a, Param>;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.params.iter()
     }
 }
@@ -322,17 +339,17 @@ pub mod expand {
                     _ => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
                 }
             }
-            Arg::Indexed(x, path, None) => {
+            Arg::Constr(x, path, None) => {
                 match expand_alias0(aliases, &path) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
                     Some(_) => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
-                    None => Ok(Arg::Indexed(x, expand_path(aliases, &path), None)),
+                    None => Ok(Arg::Constr(x, expand_path(aliases, &path), None)),
                 }
             }
-            Arg::Indexed(x, path, Some(e)) => {
-                Ok(Arg::Indexed(x, expand_path(aliases, &path), Some(e)))
+            Arg::Constr(x, path, Some(e)) => {
+                Ok(Arg::Constr(x, expand_path(aliases, &path), Some(e)))
             }
             Arg::Ty(t) => Ok(Arg::Ty(expand_ty(aliases, &t))),
             Arg::StrgRef(x, t) => Ok(Arg::StrgRef(x, expand_ty(aliases, &t))),
@@ -342,7 +359,7 @@ pub mod expand {
     fn expand_arg_exists(x: Ident, e_path: Path, e_bind: Ident, e_pred: Expr) -> Arg {
         let subst = mk_sub1(e_bind, x);
         let x_pred = subst_expr(&subst, &e_pred);
-        Arg::Indexed(x, e_path, Some(x_pred))
+        Arg::Constr(x, e_path, Some(x_pred))
     }
     fn expand_alias0(aliases: &AliasMap, path: &Path) -> Option<TyKind> {
         let indices = Indices { indices: vec![], span: path.span };
@@ -469,6 +486,16 @@ pub mod expand {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();
                 Expr { kind: ExprKind::App(*f, es), span: e.span }
             }
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr {
+                    kind: ExprKind::IfThenElse(
+                        Box::new(subst_expr(subst, p)),
+                        Box::new(subst_expr(subst, e1)),
+                        Box::new(subst_expr(subst, e2)),
+                    ),
+                    span: e.span,
+                }
+            }
         }
     }
 
@@ -527,10 +554,10 @@ pub mod expand {
 }
 
 mod errors {
-    use flux_macros::SessionDiagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
-    #[derive(SessionDiagnostic)]
-    #[error(parse::invalid_alias_application, code = "FLUX")]
+    #[derive(Diagnostic)]
+    #[diag(parse::invalid_alias_application, code = "FLUX")]
     pub struct InvalidAliasApplication {
         #[primary_span]
         pub span: Span,

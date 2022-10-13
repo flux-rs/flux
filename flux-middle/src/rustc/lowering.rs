@@ -4,7 +4,6 @@ use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::{DiagnosticId, ErrorGuaranteed};
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
-    middle::resolve_lifetime::Set1,
     mir as rustc_mir,
     ty::{
         self as rustc_ty,
@@ -16,7 +15,7 @@ use rustc_span::Span;
 
 use super::{
     mir::{
-        AggregateKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, Constant,
+        AggregateKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, CastKind, Constant,
         FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
@@ -41,7 +40,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
         let basic_blocks = lower
             .rustc_mir
-            .basic_blocks()
+            .basic_blocks
             .iter()
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
@@ -121,7 +120,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::CopyNonOverlapping(_) => {
+            | rustc_mir::StatementKind::Intrinsic(_) => {
                 return self.emit_err(
                     Some(stmt.source_info.span),
                     format!("unsupported statement: `{stmt:?}`"),
@@ -291,18 +290,38 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
             rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
+            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(self.lower_place(place)?)),
+            rustc_mir::Rvalue::Cast(kind, op, ty) => {
+                let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
+                    emit_err(
+                        self.tcx,
+                        Some(source_info.span),
+                        format!("unsupported cast: `{rvalue:?}`"),
+                    )
+                })?;
+                let op = self.lower_operand(op)?;
+                let ty = lower_ty(self.tcx, *ty)?;
+                Ok(Rvalue::Cast(kind, op, ty))
+            }
             rustc_mir::Rvalue::Repeat(_, _)
             | rustc_mir::Rvalue::Ref(_, _, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::Len(_)
-            | rustc_mir::Rvalue::Cast(_, _, _)
             | rustc_mir::Rvalue::CheckedBinaryOp(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
                 self.emit_err(Some(source_info.span), format!("unsupported rvalue: `{rvalue:?}`"))
             }
+        }
+    }
+
+    fn lower_cast_kind(&self, kind: rustc_mir::CastKind) -> Option<CastKind> {
+        match kind {
+            rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
+            rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
+            rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
+            _ => None,
         }
     }
 
@@ -389,9 +408,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
         let tcx = self.tcx;
         let span = constant.span;
 
-        let constant = match (&constant.literal, constant.ty().kind()) {
+        // HACK(nilehmann) we evaluate the constant to support u32::MAX
+        // we should instead lower it as is and refine its type.
+        let kind = constant.literal.eval(tcx, ParamEnv::empty());
+        match (kind, constant.ty().kind()) {
             (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
-                scalar_int_to_constant(tcx, *scalar, *ty)
+                scalar_int_to_constant(tcx, scalar, ty)
             }
             (ConstantKind::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
                 if ref_ty.is_str() =>
@@ -399,9 +421,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Some(Constant::Str)
             }
             (ConstantKind::Ty(c), _) => {
-                // HACK(nilehmann) we evaluate the constant to support u32::MAX
-                // we should instead lower it as is and refine its type.
-                let c = c.eval(tcx, ParamEnv::empty());
                 if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
                     scalar_int_to_constant(tcx, scalar, c.ty())
                 } else {
@@ -409,15 +428,12 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
-            _ => {
-                return self
-                    .emit_err(Some(span), format!("constant not supported: `{constant:?}`"));
-            }
-        };
-        match constant {
-            Some(constant) => Ok(constant),
-            None => self.emit_err(Some(span), format!("constant not supported: `{constant:?}`")),
+            _ => None,
         }
+        .ok_or_else(|| {
+            println!("{:?}", constant.literal);
+            emit_err(self.tcx, Some(span), format!("constant not supported: `{constant:?}`"))
+        })
     }
 
     fn lower_assert_msg(
@@ -430,12 +446,13 @@ impl<'tcx> LoweringCtxt<'tcx> {
             RemainderByZero(_) => Ok("possible remainder with a divisor of zero"),
             Overflow(rustc_mir::BinOp::Div, _, _) => Ok("possible division with overflow"),
             Overflow(rustc_mir::BinOp::Rem, _, _) => Ok("possible remainder with overflow"),
+            BoundsCheck { .. } => Ok("index out of bounds"),
             _ => self.emit_err(None, format!("unsupported assert message: `{msg:?}`")),
         }
     }
 
     fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorGuaranteed> {
-        emit_err(self.tcx, span, msg)
+        Err(emit_err(self.tcx, span, msg))
     }
 }
 
@@ -532,7 +549,9 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
         rustc_ty::Str => Ok(Ty::mk_str()),
         rustc_ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
         rustc_ty::Array(ty, c) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *c)?)),
-        _ => emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())),
+        _ => {
+            Err(emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())))
+        }
     }
 }
 
@@ -548,7 +567,7 @@ fn lower_const<'tcx>(
         | rustc_ty::ConstKind::Placeholder(_)
         | rustc_ty::ConstKind::Unevaluated(_)
         | rustc_ty::ConstKind::Error(_) => {
-            return emit_err(tcx, None, format!("unsupported const `{c:?}`"));
+            return Err(emit_err(tcx, None, format!("unsupported const `{c:?}`")));
         }
     };
     Ok(Const { ty: lower_ty(tcx, c.ty())?, kind })
@@ -557,7 +576,9 @@ fn lower_const<'tcx>(
 fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGuaranteed> {
     match val {
         rustc_ty::ValTree::Leaf(scalar) => Ok(ValTree::Leaf(scalar)),
-        rustc_ty::ValTree::Branch(_) => emit_err(tcx, None, format!("unsupported valtree {val:?}")),
+        rustc_ty::ValTree::Branch(_) => {
+            Err(emit_err(tcx, None, format!("unsupported valtree {val:?}")))
+        }
     }
 }
 
@@ -580,7 +601,7 @@ fn lower_generic_arg<'tcx>(
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
         GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-            emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`"))
+            Err(emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`")))
         }
     }
 }
@@ -604,28 +625,28 @@ fn lower_generic_param_def(
     generic: &rustc_ty::GenericParamDef,
 ) -> Result<GenericParamDef, ErrorGuaranteed> {
     let kind = match generic.kind {
-        rustc_ty::GenericParamDefKind::Type {
-            has_default,
-            object_lifetime_default: Set1::Empty,
-            synthetic: false,
-        } => GenericParamDefKind::Type { has_default },
-        _ => emit_err(tcx, None, format!("unsupported generic parameter: `{generic:?}`"))?,
+        rustc_ty::GenericParamDefKind::Type { has_default, synthetic: false } => {
+            GenericParamDefKind::Type { has_default }
+        }
+        _ => {
+            return Err(emit_err(
+                tcx,
+                None,
+                format!("unsupported generic parameter: `{generic:?}`"),
+            ))
+        }
     };
     Ok(GenericParamDef { def_id: generic.def_id, kind })
 }
 
-fn emit_err<S: AsRef<str>, T>(
-    tcx: TyCtxt,
-    span: Option<Span>,
-    msg: S,
-) -> Result<T, ErrorGuaranteed> {
+fn emit_err<S: AsRef<str>>(tcx: TyCtxt, span: Option<Span>, msg: S) -> ErrorGuaranteed {
     let mut diagnostic = tcx
         .sess
         .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("flux".to_string()));
     if let Some(span) = span {
         diagnostic.set_span(span);
     }
-    Err(diagnostic.emit())
+    diagnostic.emit()
 }
 
 fn scalar_int_to_constant<'tcx>(

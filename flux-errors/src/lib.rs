@@ -15,9 +15,9 @@ use rustc_errors::{
     emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticMessage, SubdiagnosticMessage,
+    DiagnosticMessage, IntoDiagnostic, SubdiagnosticMessage,
 };
-use rustc_session::{config::ErrorOutputType, parse::ParseSess, SessionDiagnostic};
+use rustc_session::{config::ErrorOutputType, parse::ParseSess};
 use rustc_span::source_map::SourceMap;
 
 fluent_messages! {
@@ -41,8 +41,8 @@ impl FluxSession {
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
-    pub fn emit_err<'a>(&'a self, err: impl SessionDiagnostic<'a>) -> ErrorGuaranteed {
-        err.into_diagnostic(&self.parse_sess).emit()
+    pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+        err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
     }
 
     pub fn abort_if_errors(&self) {
@@ -108,13 +108,13 @@ fn emitter(
 pub trait ResultExt<T, E> {
     fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
     where
-        E: SessionDiagnostic<'a>;
+        E: IntoDiagnostic<'a>;
 }
 
 impl<T, E> ResultExt<T, E> for Result<T, E> {
     fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
     where
-        E: SessionDiagnostic<'a>,
+        E: IntoDiagnostic<'a>,
     {
         match self {
             Ok(v) => Ok(v),

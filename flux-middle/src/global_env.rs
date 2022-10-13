@@ -13,7 +13,6 @@ use rustc_span::Symbol;
 
 use crate::{
     core::{self, UFDef, VariantIdx},
-    intern::List,
     rustc,
     ty::{self, Binders},
 };
@@ -68,14 +67,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.uf_sorts.insert(name, ty::UFDef { inputs, output });
     }
 
-    pub fn register_adt_def(&mut self, def_id: DefId, sorts: &[core::Sort]) {
-        let sorts = sorts
-            .iter()
-            .map(|sort| ty::conv::conv_sort(*sort))
-            .collect_vec();
-        self.adt_defs
-            .get_mut()
-            .insert(def_id, ty::AdtDef::new(self.tcx.adt_def(def_id), sorts));
+    pub fn register_adt_def(&mut self, adt_def: &core::AdtDef) {
+        let def_id = adt_def.def_id;
+        let adt_def = ty::conv::ConvCtxt::conv_adt_def(self, adt_def);
+        self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
     /// This function must be called after all adts are registered
@@ -88,14 +83,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
-    pub fn register_struct_def(&mut self, def_id: DefId, struct_def: core::StructDef) {
-        let variant = ty::conv::ConvCtxt::conv_struct_def(self, &struct_def);
+    pub fn register_struct_def_variant(
+        &mut self,
+        def_id: DefId,
+        adt_data: &core::AdtDef,
+        struct_def: core::StructDef,
+    ) {
+        let variant = ty::conv::ConvCtxt::conv_struct_def_variant(self, adt_data, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
     }
 
-    pub fn register_enum_def(&mut self, def_id: DefId, enum_def: core::EnumDef) {
-        if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def(self, enum_def) {
+    pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: core::EnumDef) {
+        if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
             self.adt_variants.get_mut().insert(def_id, Some(variants));
         }
     }
@@ -117,7 +117,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![]))
+            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![]))
             .clone()
     }
 
@@ -145,10 +145,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let sorts = poly_variant.params();
         let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.clone(), vec![]);
         ty::Binders::new(sig, sorts)
-    }
-
-    pub fn sorts_of(&self, def_id: DefId) -> List<ty::Sort> {
-        self.adt_def(def_id).sorts().clone()
     }
 
     pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {

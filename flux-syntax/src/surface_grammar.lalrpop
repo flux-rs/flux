@@ -24,7 +24,6 @@ pub Alias: surface::Alias = {
     }
 }
 
-
 pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
 }
@@ -99,8 +98,8 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>                => surface::Arg::StrgRef(bind, ty),
-    <bind:Ident> ":" <path:Path>                       => surface::Arg::Indexed(bind, path, None),
-    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Indexed(bind, path, Some(pred)),
+    <bind:Ident> ":" <path:Path>                       => surface::Arg::Constr(bind, path, None),
+    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Constr(bind, path, Some(pred)),
     <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(bind, path, indices),
     <bind:Ident> ":" "&" "mut" <ty:Ty> => {
         let span = ty.span;
@@ -139,8 +138,6 @@ GenericArgs: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">"
 }
 
-// The code below is duplicated from grammar.lalrpop ---------------------------------
-
 Path: surface::Path = {
     <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args: args.unwrap_or_default(), span: mk_span(lo, hi) }
 }
@@ -168,14 +165,22 @@ Index: surface::Index = {
     <Level1>    => surface::Index::Expr(<>),
 };
 
+pub Expr = Level1;
 
 Level1 = NonAssoc<BinOp1, Level2>;  // <=>
 Level2 = LeftAssoc<BinOp2, Level3>; // =>
 Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
-Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=, ...
-Level6 = LeftAssoc<BinOp6, Level7>; // +, -, ...
-Level7: surface::Expr = {
+Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=
+Level6 = LeftAssoc<BinOp6, Level7>; // +, -
+Level7 = LeftAssoc<BinOp7, Level8>; // *, %
+Level8: surface::Expr = {
+    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
+        surface::Expr {
+            kind: surface::ExprKind::IfThenElse(Box::new(p), Box::new(e1), Box::new(e2)),
+            span: mk_span(lo, hi),
+        }
+    },
     <lo:@L> <lit:Lit> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Literal(lit),
@@ -252,6 +257,10 @@ BinOp5: surface::BinOp = {
 BinOp6: surface::BinOp = {
     "+" => surface::BinOp::Add,
     "-" => surface::BinOp::Sub,
+}
+
+BinOp7: surface::BinOp = {
+    "*" => surface::BinOp::Mul,
     "%" => surface::BinOp::Mod,
 }
 
@@ -308,6 +317,7 @@ extern {
         "<=>" => Token::Iff,
         "+"  => Token::Plus,
         "-"  => Token::Minus,
+        "*"  => Token::Star,
         "|"  => Token::Caret,
         "("  => Token::OpenDelim(Delimiter::Parenthesis),
         ")"  => Token::CloseDelim(Delimiter::Parenthesis),
@@ -325,6 +335,8 @@ extern {
         ","  => Token::Comma,
         "->" => Token::RArrow,
         "&"  => Token::And,
-        "%" => Token::Percent,
+        "%"  => Token::Percent,
+        "if"   => Token::If,
+        "else" => Token::Else,
     }
 }
