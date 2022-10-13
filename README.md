@@ -100,3 +100,33 @@ $ cargo test -p flux-tests
 ## Limitations
 
 This is a prototype! Use at your own risk. Everything could break and it will break.
+
+
+## Rust-Analyzer in VSCode
+
+Add this to the workspace settings popping in the appropriate paths for 
+
+* `DYLD_FALLBACK_LIBRARY_PATH` 
+* `RUSTC_WRAPPER` 
+* `RUSTUP_TOOLCHAIN`
+
+```
+{
+  "rust-analyzer.checkOnSave.overrideCommand": [
+    "env",
+    "DYLD_FALLBACK_LIBRARY_PATH=/Users/rjhala/.rustup/toolchains/nightly-2022-08-02-x86_64-apple-darwin/lib",
+    "RUSTC_WRAPPER=/Users/rjhala/research/rust/flux/target/debug/flux",
+    "RUSTUP_TOOLCHAIN=nightly-2022-08-02",
+    "cargo",
+    "check",
+    "--message-format=json"
+  ],
+  "spellright.language": [
+    "en"
+  ],
+  "spellright.documentTypes": [
+    "latex",
+    "plaintext"
+  ]
+}
+```
