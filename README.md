@@ -104,6 +104,7 @@ This is a prototype! Use at your own risk. Everything could break and it will br
 
 ## Rust-Analyzer in VSCode
 
+<<<<<<< HEAD
 Add this to the workspace settings popping in the appropriate paths for 
 
 * `DYLD_FALLBACK_LIBRARY_PATH` 
@@ -130,3 +131,32 @@ Add this to the workspace settings popping in the appropriate paths for
   ]
 }
 ```
+=======
+Add this to the workspace settings i.e. `.vscode/settings.json` using in the appropriate paths for 
+
+* `DYLD_FALLBACK_LIBRARY_PATH` (on `macos`) or `LD_LIBRARY_PATH` (on `linux`)
+* `RUSTC_WRAPPER` 
+* `RUSTUP_TOOLCHAIN` (should be the same as the contents of `/path/to/flux/rust-toolchain.toml`)
+
+```json
+{
+  "rust-analyzer.checkOnSave.extraEnv": {
+    "RUSTC_WRAPPER": "/path/to/flux/target/release/flux",
+    "RUSTUP_TOOLCHAIN": "nightly-2022-10-11",
+    "LD_LIBRARY_PATH": "/path/to/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib"
+  }
+}
+```
+
+If the plugin doesn't work it is useful to write a small shell script e.g. `cargo-flux` 
+that simulates how `vscode` invokes `flux` via `rust-analyzer`
+
+```bash
+#!/bin/bash
+
+RUSTUP_TOOLCHAIN=nightly-2022-10-11 DYLD_FALLBACK_LIBRARY_PATH=~/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib RUSTC_WRAPPER=~/research/rust/flux/target/debug/flux cargo $@
+```
+
+and then just run `cargo-flux check` (instead of `cargo check`) in the relevant crate directory
+to see what is happening.
+>>>>>>> cea75339f38e312a9f338d0df5b8a94f40604833
