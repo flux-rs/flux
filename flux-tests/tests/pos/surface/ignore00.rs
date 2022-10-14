@@ -3,7 +3,7 @@
 #![register_tool(flux)]
 #![flux::ignore] // ignore checking this crate
 
-#[flux::sig(fn(bool[true]) -> ())]
+#[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 
 pub fn test(val: i32) {
@@ -13,7 +13,7 @@ pub fn test(val: i32) {
 }
 pub mod foo {
 
-    #[flux::sig(fn(Vec<i32{v:0 < v}>) -> ())]
+    #[flux::sig(fn(Vec<i32{v:0 < v}>))]
     pub fn test_map(vec: Vec<i32>) {
         let _ = vec.into_iter().map(|val| super::assert(10 < val));
     }

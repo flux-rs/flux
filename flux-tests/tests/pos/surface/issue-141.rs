@@ -12,7 +12,7 @@ pub struct Vecs {
     pub my: RVec<i32>,
 }
 
-#[flux::sig(fn(vecs: &strg Vecs[@n], i32) -> () ensures vecs: Vecs[n+1])]
+#[flux::sig(fn(vecs: &strg Vecs[@n], i32) ensures vecs: Vecs[n+1])]
 pub fn push(vecs: &mut Vecs, value: i32) {
     vecs.my.push(value);
 }

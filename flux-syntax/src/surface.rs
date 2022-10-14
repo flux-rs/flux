@@ -85,7 +85,7 @@ pub struct FnSig<T = Ident> {
     /// example: `i32<@n>`
     pub args: Vec<Arg<T>>,
     /// example `i32{v:v >= 0}`
-    pub returns: Ty<T>,
+    pub returns: Option<Ty<T>>,
     /// example: `*x: i32{v. v = n+1}`
     pub ensures: Vec<(Ident, Ty<T>)>,
     /// source span
@@ -308,7 +308,7 @@ pub mod expand {
     ) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
             args: expand_args(sess, aliases, fn_sig.args)?,
-            returns: expand_ty(aliases, &fn_sig.returns),
+            returns: fn_sig.returns.as_ref().map(|ty| expand_ty(aliases, ty)),
             ensures: expand_locs(aliases, fn_sig.ensures),
             requires: fn_sig.requires,
             span: fn_sig.span,

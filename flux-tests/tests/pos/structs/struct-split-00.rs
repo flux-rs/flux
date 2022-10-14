@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn(bool[true]) -> ())]
+#[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 
 pub struct S {
