@@ -108,9 +108,9 @@ Add this to the workspace settings i.e. `.vscode/settings.json` using in the app
 
 * `DYLD_FALLBACK_LIBRARY_PATH` (on `macos`) or `LD_LIBRARY_PATH` (on `linux`)
 * `RUSTC_WRAPPER` 
-* `RUSTUP_TOOLCHAIN`
+* `RUSTUP_TOOLCHAIN` (should be the same as the contents of `/path/to/flux/rust-toolchain.toml`)
 
-```
+```json
 {
   "rust-analyzer.checkOnSave.extraEnv": {
     "RUSTC_WRAPPER": "/path/to/flux/target/release/flux",
