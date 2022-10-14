@@ -281,7 +281,7 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
         }
     }
 }
-fn rustc_ty_ident_args<'a>(rust_ty: &'a rustc_ty::Ty) -> (Res, &'a [rustc_ty::GenericArg]) {
+fn rustc_ty_ident_args(rust_ty: &rustc_ty::Ty) -> (Res, &[rustc_ty::GenericArg]) {
     match rust_ty.kind() {
         rustc_ty::TyKind::Adt(def_id, substs) => (Res::Adt(*def_id), &substs[..]),
         rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
@@ -292,8 +292,6 @@ fn rustc_ty_ident_args<'a>(rust_ty: &'a rustc_ty::Ty) -> (Res, &'a [rustc_ty::Ge
         flux_middle::rustc::ty::TyKind::Tuple(args) if args.is_empty() => {
             (Res::Tuple, [].as_slice())
         }
-        // flux_middle::rustc::ty::TyKind::Array(_, _) => todo!(),
-        // flux_middle::rustc::ty::TyKind::Ref(_, _) => todo!(),
         _ => panic!("incompatible type: `{rust_ty:?}`"),
     }
 }
