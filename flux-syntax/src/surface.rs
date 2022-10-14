@@ -166,6 +166,7 @@ pub enum Res {
     Float(FloatTy),
     Adt(DefId),
     Param(ParamTy),
+    Tuple,
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
