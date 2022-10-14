@@ -24,9 +24,15 @@ use crate::{
     mir_storage,
 };
 
-#[derive(Default)]
 pub(crate) struct FluxCallbacks {
+    full_compilation: bool,
     error_format: ErrorOutputType,
+}
+
+impl FluxCallbacks {
+    pub(crate) fn new(full_compilation: bool) -> Self {
+        FluxCallbacks { full_compilation, error_format: Default::default() }
+    }
 }
 
 impl Callbacks for FluxCallbacks {
@@ -48,12 +54,19 @@ impl Callbacks for FluxCallbacks {
         }
 
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+            if !is_tool_registered(tcx) {
+                return;
+            }
             let sess = FluxSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
             let _ = check_crate(tcx, &sess);
             sess.finish_diagnostics();
         });
 
-        Compilation::Stop
+        if self.full_compilation {
+            Compilation::Continue
+        } else {
+            Compilation::Stop
+        }
     }
 }
 
@@ -287,4 +300,13 @@ fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> query_values::mi
     rustc_borrowck::provide(&mut providers);
     let original_mir_borrowck = providers.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
+}
+
+fn is_tool_registered(tcx: TyCtxt) -> bool {
+    for attr in tcx.hir().krate_attrs() {
+        if rustc_ast_pretty::pprust::attribute_to_string(attr) == "#![register_tool(flux)]" {
+            return true;
+        }
+    }
+    false
 }
