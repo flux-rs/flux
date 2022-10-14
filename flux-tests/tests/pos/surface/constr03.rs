@@ -6,12 +6,12 @@ mod rvec;
 
 use rvec::RVec;
 
-#[flux::sig(fn(&mut {RVec<i32>[@n] : n > 0}) -> ())]
+#[flux::sig(fn(&mut {RVec<i32>[@n] : n > 0}))]
 pub fn test1(vec: &mut RVec<i32>) {
     vec[0] = 5;
 }
 
-#[flux::sig(fn({&mut RVec<i32>[@n] : n > 0}) -> ())]
+#[flux::sig(fn({&mut RVec<i32>[@n] : n > 0}))]
 pub fn test2(vec: &mut RVec<i32>) {
     vec[0] = 5;
 }

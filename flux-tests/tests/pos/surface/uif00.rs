@@ -14,7 +14,7 @@ fn bar(a: i32) -> i32 {
     return a;
 }
 
-#[flux::sig(fn(i32) -> ())]
+#[flux::sig(fn(i32))]
 pub fn test(n: i32) {
     let ok = valid(n);
     if ok {

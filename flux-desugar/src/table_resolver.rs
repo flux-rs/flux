@@ -105,7 +105,7 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             .map(|(loc, ty)| Ok((loc, self.resolve_ty(ty)?)))
             .try_collect_exhaust();
 
-        let returns = self.resolve_ty(fn_sig.returns);
+        let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
 
         Ok(surface::FnSig {
             requires: fn_sig.requires,
@@ -527,6 +527,14 @@ pub mod errors {
         pub span: Span,
         pub flux_ref: &'static str,
         pub rust_ref: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::default_return_mismatch, code = "FLUX")]
+    pub struct DefaultReturnMismatch {
+        #[primary_span]
+        pub span: Span,
+        pub rust_type: String,
     }
 
     impl RefKindMismatch {

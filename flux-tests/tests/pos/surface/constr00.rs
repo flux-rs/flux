@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn(bool[true]) -> ())]
+#[flux::sig(fn(bool[true]))]
 fn assert(_b: bool) {}
 
 #[flux::sig(fn(&i32[@a], { &i32[@b] : b <= a } ) -> i32[a-b])]

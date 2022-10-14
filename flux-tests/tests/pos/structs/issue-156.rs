@@ -11,7 +11,7 @@ pub struct Bob {
     elems: RVec<i32>,
 }
 
-#[flux::sig(fn(Bob) -> ())]
+#[flux::sig(fn(Bob))]
 pub fn test(bob: Bob) {
     let _x = bob.elems[0];
 }

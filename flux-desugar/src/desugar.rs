@@ -169,7 +169,10 @@ pub fn desugar_fn_sig(
         .map(|arg| desugar.desugar_arg(arg))
         .try_collect_exhaust();
 
-    let ret = desugar.desugar_ty(fn_sig.returns);
+    let ret = match fn_sig.returns {
+        Some(returns) => desugar.desugar_ty(returns),
+        None => Ok(Ty::Tuple(vec![])),
+    };
 
     let ensures = fn_sig
         .ensures

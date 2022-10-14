@@ -8,7 +8,7 @@ pub struct S {
     _f2: Vec<i32>,
 }
 
-#[flux::sig(fn(S) -> ())]
+#[flux::sig(fn(S))]
 pub fn test(mut s: S) {
     // break the invariant
     s.f1 -= 1;

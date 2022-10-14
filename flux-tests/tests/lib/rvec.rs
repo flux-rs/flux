@@ -14,7 +14,7 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(fn(self: &strg RVec<T>[@n], T) -> () ensures self: RVec<T>[n+1])]
+    #[flux::sig(fn(self: &strg RVec<T>[@n], T) ensures self: RVec<T>[n+1])]
     pub fn push(&mut self, item: T) {
         self.inner.push(item);
     }
@@ -52,7 +52,7 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
-    #[flux::sig(fn(&mut RVec<T>[@n], a: usize{a < n}, b: usize{b < n}) -> ())]
+    #[flux::sig(fn(&mut RVec<T>[@n], a: usize{a < n}, b: usize{b < n}))]
     pub fn swap(&mut self, a: usize, b: usize) {
         self.inner.swap(a, b);
     }

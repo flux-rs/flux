@@ -8,7 +8,7 @@ pub fn shared_ref_box(x: &Box<i32>) -> i32 {
 }
 
 // Mutate through box under &mut ref
-#[flux::sig(fn(&mut Box<i32{v : v >= 0}>) -> ())]
+#[flux::sig(fn(&mut Box<i32{v : v >= 0}>))]
 pub fn mut_ref_box(x: &mut Box<i32>) {
     **x += 1;
 }
