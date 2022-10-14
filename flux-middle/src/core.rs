@@ -13,7 +13,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
 #[derive(Debug)]
@@ -135,7 +135,7 @@ pub enum Sort {
 
 pub struct Expr {
     pub kind: ExprKind,
-    pub span: Option<Span>,
+    pub span: Span,
 }
 
 pub enum ExprKind {
@@ -185,11 +185,19 @@ impl Lit {
     }
 }
 
-impl Expr {
-    pub const TRUE: Expr = Expr { kind: ExprKind::Literal(Lit::TRUE), span: None };
+impl<'a> IntoIterator for &'a Indices {
+    type Item = &'a Index;
 
+    type IntoIter = std::slice::Iter<'a, Index>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.indices.iter()
+    }
+}
+
+impl Expr {
     pub fn from_i128(v: i128) -> Expr {
-        Expr { kind: ExprKind::Literal(Lit::from_i128(v)), span: None }
+        Expr { kind: ExprKind::Literal(Lit::from_i128(v)), span: DUMMY_SP }
     }
 }
 
