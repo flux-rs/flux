@@ -58,20 +58,12 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
     "(" <args:Args> ")"
-    "->"
-    <returns:Ty>
-    <requires:("requires" Level1)?>
-    <ensures:("ensures" Ensures)?>
+    <returns:("->" <Ty>)?>
+    <requires:("requires" <Level1>)?>
+    <ensures:("ensures" <Ensures>)?>
     <hi:@R>
     => {
-        let requires = match requires {
-            Some(t) => Some(t.1),
-            None => None,
-        };
-        let ensures = match ensures {
-            Some(tup) => tup.1,
-            None => vec![],
-        };
+        let ensures = ensures.unwrap_or_default();
         surface::FnSig { args, returns, ensures, requires, span: mk_span(lo, hi) }
     }
 }

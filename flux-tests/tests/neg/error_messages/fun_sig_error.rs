@@ -34,3 +34,8 @@ pub fn baz(x: i32) -> i32 {
 pub fn ipa(x: &i32) -> i32 {
     *x + 1
 }
+
+#[flux::sig(fn())] //~ ERROR return type mismatch
+fn ris() -> i32 {
+    0
+}

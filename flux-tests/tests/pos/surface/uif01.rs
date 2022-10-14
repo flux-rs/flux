@@ -14,7 +14,7 @@ fn bar(a: i32) -> i32 {
     return a;
 }
 
-#[flux::sig(fn() -> ())]
+#[flux::sig(fn())]
 pub fn test() {
     let a = 10;
     let b = 20;

@@ -5,7 +5,7 @@
 mod range;
 use range::{Rng, RngIter};
 
-#[flux::sig(fn(bool[true]) -> ())]
+#[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 
 pub fn test_next() {

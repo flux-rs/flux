@@ -15,3 +15,6 @@ resolver_mismatched_type =
 
 resolver_mutability_mismatch =
     mutability mismatch in flux signature: rust signature has a `{$rust_ref}` reference but flux signature has a `{$flux_ref}` reference
+
+resolver_default_return_mismatch =
+    return type mismatch in flux signature: expected `{$rust_type}`, found ()

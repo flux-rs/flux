@@ -10,7 +10,10 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
 use crate::table_resolver::{
-    errors::{ArgCountMismatch, FieldCountMismatch, MismatchedType, RefKindMismatch},
+    errors::{
+        ArgCountMismatch, DefaultReturnMismatch, FieldCountMismatch, MismatchedType,
+        RefKindMismatch,
+    },
     Resolver,
 };
 
@@ -87,13 +90,32 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
     ) -> Result<FnSig<Res>, ErrorGuaranteed> {
         let mut locs = Locs::new();
         let args = self.zip_args(sig.span, sig.args, rust_sig.inputs(), &mut locs)?;
+
         Ok(FnSig {
             args,
-            returns: self.zip_ty(sig.returns, &rust_sig.output())?,
+            returns: self.zip_return_ty(sig.span, sig.returns, &rust_sig.output())?,
             ensures: self.zip_ty_locs(sig.ensures, &locs)?,
             requires: sig.requires,
             span: sig.span,
         })
+    }
+
+    fn zip_return_ty(
+        &self,
+        span: Span,
+        ty: Option<Ty>,
+        rust_ty: &rustc_ty::Ty,
+    ) -> Result<Option<Ty<Res>>, ErrorGuaranteed> {
+        let ty = match (ty, rust_ty.kind()) {
+            (Some(ty), _) => Some(self.zip_ty(ty, rust_ty)?),
+            (None, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => None,
+            (_, _) => {
+                return Err(self
+                    .sess
+                    .emit_err(DefaultReturnMismatch { span, rust_type: format!("{rust_ty:?}") }))
+            }
+        };
+        Ok(ty)
     }
 
     /// `zip_ty_locs` traverses the bare-outputs and zips with the location-types saved in `locs`
