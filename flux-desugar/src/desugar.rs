@@ -316,7 +316,7 @@ impl<'a> DesugarCtxt<'a> {
                     .iter()
                     .map(|(_, name)| {
                         let kind = ExprKind::Var(*name, ident.name, ident.span);
-                        Index { expr: Expr { kind, span: Some(ident.span) }, is_binder: true }
+                        Index { expr: Expr { kind, span: ident.span }, is_binder: true }
                     })
                     .collect();
                 Ok(indices)
@@ -418,7 +418,7 @@ impl<'a> ParamsCtxt<'a> {
                 ExprKind::IfThenElse(Box::new(p?), Box::new(e1?), Box::new(e2?))
             }
         };
-        Ok(Expr { kind, span: Some(expr.span) })
+        Ok(Expr { kind, span: expr.span })
     }
 
     fn fresh(&self) -> Name {
@@ -445,11 +445,11 @@ impl<'a> ParamsCtxt<'a> {
     fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorGuaranteed> {
         if let Some(&name) = self.name_map.get(&ident.name) {
             let kind = ExprKind::Var(name, ident.name, ident.span);
-            return Ok(Expr { kind, span: Some(ident.span) });
+            return Ok(Expr { kind, span: ident.span });
         }
         if let Some(&did) = self.const_map.get(&ident.name) {
             let kind = ExprKind::Const(did, ident.span);
-            return Ok(Expr { kind, span: Some(ident.span) });
+            return Ok(Expr { kind, span: ident.span });
         }
         if let Some(fields) = self.dot_map.get(&ident.name) {
             return Err(self
@@ -467,7 +467,7 @@ impl<'a> ParamsCtxt<'a> {
         if let surface::ExprKind::Var(ident) = expr.kind {
             if let Some(&name) = self.field_map.get(&(ident.name, fld.name)) {
                 let kind = ExprKind::Var(name, ident.name, ident.span);
-                return Ok(Expr { kind, span: Some(ident.span) });
+                return Ok(Expr { kind, span: ident.span });
             }
             return Err(self
                 .sess

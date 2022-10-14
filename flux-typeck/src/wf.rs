@@ -2,6 +2,7 @@ use std::iter;
 
 use flux_common::iter::IterExt;
 use flux_middle::{core, global_env::GlobalEnv, ty, ty::conv::conv_sort};
+use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -212,14 +213,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 found.len(),
             ));
         }
-        expected
-            .into_iter()
-            .zip(found)
-            .map(|(expected, found)| {
+        izip!(indices, expected, found)
+            .map(|(idx, expected, found)| {
                 if found == expected {
                     Ok(())
                 } else {
-                    self.emit_err(errors::SortMismatch::new(Some(indices.span), expected, found))
+                    self.emit_err(errors::SortMismatch::new(idx.expr.span, expected, found))
                 }
             })
             .try_collect_exhaust()
@@ -244,7 +243,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         if found == ty::Sort::Loc {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(Some(loc.source_info.0), ty::Sort::Loc, found))
+            self.emit_err(errors::SortMismatch::new(loc.source_info.0, ty::Sort::Loc, found))
         }
     }
 
@@ -329,7 +328,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         env: &Env,
         f: &core::UFun,
         es: &[core::Expr],
-        span: Option<Span>,
+        span: Span,
     ) -> Result<ty::Sort, ErrorGuaranteed> {
         let Some(uf_def) = self.genv.uf_sorts.get(&f.symbol) else {
             return self.emit_err(errors::UnresolvedFunction::new(f.span));
@@ -337,7 +336,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let found = es.len();
         let expected = uf_def.inputs.len();
         if expected != found {
-            return self.emit_err(errors::ParamCountMismatch::new(span, expected, found));
+            return self.emit_err(errors::ParamCountMismatch::new(Some(span), expected, found));
         }
         for (e, t) in iter::zip(es, &uf_def.inputs) {
             let e_t = self.synth_expr(env, e)?;
@@ -367,13 +366,13 @@ mod errors {
     pub struct SortMismatch {
         #[primary_span]
         #[label]
-        pub span: Option<Span>,
+        pub span: Span,
         pub expected: ty::Sort,
         pub found: ty::Sort,
     }
 
     impl SortMismatch {
-        pub fn new(span: Option<Span>, expected: ty::Sort, found: ty::Sort) -> Self {
+        pub fn new(span: Span, expected: ty::Sort, found: ty::Sort) -> Self {
             Self { span, expected, found }
         }
     }
