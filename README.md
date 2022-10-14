@@ -115,7 +115,7 @@ Add this to the workspace settings i.e. `.vscode/settings.json` using in the app
   "rust-analyzer.checkOnSave.extraEnv": {
     "RUSTC_WRAPPER": "/path/to/flux/target/release/flux",
     "RUSTUP_TOOLCHAIN": "nightly-2022-10-11",
-    "LD_LIBRARY_PATH": "/Users/rjhala/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib"
+    "LD_LIBRARY_PATH": "/path/to/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib"
   }
 }
 ```
