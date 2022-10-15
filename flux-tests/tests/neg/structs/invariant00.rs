@@ -2,7 +2,7 @@
 #![register_tool(flux)]
 
 #[flux::refined_by(a: int, b: int)]
-#[flux::invariant(a > b)]
+#[flux::invariant(a > b)] //~ ERROR invariant
 pub struct S {
     #[flux::field(i32[@a])]
     fst: i32,
