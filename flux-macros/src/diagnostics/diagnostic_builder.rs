@@ -425,7 +425,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 Ok(quote! {
                     #diag.span_suggestion_with_style(
                         #span_field,
-                        rustc_errors::fluent::#slug,
+                        flux_errors::fluent::#slug,
                         #code,
                         #applicability,
                         #style
@@ -449,7 +449,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
         quote! {
             #diag.#fn_name(
                 #field_binding,
-                rustc_errors::fluent::#fluent_attr_identifier
+                flux_errors::fluent::#fluent_attr_identifier
             );
         }
     }
@@ -459,7 +459,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
     fn add_subdiagnostic(&self, kind: &Ident, fluent_attr_identifier: Path) -> TokenStream {
         let diag = &self.parent.diag;
         quote! {
-            #diag.#kind(rustc_errors::fluent::#fluent_attr_identifier);
+            #diag.#kind(flux_errors::fluent::#fluent_attr_identifier);
         }
     }
 

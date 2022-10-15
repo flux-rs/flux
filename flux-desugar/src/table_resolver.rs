@@ -455,7 +455,6 @@ pub mod errors {
     #[diag(resolver::unsupported_signature, code = "FLUX")]
     pub struct UnsupportedSignature {
         #[primary_span]
-        #[label]
         pub span: Span,
         pub msg: &'static str,
     }
