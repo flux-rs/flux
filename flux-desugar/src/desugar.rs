@@ -351,7 +351,7 @@ impl<'a> DesugarCtxt<'a> {
                     .try_collect_exhaust()?;
                 BaseTy::Adt(def_id, substs)
             }
-            Res::Float(..) | Res::Param(..) => {
+            Res::Float(..) | Res::Param(..) | Res::Tuple => {
                 panic!("invalid")
             }
         };
@@ -742,7 +742,9 @@ fn sorts<'a>(
         Res::Int(_) | Res::Uint(_) => Ok(&[Sort::Int]),
         Res::Adt(def_id) => Ok(adt_sorts.get_sorts(def_id).unwrap_or_default()),
         Res::Float(_) => Ok(&[]),
-        Res::Param(_) => Err(sess.emit_err(errors::RefinedTypeParam { span: path.span })),
+        Res::Param(_) | Res::Tuple => {
+            Err(sess.emit_err(errors::RefinedTypeParam { span: path.span }))
+        }
     }
 }
 

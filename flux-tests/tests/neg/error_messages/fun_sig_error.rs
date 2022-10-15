@@ -1,6 +1,12 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
+
+#[flux::sig(fn(x:i32) -> i32)] //~ ERROR type mismatch
+pub fn sob(x: i32) {
+    return
+}
+
 #[flux::sig(fn(x:i32) -> i32)] //~ ERROR type mismatch
 pub fn foo(x: bool) -> i32 {
     if x {
