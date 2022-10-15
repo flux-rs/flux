@@ -4,6 +4,10 @@ resolver_unsupported_signature =
 resolver_unresolved_path =
     cannot resolve `{$path}`
 
+resolver_unresolved_location =
+    cannot resolve `{$loc}`: only `&strg` variables can appear in ensures clauses
+    .label = maybe annotate as `&strg`
+
 resolver_mismatched_args =
     arg count mismatch in flux signature: rust signature has {$rust_args} but flux signature has {$flux_args}
 
