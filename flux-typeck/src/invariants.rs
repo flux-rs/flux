@@ -14,7 +14,7 @@ use crate::{
 pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) -> Result<(), ErrorGuaranteed> {
     adt_def
         .invariants()
-        .into_iter()
+        .iter()
         .try_for_each_exhaust(|invariant| check_invariant(genv, adt_def, invariant))
 }
 
