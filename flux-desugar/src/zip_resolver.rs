@@ -289,6 +289,9 @@ fn rustc_ty_ident_args(rust_ty: &rustc_ty::Ty) -> (Res, &[rustc_ty::GenericArg])
         rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
         rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
         rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
+        flux_middle::rustc::ty::TyKind::Tuple(args) if args.is_empty() => {
+            (Res::Tuple, [].as_slice())
+        }
         _ => panic!("incompatible type: `{rust_ty:?}`"),
     }
 }

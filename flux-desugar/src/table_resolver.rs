@@ -561,6 +561,7 @@ pub mod errors {
             Res::Float(float_ty) => float_ty.name_str().to_string(),
             Res::Adt(def_id) => print_def_id(tcx, def_id),
             Res::Param(_) => todo!(),
+            Res::Tuple => "()".to_string(),
         }
     }
 
