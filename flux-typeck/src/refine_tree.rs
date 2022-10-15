@@ -139,12 +139,16 @@ impl RefineCtxt<'_> {
         self.ptr.push_guard(pred);
     }
 
+    pub fn check_pred(&mut self, pred: impl Into<Pred>, tag: Tag) {
+        self.check_constr().push_head(pred, tag)
+    }
+
     pub fn check_constr(&mut self) -> ConstrBuilder {
         let ptr = self.ptr.push_node(NodeKind::Conj);
         ConstrBuilder { tree: self._tree, ptr }
     }
 
-    fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: Unpack) -> BaseTy {
+    fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
                 let ty = self.unpack_inner(&substs[0], inside_mut_ref, flags);
@@ -154,11 +158,11 @@ impl RefineCtxt<'_> {
         }
     }
 
-    fn unpack_inner(&mut self, ty: &Ty, in_mut_ref: bool, flags: Unpack) -> Ty {
+    fn unpack_inner(&mut self, ty: &Ty, in_mut_ref: bool, flags: UnpackFlags) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => {
                 let bty = self.unpack_bty(bty, in_mut_ref, flags);
-                if flags.contains(Unpack::INVARIANTS) {
+                if flags.contains(UnpackFlags::INVARIANTS) {
                     self.assume_invariants(&bty, idxs);
                 }
                 Ty::indexed(bty, idxs.clone())
@@ -168,7 +172,7 @@ impl RefineCtxt<'_> {
                 // that makes the refered type too specific. We only have this as a workaround to
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                if !in_mut_ref || flags.contains(Unpack::EXISTS_IN_MUT_REF) {
+                if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
                     let idxs = self
                         .ptr
                         .push_bound_guard(pred)
@@ -205,18 +209,18 @@ impl RefineCtxt<'_> {
         }
     }
 
-    pub fn unpack_with(&mut self, ty: &Ty, flags: Unpack) -> Ty {
+    pub fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
         self.unpack_inner(ty, false, flags)
     }
 
     pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.unpack_inner(ty, false, Unpack::empty())
+        self.unpack_inner(ty, false, UnpackFlags::empty())
     }
 
     fn assume_invariants(&mut self, bty: &BaseTy, idxs: &[Index]) {
         let exprs = idxs.iter().map(Index::to_expr).collect_vec();
         for invariant in bty.invariants() {
-            self.assume_pred(invariant.replace_bound_vars(&exprs));
+            self.assume_pred(invariant.pred.replace_bound_vars(&exprs));
         }
     }
 }
@@ -347,7 +351,7 @@ impl NodePtr {
 }
 
 bitflags! {
-    pub struct Unpack: u8 {
+    pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b01;
         const INVARIANTS         = 0b10;
     }

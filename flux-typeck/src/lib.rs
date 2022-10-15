@@ -13,6 +13,7 @@ extern crate rustc_span;
 mod checker;
 mod constraint_gen;
 mod dbg;
+pub mod invariants;
 mod param_infer;
 mod refine_tree;
 mod type_env;

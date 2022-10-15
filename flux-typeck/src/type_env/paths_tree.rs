@@ -14,7 +14,7 @@ use rustc_hir::def_id::DefId;
 
 use crate::{
     constraint_gen::ConstrGen,
-    refine_tree::{RefineCtxt, Scope, Unpack},
+    refine_tree::{RefineCtxt, Scope, UnpackFlags},
 };
 
 #[derive(Default, Eq, PartialEq, Clone)]
@@ -372,7 +372,7 @@ impl PathsTree {
                         substs,
                         &idxs.to_exprs(),
                     );
-                    ty = rcx.unpack_with(&Ty::tuple(tys), Unpack::INVARIANTS);
+                    ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
             }

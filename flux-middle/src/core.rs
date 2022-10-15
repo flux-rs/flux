@@ -215,6 +215,7 @@ pub struct AdtDef {
     pub fields: Vec<Symbol>,
     pub sorts: Vec<Sort>,
     pub invariants: Vec<Expr>,
+    pub opaque: bool,
 }
 
 #[derive(Default)]

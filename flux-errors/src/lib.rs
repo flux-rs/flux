@@ -26,6 +26,7 @@ fluent_messages! {
     desugar => "../locales/en-US/desugar.ftl",
     wf => "../locales/en-US/wf.ftl",
     refineck => "../locales/en-US/refineck.ftl",
+    invariants => "../locales/en-US/invariants.ftl",
 }
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
