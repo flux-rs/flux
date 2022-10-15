@@ -12,7 +12,7 @@ use rustc_span::{Span, Symbol};
 use crate::table_resolver::{
     errors::{
         ArgCountMismatch, DefaultReturnMismatch, FieldCountMismatch, MismatchedType,
-        RefKindMismatch,
+        RefKindMismatch, UnresolvedLocation,
     },
     Resolver,
 };
@@ -129,7 +129,7 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
                 let dt = self.zip_ty(ty, rust_ty)?;
                 res.push((ident, dt));
             } else {
-                panic!("missing location type for `{}`", ident);
+                return Err(self.sess.emit_err(UnresolvedLocation::new(ident)));
             }
         }
         Ok(res)

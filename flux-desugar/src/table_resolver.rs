@@ -473,6 +473,21 @@ pub mod errors {
     }
 
     #[derive(Diagnostic)]
+    #[diag(resolver::unresolved_location, code = "FLUX")]
+    pub struct UnresolvedLocation {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub loc: Ident,
+    }
+
+    impl UnresolvedLocation {
+        pub fn new(ident: surface::Ident) -> Self {
+            Self { span: ident.span, loc: ident }
+        }
+    }
+
+    #[derive(Diagnostic)]
     #[diag(resolver::mismatched_fields, code = "FLUX")]
     pub struct FieldCountMismatch {
         #[primary_span]

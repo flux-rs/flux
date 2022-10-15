@@ -1,6 +1,12 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
+#[flux::sig(fn(x:&mut i32[@n]) ensures x: i32[n+1])] //~ ERROR cannot resolve
+pub fn say_strng(x: &mut i32) {
+    *x += 1;
+    return;
+}
+
 #[flux::sig(fn(x:i32) -> i32)] //~ ERROR type mismatch
 pub fn sob(x: i32) {
     return;
