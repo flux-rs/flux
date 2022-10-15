@@ -623,7 +623,7 @@ fn lower_generic_arg<'tcx>(
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty, span)?)),
         GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-            Err(emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`")))
+            Err(emit_err(tcx, Some(span), format!("unsupported generic argument: `{arg:?}`")))
         }
     }
 }
@@ -653,7 +653,7 @@ fn lower_generic_param_def(
         _ => {
             return Err(emit_err(
                 tcx,
-                None,
+                Some(tcx.def_span(generic.def_id)),
                 format!("unsupported generic parameter: `{generic:?}`"),
             ))
         }
