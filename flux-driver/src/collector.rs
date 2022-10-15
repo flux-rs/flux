@@ -354,6 +354,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
         for (name, dups) in attrs.dups() {
             for attr in dups {
+                if attr.allow_dups() {
+                    continue;
+                }
                 self.error_guaranteed = Some(
                     self.sess
                         .emit_err(errors::DuplicatedAttr { span: attr.span, name }),
@@ -455,6 +458,12 @@ macro_rules! read_attr {
     ($self:expr, $kind:ident) => {
         read_attrs!($self, $kind).pop()
     };
+}
+
+impl FluxAttr {
+    pub fn allow_dups(&self) -> bool {
+        matches!(&self.kind, FluxAttrKind::Invariant(..))
+    }
 }
 
 impl FluxAttrs {
