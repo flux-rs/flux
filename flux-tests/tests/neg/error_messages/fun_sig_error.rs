@@ -1,10 +1,9 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-
 #[flux::sig(fn(x:i32) -> i32)] //~ ERROR type mismatch
 pub fn sob(x: i32) {
-    return
+    return;
 }
 
 #[flux::sig(fn(x:i32) -> i32)] //~ ERROR type mismatch
@@ -45,3 +44,8 @@ pub fn ipa(x: &i32) -> i32 {
 fn ris() -> i32 {
     0
 }
+
+type A<'a> = &'a [i32];
+
+#[flux::sig(fn())]
+fn dipa(x: A) {} //~ ERROR unsupported function signature

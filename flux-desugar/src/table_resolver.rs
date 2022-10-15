@@ -50,7 +50,6 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
         Ok(surface::EnumDef {
             def_id: enum_def.def_id,
             refined_by: enum_def.refined_by,
-            opaque: enum_def.opaque,
             invariants: enum_def.invariants,
             variants,
         })
@@ -455,7 +454,6 @@ pub mod errors {
     #[diag(resolver::unsupported_signature, code = "FLUX")]
     pub struct UnsupportedSignature {
         #[primary_span]
-        #[label]
         pub span: Span,
         pub msg: &'static str,
     }

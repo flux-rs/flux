@@ -40,7 +40,7 @@ use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
     fixpoint::KVarStore,
-    refine_tree::{RefineCtxt, RefineTree, Snapshot, Unpack},
+    refine_tree::{RefineCtxt, RefineTree, Snapshot, UnpackFlags},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
@@ -231,7 +231,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-            let ty = rcx.unpack_with(ty, Unpack::INVARIANTS);
+            let ty = rcx.unpack_with(ty, UnpackFlags::INVARIANTS);
             env.alloc_with_ty(local, ty);
         }
 

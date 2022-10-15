@@ -117,7 +117,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![]))
+            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false))
             .clone()
     }
 
@@ -148,13 +148,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
-        let def_id_variants = self.tcx.adt_def(def_id).variants();
         self.adt_variants
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
                 Some(
-                    def_id_variants
+                    self.tcx
+                        .adt_def(def_id)
+                        .variants()
                         .iter()
                         .map(|variant_def| self.default_variant_def(def_id, variant_def))
                         .collect(),
@@ -171,7 +172,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
-        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id)) {
+        let span = self.tcx.def_span(def_id);
+        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id), span) {
             Ok(fn_sig) => {
                 self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
             }
@@ -184,7 +186,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_type_of(&self, def_id: DefId) -> ty::Ty {
-        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id)) {
+        let span = self.tcx.def_span(def_id);
+        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id), span) {
             Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
             Err(_) => FatalError.raise(),
         }

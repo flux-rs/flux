@@ -103,10 +103,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let invariants = adt
             .invariants
             .iter()
-            .map(|invariant| Binders::new(cx.conv_expr(invariant), sorts.as_slice()))
+            .map(|invariant| cx.conv_invariant(&sorts, invariant))
             .collect_vec();
 
-        ty::AdtDef::new(genv.tcx.adt_def(adt.def_id), sorts, invariants)
+        ty::AdtDef::new(genv.tcx.adt_def(adt.def_id), sorts, invariants, adt.opaque)
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -226,6 +226,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let expr = conv_expr(&qualifier.expr, &name_map, 1);
 
         ty::Qualifier { name: qualifier.name.clone(), args, expr }
+    }
+
+    fn conv_invariant(&self, sorts: &[ty::Sort], invariant: &core::Expr) -> ty::Invariant {
+        ty::Invariant {
+            pred: Binders::new(self.conv_expr(invariant), sorts),
+            source_info: invariant.span.data(),
+        }
     }
 
     fn conv_expr(&self, expr: &core::Expr) -> ty::Expr {

@@ -56,7 +56,8 @@ pub fn desugar_fn_sig(
 ) -> Result<core::FnSig, ErrorGuaranteed> {
     let rust_fn_sig = genv.tcx.fn_sig(def_id);
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
-    let rust_sig = rustc::lowering::lower_fn_sig(genv.tcx, rust_fn_sig)?;
+    let span = genv.tcx.def_span(def_id.to_def_id());
+    let rust_sig = rustc::lowering::lower_fn_sig(genv.tcx, rust_fn_sig, span)?;
     let sig = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
         .zip_fn_sig(fn_sig, &rust_sig)?;
     desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
