@@ -130,7 +130,6 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
                 res.push((ident, dt));
             } else {
                 return Err(self.sess.emit_err(UnresolvedLocation::new(ident)));
-                // panic!("missing location type for `{}`", ident);
             }
         }
         Ok(res)
