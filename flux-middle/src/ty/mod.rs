@@ -12,6 +12,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+use rustc_span::{SpanData, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
@@ -27,10 +28,22 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct AdtDefData {
     def_id: DefId,
-    invariants: Vec<Binders<Expr>>,
+    invariants: Vec<Invariant>,
     sorts: Vec<Sort>,
     flags: AdtFlags,
     nvariants: usize,
+    opaque: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct Invariant {
+    pub pred: Binders<Expr>,
+    /// The source span of the invariant. Used for error reporting
+    ///
+    /// FIXME(nlehmann) We should't be storing spans here. Probably a
+    /// better approach would be to assign a unique id to the invariant
+    /// (akin to DefId) and keep the span information somewhere else.
+    pub source_info: SpanData,
 }
 
 pub type PolyVariant = Binders<VariantDef>;
@@ -236,7 +249,8 @@ impl AdtDef {
     pub(crate) fn new(
         rustc_def: rustc_middle::ty::AdtDef,
         sorts: Vec<Sort>,
-        invariants: Vec<Binders<Expr>>,
+        invariants: Vec<Invariant>,
+        opaque: bool,
     ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
@@ -244,6 +258,7 @@ impl AdtDef {
             sorts,
             flags: rustc_def.flags(),
             nvariants: rustc_def.variants().len(),
+            opaque,
         }))
     }
 
@@ -275,8 +290,12 @@ impl AdtDef {
         (0..self.0.nvariants).map(VariantIdx::from)
     }
 
-    pub fn invariants(&self) -> &[Binders<Expr>] {
+    pub fn invariants(&self) -> &[Invariant] {
         &self.0.invariants
+    }
+
+    pub fn is_opaque(&self) -> bool {
+        self.0.opaque
     }
 }
 
@@ -496,12 +515,15 @@ impl BaseTy {
         }
     }
 
-    pub fn invariants(&self) -> &[Binders<Expr>] {
-        static GE0: LazyLock<Binders<Expr>> = LazyLock::new(|| {
-            Binders::new(
-                Expr::binary_op(BinOp::Ge, Expr::bvar(BoundVar::NU), Expr::zero()),
-                vec![Sort::Int],
-            )
+    pub fn invariants(&self) -> &[Invariant] {
+        static GE0: LazyLock<Invariant> = LazyLock::new(|| {
+            Invariant {
+                pred: Binders::new(
+                    Expr::binary_op(BinOp::Ge, Expr::bvar(BoundVar::NU), Expr::zero()),
+                    vec![Sort::Int],
+                ),
+                source_info: DUMMY_SP.data(),
+            }
         });
 
         match self {

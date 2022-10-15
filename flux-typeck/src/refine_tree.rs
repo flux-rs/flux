@@ -220,7 +220,7 @@ impl RefineCtxt<'_> {
     fn assume_invariants(&mut self, bty: &BaseTy, idxs: &[Index]) {
         let exprs = idxs.iter().map(Index::to_expr).collect_vec();
         for invariant in bty.invariants() {
-            self.assume_pred(invariant.replace_bound_vars(&exprs));
+            self.assume_pred(invariant.pred.replace_bound_vars(&exprs));
         }
     }
 }

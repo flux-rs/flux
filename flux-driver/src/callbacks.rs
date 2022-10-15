@@ -157,6 +157,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     def_id.to_def_id(),
                     refined_by,
                     std::mem::take(&mut def.invariants),
+                    def.opaque,
                 )?;
                 Wf::new(genv).check_adt_def(&adt_def)?;
                 adt_map.insert(*def_id, adt_def);
@@ -174,6 +175,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     def_id.to_def_id(),
                     refined_by,
                     std::mem::take(&mut def.invariants),
+                    false,
                 )?;
                 Wf::new(genv).check_adt_def(&adt_def)?;
                 adt_map.insert(*def_id, adt_def);
@@ -270,15 +272,17 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         match self.genv.tcx.def_kind(def_id.to_def_id()) {
             DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
-            DefKind::Enum => self.check_adt_invariants(def_id),
+            DefKind::Enum | DefKind::Struct => self.check_adt_invariants(def_id),
             _ => Ok(()),
         }
     }
 
     fn check_adt_invariants(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let adt_def = self.genv.adt_def(def_id.to_def_id());
-        invariants::check_invariants(self.genv, &adt_def);
-        Ok(())
+        if adt_def.is_opaque() {
+            return Ok(());
+        }
+        invariants::check_invariants(self.genv, &adt_def)
     }
 }
 

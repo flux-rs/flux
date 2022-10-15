@@ -51,7 +51,6 @@ pub struct EnumDef<T = Ident> {
     pub refined_by: Option<Params>,
     pub variants: Vec<VariantDef<T>>,
     pub invariants: Vec<Expr>,
-    pub opaque: bool,
 }
 
 #[derive(Debug)]

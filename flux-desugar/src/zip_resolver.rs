@@ -50,7 +50,6 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
 
         Ok(EnumDef {
             def_id: enum_def.def_id,
-            opaque: enum_def.opaque,
             refined_by: enum_def.refined_by,
             invariants: enum_def.invariants,
             variants,

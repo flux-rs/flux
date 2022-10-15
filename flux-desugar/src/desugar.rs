@@ -66,6 +66,7 @@ pub fn desugar_adt_data(
     def_id: DefId,
     params: &surface::Params,
     invariants: Vec<surface::Expr>,
+    opaque: bool,
 ) -> Result<AdtDef, ErrorGuaranteed> {
     let mut cx = ParamsCtxt::new(sess, consts);
     cx.insert_params(params)?;
@@ -77,7 +78,7 @@ pub fn desugar_adt_data(
         .map(|invariant| cx.desugar_expr(invariant))
         .try_collect_exhaust()?;
     let refined_by = cx.params;
-    Ok(AdtDef { def_id, sorts, fields, refined_by, invariants })
+    Ok(AdtDef { def_id, sorts, fields, refined_by, invariants, opaque })
 }
 
 pub fn desugar_struct_def(

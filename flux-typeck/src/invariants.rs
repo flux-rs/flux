@@ -1,6 +1,8 @@
+use flux_common::iter::IterExt;
+use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     global_env::GlobalEnv,
-    ty::{AdtDef, Binders, Expr, TyKind},
+    ty::{AdtDef, Invariant, TyKind},
 };
 
 use crate::{
@@ -9,13 +11,18 @@ use crate::{
     refine_tree::{RefineTree, UnpackFlags},
 };
 
-pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) {
-    for invariant in adt_def.invariants() {
-        check_invariant(genv, adt_def, invariant);
-    }
+pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) -> Result<(), ErrorGuaranteed> {
+    adt_def
+        .invariants()
+        .into_iter()
+        .try_for_each_exhaust(|invariant| check_invariant(genv, adt_def, invariant))
 }
 
-fn check_invariant(genv: &GlobalEnv, adt_def: &AdtDef, invariant: &Binders<Expr>) {
+fn check_invariant(
+    genv: &GlobalEnv,
+    adt_def: &AdtDef,
+    invariant: &Invariant,
+) -> Result<(), ErrorGuaranteed> {
     let mut refine_tree = RefineTree::new();
 
     for variant_idx in adt_def.variants() {
@@ -35,9 +42,7 @@ fn check_invariant(genv: &GlobalEnv, adt_def: &AdtDef, invariant: &Binders<Expr>
         }
 
         if let TyKind::Indexed(_, idxs) = variant.ret.kind() {
-            // TODO(nilehmann) maybe parameterize RefineTree by the tag so we can use
-            // a different Tag type here
-            rcx.check_pred(invariant.replace_bound_vars(&idxs.to_exprs()), Tag::Other);
+            rcx.check_pred(invariant.pred.replace_bound_vars(&idxs.to_exprs()), Tag::Other);
         } else {
             panic!()
         }
@@ -45,5 +50,20 @@ fn check_invariant(genv: &GlobalEnv, adt_def: &AdtDef, invariant: &Binders<Expr>
     let mut fcx = FixpointCtxt::new(&genv.consts, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
     fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uf_sorts)
-        .unwrap();
+        .map_err(|_| {
+            genv.sess
+                .emit_err(errors::Invalid { span: invariant.source_info.span() })
+        })
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use rustc_span::Span;
+
+    #[derive(Diagnostic)]
+    #[diag(invariants::invalid, code = "FLUX")]
+    pub struct Invalid {
+        #[primary_span]
+        pub span: Span,
+    }
 }

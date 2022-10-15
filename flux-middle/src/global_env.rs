@@ -117,7 +117,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![]))
+            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false))
             .clone()
     }
 
