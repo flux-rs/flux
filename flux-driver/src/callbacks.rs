@@ -18,6 +18,7 @@ use rustc_middle::ty::{
     TyCtxt, WithOptConstParam,
 };
 use rustc_session::config::ErrorOutputType;
+use typeck::invariants;
 
 use crate::{
     collector::{IgnoreKey, Ignores, SpecCollector},
@@ -269,8 +270,15 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         match self.genv.tcx.def_kind(def_id.to_def_id()) {
             DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
+            DefKind::Enum => self.check_adt_invariants(def_id),
             _ => Ok(()),
         }
+    }
+
+    fn check_adt_invariants(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        let adt_def = self.genv.adt_def(def_id.to_def_id());
+        invariants::check_invariants(self.genv, &adt_def);
+        Ok(())
     }
 }
 

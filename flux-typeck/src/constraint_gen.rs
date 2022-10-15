@@ -13,7 +13,7 @@ use rustc_span::Span;
 
 use crate::{
     param_infer::{self, InferenceError},
-    refine_tree::{ConstrBuilder, RefineCtxt, Unpack},
+    refine_tree::{ConstrBuilder, RefineCtxt, UnpackFlags},
     type_env::{PathMap, TypeEnv},
 };
 
@@ -112,7 +112,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|(actual, formal)| {
                 if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind() {
-                    rcx.unpack_with(actual, Unpack::EXISTS_IN_MUT_REF)
+                    rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
                     actual.clone()
                 }
@@ -354,4 +354,6 @@ mod pretty {
             }
         }
     }
+
+    impl_debug_with_default_cx!(Tag);
 }

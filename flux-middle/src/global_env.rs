@@ -148,13 +148,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
-        let def_id_variants = self.tcx.adt_def(def_id).variants();
         self.adt_variants
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
                 Some(
-                    def_id_variants
+                    self.tcx
+                        .adt_def(def_id)
+                        .variants()
                         .iter()
                         .map(|variant_def| self.default_variant_def(def_id, variant_def))
                         .collect(),

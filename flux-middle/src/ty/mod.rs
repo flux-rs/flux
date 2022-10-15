@@ -30,6 +30,7 @@ pub struct AdtDefData {
     invariants: Vec<Binders<Expr>>,
     sorts: Vec<Sort>,
     flags: AdtFlags,
+    nvariants: usize,
 }
 
 pub type PolyVariant = Binders<VariantDef>;
@@ -242,6 +243,7 @@ impl AdtDef {
             invariants,
             sorts,
             flags: rustc_def.flags(),
+            nvariants: rustc_def.variants().len(),
         }))
     }
 
@@ -267,6 +269,10 @@ impl AdtDef {
 
     pub fn is_struct(&self) -> bool {
         self.flags().contains(AdtFlags::IS_STRUCT)
+    }
+
+    pub fn variants(&self) -> impl Iterator<Item = VariantIdx> {
+        (0..self.0.nvariants).map(VariantIdx::from)
     }
 
     pub fn invariants(&self) -> &[Binders<Expr>] {
