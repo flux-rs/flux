@@ -81,8 +81,9 @@ impl<'tcx> LoweringCtxt<'tcx> {
         &self,
         local_decl: &rustc_mir::LocalDecl<'tcx>,
     ) -> Result<LocalDecl, ErrorGuaranteed> {
+        let span = local_decl.source_info.span;
         Ok(LocalDecl {
-            ty: lower_ty(self.tcx, local_decl.ty)?,
+            ty: lower_ty(self.tcx, local_decl.ty, span)?,
             source_info: local_decl.source_info,
         })
     }
@@ -151,13 +152,14 @@ impl<'tcx> LoweringCtxt<'tcx> {
         &self,
         trait_f: DefId,
         substs: SubstsRef<'tcx>,
+        span: Span,
     ) -> Result<Option<Instance>, ErrorGuaranteed> {
         let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
         match rustc_middle::ty::Instance::resolve(self.tcx, param_env, trait_f, substs) {
             Ok(Some(instance)) => {
                 let impl_f = instance.def_id();
                 let inst = if impl_f != trait_f {
-                    let substs = lower_substs(self.tcx, instance.substs)?;
+                    let substs = lower_substs(self.tcx, instance.substs, span)?;
                     Some(Instance { impl_f, substs })
                 } else {
                     None
@@ -172,6 +174,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
         &self,
         terminator: &rustc_mir::Terminator<'tcx>,
     ) -> Result<Terminator<'tcx>, ErrorGuaranteed> {
+        let span = terminator.source_info.span;
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call {
@@ -179,7 +182,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
             } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        let lowered_substs = lower_substs(self.tcx, substs)?;
+                        let lowered_substs = lower_substs(self.tcx, substs, span)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
                     _ => {
@@ -192,7 +195,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
 
                 let destination = self.lower_place(destination)?;
 
-                let instance = self.lower_instance(func, substs.orig)?;
+                let instance = self.lower_instance(func, substs.orig, span)?;
 
                 TerminatorKind::Call {
                     func,
@@ -285,7 +288,7 @@ impl<'tcx> LoweringCtxt<'tcx> {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
             }
             rustc_mir::Rvalue::Aggregate(aggregate_kind, args) => {
-                let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
+                let aggregate_kind = self.lower_aggregate_kind(aggregate_kind, source_info.span)?;
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
@@ -300,7 +303,8 @@ impl<'tcx> LoweringCtxt<'tcx> {
                     )
                 })?;
                 let op = self.lower_operand(op)?;
-                let ty = lower_ty(self.tcx, *ty)?;
+                let span = source_info.span;
+                let ty = lower_ty(self.tcx, *ty, span)?;
                 Ok(Rvalue::Cast(kind, op, ty))
             }
             rustc_mir::Rvalue::Repeat(_, _)
@@ -328,13 +332,14 @@ impl<'tcx> LoweringCtxt<'tcx> {
     fn lower_aggregate_kind(
         &self,
         aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
+        span: Span,
     ) -> Result<AggregateKind, ErrorGuaranteed> {
         match aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
-                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs)?))
+                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs, span)?))
             }
             rustc_mir::AggregateKind::Array(ty) => {
-                Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
+                Ok(AggregateKind::Array(lower_ty(self.tcx, *ty, span)?))
             }
             rustc_mir::AggregateKind::Adt(..)
             | rustc_mir::AggregateKind::Tuple
@@ -482,7 +487,8 @@ fn mk_fake_predecessors(
 }
 
 fn lower_type_of(tcx: TyCtxt, def_id: DefId) -> Result<Ty, ErrorGuaranteed> {
-    lower_ty(tcx, tcx.type_of(def_id))
+    let span = tcx.def_span(def_id);
+    lower_ty(tcx, tcx.type_of(def_id), span)
 }
 
 pub fn lower_enum_def<'tcx>(
@@ -516,21 +522,28 @@ pub fn lower_variant_def(
 pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
+    span: Span,
 ) -> Result<FnSig, ErrorGuaranteed> {
     let fn_sig = tcx.erase_late_bound_regions(fn_sig);
     let inputs_and_output = List::from_vec(
         fn_sig
             .inputs_and_output
             .iter()
-            .map(|ty| lower_ty(tcx, ty))
+            .map(|ty| lower_ty(tcx, ty, span))
             .try_collect()?,
     );
     Ok(FnSig { inputs_and_output })
 }
 
-pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, ErrorGuaranteed> {
+pub fn lower_ty<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    ty: rustc_ty::Ty<'tcx>,
+    span: Span,
+) -> Result<Ty, ErrorGuaranteed> {
     match ty.kind() {
-        rustc_ty::Ref(_region, ty, mutability) => Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability)),
+        rustc_ty::Ref(_region, ty, mutability) => {
+            Ok(Ty::mk_ref(lower_ty(tcx, *ty, span)?, *mutability))
+        }
         rustc_ty::Bool => Ok(Ty::mk_bool()),
         rustc_ty::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
         rustc_ty::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
@@ -540,7 +553,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
             let substs = List::from_vec(
                 substs
                     .iter()
-                    .map(|arg| lower_generic_arg(tcx, arg))
+                    .map(|arg| lower_generic_arg(tcx, arg, span))
                     .try_collect()?,
             );
             Ok(Ty::mk_adt(adt_def.did(), substs))
@@ -548,9 +561,15 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
         rustc_ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
-        rustc_ty::Array(ty, c) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *c)?)),
+        rustc_ty::Array(ty, c) => {
+            Ok(Ty::mk_array(lower_ty(tcx, *ty, span)?, lower_const(tcx, *c, span)?))
+        }
         _ => {
-            Err(emit_err(tcx, None, format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind())))
+            Err(emit_err(
+                tcx,
+                Some(span),
+                format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind()),
+            ))
         }
     }
 }
@@ -558,6 +577,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, E
 fn lower_const<'tcx>(
     tcx: TyCtxt<'tcx>,
     c: rustc_ty::Const<'tcx>,
+    span: Span,
 ) -> Result<Const, ErrorGuaranteed> {
     let kind = match c.kind() {
         rustc_ty::ConstKind::Value(val) => ConstKind::Value(lower_valtree(tcx, val)?),
@@ -570,7 +590,7 @@ fn lower_const<'tcx>(
             return Err(emit_err(tcx, None, format!("unsupported const `{c:?}`")));
         }
     };
-    Ok(Const { ty: lower_ty(tcx, c.ty())?, kind })
+    Ok(Const { ty: lower_ty(tcx, c.ty(), span)?, kind })
 }
 
 fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGuaranteed> {
@@ -585,11 +605,12 @@ fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGu
 fn lower_substs<'tcx>(
     tcx: TyCtxt<'tcx>,
     substs: rustc_middle::ty::subst::SubstsRef<'tcx>,
+    span: Span,
 ) -> Result<List<GenericArg>, ErrorGuaranteed> {
     Ok(List::from_vec(
         substs
             .iter()
-            .map(|arg| lower_generic_arg(tcx, arg))
+            .map(|arg| lower_generic_arg(tcx, arg, span))
             .try_collect()?,
     ))
 }
@@ -597,11 +618,12 @@ fn lower_substs<'tcx>(
 fn lower_generic_arg<'tcx>(
     tcx: TyCtxt<'tcx>,
     arg: rustc_middle::ty::subst::GenericArg<'tcx>,
+    span: Span,
 ) -> Result<GenericArg, ErrorGuaranteed> {
     match arg.unpack() {
-        GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
+        GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty, span)?)),
         GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => {
-            Err(emit_err(tcx, None, format!("unsupported generic argument: `{arg:?}`")))
+            Err(emit_err(tcx, Some(span), format!("unsupported generic argument: `{arg:?}`")))
         }
     }
 }
@@ -631,7 +653,7 @@ fn lower_generic_param_def(
         _ => {
             return Err(emit_err(
                 tcx,
-                None,
+                Some(tcx.def_span(generic.def_id)),
                 format!("unsupported generic parameter: `{generic:?}`"),
             ))
         }

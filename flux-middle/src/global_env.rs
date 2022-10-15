@@ -171,7 +171,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
-        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id)) {
+        let span = self.tcx.def_span(def_id);
+        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id), span) {
             Ok(fn_sig) => {
                 self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
             }
@@ -184,7 +185,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_type_of(&self, def_id: DefId) -> ty::Ty {
-        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id)) {
+        let span = self.tcx.def_span(def_id);
+        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id), span) {
             Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
             Err(_) => FatalError.raise(),
         }
