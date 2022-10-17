@@ -11,7 +11,7 @@ pub fn never<T>(_x: i32) -> T {
 pub enum List {
     #[flux::variant(List[0])]
     Nil,
-    #[flux::variant({i32, Box<List[@n]>} -> List[n+1])]
+    #[flux::variant((i32, Box<List[@n]>) -> List[n+1])]
     Cons(i32, Box<List>),
 }
 

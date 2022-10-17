@@ -84,9 +84,9 @@ VariantRet: surface::VariantRet = {
     }
 }
 
-// TODO(RJ): horrific parser error if I replace braces with parens
 Fields: Vec<surface::Ty> = {
-    "{" <Comma<Ty>> "}" "->"
+    "(" <Comma<Ty>> ")" "->",
+    "{" <Comma<Ty>> "}" "->",
 }
 
 Env     = <Comma<(<Ident> "@" <Ty>)>>;
