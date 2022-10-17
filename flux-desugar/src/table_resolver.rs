@@ -64,8 +64,16 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             .into_iter()
             .map(|ty| self.resolve_ty(ty))
             .try_collect_exhaust()?;
-        let ret = self.resolve_ty(variant.ret)?;
+        let ret = self.resolve_variant_ret(variant.ret)?;
         Ok(surface::VariantDef { fields, ret, span: variant.span })
+    }
+
+    fn resolve_variant_ret(
+        &self,
+        ret: surface::VariantRet,
+    ) -> Result<surface::VariantRet<Res>, ErrorGuaranteed> {
+        let path = self.resolve_path(ret.path)?;
+        Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
     pub fn resolve_struct_def(

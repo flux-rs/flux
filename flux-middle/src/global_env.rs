@@ -13,6 +13,7 @@ use rustc_span::Symbol;
 
 use crate::{
     core::{self, UFDef, VariantIdx},
+    intern::List,
     rustc,
     ty::{self, Binders},
 };
@@ -143,7 +144,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let poly_variant = self.variant(def_id, variant_idx);
         let variant = poly_variant.skip_binders();
         let sorts = poly_variant.params();
-        let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.clone(), vec![]);
+        let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
         ty::Binders::new(sig, sorts)
     }
 
@@ -206,7 +207,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 .iter()
                 .map(|ty| self.refine_ty_true(ty))
                 .collect_vec();
-            let ret = self.refine_ty_true(&variant_def.ret);
+            let rustc::ty::TyKind::Adt(def_id, substs) = variant_def.ret.kind() else {
+                panic!();
+            };
+            let substs = substs
+                .iter()
+                .map(|arg| {
+                    self.refine_generic_arg(arg, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
+                })
+                .collect_vec();
+            let bty = ty::BaseTy::adt(self.adt_def(*def_id), substs);
+            let ret = ty::VariantRet { bty, indices: List::from_vec(vec![]) };
             Binders::new(ty::VariantDef::new(fields, ret), vec![])
         } else {
             FatalError.raise()

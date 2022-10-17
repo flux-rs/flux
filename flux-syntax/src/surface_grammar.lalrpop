@@ -69,12 +69,18 @@ pub FnSig: surface::FnSig = {
 }
 
 pub Variant: surface::VariantDef = {
-    <lo:@L> <tys:Fields?> <ret:Ty> <hi:@R> => {
+    <lo:@L> <tys:Fields?> <ret:VariantRet> <hi:@R> => {
         let fields = match tys {
             Some(fields) => fields,
             None => vec![],
         };
         surface::VariantDef { fields, ret, span: mk_span(lo, hi) }
+    }
+}
+
+VariantRet: surface::VariantRet = {
+    <path: Path> "[" <indices: Indices> "]" => {
+        surface::VariantRet {<>}
     }
 }
 
@@ -123,6 +129,7 @@ TyKind: surface::TyKind = {
 
     "[" <ty:Ty> ";"  <len:Lit> "]" => surface::TyKind::Array(Box::new(ty), len),
     "[" <ty:Ty> "]" => surface::TyKind::Slice(Box::new(ty)),
+    "[" <ty:Ty> "]""[" <indices:Indices> "]" => surface::TyKind::Slice(Box::new(ty)),
 
     "(" ")"  => surface::TyKind::Unit
 }

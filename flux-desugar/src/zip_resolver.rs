@@ -3,7 +3,7 @@ use std::{collections::HashMap, iter};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
 use flux_syntax::surface::{
-    Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef,
+    Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef, VariantRet,
 };
 use itertools::Itertools;
 use rustc_middle::ty::TyCtxt;
@@ -76,8 +76,17 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
         let fields: Result<Vec<Ty<Res>>, ErrorGuaranteed> = fields.into_iter().collect();
         let fields = fields?;
 
-        let ret = self.zip_ty(variant_def.ret, &rust_variant_def.ret)?;
+        let ret = self.zip_variant_ret(variant_def.ret, &rust_variant_def.ret)?;
         Ok(VariantDef { fields, ret, span: variant_def.span })
+    }
+
+    fn zip_variant_ret(
+        &self,
+        ret: VariantRet,
+        rust_ty: &rustc_ty::Ty,
+    ) -> Result<VariantRet<Res>, ErrorGuaranteed> {
+        let path = self.zip_path(ret.path, rust_ty)?;
+        Ok(VariantRet { path, indices: ret.indices })
     }
 
     /// `zip_fn_sig(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements

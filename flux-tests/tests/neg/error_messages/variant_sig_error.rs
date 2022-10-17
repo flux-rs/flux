@@ -16,3 +16,11 @@ pub fn unwrap_i32(x: Opt<i32>) -> i32 {
         Opt::None => 0,
     }
 }
+
+#[flux::refined_by(b:bool)]
+pub enum E<T> {
+    #[flux::variant(Opt<T>[false])] //~ ERROR cannot resolve
+    A,
+    #[flux::variant({T} -> Opt<T>[true])] //~ ERROR cannot resolve
+    B(T),
+}

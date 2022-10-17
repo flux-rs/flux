@@ -39,7 +39,13 @@ pub struct EnumDef {
 pub struct VariantDef {
     pub params: Vec<Param>,
     pub fields: Vec<Ty>,
-    pub ret: Ty,
+    pub ret: VariantRet,
+}
+
+#[derive(Debug)]
+pub struct VariantRet {
+    pub bty: BaseTy,
+    pub indices: Indices,
 }
 
 pub struct FnSig {
