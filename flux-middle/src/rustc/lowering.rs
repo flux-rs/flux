@@ -560,10 +560,14 @@ pub fn lower_ty<'tcx>(
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
-        rustc_ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
+        rustc_ty::Tuple(tys) => {
+            let tys = List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty, span)).try_collect()?);
+            Ok(Ty::mk_tuple(tys))
+        }
         rustc_ty::Array(ty, c) => {
             Ok(Ty::mk_array(lower_ty(tcx, *ty, span)?, lower_const(tcx, *c, span)?))
         }
+        rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty, span)?)),
         _ => {
             Err(emit_err(
                 tcx,

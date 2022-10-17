@@ -122,6 +122,7 @@ TyKind: surface::TyKind = {
     <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },
 
     "[" <ty:Ty> ";"  <len:Lit> "]" => surface::TyKind::Array(Box::new(ty), len),
+    "[" <ty:Ty> "]" => surface::TyKind::Slice(Box::new(ty)),
 
     "(" ")"  => surface::TyKind::Unit
 }

@@ -298,6 +298,9 @@ fn bty_subtyping(
             assert_eq!(len1, len2);
             subtyping(genv, constr, ty1, ty2, tag);
         }
+        (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
+            subtyping(genv, constr, ty1, ty2, tag);
+        }
         _ => {
             unreachable!("unexpected base types: `{:?}` and `{:?}` at {:?}", bty1, bty2, tag.span())
         }

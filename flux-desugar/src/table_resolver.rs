@@ -154,6 +154,10 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Array(Box::new(ty), len)
             }
+            surface::TyKind::Slice(ty) => {
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::Slice(Box::new(ty))
+            }
         };
         Ok(surface::Ty { kind, span: ty.span })
     }

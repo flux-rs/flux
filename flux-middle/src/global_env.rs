@@ -264,6 +264,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Array(ty, len) => {
                 ty::BaseTy::Array(self.refine_ty(ty, mk_pred), len.clone())
             }
+            rustc::ty::TyKind::Slice(ty) => ty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
         };
         let sorts = bty.sorts();
         if sorts.is_empty() {
