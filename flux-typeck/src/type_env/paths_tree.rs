@@ -94,18 +94,6 @@ fn downcast_struct(
 ///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
-
-fn enum_constraint(scrutinee: &Ty, exprs: &[Expr]) -> Expr {
-    match scrutinee.kind() {
-        TyKind::Indexed(_, ixs) => {
-            assert_eq!(ixs.len(), exprs.len());
-            Expr::and(iter::zip(ixs, exprs).map(|(idx, e)| Expr::eq(&idx.expr, e)))
-        }
-        TyKind::Constr(e, ty) => Expr::and([e.clone(), enum_constraint(ty, exprs)]),
-        _ => panic!("unexpected: enum_constraint {scrutinee:?}"),
-    }
-}
-
 fn downcast_enum(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
@@ -119,7 +107,10 @@ fn downcast_enum(
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_types(substs);
 
-    let constr = enum_constraint(&variant_def.ret, exprs);
+    debug_assert_eq!(variant_def.ret.indices.len(), exprs.len());
+    let constr = Expr::and(
+        iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(&idx.expr, e)),
+    );
     rcx.assume_pred(constr);
 
     variant_def.fields.to_vec()
@@ -614,7 +605,8 @@ impl Node {
                 } else {
                     let output = gen
                         .check_constructor(rcx, &variant, substs, &fields)
-                        .unwrap();
+                        .unwrap()
+                        .to_ty();
                     *self = Node::owned(output.clone());
                     output
                 }

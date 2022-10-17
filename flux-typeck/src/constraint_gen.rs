@@ -5,7 +5,7 @@ use flux_middle::{
     rustc::mir::BasicBlock,
     ty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
-        PolyVariant, Pred, RefKind, Sort, Ty, TyKind,
+        PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
     },
 };
 use itertools::{izip, Itertools};
@@ -172,7 +172,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         variant: &PolyVariant,
         substs: &[Ty],
         fields: &[Ty],
-    ) -> Result<Ty, InferenceError> {
+    ) -> Result<VariantRet, InferenceError> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()

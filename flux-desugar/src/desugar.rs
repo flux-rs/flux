@@ -6,7 +6,7 @@ use flux_middle::{
     core::{
         AdtDef, AdtMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
         Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef,
-        UFun, VariantDef,
+        UFun, VariantDef, VariantRet,
     },
     global_env::ConstInfo,
 };
@@ -144,7 +144,7 @@ fn desugar_variant(
         .map(|ty| desugar.desugar_ty(ty))
         .try_collect_exhaust()?;
 
-    let ret = desugar.desugar_ty(variant.ret)?;
+    let ret = desugar.desugar_variant_ret(variant.ret)?;
 
     Ok(VariantDef { params: desugar.params.params, fields, ret })
 }
@@ -358,6 +358,15 @@ impl<'a> DesugarCtxt<'a> {
             }
         };
         Ok(bty)
+    }
+
+    fn desugar_variant_ret(
+        &mut self,
+        ret: surface::VariantRet<Res>,
+    ) -> Result<VariantRet, ErrorGuaranteed> {
+        let bty = self.desugar_path_into_bty(ret.path)?;
+        let indices = self.desugar_indices(ret.indices)?;
+        Ok(VariantRet { bty, indices })
     }
 }
 

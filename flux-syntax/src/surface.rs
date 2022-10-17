@@ -56,8 +56,14 @@ pub struct EnumDef<T = Ident> {
 #[derive(Debug)]
 pub struct VariantDef<T = Ident> {
     pub fields: Vec<Ty<T>>,
-    pub ret: Ty<T>,
+    pub ret: VariantRet<T>,
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct VariantRet<T = Ident> {
+    pub path: Path<T>,
+    pub indices: Indices,
 }
 
 #[derive(Debug, Default)]

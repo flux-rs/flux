@@ -51,7 +51,13 @@ pub type PolyVariant = Binders<VariantDef>;
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VariantDef {
     pub fields: List<Ty>,
-    pub ret: Ty,
+    pub ret: VariantRet,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct VariantRet {
+    pub bty: BaseTy,
+    pub indices: List<Index>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -301,12 +307,18 @@ impl AdtDef {
 }
 
 impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+    pub fn new(fields: Vec<Ty>, ret: VariantRet) -> Self {
         VariantDef { fields: List::from_vec(fields), ret }
     }
 
     pub fn fields(&self) -> &[Ty] {
         &self.fields
+    }
+}
+
+impl VariantRet {
+    pub fn to_ty(&self) -> Ty {
+        Ty::indexed(self.bty.clone(), self.indices.clone())
     }
 }
 

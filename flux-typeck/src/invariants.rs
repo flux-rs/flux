@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     global_env::GlobalEnv,
-    ty::{AdtDef, Invariant, TyKind},
+    ty::{AdtDef, Invariant},
 };
 
 use crate::{
@@ -41,11 +41,12 @@ fn check_invariant(
             rcx.unpack_with(field, UnpackFlags::INVARIANTS);
         }
 
-        if let TyKind::Indexed(_, idxs) = variant.ret.kind() {
-            rcx.check_pred(invariant.pred.replace_bound_vars(&idxs.to_exprs()), Tag::Other);
-        } else {
-            panic!()
-        }
+        rcx.check_pred(
+            invariant
+                .pred
+                .replace_bound_vars(&variant.ret.indices.to_exprs()),
+            Tag::Other,
+        );
     }
     let mut fcx = FixpointCtxt::new(&genv.consts, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);

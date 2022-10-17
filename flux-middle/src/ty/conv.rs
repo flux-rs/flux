@@ -6,10 +6,11 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_target::abi::VariantIdx;
 
-use super::{Binders, PolyVariant};
+use super::{Binders, PolyVariant, VariantRet};
 use crate::{
     core::{self, AdtDef},
     global_env::GlobalEnv,
+    intern::List,
     rustc::ty::GenericParamDefKind,
     ty::{self, DebruijnIndex},
 };
@@ -137,9 +138,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|ty| self.conv_ty(ty, 1))
             .collect_vec();
-        let ret = self.conv_ty(&variant.ret, 1);
-        let variant = ty::VariantDef::new(fields, ret);
+        let variant = ty::VariantDef::new(fields, self.conv_variant_ret(variant.ret));
         Binders::new(variant, sorts)
+    }
+
+    fn conv_variant_ret(&mut self, ret: core::VariantRet) -> VariantRet {
+        let indices = ret
+            .indices
+            .indices
+            .iter()
+            .map(|idx| self.conv_index(idx, 1))
+            .collect_vec();
+        VariantRet { bty: self.conv_base_ty(&ret.bty, 1), indices: List::from_vec(indices) }
     }
 
     pub(crate) fn conv_struct_def_variant(
@@ -174,7 +184,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .enumerate()
                 .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
                 .collect_vec();
-            let ret = ty::Ty::indexed(ty::BaseTy::adt(genv.adt_def(def_id), substs), idxs);
+            let ret = VariantRet {
+                bty: ty::BaseTy::adt(genv.adt_def(def_id), substs),
+                indices: List::from_vec(idxs),
+            };
             let variant = ty::VariantDef::new(fields, ret);
             Some(Binders::new(variant, sorts))
         } else {

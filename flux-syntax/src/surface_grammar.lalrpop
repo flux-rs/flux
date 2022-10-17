@@ -69,7 +69,7 @@ pub FnSig: surface::FnSig = {
 }
 
 pub Variant: surface::VariantDef = {
-    <lo:@L> <tys:Fields?> <ret:Ty> <hi:@R> => {
+    <lo:@L> <tys:Fields?> <ret:VariantRet> <hi:@R> => {
         let fields = match tys {
             Some(fields) => fields,
             None => vec![],
@@ -78,9 +78,15 @@ pub Variant: surface::VariantDef = {
     }
 }
 
-// TODO(RJ): horrific parser error if I replace braces with parens
+VariantRet: surface::VariantRet = {
+    <path: Path> "[" <indices: Indices> "]" => {
+        surface::VariantRet {<>}
+    }
+}
+
 Fields: Vec<surface::Ty> = {
-    "{" <Comma<Ty>> "}" "->"
+    "(" <Comma<Ty>> ")" "->",
+    "{" <Comma<Ty>> "}" "->",
 }
 
 Env     = <Comma<(<Ident> "@" <Ty>)>>;
@@ -123,6 +129,7 @@ TyKind: surface::TyKind = {
 
     "[" <ty:Ty> ";"  <len:Lit> "]" => surface::TyKind::Array(Box::new(ty), len),
     "[" <ty:Ty> "]" => surface::TyKind::Slice(Box::new(ty)),
+    "[" <ty:Ty> "]""[" <indices:Indices> "]" => surface::TyKind::Slice(Box::new(ty)),
 
     "(" ")"  => surface::TyKind::Unit
 }
