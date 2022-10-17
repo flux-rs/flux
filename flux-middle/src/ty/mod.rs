@@ -135,6 +135,7 @@ pub enum BaseTy {
     Bool,
     Str,
     Array(Ty, Const),
+    Slice(Ty),
     Adt(AdtDef, Substs),
     Float(FloatTy),
 }
@@ -315,7 +316,11 @@ impl Ty {
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
-        TyKind::Exists(BaseTy::Array(ty, c), Binders::new(Pred::tt(), vec![])).intern()
+        Ty::indexed(BaseTy::Array(ty, c), vec![])
+    }
+
+    pub fn slice(ty: Ty) -> Ty {
+        Ty::indexed(BaseTy::Slice(ty), vec![])
     }
 
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
@@ -389,10 +394,6 @@ impl Ty {
         }
     }
 
-    pub fn is_uint(&self) -> bool {
-        matches!(self.kind(), TyKind::Indexed(bty, _) if bty.is_uint())
-    }
-
     pub fn bool() -> Ty {
         Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
     }
@@ -410,7 +411,7 @@ impl Ty {
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::exists(BaseTy::Float(float_ty), Binders::new(Pred::tt(), vec![]))
+        Ty::indexed(BaseTy::Float(float_ty), vec![])
     }
 }
 
@@ -496,10 +497,6 @@ impl BaseTy {
         BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
     }
 
-    fn is_uint(&self) -> bool {
-        matches!(self, BaseTy::Uint(_))
-    }
-
     fn is_integral(&self) -> bool {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
@@ -533,7 +530,8 @@ impl BaseTy {
             | BaseTy::Bool
             | BaseTy::Str
             | BaseTy::Array(_, _)
-            | BaseTy::Float(_) => &[],
+            | BaseTy::Float(_)
+            | BaseTy::Slice(_) => &[],
         }
     }
 
@@ -542,7 +540,7 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Array(..) => &[],
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Array(..) | BaseTy::Slice(_) => &[],
         }
     }
 }
@@ -755,7 +753,7 @@ mod pretty {
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(place) => w!("discr({:?})", ^place),
-                TyKind::Constr(pred, ty) => w!("{{ {ty:?} : {pred:?} }}"),
+                TyKind::Constr(pred, ty) => w!("{{ {:?} : {:?} }}", ty, pred),
             }
         }
 
@@ -785,6 +783,7 @@ mod pretty {
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
             BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
+            BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
         }
         if let BaseTy::Adt(_, args) = bty {
             if !args.is_empty() || !indices.is_empty() {

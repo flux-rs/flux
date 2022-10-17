@@ -305,6 +305,7 @@ impl TypeFoldable for BaseTy {
                 BaseTy::adt(adt_def.clone(), substs.iter().map(|ty| ty.fold_with(folder)))
             }
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
+            BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {
                 self.clone()
             }
@@ -314,7 +315,7 @@ impl TypeFoldable for BaseTy {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
-            BaseTy::Array(ty, _) => ty.visit_with(visitor),
+            BaseTy::Array(ty, _) | BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {}
         }
     }

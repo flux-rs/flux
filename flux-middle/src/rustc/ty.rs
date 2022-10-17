@@ -63,6 +63,7 @@ pub enum TyKind {
     Ref(Ty, Mutability),
     Tuple(List<Ty>),
     Uint(UintTy),
+    Slice(Ty),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -109,6 +110,10 @@ impl Ty {
 
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
         TyKind::Array(ty, c).intern()
+    }
+
+    pub fn mk_slice(ty: Ty) -> Ty {
+        TyKind::Slice(ty).intern()
     }
 
     pub fn mk_bool() -> Ty {
@@ -215,6 +220,7 @@ impl std::fmt::Debug for Ty {
                         .format_with(", ", |ty, f| f(&format_args!("{:?}", ty)))
                 )
             }
+            TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }
     }
 }

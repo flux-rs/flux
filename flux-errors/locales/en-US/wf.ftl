@@ -11,7 +11,7 @@ wf_param_count_mismatch =
 
 wf_illegal_binder =
     illegal binder
-    .label = binder not allowed under ADT parameter
+    .label = binder not allowed in this position
 
 wf_unresolved_function =
     unresolved function

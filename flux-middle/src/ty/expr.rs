@@ -146,7 +146,11 @@ impl Expr {
             }
             BaseTy::Uint(_) => ExprKind::Constant(Constant::from(bits)).intern(),
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(_, _) | BaseTy::Array(..) | BaseTy::Str | BaseTy::Float(_) => panic!(),
+            BaseTy::Adt(_, _)
+            | BaseTy::Array(..)
+            | BaseTy::Str
+            | BaseTy::Float(_)
+            | BaseTy::Slice(_) => panic!(),
         }
     }
 

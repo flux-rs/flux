@@ -133,6 +133,7 @@ pub enum TyKind<T = Ident> {
     /// ()
     Unit,
     Array(Box<Ty<T>>, Lit),
+    Slice(Box<Ty<T>>),
 }
 
 #[derive(Debug, Clone)]
@@ -421,6 +422,7 @@ pub mod expand {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
+            TyKind::Slice(ty) => TyKind::Slice(Box::new(expand_ty(aliases, ty))),
         }
     }
 
@@ -549,6 +551,7 @@ pub mod expand {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
+            TyKind::Slice(ty) => TyKind::Slice(Box::new(subst_ty(subst, ty))),
         }
     }
 }

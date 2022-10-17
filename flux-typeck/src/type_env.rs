@@ -375,6 +375,7 @@ impl TypeEnvInfer {
                 BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
+            BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {
                 bty.clone()
             }

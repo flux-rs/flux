@@ -92,6 +92,7 @@ pub enum Ty {
     Param(ParamTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, usize),
+    Slice(Box<Ty>),
     Never,
 }
 
@@ -339,6 +340,7 @@ impl fmt::Debug for Ty {
             Ty::Never => write!(f, "!"),
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
+            Ty::Slice(ty) => write!(f, "[{ty:?}]"),
         }
     }
 }

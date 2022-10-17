@@ -167,7 +167,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_expr(env, pred, ty::Sort::Bool)?;
                 self.check_type(env, ty, allow_binder)
             }
-            core::Ty::Array(ty, _) => self.check_type(env, ty, allow_binder),
+            core::Ty::Slice(ty) | core::Ty::Array(ty, _) => self.check_type(env, ty, false),
             core::Ty::Never | core::Ty::Param(_) | core::Ty::Float(_) => Ok(()),
         }
     }

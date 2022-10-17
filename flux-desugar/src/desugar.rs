@@ -292,6 +292,7 @@ impl<'a> DesugarCtxt<'a> {
                 let ty = self.desugar_ty(*ty)?;
                 Ty::Array(Box::new(ty), len)
             }
+            surface::TyKind::Slice(ty) => Ty::Slice(Box::new(self.desugar_ty(*ty)?)),
         };
         Ok(ty)
     }
@@ -706,8 +707,9 @@ impl<'a> ParamsCtxt<'a> {
             }
             surface::TyKind::StrgRef(_, ty)
             | surface::TyKind::Ref(_, ty)
-            | surface::TyKind::Array(ty, _) => self.ty_gather_params(ty, adt_sorts),
-            surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_sorts),
+            | surface::TyKind::Array(ty, _)
+            | surface::TyKind::Slice(ty)
+            | surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_sorts),
             surface::TyKind::Path(path) => {
                 for ty in &path.args {
                     self.ty_gather_params(ty, adt_sorts)?;

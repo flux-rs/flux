@@ -213,6 +213,9 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
             (TyKind::Array(ty, len), rustc_ty::TyKind::Array(rust_ty, _)) => {
                 TyKind::Array(Box::new(self.zip_ty(*ty, rust_ty)?), len)
             }
+            (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => {
+                TyKind::Slice(Box::new(self.zip_ty(*ty, rust_ty)?))
+            }
 
             _ => panic!("incompatible types: `{rust_ty:?}`"),
         };
