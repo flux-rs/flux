@@ -47,7 +47,9 @@ impl std::ops::Index<&'_ core::Name> for Env {
     type Output = ty::Sort;
 
     fn index(&self, var: &core::Name) -> &Self::Output {
-        &self.sorts[var]
+        self.sorts
+            .get(var)
+            .unwrap_or_else(|| panic!("no enty found for key: `{var:?}`"))
     }
 }
 
@@ -118,28 +120,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Ok(())
     }
 
-    pub fn check_enum_def(
-        &self,
-        adt_data: &core::AdtDef,
-        def: &core::EnumDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&adt_data.refined_by);
+    pub fn check_enum_def(&self, def: &core::EnumDef) -> Result<(), ErrorGuaranteed> {
         def.variants
             .iter()
-            .try_for_each_exhaust(|variant| self.check_variant(&mut env, variant))
+            .try_for_each_exhaust(|variant| self.check_variant(variant))
     }
 
-    fn check_variant(
-        &self,
-        env: &mut Env,
-        variant: &core::VariantDef,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn check_variant(&self, variant: &core::VariantDef) -> Result<(), ErrorGuaranteed> {
+        let mut env = Env::new(&variant.params);
         let fields = variant
             .fields
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(env, ty, true));
+            .try_for_each_exhaust(|ty| self.check_type(&mut env, ty, true));
         let indices =
-            self.check_indices(env, &variant.ret.indices, self.sorts(&variant.ret.bty), false);
+            self.check_indices(&env, &variant.ret.indices, self.sorts(&variant.ret.bty), false);
         (fields?, indices?);
         Ok(())
     }
