@@ -631,6 +631,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 }
                 Ok(Ty::array(ty, Const))
             }
+            Rvalue::Aggregate(AggregateKind::Tuple, args) => {
+                let tys = args
+                    .iter()
+                    .map(|op| self.check_operand(rcx, env, src_info, op))
+                    .collect_vec();
+                Ok(Ty::tuple(tys))
+            }
             Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
             Rvalue::Len(_) => Ok(Ty::usize()),
             Rvalue::Cast(kind, op, to) => {
