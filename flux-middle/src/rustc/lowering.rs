@@ -591,7 +591,7 @@ fn lower_const<'tcx>(
         | rustc_ty::ConstKind::Placeholder(_)
         | rustc_ty::ConstKind::Unevaluated(_)
         | rustc_ty::ConstKind::Error(_) => {
-            return Err(emit_err(tcx, None, format!("unsupported const `{c:?}`")));
+            return Err(emit_err(tcx, Some(span), format!("unsupported const `{c:?}`")));
         }
     };
     Ok(Const { ty: lower_ty(tcx, c.ty(), span)?, kind })

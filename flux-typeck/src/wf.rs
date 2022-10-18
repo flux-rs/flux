@@ -118,6 +118,32 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Ok(())
     }
 
+    pub fn check_enum_def(
+        &self,
+        adt_data: &core::AdtDef,
+        def: &core::EnumDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut env = Env::new(&adt_data.refined_by);
+        def.variants
+            .iter()
+            .try_for_each_exhaust(|variant| self.check_variant(&mut env, variant))
+    }
+
+    fn check_variant(
+        &self,
+        env: &mut Env,
+        variant: &core::VariantDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let fields = variant
+            .fields
+            .iter()
+            .try_for_each_exhaust(|ty| self.check_type(env, ty, true));
+        let indices =
+            self.check_indices(env, &variant.ret.indices, self.sorts(&variant.ret.bty), false);
+        (fields?, indices?);
+        Ok(())
+    }
+
     fn check_constr(
         &self,
         env: &mut Env,

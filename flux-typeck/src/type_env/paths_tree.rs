@@ -108,9 +108,8 @@ fn downcast_enum(
         .replace_generic_types(substs);
 
     debug_assert_eq!(variant_def.ret.indices.len(), exprs.len());
-    let constr = Expr::and(
-        iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(&idx.expr, e)),
-    );
+    let constr =
+        Expr::and(iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(idx, e)));
     rcx.assume_pred(constr);
 
     variant_def.fields.to_vec()
