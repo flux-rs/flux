@@ -218,6 +218,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
                 let enum_def = desugar::desugar_enum_def(genv, &adt_map, enum_def)?;
+                Wf::new(genv).check_enum_def(&adt_map[def_id], &enum_def)?;
                 genv.register_enum_def_variants(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;
