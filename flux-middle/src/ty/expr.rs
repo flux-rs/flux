@@ -498,14 +498,45 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
+    #[derive(PartialEq, Eq, PartialOrd, Ord)]
+    pub enum Precedence {
+        Iff,
+        Imp,
+        Or,
+        And,
+        Cmp,
+        AddSub,
+        MulDiv,
+    }
+
+    pub fn precedence(bin_op: &BinOp) -> Precedence {
+        match bin_op {
+            BinOp::Iff => Precedence::Iff,
+            BinOp::Imp => Precedence::Imp,
+            BinOp::Or => Precedence::Or,
+            BinOp::And => Precedence::And,
+            BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
+                Precedence::Cmp
+            }
+            BinOp::Add | BinOp::Sub => Precedence::AddSub,
+            BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
+        }
+    }
+
+    impl Precedence {
+        pub fn is_associative(&self) -> bool {
+            !matches!(self, Precedence::Imp | Precedence::Cmp)
+        }
+    }
+
     impl Pretty for ExprS {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            fn should_parenthesize(op: BinOp, child: &ExprS) -> bool {
+            fn should_parenthesize(op: &BinOp, child: &ExprS) -> bool {
                 if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    child_op.precedence() < op.precedence()
-                        || (child_op.precedence() == op.precedence()
-                            && !op.precedence().is_associative())
+                    precedence(child_op) < precedence(op)
+                        || (precedence(child_op) == precedence(op)
+                            && !precedence(op).is_associative())
                 } else {
                     false
                 }
@@ -517,7 +548,7 @@ mod pretty {
                 ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
                 ExprKind::BinaryOp(op, e1, e2) => {
-                    if should_parenthesize(*op, e1) {
+                    if should_parenthesize(op, e1) {
                         w!("({:?})", e1)?;
                     } else {
                         w!("{:?}", e1)?;
@@ -527,7 +558,7 @@ mod pretty {
                     } else {
                         w!(" {:?} ", op)?;
                     }
-                    if should_parenthesize(*op, e2) {
+                    if should_parenthesize(op, e2) {
                         w!("({:?})", e2)?;
                     } else {
                         w!("{:?}", e2)?;
