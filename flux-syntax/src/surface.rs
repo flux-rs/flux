@@ -140,9 +140,12 @@ pub enum TyKind<T = Ident> {
     Constr(Expr, Box<Ty<T>>),
     /// ()
     Unit,
-    Array(Box<Ty<T>>, Lit),
+    Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArrayLen;
 
 #[derive(Debug, Clone)]
 pub struct Indices {

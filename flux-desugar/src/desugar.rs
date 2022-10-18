@@ -4,9 +4,9 @@ use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
     core::{
-        AdtDef, AdtMap, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident, Index,
-        Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty, UFDef,
-        UFun, VariantDef, VariantRet,
+        AdtDef, AdtMap, ArrayLen, BaseTy, BinOp, Constraint, EnumDef, Expr, ExprKind, FnSig, Ident,
+        Index, Indices, Lit, Name, Param, Qualifier, RefKind, Sort, StructDef, StructKind, Ty,
+        UFDef, UFun, VariantDef, VariantRet,
     },
     global_env::ConstInfo,
 };
@@ -280,17 +280,9 @@ impl<'a> DesugarCtxt<'a> {
                 let ty = self.desugar_ty(*ty)?;
                 Ty::Constr(pred, Box::new(ty))
             }
-            surface::TyKind::Array(ty, len) => {
-                let span = len.span;
-                let Lit::Int(len) = self.params.desugar_lit(len)? else {
-                    return Err(self.params.sess.emit_err(errors::InvalidArrayLen { span }))
-                };
-                let len: usize = len
-                    .try_into()
-                    .map_err(|_| self.params.sess.emit_err(errors::InvalidArrayLen { span }))?;
-
+            surface::TyKind::Array(ty, _) => {
                 let ty = self.desugar_ty(*ty)?;
-                Ty::Array(Box::new(ty), len)
+                Ty::Array(Box::new(ty), ArrayLen)
             }
             surface::TyKind::Slice(ty) => Ty::Slice(Box::new(self.desugar_ty(*ty)?)),
         };

@@ -127,7 +127,13 @@ TyKind: surface::TyKind = {
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
     <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },
 
-    "[" <ty:Ty> ";"  <len:Lit> "]" => surface::TyKind::Array(Box::new(ty), len),
+    "[" <ty:Ty> ";"  <lo:@L> <ident:Ident> <hi:@R> "]" =>? {
+        if ident.name.as_str() == "_" {
+            Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen))
+        } else {
+            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        }
+    },
     "[" <ty:Ty> "]" => surface::TyKind::Slice(Box::new(ty)),
     "[" <ty:Ty> "]""[" <indices:Indices> "]" => surface::TyKind::Slice(Box::new(ty)),
 
