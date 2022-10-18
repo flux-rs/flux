@@ -134,7 +134,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty, true));
         let indices =
             self.check_indices(&env, &variant.ret.indices, self.sorts(&variant.ret.bty), false);
-        (fields?, indices?);
+        fields?;
+        indices?;
         Ok(())
     }
 
