@@ -20,8 +20,8 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        Const, ConstKind, EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        Generics, Ty, ValTree, VariantDef,
+        Const, EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty,
+        VariantDef,
     },
 };
 use crate::intern::List;
@@ -564,9 +564,7 @@ pub fn lower_ty<'tcx>(
             let tys = List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty, span)).try_collect()?);
             Ok(Ty::mk_tuple(tys))
         }
-        rustc_ty::Array(ty, c) => {
-            Ok(Ty::mk_array(lower_ty(tcx, *ty, span)?, lower_const(tcx, *c, span)?))
-        }
+        rustc_ty::Array(ty, _) => Ok(Ty::mk_array(lower_ty(tcx, *ty, span)?, Const)),
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty, span)?)),
         _ => {
             Err(emit_err(
@@ -574,34 +572,6 @@ pub fn lower_ty<'tcx>(
                 Some(span),
                 format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind()),
             ))
-        }
-    }
-}
-
-fn lower_const<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    c: rustc_ty::Const<'tcx>,
-    span: Span,
-) -> Result<Const, ErrorGuaranteed> {
-    let kind = match c.kind() {
-        rustc_ty::ConstKind::Value(val) => ConstKind::Value(lower_valtree(tcx, val)?),
-        rustc_ty::ConstKind::Param(_)
-        | rustc_ty::ConstKind::Infer(_)
-        | rustc_ty::ConstKind::Bound(_, _)
-        | rustc_ty::ConstKind::Placeholder(_)
-        | rustc_ty::ConstKind::Unevaluated(_)
-        | rustc_ty::ConstKind::Error(_) => {
-            return Err(emit_err(tcx, Some(span), format!("unsupported const `{c:?}`")));
-        }
-    };
-    Ok(Const { ty: lower_ty(tcx, c.ty(), span)?, kind })
-}
-
-fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGuaranteed> {
-    match val {
-        rustc_ty::ValTree::Leaf(scalar) => Ok(ValTree::Leaf(scalar)),
-        rustc_ty::ValTree::Branch(_) => {
-            Err(emit_err(tcx, None, format!("unsupported valtree {val:?}")))
         }
     }
 }

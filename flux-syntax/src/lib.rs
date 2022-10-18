@@ -70,7 +70,7 @@ pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr>
 }
 
 pub enum UserParseError {
-    UnsupportedLiteral(Location, Location),
+    UnexpectedToken(Location, Location),
 }
 
 type LalrpopError = lalrpop_util::ParseError<Location, Token, UserParseError>;
@@ -110,7 +110,7 @@ fn map_err(
 ) -> ParseError {
     match err {
         LalrpopError::InvalidToken { .. } => unreachable!(),
-        LalrpopError::User { error: UserParseError::UnsupportedLiteral(lo, hi) } => {
+        LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } => {
             ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent)
         }
         LalrpopError::UnrecognizedEOF { location, expected: _ } => {

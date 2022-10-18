@@ -2,7 +2,6 @@
 
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -67,20 +66,7 @@ pub enum TyKind {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Const {
-    pub ty: Ty,
-    pub kind: ConstKind,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum ConstKind {
-    Value(ValTree),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum ValTree {
-    Leaf(ScalarInt),
-}
+pub struct Const;
 
 #[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {
@@ -161,17 +147,6 @@ impl Ty {
     }
 }
 
-impl Const {
-    pub fn from_usize(tcx: TyCtxt, bits: u128) -> Self {
-        let size = tcx
-            .layout_of(rustc_middle::ty::ParamEnv::empty().and(tcx.types.usize))
-            .unwrap()
-            .size;
-        let scalar = ScalarInt::try_from_uint(bits, size).unwrap();
-        Const { ty: Ty::mk_usize(), kind: ConstKind::Value(ValTree::Leaf(scalar)) }
-    }
-}
-
 impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef]);
 
 impl std::fmt::Debug for GenericArg {
@@ -227,16 +202,6 @@ impl std::fmt::Debug for Ty {
 
 impl std::fmt::Debug for Const {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.kind {
-            ConstKind::Value(val) => write!(f, "{val:?}"),
-        }
-    }
-}
-
-impl std::fmt::Debug for ValTree {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ValTree::Leaf(scalar) => write!(f, "{scalar:?}"),
-        }
+        write!(f, "_")
     }
 }

@@ -97,10 +97,12 @@ pub enum Ty {
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
     Tuple(Vec<Ty>),
-    Array(Box<Ty>, usize),
+    Array(Box<Ty>, ArrayLen),
     Slice(Box<Ty>),
     Never,
 }
+
+pub struct ArrayLen;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum RefKind {
@@ -348,6 +350,12 @@ impl fmt::Debug for Ty {
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Slice(ty) => write!(f, "[{ty:?}]"),
         }
+    }
+}
+
+impl fmt::Debug for ArrayLen {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "_")
     }
 }
 
