@@ -41,12 +41,7 @@ fn check_invariant(
             rcx.unpack_with(field, UnpackFlags::INVARIANTS);
         }
 
-        rcx.check_pred(
-            invariant
-                .pred
-                .replace_bound_vars(&variant.ret.indices.to_exprs()),
-            Tag::Other,
-        );
+        rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.indices), Tag::Other);
     }
     let mut fcx = FixpointCtxt::new(&genv.consts, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);

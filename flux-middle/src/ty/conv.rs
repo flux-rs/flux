@@ -147,7 +147,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .indices
             .indices
             .iter()
-            .map(|idx| self.conv_index(idx, 1))
+            .map(|idx| self.conv_expr(&idx.expr))
             .collect_vec();
         VariantRet { bty: self.conv_base_ty(&ret.bty, 1), indices: List::from_vec(indices) }
     }

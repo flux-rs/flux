@@ -63,6 +63,8 @@ pub struct VariantDef<T = Ident> {
 #[derive(Debug)]
 pub struct VariantRet<T = Ident> {
     pub path: Path<T>,
+    /// Binders are not allowed at this position, but we parse this as a list of indices
+    /// for better error reporting.
     pub indices: Indices,
 }
 

@@ -57,7 +57,7 @@ pub struct VariantDef {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VariantRet {
     pub bty: BaseTy,
-    pub indices: List<Index>,
+    pub indices: List<Expr>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -318,7 +318,13 @@ impl VariantDef {
 
 impl VariantRet {
     pub fn to_ty(&self) -> Ty {
-        Ty::indexed(self.bty.clone(), self.indices.clone())
+        Ty::indexed(
+            self.bty.clone(),
+            self.indices
+                .iter()
+                .map(|e| Index { expr: e.clone(), is_binder: false })
+                .collect_vec(),
+        )
     }
 }
 
