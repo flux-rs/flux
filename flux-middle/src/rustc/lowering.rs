@@ -341,11 +341,14 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_mir::AggregateKind::Array(ty) => {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty, span)?))
             }
+            rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Adt(..)
-            | rustc_mir::AggregateKind::Tuple
             | rustc_mir::AggregateKind::Closure(_, _)
             | rustc_mir::AggregateKind::Generator(_, _, _) => {
-                self.emit_err(None, format!("unsupported aggregate kind: `{:?}`", aggregate_kind))
+                self.emit_err(
+                    Some(span),
+                    format!("unsupported aggregate kind: `{:?}`", aggregate_kind),
+                )
             }
         }
     }

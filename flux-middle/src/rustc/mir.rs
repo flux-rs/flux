@@ -141,6 +141,7 @@ pub enum CastKind {
 pub enum AggregateKind {
     Adt(DefId, VariantIdx, List<GenericArg>),
     Array(Ty),
+    Tuple,
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -424,6 +425,9 @@ impl fmt::Debug for Rvalue {
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))
+            }
+            Rvalue::Aggregate(AggregateKind::Tuple, args) => {
+                write!(f, "({:?})", args.iter().format(", "))
             }
             Rvalue::Len(place) => write!(f, "Len({place:?})"),
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
