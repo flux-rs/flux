@@ -182,7 +182,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let idxs = sorts
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)).into())
+                .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)))
                 .collect_vec();
             let ret = VariantRet {
                 bty: ty::BaseTy::adt(genv.adt_def(def_id), substs),
