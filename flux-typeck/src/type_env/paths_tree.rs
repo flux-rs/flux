@@ -1,7 +1,7 @@
 use std::{cell::RefCell, iter, rc::Rc};
 
 use flux_middle::{
-    global_env::GlobalEnv,
+    global_env::{GlobalEnv, OpaqueStructErr},
     rustc::mir::{Field, Place, PlaceElem},
     ty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
@@ -71,19 +71,19 @@ impl Root {
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..]<i := e...>`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
-
 fn downcast_struct(
     genv: &GlobalEnv,
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[Ty],
     exprs: &[Expr],
-) -> Vec<Ty> {
-    genv.variant(def_id, variant_idx)
+) -> Result<Vec<Ty>, OpaqueStructErr> {
+    Ok(genv
+        .variant(def_id, variant_idx)?
         .replace_bound_vars(exprs)
         .replace_generic_types(substs)
         .fields
-        .to_vec()
+        .to_vec())
 }
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
@@ -101,9 +101,9 @@ fn downcast_enum(
     variant_idx: VariantIdx,
     substs: &[Ty],
     exprs: &[Expr],
-) -> Vec<Ty> {
+) -> Result<Vec<Ty>, OpaqueStructErr> {
     let variant_def = genv
-        .variant(def_id, variant_idx)
+        .variant(def_id, variant_idx)?
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_types(substs);
 
@@ -112,7 +112,7 @@ fn downcast_enum(
         Expr::and(iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(idx, e)));
     rcx.assume_pred(constr);
 
-    variant_def.fields.to_vec()
+    Ok(variant_def.fields.to_vec())
 }
 
 fn downcast(
@@ -122,7 +122,7 @@ fn downcast(
     variant_idx: VariantIdx,
     substs: &[Ty],
     exprs: &[Expr],
-) -> Vec<Ty> {
+) -> Result<Vec<Ty>, OpaqueStructErr> {
     if genv.tcx.adt_def(def_id).is_struct() {
         downcast_struct(genv, def_id, variant_idx, substs, exprs)
     } else if genv.tcx.adt_def(def_id).is_enum() {
@@ -138,7 +138,7 @@ impl PathsTree {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-    ) -> LookupResult {
+    ) -> Result<LookupResult, OpaqueStructErr> {
         self.lookup_place_iter(
             rcx,
             gen,
@@ -153,7 +153,7 @@ impl PathsTree {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         path: &Path,
-    ) -> LookupResult {
+    ) -> Result<LookupResult, OpaqueStructErr> {
         let mut proj = path
             .projection()
             .iter()
@@ -263,7 +263,7 @@ impl PathsTree {
         loc: Loc,
         place_proj: &mut impl Iterator<Item = PlaceElem>,
         close_boxes: bool,
-    ) -> LookupResult {
+    ) -> Result<LookupResult, OpaqueStructErr> {
         let mut path = Path::from(loc);
         'outer: loop {
             let loc = path.loc;
@@ -274,7 +274,7 @@ impl PathsTree {
             let mut node = &mut *root.borrow_mut();
 
             for field in path.projection() {
-                node = node.proj(gen.genv, rcx, *field);
+                node = node.proj(gen.genv, rcx, *field)?;
                 path_proj.push(*field);
             }
 
@@ -282,10 +282,10 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        node = node.proj(gen.genv, rcx, field);
+                        node = node.proj(gen.genv, rcx, field)?;
                     }
                     PlaceElem::Downcast(variant_idx) => {
-                        node.downcast(gen.genv, rcx, variant_idx);
+                        node.downcast(gen.genv, rcx, variant_idx)?;
                     }
                     PlaceElem::Deref => {
                         let ty = node.expect_owned();
@@ -314,10 +314,10 @@ impl PathsTree {
                     }
                 }
             }
-            return LookupResult::Ptr(
+            return Ok(LookupResult::Ptr(
                 Path::new(loc, path_proj),
                 node.fold(&mut self.map, rcx, gen, true, close_boxes),
-            );
+            ));
         }
     }
 
@@ -327,7 +327,7 @@ impl PathsTree {
         mut rk: RefKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
-    ) -> LookupResult {
+    ) -> Result<LookupResult, OpaqueStructErr> {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
@@ -350,7 +350,7 @@ impl PathsTree {
                         VariantIdx::from_u32(0),
                         substs,
                         &idxs.to_exprs(),
-                    );
+                    )?;
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
@@ -361,13 +361,13 @@ impl PathsTree {
                         variant_idx,
                         substs,
                         &idxs.to_exprs(),
-                    );
+                    )?;
                     ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
                 _ => unreachable!("{elem:?} {ty:?}"),
             }
         }
-        LookupResult::Ref(rk, ty)
+        Ok(LookupResult::Ref(rk, ty))
     }
 
     pub fn close_boxes(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, scope: &Scope) {
@@ -455,7 +455,7 @@ impl Node {
                 other.fold(map, rcx, gen, false, false);
             }
             (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx);
+                self.split(gen.genv, rcx).unwrap();
                 self.join_with(gen, rcx, other);
             }
             (
@@ -487,9 +487,14 @@ impl Node {
         };
     }
 
-    fn proj(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, field: Field) -> &mut Node {
+    fn proj(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        field: Field,
+    ) -> Result<&mut Node, OpaqueStructErr> {
         if let Node::Leaf(_) = self {
-            self.split(genv, rcx);
+            self.split(genv, rcx)?;
         }
         match self {
             Node::Internal(kind, children) => {
@@ -497,13 +502,18 @@ impl Node {
                     let max = usize::max(field.as_usize() + 1, children.len());
                     children.resize(max, Node::owned(Ty::uninit()));
                 }
-                &mut children[field.as_usize()]
+                Ok(&mut children[field.as_usize()])
             }
             Node::Leaf(..) => unreachable!(),
         }
     }
 
-    fn downcast(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt, variant_idx: VariantIdx) {
+    fn downcast(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        variant_idx: VariantIdx,
+    ) -> Result<(), OpaqueStructErr> {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
                 let ty = ty.unconstr();
@@ -516,7 +526,7 @@ impl Node {
                             variant_idx,
                             substs,
                             &idxs.to_exprs(),
-                        )
+                        )?
                         .into_iter()
                         .map(|ty| Node::owned(rcx.unpack(&ty)))
                         .collect();
@@ -534,9 +544,10 @@ impl Node {
             Node::Internal(..) => panic!("invalid downcast"),
             Node::Leaf(..) => panic!("blocked"),
         }
+        Ok(())
     }
 
-    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) {
+    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
         let ty = self.expect_owned();
         match ty.kind() {
             TyKind::Tuple(tys) => {
@@ -544,11 +555,12 @@ impl Node {
                 *self = Node::Internal(NodeKind::Tuple, children);
             }
             TyKind::Indexed(BaseTy::Adt(def, ..), ..) if def.is_struct() => {
-                self.downcast(genv, rcx, VariantIdx::from_u32(0));
+                self.downcast(genv, rcx, VariantIdx::from_u32(0))?;
             }
             TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
             _ => panic!("type cannot be split: `{ty:?}`"),
         }
+        Ok(())
     }
 
     fn fold(
@@ -582,7 +594,7 @@ impl Node {
                 }
             }
             Node::Internal(NodeKind::Tuple, children) => {
-                let tys = children
+                let tys= children
                     .iter_mut()
                     .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
@@ -591,7 +603,7 @@ impl Node {
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx);
+                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx).unwrap();
                 let fields = children
                     .iter_mut()
                     .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))

@@ -25,6 +25,9 @@ pub struct ConstInfo {
     pub val: i128,
 }
 
+#[derive(Debug)]
+pub struct OpaqueStructErr(pub DefId);
+
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
@@ -140,16 +143,25 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self.check_asserts
     }
 
-    pub fn variant_sig(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolySig {
-        let poly_variant = self.variant(def_id, variant_idx);
+    pub fn variant_sig(
+        &self,
+        def_id: DefId,
+        variant_idx: VariantIdx,
+    ) -> Result<ty::PolySig, OpaqueStructErr> {
+        let poly_variant = self.variant(def_id, variant_idx)?;
         let variant = poly_variant.skip_binders();
         let sorts = poly_variant.params();
         let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        ty::Binders::new(sig, sorts)
+        Ok(ty::Binders::new(sig, sorts))
     }
 
-    pub fn variant(&self, def_id: DefId, variant_idx: VariantIdx) -> ty::PolyVariant {
-        self.adt_variants
+    pub fn variant(
+        &self,
+        def_id: DefId,
+        variant_idx: VariantIdx,
+    ) -> Result<ty::PolyVariant, OpaqueStructErr> {
+        Ok(self
+            .adt_variants
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
@@ -163,8 +175,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 )
             })
             .as_ref()
-            .expect("cannot get variant of opaque struct")[variant_idx.as_usize()]
-        .clone()
+            .ok_or_else(|| OpaqueStructErr(def_id))?[variant_idx.as_usize()]
+        .clone())
     }
 
     pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {

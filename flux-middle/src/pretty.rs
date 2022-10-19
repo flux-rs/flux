@@ -107,6 +107,7 @@ macro_rules! _impl_debug_with_default_cx {
         }
     )*};
 }
+
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 
 pub enum Visibility {
@@ -278,6 +279,10 @@ impl Pretty for DefId {
             w!("{}", ^path.data.last().unwrap())
         }
     }
+}
+
+pub fn def_id_to_string(def_id: DefId) -> String {
+    rustc_middle::ty::tls::with(|tcx| format!("{:?}", WithCx::new(&PPrintCx::default(tcx), def_id)))
 }
 
 impl Pretty for Field {
