@@ -34,3 +34,21 @@ pub fn mytuple1(p: Pair) -> i32 {
 pub fn mytuple2(p: Pair) -> i32 {
     p.x
 }
+
+#[flux::sig(fn(Pair[@p1]) -> i32[p.x])] //~ ERROR cannot find value
+pub fn mytuple3(p: Pair) -> i32 {
+    p.x
+}
+
+#[flux::sig(fn(i32[@n]) -> i32[n.x])] //~ ERROR the field `x` is not valid
+pub fn myint1(x: i32) -> i32 {
+    x
+}
+
+#[flux::sig(fn(i32) -> i32[@n])] //~ ERROR cannot find
+pub fn myint2(x: i32) -> i32 {
+    x
+}
+
+#[flux::sig(fn(x: i32, x: i32) -> i32[x + y])]
+pub fn foo() {}

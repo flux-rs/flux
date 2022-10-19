@@ -24,9 +24,6 @@ desugar_refined_type_param =
     type parameters cannot be refined
     .label = this type parameter has a refinement
 
-desugar_invalid_array_len =
-    unsupported or invalid array length
-
 desugar_invalid_dot_var =
     unsupported field access in refinement
 
@@ -39,3 +36,6 @@ desugar_param_count_mismatch =
         *[other] {$found} were found
     }
     .label = expected {$expected} arguments, found {$found}
+
+desugar_invalid_dot_access =
+    the field `{$fld}` is not valid for param `{$ident}`
