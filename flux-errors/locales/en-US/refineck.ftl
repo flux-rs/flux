@@ -30,3 +30,6 @@ refineck_unknown_error =
 
 refineck_overflow_error =
     arithmetic operation may overflow
+
+refineck_opaque_struct_error =
+    cannot access fields of opaque struct `{$struct}`

@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_chains)]
+#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_chains, never_type)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -27,6 +27,7 @@ use std::{fs, io::Write};
 use checker::Checker;
 use constraint_gen::Tag;
 use flux_common::config::CONFIG;
+use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rustc::mir::Body, ty};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
@@ -39,9 +40,9 @@ pub fn check<'a, 'tcx>(
     body: &Body<'tcx>,
     qualifiers: &[ty::Qualifier],
 ) -> Result<(), ErrorGuaranteed> {
-    let bb_envs = Checker::infer(genv, body, def_id)?;
+    let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
     let mut kvars = fixpoint::KVarStore::new();
-    let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
+    let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
 
     if CONFIG.dump_constraint {
         dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();

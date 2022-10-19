@@ -31,6 +31,7 @@ fn check_invariant(
         let mut names = vec![];
         let variant = genv
             .variant(adt_def.def_id(), variant_idx)
+            .expect("cannot check opaque structs")
             .replace_bvars_with_fresh_fvars(|sort| {
                 let fresh = rcx.define_var(sort);
                 names.push(fresh);
