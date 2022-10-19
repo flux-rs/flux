@@ -1102,10 +1102,6 @@ pub(crate) mod errors {
     }
 
     impl CheckerError {
-        pub(crate) fn inference() -> Self {
-            CheckerError { kind: CheckerErrKind::Inference, span: None }
-        }
-
         pub(crate) fn with_src_info_opt(mut self, src_info: Option<SourceInfo>) -> Self {
             if let Some(src_info) = src_info {
                 self.span = Some(src_info.span);
@@ -1147,7 +1143,7 @@ pub(crate) mod errors {
 
     impl From<InferenceError> for CheckerError {
         fn from(_: InferenceError) -> Self {
-            CheckerError::inference()
+            CheckerError { kind: CheckerErrKind::Inference, span: None }
         }
     }
 
