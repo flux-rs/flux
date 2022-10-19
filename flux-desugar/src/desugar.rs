@@ -498,7 +498,10 @@ impl<'a> ParamsCtxt<'a> {
                 Ok(Ident { name, source_info })
             }
             Some(Binder::Aggregate(..)) => {
-                todo!("multi var used in loc position")
+                // This shouldn't happen because loc bindings in input position should
+                // already be inserted as single when gathering parameters and locs in ensure
+                // clauses are guaranteed to be locs during the resolving phase.
+                panic!("aggregate parameter used in loc position")
             }
             None => Err(self.sess.emit_err(errors::UnresolvedVar::new(loc))),
         }
@@ -511,8 +514,7 @@ impl<'a> ParamsCtxt<'a> {
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
         adt_map: &AdtMap,
     ) -> Result<(Vec<Name>, R), ErrorGuaranteed> {
-        let old = self.binders.remove(&bind.name);
-        self.insert_bind(adt_map, bind, path, false)?;
+        let old = self.insert_bind(adt_map, bind, path, false)?;
         let binders = self.binders[&bind.name].names();
         let r = f(self)?;
         if let Some(old) = old {
@@ -542,19 +544,17 @@ impl<'a> ParamsCtxt<'a> {
         adt_map: &AdtMap,
         bind: surface::Ident,
         path: &surface::Path<Res>,
-        push_params: bool,
-    ) -> Result<(), ErrorGuaranteed> {
+        is_param: bool,
+    ) -> Result<Option<Binder>, ErrorGuaranteed> {
         let binder = Binder::for_bind(&self.name_gen, adt_map, path);
         let sorts = sorts(self.sess, adt_map, path)?;
 
-        if push_params {
+        if is_param {
             for (name, sort) in iter::zip(binder.names(), sorts) {
-                self.params.push(param_from_bind(bind, name, *sort))
+                self.params.push(param_from_bind(bind, name, *sort));
             }
         }
-        self.binders.insert(bind.name, binder);
-
-        Ok(())
+        Ok(self.binders.insert(bind.name, binder))
     }
 
     fn insert_single_bind(&mut self, bind: surface::Ident, sort: Sort, push_param: bool) {
@@ -807,9 +807,9 @@ mod errors {
         field: Ident,
     }
     impl UnresolvedDotField {
-        pub fn new(ident: Ident, field: Ident) -> Self {
-            Self { span: field.span, ident, field }
-        }
+        // pub fn new(ident: Ident, field: Ident) -> Self {
+        //     Self { span: field.span, ident, field }
+        // }
     }
 
     #[derive(Diagnostic)]
