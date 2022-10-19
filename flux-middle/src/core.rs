@@ -88,7 +88,7 @@ pub enum Ty {
     /// Existential types in core are represented with an explicit list of binders for
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
     /// for two indices. (there's currently no equivalent surface syntax).
-    Exists(BaseTy, Vec<Ident>, Expr),
+    Exists(BaseTy, Vec<Name>, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),

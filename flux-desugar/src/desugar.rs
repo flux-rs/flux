@@ -601,7 +601,7 @@ impl<'a> ParamsCtxt<'a> {
         path: &Path<Res>,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
         adt_sorts: &AdtMap,
-    ) -> Result<(Vec<Ident>, R), ErrorGuaranteed> {
+    ) -> Result<(Vec<Name>, R), ErrorGuaranteed> {
         match self.fresh_bind_idents(bind, path, adt_sorts)? {
             FreshIdents::Single(param) => {
                 let symb = bind.name;
@@ -612,7 +612,7 @@ impl<'a> ParamsCtxt<'a> {
                 } else {
                     self.name_map.remove(&symb);
                 };
-                let binders = vec![param.name];
+                let binders = vec![param.name.name];
                 Ok((binders, r))
             }
             FreshIdents::Dot(params) => {
@@ -620,7 +620,7 @@ impl<'a> ParamsCtxt<'a> {
                     self.field_map.insert((bind.name, *fld), param.name.name);
                 }
                 let r = f(self)?;
-                let binders = params.iter().map(|(_, p)| p.name).collect();
+                let binders = params.iter().map(|(_, p)| p.name.name).collect();
                 Ok((binders, r))
             }
         }
