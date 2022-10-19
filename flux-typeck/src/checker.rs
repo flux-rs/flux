@@ -1078,13 +1078,6 @@ pub(crate) mod errors {
     use crate::param_infer::InferenceError;
 
     #[derive(Diagnostic)]
-    #[diag(refineck::param_inference_error, code = "FLUX")]
-    pub struct ParamInferenceError {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
     #[diag(refineck::opaque_struct_error, code = "FLUX")]
     pub struct OpaqueStructError {
         #[primary_span]
