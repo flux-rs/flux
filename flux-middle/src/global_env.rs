@@ -175,7 +175,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 )
             })
             .as_ref()
-            .ok_or_else(|| OpaqueStructErr(def_id))?[variant_idx.as_usize()]
+            .ok_or(OpaqueStructErr(def_id))?[variant_idx.as_usize()]
         .clone())
     }
 

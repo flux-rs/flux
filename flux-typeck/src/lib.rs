@@ -27,6 +27,7 @@ use std::{fs, io::Write};
 use checker::Checker;
 use constraint_gen::Tag;
 use flux_common::config::CONFIG;
+use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rustc::mir::Body, ty};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
@@ -39,9 +40,9 @@ pub fn check<'a, 'tcx>(
     body: &Body<'tcx>,
     qualifiers: &[ty::Qualifier],
 ) -> Result<(), ErrorGuaranteed> {
-    let bb_envs = Checker::infer(genv, body, def_id)?;
+    let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
     let mut kvars = fixpoint::KVarStore::new();
-    let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs)?;
+    let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
 
     if CONFIG.dump_constraint {
         dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
@@ -100,15 +101,8 @@ fn dump_constraint<C: std::fmt::Debug>(
 }
 
 mod errors {
-    use flux_errors::ErrorGuaranteed;
     use flux_macros::Diagnostic;
-    use flux_middle::{global_env::OpaqueStructErr, pretty};
-    use rustc_errors::{DiagnosticId, IntoDiagnostic};
-    use rustc_hir::def_id::DefId;
-    use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
-
-    use crate::param_infer::InferenceError;
 
     #[derive(Diagnostic)]
     #[diag(refineck::goto_error, code = "FLUX")]
@@ -179,71 +173,5 @@ mod errors {
     pub struct UnknownError {
         #[primary_span]
         pub span: Span,
-    }
-
-    pub struct CheckerError {
-        kind: CheckerErrKind,
-        span: Option<Span>,
-    }
-
-    pub enum CheckerErrKind {
-        Inference,
-        OpaqueStruct(DefId),
-    }
-
-    impl CheckerError {
-        pub(crate) fn inference() -> Self {
-            CheckerError { kind: CheckerErrKind::Inference, span: None }
-        }
-
-        pub(crate) fn with_src_info_opt(mut self, src_info: Option<SourceInfo>) -> Self {
-            if let Some(src_info) = src_info {
-                self.span = Some(src_info.span);
-            }
-            self
-        }
-
-        pub(crate) fn with_src_info(mut self, src_info: SourceInfo) -> Self {
-            self.span = Some(src_info.span);
-            self
-        }
-    }
-
-    impl<'a> IntoDiagnostic<'a> for CheckerError {
-        fn into_diagnostic(
-            self,
-            handler: &'a rustc_errors::Handler,
-        ) -> rustc_errors::DiagnosticBuilder<'a, ErrorGuaranteed> {
-            use flux_errors::fluent::refineck;
-            let fluent = match &self.kind {
-                CheckerErrKind::Inference => refineck::param_inference_error,
-                CheckerErrKind::OpaqueStruct(_) => refineck::opaque_struct_error,
-            };
-            let mut builder =
-                handler.struct_err_with_code(fluent, DiagnosticId::Error("FLUX".to_string()));
-            if let Some(span) = self.span {
-                builder.set_span(span);
-            }
-
-            match self.kind {
-                CheckerErrKind::Inference => {}
-                CheckerErrKind::OpaqueStruct(def_id) => {
-                    builder.set_arg("struct", pretty::def_id_to_string(def_id));
-                }
-            }
-            builder
-        }
-    }
-
-    impl From<InferenceError> for CheckerError {
-        fn from(_: InferenceError) -> Self {
-            CheckerError::inference()
-        }
-    }
-
-    impl From<OpaqueStructErr> for CheckerError {
-        fn from(OpaqueStructErr(kind): OpaqueStructErr) -> Self {
-            CheckerError { kind: CheckerErrKind::OpaqueStruct(kind), span: None }
-        }
     }
 }

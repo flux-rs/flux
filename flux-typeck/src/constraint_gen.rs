@@ -12,7 +12,7 @@ use itertools::{izip, Itertools};
 use rustc_span::Span;
 
 use crate::{
-    errors::CheckerError,
+    checker::errors::CheckerError,
     param_infer::{self, InferenceError},
     refine_tree::{ConstrBuilder, RefineCtxt, UnpackFlags},
     type_env::{PathMap, TypeEnv},
