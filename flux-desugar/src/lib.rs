@@ -14,7 +14,7 @@ mod desugar;
 mod table_resolver;
 mod zip_resolver;
 
-pub use desugar::{desugar_adt_data, desugar_qualifier, resolve_sorts, resolve_uf_def};
+pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uf_def};
 use flux_middle::{
     core::{self, AdtMap},
     global_env::GlobalEnv,

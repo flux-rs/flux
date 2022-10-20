@@ -151,7 +151,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .iter_mut()
             .try_for_each_exhaust(|(def_id, def)| {
                 let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-                let adt_def = desugar::desugar_adt_data(
+                let adt_def = desugar::desugar_adt_def(
                     genv.sess,
                     &genv.consts,
                     def_id.to_def_id(),
@@ -169,7 +169,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .iter_mut()
             .try_for_each_exhaust(|(def_id, def)| {
                 let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-                let adt_def = desugar::desugar_adt_data(
+                let adt_def = desugar::desugar_adt_def(
                     genv.sess,
                     &genv.consts,
                     def_id.to_def_id(),

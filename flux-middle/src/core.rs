@@ -224,10 +224,9 @@ pub struct AdtMap(FxHashMap<LocalDefId, AdtDef>);
 pub struct AdtDef {
     pub def_id: DefId,
     pub refined_by: Vec<Param>,
-    pub fields: Vec<Symbol>,
-    pub sorts: Vec<Sort>,
     pub invariants: Vec<Expr>,
     pub opaque: bool,
+    sorts: Vec<Sort>,
 }
 
 #[derive(Default)]
@@ -236,6 +235,13 @@ pub struct UFSorts(FxHashMap<Symbol, UFDef>);
 pub struct UFDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
+}
+
+impl AdtDef {
+    pub fn new(def_id: DefId, refined_by: Vec<Param>, invariants: Vec<Expr>, opaque: bool) -> Self {
+        let sorts = refined_by.iter().map(|param| param.sort).collect();
+        AdtDef { def_id, refined_by, invariants, opaque, sorts }
+    }
 }
 
 impl UFSorts {
@@ -261,14 +267,14 @@ impl AdtMap {
         self.0.insert(def_id, sort_info);
     }
 
-    pub fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
+    pub fn sorts(&self, def_id: DefId) -> Option<&[Sort]> {
         let info = self.0.get(&def_id.as_local()?)?;
         Some(&info.sorts)
     }
 
-    pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
-        let info = self.0.get(&def_id.as_local()?)?;
-        Some(&info.fields)
+    pub fn refined_by(&self, def_id: DefId) -> Option<&[Param]> {
+        let adt_def = self.0.get(&def_id.as_local()?)?;
+        Some(&adt_def.refined_by)
     }
 }
 

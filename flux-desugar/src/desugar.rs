@@ -54,7 +54,7 @@ pub fn resolve_sorts(
         .try_collect_exhaust()
 }
 
-pub fn desugar_adt_data(
+pub fn desugar_adt_def(
     sess: &FluxSession,
     consts: &[ConstInfo],
     def_id: DefId,
@@ -62,17 +62,15 @@ pub fn desugar_adt_data(
     invariants: Vec<surface::Expr>,
     opaque: bool,
 ) -> Result<AdtDef, ErrorGuaranteed> {
-    let mut cx = Binders::new(sess, consts);
-    cx.insert_params(params)?;
+    let mut binders = Binders::new(sess, consts);
+    binders.insert_params(params)?;
 
-    let fields = params.params.iter().map(|param| param.name.name).collect();
     let invariants = invariants
         .into_iter()
-        .map(|invariant| cx.as_expr_ctxt().desugar_expr(invariant))
+        .map(|invariant| binders.as_expr_ctxt().desugar_expr(invariant))
         .try_collect_exhaust()?;
-    let refined_by = cx.into_params();
-    let sorts = refined_by.iter().map(|param| param.sort).collect();
-    Ok(AdtDef { def_id, sorts, fields, refined_by, invariants, opaque })
+    let refined_by = binders.into_params();
+    Ok(AdtDef::new(def_id, refined_by, invariants, opaque))
 }
 
 pub fn desugar_struct_def(
@@ -130,17 +128,17 @@ fn desugar_variant(
     for ty in &variant.fields {
         binders.ty_gather_params(ty, adt_sorts)?;
     }
-    let mut desugar = DesugarCtxt::new(binders, adt_sorts);
+    let mut cx = DesugarCtxt::new(binders, adt_sorts);
 
     let fields = variant
         .fields
         .into_iter()
-        .map(|ty| desugar.desugar_ty(ty))
+        .map(|ty| cx.desugar_ty(ty))
         .try_collect_exhaust()?;
 
-    let ret = desugar.desugar_variant_ret(variant.ret)?;
+    let ret = cx.desugar_variant_ret(variant.ret)?;
 
-    Ok(VariantDef { params: desugar.binders.into_params(), fields, ret })
+    Ok(VariantDef { params: cx.binders.into_params(), fields, ret })
 }
 
 pub fn desugar_fn_sig(
@@ -149,24 +147,24 @@ pub fn desugar_fn_sig(
     consts: &[ConstInfo],
     fn_sig: surface::FnSig<Res>,
 ) -> Result<FnSig, ErrorGuaranteed> {
-    let mut params = Binders::new(sess, consts);
-    params.gather_fn_sig_params(&fn_sig, adt_sorts)?;
-    let mut desugar = DesugarCtxt::new(params, adt_sorts);
+    let mut binders = Binders::new(sess, consts);
+    binders.gather_fn_sig_params(&fn_sig, adt_sorts)?;
+    let mut cx = DesugarCtxt::new(binders, adt_sorts);
 
     if let Some(e) = fn_sig.requires {
-        let e = desugar.binders.as_expr_ctxt().desugar_expr(e)?;
-        desugar.requires.push(Constraint::Pred(e));
+        let e = cx.binders.as_expr_ctxt().desugar_expr(e)?;
+        cx.requires.push(Constraint::Pred(e));
     }
 
     // We bail out if there's an error in the arguments to avoid confusing error messages
     let args = fn_sig
         .args
         .into_iter()
-        .map(|arg| desugar.desugar_arg(arg))
+        .map(|arg| cx.desugar_arg(arg))
         .try_collect_exhaust()?;
 
     let ret = match fn_sig.returns {
-        Some(returns) => desugar.desugar_ty(returns),
+        Some(returns) => cx.desugar_ty(returns),
         None => Ok(Ty::Tuple(vec![])),
     };
 
@@ -174,15 +172,15 @@ pub fn desugar_fn_sig(
         .ensures
         .into_iter()
         .map(|(bind, ty)| {
-            let loc = desugar.binders.as_expr_ctxt().desugar_loc(bind);
-            let ty = desugar.desugar_ty(ty);
+            let loc = cx.binders.as_expr_ctxt().desugar_loc(bind);
+            let ty = cx.desugar_ty(ty);
             Ok(Constraint::Type(loc?, ty?))
         })
         .try_collect_exhaust();
 
     Ok(FnSig {
-        params: desugar.binders.into_params(),
-        requires: desugar.requires,
+        params: cx.binders.into_params(),
+        requires: cx.requires,
         args,
         ret: ret?,
         ensures: ensures?,
@@ -196,8 +194,8 @@ pub struct DesugarCtxt<'a> {
     adt_map: &'a AdtMap,
 }
 
-/// Keeps track of the names in scope and mapping between the surface symbol
-/// and the freshly generated binder in core.
+/// Keeps track of the names in scope and a mapping between symbols in the surface syntax
+/// and the freshly generated names in core.
 struct Binders<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
@@ -208,15 +206,15 @@ struct Binders<'a> {
 /// The different kind of binders that can appear in the surface syntax
 #[derive(Debug)]
 enum Binder {
-    /// A binder that needs to be desugared to a single index. They come from binding
-    /// a name to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`,
-    /// or by explicitly listing the indices for a type with multiple indices, e.g,
+    /// A binder that needs to be desugared to a single index. They come from bindings
+    /// to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`, or
+    /// by explicitly listing the indices for a type with multiple indices, e.g,
     /// `RMat[@row, @cols]`.
     Single(Name, Sort),
-    /// A binder that will desugar into multiple indices and must be "projected" using
+    /// A binder that will desugar into multiple indices and _must_ be projected using
     /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
-    /// index are treated especially as they can be used either with a projection or the
+    /// index are treated specially as they can be used either with a projection or the
     /// binder directly.
     Aggregate(FxIndexMap<Symbol, (Name, Sort)>),
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
@@ -728,7 +726,7 @@ fn sorts<'a>(adt_sorts: &'a AdtMap, path: &surface::Path<Res>) -> &'a [Sort] {
     match path.ident {
         Res::Bool => &[Sort::Bool],
         Res::Int(_) | Res::Uint(_) => &[Sort::Int],
-        Res::Adt(def_id) => adt_sorts.get_sorts(def_id).unwrap_or_default(),
+        Res::Adt(def_id) => adt_sorts.sorts(def_id).unwrap_or_default(),
         Res::Float(_) | Res::Param(_) | Res::Str => &[],
     }
 }
@@ -757,12 +755,15 @@ impl Binder {
             Res::Bool => Binder::Single(name_gen.fresh(), Sort::Bool),
             Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), Sort::Int),
             Res::Adt(def_id) => {
-                let fields: FxIndexMap<_, _> = iter::zip(
-                    adt_map.get_fields(def_id).unwrap_or_default(),
-                    adt_map.get_sorts(def_id).unwrap_or_default(),
-                )
-                .map(|(fld, sort)| (*fld, (name_gen.fresh(), *sort)))
-                .collect();
+                let fields: FxIndexMap<_, _> = adt_map
+                    .refined_by(def_id)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|param| {
+                        let fld = param.name.source_info.1;
+                        (fld, (name_gen.fresh(), param.sort))
+                    })
+                    .collect();
                 if fields.is_empty() {
                     Binder::Unrefined
                 } else {
