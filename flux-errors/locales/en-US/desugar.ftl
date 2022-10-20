@@ -39,3 +39,7 @@ desugar_param_count_mismatch =
 
 desugar_invalid_dot_access =
     the field `{$fld}` is not valid for param `{$ident}`
+
+desugar_invalid_unrefined_param =
+    invalid use of parameter for an unrefined type
+    .label = name `{$var}` is bound to an unrefined type

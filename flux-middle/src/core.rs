@@ -16,6 +16,8 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
+use crate::pretty;
+
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: DefId,
@@ -370,7 +372,7 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt
         BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
         BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
         BaseTy::Bool => write!(f, "bool")?,
-        BaseTy::Adt(did, _) => write!(f, "{did:?}")?,
+        BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
     }
     match bty {
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
