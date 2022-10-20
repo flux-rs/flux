@@ -12,7 +12,7 @@ pub fn mk_chair() -> Chair {
     Chair { x: 0 }
 }
 
-#[flux::sig(fn (c:Chair) -> i32)] //~ ERROR this type takes 0 refinement parameters but 1 was found
+#[flux::sig(fn(c:Chair) -> i32)] //~ ERROR this type takes 0 refinement parameters but 1 was found
 pub fn use_chair(c: Chair) -> i32 {
     c.x
 }
@@ -49,6 +49,3 @@ pub fn myint1(x: i32) -> i32 {
 pub fn myint2(x: i32) -> i32 {
     x
 }
-
-#[flux::sig(fn(x: i32, x: i32) -> i32[x + y])]
-pub fn foo() {}

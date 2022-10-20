@@ -25,7 +25,7 @@ pub fn desugar_qualifier(
     let mut params = ParamsCtxt::new(sess, consts);
     params.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
-    let expr = params.desugar_expr(qualifier.expr);
+    let expr = params.as_expr_ctxt().desugar_expr(qualifier.expr);
 
     Ok(Qualifier { name, args: params.params, expr: expr? })
 }
@@ -69,7 +69,7 @@ pub fn desugar_adt_data(
     let fields = params.params.iter().map(|param| param.name.name).collect();
     let invariants = invariants
         .into_iter()
-        .map(|invariant| cx.desugar_expr(invariant))
+        .map(|invariant| cx.as_expr_ctxt().desugar_expr(invariant))
         .try_collect_exhaust()?;
     let refined_by = cx.params;
     Ok(AdtDef { def_id, sorts, fields, refined_by, invariants, opaque })
@@ -154,7 +154,7 @@ pub fn desugar_fn_sig(
     let mut desugar = DesugarCtxt::with_params(params, adt_sorts);
 
     if let Some(e) = fn_sig.requires {
-        let e = desugar.params.desugar_expr(e)?;
+        let e = desugar.params.as_expr_ctxt().desugar_expr(e)?;
         desugar.requires.push(Constraint::Pred(e));
     }
 
@@ -173,7 +173,7 @@ pub fn desugar_fn_sig(
         .ensures
         .into_iter()
         .map(|(bind, ty)| {
-            let loc = desugar.params.desugar_loc(bind);
+            let loc = desugar.params.as_expr_ctxt().desugar_loc(bind);
             let ty = desugar.desugar_ty(ty);
             Ok(Constraint::Type(loc?, ty?))
         })
@@ -202,10 +202,18 @@ struct ParamsCtxt<'a> {
     params: Vec<Param>,
 }
 
+/// Keeps track of binders in scope
+struct ExprCtxt<'a> {
+    sess: &'a FluxSession,
+    const_map: &'a FxHashMap<Symbol, DefId>,
+    binders: &'a FxHashMap<Symbol, Binder>,
+}
+
 #[derive(Debug)]
 enum Binder {
-    Single(Name),
-    Aggregate(FxIndexMap<Symbol, Name>),
+    Single(Name, Sort),
+    Aggregate(FxIndexMap<Symbol, (Name, Sort)>),
+    Unrefined,
 }
 
 impl<'a> DesugarCtxt<'a> {
@@ -220,13 +228,13 @@ impl<'a> DesugarCtxt<'a> {
                 let indices = Indices { indices: self.desugar_bind(bind)?, span: bind.span };
                 let ty = Ty::Indexed(bty, indices);
                 if let Some(pred) = pred {
-                    Ok(Ty::Constr(self.params.desugar_expr(pred)?, Box::new(ty)))
+                    Ok(Ty::Constr(self.params.as_expr_ctxt().desugar_expr(pred)?, Box::new(ty)))
                 } else {
                     Ok(ty)
                 }
             }
             surface::Arg::StrgRef(loc, ty) => {
-                let loc = self.params.desugar_loc(loc)?;
+                let loc = self.params.as_expr_ctxt().desugar_loc(loc)?;
                 let ty = self.desugar_ty(ty)?;
                 self.requires.push(Constraint::Type(loc, ty));
                 Ok(Ty::Ptr(loc))
@@ -257,7 +265,7 @@ impl<'a> DesugarCtxt<'a> {
                 let (binders, pred) = self.params.with_bind(
                     bind,
                     &path,
-                    |params| params.desugar_expr(pred),
+                    |params| params.as_expr_ctxt().desugar_expr(pred),
                     self.adt_sorts,
                 )?;
                 let bty = self.desugar_path_into_bty(path);
@@ -267,14 +275,14 @@ impl<'a> DesugarCtxt<'a> {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
             }
             surface::TyKind::StrgRef(loc, ty) => {
-                let loc = self.params.desugar_loc(loc)?;
+                let loc = self.params.as_expr_ctxt().desugar_loc(loc)?;
                 let ty = self.desugar_ty(*ty)?;
                 self.requires.push(Constraint::Type(loc, ty));
                 Ty::Ptr(loc)
             }
             surface::TyKind::Unit => Ty::Tuple(vec![]),
             surface::TyKind::Constr(pred, ty) => {
-                let pred = self.params.desugar_expr(pred)?;
+                let pred = self.params.as_expr_ctxt().desugar_expr(pred)?;
                 let ty = self.desugar_ty(*ty)?;
                 Ty::Constr(pred, Box::new(ty))
             }
@@ -300,7 +308,7 @@ impl<'a> DesugarCtxt<'a> {
 
     fn desugar_bind(&self, ident: surface::Ident) -> Result<Vec<Index>, ErrorGuaranteed> {
         match self.params.binders.get(&ident.name) {
-            Some(Binder::Single(name)) => {
+            Some(Binder::Single(name, _)) => {
                 let kind = ExprKind::Var(*name, ident.name, ident.span);
                 let expr = Expr { kind, span: ident.span };
                 Ok(vec![Index { expr, is_binder: true }])
@@ -308,13 +316,14 @@ impl<'a> DesugarCtxt<'a> {
             Some(Binder::Aggregate(fields)) => {
                 let indices = fields
                     .values()
-                    .map(|name| {
+                    .map(|(name, _)| {
                         let kind = ExprKind::Var(*name, ident.name, ident.span);
                         Index { expr: Expr { kind, span: ident.span }, is_binder: true }
                     })
                     .collect();
                 Ok(indices)
             }
+            Some(Binder::Unrefined) => Ok(vec![]),
             None => Err(self.params.sess.emit_err(errors::UnresolvedVar::new(ident))),
         }
     }
@@ -323,7 +332,10 @@ impl<'a> DesugarCtxt<'a> {
         match idx {
             surface::Index::Bind(ident) => self.desugar_bind(ident),
             surface::Index::Expr(expr) => {
-                Ok(vec![Index { expr: self.params.desugar_expr(expr)?, is_binder: false }])
+                Ok(vec![Index {
+                    expr: self.params.as_expr_ctxt().desugar_expr(expr)?,
+                    is_binder: false,
+                }])
             }
         }
     }
@@ -361,6 +373,127 @@ impl<'a> DesugarCtxt<'a> {
     }
 }
 
+impl ExprCtxt<'_> {
+    fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorGuaranteed> {
+        let kind = match expr.kind {
+            surface::ExprKind::Var(ident) => return self.desugar_var(ident),
+            surface::ExprKind::Literal(lit) => ExprKind::Literal(self.desugar_lit(lit)?),
+            surface::ExprKind::BinaryOp(op, e1, e2) => {
+                let e1 = self.desugar_expr(*e1);
+                let e2 = self.desugar_expr(*e2);
+                ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
+            }
+            surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
+            surface::ExprKind::App(f, es) => {
+                let uf = desugar_uf(f);
+                let es = es
+                    .into_iter()
+                    .map(|e| self.desugar_expr(e))
+                    .try_collect_exhaust()?;
+                ExprKind::App(uf, es)
+            }
+            surface::ExprKind::IfThenElse(p, e1, e2) => {
+                let p = self.desugar_expr(*p);
+                let e1 = self.desugar_expr(*e1);
+                let e2 = self.desugar_expr(*e2);
+                ExprKind::IfThenElse(Box::new(p?), Box::new(e1?), Box::new(e2?))
+            }
+        };
+        Ok(Expr { kind, span: expr.span })
+    }
+
+    fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorGuaranteed> {
+        match lit.kind {
+            surface::LitKind::Integer => {
+                match lit.symbol.as_str().parse::<i128>() {
+                    Ok(n) => Ok(Lit::Int(n)),
+                    Err(_) => Err(self.sess.emit_err(errors::IntTooLarge { span: lit.span })),
+                }
+            }
+            surface::LitKind::Bool => Ok(Lit::Bool(lit.symbol == kw::True)),
+            _ => {
+                Err(self
+                    .sess
+                    .emit_err(errors::UnexpectedLiteral { span: lit.span }))
+            }
+        }
+    }
+
+    fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorGuaranteed> {
+        let kind = match (self.binders.get(&ident.name), self.const_map.get(&ident.name)) {
+            (Some(Binder::Single(name, _)), _) => ExprKind::Var(*name, ident.name, ident.span),
+            (Some(Binder::Aggregate(fields)), _) => {
+                if fields.len() == 1 {
+                    let (name, _) = fields.values().next().unwrap();
+                    ExprKind::Var(*name, ident.name, ident.span)
+                } else {
+                    return Err(self
+                        .sess
+                        .emit_err(errors::UnresolvedDotVar::new(ident, fields.keys())));
+                }
+            }
+            (Some(Binder::Unrefined), _) => todo!(),
+            (None, Some(const_id)) => ExprKind::Const(*const_id, ident.span),
+            (None, None) => return Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
+        };
+        Ok(Expr { kind, span: ident.span })
+    }
+
+    fn desugar_dot(
+        &self,
+        expr: surface::Expr,
+        fld: surface::Ident,
+    ) -> Result<Expr, ErrorGuaranteed> {
+        let surface::ExprKind::Var(ident) = expr.kind else {
+            return Err(self
+                .sess
+                .emit_err(errors::InvalidDotVar { span: expr.span }))
+        };
+
+        match self.binders.get(&ident.name) {
+            Some(Binder::Single(..)) => {
+                Err(self
+                    .sess
+                    .emit_err(errors::InvalidDotAccess::new(ident, fld)))
+            }
+            Some(Binder::Aggregate(fields)) => {
+                let (name, _) = fields.get(&fld.name).ok_or_else(|| {
+                    self.sess
+                        .emit_err(errors::InvalidDotAccess::new(ident, fld))
+                })?;
+                let span = ident.span.to(fld.span);
+                let kind = ExprKind::Var(*name, ident.name, span);
+                Ok(Expr { kind, span })
+            }
+            Some(Binder::Unrefined) => todo!(),
+            None => Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
+        }
+    }
+
+    fn desugar_loc(&self, loc: surface::Ident) -> Result<Ident, ErrorGuaranteed> {
+        match self.binders.get(&loc.name) {
+            Some(&Binder::Single(name, _)) => {
+                let source_info = (loc.span, loc.name);
+                Ok(Ident { name, source_info })
+            }
+            Some(Binder::Aggregate(..)) => {
+                // This shouldn't happen because loc bindings in input position should
+                // already be inserted as single when gathering parameters and locs in ensure
+                // clauses are guaranteed to be locs during the resolving phase.
+                panic!("aggregate parameter used in loc position")
+            }
+            Some(Binder::Unrefined) => {
+                todo!()
+            }
+            None => Err(self.sess.emit_err(errors::UnresolvedVar::new(loc))),
+        }
+    }
+}
+
+fn desugar_uf(f: surface::Ident) -> flux_middle::core::UFun {
+    UFun { symbol: f.name, span: f.span }
+}
+
 fn desugar_ref_kind(rk: surface::RefKind) -> RefKind {
     match rk {
         surface::RefKind::Mut => RefKind::Mut,
@@ -393,118 +526,8 @@ impl<'a> ParamsCtxt<'a> {
         }
     }
 
-    fn desugar_expr(&self, expr: surface::Expr) -> Result<Expr, ErrorGuaranteed> {
-        let kind = match expr.kind {
-            surface::ExprKind::Var(ident) => return self.desugar_var(ident),
-            surface::ExprKind::Literal(lit) => ExprKind::Literal(self.desugar_lit(lit)?),
-            surface::ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = self.desugar_expr(*e1);
-                let e2 = self.desugar_expr(*e2);
-                ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
-            }
-            surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
-            surface::ExprKind::App(f, es) => {
-                let uf = self.desugar_uf(f);
-                let es = es
-                    .into_iter()
-                    .map(|e| self.desugar_expr(e))
-                    .try_collect_exhaust()?;
-                ExprKind::App(uf, es)
-            }
-            surface::ExprKind::IfThenElse(p, e1, e2) => {
-                let p = self.desugar_expr(*p);
-                let e1 = self.desugar_expr(*e1);
-                let e2 = self.desugar_expr(*e2);
-                ExprKind::IfThenElse(Box::new(p?), Box::new(e1?), Box::new(e2?))
-            }
-        };
-        Ok(Expr { kind, span: expr.span })
-    }
-
     fn fresh(&self) -> Name {
         self.name_gen.fresh()
-    }
-
-    fn desugar_lit(&self, lit: surface::Lit) -> Result<Lit, ErrorGuaranteed> {
-        match lit.kind {
-            surface::LitKind::Integer => {
-                match lit.symbol.as_str().parse::<i128>() {
-                    Ok(n) => Ok(Lit::Int(n)),
-                    Err(_) => Err(self.sess.emit_err(errors::IntTooLarge { span: lit.span })),
-                }
-            }
-            surface::LitKind::Bool => Ok(Lit::Bool(lit.symbol == kw::True)),
-            _ => {
-                Err(self
-                    .sess
-                    .emit_err(errors::UnexpectedLiteral { span: lit.span }))
-            }
-        }
-    }
-
-    fn desugar_var(&self, ident: surface::Ident) -> Result<Expr, ErrorGuaranteed> {
-        let kind = match (self.binders.get(&ident.name), self.const_map.get(&ident.name)) {
-            (Some(Binder::Single(name)), _) => ExprKind::Var(*name, ident.name, ident.span),
-            (Some(Binder::Aggregate(fields)), _) => {
-                if fields.len() == 1 {
-                    let name = fields.values().next().unwrap();
-                    ExprKind::Var(*name, ident.name, ident.span)
-                } else {
-                    return Err(self
-                        .sess
-                        .emit_err(errors::UnresolvedDotVar::new(ident, fields.keys())));
-                }
-            }
-            (None, Some(const_id)) => ExprKind::Const(*const_id, ident.span),
-            _ => return Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
-        };
-        Ok(Expr { kind, span: ident.span })
-    }
-
-    fn desugar_dot(
-        &self,
-        expr: surface::Expr,
-        fld: surface::Ident,
-    ) -> Result<Expr, ErrorGuaranteed> {
-        let surface::ExprKind::Var(ident) = expr.kind else {
-            return Err(self
-                .sess
-                .emit_err(errors::InvalidDotVar { span: expr.span }))
-        };
-
-        match self.binders.get(&ident.name) {
-            Some(Binder::Single(_)) => {
-                Err(self
-                    .sess
-                    .emit_err(errors::InvalidDotAccess::new(ident, fld)))
-            }
-            Some(Binder::Aggregate(fields)) => {
-                let name = fields.get(&fld.name).ok_or_else(|| {
-                    self.sess
-                        .emit_err(errors::InvalidDotAccess::new(ident, fld))
-                })?;
-                let span = ident.span.to(fld.span);
-                let kind = ExprKind::Var(*name, ident.name, span);
-                Ok(Expr { kind, span })
-            }
-            None => Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
-        }
-    }
-
-    fn desugar_loc(&self, loc: surface::Ident) -> Result<Ident, ErrorGuaranteed> {
-        match self.binders.get(&loc.name) {
-            Some(&Binder::Single(name)) => {
-                let source_info = (loc.span, loc.name);
-                Ok(Ident { name, source_info })
-            }
-            Some(Binder::Aggregate(..)) => {
-                // This shouldn't happen because loc bindings in input position should
-                // already be inserted as single when gathering parameters and locs in ensure
-                // clauses are guaranteed to be locs during the resolving phase.
-                panic!("aggregate parameter used in loc position")
-            }
-            None => Err(self.sess.emit_err(errors::UnresolvedVar::new(loc))),
-        }
     }
 
     fn with_bind<R>(
@@ -559,7 +582,7 @@ impl<'a> ParamsCtxt<'a> {
 
     fn insert_single_bind(&mut self, bind: surface::Ident, sort: Sort, push_param: bool) {
         let name = self.fresh();
-        self.binders.insert(bind.name, Binder::Single(name));
+        self.binders.insert(bind.name, Binder::Single(name, sort));
         if push_param {
             self.params.push(param_from_bind(bind, name, sort))
         }
@@ -640,6 +663,10 @@ impl<'a> ParamsCtxt<'a> {
     fn desugar_uf(&self, f: surface::Ident) -> flux_middle::core::UFun {
         UFun { symbol: f.name, span: f.span }
     }
+
+    fn as_expr_ctxt(&self) -> ExprCtxt {
+        ExprCtxt { sess: self.sess, const_map: &self.const_map, binders: &self.binders }
+    }
 }
 
 fn param_from_bind(bind: surface::Ident, name: Name, sort: Sort) -> Param {
@@ -691,24 +718,28 @@ fn desugar_bin_op(op: surface::BinOp) -> BinOp {
 
 impl Binder {
     fn for_bind(name_gen: &IndexGen<Name>, adt_map: &AdtMap, path: &surface::Path<Res>) -> Binder {
-        if let Some(fields) = fields(adt_map, path) {
-            let fields = fields
-                .iter()
-                .map(|fld| {
-                    let fresh = name_gen.fresh();
-                    (*fld, fresh)
-                })
-                .collect();
-            Binder::Aggregate(fields)
-        } else {
-            Binder::Single(name_gen.fresh())
+        match path.ident {
+            Res::Bool => Binder::Single(name_gen.fresh(), Sort::Bool),
+            Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), Sort::Int),
+            Res::Adt(def_id) => {
+                Binder::Aggregate(
+                    iter::zip(
+                        adt_map.get_fields(def_id).unwrap_or_default(),
+                        adt_map.get_sorts(def_id).unwrap_or_default(),
+                    )
+                    .map(|(fld, sort)| (*fld, (name_gen.fresh(), *sort)))
+                    .collect(),
+                )
+            }
+            Res::Float(_) | Res::Param(_) | Res::Tuple => Binder::Unrefined,
         }
     }
 
     fn names(&self) -> Vec<Name> {
         match self {
-            Binder::Single(name) => vec![*name],
-            Binder::Aggregate(fields) => fields.values().copied().collect(),
+            Binder::Single(name, _) => vec![*name],
+            Binder::Aggregate(fields) => fields.values().map(|(name, _)| *name).collect(),
+            Binder::Unrefined => vec![],
         }
     }
 }
