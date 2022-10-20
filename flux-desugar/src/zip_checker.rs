@@ -155,9 +155,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
             (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             _ => {
-                return Err(self
+                Err(self
                     .sess
-                    .emit_err(TypeMismatch::from_span(self.tcx, rust_ty, ty.span)));
+                    .emit_err(TypeMismatch::from_span(self.tcx, rust_ty, ty.span)))
             }
         }
     }
