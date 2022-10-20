@@ -5,24 +5,24 @@ use std::iter;
 use flux_common::index::IndexGen;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
-    rustc::mir::{Local, Place, PlaceElem},
-    ty::{
+    rty::{
         fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, Index, Path, RefKind, Ty,
         TyKind,
     },
+    rustc::mir::{Local, Place, PlaceElem},
 };
 use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
 use self::paths_tree::{Binding, LocKind, LookupResult, PathsTree};
-use super::ty::{Loc, Name, Pred, Sort};
+use super::rty::{Loc, Name, Pred, Sort};
 use crate::{
     constraint_gen::ConstrGen,
     fixpoint::KVarGen,
     param_infer,
     refine_tree::{RefineCtxt, Scope},
-    ty::VariantIdx,
+    rty::VariantIdx,
 };
 
 pub trait PathMap {

@@ -8,7 +8,7 @@ use flux_common::{
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env,
-    ty::{self, Binders, BoundVar},
+    rty::{self, Binders, BoundVar},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -27,19 +27,19 @@ newtype_index! {
 
 #[derive(Default)]
 pub struct KVarStore {
-    kvars: IndexVec<ty::KVid, KVarSorts>,
+    kvars: IndexVec<rty::KVid, KVarSorts>,
 }
 
 #[derive(Clone)]
 struct KVarSorts {
-    args: Vec<ty::Sort>,
-    scope: Vec<ty::Sort>,
+    args: Vec<rty::Sort>,
+    scope: Vec<rty::Sort>,
 }
 
 pub trait KVarGen {
-    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
+    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
     where
-        S: IntoIterator<Item = (ty::Name, ty::Sort)>;
+        S: IntoIterator<Item = (rty::Name, rty::Sort)>;
 
     fn chaining<'a>(&'a mut self, scope: &'a Scope) -> KVarGenScopeChain<'a, Self> {
         KVarGenScopeChain { kvar_gen: self, scope }
@@ -51,8 +51,8 @@ pub struct KVarGenScopeChain<'a, G: ?Sized> {
     scope: &'a Scope,
 }
 
-type NameMap = FxHashMap<ty::Name, fixpoint::Name>;
-type KVidMap = FxHashMap<ty::KVid, Vec<fixpoint::KVid>>;
+type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
+type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxHashMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<T> {
@@ -92,7 +92,7 @@ where
 
     pub fn with_name_map<R>(
         &mut self,
-        name: ty::Name,
+        name: rty::Name,
         to: fixpoint::Name,
         f: impl FnOnce(&mut Self) -> R,
     ) -> R {
@@ -122,8 +122,8 @@ where
         tcx: TyCtxt,
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
-        qualifiers: &[ty::Qualifier],
-        uifs: &FxHashMap<Symbol, ty::UifDef>,
+        qualifiers: &[rty::Qualifier],
+        uifs: &FxHashMap<Symbol, rty::UifDef>,
     ) -> Result<(), Vec<T>> {
         let kvars = self
             .fixpoint_kvars
@@ -180,7 +180,7 @@ where
 
     pub fn pred_to_fixpoint(
         &mut self,
-        pred: &ty::Pred,
+        pred: &rty::Pred,
     ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
         let mut bindings = vec![];
         let pred = self.pred_to_fixpoint_internal(pred, &mut bindings);
@@ -189,11 +189,11 @@ where
 
     fn pred_to_fixpoint_internal(
         &mut self,
-        pred: &ty::Pred,
+        pred: &rty::Pred,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Pred {
         match pred {
-            ty::Pred::And(preds) => {
+            rty::Pred::And(preds) => {
                 fixpoint::Pred::And(
                     preds
                         .iter()
@@ -201,18 +201,18 @@ where
                         .collect(),
                 )
             }
-            ty::Pred::Expr(expr) => {
+            rty::Pred::Expr(expr) => {
                 let expr = expr_to_fixpoint(expr, &self.name_map, &self.const_map);
                 fixpoint::Pred::Expr(expr)
             }
-            ty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
-            ty::Pred::Hole => panic!("unexpected hole"),
+            rty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
+            rty::Pred::Hole => panic!("unexpected hole"),
         }
     }
 
     fn kvar_to_fixpoint(
         &mut self,
-        kvar: &ty::KVar,
+        kvar: &rty::KVar,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Pred {
         self.populate_kvid_map(kvar.kvid);
@@ -241,18 +241,18 @@ where
 
     fn imm(
         &self,
-        arg: &ty::Expr,
-        sort: &ty::Sort,
+        arg: &rty::Expr,
+        sort: &rty::Sort,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Name {
         match arg.kind() {
-            ty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::FreeVar(name) => {
                 *self
                     .name_map
                     .get(name)
                     .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
             }
-            ty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
+            rty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
             _ => {
                 let fresh = self.fresh_name();
                 let pred = fixpoint::Expr::BinaryOp(
@@ -266,7 +266,7 @@ where
         }
     }
 
-    fn populate_kvid_map(&mut self, kvid: ty::KVid) {
+    fn populate_kvid_map(&mut self, kvid: rty::KVid) {
         self.kvid_map.entry(kvid).or_insert_with(|| {
             let sorts = self.kvars.get(kvid);
 
@@ -310,39 +310,39 @@ impl KVarStore {
         Self { kvars: IndexVec::new() }
     }
 
-    fn get(&self, kvid: ty::KVid) -> &KVarSorts {
+    fn get(&self, kvid: rty::KVid) -> &KVarSorts {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
+    pub fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
     where
-        S: IntoIterator<Item = (ty::Name, ty::Sort)>,
+        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
         let mut scope_sorts = vec![];
         let mut scope_exprs = vec![];
         for (name, sort) in scope {
             if !sort.is_loc() {
                 scope_sorts.push(sort);
-                scope_exprs.push(ty::Expr::fvar(name));
+                scope_exprs.push(rty::Expr::fvar(name));
             }
         }
 
         let args = (0..sorts.len())
-            .map(|idx| ty::Expr::bvar(BoundVar::innermost(idx)))
+            .map(|idx| rty::Expr::bvar(BoundVar::innermost(idx)))
             .collect_vec();
 
         let kvid = self
             .kvars
             .push(KVarSorts { args: sorts.to_vec(), scope: scope_sorts.clone() });
 
-        Binders::new(ty::Pred::Kvar(ty::KVar::new(kvid, args, scope_exprs.clone())), sorts)
+        Binders::new(rty::Pred::Kvar(rty::KVar::new(kvid, args, scope_exprs.clone())), sorts)
     }
 }
 
 impl KVarGen for KVarStore {
-    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
+    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
     where
-        S: IntoIterator<Item = (ty::Name, ty::Sort)>,
+        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
         KVarStore::fresh(self, sorts, scope)
     }
@@ -352,9 +352,9 @@ impl<G> KVarGen for KVarGenScopeChain<'_, G>
 where
     G: KVarGen,
 {
-    fn fresh<S>(&mut self, sorts: &[ty::Sort], scope: S) -> Binders<ty::Pred>
+    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
     where
-        S: IntoIterator<Item = (ty::Name, ty::Sort)>,
+        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
         self.kvar_gen.fresh(sorts, self.scope.iter().chain(scope))
     }
@@ -374,11 +374,11 @@ impl std::str::FromStr for TagIdx {
     }
 }
 
-pub fn sort_to_fixpoint(sort: &ty::Sort) -> fixpoint::Sort {
+pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     match sort {
-        ty::Sort::Int | ty::Sort::Loc => fixpoint::Sort::Int,
-        ty::Sort::Bool => fixpoint::Sort::Bool,
-        ty::Sort::Tuple(sorts) => {
+        rty::Sort::Int | rty::Sort::Loc => fixpoint::Sort::Int,
+        rty::Sort::Bool => fixpoint::Sort::Bool,
+        rty::Sort::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,
                 [_] => unreachable!("1-tuple"),
@@ -411,13 +411,13 @@ fn dump_constraint<C: std::fmt::Debug>(
     write!(file, "{:?}", c)
 }
 
-fn uif_def_to_fixpoint(name: &Symbol, uif_def: &ty::UifDef) -> fixpoint::UifDef {
+fn uif_def_to_fixpoint(name: &Symbol, uif_def: &rty::UifDef) -> fixpoint::UifDef {
     let inputs = uif_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
     let output = sort_to_fixpoint(&uif_def.output);
     fixpoint::UifDef::new(name.to_string(), inputs, output)
 }
 
-fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fixpoint::Qualifier {
+fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
     let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
     let name = qualifier.name.clone();
@@ -435,45 +435,45 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fix
     fixpoint::Qualifier { expr, args, name }
 }
 
-fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {
+fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {
     match expr.kind() {
-        ty::ExprKind::FreeVar(name) => {
+        rty::ExprKind::FreeVar(name) => {
             let name = name_map
                 .get(name)
                 .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
             fixpoint::Expr::Var(*name)
         }
-        ty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
-        ty::ExprKind::BinaryOp(op, e1, e2) => {
+        rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
+        rty::ExprKind::BinaryOp(op, e1, e2) => {
             fixpoint::Expr::BinaryOp(
                 *op,
                 Box::new(expr_to_fixpoint(e1, name_map, const_map)),
                 Box::new(expr_to_fixpoint(e2, name_map, const_map)),
             )
         }
-        ty::ExprKind::UnaryOp(op, e) => {
+        rty::ExprKind::UnaryOp(op, e) => {
             fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e, name_map, const_map)))
         }
-        ty::ExprKind::TupleProj(e, field) => {
+        rty::ExprKind::TupleProj(e, field) => {
             itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
                 .chain([fixpoint::Proj::Fst])
                 .fold(expr_to_fixpoint(e, name_map, const_map), |e, proj| {
                     fixpoint::Expr::Proj(Box::new(e), proj)
                 })
         }
-        ty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
-        ty::ExprKind::Local(_) | ty::ExprKind::BoundVar(_) | ty::ExprKind::PathProj(..) => {
+        rty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
+        rty::ExprKind::Local(_) | rty::ExprKind::BoundVar(_) | rty::ExprKind::PathProj(..) => {
             panic!("unexpected expr: `{expr:?}`")
         }
-        ty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
-        ty::ExprKind::App(f, exprs) => {
+        rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
+        rty::ExprKind::App(f, exprs) => {
             let args = exprs
                 .iter()
                 .map(|e| fixpoint::UFArg::new(expr_to_fixpoint(e, name_map, const_map)))
                 .collect();
             fixpoint::Expr::App(f.to_string(), args)
         }
-        ty::ExprKind::IfThenElse(p, e1, e2) => {
+        rty::ExprKind::IfThenElse(p, e1, e2) => {
             fixpoint::Expr::IfThenElse(
                 Box::new(expr_to_fixpoint(p, name_map, const_map)),
                 Box::new(expr_to_fixpoint(e1, name_map, const_map)),
@@ -484,7 +484,7 @@ fn expr_to_fixpoint(expr: &ty::Expr, name_map: &NameMap, const_map: &ConstMap) -
 }
 
 fn tuple_to_fixpoint(
-    exprs: &[ty::Expr],
+    exprs: &[rty::Expr],
     name_map: &NameMap,
     const_map: &ConstMap,
 ) -> fixpoint::Expr {

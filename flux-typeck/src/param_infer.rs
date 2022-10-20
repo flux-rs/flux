@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_middle::ty::{
+use flux_middle::rty::{
     subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, Name, Path, PolySig,
     PolyVariant, Ty, TyKind, INNERMOST,
 };

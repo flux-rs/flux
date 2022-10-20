@@ -15,6 +15,10 @@ use flux_common::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    rty::{
+        self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
+        Int, IntTy, PolySig, Pred, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+    },
     rustc::{
         self,
         mir::{
@@ -22,10 +26,6 @@ use flux_middle::{
             SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
             START_BLOCK,
         },
-    },
-    ty::{
-        self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
-        Int, IntTy, PolySig, Pred, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use itertools::Itertools;
@@ -219,12 +219,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         for constr in fn_sig.requires() {
             match constr {
-                ty::Constraint::Type(path, ty) => {
+                rty::Constraint::Type(path, ty) => {
                     assert!(path.projection().is_empty());
                     let ty = rcx.unpack(ty);
                     env.alloc_universal_loc(path.loc, ty);
                 }
-                ty::Constraint::Pred(e) => {
+                rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
                 }
             }
@@ -853,15 +853,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn check_constant(c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
-                let idx = Expr::constant(ty::Constant::from(*n)).into();
+                let idx = Expr::constant(rty::Constant::from(*n)).into();
                 Ty::indexed(BaseTy::Int(*int_ty), vec![idx])
             }
             Constant::Uint(n, uint_ty) => {
-                let idx = Expr::constant(ty::Constant::from(*n)).into();
+                let idx = Expr::constant(rty::Constant::from(*n)).into();
                 Ty::indexed(BaseTy::Uint(*uint_ty), vec![idx])
             }
             Constant::Bool(b) => {
-                let idx = Expr::constant(ty::Constant::from(*b)).into();
+                let idx = Expr::constant(rty::Constant::from(*b)).into();
                 Ty::indexed(BaseTy::Bool, vec![idx])
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),

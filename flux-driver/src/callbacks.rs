@@ -4,7 +4,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::AdtMap,
     global_env::{ConstInfo, GlobalEnv},
-    rustc, ty,
+    rty, rustc,
 };
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
@@ -94,7 +94,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
 struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
-    qualifiers: Vec<ty::Qualifier>,
+    qualifiers: Vec<rty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
     ignores: Ignores,
 }
@@ -185,13 +185,13 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         genv.finish_adt_registration();
 
         // Qualifiers
-        let qualifiers: Vec<ty::Qualifier> = specs
+        let qualifiers: Vec<rty::Qualifier> = specs
             .qualifs
             .into_iter()
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
-                Ok(ty::conv::ConvCtxt::conv_qualifier(&qualifier))
+                Ok(rty::conv::ConvCtxt::conv_qualifier(&qualifier))
             })
             .try_collect_exhaust()?;
 

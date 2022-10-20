@@ -1,3 +1,9 @@
+//! Defines how flux represents refinement types internally. Definitions in this module are used
+//! during refinement type checking. A couple of important differences between definitions in this
+//! module and in [`crate::fhir`] are:
+//!
+//! * Types in this module use debruijn indices to represent local binders.
+//! * Data structures are interned so they can be cheaply cloned.
 pub mod conv;
 mod expr;
 pub mod fold;

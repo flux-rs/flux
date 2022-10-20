@@ -2,11 +2,11 @@ use std::iter;
 
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
-    rustc::mir::BasicBlock,
-    ty::{
+    rty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
         PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
     },
+    rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
 use rustc_span::Span;

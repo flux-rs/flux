@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::LazyLock};
 
 use flux_middle::{
+    rty::{BinOp, Expr},
     rustc::mir,
-    ty::{BinOp, Expr},
 };
 use rustc_span::Span;
 

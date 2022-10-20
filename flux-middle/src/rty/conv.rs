@@ -1,4 +1,4 @@
-//! Conversion from desugared types in [`crate::fhir`] to types in [`crate::ty`]
+//! Conversion from desugared types in [`crate::fhir`] to types in [`crate::rty`]
 use std::iter;
 
 use flux_common::index::IndexGen;
@@ -11,8 +11,8 @@ use crate::{
     fhir::{self, AdtDef},
     global_env::GlobalEnv,
     intern::List,
+    rty::{self, DebruijnIndex},
     rustc::ty::GenericParamDefKind,
-    ty::{self, DebruijnIndex},
 };
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
@@ -28,11 +28,11 @@ struct NameMap {
 #[derive(Copy, Clone, Debug)]
 enum Entry {
     Bound { level: u32, index: usize },
-    Free(ty::Name),
+    Free(rty::Name),
 }
 
-impl From<ty::Name> for Entry {
-    fn from(v: ty::Name) -> Self {
+impl From<rty::Name> for Entry {
+    fn from(v: rty::Name) -> Self {
         Self::Free(v)
     }
 }
@@ -42,12 +42,12 @@ impl NameMap {
         self.map.insert(name, var.into());
     }
 
-    fn get(&self, name: fhir::Name, nbinders: u32) -> ty::Expr {
+    fn get(&self, name: fhir::Name, nbinders: u32) -> rty::Expr {
         match self.map[&name] {
             Entry::Bound { level, index } => {
-                ty::Expr::bvar(ty::BoundVar::new(index, DebruijnIndex::new(nbinders - level - 1)))
+                rty::Expr::bvar(rty::BoundVar::new(index, DebruijnIndex::new(nbinders - level - 1)))
             }
-            Entry::Free(name) => ty::Expr::fvar(name),
+            Entry::Free(name) => rty::Expr::fvar(name),
         }
     }
 
@@ -73,7 +73,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: fhir::FnSig) -> ty::Binders<ty::FnSig> {
+    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: fhir::FnSig) -> rty::Binders<rty::FnSig> {
         let mut cx = ConvCtxt::new(genv);
 
         let params = cx.conv_params(&fn_sig.params);
@@ -95,10 +95,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let ret = cx.conv_ty(&fn_sig.ret, 1);
 
-        ty::Binders::new(ty::FnSig::new(requires, args, ret, ensures), params)
+        rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), params)
     }
 
-    pub(crate) fn conv_adt_def(genv: &GlobalEnv, adt: &fhir::AdtDef) -> ty::AdtDef {
+    pub(crate) fn conv_adt_def(genv: &GlobalEnv, adt: &fhir::AdtDef) -> rty::AdtDef {
         let mut cx = ConvCtxt::new(genv);
         let sorts = cx.conv_params(&adt.refined_by);
         let invariants = adt
@@ -107,7 +107,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .map(|invariant| cx.conv_invariant(&sorts, invariant))
             .collect_vec();
 
-        ty::AdtDef::new(genv.tcx.adt_def(adt.def_id), sorts, invariants, adt.opaque)
+        rty::AdtDef::new(genv.tcx.adt_def(adt.def_id), sorts, invariants, adt.opaque)
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -138,7 +138,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|ty| self.conv_ty(ty, 1))
             .collect_vec();
-        let variant = ty::VariantDef::new(fields, self.conv_variant_ret(variant.ret));
+        let variant = rty::VariantDef::new(fields, self.conv_variant_ret(variant.ret));
         Binders::new(variant, sorts)
     }
 
@@ -156,7 +156,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         genv: &GlobalEnv,
         adt_data: &AdtDef,
         struct_def: &fhir::StructDef,
-    ) -> Option<ty::PolyVariant> {
+    ) -> Option<rty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
         let sorts = cx.conv_params(&adt_data.refined_by);
         let def_id = struct_def.def_id;
@@ -176,26 +176,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .generics_of(struct_def.def_id)
                 .params
                 .iter()
-                .map(|param| ty::Ty::param(ty::ParamTy { index: param.index, name: param.name }))
+                .map(|param| rty::Ty::param(rty::ParamTy { index: param.index, name: param.name }))
                 .collect_vec();
 
             let idxs = sorts
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| ty::Expr::bvar(ty::BoundVar::innermost(idx)))
+                .map(|(idx, _)| rty::Expr::bvar(rty::BoundVar::innermost(idx)))
                 .collect_vec();
             let ret = VariantRet {
-                bty: ty::BaseTy::adt(genv.adt_def(def_id), substs),
+                bty: rty::BaseTy::adt(genv.adt_def(def_id), substs),
                 indices: List::from_vec(idxs),
             };
-            let variant = ty::VariantDef::new(fields, ret);
+            let variant = rty::VariantDef::new(fields, ret);
             Some(Binders::new(variant, sorts))
         } else {
             None
         }
     }
 
-    fn conv_params(&mut self, params: &[fhir::Param]) -> Vec<ty::Sort> {
+    fn conv_params(&mut self, params: &[fhir::Param]) -> Vec<rty::Sort> {
         params
             .iter()
             .enumerate()
@@ -207,10 +207,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .collect()
     }
 
-    fn conv_constr(&mut self, constr: &fhir::Constraint, nbinders: u32) -> ty::Constraint {
+    fn conv_constr(&mut self, constr: &fhir::Constraint, nbinders: u32) -> rty::Constraint {
         match constr {
             fhir::Constraint::Type(loc, ty) => {
-                ty::Constraint::Type(
+                rty::Constraint::Type(
                     self.name_map
                         .get(loc.name, nbinders)
                         .to_path()
@@ -218,11 +218,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     self.conv_ty(ty, nbinders),
                 )
             }
-            fhir::Constraint::Pred(e) => ty::Constraint::Pred(conv_expr(e, &self.name_map, 1)),
+            fhir::Constraint::Pred(e) => rty::Constraint::Pred(conv_expr(e, &self.name_map, 1)),
         }
     }
 
-    pub fn conv_qualifier(qualifier: &fhir::Qualifier) -> ty::Qualifier {
+    pub fn conv_qualifier(qualifier: &fhir::Qualifier) -> rty::Qualifier {
         let mut name_map = NameMap::default();
         let name_gen = IndexGen::new();
 
@@ -238,30 +238,30 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let expr = conv_expr(&qualifier.expr, &name_map, 1);
 
-        ty::Qualifier { name: qualifier.name.clone(), args, expr }
+        rty::Qualifier { name: qualifier.name.clone(), args, expr }
     }
 
-    fn conv_invariant(&self, sorts: &[ty::Sort], invariant: &fhir::Expr) -> ty::Invariant {
-        ty::Invariant {
+    fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {
+        rty::Invariant {
             pred: Binders::new(self.conv_expr(invariant), sorts),
             source_info: invariant.span.data(),
         }
     }
 
-    fn conv_expr(&self, expr: &fhir::Expr) -> ty::Expr {
+    fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         conv_expr(expr, &self.name_map, 1)
     }
 
-    fn conv_ty(&mut self, ty: &fhir::Ty, nbinders: u32) -> ty::Ty {
+    fn conv_ty(&mut self, ty: &fhir::Ty, nbinders: u32) -> rty::Ty {
         match ty {
             fhir::Ty::BaseTy(bty) => {
                 let bty = self.conv_base_ty(bty, nbinders);
                 let sorts = bty.sorts();
                 if sorts.is_empty() {
-                    ty::Ty::indexed(bty, vec![])
+                    rty::Ty::indexed(bty, vec![])
                 } else {
-                    let pred = ty::Binders::new(ty::Pred::tt(), sorts);
-                    ty::Ty::exists(bty, pred)
+                    let pred = rty::Binders::new(rty::Pred::tt(), sorts);
+                    rty::Ty::exists(bty, pred)
                 }
             }
             fhir::Ty::Indexed(bty, indices) => {
@@ -270,20 +270,20 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|idx| self.conv_index(idx, nbinders))
                     .collect_vec();
-                ty::Ty::indexed(self.conv_base_ty(bty, nbinders), indices)
+                rty::Ty::indexed(self.conv_base_ty(bty, nbinders), indices)
             }
             fhir::Ty::Exists(bty, binders, pred) => {
                 let bty = self.conv_base_ty(bty, nbinders);
                 self.name_map
                     .with_binders(binders, nbinders, |name_map, nbinders| {
                         let expr = conv_expr(pred, name_map, nbinders);
-                        let pred = ty::Binders::new(ty::Pred::Expr(expr), bty.sorts());
-                        ty::Ty::exists(bty, pred)
+                        let pred = rty::Binders::new(rty::Pred::Expr(expr), bty.sorts());
+                        rty::Ty::exists(bty, pred)
                     })
             }
             fhir::Ty::Ptr(loc) => {
-                ty::Ty::ptr(
-                    ty::RefKind::Mut,
+                rty::Ty::ptr(
+                    rty::RefKind::Mut,
                     self.name_map
                         .get(loc.name, nbinders)
                         .to_path()
@@ -291,44 +291,47 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 )
             }
             fhir::Ty::Ref(rk, ty) => {
-                ty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty, nbinders))
+                rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty, nbinders))
             }
-            fhir::Ty::Param(param) => ty::Ty::param(*param),
-            fhir::Ty::Float(float_ty) => ty::Ty::float(*float_ty),
+            fhir::Ty::Param(param) => rty::Ty::param(*param),
+            fhir::Ty::Float(float_ty) => rty::Ty::float(*float_ty),
             fhir::Ty::Tuple(tys) => {
                 let tys = tys
                     .iter()
                     .map(|ty| self.conv_ty(ty, nbinders))
                     .collect_vec();
-                ty::Ty::tuple(tys)
+                rty::Ty::tuple(tys)
             }
-            fhir::Ty::Never => ty::Ty::never(),
+            fhir::Ty::Never => rty::Ty::never(),
             fhir::Ty::Constr(pred, ty) => {
                 let pred = conv_expr(pred, &self.name_map, nbinders);
-                ty::Ty::constr(pred, self.conv_ty(ty, nbinders))
+                rty::Ty::constr(pred, self.conv_ty(ty, nbinders))
             }
-            fhir::Ty::Array(ty, _) => ty::Ty::array(self.conv_ty(ty, nbinders), ty::Const),
-            fhir::Ty::Slice(ty) => ty::Ty::slice(self.conv_ty(ty, nbinders)),
-            fhir::Ty::Str => ty::Ty::str(),
+            fhir::Ty::Array(ty, _) => rty::Ty::array(self.conv_ty(ty, nbinders), rty::Const),
+            fhir::Ty::Slice(ty) => rty::Ty::slice(self.conv_ty(ty, nbinders)),
+            fhir::Ty::Str => rty::Ty::str(),
         }
     }
 
-    fn conv_index(&self, idx: &fhir::Index, nbinders: u32) -> ty::Index {
-        ty::Index { expr: conv_expr(&idx.expr, &self.name_map, nbinders), is_binder: idx.is_binder }
+    fn conv_index(&self, idx: &fhir::Index, nbinders: u32) -> rty::Index {
+        rty::Index {
+            expr: conv_expr(&idx.expr, &self.name_map, nbinders),
+            is_binder: idx.is_binder,
+        }
     }
 
-    fn conv_ref_kind(rk: fhir::RefKind) -> ty::RefKind {
+    fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
         match rk {
-            fhir::RefKind::Mut => ty::RefKind::Mut,
-            fhir::RefKind::Shr => ty::RefKind::Shr,
+            fhir::RefKind::Mut => rty::RefKind::Mut,
+            fhir::RefKind::Shr => rty::RefKind::Shr,
         }
     }
 
-    fn conv_base_ty(&mut self, bty: &fhir::BaseTy, nbinders: u32) -> ty::BaseTy {
+    fn conv_base_ty(&mut self, bty: &fhir::BaseTy, nbinders: u32) -> rty::BaseTy {
         match bty {
-            fhir::BaseTy::Int(int_ty) => ty::BaseTy::Int(*int_ty),
-            fhir::BaseTy::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
-            fhir::BaseTy::Bool => ty::BaseTy::Bool,
+            fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(*int_ty),
+            fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
+            fhir::BaseTy::Bool => rty::BaseTy::Bool,
             fhir::BaseTy::Adt(did, substs) => {
                 let generics = self.genv.generics_of(*did);
                 let defaults = generics.params.iter().skip(substs.len()).map(|generic| {
@@ -344,19 +347,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|ty| self.conv_ty(ty, nbinders))
                     .chain(defaults);
-                ty::BaseTy::adt(adt_def, substs)
+                rty::BaseTy::adt(adt_def, substs)
             }
         }
     }
 }
 
-fn conv_expr(expr: &fhir::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
+fn conv_expr(expr: &fhir::Expr, name_map: &NameMap, nbinders: u32) -> rty::Expr {
     match &expr.kind {
-        fhir::ExprKind::Const(did, _) => ty::Expr::const_def_id(*did),
+        fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
         fhir::ExprKind::Var(name, ..) => name_map.get(*name, nbinders),
-        fhir::ExprKind::Literal(lit) => ty::Expr::constant(conv_lit(*lit)),
+        fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
         fhir::ExprKind::BinaryOp(op, e1, e2) => {
-            ty::Expr::binary_op(
+            rty::Expr::binary_op(
                 *op,
                 conv_expr(e1, name_map, nbinders),
                 conv_expr(e2, name_map, nbinders),
@@ -367,10 +370,10 @@ fn conv_expr(expr: &fhir::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
                 .iter()
                 .map(|e| conv_expr(e, name_map, nbinders))
                 .collect();
-            ty::Expr::app(f.symbol, exprs)
+            rty::Expr::app(f.symbol, exprs)
         }
         fhir::ExprKind::IfThenElse(p, e1, e2) => {
-            ty::Expr::ite(
+            rty::Expr::ite(
                 conv_expr(p, name_map, nbinders),
                 conv_expr(e1, name_map, nbinders),
                 conv_expr(e2, name_map, nbinders),
@@ -379,17 +382,17 @@ fn conv_expr(expr: &fhir::Expr, name_map: &NameMap, nbinders: u32) -> ty::Expr {
     }
 }
 
-fn conv_lit(lit: fhir::Lit) -> ty::Constant {
+fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     match lit {
-        fhir::Lit::Int(n) => ty::Constant::from(n),
-        fhir::Lit::Bool(b) => ty::Constant::from(b),
+        fhir::Lit::Int(n) => rty::Constant::from(n),
+        fhir::Lit::Bool(b) => rty::Constant::from(b),
     }
 }
 
-pub fn conv_sort(sort: fhir::Sort) -> ty::Sort {
+pub fn conv_sort(sort: fhir::Sort) -> rty::Sort {
     match sort {
-        fhir::Sort::Int => ty::Sort::Int,
-        fhir::Sort::Bool => ty::Sort::Bool,
-        fhir::Sort::Loc => ty::Sort::Loc,
+        fhir::Sort::Int => rty::Sort::Int,
+        fhir::Sort::Bool => rty::Sort::Bool,
+        fhir::Sort::Loc => rty::Sort::Loc,
     }
 }

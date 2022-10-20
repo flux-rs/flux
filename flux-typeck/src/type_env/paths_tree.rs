@@ -2,11 +2,11 @@ use std::{cell::RefCell, iter, rc::Rc};
 
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
-    rustc::mir::{Field, Place, PlaceElem},
-    ty::{
+    rty::{
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
         AdtDef, BaseTy, Expr, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
+    rustc::mir::{Field, Place, PlaceElem},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
