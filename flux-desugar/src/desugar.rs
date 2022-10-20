@@ -216,6 +216,20 @@ enum Binder {
     Unrefined,
 }
 
+enum BtyOrTy {
+    Bty(BaseTy),
+    Ty(Ty),
+}
+
+impl BtyOrTy {
+    fn into_ty(self) -> Ty {
+        match self {
+            BtyOrTy::Bty(bty) => Ty::BaseTy(bty),
+            BtyOrTy::Ty(ty) => ty,
+        }
+    }
+}
+
 impl<'a> DesugarCtxt<'a> {
     fn with_params(params: ParamsCtxt<'a>, adt_sorts: &'a AdtMap) -> DesugarCtxt<'a> {
         DesugarCtxt { params, requires: vec![], adt_sorts }
@@ -224,9 +238,14 @@ impl<'a> DesugarCtxt<'a> {
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
-                let bty = self.desugar_path_into_bty(path)?;
-                let indices = Indices { indices: self.desugar_bind(bind)?, span: bind.span };
-                let ty = Ty::Indexed(bty, indices);
+                let ty = match self.desugar_path(path)? {
+                    BtyOrTy::Bty(bty) => {
+                        let indices =
+                            Indices { indices: self.desugar_bind(bind)?, span: bind.span };
+                        Ty::Indexed(bty, indices)
+                    }
+                    BtyOrTy::Ty(ty) => ty,
+                };
                 if let Some(pred) = pred {
                     Ok(Ty::Constr(self.params.as_expr_ctxt().desugar_expr(pred)?, Box::new(ty)))
                 } else {
@@ -252,24 +271,25 @@ impl<'a> DesugarCtxt<'a> {
             surface::TyKind::Path(surface::Path { ident: Res::Param(param_ty), .. }) => {
                 Ty::Param(param_ty)
             }
-            surface::TyKind::Path(path) => {
-                let bty = self.desugar_path_into_bty(path)?;
-                Ty::BaseTy(bty)
-            }
+            surface::TyKind::Path(path) => self.desugar_path(path)?.into_ty(),
             surface::TyKind::Indexed { path, indices } => {
-                let bty = self.desugar_path_into_bty(path);
-                let indices = self.desugar_indices(indices);
-                Ty::Indexed(bty?, indices?)
+                match self.desugar_path(path)? {
+                    BtyOrTy::Bty(bty) => Ty::Indexed(bty, self.desugar_indices(indices)?),
+                    BtyOrTy::Ty(_) => todo!(),
+                }
             }
             surface::TyKind::Exists { bind, path, pred } => {
-                let (binders, pred) = self.params.with_bind(
-                    bind,
-                    &path,
-                    |params| params.as_expr_ctxt().desugar_expr(pred),
-                    self.adt_sorts,
-                )?;
-                let bty = self.desugar_path_into_bty(path);
-                Ty::Exists(bty?, binders, pred)
+                let binder = Binder::for_bind(&self.params.name_gen, self.adt_sorts, &path);
+                match self.desugar_path(path)? {
+                    BtyOrTy::Bty(bty) => {
+                        let names = binder.names();
+                        let pred = self.params.with_bind(bind, binder, |params| {
+                            params.as_expr_ctxt().desugar_expr(pred)
+                        })?;
+                        Ty::Exists(bty, names, pred)
+                    }
+                    BtyOrTy::Ty(_) => todo!(),
+                }
             }
             surface::TyKind::Ref(rk, ty) => {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
@@ -340,24 +360,23 @@ impl<'a> DesugarCtxt<'a> {
         }
     }
 
-    fn desugar_path_into_bty(
-        &mut self,
-        path: surface::Path<Res>,
-    ) -> Result<BaseTy, ErrorGuaranteed> {
+    fn desugar_path(&mut self, path: surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match path.ident {
-            Res::Bool => BaseTy::Bool,
-            Res::Int(int_ty) => BaseTy::Int(int_ty),
-            Res::Uint(uint_ty) => BaseTy::Uint(uint_ty),
+            Res::Bool => BtyOrTy::Bty(BaseTy::Bool),
+            Res::Int(int_ty) => BtyOrTy::Bty(BaseTy::Int(int_ty)),
+            Res::Uint(uint_ty) => BtyOrTy::Bty(BaseTy::Uint(uint_ty)),
             Res::Adt(def_id) => {
                 let substs = path
                     .args
                     .into_iter()
                     .map(|ty| self.desugar_ty(ty))
                     .try_collect_exhaust()?;
-                BaseTy::Adt(def_id, substs)
+                BtyOrTy::Bty(BaseTy::Adt(def_id, substs))
             }
-            Res::Float(..) | Res::Param(..) | Res::Tuple => {
-                panic!("invalid")
+            Res::Float(float_ty) => BtyOrTy::Ty(Ty::Float(float_ty)),
+            Res::Param(param_ty) => BtyOrTy::Ty(Ty::Param(param_ty)),
+            Res::Tuple => {
+                todo!("support for tuples")
             }
         };
         Ok(bty)
@@ -367,9 +386,13 @@ impl<'a> DesugarCtxt<'a> {
         &mut self,
         ret: surface::VariantRet<Res>,
     ) -> Result<VariantRet, ErrorGuaranteed> {
-        let bty = self.desugar_path_into_bty(ret.path)?;
-        let indices = self.desugar_indices(ret.indices)?;
-        Ok(VariantRet { bty, indices })
+        match self.desugar_path(ret.path)? {
+            BtyOrTy::Bty(bty) => {
+                let indices = self.desugar_indices(ret.indices)?;
+                Ok(VariantRet { bty, indices })
+            }
+            BtyOrTy::Ty(_) => todo!(),
+        }
     }
 }
 
@@ -532,20 +555,18 @@ impl<'a> ParamsCtxt<'a> {
 
     fn with_bind<R>(
         &mut self,
-        bind: surface::Ident,
-        path: &Path<Res>,
+        ident: surface::Ident,
+        binder: Binder,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-        adt_map: &AdtMap,
-    ) -> Result<(Vec<Name>, R), ErrorGuaranteed> {
-        let old = self.insert_bind(adt_map, bind, path, false)?;
-        let binders = self.binders[&bind.name].names();
+    ) -> Result<R, ErrorGuaranteed> {
+        let old = self.binders.insert(ident.name, binder);
         let r = f(self)?;
         if let Some(old) = old {
-            self.binders.insert(bind.name, old);
+            self.binders.insert(ident.name, old);
         } else {
-            self.binders.remove(&bind.name);
+            self.binders.remove(&ident.name);
         }
-        Ok((binders, r))
+        Ok(r)
     }
 
     fn insert_params<P>(
