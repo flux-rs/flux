@@ -595,7 +595,7 @@ impl<'a> ParamsCtxt<'a> {
 
         if is_param {
             for (name, sort) in iter::zip(binder.names(), sorts) {
-                self.params.push(param_from_bind(bind, name, *sort));
+                self.params.push(param_from_ident(bind, name, *sort));
             }
         }
         Ok(self.binders.insert(bind.name, binder))
@@ -605,7 +605,7 @@ impl<'a> ParamsCtxt<'a> {
         let name = self.fresh();
         self.binders.insert(bind.name, Binder::Single(name, sort));
         if push_param {
-            self.params.push(param_from_bind(bind, name, sort))
+            self.params.push(param_from_ident(bind, name, sort))
         }
     }
 
@@ -681,26 +681,15 @@ impl<'a> ParamsCtxt<'a> {
         }
     }
 
-    fn desugar_uf(&self, f: surface::Ident) -> flux_middle::core::UFun {
-        UFun { symbol: f.name, span: f.span }
-    }
-
     fn as_expr_ctxt(&self) -> ExprCtxt {
         ExprCtxt { sess: self.sess, const_map: &self.const_map, binders: &self.binders }
     }
 }
 
-fn param_from_bind(bind: surface::Ident, name: Name, sort: Sort) -> Param {
-    let source_info = (bind.span, bind.name);
+fn param_from_ident(ident: surface::Ident, name: Name, sort: Sort) -> Param {
+    let source_info = (ident.span, ident.name);
     let name = Ident { name, source_info };
     Param { name, sort }
-}
-
-fn fields<'a>(adt_sorts: &'a AdtMap, path: &surface::Path<Res>) -> Option<&'a [Symbol]> {
-    match path.ident {
-        Res::Adt(def_id) => Some(adt_sorts.get_fields(def_id).unwrap_or_default()),
-        _ => None,
-    }
 }
 
 fn sorts<'a>(
