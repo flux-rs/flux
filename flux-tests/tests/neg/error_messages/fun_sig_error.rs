@@ -61,3 +61,9 @@ fn hipa(x: &[i32]) {}
 
 #[flux::sig(fn(Option<i32[@n]>))] //~ ERROR illegal binder
 fn ira(x: Option<i32>) {}
+
+#[flux::sig(fn(x: f32))] //~ ERROR type mismatch
+fn hefe(f: &mut f32) {}
+
+#[flux::sig(fn(x: &mut f32))] //~ ERROR type mismatch
+fn quad(f: f32) {}

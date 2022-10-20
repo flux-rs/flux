@@ -6,6 +6,7 @@ use flux_syntax::surface::{
     Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef, VariantRet,
 };
 use itertools::Itertools;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
 use crate::table_resolver::{
@@ -19,13 +20,18 @@ use crate::table_resolver::{
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
 pub struct ZipResolver<'genv, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     resolver: &'genv Resolver<'genv, 'tcx>,
 }
 
 impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
-    pub fn new(sess: &'genv FluxSession, resolver: &'genv Resolver<'genv, 'tcx>) -> Self {
-        ZipResolver { sess, resolver }
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'genv FluxSession,
+        resolver: &'genv Resolver<'genv, 'tcx>,
+    ) -> Self {
+        ZipResolver { tcx, sess, resolver }
     }
 
     pub fn zip_enum_def(
@@ -216,8 +222,11 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
             (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => {
                 TyKind::Slice(Box::new(self.zip_ty(*ty, rust_ty)?))
             }
-
-            _ => panic!("incompatible types: `{rust_ty:?}`"),
+            _ => {
+                return Err(self
+                    .sess
+                    .emit_err(TypeMismatch::from_ty(self.tcx, rust_ty, ty.span)));
+            }
         };
         Ok(Ty { kind, span: ty.span })
     }
@@ -230,20 +239,24 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
             rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
             rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
             rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
-            rustc_ty::TyKind::Str => todo!(),
+            rustc_ty::TyKind::Str => (Res::Str, [].as_slice()),
 
             rustc_ty::TyKind::Array(_, _)
             | rustc_ty::TyKind::Never
             | rustc_ty::TyKind::Ref(_, _)
             | rustc_ty::TyKind::Tuple(_)
             | rustc_ty::TyKind::Slice(_) => {
-                return Err(self.sess.emit_err(TypeMismatch::new(rust_ty, path.ident)))
+                return Err(self
+                    .sess
+                    .emit_err(TypeMismatch::from_ident(rust_ty, path.ident)))
             }
         };
 
         let path_res = self.resolver.resolve_ident(path.ident)?;
         if path_res != res {
-            return Err(self.sess.emit_err(TypeMismatch::new(rust_ty, path.ident)));
+            return Err(self
+                .sess
+                .emit_err(TypeMismatch::from_ident(rust_ty, path.ident)));
         }
 
         let path_args_len = path.args.len();

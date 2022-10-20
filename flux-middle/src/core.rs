@@ -95,6 +95,7 @@ pub enum Ty {
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
     Float(FloatTy),
+    Str,
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
@@ -351,6 +352,7 @@ impl fmt::Debug for Ty {
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Slice(ty) => write!(f, "[{ty:?}]"),
+            Ty::Str => write!(f, "str"),
         }
     }
 }

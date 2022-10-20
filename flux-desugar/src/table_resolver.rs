@@ -360,12 +360,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
                 Ok(Res::Adt(def_id))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    msg: "string slices are not supported yet",
-                }))
-            }
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
             hir::def::Res::PrimTy(hir::PrimTy::Char) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
@@ -454,6 +449,7 @@ pub mod errors {
     use flux_macros::Diagnostic;
     use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
     use flux_syntax::surface::{self, RefKind};
+    use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -530,13 +526,25 @@ pub mod errors {
         #[label]
         pub span: Span,
         pub rust_type: String,
-        pub flux_type: Ident,
+        pub flux_type: String,
     }
 
     impl TypeMismatch {
-        pub fn new(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
+        pub fn from_ty(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
+            let flux_type = tcx
+                .sess
+                .source_map()
+                .span_to_snippet(flux_ty_span)
+                .unwrap_or_else(|_| "{unknown}".to_string());
             let rust_type = format!("{rust_ty:?}");
-            Self { span: flux_type.span, rust_type, flux_type }
+            Self { span: flux_ty_span, rust_type, flux_type }
+        }
+
+        pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
+            let span = flux_type.span;
+            let flux_type = format!("{flux_type}");
+            let rust_type = format!("{rust_ty:?}");
+            Self { span, rust_type, flux_type }
         }
     }
 

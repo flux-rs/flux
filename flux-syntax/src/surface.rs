@@ -174,6 +174,7 @@ pub enum Res {
     Uint(UintTy),
     Float(FloatTy),
     Adt(DefId),
+    Str,
     Param(ParamTy),
 }
 
