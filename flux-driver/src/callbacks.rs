@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::AdtMap,
+    fhir::AdtMap,
     global_env::{ConstInfo, GlobalEnv},
     rustc, ty,
 };
@@ -138,10 +138,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             })?;
 
         // Gather UFs
-        specs.uifs.into_iter().try_for_each_exhaust(|uf_def| {
-            let name = uf_def.name;
-            let uf_def = desugar::resolve_uf_def(genv.sess, uf_def)?;
-            genv.register_uf_def(name.name, uf_def);
+        specs.uifs.into_iter().try_for_each_exhaust(|uif_def| {
+            let name = uif_def.name;
+            let uif_def = desugar::resolve_uif_def(genv.sess, uif_def)?;
+            genv.register_uif_def(name.name, uif_def);
             Ok(())
         })?;
 

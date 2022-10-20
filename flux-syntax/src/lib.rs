@@ -53,8 +53,8 @@ pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::
     parse!(surface_grammar::QualifierParser, tokens, span)
 }
 
-pub fn parse_uf_def(tokens: TokenStream, span: Span) -> ParseResult<surface::UFDef> {
-    parse!(surface_grammar::UFDefParser, tokens, span)
+pub fn parse_uif_def(tokens: TokenStream, span: Span) -> ParseResult<surface::UifDef> {
+    parse!(surface_grammar::UifDefParser, tokens, span)
 }
 
 pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {

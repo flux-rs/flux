@@ -61,15 +61,15 @@ pub struct Qualifier {
     pub name: String,
 }
 
-pub struct UFDef {
+pub struct UifDef {
     pub name: String,
     pub inputs: Vec<Sort>,
     pub output: Sort,
 }
 
-impl UFDef {
+impl UifDef {
     pub fn new(name: String, inputs: Vec<Sort>, output: Sort) -> Self {
-        UFDef { name, inputs, output }
+        UifDef { name, inputs, output }
     }
 }
 #[derive(Clone, Copy, Debug)]

@@ -309,7 +309,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double check here that the place is unfolded to
-                // the corect variant. This should be guaranteed by rustc
+                // the correct variant. This should be guaranteed by rustc
             }
             StatementKind::FakeRead(_) => {
                 // TODO(nilehmann) fake reads should be folding points

@@ -1,10 +1,16 @@
-//! "Core" (desugared) version of level liquid annotations. The main difference with
-//! the surface syntax is that the list of refinement parameters is explicit in `core`.
-//! For example, the signature `fn(x: &strg i32[@n]) -> (); x: i32[@n + 1]` desugars to
-//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) -> (); l: i32[n + 1]`.
+//! The fhir-"Flux High-Level Intermediate Representation"-corresponds to the desugared version of
+//! source level flux annotations. The main difference with the surface syntax is that the list of
+//! refinement parameters is explicit in `fhir`. For example, the following signature
+//!
+//! `fn(x: &strg i32[@n]) ensures x: i32[n + 1]`
+//!
+//! desugars to
+//!
+//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) ensures l: i32[n + 1]`.
+//!
+//! The name fhir is borrowed from rustc's hir.
 
-use core::fmt;
-use std::fmt::Write;
+use std::{fmt, fmt::Write};
 
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
@@ -87,9 +93,10 @@ pub enum Ty {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, Indices),
-    /// Existential types in core are represented with an explicit list of binders for
+    /// Existential types in fhir are represented with an explicit list of binders for
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
-    /// for two indices. (there's currently no equivalent surface syntax).
+    /// for two indices. There's currently no equivalent surface syntax and existentials for
+    /// types with multiple indices have to use projection syntax.
     Exists(BaseTy, Vec<Name>, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
@@ -230,9 +237,9 @@ pub struct AdtDef {
 }
 
 #[derive(Default)]
-pub struct UFSorts(FxHashMap<Symbol, UFDef>);
+pub struct UFSorts(FxHashMap<Symbol, UifDef>);
 
-pub struct UFDef {
+pub struct UifDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
 }
@@ -249,15 +256,15 @@ impl UFSorts {
         UFSorts(FxHashMap::default())
     }
 
-    pub fn insert(&mut self, name: Symbol, uf_def: UFDef) {
-        self.0.insert(name, uf_def);
+    pub fn insert(&mut self, name: Symbol, uif_def: UifDef) {
+        self.0.insert(name, uif_def);
     }
 
     pub fn contains(&self, name: &Symbol) -> bool {
         self.0.contains_key(name)
     }
 
-    pub fn get(&self, name: &Symbol) -> Option<&UFDef> {
+    pub fn get(&self, name: &Symbol) -> Option<&UifDef> {
         self.0.get(name)
     }
 }

@@ -123,7 +123,7 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
         qualifiers: &[ty::Qualifier],
-        uf_sorts: &FxHashMap<Symbol, ty::UFDef>,
+        uifs: &FxHashMap<Symbol, ty::UifDef>,
     ) -> Result<(), Vec<T>> {
         let kvars = self
             .fixpoint_kvars
@@ -147,9 +147,9 @@ where
             .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
-        let uifs = uf_sorts
+        let uifs = uifs
             .iter()
-            .map(|(sym, uf_def)| uf_def_to_fixpoint(sym, uf_def))
+            .map(|(sym, uif_def)| uif_def_to_fixpoint(sym, uif_def))
             .collect_vec();
 
         let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
@@ -411,10 +411,10 @@ fn dump_constraint<C: std::fmt::Debug>(
     write!(file, "{:?}", c)
 }
 
-fn uf_def_to_fixpoint(name: &Symbol, uf_def: &ty::UFDef) -> fixpoint::UFDef {
-    let inputs = uf_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
-    let output = sort_to_fixpoint(&uf_def.output);
-    fixpoint::UFDef::new(name.to_string(), inputs, output)
+fn uif_def_to_fixpoint(name: &Symbol, uif_def: &ty::UifDef) -> fixpoint::UifDef {
+    let inputs = uif_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
+    let output = sort_to_fixpoint(&uif_def.output);
+    fixpoint::UifDef::new(name.to_string(), inputs, output)
 }
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &ty::Qualifier) -> fixpoint::Qualifier {

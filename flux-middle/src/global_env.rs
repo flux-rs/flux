@@ -12,7 +12,7 @@ pub use rustc_span::symbol::Ident;
 use rustc_span::Symbol;
 
 use crate::{
-    core::{self, UFDef, VariantIdx},
+    fhir::{self, UifDef, VariantIdx},
     intern::List,
     rustc,
     ty::{self, Binders},
@@ -35,7 +35,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub consts: Vec<ConstInfo>,
     adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::PolyVariant>>>>,
-    pub uf_sorts: FxHashMap<Symbol, ty::UFDef>,
+    pub uif_defs: FxHashMap<Symbol, ty::UifDef>,
     check_asserts: AssertBehavior,
     /// Some functions can only to be called after all annotated adts have been
     /// registered. We use this flag to check at runtime that this is actually the
@@ -56,7 +56,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             sess,
             check_asserts,
             adts_registered: false,
-            uf_sorts: FxHashMap::default(),
+            uif_defs: FxHashMap::default(),
         }
     }
 
@@ -64,14 +64,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.check_asserts = behavior;
     }
 
-    pub fn register_uf_def(&mut self, name: Symbol, uf_def: UFDef) {
-        let inputs = uf_def.inputs.into_iter().map(ty::conv::conv_sort).collect();
-        let output = ty::conv::conv_sort(uf_def.output);
+    pub fn register_uif_def(&mut self, name: Symbol, uif_def: UifDef) {
+        let inputs = uif_def
+            .inputs
+            .into_iter()
+            .map(ty::conv::conv_sort)
+            .collect();
+        let output = ty::conv::conv_sort(uif_def.output);
 
-        self.uf_sorts.insert(name, ty::UFDef { inputs, output });
+        self.uif_defs.insert(name, ty::UifDef { inputs, output });
     }
 
-    pub fn register_adt_def(&mut self, adt_def: &core::AdtDef) {
+    pub fn register_adt_def(&mut self, adt_def: &fhir::AdtDef) {
         let def_id = adt_def.def_id;
         let adt_def = ty::conv::ConvCtxt::conv_adt_def(self, adt_def);
         self.adt_defs.get_mut().insert(def_id, adt_def);
@@ -82,7 +86,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.adts_registered = true;
     }
 
-    pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: core::FnSig) {
+    pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: fhir::FnSig) {
         let fn_sig = ty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
@@ -90,15 +94,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn register_struct_def_variant(
         &mut self,
         def_id: DefId,
-        adt_data: &core::AdtDef,
-        struct_def: core::StructDef,
+        adt_data: &fhir::AdtDef,
+        struct_def: fhir::StructDef,
     ) {
         let variant = ty::conv::ConvCtxt::conv_struct_def_variant(self, adt_data, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
     }
 
-    pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: core::EnumDef) {
+    pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: fhir::EnumDef) {
         if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
             self.adt_variants.get_mut().insert(def_id, Some(variants));
         }

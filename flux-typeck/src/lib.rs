@@ -52,7 +52,7 @@ pub fn check<'a, 'tcx>(
 
     let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-    match fcx.check(genv.tcx, def_id, constraint, qualifiers, &genv.uf_sorts) {
+    match fcx.check(genv.tcx, def_id, constraint, qualifiers, &genv.uif_defs) {
         Ok(_) => Ok(()),
         Err(tags) => report_errors(genv, body.span(), tags),
     }
