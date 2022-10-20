@@ -322,12 +322,6 @@ impl<'a> DesugarCtxt<'a> {
             surface::TyKind::Ref(rk, ty) => {
                 Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(*ty)?))
             }
-            surface::TyKind::StrgRef(loc, ty) => {
-                let loc = self.binders.as_expr_ctxt().desugar_loc(loc)?;
-                let ty = self.desugar_ty(*ty)?;
-                self.requires.push(Constraint::Type(loc, ty));
-                Ty::Ptr(loc)
-            }
             surface::TyKind::Unit => Ty::Tuple(vec![]),
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.binders.as_expr_ctxt().desugar_expr(pred)?;
@@ -408,9 +402,7 @@ impl<'a> DesugarCtxt<'a> {
             }
             Res::Float(float_ty) => BtyOrTy::Ty(Ty::Float(float_ty)),
             Res::Param(param_ty) => BtyOrTy::Ty(Ty::Param(param_ty)),
-            Res::Tuple => {
-                todo!("support for tuples")
-            }
+            Res::Str => BtyOrTy::Ty(Ty::Str),
         };
         Ok(bty)
     }
@@ -691,8 +683,7 @@ impl<'a> Binders<'a> {
                 }
                 Ok(())
             }
-            surface::TyKind::StrgRef(_, ty)
-            | surface::TyKind::Ref(_, ty)
+            surface::TyKind::Ref(_, ty)
             | surface::TyKind::Array(ty, _)
             | surface::TyKind::Slice(ty)
             | surface::TyKind::Constr(_, ty) => self.ty_gather_params(ty, adt_map),
@@ -738,7 +729,7 @@ fn sorts<'a>(adt_sorts: &'a AdtMap, path: &surface::Path<Res>) -> &'a [Sort] {
         Res::Bool => &[Sort::Bool],
         Res::Int(_) | Res::Uint(_) => &[Sort::Int],
         Res::Adt(def_id) => adt_sorts.get_sorts(def_id).unwrap_or_default(),
-        Res::Float(_) | Res::Param(_) | Res::Tuple => &[],
+        Res::Float(_) | Res::Param(_) | Res::Str => &[],
     }
 }
 
@@ -778,7 +769,7 @@ impl Binder {
                     Binder::Aggregate(fields)
                 }
             }
-            Res::Float(_) | Res::Param(_) | Res::Tuple => Binder::Unrefined,
+            Res::Float(_) | Res::Param(_) | Res::Str => Binder::Unrefined,
         }
     }
 

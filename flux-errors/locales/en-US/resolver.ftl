@@ -15,7 +15,8 @@ resolver_mismatched_fields =
     field count mismatch in flux signature: rust signature has {$rust_fields} but flux signature has {$flux_fields}
 
 resolver_mismatched_type =
-    type mismatch in flux signature: expected `{$rust_type}` but saw `{$flux_type}`
+    type mismatch in flux signature
+    .label =  expected `{$rust_type}`, found `{$flux_type}`
 
 resolver_mutability_mismatch =
     mutability mismatch in flux signature: rust signature has a `{$rust_ref}` reference but flux signature has a `{$flux_ref}` reference

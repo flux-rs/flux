@@ -309,6 +309,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             core::Ty::Array(ty, _) => ty::Ty::array(self.conv_ty(ty, nbinders), ty::Const),
             core::Ty::Slice(ty) => ty::Ty::slice(self.conv_ty(ty, nbinders)),
+            core::Ty::Str => ty::Ty::str(),
         }
     }
 

@@ -145,10 +145,6 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
                 let path = self.resolve_path(path)?;
                 surface::TyKind::Exists { bind, path, pred }
             }
-            surface::TyKind::StrgRef(loc, ty) => {
-                let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::StrgRef(loc, Box::new(ty))
-            }
             surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
@@ -364,12 +360,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
                 Ok(Res::Adt(def_id))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    msg: "string slices are not supported yet",
-                }))
-            }
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
             hir::def::Res::PrimTy(hir::PrimTy::Char) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
@@ -456,9 +447,8 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
 
 pub mod errors {
     use flux_macros::Diagnostic;
-    use flux_middle::rustc::ty::Mutability;
-    use flux_syntax::surface::{self, RefKind, Res};
-    use rustc_hir::def_id::DefId;
+    use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
+    use flux_syntax::surface::{self, RefKind};
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
@@ -531,17 +521,30 @@ pub mod errors {
 
     #[derive(Diagnostic)]
     #[diag(resolver::mismatched_type, code = "FLUX")]
-    pub struct MismatchedType {
+    pub struct TypeMismatch {
         #[primary_span]
+        #[label]
         pub span: Span,
         pub rust_type: String,
-        pub flux_type: Ident,
+        pub flux_type: String,
     }
 
-    impl MismatchedType {
-        pub fn new(tcx: TyCtxt, rust_res: Res, flux_type: Ident) -> Self {
-            let rust_type = print_res(tcx, rust_res);
-            Self { span: flux_type.span, rust_type, flux_type }
+    impl TypeMismatch {
+        pub fn from_ty(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
+            let flux_type = tcx
+                .sess
+                .source_map()
+                .span_to_snippet(flux_ty_span)
+                .unwrap_or_else(|_| "{unknown}".to_string());
+            let rust_type = format!("{rust_ty:?}");
+            Self { span: flux_ty_span, rust_type, flux_type }
+        }
+
+        pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
+            let span = flux_type.span;
+            let flux_type = format!("{flux_type}");
+            let rust_type = format!("{rust_ty:?}");
+            Self { span, rust_type, flux_type }
         }
     }
 
@@ -576,22 +579,5 @@ pub mod errors {
                 },
             }
         }
-    }
-
-    fn print_res(tcx: TyCtxt, res: Res) -> String {
-        match res {
-            Res::Bool => "bool".to_string(),
-            Res::Int(int_ty) => int_ty.name_str().to_string(),
-            Res::Uint(uint_ty) => uint_ty.name_str().to_string(),
-            Res::Float(float_ty) => float_ty.name_str().to_string(),
-            Res::Adt(def_id) => print_def_id(tcx, def_id),
-            Res::Param(_) => todo!(),
-            Res::Tuple => "()".to_string(),
-        }
-    }
-
-    fn print_def_id(tcx: TyCtxt, def_id: DefId) -> String {
-        let crate_name = tcx.crate_name(def_id.krate);
-        format!("{crate_name}{}", tcx.def_path(def_id).to_string_no_crate_verbose())
     }
 }

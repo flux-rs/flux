@@ -95,17 +95,16 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>                => surface::Arg::StrgRef(bind, ty),
-    <bind:Ident> ":" <path:Path>                       => surface::Arg::Constr(bind, path, None),
-    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}" => surface::Arg::Constr(bind, path, Some(pred)),
+    <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(bind, ty),
+    <bind:Ident> ":" <path:Path>                           => surface::Arg::Constr(bind, path, None),
+    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}"     => surface::Arg::Constr(bind, path, Some(pred)),
     <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(bind, path, indices),
-    <bind:Ident> ":" "&" "mut" <ty:Ty> => {
-        let span = ty.span;
+    <bind:Ident> ":" <lo:@L> "&" "mut" <ty:Ty> <hi:@R> => {
         let kind = surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty));
-        let arg_ty = surface::Ty { kind, span };
+        let arg_ty = surface::Ty { kind, span: mk_span(lo, hi) };
         surface::Arg::Ty(arg_ty)
     },
-    <ty:Ty>                                            => surface::Arg::Ty(<>),
+    <ty:Ty> => surface::Arg::Ty(<>),
 }
 
 pub Ty: surface::Ty = {
@@ -116,8 +115,6 @@ pub Ty: surface::Ty = {
 }
 
 TyKind: surface::TyKind = {
-    "&" "strg" "<" <loc:Ident> ":" <ty:Ty> ">"  => surface::TyKind::StrgRef(loc, Box::new(ty)),
-
     "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut"  <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
