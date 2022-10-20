@@ -2,6 +2,7 @@
 #![feature(min_specialization)]
 #![feature(box_patterns, once_cell)]
 
+extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;

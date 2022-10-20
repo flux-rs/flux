@@ -16,6 +16,8 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
+use crate::pretty;
+
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: DefId,
@@ -88,7 +90,7 @@ pub enum Ty {
     /// Existential types in core are represented with an explicit list of binders for
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
     /// for two indices. (there's currently no equivalent surface syntax).
-    Exists(BaseTy, Vec<Ident>, Expr),
+    Exists(BaseTy, Vec<Name>, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -370,7 +372,7 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt
         BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
         BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
         BaseTy::Bool => write!(f, "bool")?,
-        BaseTy::Adt(did, _) => write!(f, "{did:?}")?,
+        BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
     }
     match bty {
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {

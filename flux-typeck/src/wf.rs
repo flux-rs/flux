@@ -27,17 +27,17 @@ impl Env {
 
     fn with_binders<R>(
         &mut self,
-        binders: &[core::Ident],
+        binders: &[core::Name],
         sorts: &[ty::Sort],
         f: impl FnOnce(&Self) -> R,
     ) -> R {
         debug_assert_eq!(binders.len(), sorts.len());
         for (binder, sort) in iter::zip(binders, sorts) {
-            self.sorts.insert(binder.name, sort.clone());
+            self.sorts.insert(*binder, sort.clone());
         }
         let r = f(self);
         for binder in binders {
-            self.sorts.remove(&binder.name);
+            self.sorts.remove(binder);
         }
         r
     }

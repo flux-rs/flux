@@ -53,16 +53,16 @@ impl NameMap {
 
     fn with_binders<R>(
         &mut self,
-        binders: &[core::Ident],
+        binders: &[core::Name],
         nbinders: u32,
         f: impl FnOnce(&mut Self, u32) -> R,
     ) -> R {
         for (index, binder) in binders.iter().enumerate() {
-            self.insert(binder.name, Entry::Bound { index, level: nbinders });
+            self.insert(*binder, Entry::Bound { index, level: nbinders });
         }
         let r = f(self, nbinders + 1);
         for binder in binders {
-            self.map.remove(&binder.name);
+            self.map.remove(binder);
         }
         r
     }
