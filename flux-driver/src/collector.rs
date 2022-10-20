@@ -7,7 +7,7 @@ use flux_common::{
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
     parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
-    parse_type_alias, parse_uf_def, parse_variant, surface, ParseResult,
+    parse_type_alias, parse_uif_def, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -42,7 +42,7 @@ pub(crate) struct Specs {
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
-    pub uifs: Vec<surface::UFDef>,
+    pub uifs: Vec<surface::UifDef>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
@@ -238,8 +238,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut qualifiers = attrs.qualifiers();
         self.specs.qualifs.append(&mut qualifiers);
 
-        let mut uf_defs = attrs.uf_defs();
-        self.specs.uifs.append(&mut uf_defs);
+        let mut uif_defs = attrs.uif_defs();
+        self.specs.uifs.append(&mut uif_defs);
 
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
@@ -306,8 +306,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 FluxAttrKind::Qualifier(qualifer)
             }
             ("uf", MacArgs::Delimited(span, _, tokens)) => {
-                let uf_def = self.parse(tokens.clone(), span.entire(), parse_uf_def)?;
-                FluxAttrKind::UFDef(uf_def)
+                let uif_def = self.parse(tokens.clone(), span.entire(), parse_uif_def)?;
+                FluxAttrKind::UifDef(uif_def)
             }
             ("cfg", MacArgs::Delimited(_, _, _)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -419,7 +419,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::Params),
     Qualifier(surface::Qualifier),
-    UFDef(surface::UFDef),
+    UifDef(surface::UifDef),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
     Variant(surface::VariantDef),
@@ -502,8 +502,8 @@ impl FluxAttrs {
         read_attrs!(self, Qualifier)
     }
 
-    fn uf_defs(&mut self) -> Vec<surface::UFDef> {
-        read_attrs!(self, UFDef)
+    fn uif_defs(&mut self) -> Vec<surface::UifDef> {
+        read_attrs!(self, UifDef)
     }
 
     fn alias(&mut self) -> Option<surface::Alias> {
@@ -545,7 +545,7 @@ impl FluxAttrKind {
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),
-            FluxAttrKind::UFDef(_) => attr_name!(UFDef),
+            FluxAttrKind::UifDef(_) => attr_name!(UifDef),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
         }
     }

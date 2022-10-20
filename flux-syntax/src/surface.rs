@@ -17,7 +17,7 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
-pub struct UFDef {
+pub struct UifDef {
     /// name of the uninterpreted function
     pub name: Ident,
     /// input sorts

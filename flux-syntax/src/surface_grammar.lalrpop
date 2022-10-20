@@ -28,7 +28,7 @@ pub RefinedBy: surface::Params = {
     <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
 }
 
-pub UFDef: surface::UFDef = {
+pub UifDef: surface::UifDef = {
     <lo:@L>
     "fn"
     <name:Ident>
@@ -36,7 +36,7 @@ pub UFDef: surface::UFDef = {
     "->"
     <output:Ident>
     <hi:@R> => {
-        surface::UFDef { name, inputs, output, span: mk_span(lo, hi) }
+        surface::UifDef { name, inputs, output, span: mk_span(lo, hi) }
     }
 }
 

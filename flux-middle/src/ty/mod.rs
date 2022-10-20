@@ -16,7 +16,7 @@ use rustc_span::{SpanData, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
-pub use crate::{core::RefKind, rustc::ty::Const};
+pub use crate::{fhir::RefKind, rustc::ty::Const};
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::Place,
@@ -38,7 +38,7 @@ pub struct AdtDefData {
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct Invariant {
     pub pred: Binders<Expr>,
-    /// The source span of the invariant. Used for error reporting
+    /// The source span of the invariant. Used for error reporting.
     ///
     /// FIXME(nlehmann) We should't be storing spans here. Probably a
     /// better approach would be to assign a unique id to the invariant
@@ -178,7 +178,7 @@ pub enum Sort {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct UFDef {
+pub struct UifDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
 }
