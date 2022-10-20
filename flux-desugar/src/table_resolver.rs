@@ -445,11 +445,9 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     }
 }
 
-pub mod errors {
+mod errors {
     use flux_macros::Diagnostic;
-    use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
-    use flux_syntax::surface::{self, RefKind};
-    use rustc_middle::ty::TyCtxt;
+    use flux_syntax::surface;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -471,113 +469,6 @@ pub mod errors {
     impl UnresolvedPath {
         pub fn new(ident: surface::Ident) -> Self {
             Self { span: ident.span, path: ident }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::unresolved_location, code = "FLUX")]
-    pub struct UnresolvedLocation {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-        pub loc: Ident,
-    }
-
-    impl UnresolvedLocation {
-        pub fn new(ident: surface::Ident) -> Self {
-            Self { span: ident.span, loc: ident }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_fields, code = "FLUX")]
-    pub struct FieldCountMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub rust_fields: usize,
-        pub flux_fields: usize,
-    }
-
-    impl FieldCountMismatch {
-        pub fn new(span: Span, rust_fields: usize, flux_fields: usize) -> Self {
-            Self { span, rust_fields, flux_fields }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_args, code = "FLUX")]
-    pub struct ArgCountMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub rust_args: usize,
-        pub flux_args: usize,
-    }
-
-    impl ArgCountMismatch {
-        pub fn new(span: Span, rust_args: usize, flux_args: usize) -> Self {
-            Self { span, rust_args, flux_args }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_type, code = "FLUX")]
-    pub struct TypeMismatch {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-        pub rust_type: String,
-        pub flux_type: String,
-    }
-
-    impl TypeMismatch {
-        pub fn from_ty(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
-            let flux_type = tcx
-                .sess
-                .source_map()
-                .span_to_snippet(flux_ty_span)
-                .unwrap_or_else(|_| "{unknown}".to_string());
-            let rust_type = format!("{rust_ty:?}");
-            Self { span: flux_ty_span, rust_type, flux_type }
-        }
-
-        pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
-            let span = flux_type.span;
-            let flux_type = format!("{flux_type}");
-            let rust_type = format!("{rust_ty:?}");
-            Self { span, rust_type, flux_type }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mutability_mismatch, code = "FLUX")]
-    pub struct RefKindMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub flux_ref: &'static str,
-        pub rust_ref: &'static str,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::default_return_mismatch, code = "FLUX")]
-    pub struct DefaultReturnMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub rust_type: String,
-    }
-
-    impl RefKindMismatch {
-        pub fn new(span: Span, ref_kind: RefKind, mutability: Mutability) -> Self {
-            Self {
-                span,
-                flux_ref: match ref_kind {
-                    RefKind::Mut => "&mut",
-                    RefKind::Shr => "&",
-                },
-                rust_ref: match mutability {
-                    Mutability::Mut => "&mut",
-                    Mutability::Not => "&",
-                },
-            }
         }
     }
 }
