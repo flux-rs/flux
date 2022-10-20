@@ -12,13 +12,14 @@ extern crate rustc_span;
 
 mod desugar;
 mod table_resolver;
-mod zip_resolver;
+mod zip_checker;
+// mod zip_resolver;
 
 pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uif_def};
 use flux_middle::{
     fhir::{self, AdtMap},
     global_env::GlobalEnv,
-    rustc,
+    rustc::{self, lowering},
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -41,11 +42,13 @@ pub fn desugar_enum_def(
     enum_def: surface::EnumDef,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
     let def_id = enum_def.def_id;
-    let rust_adt_def = genv.tcx.adt_def(def_id.to_def_id());
+
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
-    let rust_enum_def = rustc::lowering::lower_enum_def(genv.tcx, rust_adt_def)?;
-    let enum_def = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
-        .zip_enum_def(enum_def, &rust_enum_def)?;
+    let enum_def = resolver.resolve_enum_def(enum_def)?;
+
+    let rust_enum_def = lowering::lower_enum_def(genv.tcx, genv.tcx.adt_def(def_id.to_def_id()))?;
+    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_enum_def(&enum_def, &rust_enum_def)?;
+
     desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
 }
 
@@ -55,12 +58,13 @@ pub fn desugar_fn_sig(
     def_id: LocalDefId,
     fn_sig: surface::FnSig,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
-    let rust_fn_sig = genv.tcx.fn_sig(def_id);
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
+    let sig = resolver.resolve_fn_sig(fn_sig)?;
+
     let span = genv.tcx.def_span(def_id.to_def_id());
-    let rust_sig = rustc::lowering::lower_fn_sig(genv.tcx, rust_fn_sig, span)?;
-    let sig = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
-        .zip_fn_sig(fn_sig, &rust_sig)?;
+    let rust_sig = lowering::lower_fn_sig(genv.tcx, genv.tcx.fn_sig(def_id), span)?;
+    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig)?;
+
     desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
 }
 

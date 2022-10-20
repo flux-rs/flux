@@ -530,7 +530,7 @@ pub mod errors {
     }
 
     impl TypeMismatch {
-        pub fn from_ty(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
+        pub fn from_span(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
             let flux_type = tcx
                 .sess
                 .source_map()
@@ -540,12 +540,12 @@ pub mod errors {
             Self { span: flux_ty_span, rust_type, flux_type }
         }
 
-        pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
-            let span = flux_type.span;
-            let flux_type = format!("{flux_type}");
-            let rust_type = format!("{rust_ty:?}");
-            Self { span, rust_type, flux_type }
-        }
+        // pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
+        //     let span = flux_type.span;
+        //     let flux_type = format!("{flux_type}");
+        //     let rust_type = format!("{rust_ty:?}");
+        //     Self { span, rust_type, flux_type }
+        // }
     }
 
     #[derive(Diagnostic)]
