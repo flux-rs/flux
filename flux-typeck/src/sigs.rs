@@ -70,7 +70,7 @@ type Sigs<T, const N: usize> = HashMap<T, Sig<N>>;
 /// This set of signatures just checks substraction does not underflow and works
 /// in tandem with the invariant for unsigned ints returned in [`BaseTy::invariants`].
 ///
-/// [`BaseTy::invariants`]: flux_middle::ty::BaseTy::invariants
+/// [`BaseTy::invariants`]: flux_middle::rty::BaseTy::invariants
 #[rustfmt::skip]
 static UNSIGNED_BIN_OPS: LazyLock<Sigs<mir::BinOp, 2>> = LazyLock::new(|| {
     use mir::BinOp::*;
