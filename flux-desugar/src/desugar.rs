@@ -213,9 +213,11 @@ enum Binder {
     /// or by explicitly listing the indices for a type with multiple indices, e.g,
     /// `RMat[@row, @cols]`.
     Single(Name, Sort),
-    /// A binder that will desugar into multiple indices and can be "projected" using
-    /// dot syntax. They come from binders to user defined types with `#[refined_by]`
-    /// annotation, e.g., `mat: RMat` or `RMat[@mat]`.
+    /// A binder that will desugar into multiple indices and must be "projected" using
+    /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
+    /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
+    /// index are treated especially as they can be used either with a projection or the
+    /// binder directly.
     Aggregate(FxIndexMap<Symbol, (Name, Sort)>),
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
