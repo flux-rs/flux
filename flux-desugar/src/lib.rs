@@ -44,7 +44,7 @@ pub fn desugar_enum_def(
     let rust_adt_def = genv.tcx.adt_def(def_id.to_def_id());
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
     let rust_enum_def = rustc::lowering::lower_enum_def(genv.tcx, rust_adt_def)?;
-    let enum_def = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
+    let enum_def = zip_resolver::ZipResolver::new(genv.sess, &resolver)
         .zip_enum_def(enum_def, &rust_enum_def)?;
     desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
 }
@@ -59,8 +59,7 @@ pub fn desugar_fn_sig(
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
     let span = genv.tcx.def_span(def_id.to_def_id());
     let rust_sig = rustc::lowering::lower_fn_sig(genv.tcx, rust_fn_sig, span)?;
-    let sig = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
-        .zip_fn_sig(fn_sig, &rust_sig)?;
+    let sig = zip_resolver::ZipResolver::new(genv.sess, &resolver).zip_fn_sig(fn_sig, &rust_sig)?;
     desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
 }
 

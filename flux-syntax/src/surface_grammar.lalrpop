@@ -116,8 +116,6 @@ pub Ty: surface::Ty = {
 }
 
 TyKind: surface::TyKind = {
-    "&" "strg" "<" <loc:Ident> ":" <ty:Ty> ">"  => surface::TyKind::StrgRef(loc, Box::new(ty)),
-
     "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut"  <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 

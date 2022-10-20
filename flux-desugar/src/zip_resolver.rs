@@ -6,13 +6,12 @@ use flux_syntax::surface::{
     Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef, VariantRet,
 };
 use itertools::Itertools;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
 use crate::table_resolver::{
     errors::{
-        ArgCountMismatch, DefaultReturnMismatch, FieldCountMismatch, MismatchedType,
-        RefKindMismatch, UnresolvedLocation,
+        ArgCountMismatch, DefaultReturnMismatch, FieldCountMismatch, RefKindMismatch, TypeMismatch,
+        UnresolvedLocation,
     },
     Resolver,
 };
@@ -20,18 +19,13 @@ use crate::table_resolver::{
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
 pub struct ZipResolver<'genv, 'tcx> {
-    tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     resolver: &'genv Resolver<'genv, 'tcx>,
 }
 
 impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
-    pub fn new(
-        tcx: TyCtxt<'tcx>,
-        sess: &'genv FluxSession,
-        resolver: &'genv Resolver<'genv, 'tcx>,
-    ) -> Self {
-        ZipResolver { tcx, sess, resolver }
+    pub fn new(sess: &'genv FluxSession, resolver: &'genv Resolver<'genv, 'tcx>) -> Self {
+        ZipResolver { sess, resolver }
     }
 
     pub fn zip_enum_def(
@@ -209,9 +203,6 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
             (TyKind::Constr(pred, ty), _) => {
                 TyKind::Constr(pred, Box::new(self.zip_ty(*ty, rust_ty)?))
             }
-            (TyKind::StrgRef(loc, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
-                TyKind::StrgRef(loc, Box::new(self.zip_ty(*ty, rust_ty)?))
-            }
             (TyKind::Ref(rk, ref_ty), rustc_ty::TyKind::Ref(rust_ty, mutability)) => {
                 TyKind::Ref(
                     self.zip_mutability(ty.span, rk, *mutability)?,
@@ -232,19 +223,27 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
     }
 
     fn zip_path(&self, path: Path, rust_ty: &rustc_ty::Ty) -> Result<Path<Res>, ErrorGuaranteed> {
-        let (res, rust_args) = rustc_ty_ident_args(rust_ty);
+        let (res, rust_args) = match rust_ty.kind() {
+            rustc_ty::TyKind::Adt(def_id, substs) => (Res::Adt(*def_id), &substs[..]),
+            rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
+            rustc_ty::TyKind::Bool => (Res::Bool, [].as_slice()),
+            rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
+            rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
+            rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
+            rustc_ty::TyKind::Str => todo!(),
 
-        // TODO(RJ): check generics too!
-        match res {
-            Res::Param(_) => (),
-            _ => {
-                let path_res = self.resolver.resolve_ident(path.ident)?;
-                if path_res != res {
-                    return Err(self
-                        .sess
-                        .emit_err(MismatchedType::new(self.tcx, res, path.ident)));
-                }
+            rustc_ty::TyKind::Array(_, _)
+            | rustc_ty::TyKind::Never
+            | rustc_ty::TyKind::Ref(_, _)
+            | rustc_ty::TyKind::Tuple(_)
+            | rustc_ty::TyKind::Slice(_) => {
+                return Err(self.sess.emit_err(TypeMismatch::new(rust_ty, path.ident)))
             }
+        };
+
+        let path_res = self.resolver.resolve_ident(path.ident)?;
+        if path_res != res {
+            return Err(self.sess.emit_err(TypeMismatch::new(rust_ty, path.ident)));
         }
 
         let path_args_len = path.args.len();
@@ -290,19 +289,5 @@ impl<'genv, 'tcx> ZipResolver<'genv, 'tcx> {
         match rust_arg {
             rustc_ty::GenericArg::Ty(ty) => self.zip_ty(arg, ty),
         }
-    }
-}
-fn rustc_ty_ident_args(rust_ty: &rustc_ty::Ty) -> (Res, &[rustc_ty::GenericArg]) {
-    match rust_ty.kind() {
-        rustc_ty::TyKind::Adt(def_id, substs) => (Res::Adt(*def_id), &substs[..]),
-        rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
-        rustc_ty::TyKind::Bool => (Res::Bool, [].as_slice()),
-        rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
-        rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
-        rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
-        flux_middle::rustc::ty::TyKind::Tuple(args) if args.is_empty() => {
-            (Res::Tuple, [].as_slice())
-        }
-        _ => panic!("incompatible type: `{rust_ty:?}`"),
     }
 }
