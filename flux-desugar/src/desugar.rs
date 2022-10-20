@@ -196,9 +196,8 @@ pub struct DesugarCtxt<'a> {
     adt_map: &'a AdtMap,
 }
 
-/// Keeps track of the names in scope and mapping between
-/// the surface symbol and the freshly generated binder in
-/// core.
+/// Keeps track of the names in scope and mapping between the surface symbol
+/// and the freshly generated binder in core.
 struct Binders<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<Name>,
@@ -206,17 +205,31 @@ struct Binders<'a> {
     const_map: FxHashMap<Symbol, DefId>,
 }
 
+/// The different kind of binders that can appear in the surface syntax
+#[derive(Debug)]
+enum Binder {
+    /// A binder that needs to be desugared to a single index. They come from binding
+    /// a name to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`,
+    /// or by explicitly listing the indices for a type with multiple indices, e.g,
+    /// `RMat[@row, @cols]`.
+    Single(Name, Sort),
+    /// A binder that will desugar into multiple indices and can be "projected" using
+    /// dot syntax. They come from binders to user defined types with `#[refined_by]`
+    /// annotation, e.g., `mat: RMat` or `RMat[@mat]`.
+    Aggregate(FxIndexMap<Symbol, (Name, Sort)>),
+    /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
+    /// situation "eagerly" as it will often result in better error messages, e.g., we will
+    /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
+    /// `T[@a]` or as an existential `T{v : v > 0}`, but unrefined binders can appear when
+    /// using argument syntax (`x: T`), thus we track them and report appropriate errors if
+    /// they are used in any way.
+    Unrefined,
+}
+
 struct ExprCtxt<'a> {
     sess: &'a FluxSession,
     const_map: &'a FxHashMap<Symbol, DefId>,
     binders: &'a FxIndexMap<surface::Ident, Binder>,
-}
-
-#[derive(Debug)]
-enum Binder {
-    Single(Name, Sort),
-    Aggregate(FxIndexMap<Symbol, (Name, Sort)>),
-    Unrefined,
 }
 
 enum BtyOrTy {
@@ -659,7 +672,7 @@ impl<'a> Binders<'a> {
                 if let [surface::Index::Bind(ident)] = &indices.indices[..] {
                     self.insert_binder(*ident, Binder::new(&self.name_gen, adt_map, path))?;
                 } else {
-                    let sorts = sorts(self.sess, adt_map, path)?;
+                    let sorts = sorts(adt_map, path);
                     let exp = sorts.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -718,19 +731,12 @@ fn param_from_ident(ident: surface::Ident, name: Name, sort: Sort) -> Param {
     Param { name, sort }
 }
 
-fn sorts<'a>(
-    sess: &FluxSession,
-    adt_sorts: &'a AdtMap,
-    path: &surface::Path<Res>,
-) -> Result<&'a [Sort], ErrorGuaranteed> {
+fn sorts<'a>(adt_sorts: &'a AdtMap, path: &surface::Path<Res>) -> &'a [Sort] {
     match path.ident {
-        Res::Bool => Ok(&[Sort::Bool]),
-        Res::Int(_) | Res::Uint(_) => Ok(&[Sort::Int]),
-        Res::Adt(def_id) => Ok(adt_sorts.get_sorts(def_id).unwrap_or_default()),
-        Res::Float(_) => Ok(&[]),
-        Res::Param(_) | Res::Tuple => {
-            Err(sess.emit_err(errors::RefinedTypeParam { span: path.span }))
-        }
+        Res::Bool => &[Sort::Bool],
+        Res::Int(_) | Res::Uint(_) => &[Sort::Int],
+        Res::Adt(def_id) => adt_sorts.get_sorts(def_id).unwrap_or_default(),
+        Res::Float(_) | Res::Param(_) | Res::Tuple => &[],
     }
 }
 
@@ -854,32 +860,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::refined_type_param, code = "FLUX")]
-    pub struct RefinedTypeParam {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
     #[diag(desugar::invalid_dot_var, code = "FLUX")]
     pub struct InvalidDotVar {
         #[primary_span]
         pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar::unresolved_dot_field, code = "FLUX")]
-    pub struct UnresolvedDotField {
-        #[primary_span]
-        pub span: Span,
-        ident: Ident,
-        field: Ident,
-    }
-    impl UnresolvedDotField {
-        // pub fn new(ident: Ident, field: Ident) -> Self {
-        //     Self { span: field.span, ident, field }
-        // }
     }
 
     #[derive(Diagnostic)]
@@ -930,7 +914,7 @@ mod errors {
     }
 
     impl InvalidDotAccess {
-        pub fn new<'a>(ident: Ident, fld: Ident) -> Self {
+        pub fn new(ident: Ident, fld: Ident) -> Self {
             let span = ident.span.to(fld.span);
             Self { span, ident, fld: fld.name }
         }
