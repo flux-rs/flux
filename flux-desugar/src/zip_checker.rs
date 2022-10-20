@@ -9,11 +9,6 @@ use flux_syntax::surface::{
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
-use crate::table_resolver::errors::{
-    ArgCountMismatch, DefaultReturnMismatch, FieldCountMismatch, RefKindMismatch, TypeMismatch,
-    UnresolvedLocation,
-};
-
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
 pub struct ZipChecker<'genv, 'tcx> {
@@ -44,7 +39,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         let flux_fields = variant_def.fields.len();
         let rust_fields = rust_variant_def.fields.len();
         if flux_fields != rust_fields {
-            return Err(self.sess.emit_err(FieldCountMismatch::new(
+            return Err(self.sess.emit_err(errors::FieldCountMismatch::new(
                 variant_def.span,
                 rust_fields,
                 flux_fields,
@@ -79,9 +74,10 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (Some(ty), _) => self.zip_ty(ty, rust_ty),
             (None, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => Ok(()),
             (_, _) => {
-                Err(self
-                    .sess
-                    .emit_err(DefaultReturnMismatch { span, rust_type: format!("{rust_ty:?}") }))
+                Err(self.sess.emit_err(errors::DefaultReturnMismatch {
+                    span,
+                    rust_type: format!("{rust_ty:?}"),
+                }))
             }
         }
     }
@@ -96,7 +92,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             if let Some(rust_ty) = locs.get(&ident.name) {
                 self.zip_ty(ty, rust_ty)?;
             } else {
-                return Err(self.sess.emit_err(UnresolvedLocation::new(*ident)));
+                return Err(self.sess.emit_err(errors::UnresolvedLocation::new(*ident)));
             }
         }
         Ok(())
@@ -116,7 +112,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         if rust_args != flux_args {
             return Err(self
                 .sess
-                .emit_err(ArgCountMismatch::new(span, rust_args, flux_args)));
+                .emit_err(errors::ArgCountMismatch::new(span, rust_args, flux_args)));
         }
 
         iter::zip(binds, rust_tys).try_for_each_exhaust(|(arg, rust_ty)| {
@@ -157,7 +153,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             _ => {
                 Err(self
                     .sess
-                    .emit_err(TypeMismatch::from_span(self.tcx, rust_ty, ty.span)))
+                    .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, ty.span)))
             }
         }
     }
@@ -179,14 +175,14 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             | rustc_ty::TyKind::Slice(_) => {
                 return Err(self
                     .sess
-                    .emit_err(TypeMismatch::from_span(self.tcx, rust_ty, path.span)))
+                    .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, path.span)))
             }
         };
 
         if path.ident != res {
             return Err(self
                 .sess
-                .emit_err(TypeMismatch::from_span(self.tcx, rust_ty, path.span)));
+                .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, path.span)));
         }
 
         let path_args_len = path.args.len();
@@ -213,7 +209,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             _ => {
                 Err(self
                     .sess
-                    .emit_err(RefKindMismatch::new(span, ref_kind, mutability)))
+                    .emit_err(errors::RefKindMismatch::new(span, ref_kind, mutability)))
             }
         }
     }
@@ -225,6 +221,121 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match rust_arg {
             rustc_ty::GenericArg::Ty(ty) => self.zip_ty(arg, ty),
+        }
+    }
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
+    use flux_syntax::surface::RefKind;
+    use rustc_middle::ty::TyCtxt;
+    use rustc_span::{symbol::Ident, Span};
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::mismatched_fields, code = "FLUX")]
+    pub struct FieldCountMismatch {
+        #[primary_span]
+        pub span: Span,
+        pub rust_fields: usize,
+        pub flux_fields: usize,
+    }
+
+    impl FieldCountMismatch {
+        pub fn new(span: Span, rust_fields: usize, flux_fields: usize) -> Self {
+            Self { span, rust_fields, flux_fields }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::mismatched_args, code = "FLUX")]
+    pub struct ArgCountMismatch {
+        #[primary_span]
+        pub span: Span,
+        pub rust_args: usize,
+        pub flux_args: usize,
+    }
+
+    impl ArgCountMismatch {
+        pub fn new(span: Span, rust_args: usize, flux_args: usize) -> Self {
+            Self { span, rust_args, flux_args }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::mismatched_type, code = "FLUX")]
+    pub struct TypeMismatch {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub rust_type: String,
+        pub flux_type: String,
+    }
+
+    impl TypeMismatch {
+        pub fn from_span(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
+            let flux_type = tcx
+                .sess
+                .source_map()
+                .span_to_snippet(flux_ty_span)
+                .unwrap_or_else(|_| "{unknown}".to_string());
+            let rust_type = format!("{rust_ty:?}");
+            Self { span: flux_ty_span, rust_type, flux_type }
+        }
+
+        // pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
+        //     let span = flux_type.span;
+        //     let flux_type = format!("{flux_type}");
+        //     let rust_type = format!("{rust_ty:?}");
+        //     Self { span, rust_type, flux_type }
+        // }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::mutability_mismatch, code = "FLUX")]
+    pub struct RefKindMismatch {
+        #[primary_span]
+        pub span: Span,
+        pub flux_ref: &'static str,
+        pub rust_ref: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::default_return_mismatch, code = "FLUX")]
+    pub struct DefaultReturnMismatch {
+        #[primary_span]
+        pub span: Span,
+        pub rust_type: String,
+    }
+
+    impl RefKindMismatch {
+        pub fn new(span: Span, ref_kind: RefKind, mutability: Mutability) -> Self {
+            Self {
+                span,
+                flux_ref: match ref_kind {
+                    RefKind::Mut => "&mut",
+                    RefKind::Shr => "&",
+                },
+                rust_ref: match mutability {
+                    Mutability::Mut => "&mut",
+                    Mutability::Not => "&",
+                },
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::unresolved_location, code = "FLUX")]
+    pub struct UnresolvedLocation {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub loc: Ident,
+    }
+
+    impl UnresolvedLocation {
+        pub fn new(ident: Ident) -> Self {
+            Self { span: ident.span, loc: ident }
         }
     }
 }
