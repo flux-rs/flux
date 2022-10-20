@@ -64,3 +64,11 @@ pub fn use_chair(c: Chair) -> i32 {
 fn dipa(f: &mut f32) -> i32 {
     0
 }
+
+#[flux::sig(fn(f32{v : v > 0}) -> i32[0])] //~ ERROR this type takes 0 refinement parameters
+fn ira(f: f32) -> i32 {
+    0
+}
+
+#[flux::sig(fn(x: i32, i32[@x]))] //~ ERROR the name `x` is already used
+fn stout(x: i32, y: i32) {}

@@ -298,12 +298,9 @@ impl<'a> DesugarCtxt<'a> {
                         Ty::Exists(bty, names, pred)
                     }
                     BtyOrTy::Ty(_) => {
-                        todo!()
-                        // Err(self.sess.emit_err(errors::ParamCountMismatch::new(
-                        //     bind.span,
-                        //     0,
-                        //     indices.indices.len(),
-                        // )))
+                        return Err(self
+                            .sess
+                            .emit_err(errors::ParamCountMismatch::new(bind.span, 0, 1)))
                     }
                 }
             }
@@ -602,25 +599,24 @@ impl<'a> Binders<'a> {
     {
         for param in params {
             let param = param.borrow();
-            self.insert_single_bind(param.name, resolve_sort(self.sess, param.sort)?);
+            self.insert_binder(
+                param.name,
+                Binder::Single(self.fresh(), resolve_sort(self.sess, param.sort)?),
+            )?;
         }
         Ok(())
     }
 
-    fn insert_bind(
+    fn insert_binder(
         &mut self,
-        adt_map: &AdtMap,
-        bind: surface::Ident,
-        path: &surface::Path<Res>,
-    ) -> Option<Binder> {
-        let binder = Binder::new(&self.name_gen, adt_map, path);
-
-        self.map.insert(bind, binder)
-    }
-
-    fn insert_single_bind(&mut self, bind: surface::Ident, sort: Sort) {
-        let name = self.fresh();
-        self.map.insert(bind, Binder::Single(name, sort));
+        ident: surface::Ident,
+        binder: Binder,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.map.insert(ident, binder).is_some() {
+            Err(self.sess.emit_err(errors::DuplicateParam::new(ident)))
+        } else {
+            Ok(())
+        }
     }
 
     fn gather_fn_sig_params(
@@ -641,10 +637,10 @@ impl<'a> Binders<'a> {
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_bind(adt_map, *bind, path);
+                self.insert_binder(*bind, Binder::new(&self.name_gen, adt_map, path))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                self.insert_single_bind(*loc, Sort::Loc);
+                self.insert_binder(*loc, Binder::Single(self.fresh(), Sort::Loc))?;
                 self.ty_gather_params(ty, adt_map)?;
             }
             surface::Arg::Ty(ty) => self.ty_gather_params(ty, adt_map)?,
@@ -661,7 +657,7 @@ impl<'a> Binders<'a> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
                 if let [surface::Index::Bind(ident)] = &indices.indices[..] {
-                    self.insert_bind(adt_map, *ident, path);
+                    self.insert_binder(*ident, Binder::new(&self.name_gen, adt_map, path))?;
                 } else {
                     let sorts = sorts(self.sess, adt_map, path)?;
                     let exp = sorts.len();
@@ -674,7 +670,7 @@ impl<'a> Binders<'a> {
 
                     for (index, sort) in iter::zip(&indices.indices, sorts) {
                         if let surface::Index::Bind(bind) = index {
-                            self.insert_single_bind(*bind, *sort);
+                            self.insert_binder(*bind, Binder::Single(self.fresh(), *sort))?;
                         }
                     }
                 }
