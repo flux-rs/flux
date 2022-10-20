@@ -17,5 +17,5 @@ pub mod fhir;
 pub mod global_env;
 pub mod intern;
 pub mod pretty;
+pub mod rty;
 pub mod rustc;
-pub mod ty;

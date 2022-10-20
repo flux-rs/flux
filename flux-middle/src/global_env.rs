@@ -14,8 +14,8 @@ use rustc_span::Symbol;
 use crate::{
     fhir::{self, UifDef, VariantIdx},
     intern::List,
+    rty::{self, Binders},
     rustc,
-    ty::{self, Binders},
 };
 
 #[derive(Debug)]
@@ -31,11 +31,11 @@ pub struct OpaqueStructErr(pub DefId);
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
-    fn_sigs: RefCell<FxHashMap<DefId, ty::PolySig>>,
+    fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     pub consts: Vec<ConstInfo>,
-    adt_defs: RefCell<FxHashMap<DefId, ty::AdtDef>>,
-    adt_variants: RefCell<FxHashMap<DefId, Option<Vec<ty::PolyVariant>>>>,
-    pub uif_defs: FxHashMap<Symbol, ty::UifDef>,
+    adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
+    adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
+    pub uif_defs: FxHashMap<Symbol, rty::UifDef>,
     check_asserts: AssertBehavior,
     /// Some functions can only to be called after all annotated adts have been
     /// registered. We use this flag to check at runtime that this is actually the
@@ -68,16 +68,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let inputs = uif_def
             .inputs
             .into_iter()
-            .map(ty::conv::conv_sort)
+            .map(rty::conv::conv_sort)
             .collect();
-        let output = ty::conv::conv_sort(uif_def.output);
+        let output = rty::conv::conv_sort(uif_def.output);
 
-        self.uif_defs.insert(name, ty::UifDef { inputs, output });
+        self.uif_defs.insert(name, rty::UifDef { inputs, output });
     }
 
     pub fn register_adt_def(&mut self, adt_def: &fhir::AdtDef) {
         let def_id = adt_def.def_id;
-        let adt_def = ty::conv::ConvCtxt::conv_adt_def(self, adt_def);
+        let adt_def = rty::conv::ConvCtxt::conv_adt_def(self, adt_def);
         self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
@@ -87,7 +87,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: fhir::FnSig) {
-        let fn_sig = ty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
+        let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
@@ -97,18 +97,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         adt_data: &fhir::AdtDef,
         struct_def: fhir::StructDef,
     ) {
-        let variant = ty::conv::ConvCtxt::conv_struct_def_variant(self, adt_data, &struct_def);
+        let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, adt_data, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants.get_mut().insert(def_id, variants);
     }
 
     pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: fhir::EnumDef) {
-        if let Some(variants) = ty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
+        if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
             self.adt_variants.get_mut().insert(def_id, Some(variants));
         }
     }
 
-    pub fn lookup_fn_sig(&self, def_id: DefId) -> ty::PolySig {
+    pub fn lookup_fn_sig(&self, def_id: DefId) -> rty::PolySig {
         self.fn_sigs
             .borrow_mut()
             .entry(def_id)
@@ -120,16 +120,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx.variances_of(did)
     }
 
-    pub fn adt_def(&self, def_id: DefId) -> ty::AdtDef {
+    pub fn adt_def(&self, def_id: DefId) -> rty::AdtDef {
         debug_assert!(self.adts_registered);
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| ty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false))
+            .or_insert_with(|| rty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false))
             .clone()
     }
 
-    pub fn mk_box(&self, ty: ty::Ty, alloc: ty::Ty) -> ty::Ty {
+    pub fn mk_box(&self, ty: rty::Ty, alloc: rty::Ty) -> rty::Ty {
         let def_id = self.tcx.require_lang_item(LangItem::OwnedBox, None);
         let adt_def = self.adt_def(def_id);
 
@@ -139,8 +139,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         debug_assert_eq!(self.generics_of(def_id).params.len(), 2);
         debug_assert!(adt_def.sorts().is_empty());
 
-        let bty = ty::BaseTy::adt(adt_def, vec![ty, alloc]);
-        ty::Ty::indexed(bty, vec![])
+        let bty = rty::BaseTy::adt(adt_def, vec![ty, alloc]);
+        rty::Ty::indexed(bty, vec![])
     }
 
     pub fn check_asserts(&self) -> &AssertBehavior {
@@ -151,19 +151,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self,
         def_id: DefId,
         variant_idx: VariantIdx,
-    ) -> Result<ty::PolySig, OpaqueStructErr> {
+    ) -> Result<rty::PolySig, OpaqueStructErr> {
         let poly_variant = self.variant(def_id, variant_idx)?;
         let variant = poly_variant.skip_binders();
         let sorts = poly_variant.params();
-        let sig = ty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        Ok(ty::Binders::new(sig, sorts))
+        let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
+        Ok(rty::Binders::new(sig, sorts))
     }
 
     pub fn variant(
         &self,
         def_id: DefId,
         variant_idx: VariantIdx,
-    ) -> Result<ty::PolyVariant, OpaqueStructErr> {
+    ) -> Result<rty::PolyVariant, OpaqueStructErr> {
         Ok(self
             .adt_variants
             .borrow_mut()
@@ -188,21 +188,21 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .unwrap_or_else(|_| FatalError.raise())
     }
 
-    pub fn default_fn_sig(&self, def_id: DefId) -> ty::PolySig {
+    pub fn default_fn_sig(&self, def_id: DefId) -> rty::PolySig {
         let span = self.tcx.def_span(def_id);
         match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id), span) {
             Ok(fn_sig) => {
-                self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
+                self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
             }
             Err(_) => FatalError.raise(),
         }
     }
 
-    fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> ty::Ty {
-        self.refine_ty(rustc_ty, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
+    fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
+        self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
     }
 
-    pub fn default_type_of(&self, def_id: DefId) -> ty::Ty {
+    pub fn default_type_of(&self, def_id: DefId) -> rty::Ty {
         let span = self.tcx.def_span(def_id);
         match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id), span) {
             Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
@@ -214,7 +214,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self,
         adt_def_id: DefId,
         variant_def: &rustc_middle::ty::VariantDef,
-    ) -> ty::PolyVariant {
+    ) -> rty::PolyVariant {
         if let Ok(variant_def) =
             rustc::lowering::lower_variant_def(self.tcx, adt_def_id, variant_def)
         {
@@ -229,12 +229,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             let substs = substs
                 .iter()
                 .map(|arg| {
-                    self.refine_generic_arg(arg, &mut |sorts| Binders::new(ty::Pred::tt(), sorts))
+                    self.refine_generic_arg(arg, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
                 })
                 .collect_vec();
-            let bty = ty::BaseTy::adt(self.adt_def(*def_id), substs);
-            let ret = ty::VariantRet { bty, indices: List::from_vec(vec![]) };
-            Binders::new(ty::VariantDef::new(fields, ret), vec![])
+            let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
+            let ret = rty::VariantRet { bty, indices: List::from_vec(vec![]) };
+            Binders::new(rty::VariantDef::new(fields, ret), vec![])
         } else {
             FatalError.raise()
         }
@@ -243,38 +243,38 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_fn_sig(
         &self,
         fn_sig: &rustc::ty::FnSig,
-        mk_pred: &mut impl FnMut(&[ty::Sort]) -> Binders<ty::Pred>,
-    ) -> ty::PolySig {
+        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
+    ) -> rty::PolySig {
         let args = fn_sig
             .inputs()
             .iter()
             .map(|ty| self.refine_ty(ty, mk_pred))
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
-        ty::PolySig::new(ty::FnSig::new(vec![], args, ret, vec![]), vec![])
+        rty::PolySig::new(rty::FnSig::new(vec![], args, ret, vec![]), vec![])
     }
 
     pub fn refine_ty(
         &self,
         ty: &rustc::ty::Ty,
-        mk_pred: &mut impl FnMut(&[ty::Sort]) -> Binders<ty::Pred>,
-    ) -> ty::Ty {
+        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
+    ) -> rty::Ty {
         let bty = match ty.kind() {
-            rustc::ty::TyKind::Never => return ty::Ty::never(),
-            rustc::ty::TyKind::Param(param_ty) => return ty::Ty::param(*param_ty),
+            rustc::ty::TyKind::Never => return rty::Ty::never(),
+            rustc::ty::TyKind::Param(param_ty) => return rty::Ty::param(*param_ty),
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
-                return ty::Ty::mk_ref(ty::RefKind::Mut, self.refine_ty(ty, mk_pred));
+                return rty::Ty::mk_ref(rty::RefKind::Mut, self.refine_ty(ty, mk_pred));
             }
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Not) => {
-                return ty::Ty::mk_ref(ty::RefKind::Shr, self.refine_ty(ty, mk_pred));
+                return rty::Ty::mk_ref(rty::RefKind::Shr, self.refine_ty(ty, mk_pred));
             }
-            rustc::ty::TyKind::Float(float_ty) => return ty::Ty::float(*float_ty),
+            rustc::ty::TyKind::Float(float_ty) => return rty::Ty::float(*float_ty),
             rustc::ty::TyKind::Tuple(tys) => {
                 let tys = tys
                     .iter()
                     .map(|ty| self.refine_ty(ty, mk_pred))
                     .collect_vec();
-                return ty::Ty::tuple(tys);
+                return rty::Ty::tuple(tys);
             }
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.adt_def(*def_id);
@@ -282,31 +282,31 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                     .iter()
                     .map(|arg| self.refine_generic_arg(arg, mk_pred))
                     .collect_vec();
-                ty::BaseTy::adt(adt_def, substs)
+                rty::BaseTy::adt(adt_def, substs)
             }
-            rustc::ty::TyKind::Bool => ty::BaseTy::Bool,
-            rustc::ty::TyKind::Int(int_ty) => ty::BaseTy::Int(*int_ty),
-            rustc::ty::TyKind::Uint(uint_ty) => ty::BaseTy::Uint(*uint_ty),
-            rustc::ty::TyKind::Str => ty::BaseTy::Str,
+            rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
+            rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
+            rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
+            rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Array(ty, len) => {
-                ty::BaseTy::Array(self.refine_ty(ty, mk_pred), len.clone())
+                rty::BaseTy::Array(self.refine_ty(ty, mk_pred), len.clone())
             }
-            rustc::ty::TyKind::Slice(ty) => ty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
+            rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
         };
         let sorts = bty.sorts();
         if sorts.is_empty() {
-            ty::Ty::indexed(bty, vec![])
+            rty::Ty::indexed(bty, vec![])
         } else {
             let pred = mk_pred(sorts);
-            ty::Ty::exists(bty, pred)
+            rty::Ty::exists(bty, pred)
         }
     }
 
     pub fn refine_generic_arg(
         &self,
         ty: &rustc::ty::GenericArg,
-        mk_pred: &mut impl FnMut(&[ty::Sort]) -> Binders<ty::Pred>,
-    ) -> ty::Ty {
+        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
+    ) -> rty::Ty {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
         }

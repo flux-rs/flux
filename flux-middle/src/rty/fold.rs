@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, List},
-    ty::VariantDef,
+    rty::VariantDef,
 };
 
 pub trait TypeVisitor: Sized {

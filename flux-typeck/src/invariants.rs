@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     global_env::GlobalEnv,
-    ty::{AdtDef, Invariant},
+    rty::{AdtDef, Invariant},
 };
 
 use crate::{
