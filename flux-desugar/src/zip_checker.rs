@@ -159,42 +159,50 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     }
 
     fn zip_path(&self, path: &Path<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
-        let (res, rust_args) = match rust_ty.kind() {
-            rustc_ty::TyKind::Adt(def_id, substs) => (Res::Adt(*def_id), &substs[..]),
-            rustc_ty::TyKind::Uint(uint_ty) => (Res::Uint(*uint_ty), [].as_slice()),
-            rustc_ty::TyKind::Bool => (Res::Bool, [].as_slice()),
-            rustc_ty::TyKind::Float(float_ty) => (Res::Float(*float_ty), [].as_slice()),
-            rustc_ty::TyKind::Int(int_ty) => (Res::Int(*int_ty), [].as_slice()),
-            rustc_ty::TyKind::Param(param_ty) => (Res::Param(*param_ty), [].as_slice()),
-            rustc_ty::TyKind::Str => (Res::Str, [].as_slice()),
+        match (&path.ident, rust_ty.kind()) {
+            (Res::Adt(def_id1), rustc_ty::TyKind::Adt(def_id2, substs)) if def_id1 == def_id2 => {
+                let max_args = substs.len();
+                let default_args = self.tcx.generics_of(def_id1).own_defaults().types;
+                let min_args = max_args - default_args;
 
-            rustc_ty::TyKind::Array(_, _)
-            | rustc_ty::TyKind::Never
-            | rustc_ty::TyKind::Ref(_, _)
-            | rustc_ty::TyKind::Tuple(_)
-            | rustc_ty::TyKind::Slice(_) => {
+                let found = path.args.len();
+                if found < min_args {
+                    Err(self
+                        .sess
+                        .emit_err(errors::TooFewArgs::new(path.span, found, min_args)))
+                } else if found > max_args {
+                    Err(self
+                        .sess
+                        .emit_err(errors::TooManyArgs::new(path.span, found, max_args)))
+                } else {
+                    // zip the supplied args
+                    iter::zip(&path.args, substs)
+                        .try_for_each_exhaust(|(arg, rust_arg)| self.zip_generic_arg(arg, rust_arg))
+                }
+            }
+            (Res::Uint(uint_ty1), rustc_ty::TyKind::Uint(uint_ty2)) if uint_ty1 == uint_ty2 => {
+                Ok(())
+            }
+            (Res::Bool, rustc_ty::TyKind::Bool) => Ok(()),
+            (Res::Float(float_ty1), rustc_ty::TyKind::Float(float_ty2))
+                if float_ty1 == float_ty2 =>
+            {
+                Ok(())
+            }
+            (Res::Int(int_ty1), rustc_ty::TyKind::Int(int_ty2)) if int_ty1 == int_ty2 => Ok(()),
+            (Res::Param(param_ty1), rustc_ty::TyKind::Param(param_ty2))
+                if param_ty1 == param_ty2 =>
+            {
+                Ok(())
+            }
+            (Res::Str, rustc_ty::TyKind::Str) => Ok(()),
+
+            _ => {
                 return Err(self
                     .sess
                     .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, path.span)))
             }
-        };
-
-        if path.ident != res {
-            return Err(self
-                .sess
-                .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, path.span)));
         }
-
-        let path_args_len = path.args.len();
-        // Assume that the rust_args are of the form [path_args + default_args]
-        // i.e. default args all come _after_ the supplied path_args.
-        let rust_args_len = rust_args.len();
-        let default_args_len = rust_args_len - path_args_len;
-        assert!(default_args_len <= rust_args_len);
-
-        // zip the supplied args
-        iter::zip(&path.args, rust_args)
-            .try_for_each_exhaust(|(arg, rust_arg)| self.zip_generic_arg(arg, rust_arg))
     }
 
     fn zip_mutability(
@@ -282,13 +290,6 @@ mod errors {
             let rust_type = format!("{rust_ty:?}");
             Self { span: flux_ty_span, rust_type, flux_type }
         }
-
-        // pub fn from_ident(rust_ty: &rustc_ty::Ty, flux_type: Ident) -> Self {
-        //     let span = flux_type.span;
-        //     let flux_type = format!("{flux_type}");
-        //     let rust_type = format!("{rust_ty:?}");
-        //     Self { span, rust_type, flux_type }
-        // }
     }
 
     #[derive(Diagnostic)]
@@ -336,6 +337,36 @@ mod errors {
     impl UnresolvedLocation {
         pub fn new(ident: Ident) -> Self {
             Self { span: ident.span, loc: ident }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::too_few_arguments, code = "FLUX")]
+    pub struct TooFewArgs {
+        #[primary_span]
+        pub span: Span,
+        pub found: usize,
+        pub min: usize,
+    }
+
+    impl TooFewArgs {
+        pub fn new(span: Span, found: usize, min: usize) -> Self {
+            Self { span, found, min }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::too_many_arguments, code = "FLUX")]
+    pub struct TooManyArgs {
+        #[primary_span]
+        pub span: Span,
+        pub found: usize,
+        pub max: usize,
+    }
+
+    impl TooManyArgs {
+        pub fn new(span: Span, found: usize, max: usize) -> Self {
+            Self { span, found, max }
         }
     }
 }
