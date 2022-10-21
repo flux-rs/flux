@@ -146,6 +146,7 @@ pub enum BaseTy {
     Uint(UintTy),
     Bool,
     Str,
+    Char,
     Array(Ty, Const),
     Slice(Ty),
     Adt(AdtDef, Substs),
@@ -399,8 +400,13 @@ impl Ty {
     pub fn unit() -> Ty {
         Ty::tuple(vec![])
     }
+
     pub fn str() -> Ty {
-        Ty::exists(BaseTy::Str, Binders::new(Pred::tt(), vec![]))
+        Ty::indexed(BaseTy::Str, vec![])
+    }
+
+    pub fn char() -> Ty {
+        Ty::indexed(BaseTy::Char, vec![])
     }
 
     pub fn never() -> Ty {
@@ -555,7 +561,8 @@ impl BaseTy {
             | BaseTy::Str
             | BaseTy::Array(_, _)
             | BaseTy::Float(_)
-            | BaseTy::Slice(_) => &[],
+            | BaseTy::Slice(_)
+            | BaseTy::Char => &[],
         }
     }
 
@@ -564,7 +571,11 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Array(..) | BaseTy::Slice(_) => &[],
+            BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Array(..)
+            | BaseTy::Slice(_)
+            | BaseTy::Char => &[],
         }
     }
 }
@@ -804,6 +815,7 @@ mod pretty {
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => w!("bool")?,
             BaseTy::Str => w!("str")?,
+            BaseTy::Char => w!("char")?,
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
             BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,

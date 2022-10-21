@@ -55,6 +55,7 @@ pub enum TyKind {
     Array(Ty, Const),
     Bool,
     Str,
+    Char,
     Float(FloatTy),
     Int(IntTy),
     Never,
@@ -138,6 +139,10 @@ impl Ty {
         TyKind::Str.intern()
     }
 
+    pub fn mk_char() -> Ty {
+        TyKind::Char.intern()
+    }
+
     pub fn mk_usize() -> Ty {
         TyKind::Uint(UintTy::Usize).intern()
     }
@@ -179,6 +184,7 @@ impl std::fmt::Debug for Ty {
             }
             TyKind::Bool => write!(f, "bool"),
             TyKind::Str => write!(f, "str"),
+            TyKind::Char => write!(f, "char"),
             TyKind::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             TyKind::Int(int_ty) => write!(f, "{}", int_ty.name_str()),
             TyKind::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
