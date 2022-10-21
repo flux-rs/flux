@@ -125,6 +125,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         item: &Item,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+
+        let Some(_ty) = attrs.const_sig() else {
+            return Ok(());
+        };
+
         let def_id = item.def_id.def_id;
         let span = item.span;
         let val = match eval_const(self.tcx, def_id) {
@@ -132,17 +139,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             None => return self.emit_err(errors::InvalidConstant { span }),
         };
 
-        let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.report_dups(&attrs)?;
-
         let size = val.size();
         if let Ok(val) = val.try_to_int(size) {
-            if let Some(_ty) = attrs.const_sig() {
-                self.specs.consts.insert(def_id, ConstSig { _ty, val });
-                return Ok(());
-            };
+            self.specs.consts.insert(def_id, ConstSig { _ty, val });
+            Ok(())
+        } else {
+            self.emit_err(errors::InvalidConstant { span })
         }
-        self.emit_err(errors::InvalidConstant { span })
     }
     fn parse_tyalias_spec(
         &mut self,
