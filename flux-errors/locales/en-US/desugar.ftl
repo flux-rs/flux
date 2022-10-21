@@ -20,18 +20,8 @@ desugar_int_too_large =
 desugar_unexpected_literal =
     unexpected literal
 
-desugar_refined_type_param =
-    type parameters cannot be refined
-    .label = this type parameter has a refinement
-
-desugar_invalid_array_len =
-    unsupported or invalid array length
-
 desugar_invalid_dot_var =
     unsupported field access in refinement
-
-desugar_unresolved_dot_field =
-    cannot find `{$ident}.{$field}` in this scope
 
 desugar_param_count_mismatch =
     this type takes {$expected} refinement parameters but {$found ->
@@ -39,3 +29,10 @@ desugar_param_count_mismatch =
         *[other] {$found} were found
     }
     .label = expected {$expected} arguments, found {$found}
+
+desugar_invalid_dot_access =
+    the field `{$fld}` is not valid for param `{$ident}`
+
+desugar_invalid_unrefined_param =
+    invalid use of parameter for an unrefined type
+    .label = name `{$var}` is bound to an unrefined type

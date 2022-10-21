@@ -1,17 +1,18 @@
 use std::iter;
 
 use flux_middle::{
-    global_env::{GlobalEnv, Variance},
-    rustc::mir::BasicBlock,
-    ty::{
+    global_env::{GlobalEnv, OpaqueStructErr, Variance},
+    rty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
-        PolyVariant, Pred, RefKind, Sort, Ty, TyKind,
+        PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
     },
+    rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
 use rustc_span::Span;
 
 use crate::{
+    checker::errors::CheckerError,
     param_infer::{self, InferenceError},
     refine_tree::{ConstrBuilder, RefineCtxt, UnpackFlags},
     type_env::{PathMap, TypeEnv},
@@ -72,10 +73,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
-    ) {
+    ) -> Result<(), OpaqueStructErr> {
         match constraint {
             Constraint::Type(path, ty) => {
-                let actual_ty = env.lookup_path(rcx, self, path);
+                let actual_ty = env.lookup_path(rcx, self, path)?;
                 let mut constr = rcx.check_constr();
                 subtyping(self.genv, &mut constr, &actual_ty, ty, self.tag);
             }
@@ -84,6 +85,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 constr.push_head(e.clone(), self.tag);
             }
         }
+        Ok(())
     }
 
     pub fn check_pred(&mut self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
@@ -103,7 +105,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[Ty],
         actuals: &[Ty],
-    ) -> Result<CallOutput, InferenceError> {
+    ) -> Result<CallOutput, CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -160,7 +162,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check preconditions
         for constraint in fn_sig.requires() {
-            self.check_constraint(rcx, env, constraint);
+            self.check_constraint(rcx, env, constraint)?;
         }
 
         Ok(CallOutput { ret: fn_sig.ret().clone(), ensures: fn_sig.ensures().clone() })
@@ -172,7 +174,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         variant: &PolyVariant,
         substs: &[Ty],
         fields: &[Ty],
-    ) -> Result<Ty, InferenceError> {
+    ) -> Result<VariantRet, InferenceError> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
@@ -295,9 +297,13 @@ fn bty_subtyping(
         }
         (BaseTy::Bool, BaseTy::Bool) | (BaseTy::Str, BaseTy::Str) => {}
         (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-            assert_eq!(len1, len2);
+            debug_assert_eq!(len1, len2);
             subtyping(genv, constr, ty1, ty2, tag);
         }
+        (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
+            subtyping(genv, constr, ty1, ty2, tag);
+        }
+        (BaseTy::Char, BaseTy::Char) => {}
         _ => {
             unreachable!("unexpected base types: `{:?}` and `{:?}` at {:?}", bty1, bty2, tag.span())
         }

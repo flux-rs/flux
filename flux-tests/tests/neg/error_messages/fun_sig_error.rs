@@ -1,6 +1,12 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
+#[flux::sig(fn(x:&mut i32[@n]) ensures x: i32[n+1])] //~ ERROR cannot resolve
+pub fn say_strng(x: &mut i32) {
+    *x += 1;
+    return;
+}
+
 #[flux::sig(fn(x:i32) -> i32)] //~ ERROR type mismatch
 pub fn sob(x: i32) {
     return;
@@ -49,3 +55,15 @@ type A<'a> = &'a [i32];
 
 #[flux::sig(fn())]
 fn dipa(x: A) {} //~ ERROR unsupported function signature
+
+#[flux::sig(fn(&[i32[@n]]))] //~ ERROR illegal binder
+fn hipa(x: &[i32]) {}
+
+#[flux::sig(fn(Option<i32[@n]>))] //~ ERROR illegal binder
+fn ira(x: Option<i32>) {}
+
+#[flux::sig(fn(x: f32))] //~ ERROR type mismatch
+fn hefe(f: &mut f32) {}
+
+#[flux::sig(fn(x: &mut f32))] //~ ERROR type mismatch
+fn quad(f: f32) {}

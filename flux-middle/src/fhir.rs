@@ -1,10 +1,16 @@
-//! "Core" (desugared) version of level liquid annotations. The main difference with
-//! the surface syntax is that the list of refinement parameters is explicit in `core`.
-//! For example, the signature `fn(x: &strg i32[@n]) -> (); x: i32[@n + 1]` desugars to
-//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) -> (); l: i32[n + 1]`.
+//! The fhir-"Flux High-Level Intermediate Representation"-corresponds to the desugared version of
+//! source level flux annotations. The main difference with the surface syntax is that the list of
+//! refinement parameters is explicit in `fhir`. For example, the following signature
+//!
+//! `fn(x: &strg i32[@n]) ensures x: i32[n + 1]`
+//!
+//! desugars to
+//!
+//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) ensures l: i32[n + 1]`.
+//!
+//! The name fhir is borrowed from rustc's hir.
 
-use core::fmt;
-use std::fmt::Write;
+use std::{fmt, fmt::Write};
 
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
@@ -15,6 +21,8 @@ use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
+
+use crate::pretty;
 
 #[derive(Debug)]
 pub struct StructDef {
@@ -39,7 +47,13 @@ pub struct EnumDef {
 pub struct VariantDef {
     pub params: Vec<Param>,
     pub fields: Vec<Ty>,
-    pub ret: Ty,
+    pub ret: VariantRet,
+}
+
+#[derive(Debug)]
+pub struct VariantRet {
+    pub bty: BaseTy,
+    pub indices: Indices,
 }
 
 pub struct FnSig {
@@ -79,21 +93,27 @@ pub enum Ty {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, Indices),
-    /// Existential types in core are represented with an explicit list of binders for
+    /// Existential types in fhir are represented with an explicit list of binders for
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
-    /// for two indices. (there's currently no equivalent surface syntax).
-    Exists(BaseTy, Vec<Ident>, Expr),
+    /// for two indices. There's currently no equivalent surface syntax and existentials for
+    /// types with multiple indices have to use projection syntax.
+    Exists(BaseTy, Vec<Name>, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
     Float(FloatTy),
+    Str,
+    Char,
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
     Tuple(Vec<Ty>),
-    Array(Box<Ty>, usize),
+    Array(Box<Ty>, ArrayLen),
+    Slice(Box<Ty>),
     Never,
 }
+
+pub struct ArrayLen;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum RefKind {
@@ -212,18 +232,24 @@ pub struct AdtMap(FxHashMap<LocalDefId, AdtDef>);
 pub struct AdtDef {
     pub def_id: DefId,
     pub refined_by: Vec<Param>,
-    pub fields: Vec<Symbol>,
-    pub sorts: Vec<Sort>,
     pub invariants: Vec<Expr>,
     pub opaque: bool,
+    sorts: Vec<Sort>,
 }
 
 #[derive(Default)]
-pub struct UFSorts(FxHashMap<Symbol, UFDef>);
+pub struct UFSorts(FxHashMap<Symbol, UifDef>);
 
-pub struct UFDef {
+pub struct UifDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
+}
+
+impl AdtDef {
+    pub fn new(def_id: DefId, refined_by: Vec<Param>, invariants: Vec<Expr>, opaque: bool) -> Self {
+        let sorts = refined_by.iter().map(|param| param.sort).collect();
+        AdtDef { def_id, refined_by, invariants, opaque, sorts }
+    }
 }
 
 impl UFSorts {
@@ -231,15 +257,15 @@ impl UFSorts {
         UFSorts(FxHashMap::default())
     }
 
-    pub fn insert(&mut self, name: Symbol, uf_def: UFDef) {
-        self.0.insert(name, uf_def);
+    pub fn insert(&mut self, name: Symbol, uif_def: UifDef) {
+        self.0.insert(name, uif_def);
     }
 
     pub fn contains(&self, name: &Symbol) -> bool {
         self.0.contains_key(name)
     }
 
-    pub fn get(&self, name: &Symbol) -> Option<&UFDef> {
+    pub fn get(&self, name: &Symbol) -> Option<&UifDef> {
         self.0.get(name)
     }
 }
@@ -249,14 +275,14 @@ impl AdtMap {
         self.0.insert(def_id, sort_info);
     }
 
-    pub fn get_sorts(&self, def_id: DefId) -> Option<&[Sort]> {
+    pub fn sorts(&self, def_id: DefId) -> Option<&[Sort]> {
         let info = self.0.get(&def_id.as_local()?)?;
         Some(&info.sorts)
     }
 
-    pub fn get_fields(&self, def_id: DefId) -> Option<&[Symbol]> {
-        let info = self.0.get(&def_id.as_local()?)?;
-        Some(&info.fields)
+    pub fn refined_by(&self, def_id: DefId) -> Option<&[Param]> {
+        let adt_def = self.0.get(&def_id.as_local()?)?;
+        Some(&adt_def.refined_by)
     }
 }
 
@@ -339,7 +365,16 @@ impl fmt::Debug for Ty {
             Ty::Never => write!(f, "!"),
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
+            Ty::Slice(ty) => write!(f, "[{ty:?}]"),
+            Ty::Str => write!(f, "str"),
+            Ty::Char => write!(f, "char"),
         }
+    }
+}
+
+impl fmt::Debug for ArrayLen {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "_")
     }
 }
 
@@ -354,7 +389,7 @@ fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt
         BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
         BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
         BaseTy::Bool => write!(f, "bool")?,
-        BaseTy::Adt(did, _) => write!(f, "{did:?}")?,
+        BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
     }
     match bty {
         BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {

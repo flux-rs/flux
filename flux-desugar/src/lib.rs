@@ -2,6 +2,7 @@
 #![feature(min_specialization)]
 #![feature(box_patterns, once_cell)]
 
+extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
@@ -11,13 +12,14 @@ extern crate rustc_span;
 
 mod desugar;
 mod table_resolver;
-mod zip_resolver;
+mod zip_checker;
+// mod zip_resolver;
 
-pub use desugar::{desugar_adt_data, desugar_qualifier, resolve_sorts, resolve_uf_def};
+pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uif_def};
 use flux_middle::{
-    core::{self, AdtMap},
+    fhir::{self, AdtMap},
     global_env::GlobalEnv,
-    rustc,
+    rustc::{self, lowering},
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -28,7 +30,7 @@ pub fn desugar_struct_def(
     genv: &GlobalEnv,
     adt_sorts: &AdtMap,
     struct_def: surface::StructDef,
-) -> Result<core::StructDef, ErrorGuaranteed> {
+) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(genv, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
     desugar::desugar_struct_def(genv.sess, &genv.consts, adt_sorts, struct_def)
@@ -38,13 +40,15 @@ pub fn desugar_enum_def(
     genv: &GlobalEnv,
     adt_sorts: &AdtMap,
     enum_def: surface::EnumDef,
-) -> Result<core::EnumDef, ErrorGuaranteed> {
+) -> Result<fhir::EnumDef, ErrorGuaranteed> {
     let def_id = enum_def.def_id;
-    let rust_adt_def = genv.tcx.adt_def(def_id.to_def_id());
+
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
-    let rust_enum_def = rustc::lowering::lower_enum_def(genv.tcx, rust_adt_def)?;
-    let enum_def = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
-        .zip_enum_def(enum_def, &rust_enum_def)?;
+    let enum_def = resolver.resolve_enum_def(enum_def)?;
+
+    let rust_enum_def = lowering::lower_enum_def(genv.tcx, genv.tcx.adt_def(def_id.to_def_id()))?;
+    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_enum_def(&enum_def, &rust_enum_def)?;
+
     desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
 }
 
@@ -53,13 +57,14 @@ pub fn desugar_fn_sig(
     sorts: &AdtMap,
     def_id: LocalDefId,
     fn_sig: surface::FnSig,
-) -> Result<core::FnSig, ErrorGuaranteed> {
-    let rust_fn_sig = genv.tcx.fn_sig(def_id);
+) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
+    let sig = resolver.resolve_fn_sig(fn_sig)?;
+
     let span = genv.tcx.def_span(def_id.to_def_id());
-    let rust_sig = rustc::lowering::lower_fn_sig(genv.tcx, rust_fn_sig, span)?;
-    let sig = zip_resolver::ZipResolver::new(genv.tcx, genv.sess, &resolver)
-        .zip_fn_sig(fn_sig, &rust_sig)?;
+    let rust_sig = lowering::lower_fn_sig(genv.tcx, genv.tcx.fn_sig(def_id), span)?;
+    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig)?;
+
     desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
 }
 
@@ -69,15 +74,15 @@ pub fn const_ty(
     rust_ty: &flux_middle::rustc::ty::Ty,
     val: i128,
     span: Span,
-) -> flux_middle::core::Ty {
+) -> flux_middle::fhir::Ty {
     let bty = match rust_ty.kind() {
-        rustc::ty::TyKind::Int(i) => core::BaseTy::Int(*i),
-        rustc::ty::TyKind::Uint(u) => core::BaseTy::Uint(*u),
+        rustc::ty::TyKind::Int(i) => fhir::BaseTy::Int(*i),
+        rustc::ty::TyKind::Uint(u) => fhir::BaseTy::Uint(*u),
         kind => panic!("const_ty: cannot handle {kind:?}"),
     };
 
-    let expr = core::Expr::from_i128(val);
-    let idx = core::Index { expr, is_binder: false };
-    let indices = core::Indices { indices: vec![idx], span };
-    core::Ty::Indexed(bty, indices)
+    let expr = fhir::Expr::from_i128(val);
+    let idx = fhir::Index { expr, is_binder: false };
+    let indices = fhir::Indices { indices: vec![idx], span };
+    fhir::Ty::Indexed(bty, indices)
 }

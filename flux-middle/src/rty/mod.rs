@@ -1,3 +1,9 @@
+//! Defines how flux represents refinement types internally. Definitions in this module are used
+//! during refinement type checking. A couple of important differences between definitions in this
+//! module and in [`crate::fhir`] are:
+//!
+//! * Types in this module use debruijn indices to represent local binders.
+//! * Data structures are interned so they can be cheaply cloned.
 pub mod conv;
 mod expr;
 pub mod fold;
@@ -16,7 +22,7 @@ use rustc_span::{SpanData, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
-pub use crate::{core::RefKind, rustc::ty::Const};
+pub use crate::{fhir::RefKind, rustc::ty::Const};
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::Place,
@@ -38,7 +44,7 @@ pub struct AdtDefData {
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct Invariant {
     pub pred: Binders<Expr>,
-    /// The source span of the invariant. Used for error reporting
+    /// The source span of the invariant. Used for error reporting.
     ///
     /// FIXME(nlehmann) We should't be storing spans here. Probably a
     /// better approach would be to assign a unique id to the invariant
@@ -51,7 +57,13 @@ pub type PolyVariant = Binders<VariantDef>;
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VariantDef {
     pub fields: List<Ty>,
-    pub ret: Ty,
+    pub ret: VariantRet,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct VariantRet {
+    pub bty: BaseTy,
+    pub indices: List<Expr>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -134,7 +146,9 @@ pub enum BaseTy {
     Uint(UintTy),
     Bool,
     Str,
+    Char,
     Array(Ty, Const),
+    Slice(Ty),
     Adt(AdtDef, Substs),
     Float(FloatTy),
 }
@@ -171,7 +185,7 @@ pub enum Sort {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct UFDef {
+pub struct UifDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
 }
@@ -300,12 +314,24 @@ impl AdtDef {
 }
 
 impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+    pub fn new(fields: Vec<Ty>, ret: VariantRet) -> Self {
         VariantDef { fields: List::from_vec(fields), ret }
     }
 
     pub fn fields(&self) -> &[Ty] {
         &self.fields
+    }
+}
+
+impl VariantRet {
+    pub fn to_ty(&self) -> Ty {
+        Ty::indexed(
+            self.bty.clone(),
+            self.indices
+                .iter()
+                .map(|e| Index { expr: e.clone(), is_binder: false })
+                .collect_vec(),
+        )
     }
 }
 
@@ -315,7 +341,11 @@ impl Ty {
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
-        TyKind::Exists(BaseTy::Array(ty, c), Binders::new(Pred::tt(), vec![])).intern()
+        Ty::indexed(BaseTy::Array(ty, c), vec![])
+    }
+
+    pub fn slice(ty: Ty) -> Ty {
+        Ty::indexed(BaseTy::Slice(ty), vec![])
     }
 
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
@@ -370,8 +400,13 @@ impl Ty {
     pub fn unit() -> Ty {
         Ty::tuple(vec![])
     }
+
     pub fn str() -> Ty {
-        Ty::exists(BaseTy::Str, Binders::new(Pred::tt(), vec![]))
+        Ty::indexed(BaseTy::Str, vec![])
+    }
+
+    pub fn char() -> Ty {
+        Ty::indexed(BaseTy::Char, vec![])
     }
 
     pub fn never() -> Ty {
@@ -387,10 +422,6 @@ impl Ty {
             TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(),
             _ => false,
         }
-    }
-
-    pub fn is_uint(&self) -> bool {
-        matches!(self.kind(), TyKind::Indexed(bty, _) if bty.is_uint())
     }
 
     pub fn bool() -> Ty {
@@ -410,7 +441,7 @@ impl Ty {
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::exists(BaseTy::Float(float_ty), Binders::new(Pred::tt(), vec![]))
+        Ty::indexed(BaseTy::Float(float_ty), vec![])
     }
 }
 
@@ -496,10 +527,6 @@ impl BaseTy {
         BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
     }
 
-    fn is_uint(&self) -> bool {
-        matches!(self, BaseTy::Uint(_))
-    }
-
     fn is_integral(&self) -> bool {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
@@ -533,7 +560,9 @@ impl BaseTy {
             | BaseTy::Bool
             | BaseTy::Str
             | BaseTy::Array(_, _)
-            | BaseTy::Float(_) => &[],
+            | BaseTy::Float(_)
+            | BaseTy::Slice(_)
+            | BaseTy::Char => &[],
         }
     }
 
@@ -542,7 +571,11 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Array(..) => &[],
+            BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Array(..)
+            | BaseTy::Slice(_)
+            | BaseTy::Char => &[],
         }
     }
 }
@@ -755,7 +788,7 @@ mod pretty {
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(place) => w!("discr({:?})", ^place),
-                TyKind::Constr(pred, ty) => w!("{{ {ty:?} : {pred:?} }}"),
+                TyKind::Constr(pred, ty) => w!("{{ {:?} : {:?} }}", ty, pred),
             }
         }
 
@@ -782,9 +815,11 @@ mod pretty {
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => w!("bool")?,
             BaseTy::Str => w!("str")?,
+            BaseTy::Char => w!("char")?,
             BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
             BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
+            BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
         }
         if let BaseTy::Adt(_, args) = bty {
             if !args.is_empty() || !indices.is_empty() {

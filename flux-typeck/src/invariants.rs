@@ -2,7 +2,7 @@ use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     global_env::GlobalEnv,
-    ty::{AdtDef, Invariant, TyKind},
+    rty::{AdtDef, Invariant},
 };
 
 use crate::{
@@ -31,6 +31,7 @@ fn check_invariant(
         let mut names = vec![];
         let variant = genv
             .variant(adt_def.def_id(), variant_idx)
+            .expect("cannot check opaque structs")
             .replace_bvars_with_fresh_fvars(|sort| {
                 let fresh = rcx.define_var(sort);
                 names.push(fresh);
@@ -41,15 +42,11 @@ fn check_invariant(
             rcx.unpack_with(field, UnpackFlags::INVARIANTS);
         }
 
-        if let TyKind::Indexed(_, idxs) = variant.ret.kind() {
-            rcx.check_pred(invariant.pred.replace_bound_vars(&idxs.to_exprs()), Tag::Other);
-        } else {
-            panic!()
-        }
+        rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.indices), Tag::Other);
     }
     let mut fcx = FixpointCtxt::new(&genv.consts, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uf_sorts)
+    fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uif_defs)
         .map_err(|_| {
             genv.sess
                 .emit_err(errors::Invalid { span: invariant.source_info.span() })

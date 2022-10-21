@@ -2,9 +2,9 @@ use flux_common::iter::IterExt;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    core::AdtMap,
+    fhir::AdtMap,
     global_env::{ConstInfo, GlobalEnv},
-    rustc, ty,
+    rty, rustc,
 };
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
@@ -94,7 +94,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
 struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
-    qualifiers: Vec<ty::Qualifier>,
+    qualifiers: Vec<rty::Qualifier>,
     assume: FxHashSet<LocalDefId>,
     ignores: Ignores,
 }
@@ -138,10 +138,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             })?;
 
         // Gather UFs
-        specs.uifs.into_iter().try_for_each_exhaust(|uf_def| {
-            let name = uf_def.name;
-            let uf_def = desugar::resolve_uf_def(genv.sess, uf_def)?;
-            genv.register_uf_def(name.name, uf_def);
+        specs.uifs.into_iter().try_for_each_exhaust(|uif_def| {
+            let name = uif_def.name;
+            let uif_def = desugar::resolve_uif_def(genv.sess, uif_def)?;
+            genv.register_uif_def(name.name, uif_def);
             Ok(())
         })?;
 
@@ -151,7 +151,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .iter_mut()
             .try_for_each_exhaust(|(def_id, def)| {
                 let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-                let adt_def = desugar::desugar_adt_data(
+                let adt_def = desugar::desugar_adt_def(
                     genv.sess,
                     &genv.consts,
                     def_id.to_def_id(),
@@ -169,7 +169,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .iter_mut()
             .try_for_each_exhaust(|(def_id, def)| {
                 let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
-                let adt_def = desugar::desugar_adt_data(
+                let adt_def = desugar::desugar_adt_def(
                     genv.sess,
                     &genv.consts,
                     def_id.to_def_id(),
@@ -185,13 +185,13 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         genv.finish_adt_registration();
 
         // Qualifiers
-        let qualifiers: Vec<ty::Qualifier> = specs
+        let qualifiers: Vec<rty::Qualifier> = specs
             .qualifs
             .into_iter()
             .map(|qualifier| {
                 let qualifier = desugar::desugar_qualifier(genv.sess, &genv.consts, qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
-                Ok(ty::conv::ConvCtxt::conv_qualifier(&qualifier))
+                Ok(rty::conv::ConvCtxt::conv_qualifier(&qualifier))
             })
             .try_collect_exhaust()?;
 
@@ -218,6 +218,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
                 let enum_def = desugar::desugar_enum_def(genv, &adt_map, enum_def)?;
+                Wf::new(genv).check_enum_def(&enum_def)?;
                 genv.register_enum_def_variants(def_id.to_def_id(), enum_def);
                 Ok(())
             })?;

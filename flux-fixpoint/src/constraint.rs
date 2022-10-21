@@ -61,15 +61,15 @@ pub struct Qualifier {
     pub name: String,
 }
 
-pub struct UFDef {
+pub struct UifDef {
     pub name: String,
     pub inputs: Vec<Sort>,
     pub output: Sort,
 }
 
-impl UFDef {
+impl UifDef {
     pub fn new(name: String, inputs: Vec<Sort>, output: Sort) -> Self {
-        UFDef { name, inputs, output }
+        UifDef { name, inputs, output }
     }
 }
 #[derive(Clone, Copy, Debug)]
@@ -115,17 +115,6 @@ pub enum Sign {
     Negative,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub enum Precedence {
-    Iff,
-    Imp,
-    Or,
-    And,
-    Cmp,
-    AddSub,
-    MulDiv,
-}
-
 newtype_index! {
     pub struct KVid {
         DEBUG_FORMAT = "$k{}",
@@ -147,28 +136,6 @@ impl<Tag> Constraint<Tag> {
 
 impl Pred {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
-}
-
-impl BinOp {
-    pub fn precedence(&self) -> Precedence {
-        match self {
-            BinOp::Iff => Precedence::Iff,
-            BinOp::Imp => Precedence::Imp,
-            BinOp::Or => Precedence::Or,
-            BinOp::And => Precedence::And,
-            BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-                Precedence::Cmp
-            }
-            BinOp::Add | BinOp::Sub => Precedence::AddSub,
-            BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
-        }
-    }
-}
-
-impl Precedence {
-    pub fn is_associative(&self) -> bool {
-        !matches!(self, Precedence::Imp | Precedence::Cmp)
-    }
 }
 
 impl<Tag> fmt::Display for Constraint<Tag>
@@ -297,25 +264,20 @@ impl fmt::Display for UFArg {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn should_parenthesize(op: BinOp, child: &Expr) -> bool {
-            match child {
-                Expr::BinaryOp(child_op, ..) => {
-                    child_op.precedence() < op.precedence()
-                        || (child_op.precedence() == op.precedence()
-                            && !op.precedence().is_associative())
-                }
-                Expr::IfThenElse(..) => true,
-                _ => false,
-            }
+        fn should_parenthesize(child: &Expr) -> bool {
+            // Fixpoint parser has `=` at two different precedence levels, depending on whether
+            // is used in a sequence of predicate/boolean expressions or not. Thus, we parenthesize
+            // all binary expressions to avoid complications.
+            matches!(child, Expr::BinaryOp(..) | Expr::IfThenElse(..))
         }
 
         match self {
             Expr::Var(x) => write!(f, "{:?}", x),
             Expr::Constant(c) => write!(f, "{}", c),
             Expr::BinaryOp(op, e1, e2) => {
-                fmt_parens(should_parenthesize(*op, e1), e1, f)?;
+                fmt_parens(should_parenthesize(e1), e1, f)?;
                 write!(f, " {} ", op)?;
-                fmt_parens(should_parenthesize(*op, e2), e2, f)?;
+                fmt_parens(should_parenthesize(e2), e2, f)?;
                 Ok(())
             }
             Expr::UnaryOp(op, e) => {

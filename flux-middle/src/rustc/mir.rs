@@ -141,6 +141,7 @@ pub enum CastKind {
 pub enum AggregateKind {
     Adt(DefId, VariantIdx, List<GenericArg>),
     Array(Ty),
+    Tuple,
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -185,6 +186,8 @@ pub enum Constant {
     Bool(bool),
     /// We only support opaque string slices, so no data stored here for now.
     Str,
+    /// We only support opaque chars, so no data stored here for now
+    Char,
     Unit,
 }
 
@@ -425,6 +428,9 @@ impl fmt::Debug for Rvalue {
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))
             }
+            Rvalue::Aggregate(AggregateKind::Tuple, args) => {
+                write!(f, "({:?})", args.iter().format(", "))
+            }
             Rvalue::Len(place) => write!(f, "Len({place:?})"),
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
         }
@@ -460,6 +466,7 @@ impl fmt::Debug for Constant {
             Constant::Bool(b) => write!(f, "{}", b),
             Constant::Unit => write!(f, "()"),
             Constant::Str => write!(f, "\"<opaque str>\""),
+            Constant::Char => write!(f, "\"<opaque char>\""),
         }
     }
 }

@@ -20,8 +20,8 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        Const, ConstKind, EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        Generics, Ty, ValTree, VariantDef,
+        Const, EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty,
+        VariantDef,
     },
 };
 use crate::intern::List;
@@ -341,11 +341,14 @@ impl<'tcx> LoweringCtxt<'tcx> {
             rustc_mir::AggregateKind::Array(ty) => {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty, span)?))
             }
+            rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Adt(..)
-            | rustc_mir::AggregateKind::Tuple
             | rustc_mir::AggregateKind::Closure(_, _)
             | rustc_mir::AggregateKind::Generator(_, _, _) => {
-                self.emit_err(None, format!("unsupported aggregate kind: `{:?}`", aggregate_kind))
+                self.emit_err(
+                    Some(span),
+                    format!("unsupported aggregate kind: `{:?}`", aggregate_kind),
+                )
             }
         }
     }
@@ -436,7 +439,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             _ => None,
         }
         .ok_or_else(|| {
-            println!("{:?}", constant.literal);
             emit_err(self.tcx, Some(span), format!("constant not supported: `{constant:?}`"))
         })
     }
@@ -560,44 +562,19 @@ pub fn lower_ty<'tcx>(
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
-        rustc_ty::Tuple(tys) if tys.is_empty() => Ok(Ty::mk_tuple(vec![])),
-        rustc_ty::Array(ty, c) => {
-            Ok(Ty::mk_array(lower_ty(tcx, *ty, span)?, lower_const(tcx, *c, span)?))
+        rustc_ty::Char => Ok(Ty::mk_char()),
+        rustc_ty::Tuple(tys) => {
+            let tys = List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty, span)).try_collect()?);
+            Ok(Ty::mk_tuple(tys))
         }
+        rustc_ty::Array(ty, _) => Ok(Ty::mk_array(lower_ty(tcx, *ty, span)?, Const)),
+        rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty, span)?)),
         _ => {
             Err(emit_err(
                 tcx,
                 Some(span),
                 format!("unsupported type `{ty:?}`, kind: `{:?}`", ty.kind()),
             ))
-        }
-    }
-}
-
-fn lower_const<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    c: rustc_ty::Const<'tcx>,
-    span: Span,
-) -> Result<Const, ErrorGuaranteed> {
-    let kind = match c.kind() {
-        rustc_ty::ConstKind::Value(val) => ConstKind::Value(lower_valtree(tcx, val)?),
-        rustc_ty::ConstKind::Param(_)
-        | rustc_ty::ConstKind::Infer(_)
-        | rustc_ty::ConstKind::Bound(_, _)
-        | rustc_ty::ConstKind::Placeholder(_)
-        | rustc_ty::ConstKind::Unevaluated(_)
-        | rustc_ty::ConstKind::Error(_) => {
-            return Err(emit_err(tcx, None, format!("unsupported const `{c:?}`")));
-        }
-    };
-    Ok(Const { ty: lower_ty(tcx, c.ty(), span)?, kind })
-}
-
-fn lower_valtree(tcx: TyCtxt, val: rustc_ty::ValTree) -> Result<ValTree, ErrorGuaranteed> {
-    match val {
-        rustc_ty::ValTree::Leaf(scalar) => Ok(ValTree::Leaf(scalar)),
-        rustc_ty::ValTree::Branch(_) => {
-            Err(emit_err(tcx, None, format!("unsupported valtree {val:?}")))
         }
     }
 }
@@ -687,6 +664,7 @@ fn scalar_int_to_constant<'tcx>(
         TyKind::Float(float_ty) => {
             Some(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
         }
+        TyKind::Char => Some(Constant::Char),
         TyKind::Bool => Some(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0)),
         TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
         _ => None,

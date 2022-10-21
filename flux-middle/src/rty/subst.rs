@@ -1,7 +1,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::fold::{TypeFoldable, TypeFolder};
-use crate::ty::*;
+use crate::rty::*;
 
 #[derive(Debug)]
 pub struct FVarSubst {

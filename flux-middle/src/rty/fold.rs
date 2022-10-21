@@ -6,10 +6,11 @@ use rustc_hash::FxHashSet;
 
 use super::{
     BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
+    VariantRet,
 };
 use crate::{
     intern::{Internable, List},
-    ty::VariantDef,
+    rty::VariantDef,
 };
 
 pub trait TypeVisitor: Sized {
@@ -153,6 +154,24 @@ impl TypeFoldable for VariantDef {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.fields.iter().for_each(|ty| ty.visit_with(visitor));
         self.ret.visit_with(visitor);
+    }
+}
+
+impl TypeFoldable for VariantRet {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        let bty = self.bty.fold_with(folder);
+        let indices = self
+            .indices
+            .iter()
+            .map(|idx| idx.fold_with(folder))
+            .collect_vec();
+
+        VariantRet { bty, indices: List::from_vec(indices) }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.bty.visit_with(visitor);
+        self.indices.iter().for_each(|idx| idx.visit_with(visitor));
     }
 }
 
@@ -305,17 +324,26 @@ impl TypeFoldable for BaseTy {
                 BaseTy::adt(adt_def.clone(), substs.iter().map(|ty| ty.fold_with(folder)))
             }
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {
-                self.clone()
-            }
+            BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
+            BaseTy::Int(_)
+            | BaseTy::Uint(_)
+            | BaseTy::Bool
+            | BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char => self.clone(),
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
-            BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Float(_) | BaseTy::Str => {}
+            BaseTy::Array(ty, _) | BaseTy::Slice(ty) => ty.visit_with(visitor),
+            BaseTy::Int(_)
+            | BaseTy::Uint(_)
+            | BaseTy::Bool
+            | BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char => {}
         }
     }
 }

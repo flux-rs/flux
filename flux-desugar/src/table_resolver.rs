@@ -64,8 +64,16 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             .into_iter()
             .map(|ty| self.resolve_ty(ty))
             .try_collect_exhaust()?;
-        let ret = self.resolve_ty(variant.ret)?;
+        let ret = self.resolve_variant_ret(variant.ret)?;
         Ok(surface::VariantDef { fields, ret, span: variant.span })
+    }
+
+    fn resolve_variant_ret(
+        &self,
+        ret: surface::VariantRet,
+    ) -> Result<surface::VariantRet<Res>, ErrorGuaranteed> {
+        let path = self.resolve_path(ret.path)?;
+        Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
     pub fn resolve_struct_def(
@@ -137,10 +145,6 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
                 let path = self.resolve_path(path)?;
                 surface::TyKind::Exists { bind, path, pred }
             }
-            surface::TyKind::StrgRef(loc, ty) => {
-                let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::StrgRef(loc, Box::new(ty))
-            }
             surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
@@ -153,6 +157,10 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             surface::TyKind::Array(ty, len) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Array(Box::new(ty), len)
+            }
+            surface::TyKind::Slice(ty) => {
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::Slice(Box::new(ty))
             }
         };
         Ok(surface::Ty { kind, span: ty.span })
@@ -352,18 +360,8 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
                 Ok(Res::Adt(def_id))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    msg: "string slices are not supported yet",
-                }))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    msg: "chars are not supported yet",
-                }))
-            }
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => Ok(Res::Char),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
                 self.of_ty(self.tcx.type_of(did), span)
             }
@@ -442,12 +440,9 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     }
 }
 
-pub mod errors {
+mod errors {
     use flux_macros::Diagnostic;
-    use flux_middle::rustc::ty::Mutability;
-    use flux_syntax::surface::{self, RefKind, Res};
-    use rustc_hir::def_id::DefId;
-    use rustc_middle::ty::TyCtxt;
+    use flux_syntax::surface;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -470,101 +465,5 @@ pub mod errors {
         pub fn new(ident: surface::Ident) -> Self {
             Self { span: ident.span, path: ident }
         }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_fields, code = "FLUX")]
-    pub struct FieldCountMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub rust_fields: usize,
-        pub flux_fields: usize,
-    }
-
-    impl FieldCountMismatch {
-        pub fn new(span: Span, rust_fields: usize, flux_fields: usize) -> Self {
-            Self { span, rust_fields, flux_fields }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_args, code = "FLUX")]
-    pub struct ArgCountMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub rust_args: usize,
-        pub flux_args: usize,
-    }
-
-    impl ArgCountMismatch {
-        pub fn new(span: Span, rust_args: usize, flux_args: usize) -> Self {
-            Self { span, rust_args, flux_args }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_type, code = "FLUX")]
-    pub struct MismatchedType {
-        #[primary_span]
-        pub span: Span,
-        pub rust_type: String,
-        pub flux_type: Ident,
-    }
-
-    impl MismatchedType {
-        pub fn new(tcx: TyCtxt, rust_res: Res, flux_type: Ident) -> Self {
-            let rust_type = print_res(tcx, rust_res);
-            Self { span: flux_type.span, rust_type, flux_type }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::mutability_mismatch, code = "FLUX")]
-    pub struct RefKindMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub flux_ref: &'static str,
-        pub rust_ref: &'static str,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(resolver::default_return_mismatch, code = "FLUX")]
-    pub struct DefaultReturnMismatch {
-        #[primary_span]
-        pub span: Span,
-        pub rust_type: String,
-    }
-
-    impl RefKindMismatch {
-        pub fn new(span: Span, ref_kind: RefKind, mutability: Mutability) -> Self {
-            Self {
-                span,
-                flux_ref: match ref_kind {
-                    RefKind::Mut => "&mut",
-                    RefKind::Shr => "&",
-                },
-                rust_ref: match mutability {
-                    Mutability::Mut => "&mut",
-                    Mutability::Not => "&",
-                },
-            }
-        }
-    }
-
-    fn print_res(tcx: TyCtxt, res: Res) -> String {
-        match res {
-            Res::Bool => "bool".to_string(),
-            Res::Int(int_ty) => int_ty.name_str().to_string(),
-            Res::Uint(uint_ty) => uint_ty.name_str().to_string(),
-            Res::Float(float_ty) => float_ty.name_str().to_string(),
-            Res::Adt(def_id) => print_def_id(tcx, def_id),
-            Res::Param(_) => todo!(),
-            Res::Tuple => "()".to_string(),
-        }
-    }
-
-    fn print_def_id(tcx: TyCtxt, def_id: DefId) -> String {
-        let crate_name = tcx.crate_name(def_id.krate);
-        format!("{crate_name}{}", tcx.def_path(def_id).to_string_no_crate_verbose())
     }
 }

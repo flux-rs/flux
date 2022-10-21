@@ -17,7 +17,7 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
-pub struct UFDef {
+pub struct UifDef {
     /// name of the uninterpreted function
     pub name: Ident,
     /// input sorts
@@ -56,8 +56,16 @@ pub struct EnumDef<T = Ident> {
 #[derive(Debug)]
 pub struct VariantDef<T = Ident> {
     pub fields: Vec<Ty<T>>,
-    pub ret: Ty<T>,
+    pub ret: VariantRet<T>,
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct VariantRet<T = Ident> {
+    pub path: Path<T>,
+    /// Binders are not allowed at this position, but we parse this as a list of indices
+    /// for better error reporting.
+    pub indices: Indices,
 }
 
 #[derive(Debug, Default)]
@@ -126,14 +134,16 @@ pub enum TyKind<T = Ident> {
     },
     /// Mutable or shared reference
     Ref(RefKind, Box<Ty<T>>),
-    /// Strong reference, &strg<self: i32>
-    StrgRef(Ident, Box<Ty<T>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
     /// ()
     Unit,
-    Array(Box<Ty<T>>, Lit),
+    Array(Box<Ty<T>>, ArrayLen),
+    Slice(Box<Ty<T>>),
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArrayLen;
 
 #[derive(Debug, Clone)]
 pub struct Indices {
@@ -164,8 +174,9 @@ pub enum Res {
     Uint(UintTy),
     Float(FloatTy),
     Adt(DefId),
+    Str,
+    Char,
     Param(ParamTy),
-    Tuple,
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
@@ -415,12 +426,12 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, t))),
-            TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(expand_ty(aliases, t))),
             TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
+            TyKind::Slice(ty) => TyKind::Slice(Box::new(expand_ty(aliases, ty))),
         }
     }
 
@@ -543,12 +554,12 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(subst_ty(subst, t))),
-            TyKind::StrgRef(rk, t) => TyKind::StrgRef(*rk, Box::new(subst_ty(subst, t))),
             TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
+            TyKind::Slice(ty) => TyKind::Slice(Box::new(subst_ty(subst, ty))),
         }
     }
 }

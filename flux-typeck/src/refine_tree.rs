@@ -7,7 +7,7 @@ use std::{
 use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
-use flux_middle::ty::{
+use flux_middle::rty::{
     fold::TypeFoldable, BaseTy, Binders, Expr, Index, Name, Pred, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;

@@ -53,8 +53,8 @@ pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::
     parse!(surface_grammar::QualifierParser, tokens, span)
 }
 
-pub fn parse_uf_def(tokens: TokenStream, span: Span) -> ParseResult<surface::UFDef> {
-    parse!(surface_grammar::UFDefParser, tokens, span)
+pub fn parse_uif_def(tokens: TokenStream, span: Span) -> ParseResult<surface::UifDef> {
+    parse!(surface_grammar::UifDefParser, tokens, span)
 }
 
 pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
@@ -70,7 +70,7 @@ pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr>
 }
 
 pub enum UserParseError {
-    UnsupportedLiteral(Location, Location),
+    UnexpectedToken(Location, Location),
 }
 
 type LalrpopError = lalrpop_util::ParseError<Location, Token, UserParseError>;
@@ -110,7 +110,7 @@ fn map_err(
 ) -> ParseError {
     match err {
         LalrpopError::InvalidToken { .. } => unreachable!(),
-        LalrpopError::User { error: UserParseError::UnsupportedLiteral(lo, hi) } => {
+        LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } => {
             ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent)
         }
         LalrpopError::UnrecognizedEOF { location, expected: _ } => {

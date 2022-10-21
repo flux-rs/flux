@@ -11,8 +11,14 @@ wf_param_count_mismatch =
 
 wf_illegal_binder =
     illegal binder
-    .label = binder not allowed under ADT parameter
+    .label = binder not allowed in this position
 
 wf_unresolved_function =
     unresolved function
     .label = function is not defined in this scope
+
+wf_duplicated_ensures =
+    an ensures clause already exists for `{$loc}`
+
+wf_missing_ensures =
+    missing ensures clause for `&strg` reference
