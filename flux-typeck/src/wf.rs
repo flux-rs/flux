@@ -4,7 +4,7 @@ use flux_common::iter::IterExt;
 use flux_middle::{fhir, global_env::GlobalEnv, rty, rty::conv::conv_sort};
 use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
@@ -78,12 +78,38 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
         let ret = self.check_type(&mut env, &fn_sig.ret, false);
 
+        let constrs = self.check_constrs(fn_sig);
+
         args?;
         ret?;
         ensures?;
         requires?;
+        constrs?;
 
         Ok(())
+    }
+
+    fn check_constrs(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+        let mut output_locs = FxHashSet::default();
+        fn_sig.ensures.iter().try_for_each_exhaust(|constr| {
+            if let fhir::Constraint::Type(loc, _) = constr
+               && !output_locs.insert(loc.name)
+            {
+                self.emit_err(errors::DuplicatedEnsures::new(loc))
+            } else {
+                Ok(())
+            }
+        })?;
+
+        fn_sig.requires.iter().try_for_each_exhaust(|constr| {
+            if let fhir::Constraint::Type(loc, _) = constr
+               && !output_locs.contains(&loc.name)
+            {
+                self.emit_err(errors::MissingEnsures::new(loc))
+            } else {
+                Ok(())
+            }
+        })
     }
 
     pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
@@ -378,7 +404,8 @@ fn synth_lit(lit: fhir::Lit) -> rty::Sort {
 
 mod errors {
     use flux_macros::Diagnostic;
-    use rustc_span::Span;
+    use flux_middle::fhir;
+    use rustc_span::{Span, Symbol};
 
     use crate::rty;
 
@@ -439,6 +466,33 @@ mod errors {
     impl IllegalBinder {
         pub fn new(span: Option<Span>) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::duplicated_ensures, code = "FLUX")]
+    pub struct DuplicatedEnsures {
+        #[primary_span]
+        pub span: Span,
+        pub loc: Symbol,
+    }
+
+    impl DuplicatedEnsures {
+        pub fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
+            Self { span: loc.source_info.0, loc: loc.source_info.1 }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::missing_ensures, code = "FLUX")]
+    pub struct MissingEnsures {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    impl MissingEnsures {
+        pub fn new(loc: &fhir::Ident) -> MissingEnsures {
+            Self { span: loc.source_info.0 }
         }
     }
 }
