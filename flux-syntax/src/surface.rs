@@ -175,6 +175,7 @@ pub enum Res {
     Float(FloatTy),
     Adt(DefId),
     Str,
+    Char,
     Param(ParamTy),
 }
 

@@ -401,6 +401,7 @@ impl<'a> DesugarCtxt<'a> {
             Res::Float(float_ty) => BtyOrTy::Ty(fhir::Ty::Float(float_ty)),
             Res::Param(param_ty) => BtyOrTy::Ty(fhir::Ty::Param(param_ty)),
             Res::Str => BtyOrTy::Ty(fhir::Ty::Str),
+            Res::Char => BtyOrTy::Ty(fhir::Ty::Char),
         };
         Ok(bty)
     }
@@ -732,7 +733,7 @@ fn sorts<'a>(adt_sorts: &'a AdtMap, path: &surface::Path<Res>) -> &'a [fhir::Sor
         Res::Bool => &[fhir::Sort::Bool],
         Res::Int(_) | Res::Uint(_) => &[fhir::Sort::Int],
         Res::Adt(def_id) => adt_sorts.sorts(def_id).unwrap_or_default(),
-        Res::Float(_) | Res::Param(_) | Res::Str => &[],
+        Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => &[],
     }
 }
 
@@ -775,7 +776,7 @@ impl Binder {
                     Binder::Aggregate(fields)
                 }
             }
-            Res::Float(_) | Res::Param(_) | Res::Str => Binder::Unrefined,
+            Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
         }
     }
 

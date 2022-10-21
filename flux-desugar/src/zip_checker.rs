@@ -196,7 +196,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
                 Ok(())
             }
             (Res::Str, rustc_ty::TyKind::Str) => Ok(()),
-
+            (Res::Char, rustc_ty::TyKind::Char) => Ok(()),
             _ => {
                 Err(self
                     .sess

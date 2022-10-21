@@ -215,7 +215,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(env, ty, allow_binder)
             }
             fhir::Ty::Slice(ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty, false),
-            fhir::Ty::Never | fhir::Ty::Param(_) | fhir::Ty::Float(_) | fhir::Ty::Str => Ok(()),
+            fhir::Ty::Never
+            | fhir::Ty::Param(_)
+            | fhir::Ty::Float(_)
+            | fhir::Ty::Str
+            | fhir::Ty::Char => Ok(()),
         }
     }
 

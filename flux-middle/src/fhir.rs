@@ -103,6 +103,7 @@ pub enum Ty {
     Constr(Expr, Box<Ty>),
     Float(FloatTy),
     Str,
+    Char,
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
@@ -366,6 +367,7 @@ impl fmt::Debug for Ty {
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Slice(ty) => write!(f, "[{ty:?}]"),
             Ty::Str => write!(f, "str"),
+            Ty::Char => write!(f, "char"),
         }
     }
 }

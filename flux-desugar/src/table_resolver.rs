@@ -361,12 +361,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 Ok(Res::Adt(def_id))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    msg: "chars are not supported yet",
-                }))
-            }
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => Ok(Res::Char),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
                 self.of_ty(self.tcx.type_of(did), span)
             }
