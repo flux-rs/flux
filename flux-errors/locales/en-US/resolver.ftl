@@ -23,3 +23,22 @@ resolver_mutability_mismatch =
 
 resolver_default_return_mismatch =
     return type mismatch in flux signature: expected `{$rust_type}`, found ()
+
+resolver_too_few_arguments =
+    this type takes at least {$min} generic {$min ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+
+resolver_too_many_arguments =
+    this type takes at most {$max} generic {$max ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+
