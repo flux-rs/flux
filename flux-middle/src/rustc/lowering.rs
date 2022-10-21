@@ -439,7 +439,6 @@ impl<'tcx> LoweringCtxt<'tcx> {
             _ => None,
         }
         .ok_or_else(|| {
-            println!("{:?}", constant.literal);
             emit_err(self.tcx, Some(span), format!("constant not supported: `{constant:?}`"))
         })
     }
@@ -563,6 +562,7 @@ pub fn lower_ty<'tcx>(
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
+        rustc_ty::Char => Ok(Ty::mk_char()),
         rustc_ty::Tuple(tys) => {
             let tys = List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty, span)).try_collect()?);
             Ok(Ty::mk_tuple(tys))
@@ -664,6 +664,7 @@ fn scalar_int_to_constant<'tcx>(
         TyKind::Float(float_ty) => {
             Some(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
         }
+        TyKind::Char => Some(Constant::Char),
         TyKind::Bool => Some(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0)),
         TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
         _ => None,

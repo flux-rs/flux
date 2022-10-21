@@ -150,7 +150,8 @@ impl Expr {
             | BaseTy::Array(..)
             | BaseTy::Str
             | BaseTy::Float(_)
-            | BaseTy::Slice(_) => panic!(),
+            | BaseTy::Slice(_)
+            | BaseTy::Char => panic!(),
         }
     }
 

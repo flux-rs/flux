@@ -867,6 +867,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
             Constant::Str => Ty::mk_ref(RefKind::Shr, Ty::str()),
+            Constant::Char => Ty::char(),
         }
     }
 
