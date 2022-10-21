@@ -198,7 +198,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (Res::Str, rustc_ty::TyKind::Str) => Ok(()),
 
             _ => {
-                return Err(self
+                Err(self
                     .sess
                     .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, path.span)))
             }
