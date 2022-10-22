@@ -178,7 +178,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .map(|param| {
                     match param.kind {
                         GenericParamDefKind::Type { .. } => {
-                            rty::Ty::param(rty::ParamTy { index: param.index, name: param.name })
+                            rty::GenericArg::Ty(rty::Ty::param(rty::ParamTy {
+                                index: param.index,
+                                name: param.name,
+                            }))
                         }
                     }
                 })
@@ -344,18 +347,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     match &generic.kind {
                         GenericParamDefKind::Type { has_default } => {
                             debug_assert!(has_default);
-                            self.genv.default_type_of(generic.def_id)
+                            rty::GenericArg::Ty(self.genv.default_type_of(generic.def_id))
                         }
                     }
                 });
                 let adt_def = self.genv.adt_def(*did);
-                let substs = substs
-                    .iter()
-                    .map(|ty| self.conv_ty(ty, nbinders))
-                    .chain(defaults);
+                let substs = List::from_vec(
+                    substs
+                        .iter()
+                        .map(|ty| self.conv_generic_arg(ty, nbinders))
+                        .chain(defaults)
+                        .collect(),
+                );
                 rty::BaseTy::adt(adt_def, substs)
             }
         }
+    }
+
+    fn conv_generic_arg(&mut self, arg: &fhir::Ty, nbinders: u32) -> rty::GenericArg {
+        rty::GenericArg::Ty(self.conv_ty(arg, nbinders))
     }
 }
 

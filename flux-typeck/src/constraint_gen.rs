@@ -3,8 +3,8 @@ use std::iter;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     rty::{
-        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, Index, PolySig,
-        PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
+        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, GenericArg,
+        Index, PolySig, PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -104,7 +104,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         fn_sig: &PolySig,
-        substs: &[Ty],
+        substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<CallOutput, CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
@@ -131,7 +131,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Infer refinement parameters
         let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig)?;
         let fn_sig = fn_sig
-            .replace_generic_types(&substs)
+            .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);
 
         let constr = &mut rcx.check_constr();
@@ -174,7 +174,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         variant: &PolyVariant,
-        substs: &[Ty],
+        substs: &[GenericArg],
         fields: &[Ty],
     ) -> Result<VariantRet, InferenceError> {
         // Generate fresh kvars for generic types
@@ -186,7 +186,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Infer refinement parameters
         let exprs = param_infer::infer_from_constructor(fields, variant)?;
         let variant = variant
-            .replace_generic_types(&substs)
+            .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);
 
         let constr = &mut rcx.check_constr();
@@ -243,7 +243,8 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             debug_assert_eq!(alloc1, alloc2);
         }
         (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
-            variance_subtyping(genv, constr, Variance::Invariant, ty1, ty2, tag);
+            subtyping(genv, constr, ty1, ty2, tag);
+            subtyping(genv, constr, ty2, ty1, tag);
         }
         (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
             subtyping(genv, constr, ty1, ty2, tag);
@@ -291,7 +292,7 @@ fn bty_subtyping(
             debug_assert_eq!(substs1.len(), substs2.len());
             let variances = genv.variances_of(def1.def_id());
             for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-                variance_subtyping(genv, constr, *variance, ty1, ty2, tag);
+                generic_arg_subtyping(genv, constr, *variance, ty1, ty2, tag);
             }
         }
         (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
@@ -312,14 +313,15 @@ fn bty_subtyping(
     }
 }
 
-fn variance_subtyping(
+fn generic_arg_subtyping(
     genv: &GlobalEnv,
     constr: &mut ConstrBuilder,
     variance: Variance,
-    ty1: &Ty,
-    ty2: &Ty,
+    arg1: &GenericArg,
+    arg2: &GenericArg,
     tag: Tag,
 ) {
+    let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2);
     match variance {
         rustc_middle::ty::Variance::Covariant => subtyping(genv, constr, ty1, ty2, tag),
         rustc_middle::ty::Variance::Invariant => {

@@ -5,8 +5,8 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, Index, KVar, Name, Pred, Sort, Ty, TyKind,
-    VariantRet,
+    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, Index, KVar, Name, Pred, Sort,
+    Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
@@ -106,20 +106,21 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut WithHoles)
     }
 
-    fn replace_generic_types(&self, tys: &[Ty]) -> Self {
-        struct GenericsFolder<'a>(&'a [Ty]);
+    fn replace_generic_args(&self, args: &[GenericArg]) -> Self {
+        struct GenericsFolder<'a>(&'a [GenericArg]);
 
         impl TypeFolder for GenericsFolder<'_> {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 if let TyKind::Param(param_ty) = ty.kind() {
-                    self.0[param_ty.index as usize].clone()
+                    let GenericArg::Ty(ty) = &self.0[param_ty.index as usize];
+                    ty.clone()
                 } else {
                     ty.super_fold_with(self)
                 }
             }
         }
 
-        self.fold_with(&mut GenericsFolder(tys))
+        self.fold_with(&mut GenericsFolder(args))
     }
 }
 
@@ -321,7 +322,8 @@ impl TypeFoldable for BaseTy {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             BaseTy::Adt(adt_def, substs) => {
-                BaseTy::adt(adt_def.clone(), substs.iter().map(|ty| ty.fold_with(folder)))
+                let substs = List::from_vec(substs.iter().map(|ty| ty.fold_with(folder)).collect());
+                BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
@@ -344,6 +346,20 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char => {}
+        }
+    }
+}
+
+impl TypeFoldable for GenericArg {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            GenericArg::Ty(ty) => ty.visit_with(visitor),
         }
     }
 }

@@ -8,7 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    fold::TypeFoldable, BaseTy, Binders, Expr, Index, Name, Pred, RefKind, Sort, Ty, TyKind,
+    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Index, Name, Pred, RefKind,
+    Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -151,8 +152,12 @@ impl RefineCtxt<'_> {
     fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let ty = self.unpack_inner(&substs[0], inside_mut_ref, flags);
-                BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
+                let (boxed, alloc) = box_args(substs);
+                let boxed = self.unpack_inner(boxed, inside_mut_ref, flags);
+                BaseTy::adt(
+                    adt_def.clone(),
+                    vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                )
             }
             _ => bty.clone(),
         }
