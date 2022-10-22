@@ -184,7 +184,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {
-        rustc::lowering::lower_generics(self.tcx, self.tcx.generics_of(def_id))
+        rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
             .unwrap_or_else(|_| FatalError.raise())
     }
 

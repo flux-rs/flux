@@ -43,6 +43,10 @@ impl FluxSession {
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
+    pub fn err(&self, msg: impl Into<DiagnosticMessage>) -> ErrorGuaranteed {
+        self.diagnostic().err(msg)
+    }
+
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
     }
@@ -56,6 +60,10 @@ impl FluxSession {
             .span_diagnostic
             .print_error_count(&Registry::new(&[]));
         self.abort_if_errors();
+    }
+
+    pub fn diagnostic(&self) -> &rustc_errors::Handler {
+        &self.parse_sess.span_diagnostic
     }
 }
 

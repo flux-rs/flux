@@ -6,6 +6,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
 };
+use rustc_span::Symbol;
 
 use crate::intern::{impl_internable, Interned, List};
 
@@ -17,6 +18,8 @@ pub struct Generics<'tcx> {
 #[derive(Hash, Eq, PartialEq)]
 pub struct GenericParamDef {
     pub def_id: DefId,
+    pub index: u32,
+    pub name: Symbol,
     pub kind: GenericParamDefKind,
 }
 

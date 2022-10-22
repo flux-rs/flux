@@ -2,7 +2,7 @@ use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
 use rustc_const_eval::interpret::ConstValue;
-use rustc_errors::{DiagnosticId, ErrorGuaranteed};
+use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir as rustc_mir,
@@ -12,7 +12,6 @@ use rustc_middle::{
         ParamEnv, TyCtxt,
     },
 };
-use rustc_span::Span;
 
 use super::{
     mir::{
@@ -298,13 +297,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(self.lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
-                let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
-                    emit_err(
-                        self.tcx,
-                        Some(source_info.span),
-                        format!("unsupported cast: `{rvalue:?}`"),
-                    )
-                })?;
+                let kind = self
+                    .lower_cast_kind(*kind)
+                    .ok_or_else(|| errors::UnsupportedRvalue::new(source_info.span, rvalue))
+                    .emit(self.sess)?;
                 let op = self.lower_operand(op)?;
                 let ty = lower_ty(self.tcx, *ty)
                     .map_err(|_| errors::UnsupportedRvalue::new(source_info.span, rvalue))
@@ -395,10 +391,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                     projection.push(PlaceElem::Downcast(variant_idx));
                 }
                 _ => {
-                    return Err(self
-                        .tcx
-                        .sess
-                        .err(&format!("place not supported: `{place:?}`")));
+                    return Err(self.sess.err(&format!("place not supported: `{place:?}`")));
                 }
             }
         }
@@ -414,7 +407,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         use rustc_mir::interpret::Scalar;
         use rustc_mir::ConstantKind;
         let tcx = self.tcx;
-        let span = constant.span;
 
         // HACK(nilehmann) we evaluate the constant to support u32::MAX
         // we should instead lower it as is and refine its type.
@@ -438,9 +430,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
             _ => None,
         }
-        .ok_or_else(|| {
-            emit_err(self.tcx, Some(span), format!("constant not supported: `{constant:?}`"))
-        })
+        .ok_or_else(|| errors::UnsupportedConstant::new(constant))
+        .emit(self.sess)
     }
 
     fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<&'static str> {
@@ -454,10 +445,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             _ => None,
         }
     }
-
-    // fn emit_err<S: AsRef<str>, T>(&self, span: Option<Span>, msg: S) -> Result<T, ErrorGuaranteed> {
-    //     Err(emit_err(self.tcx, span, msg))
-    // }
 }
 
 /// [NOTE:Fake Predecessors] The `FalseEdge/imaginary_target` edges mess up
@@ -601,13 +588,14 @@ fn lower_generic_arg<'tcx>(
 
 pub fn lower_generics<'tcx>(
     tcx: TyCtxt<'tcx>,
+    sess: &FluxSession,
     generics: &'tcx rustc_ty::Generics,
 ) -> Result<Generics<'tcx>, ErrorGuaranteed> {
     let params = List::from_vec(
         generics
             .params
             .iter()
-            .map(|generic| lower_generic_param_def(tcx, generic))
+            .map(|generic| lower_generic_param_def(tcx, sess, generic))
             .try_collect()?,
     );
     Ok(Generics { params, rustc: generics })
@@ -615,6 +603,7 @@ pub fn lower_generics<'tcx>(
 
 fn lower_generic_param_def(
     tcx: TyCtxt,
+    sess: &FluxSession,
     generic: &rustc_ty::GenericParamDef,
 ) -> Result<GenericParamDef, ErrorGuaranteed> {
     let kind = match generic.kind {
@@ -622,24 +611,11 @@ fn lower_generic_param_def(
             GenericParamDefKind::Type { has_default }
         }
         _ => {
-            return Err(emit_err(
-                tcx,
-                Some(tcx.def_span(generic.def_id)),
-                format!("unsupported generic parameter: `{generic:?}`"),
-            ))
+            return Err(errors::UnsupportedGenericParam::new(tcx.def_span(generic.def_id)))
+                .emit(sess)
         }
     };
-    Ok(GenericParamDef { def_id: generic.def_id, kind })
-}
-
-fn emit_err<S: AsRef<str>>(tcx: TyCtxt, span: Option<Span>, msg: S) -> ErrorGuaranteed {
-    let mut diagnostic = tcx
-        .sess
-        .struct_err_with_code(msg.as_ref(), DiagnosticId::Error("flux".to_string()));
-    if let Some(span) = span {
-        diagnostic.set_span(span);
-    }
-    diagnostic.emit()
+    Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
 }
 
 fn scalar_int_to_constant<'tcx>(
@@ -724,6 +700,20 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
+    #[diag(lowering::unsupported_statement, code = "FLUX")]
+    pub struct UnsupportedStatement {
+        #[primary_span]
+        pub span: Span,
+        pub statement: String,
+    }
+
+    impl UnsupportedStatement {
+        pub fn new(statement: &rustc_mir::Statement) -> Self {
+            Self { span: statement.source_info.span, statement: format!("{statement:?}") }
+        }
+    }
+
+    #[derive(Diagnostic)]
     #[diag(lowering::unsupported_terminator, code = "FLUX")]
     pub struct UnsupportedTerminator {
         #[primary_span]
@@ -753,6 +743,34 @@ mod errors {
         }
     }
     #[derive(Diagnostic)]
+    #[diag(lowering::unsupported_constant, code = "FLUX")]
+    pub struct UnsupportedConstant {
+        #[primary_span]
+        #[label]
+        span: Span,
+        constant: String,
+    }
+
+    impl UnsupportedConstant {
+        pub fn new(constant: &rustc_mir::Constant) -> Self {
+            Self { span: constant.span, constant: format!("{constant:?}") }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(lowering::unsupported_generic_param, code = "FLUX")]
+    pub struct UnsupportedGenericParam {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnsupportedGenericParam {
+        pub fn new(span: Span) -> Self {
+            Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
     #[diag(lowering::unsupported_type_of, code = "FLUX")]
     pub struct UnsupportedTypeOf {
         #[primary_span]
@@ -770,19 +788,5 @@ mod errors {
     pub struct UnsupportedFnSig {
         #[primary_span]
         pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_statement, code = "FLUX")]
-    pub struct UnsupportedStatement {
-        #[primary_span]
-        pub span: Span,
-        pub statement: String,
-    }
-
-    impl UnsupportedStatement {
-        pub fn new(statement: &rustc_mir::Statement) -> Self {
-            Self { span: statement.source_info.span, statement: format!("{statement:?}") }
-        }
     }
 }

@@ -14,8 +14,15 @@ lowering_unsupported_statement =
     unsupported statement
     .label = `{$statement}`
 
+lowering_unsupported_constant =
+    unsupported constant
+    .label = `{$constant}`
+
 lowering_unsupported_type_of =
     unsupported type `{$ty}`
 
 lowering_unsupported_fn_sig =
     unsupported signature
+
+lowering_unsupported_generic_param =
+    unsupported generic param

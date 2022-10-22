@@ -172,11 +172,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .collect_vec();
 
             let substs = genv
-                .tcx
                 .generics_of(struct_def.def_id)
                 .params
                 .iter()
-                .map(|param| rty::Ty::param(rty::ParamTy { index: param.index, name: param.name }))
+                .map(|param| {
+                    match param.kind {
+                        GenericParamDefKind::Type { .. } => {
+                            rty::Ty::param(rty::ParamTy { index: param.index, name: param.name })
+                        }
+                    }
+                })
                 .collect_vec();
 
             let idxs = sorts
