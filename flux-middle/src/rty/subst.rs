@@ -36,7 +36,7 @@ impl FVarSubst {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
                 if let Some(old_e) = self.insert(*fvar, e1.clone()) {
-                    if &old_e != e2 {
+                    if &old_e != e1 {
                         todo!(
                             "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
                             *fvar,
