@@ -129,7 +129,7 @@ pub fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
         (_, ExprKind::BoundVar(bvar)) if bvar.debruijn == INNERMOST => {
             if let Some(old_e) = exprs.insert(bvar.index, e1.clone()) {
-                if &old_e != e2 {
+                if &old_e != e1 {
                     todo!(
                         "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
                         bvar,

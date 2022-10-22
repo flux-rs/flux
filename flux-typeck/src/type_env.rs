@@ -205,11 +205,7 @@ impl TypeEnv {
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
                 debug_assert_eq!(rk1, rk2);
-                subst.infer_from_exprs(params, &path1.to_expr(), &path2.to_expr());
-                if let Binding::Owned(ty1) = self.bindings.get(path1) &&
-                   let Binding::Owned(ty2) = bb_env.bindings.get(path2) {
-                    self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, &ty2, subst);
-                }
+                debug_assert_eq!(path1, path2);
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
