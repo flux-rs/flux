@@ -10,6 +10,7 @@ dashmap = { version = "4.0.2", features = ["raw-api"] }
 flux-common = { path = "../flux-common" }
 flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }
+flux-macros = { path = "../flux-macros" }
 itertools = "0.10"
 
 [package.metadata.rust-analyzer]

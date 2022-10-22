@@ -189,12 +189,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn default_fn_sig(&self, def_id: DefId) -> rty::PolySig {
-        let span = self.tcx.def_span(def_id);
-        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id), span) {
+        match rustc::lowering::lower_fn_sig_of(self.tcx, def_id) {
             Ok(fn_sig) => {
                 self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
             }
-            Err(_) => FatalError.raise(),
+            Err(err) => {
+                self.sess.emit_err(err);
+                FatalError.raise()
+            }
         }
     }
 
@@ -202,9 +204,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
     }
 
-    pub fn default_type_of(&self, def_id: DefId) -> rty::Ty {
-        let span = self.tcx.def_span(def_id);
-        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id), span) {
+    pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {
+        match rustc::lowering::lower_type_of(self.tcx, self.sess, def_id) {
             Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
             Err(_) => FatalError.raise(),
         }
@@ -216,7 +217,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         variant_def: &rustc_middle::ty::VariantDef,
     ) -> rty::PolyVariant {
         if let Ok(variant_def) =
-            rustc::lowering::lower_variant_def(self.tcx, adt_def_id, variant_def)
+            rustc::lowering::lower_variant_def(self.tcx, self.sess, adt_def_id, variant_def)
         {
             let fields = variant_def
                 .fields

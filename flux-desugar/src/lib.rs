@@ -16,6 +16,7 @@ mod zip_checker;
 // mod zip_resolver;
 
 pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uif_def};
+use flux_errors::ResultExt;
 use flux_middle::{
     fhir::{self, AdtMap},
     global_env::GlobalEnv,
@@ -46,7 +47,8 @@ pub fn desugar_enum_def(
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
     let enum_def = resolver.resolve_enum_def(enum_def)?;
 
-    let rust_enum_def = lowering::lower_enum_def(genv.tcx, genv.tcx.adt_def(def_id.to_def_id()))?;
+    let rust_enum_def =
+        lowering::lower_enum_def(genv.tcx, genv.sess, genv.tcx.adt_def(def_id.to_def_id()))?;
     zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_enum_def(&enum_def, &rust_enum_def)?;
 
     desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
@@ -61,8 +63,7 @@ pub fn desugar_fn_sig(
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
     let sig = resolver.resolve_fn_sig(fn_sig)?;
 
-    let span = genv.tcx.def_span(def_id.to_def_id());
-    let rust_sig = lowering::lower_fn_sig(genv.tcx, genv.tcx.fn_sig(def_id), span)?;
+    let rust_sig = lowering::lower_fn_sig_of(genv.tcx, def_id.to_def_id()).emit(genv.sess)?;
     zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig)?;
 
     desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)

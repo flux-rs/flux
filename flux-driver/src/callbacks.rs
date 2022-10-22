@@ -272,7 +272,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .unwrap();
         }
 
-        let body = rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, mir)?;
+        let body =
+            rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
         typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
     }
