@@ -21,12 +21,13 @@ use rustc_session::{config::ErrorOutputType, parse::ParseSess};
 use rustc_span::source_map::SourceMap;
 
 fluent_messages! {
-    parse => "../locales/en-US/parse.ftl",
-    resolver => "../locales/en-US/resolver.ftl",
     desugar => "../locales/en-US/desugar.ftl",
-    wf => "../locales/en-US/wf.ftl",
-    refineck => "../locales/en-US/refineck.ftl",
     invariants => "../locales/en-US/invariants.ftl",
+    lowering => "../locales/en-US/lowering.ftl",
+    parse => "../locales/en-US/parse.ftl",
+    refineck => "../locales/en-US/refineck.ftl",
+    resolver => "../locales/en-US/resolver.ftl",
+    wf => "../locales/en-US/wf.ftl",
 }
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
@@ -42,6 +43,10 @@ impl FluxSession {
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
+    pub fn err(&self, msg: impl Into<DiagnosticMessage>) -> ErrorGuaranteed {
+        self.diagnostic().err(msg)
+    }
+
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
     }
@@ -55,6 +60,10 @@ impl FluxSession {
             .span_diagnostic
             .print_error_count(&Registry::new(&[]));
         self.abort_if_errors();
+    }
+
+    pub fn diagnostic(&self) -> &rustc_errors::Handler {
+        &self.parse_sess.span_diagnostic
     }
 }
 

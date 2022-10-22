@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::hash_map};
 
 use flux_common::config::{AssertBehavior, CONFIG};
 use flux_errors::FluxSession;
@@ -11,6 +11,7 @@ pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
 use rustc_span::Symbol;
 
+pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     fhir::{self, UifDef, VariantIdx},
     intern::List,
@@ -108,12 +109,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn lookup_fn_sig(&self, def_id: DefId) -> rty::PolySig {
-        self.fn_sigs
-            .borrow_mut()
-            .entry(def_id)
-            .or_insert_with(|| self.default_fn_sig(def_id))
-            .clone()
+    pub fn lookup_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
+        match self.fn_sigs.borrow_mut().entry(def_id) {
+            hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
+            hash_map::Entry::Vacant(entry) => {
+                Ok(entry.insert(self.default_fn_sig(def_id)?).clone())
+            }
+        }
+    }
+
+    fn default_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
+        let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?;
+        Ok(self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Pred::tt(), sorts)))
     }
 
     pub fn variances_of(&self, did: DefId) -> &[Variance] {
@@ -184,27 +191,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {
-        rustc::lowering::lower_generics(self.tcx, self.tcx.generics_of(def_id))
+        rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
             .unwrap_or_else(|_| FatalError.raise())
-    }
-
-    pub fn default_fn_sig(&self, def_id: DefId) -> rty::PolySig {
-        let span = self.tcx.def_span(def_id);
-        match rustc::lowering::lower_fn_sig(self.tcx, self.tcx.fn_sig(def_id), span) {
-            Ok(fn_sig) => {
-                self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
-            }
-            Err(_) => FatalError.raise(),
-        }
     }
 
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
         self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
     }
 
-    pub fn default_type_of(&self, def_id: DefId) -> rty::Ty {
-        let span = self.tcx.def_span(def_id);
-        match rustc::lowering::lower_ty(self.tcx, self.tcx.type_of(def_id), span) {
+    pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {
+        match rustc::lowering::lower_type_of(self.tcx, self.sess, def_id) {
             Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
             Err(_) => FatalError.raise(),
         }
@@ -216,7 +212,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         variant_def: &rustc_middle::ty::VariantDef,
     ) -> rty::PolyVariant {
         if let Ok(variant_def) =
-            rustc::lowering::lower_variant_def(self.tcx, adt_def_id, variant_def)
+            rustc::lowering::lower_variant_def(self.tcx, self.sess, adt_def_id, variant_def)
         {
             let fields = variant_def
                 .fields
