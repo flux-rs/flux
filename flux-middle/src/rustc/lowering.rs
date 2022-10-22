@@ -1,3 +1,4 @@
+pub use errors::UnsupportedFnSig;
 use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;

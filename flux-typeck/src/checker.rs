@@ -182,6 +182,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let fn_sig = genv
             .lookup_fn_sig(def_id)
+            .unwrap_or_else(|_| panic!("checking function with unsupported signature"))
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);
@@ -361,7 +362,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     Some(inst) => (inst.impl_f, &inst.substs),
                     None => (*func, &substs.lowered),
                 };
-                let fn_sig = self.genv.lookup_fn_sig(func_id);
+                let fn_sig = self
+                    .genv
+                    .lookup_fn_sig(func_id)
+                    .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
 
                 let ret =
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
@@ -1070,7 +1074,10 @@ impl Ord for Item<'_> {
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
     use flux_macros::Diagnostic;
-    use flux_middle::{global_env::OpaqueStructErr, pretty};
+    use flux_middle::{
+        global_env::{OpaqueStructErr, UnsupportedFnSig},
+        pretty,
+    };
     use rustc_errors::{DiagnosticId, IntoDiagnostic};
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
@@ -1093,6 +1100,7 @@ pub(crate) mod errors {
     pub enum CheckerErrKind {
         Inference,
         OpaqueStruct(DefId),
+        UnsupportedCall { def_span: Span },
     }
 
     impl CheckerError {
@@ -1118,6 +1126,7 @@ pub(crate) mod errors {
             let fluent = match &self.kind {
                 CheckerErrKind::Inference => refineck::param_inference_error,
                 CheckerErrKind::OpaqueStruct(_) => refineck::opaque_struct_error,
+                CheckerErrKind::UnsupportedCall { .. } => refineck::unsupported_call,
             };
             let mut builder =
                 handler.struct_err_with_code(fluent, DiagnosticId::Error("FLUX".to_string()));
@@ -1129,6 +1138,9 @@ pub(crate) mod errors {
                 CheckerErrKind::Inference => {}
                 CheckerErrKind::OpaqueStruct(def_id) => {
                     builder.set_arg("struct", pretty::def_id_to_string(def_id));
+                }
+                CheckerErrKind::UnsupportedCall { def_span } => {
+                    builder.span_note(def_span, refineck::function_definition);
                 }
             }
             builder
@@ -1144,6 +1156,15 @@ pub(crate) mod errors {
     impl From<OpaqueStructErr> for CheckerError {
         fn from(OpaqueStructErr(kind): OpaqueStructErr) -> Self {
             CheckerError { kind: CheckerErrKind::OpaqueStruct(kind), span: None }
+        }
+    }
+
+    impl From<UnsupportedFnSig> for CheckerError {
+        fn from(err: UnsupportedFnSig) -> Self {
+            CheckerError {
+                kind: CheckerErrKind::UnsupportedCall { def_span: err.span },
+                span: None,
+            }
         }
     }
 }
