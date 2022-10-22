@@ -164,6 +164,10 @@ impl TypeEnv {
         });
     }
 
+    pub fn block(&mut self, path: &Path) {
+        self.bindings.block(path)
+    }
+
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();

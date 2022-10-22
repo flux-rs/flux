@@ -11,7 +11,7 @@ use crate::type_env::PathMap;
 type Exprs = FxHashMap<usize, Expr>;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct InferenceError;
+pub struct InferenceError(String);
 
 pub fn infer_from_constructor(
     fields: &[Ty],
@@ -59,7 +59,11 @@ fn collect<T>(t: &Binders<T>, mut exprs: Exprs) -> Result<Vec<Expr>, InferenceEr
     t.params()
         .iter()
         .enumerate()
-        .map(|(idx, _)| exprs.remove(&idx).ok_or(InferenceError))
+        .map(|(idx, _)| {
+            exprs
+                .remove(&idx)
+                .ok_or_else(|| InferenceError(format!("%0.{idx}")))
+        })
         .collect()
 }
 
@@ -69,7 +73,7 @@ pub fn check_inference(
 ) -> Result<(), InferenceError> {
     for name in params {
         if !subst.contains(name) {
-            return Err(InferenceError);
+            return Err(InferenceError(format!("{name:?}")));
         }
     }
     Ok(())
