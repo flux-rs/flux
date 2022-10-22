@@ -62,7 +62,7 @@ fn collect<T>(t: &Binders<T>, mut exprs: Exprs) -> Result<Vec<Expr>, InferenceEr
         .map(|(idx, _)| {
             exprs
                 .remove(&idx)
-                .ok_or(InferenceError(format!("%0.{idx}")))
+                .ok_or_else(|| InferenceError(format!("%0.{idx}")))
         })
         .collect()
 }
