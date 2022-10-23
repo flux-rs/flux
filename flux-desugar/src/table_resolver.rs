@@ -401,12 +401,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     fn collect_from_generic_arg(&mut self, arg: &hir::GenericArg) -> Result<(), ErrorGuaranteed> {
         match arg {
             hir::GenericArg::Type(ty) => self.collect_from_ty(ty),
-            hir::GenericArg::Lifetime(_) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span: arg.span(),
-                    msg: "lifetime parameters are not supported yet",
-                }))
-            }
+            hir::GenericArg::Lifetime(_) => Ok(()),
             hir::GenericArg::Const(_) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span: arg.span(),

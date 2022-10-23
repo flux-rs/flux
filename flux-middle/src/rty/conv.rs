@@ -343,26 +343,31 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             fhir::BaseTy::Bool => rty::BaseTy::Bool,
             fhir::BaseTy::Adt(did, substs) => {
-                let generics = self.genv.generics_of(*did);
-                let defaults = generics.params.iter().skip(substs.len()).map(|generic| {
-                    match &generic.kind {
-                        GenericParamDefKind::Type { has_default } => {
-                            debug_assert!(has_default);
-                            rty::GenericArg::Ty(self.genv.default_type_of(generic.def_id))
-                        }
-                        GenericParamDefKind::Lifetime => {
-                            unreachable!("missing lifetime argument during conversion")
-                        }
-                    }
-                });
-                let adt_def = self.genv.adt_def(*did);
+                let mut i = 0;
                 let substs = List::from_vec(
-                    substs
+                    self.genv
+                        .generics_of(*did)
+                        .params
                         .iter()
-                        .map(|ty| self.conv_generic_arg(ty, nbinders))
-                        .chain(defaults)
+                        .map(|generic| {
+                            match &generic.kind {
+                                GenericParamDefKind::Type { has_default } => {
+                                    if i < substs.len() {
+                                        i += 1;
+                                        self.conv_generic_arg(&substs[i - 1], nbinders)
+                                    } else {
+                                        debug_assert!(has_default);
+                                        rty::GenericArg::Ty(
+                                            self.genv.default_type_of(generic.def_id),
+                                        )
+                                    }
+                                }
+                                GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                            }
+                        })
                         .collect(),
                 );
+                let adt_def = self.genv.adt_def(*did);
                 rty::BaseTy::adt(adt_def, substs)
             }
         }
