@@ -4,7 +4,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{BoundRegion, DebruijnIndex, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt, UintTy},
 };
 use rustc_span::Symbol;
 
@@ -13,6 +13,18 @@ use crate::intern::{impl_internable, Interned, List};
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
     pub rustc: &'tcx rustc_middle::ty::Generics,
+}
+
+pub struct Binder<T>(T, List<BoundVariableKind>);
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum BoundVariableKind {
+    Region(BoundRegionKind),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum BoundRegionKind {
+    BrNamed(DefId, Symbol),
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -26,12 +38,15 @@ pub struct GenericParamDef {
 #[derive(Hash, Eq, PartialEq)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
+    Lifetime,
 }
 
 #[derive(Debug)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
+
+pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Debug)]
 pub struct EnumDef {
@@ -75,6 +90,27 @@ pub struct Const;
 #[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {
     Ty(Ty),
+    Lifetime(Region),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum Region {
+    ReVar(RegionVid),
+    ReLateBound(DebruijnIndex, BoundRegion),
+}
+
+impl<T> Binder<T> {
+    pub fn bind_with_vars(value: T, vars: impl Into<List<BoundVariableKind>>) -> Binder<T> {
+        Binder(value, vars.into())
+    }
+
+    pub fn skip_binder(self) -> T {
+        self.0
+    }
+
+    pub fn as_ref(&self) -> Binder<&T> {
+        Binder(&self.0, self.1.clone())
+    }
 }
 
 impl FnSig {
@@ -155,12 +191,22 @@ impl Ty {
     }
 }
 
-impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef]);
+impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef], [BoundVariableKind]);
 
 impl std::fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GenericArg::Ty(ty) => write!(f, "{ty:?}"),
+            GenericArg::Lifetime(region) => write!(f, "{region:?}"),
+        }
+    }
+}
+
+impl std::fmt::Debug for Region {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Region::ReVar(rvid) => write!(f, "{rvid:?}"),
+            Region::ReLateBound(_, bound_region) => write!(f, "{bound_region:?}"),
         }
     }
 }

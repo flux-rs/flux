@@ -56,8 +56,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     pub fn zip_fn_sig(
         &self,
         sig: &FnSig<Res>,
-        rust_sig: &rustc_ty::FnSig,
+        rust_sig: &rustc_ty::PolyFnSig,
     ) -> Result<(), ErrorGuaranteed> {
+        let rust_sig = rust_sig.as_ref().skip_binder();
         let mut locs = Locs::new();
         self.zip_args(sig.span, &sig.args, rust_sig.inputs(), &mut locs)?;
         self.zip_return_ty(sig.span, &sig.returns, &rust_sig.output())?;
@@ -229,6 +230,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match rust_arg {
             rustc_ty::GenericArg::Ty(ty) => self.zip_ty(arg, ty),
+            rustc_ty::GenericArg::Lifetime(_) => todo!(),
         }
     }
 }

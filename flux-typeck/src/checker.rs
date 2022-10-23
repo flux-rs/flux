@@ -1100,7 +1100,7 @@ pub(crate) mod errors {
     pub enum CheckerErrKind {
         Inference,
         OpaqueStruct(DefId),
-        UnsupportedCall { def_span: Span },
+        UnsupportedCall { def_span: Span, reason: String },
     }
 
     impl CheckerError {
@@ -1139,8 +1139,9 @@ pub(crate) mod errors {
                 CheckerErrKind::OpaqueStruct(def_id) => {
                     builder.set_arg("struct", pretty::def_id_to_string(def_id));
                 }
-                CheckerErrKind::UnsupportedCall { def_span } => {
+                CheckerErrKind::UnsupportedCall { def_span, reason } => {
                     builder.span_note(def_span, refineck::function_definition);
+                    builder.note(reason);
                 }
             }
             builder
@@ -1162,7 +1163,7 @@ pub(crate) mod errors {
     impl From<UnsupportedFnSig> for CheckerError {
         fn from(err: UnsupportedFnSig) -> Self {
             CheckerError {
-                kind: CheckerErrKind::UnsupportedCall { def_span: err.span },
+                kind: CheckerErrKind::UnsupportedCall { def_span: err.span, reason: err.reason },
                 span: None,
             }
         }

@@ -112,8 +112,12 @@ pub trait TypeFoldable: Sized {
         impl TypeFolder for GenericsFolder<'_> {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 if let TyKind::Param(param_ty) = ty.kind() {
-                    let GenericArg::Ty(ty) = &self.0[param_ty.index as usize];
-                    ty.clone()
+                    match &self.0[param_ty.index as usize] {
+                        GenericArg::Ty(ty) => ty.clone(),
+                        GenericArg::Lifetime => {
+                            unreachable!("invalid generic argument")
+                        }
+                    }
                 } else {
                     ty.super_fold_with(self)
                 }
@@ -354,12 +358,14 @@ impl TypeFoldable for GenericArg {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
+            GenericArg::Lifetime => GenericArg::Lifetime,
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
+            GenericArg::Lifetime => {}
         }
     }
 }

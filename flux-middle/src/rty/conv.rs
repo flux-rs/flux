@@ -183,6 +183,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                                 name: param.name,
                             }))
                         }
+                        GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
                     }
                 })
                 .collect_vec();
@@ -348,6 +349,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         GenericParamDefKind::Type { has_default } => {
                             debug_assert!(has_default);
                             rty::GenericArg::Ty(self.genv.default_type_of(generic.def_id))
+                        }
+                        GenericParamDefKind::Lifetime => {
+                            unreachable!("missing lifetime argument during conversion")
                         }
                     }
                 });

@@ -269,7 +269,7 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             constr.push_guard(p1.clone());
             subtyping(genv, constr, ty1, ty2, tag);
         }
-        _ => todo!("`{ty1:?}` <: `{ty2:?}`"),
+        _ => unreachable!("`{ty1:?}` <: `{ty2:?}`"),
     }
 }
 
@@ -321,16 +321,21 @@ fn generic_arg_subtyping(
     arg2: &GenericArg,
     tag: Tag,
 ) {
-    let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2);
-    match variance {
-        rustc_middle::ty::Variance::Covariant => subtyping(genv, constr, ty1, ty2, tag),
-        rustc_middle::ty::Variance::Invariant => {
-            subtyping(genv, constr, ty1, ty2, tag);
-            subtyping(genv, constr, ty2, ty1, tag);
+    match (arg1, arg2) {
+        (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
+            match variance {
+                rustc_middle::ty::Variance::Covariant => subtyping(genv, constr, ty1, ty2, tag),
+                rustc_middle::ty::Variance::Invariant => {
+                    subtyping(genv, constr, ty1, ty2, tag);
+                    subtyping(genv, constr, ty2, ty1, tag);
+                }
+                rustc_middle::ty::Variance::Contravariant => subtyping(genv, constr, ty2, ty1, tag),
+                rustc_middle::ty::Variance::Bivariant => {}
+            }
         }
-        rustc_middle::ty::Variance::Contravariant => subtyping(genv, constr, ty2, ty1, tag),
-        rustc_middle::ty::Variance::Bivariant => {}
-    }
+        (GenericArg::Lifetime, GenericArg::Lifetime) => {}
+        _ => unreachable!("incompatible generic args:  `{arg1:?}` `{arg2:?}"),
+    };
 }
 
 mod pretty {

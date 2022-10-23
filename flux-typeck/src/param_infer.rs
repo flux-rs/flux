@@ -131,8 +131,9 @@ fn infer_from_generic_args(
     env2: &impl PathMap,
     arg2: &GenericArg,
 ) {
-    let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2);
-    infer_from_tys(exprs, env1, ty1, env2, ty2)
+    if let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
+        infer_from_tys(exprs, env1, ty1, env2, ty2)
+    }
 }
 
 fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {

@@ -158,6 +158,8 @@ pub type Substs = List<GenericArg>;
 #[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {
     Ty(Ty),
+    /// We treat lifetime opaquely
+    Lifetime,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -869,6 +871,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 GenericArg::Ty(ty) => w!("{:?}", ty),
+                GenericArg::Lifetime => w!("'_"),
             }
         }
     }

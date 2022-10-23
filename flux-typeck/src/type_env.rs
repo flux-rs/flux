@@ -234,8 +234,9 @@ impl TypeEnv {
         arg2: &GenericArg,
         subst: &mut FVarSubst,
     ) {
-        let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2);
-        self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+        if let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
+            self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+        }
     }
 
     fn infer_subst_for_bb_env_bty(
@@ -430,6 +431,7 @@ impl TypeEnvInfer {
     fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
+            GenericArg::Lifetime => GenericArg::Lifetime,
         }
     }
 
@@ -570,7 +572,7 @@ impl TypeEnvInfer {
                 );
                 Ty::tuple(vec![])
             }
-            _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
+            _ => unreachable!("`{ty1:?}` -- `{ty2:?}`"),
         }
     }
 
@@ -601,6 +603,8 @@ impl TypeEnvInfer {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
                 GenericArg::Ty(self.join_ty(genv, ty1, ty2))
             }
+            (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
+            _ => panic!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
         }
     }
 

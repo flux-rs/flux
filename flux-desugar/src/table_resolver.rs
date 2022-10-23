@@ -308,35 +308,14 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             TyKind::Int(int_ty) => Ok(Res::Int(*int_ty)),
             TyKind::Uint(uint_ty) => Ok(Res::Uint(*uint_ty)),
             TyKind::Float(float_ty) => Ok(Res::Float(*float_ty)),
-            TyKind::Param(pty) => Ok(Res::Param(*pty)),
-            // TyKind::Adt(did, what) => todo!(),
-            // TyKind::Char => todo!(),
+            TyKind::Param(param_ty) => Ok(Res::Param(*param_ty)),
+            TyKind::Char => Ok(Res::Char),
             _ => {
-            Err(self.sess.emit_err(errors::UnsupportedSignature {
-                span,
-                msg: "path resolved to an unsupported type",
-            }))
-        }
-            // rustc_type_ir::TyKind::Foreign(_) => todo!(),
-            // rustc_type_ir::TyKind::Str => todo!(),
-            // rustc_type_ir::TyKind::Array(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Slice(_) => todo!(),
-            // rustc_type_ir::TyKind::RawPtr(_) => todo!(),
-            // rustc_type_ir::TyKind::Ref(_, _, _) => todo!(),
-            // rustc_type_ir::TyKind::FnDef(_, _) => todo!(),
-            // rustc_type_ir::TyKind::FnPtr(_) => todo!(),
-            // rustc_type_ir::TyKind::Dynamic(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Closure(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Generator(_, _, _) => todo!(),
-            // rustc_type_ir::TyKind::GeneratorWitness(_) => todo!(),
-            // rustc_type_ir::TyKind::Never => todo!(),
-            // rustc_type_ir::TyKind::Tuple(_) => todo!(),
-            // rustc_type_ir::TyKind::Projection(_) => todo!(),
-            // rustc_type_ir::TyKind::Opaque(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Bound(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Placeholder(_) => todo!(),
-            // rustc_type_ir::TyKind::Infer(_) => todo!(),
-            // rustc_type_ir::TyKind::Error(_) => todo!(),
+                Err(self.sess.emit_err(errors::UnsupportedSignature {
+                    span,
+                    msg: "path resolved to an unsupported type",
+                }))
+            }
         }
     }
 
