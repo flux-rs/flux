@@ -153,7 +153,14 @@ pub enum BaseTy {
     Float(FloatTy),
 }
 
-pub type Substs = List<Ty>;
+pub type Substs = List<GenericArg>;
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum GenericArg {
+    Ty(Ty),
+    /// We treat lifetime opaquely
+    Lifetime,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Pred {
@@ -523,8 +530,8 @@ impl From<Index> for Expr {
 }
 
 impl BaseTy {
-    pub fn adt(adt_def: AdtDef, substs: impl IntoIterator<Item = Ty>) -> BaseTy {
-        BaseTy::Adt(adt_def, Substs::from_vec(substs.into_iter().collect_vec()))
+    pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
+        BaseTy::Adt(adt_def, substs.into())
     }
 
     fn is_integral(&self) -> bool {
@@ -666,7 +673,27 @@ impl KVar {
     }
 }
 
-impl_internable!(AdtDefData, TyS, [Ty], [Pred], [Field], [KVar], [Constraint], [Index], [Sort]);
+#[track_caller]
+pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
+    if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &substs[..] {
+        (boxed, alloc)
+    } else {
+        panic!("invalid generic arguments for box");
+    }
+}
+
+impl_internable!(
+    AdtDefData,
+    TyS,
+    [Ty],
+    [GenericArg],
+    [Pred],
+    [Field],
+    [KVar],
+    [Constraint],
+    [Index],
+    [Sort]
+);
 
 #[macro_export]
 macro_rules! _Int {
@@ -839,6 +866,16 @@ mod pretty {
         Ok(())
     }
 
+    impl Pretty for GenericArg {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                GenericArg::Ty(ty) => w!("{:?}", ty),
+                GenericArg::Lifetime => w!("'_"),
+            }
+        }
+    }
+
     impl Pretty for Index {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -914,5 +951,6 @@ mod pretty {
         KVar,
         FnSig,
         Index,
+        GenericArg,
     );
 }

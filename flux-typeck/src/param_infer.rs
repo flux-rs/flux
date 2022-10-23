@@ -1,7 +1,7 @@
 use std::iter;
 
 use flux_middle::rty::{
-    subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, Name, Path, PolySig,
+    subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, GenericArg, Name, Path, PolySig,
     PolyVariant, Ty, TyKind, INNERMOST,
 };
 use rustc_hash::FxHashMap;
@@ -78,13 +78,8 @@ pub fn check_inference(
     }
     Ok(())
 }
-fn infer_from_tys<M1: PathMap, M2: PathMap>(
-    exprs: &mut Exprs,
-    env1: &M1,
-    ty1: &Ty,
-    env2: &M2,
-    ty2: &Ty,
-) {
+
+fn infer_from_tys(exprs: &mut Exprs, env1: &impl PathMap, ty1: &Ty, env2: &impl PathMap, ty2: &Ty) {
     match (ty1.unconstr().kind(), ty2.unconstr().kind()) {
         (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
             for (idx1, idx2) in iter::zip(indices1, indices2) {
@@ -111,11 +106,11 @@ fn infer_from_tys<M1: PathMap, M2: PathMap>(
     infer_from_btys(exprs, env1, ty1, env2, ty2);
 }
 
-fn infer_from_btys<M1: PathMap, M2: PathMap>(
+fn infer_from_btys(
     exprs: &mut Exprs,
-    env1: &M1,
+    env1: &impl PathMap,
     ty1: &Ty,
-    env2: &M2,
+    env2: &impl PathMap,
     ty2: &Ty,
 ) {
     if let Some(bt1) = ty1.bty() &&
@@ -124,12 +119,24 @@ fn infer_from_btys<M1: PathMap, M2: PathMap>(
        let BaseTy::Adt(_, args2) = bt2 &&
        bt1.is_box() {
             for (arg1, arg2) in iter::zip(args1, args2) {
-                infer_from_tys(exprs, env1, arg1, env2, arg2);
+                infer_from_generic_args(exprs, env1, arg1, env2, arg2);
             }
        }
 }
 
-pub fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {
+fn infer_from_generic_args(
+    exprs: &mut Exprs,
+    env1: &impl PathMap,
+    arg1: &GenericArg,
+    env2: &impl PathMap,
+    arg2: &GenericArg,
+) {
+    if let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
+        infer_from_tys(exprs, env1, ty1, env2, ty2)
+    }
+}
+
+fn infer_from_exprs(exprs: &mut Exprs, e1: &Expr, e2: &Expr) {
     match (e1.kind(), e2.kind()) {
         (_, ExprKind::BoundVar(bvar)) if bvar.debruijn == INNERMOST => {
             if let Some(old_e) = exprs.insert(bvar.index, e1.clone()) {

@@ -3,8 +3,9 @@ use std::{cell::RefCell, iter, rc::Rc};
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     rty::{
+        box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefKind, Sort, Substs, Ty, TyKind, VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
 };
@@ -75,13 +76,13 @@ fn downcast_struct(
     genv: &GlobalEnv,
     def_id: DefId,
     variant_idx: VariantIdx,
-    substs: &[Ty],
+    substs: &[GenericArg],
     exprs: &[Expr],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
         .replace_bound_vars(exprs)
-        .replace_generic_types(substs)
+        .replace_generic_args(substs)
         .fields
         .to_vec())
 }
@@ -99,13 +100,13 @@ fn downcast_enum(
     rcx: &mut RefineCtxt,
     def_id: DefId,
     variant_idx: VariantIdx,
-    substs: &[Ty],
+    substs: &[GenericArg],
     exprs: &[Expr],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     let variant_def = genv
         .variant(def_id, variant_idx)?
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
-        .replace_generic_types(substs);
+        .replace_generic_args(substs);
 
     debug_assert_eq!(variant_def.ret.indices.len(), exprs.len());
     let constr =
@@ -120,7 +121,7 @@ fn downcast(
     rcx: &mut RefineCtxt,
     def_id: DefId,
     variant_idx: VariantIdx,
-    substs: &[Ty],
+    substs: &[GenericArg],
     exprs: &[Expr],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     if genv.tcx.adt_def(def_id).is_struct() {
@@ -302,10 +303,11 @@ impl PathsTree {
                                 return Self::lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
+                                let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::Free(fresh);
-                                *node = Node::owned(Ty::box_ptr(fresh, substs[1].clone()));
-                                self.insert(loc, substs[0].clone(), LocKind::Box);
+                                *node = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
+                                self.insert(loc, boxed.clone(), LocKind::Box);
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -337,7 +339,8 @@ impl PathsTree {
                     ty = ty2.clone();
                 }
                 (Deref, TyKind::Indexed(BaseTy::Adt(_, substs), _)) if ty.is_box() => {
-                    ty = substs[0].clone();
+                    let (boxed, _) = box_args(substs);
+                    ty = boxed.clone();
                 }
                 (Field(field), TyKind::Tuple(tys)) => {
                     ty = tys[field.as_usize()].clone();

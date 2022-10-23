@@ -119,7 +119,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     fn default_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
-        let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?;
+        let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
         Ok(self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Pred::tt(), sorts)))
     }
 
@@ -146,7 +146,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         debug_assert_eq!(self.generics_of(def_id).params.len(), 2);
         debug_assert!(adt_def.sorts().is_empty());
 
-        let bty = rty::BaseTy::adt(adt_def, vec![ty, alloc]);
+        let bty =
+            rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
         rty::Ty::indexed(bty, vec![])
     }
 
@@ -303,9 +304,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self,
         ty: &rustc::ty::GenericArg,
         mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
-    ) -> rty::Ty {
+    ) -> rty::GenericArg {
         match ty {
-            rustc::ty::GenericArg::Ty(ty) => self.refine_ty(ty, mk_pred),
+            rustc::ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),
+            rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
         }
     }
 }

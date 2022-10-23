@@ -10,7 +10,7 @@ use rustc_middle::{
     ty::{
         self as rustc_ty,
         subst::{GenericArgKind, SubstsRef},
-        ParamEnv, TyCtxt,
+        ParamEnv, TyCtxt, TypeVisitable,
     },
 };
 
@@ -21,11 +21,11 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        Const, EnumDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, Generics, Ty,
-        VariantDef,
+        Binder, BoundRegionKind, BoundVariableKind, Const, EnumDef, FnSig, GenericArg,
+        GenericParamDef, GenericParamDefKind, Generics, PolyFnSig, Ty, VariantDef,
     },
 };
-use crate::intern::List;
+use crate::{intern::List, rustc::ty::Region};
 
 pub struct LoweringCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -33,7 +33,9 @@ pub struct LoweringCtxt<'a, 'tcx> {
     rustc_mir: rustc_mir::Body<'tcx>,
 }
 
-pub struct UnsupportedType;
+pub struct UnsupportedType {
+    pub reason: String,
+}
 
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_mir_body(
@@ -148,27 +150,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         }
     }
 
-    fn lower_instance(
-        &self,
-        trait_f: DefId,
-        substs: SubstsRef<'tcx>,
-    ) -> Result<Option<Instance>, UnsupportedType> {
-        let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
-        match rustc_middle::ty::Instance::resolve(self.tcx, param_env, trait_f, substs) {
-            Ok(Some(instance)) => {
-                let impl_f = instance.def_id();
-                let inst = if impl_f != trait_f {
-                    let substs = lower_substs(self.tcx, instance.substs)?;
-                    Some(Instance { impl_f, substs })
-                } else {
-                    None
-                };
-                Ok(inst)
-            }
-            _ => Ok(None),
-        }
-    }
-
     fn lower_terminator(
         &self,
         terminator: &rustc_mir::Terminator<'tcx>,
@@ -260,6 +241,32 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             }
         };
         Ok(Terminator { kind, source_info: terminator.source_info })
+    }
+
+    fn lower_instance(
+        &self,
+        trait_f: DefId,
+        substs: SubstsRef<'tcx>,
+    ) -> Result<Option<Instance>, UnsupportedType> {
+        // tcx.resolve_instance panics without this check
+        if substs.needs_infer() {
+            return Ok(None);
+        }
+
+        let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
+        match self.tcx.resolve_instance(param_env.and((trait_f, substs))) {
+            Ok(Some(instance)) => {
+                let impl_f = instance.def_id();
+                let inst = if impl_f != trait_f {
+                    let substs = lower_substs(self.tcx, instance.substs)?;
+                    Some(Instance { impl_f, substs })
+                } else {
+                    None
+                };
+                Ok(inst)
+            }
+            _ => Ok(None),
+        }
     }
 
     fn lower_rvalue(
@@ -514,25 +521,47 @@ pub fn lower_variant_def(
     Ok(VariantDef { fields, ret })
 }
 
-pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<FnSig, errors::UnsupportedFnSig> {
+pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
     let fn_sig = tcx.fn_sig(def_id);
     let span = tcx.def_span(def_id);
-    lower_fn_sig(tcx, fn_sig).map_err(|_| errors::UnsupportedFnSig { span })
+    lower_fn_sig(tcx, fn_sig).map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
 fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
-) -> Result<FnSig, UnsupportedType> {
-    let fn_sig = tcx.erase_late_bound_regions(fn_sig);
-    let inputs_and_output = List::from_vec(
-        fn_sig
-            .inputs_and_output
-            .iter()
-            .map(|ty| lower_ty(tcx, ty))
-            .try_collect()?,
-    );
-    Ok(FnSig { inputs_and_output })
+) -> Result<PolyFnSig, UnsupportedType> {
+    lower_binder(fn_sig, |fn_sig| {
+        let inputs_and_output = List::from_vec(
+            fn_sig
+                .inputs_and_output
+                .iter()
+                .map(|ty| lower_ty(tcx, ty))
+                .try_collect()?,
+        );
+        Ok(FnSig { inputs_and_output })
+    })
+}
+
+fn lower_binder<S, T>(
+    binder: rustc_ty::Binder<S>,
+    mut f: impl FnMut(S) -> Result<T, UnsupportedType>,
+) -> Result<Binder<T>, UnsupportedType> {
+    let mut vars = vec![];
+    for var in binder.bound_vars() {
+        match var {
+            rustc_ty::BoundVariableKind::Region(rustc_ty::BoundRegionKind::BrNamed(
+                def_id,
+                symbol,
+            )) => vars.push(BoundVariableKind::Region(BoundRegionKind::BrNamed(def_id, symbol))),
+            _ => {
+                return Err(UnsupportedType {
+                    reason: format!("unsupported bound variable {var:?}"),
+                });
+            }
+        }
+    }
+    Ok(Binder::bind_with_vars(f(binder.skip_binder())?, vars))
 }
 
 pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, UnsupportedType> {
@@ -561,7 +590,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
         }
         rustc_ty::Array(ty, _) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const)),
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
-        _ => Err(UnsupportedType),
+        _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }
 }
 
@@ -583,7 +612,25 @@ fn lower_generic_arg<'tcx>(
 ) -> Result<GenericArg, UnsupportedType> {
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
-        GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => Err(UnsupportedType),
+        GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(lower_region(&region)?)),
+        GenericArgKind::Const(_) => {
+            Err(UnsupportedType { reason: format!("unsupported generic const `{arg:?}`") })
+        }
+    }
+}
+
+fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, UnsupportedType> {
+    use rustc_middle::ty::RegionKind;
+    match region.kind() {
+        RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
+        RegionKind::ReLateBound(debruijn, bregion) => Ok(Region::ReLateBound(debruijn, bregion)),
+        RegionKind::ReEarlyBound(_)
+        | RegionKind::ReFree(_)
+        | RegionKind::ReStatic
+        | RegionKind::RePlaceholder(_)
+        | RegionKind::ReErased => {
+            Err(UnsupportedType { reason: format!("unsupported region `{region:?}`") })
+        }
     }
 }
 
@@ -611,9 +658,10 @@ fn lower_generic_param_def(
         rustc_ty::GenericParamDefKind::Type { has_default, synthetic: false } => {
             GenericParamDefKind::Type { has_default }
         }
+        rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
         _ => {
             return Err(errors::UnsupportedGenericParam::new(tcx.def_span(generic.def_id)))
-                .emit(sess)
+                .emit(sess);
         }
     };
     Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
@@ -789,5 +837,6 @@ mod errors {
     pub struct UnsupportedFnSig {
         #[primary_span]
         pub span: Span,
+        pub reason: String,
     }
 }

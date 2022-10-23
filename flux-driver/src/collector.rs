@@ -136,7 +136,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let span = item.span;
         let val = match eval_const(self.tcx, def_id) {
             Some(val) => val,
-            None => return self.emit_err(errors::InvalidConstant { span }),
+            None => return Err(self.emit_err(errors::InvalidConstant { span })),
         };
 
         let size = val.size();
@@ -144,7 +144,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             self.specs.consts.insert(def_id, ConstSig { _ty, val });
             Ok(())
         } else {
-            self.emit_err(errors::InvalidConstant { span })
+            Err(self.emit_err(errors::InvalidConstant { span }))
         }
     }
     fn parse_tyalias_spec(
@@ -289,7 +289,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_flux_attr(&mut self, attr_item: &AttrItem) -> Result<FluxAttr, ErrorGuaranteed> {
         let segment = match &attr_item.path.segments[..] {
             [_, segment] => segment,
-            _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
+            _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
@@ -338,7 +338,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
             ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
-            _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
+            _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
     }
@@ -349,9 +349,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         input_span: Span,
         parser: impl FnOnce(TokenStream, Span) -> ParseResult<T>,
     ) -> Result<T, ErrorGuaranteed> {
-        parser(tokens, input_span)
-            .map_err(errors::SyntaxErr::from)
-            .emit(self.sess)
+        parser(tokens, input_span).map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
@@ -360,10 +358,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 if attr.allow_dups() {
                     continue;
                 }
-                self.error_guaranteed = Some(
-                    self.sess
-                        .emit_err(errors::DuplicatedAttr { span: attr.span, name }),
-                );
+                self.error_guaranteed =
+                    Some(self.emit_err(errors::DuplicatedAttr { span: attr.span, name }));
             }
         }
         if let Some(e) = self.error_guaranteed {
@@ -373,10 +369,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn emit_err<T>(&mut self, err: impl IntoDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+    fn emit_err(&mut self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);
-        Err(e)
+        e
     }
 }
 

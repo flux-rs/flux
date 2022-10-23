@@ -5,9 +5,10 @@ use std::iter;
 use flux_common::index::IndexGen;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
+    intern::List,
     rty::{
-        fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, Index, Path, RefKind, Ty,
-        TyKind,
+        box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Index,
+        Path, RefKind, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -225,6 +226,19 @@ impl TypeEnv {
         }
     }
 
+    fn infer_subst_for_bb_env_generic_arg(
+        &self,
+        bb_env: &BasicBlockEnv,
+        params: &FxHashSet<Name>,
+        arg1: &GenericArg,
+        arg2: &GenericArg,
+        subst: &mut FVarSubst,
+    ) {
+        if let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
+            self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+        }
+    }
+
     fn infer_subst_for_bb_env_bty(
         &self,
         bb_env: &BasicBlockEnv,
@@ -236,8 +250,8 @@ impl TypeEnv {
         if bty1.is_box()  &&
            let BaseTy::Adt(_, substs1) = bty1 &&
            let BaseTy::Adt(_, substs2) = bty2 {
-            for (ty1, ty2) in iter::zip(substs1, substs2) {
-                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
+            for (arg1, arg2) in iter::zip(substs1, substs2) {
+                self.infer_subst_for_bb_env_generic_arg(bb_env, params, arg1, arg2, subst);
             }
         }
     }
@@ -395,7 +409,12 @@ impl TypeEnvInfer {
     fn pack_bty(scope: &Scope, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) => {
-                let substs = substs.iter().map(|ty| Self::pack_ty(scope, ty));
+                let substs = List::from_vec(
+                    substs
+                        .iter()
+                        .map(|arg| Self::pack_generic_arg(scope, arg))
+                        .collect(),
+                );
                 BaseTy::adt(adt_def.clone(), substs)
             }
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
@@ -406,6 +425,13 @@ impl TypeEnvInfer {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char => bty.clone(),
+        }
+    }
+
+    fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
+        match arg {
+            GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
+            GenericArg::Lifetime => GenericArg::Lifetime,
         }
     }
 
@@ -546,7 +572,7 @@ impl TypeEnvInfer {
                 );
                 Ty::tuple(vec![])
             }
-            _ => todo!("`{ty1:?}` -- `{ty2:?}`"),
+            _ => unreachable!("`{ty1:?}` -- `{ty2:?}`"),
         }
     }
 
@@ -554,14 +580,31 @@ impl TypeEnvInfer {
         if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
             debug_assert_eq!(def1.def_id(), def2.def_id());
             let variances = genv.variances_of(def1.def_id());
-            let substs = izip!(variances, substs1, substs2).map(|(variance, ty1, ty2)| {
-                assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                self.join_ty(genv, ty1, ty2)
-            });
-            BaseTy::adt(def1.clone(), substs)
+            let substs = izip!(variances, substs1, substs2)
+                .map(|(variance, arg1, arg2)| {
+                    assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
+                    self.join_generic_arg(genv, arg1, arg2)
+                })
+                .collect();
+            BaseTy::adt(def1.clone(), List::from_vec(substs))
         } else {
             debug_assert_eq!(bty1, bty2);
             bty1.clone()
+        }
+    }
+
+    fn join_generic_arg(
+        &self,
+        genv: &GlobalEnv,
+        arg1: &GenericArg,
+        arg2: &GenericArg,
+    ) -> GenericArg {
+        match (arg1, arg2) {
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
+                GenericArg::Ty(self.join_ty(genv, ty1, ty2))
+            }
+            (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
+            _ => panic!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
         }
     }
 
@@ -649,8 +692,9 @@ fn generalize_bty(
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-            let ty = generalize(name_gen, &substs[0], names, sorts, preds);
-            BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
+            let (boxed, alloc) = box_args(substs);
+            let boxed = generalize(name_gen, boxed, names, sorts, preds);
+            BaseTy::adt(adt_def.clone(), vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())])
         }
         _ => bty.clone(),
     }

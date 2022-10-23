@@ -56,8 +56,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     pub fn zip_fn_sig(
         &self,
         sig: &FnSig<Res>,
-        rust_sig: &rustc_ty::FnSig,
+        rust_sig: &rustc_ty::PolyFnSig,
     ) -> Result<(), ErrorGuaranteed> {
+        let rust_sig = rust_sig.as_ref().skip_binder();
         let mut locs = Locs::new();
         self.zip_args(sig.span, &sig.args, rust_sig.inputs(), &mut locs)?;
         self.zip_return_ty(sig.span, &sig.returns, &rust_sig.output())?;
@@ -161,8 +162,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     fn zip_path(&self, path: &Path<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
         match (&path.ident, rust_ty.kind()) {
             (Res::Adt(def_id1), rustc_ty::TyKind::Adt(def_id2, substs)) if def_id1 == def_id2 => {
-                let max_args = substs.len();
-                let default_args = self.tcx.generics_of(def_id1).own_defaults().types;
+                let generics = self.tcx.generics_of(def_id1);
+                let max_args = generics.own_counts().types;
+                let default_args = generics.own_defaults().types;
                 let min_args = max_args - default_args;
 
                 let found = path.args.len();
@@ -176,8 +178,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
                         .emit_err(errors::TooManyArgs::new(path.span, found, max_args)))
                 } else {
                     // zip the supplied args
-                    iter::zip(&path.args, substs)
-                        .try_for_each_exhaust(|(arg, rust_arg)| self.zip_generic_arg(arg, rust_arg))
+                    self.zip_generic_args(&path.args, substs)
                 }
             }
             (Res::Uint(uint_ty1), rustc_ty::TyKind::Uint(uint_ty2)) if uint_ty1 == uint_ty2 => {
@@ -222,14 +223,20 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         }
     }
 
-    fn zip_generic_arg(
+    fn zip_generic_args(
         &self,
-        arg: &Ty<Res>,
-        rust_arg: &rustc_ty::GenericArg,
+        args: &[Ty<Res>],
+        rust_args: &[rustc_ty::GenericArg],
     ) -> Result<(), ErrorGuaranteed> {
-        match rust_arg {
-            rustc_ty::GenericArg::Ty(ty) => self.zip_ty(arg, ty),
-        }
+        let rust_args = rust_args.iter().filter_map(|rust_arg| {
+            match rust_arg {
+                rustc_ty::GenericArg::Ty(ty) => Some(ty),
+                rustc_ty::GenericArg::Lifetime(_) => None,
+            }
+        });
+        iter::zip(args, rust_args)
+            .into_iter()
+            .try_for_each_exhaust(|(arg, rust_arg)| self.zip_ty(arg, rust_arg))
     }
 }
 
