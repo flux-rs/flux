@@ -652,8 +652,8 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
     match region.kind() {
         RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
         RegionKind::ReLateBound(debruijn, bregion) => Ok(Region::ReLateBound(debruijn, bregion)),
-        RegionKind::ReEarlyBound(_)
-        | RegionKind::ReFree(_)
+        RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
+        RegionKind::ReFree(_)
         | RegionKind::ReStatic
         | RegionKind::RePlaceholder(_)
         | RegionKind::ReErased => {

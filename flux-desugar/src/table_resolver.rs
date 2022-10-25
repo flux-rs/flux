@@ -265,14 +265,13 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     }
 
     fn insert_generics(&mut self, tcx: TyCtxt, generics: &hir::Generics) {
-        for param in generics.params {
+        for (idx, param) in generics.params.iter().enumerate() {
             if let hir::GenericParamKind::Type { .. } = param.kind {
                 let def_id = tcx.hir().local_def_id(param.hir_id).to_def_id();
                 assert!(!self.generics.contains_key(&def_id));
 
                 let name = param.name.ident().name;
-                let index = self.generics.len() as u32;
-                let param_ty = ParamTy { index, name };
+                let param_ty = ParamTy { index: idx as u32, name };
                 self.generics.insert(def_id, param_ty);
             }
         }

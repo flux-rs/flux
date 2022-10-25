@@ -4,7 +4,10 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{BoundRegion, DebruijnIndex, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt, UintTy},
+    ty::{
+        BoundRegion, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid,
+        ScalarInt, UintTy,
+    },
 };
 use rustc_span::Symbol;
 
@@ -97,6 +100,7 @@ pub enum GenericArg {
 pub enum Region {
     ReVar(RegionVid),
     ReLateBound(DebruijnIndex, BoundRegion),
+    ReEarlyBound(EarlyBoundRegion),
 }
 
 impl<T> Binder<T> {
@@ -206,7 +210,8 @@ impl std::fmt::Debug for Region {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Region::ReVar(rvid) => write!(f, "{rvid:?}"),
-            Region::ReLateBound(_, bound_region) => write!(f, "{bound_region:?}"),
+            Region::ReLateBound(_, bregion) => write!(f, "{bregion:?}"),
+            Region::ReEarlyBound(bregion) => write!(f, "{bregion:?}"),
         }
     }
 }

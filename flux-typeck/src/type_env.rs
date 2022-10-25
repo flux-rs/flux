@@ -4,7 +4,7 @@ use std::iter;
 
 use flux_common::index::IndexGen;
 use flux_middle::{
-    global_env::{GlobalEnv, OpaqueStructErr},
+    global_env::OpaqueStructErr,
     intern::List,
     rty::{
         box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Index,
@@ -12,7 +12,7 @@ use flux_middle::{
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
@@ -514,12 +514,12 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             let binding = match (&binding1, &binding2) {
                 (Binding::Owned(ty1), Binding::Owned(ty2)) => {
-                    Binding::Owned(self.join_ty(gen.genv, ty1, ty2))
+                    Binding::Owned(self.join_ty(ty1, ty2))
                 }
                 (Binding::Owned(ty1), Binding::Blocked(ty2))
                 | (Binding::Blocked(ty1), Binding::Owned(ty2))
                 | (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
-                    Binding::Blocked(self.join_ty(gen.genv, ty1, ty2))
+                    Binding::Blocked(self.join_ty(ty1, ty2))
                 }
             };
             modified |= binding1 != binding;
@@ -529,7 +529,7 @@ impl TypeEnvInfer {
         modified
     }
 
-    fn join_ty(&self, genv: &GlobalEnv, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -543,7 +543,7 @@ impl TypeEnvInfer {
                 Ty::box_ptr(*loc1, alloc1.clone())
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
-                let bty = self.join_bty(genv, bty1, bty2);
+                let bty = self.join_bty(bty1, bty2);
                 if self.scope.has_free_vars(idxs2) || !Index::exprs_eq(idxs1, idxs2) {
                     let pred = Binders::new(Pred::Hole, bty.sorts());
                     Ty::exists(bty, pred)
@@ -553,13 +553,13 @@ impl TypeEnvInfer {
             }
             (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
-                let bty = self.join_bty(genv, bty1, bty2);
+                let bty = self.join_bty(bty1, bty2);
                 let pred = Binders::new(Pred::Hole, bty.sorts());
                 Ty::exists(bty, pred)
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
-                Ty::mk_ref(*rk1, self.join_ty(genv, ty1, ty2))
+                Ty::mk_ref(*rk1, self.join_ty(ty1, ty2))
             }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
@@ -576,15 +576,11 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_bty(&self, genv: &GlobalEnv, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
+    fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
             debug_assert_eq!(def1.def_id(), def2.def_id());
-            let variances = genv.variances_of(def1.def_id());
-            let substs = izip!(variances, substs1, substs2)
-                .map(|(variance, arg1, arg2)| {
-                    assert!(matches!(variance, rustc_middle::ty::Variance::Covariant));
-                    self.join_generic_arg(genv, arg1, arg2)
-                })
+            let substs = iter::zip(substs1, substs2)
+                .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                 .collect();
             BaseTy::adt(def1.clone(), List::from_vec(substs))
         } else {
@@ -593,16 +589,9 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_generic_arg(
-        &self,
-        genv: &GlobalEnv,
-        arg1: &GenericArg,
-        arg2: &GenericArg,
-    ) -> GenericArg {
+    fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
-                GenericArg::Ty(self.join_ty(genv, ty1, ty2))
-            }
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
             _ => panic!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
         }
