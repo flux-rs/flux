@@ -513,8 +513,9 @@ pub fn lower_type_of(
     def_id: DefId,
 ) -> Result<Ty, ErrorGuaranteed> {
     let span = tcx.def_span(def_id);
-    lower_ty(tcx, tcx.type_of(def_id))
-        .map_err(|_| errors::UnsupportedTypeOf::new(span))
+    let ty = tcx.type_of(def_id);
+    lower_ty(tcx, ty)
+        .map_err(|err| errors::UnsupportedTypeOf::new(span, ty, err))
         .emit(sess)
 }
 
@@ -827,14 +828,18 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(lowering::unsupported_type_of, code = "FLUX")]
-    pub struct UnsupportedTypeOf {
+    pub struct UnsupportedTypeOf<'tcx> {
         #[primary_span]
         span: Span,
+        #[note]
+        note: (),
+        reason: String,
+        ty: rustc_middle::ty::Ty<'tcx>,
     }
 
-    impl UnsupportedTypeOf {
-        pub fn new(span: Span) -> Self {
-            Self { span }
+    impl<'tcx> UnsupportedTypeOf<'tcx> {
+        pub fn new(span: Span, ty: rustc_middle::ty::Ty<'tcx>, err: UnsupportedType) -> Self {
+            Self { span, note: (), reason: err.reason, ty }
         }
     }
 

@@ -8,6 +8,7 @@ lowering_unsupported_local_decl =
 
 lowering_unsupported_type_of =
     unsupported type `{$ty}`
+    .note = {$reason}
 
 lowering_unsupported_fn_sig =
     unsupported signature
