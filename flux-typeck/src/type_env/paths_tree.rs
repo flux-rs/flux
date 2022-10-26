@@ -531,7 +531,7 @@ impl Node {
                             &idxs.to_exprs(),
                         )?
                         .into_iter()
-                        .map(|ty| Node::owned(rcx.unpack(&ty)))
+                        .map(|ty| Node::owned(rcx.unpack_with(&ty, UnpackFlags::INVARIANTS)))
                         .collect();
                         *self = Node::Internal(
                             NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
