@@ -30,7 +30,7 @@ fn replace<T>(dest: &mut Link<T>, src: Link<T>) -> Link<T> {
 }
 
 impl<T> Drop for List<T> {
-    // #[flux::sig(fn(&mut List<T>[@n]))] fails with parameter inference error
+    // #[flux::sig(fn(&mut List<T>[@n]))] fails with parameter inference error (we shouldn't be able to verify the function with this, but at least it it should not fail)
     // #[flux::sig(fn(&mut List<T>))] panics because it cannot unfold the existential under &mut
     fn drop(&mut self) {
         let mut cur = replace(&mut self.head, Link::Empty);
