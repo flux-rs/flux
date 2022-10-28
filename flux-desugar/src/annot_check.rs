@@ -53,12 +53,20 @@ pub fn check_fn_sig(
     fn_sig: &FnSig<Res>,
 ) -> Result<(), ErrorGuaranteed> {
     let rust_sig = lowering::lower_fn_sig_of(tcx, def_id).emit(sess)?;
-    ZipChecker::new(tcx, sess, def_id).zip_fn_sig(&fn_sig, &rust_sig)
+    let rust_sig = rust_sig.as_ref().skip_binder();
+
+    let ck = ZipChecker::new(tcx, sess, def_id);
+    let mut locs = Locs::new();
+    ck.zip_args(&fn_sig.args, rust_sig.inputs(), fn_sig.span, &mut locs)?;
+    ck.zip_return_ty(fn_sig.span, &fn_sig.returns, &rust_sig.output())?;
+    ck.zip_ty_locs(&fn_sig.ensures, &locs)
 }
 
 struct ZipChecker<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
+    /// Id of the definition being checked, this could either a field on a struct,
+    /// a variant on a enum or a function.
     def_id: DefId,
 }
 
@@ -88,20 +96,6 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))?;
 
         self.zip_path(&variant_def.ret.path, &rust_variant_def.ret)
-    }
-
-    /// `zip_fn_sig(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
-    /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-    fn zip_fn_sig(
-        &self,
-        sig: &FnSig<Res>,
-        rust_sig: &rustc_ty::PolyFnSig,
-    ) -> Result<(), ErrorGuaranteed> {
-        let rust_sig = rust_sig.as_ref().skip_binder();
-        let mut locs = Locs::new();
-        self.zip_args(&sig.args, rust_sig.inputs(), sig.span, &mut locs)?;
-        self.zip_return_ty(sig.span, &sig.returns, &rust_sig.output())?;
-        self.zip_ty_locs(&sig.ensures, &locs)
     }
 
     fn zip_return_ty(
@@ -292,22 +286,22 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 }
 
 mod errors {
-    use flux_macros::Diagnostic;
-    use flux_middle::rustc::ty::{self as rustc_ty};
+    use flux_macros::{Diagnostic, Subdiagnostic};
+    use flux_middle::rustc::ty as rustc_ty;
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
-    #[diag(resolver::field_count_mismatch, code = "FLUX")]
+    #[diag(annot_check::field_count_mismatch, code = "FLUX")]
     pub struct FieldCountMismatch {
         #[primary_span]
         #[label]
-        pub flux_span: Span,
-        pub flux_fields: usize,
-        #[label(resolver::rust_label)]
-        pub rust_span: Span,
-        pub rust_fields: usize,
+        flux_span: Span,
+        flux_fields: usize,
+        #[label(annot_check::rust_label)]
+        rust_span: Span,
+        rust_fields: usize,
     }
 
     impl FieldCountMismatch {
@@ -322,15 +316,15 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::arg_count_mismatch, code = "FLUX")]
+    #[diag(annot_check::arg_count_mismatch, code = "FLUX")]
     pub struct ArgCountMismatch {
         #[primary_span]
         #[label]
-        pub flux_span: Span,
-        pub flux_args: usize,
-        #[label(resolver::rust_label)]
-        pub rust_span: Span,
-        pub rust_args: usize,
+        flux_span: Span,
+        flux_args: usize,
+        #[label(annot_check::rust_label)]
+        rust_span: Span,
+        rust_args: usize,
     }
 
     impl ArgCountMismatch {
@@ -340,100 +334,92 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::path_mismatch, code = "FLUX")]
+    #[diag(annot_check::path_mismatch, code = "FLUX")]
     pub struct PathMismatch {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub rust_type: String,
-        pub flux_type: String,
-        #[label(resolver::def_label)]
-        pub def_ident_span: Option<Span>,
-        pub def_kind: &'static str,
+        span: Span,
+        rust_type: String,
+        flux_type: String,
+        #[subdiagnostic]
+        def: InvalidRefinementForDef,
     }
 
     impl PathMismatch {
         pub fn new(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span, def_id: DefId) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_ident_span = tcx.def_ident_span(def_id);
+            let def = InvalidRefinementForDef::new(tcx, def_id);
             let flux_type = tcx
                 .sess
                 .source_map()
                 .span_to_snippet(flux_ty_span)
                 .unwrap_or_else(|_| "{unknown}".to_string());
             let rust_type = format!("{rust_ty:?}");
-            Self { span: flux_ty_span, rust_type, flux_type, def_kind, def_ident_span }
+            Self { span: flux_ty_span, rust_type, flux_type, def }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::invalid_refinement, code = "FLUX")]
+    #[diag(annot_check::invalid_refinement, code = "FLUX")]
     pub struct InvalidRefinement {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub rust_type: String,
-        #[label(resolver::def_label)]
-        pub def_ident_span: Option<Span>,
-        pub def_kind: &'static str,
+        span: Span,
+        rust_type: String,
+        #[subdiagnostic]
+        def: InvalidRefinementForDef,
     }
 
     impl InvalidRefinement {
         pub fn new(tcx: TyCtxt, flux_ty_span: Span, rust_ty: &rustc_ty::Ty, def_id: DefId) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_ident_span = tcx.def_ident_span(def_id);
+            let def = InvalidRefinementForDef::new(tcx, def_id);
             let rust_type = format!("{rust_ty:?}");
-            Self { span: flux_ty_span, rust_type, def_kind, def_ident_span }
+            Self { span: flux_ty_span, rust_type, def }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::mutability_mismatch, code = "FLUX")]
+    #[diag(annot_check::mutability_mismatch, code = "FLUX")]
     pub struct MutabilityMismatch {
         #[primary_span]
         #[label]
-        pub span: Span,
-        #[label(resolver::def_label)]
-        pub def_ident_span: Option<Span>,
-        pub def_kind: &'static str,
+        span: Span,
+        #[subdiagnostic]
+        def: InvalidRefinementForDef,
     }
 
     impl MutabilityMismatch {
         pub fn new(tcx: TyCtxt, span: Span, def_id: DefId) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_ident_span = tcx.def_ident_span(def_id);
-            Self { span, def_ident_span, def_kind }
+            let def = InvalidRefinementForDef::new(tcx, def_id);
+            Self { span, def }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::default_return_mismatch, code = "FLUX")]
+    #[diag(annot_check::default_return_mismatch, code = "FLUX")]
     pub struct DefaultReturnMismatch {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub rust_type: String,
-        #[label(resolver::def_label)]
-        pub def_ident_span: Option<Span>,
-        pub def_kind: &'static str,
+        span: Span,
+        rust_type: String,
+        #[subdiagnostic]
+        def: InvalidRefinementForDef,
     }
 
     impl DefaultReturnMismatch {
         pub fn new(tcx: TyCtxt, span: Span, rust_ty: &rustc_ty::Ty, def_id: DefId) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_ident_span = tcx.def_ident_span(def_id);
+            let def = InvalidRefinementForDef::new(tcx, def_id);
             let rust_type = format!("{rust_ty:?}");
-            Self { span, def_ident_span, def_kind, rust_type }
+            Self { span, rust_type, def }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::unresolved_location, code = "FLUX")]
+    #[diag(annot_check::unresolved_location, code = "FLUX")]
     pub struct UnresolvedLocation {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub loc: Ident,
+        span: Span,
+        loc: Ident,
     }
 
     impl UnresolvedLocation {
@@ -443,44 +429,76 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::too_few_arguments, code = "FLUX")]
+    #[diag(annot_check::too_few_arguments, code = "FLUX")]
     pub struct TooFewArgs {
         #[primary_span]
         #[label]
         pub span: Span,
         pub found: usize,
         pub min: usize,
-        #[note]
-        pub def_ident_span: Option<Span>,
-        pub def_kind: &'static str,
+        #[subdiagnostic]
+        def: DefinitionSpanNote,
     }
 
     impl TooFewArgs {
         pub fn new(tcx: TyCtxt, span: Span, found: usize, min: usize, def_id: DefId) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_ident_span = tcx.def_ident_span(def_id);
-            Self { span, found, min, def_ident_span, def_kind }
+            let def = DefinitionSpanNote::new(tcx, def_id);
+            Self { span, found, min, def }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::too_many_arguments, code = "FLUX")]
+    #[diag(annot_check::too_many_arguments, code = "FLUX")]
     pub struct TooManyArgs {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub found: usize,
-        pub max: usize,
-        #[note]
-        pub def_ident_span: Option<Span>,
-        pub def_kind: &'static str,
+        span: Span,
+        found: usize,
+        max: usize,
+        #[subdiagnostic]
+        def: DefinitionSpanNote,
     }
 
     impl TooManyArgs {
         pub fn new(tcx: TyCtxt, span: Span, found: usize, max: usize, def_id: DefId) -> Self {
+            let def = DefinitionSpanNote::new(tcx, def_id);
+            Self { span, found, max, def }
+        }
+    }
+
+    #[derive(Subdiagnostic)]
+    #[label(annot_check::invalid_refinement_for_def)]
+    struct InvalidRefinementForDef {
+        #[primary_span]
+        span: Span,
+        def_kind: &'static str,
+    }
+
+    impl InvalidRefinementForDef {
+        fn new(tcx: TyCtxt, def_id: DefId) -> Self {
+            let span = tcx
+                .def_ident_span(def_id)
+                .unwrap_or_else(|| tcx.def_span(def_id));
             let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_ident_span = tcx.def_ident_span(def_id);
-            Self { span, found, max, def_ident_span, def_kind }
+            Self { span, def_kind }
+        }
+    }
+
+    #[derive(Subdiagnostic)]
+    #[note(annot_check::definition_span_note)]
+    struct DefinitionSpanNote {
+        #[primary_span]
+        span: Span,
+        def_kind: &'static str,
+    }
+
+    impl DefinitionSpanNote {
+        fn new(tcx: TyCtxt, def_id: DefId) -> Self {
+            let span = tcx
+                .def_ident_span(def_id)
+                .unwrap_or_else(|| tcx.def_span(def_id));
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            Self { span, def_kind }
         }
     }
 }

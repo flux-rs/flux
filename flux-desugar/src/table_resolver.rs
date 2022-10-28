@@ -22,8 +22,6 @@ struct NameResTable<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
-    #[allow(dead_code)]
-
     pub fn new(genv: &GlobalEnv<'genv, 'tcx>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
         let table = match genv.tcx.def_kind(def_id) {
             hir::def::DefKind::Struct | hir::def::DefKind::Enum | hir::def::DefKind::Fn => {
@@ -36,7 +34,6 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
         Ok(Self { sess: genv.sess, table })
     }
 
-    #[allow(dead_code)]
     pub fn resolve_enum_def(
         &self,
         enum_def: surface::EnumDef,
@@ -312,7 +309,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             _ => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
-                    msg: "path resolved to an unsupported type",
+                    note: format!("unsupported type `{ty:?}`"),
                 }))
             }
         }
@@ -347,7 +344,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             _ => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
-                    msg: "path resolved to an unsupported type",
+                    note: format!("unsupported resolution `{res:?}`"),
                 }))
             }
         }
@@ -366,7 +363,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 } else {
                     return Err(self.sess.emit_err(errors::UnsupportedSignature {
                         span: qpath.span(),
-                        msg: "unsupported type",
+                        note: "unsupported type".to_string(),
                     }));
                 };
 
@@ -375,7 +372,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                     _ => {
                         return Err(self.sess.emit_err(errors::UnsupportedSignature {
                             span: qpath.span(),
-                            msg: "multi-segment paths are not supported yet",
+                            note: "multi-segment paths are not supported yet".to_string(),
                         }));
                     }
                 };
@@ -404,7 +401,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             hir::GenericArg::Const(_) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span: arg.span(),
-                    msg: "const generics are not supported yet",
+                    note: "const generics are not supported yet".to_string(),
                 }))
             }
 
@@ -424,7 +421,7 @@ mod errors {
     pub struct UnsupportedSignature {
         #[primary_span]
         pub span: Span,
-        pub msg: &'static str,
+        pub note: String,
     }
 
     #[derive(Diagnostic)]

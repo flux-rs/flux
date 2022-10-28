@@ -1,6 +1,8 @@
-//! The fhir-"Flux High-Level Intermediate Representation"-corresponds to the desugared version of
-//! source level flux annotations. The main difference with the surface syntax is that the list of
-//! refinement parameters is explicit in `fhir`. For example, the following signature
+//! Flux High-Level Intermediate Repesentation
+//!
+//! The fhir corresponds to the desugared version of source level flux annotations. The main
+//! difference with the surface syntax is that the list of refinement parameters is explicit
+//! in fhir. For example, the following signature
 //!
 //! `fn(x: &strg i32[@n]) ensures x: i32[n + 1]`
 //!
@@ -8,7 +10,11 @@
 //!
 //! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) ensures l: i32[n + 1]`.
 //!
-//! The name fhir is borrowed from rustc's hir.
+//! The main analysis performed on the fhir is well-formedness, thus, the fhir keeps track of
+//! spans for refinement expressions to report errors.
+//!
+//! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
+//! than the surface syntax.
 
 use std::{fmt, fmt::Write};
 
@@ -19,7 +25,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
-use rustc_span::{Span, Symbol, DUMMY_SP};
+use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
 use crate::pretty;
@@ -199,11 +205,6 @@ impl BaseTy {
         matches!(self, Self::Bool)
     }
 }
-impl Lit {
-    pub fn from_i128(v: i128) -> Lit {
-        Lit::Int(v)
-    }
-}
 
 impl<'a> IntoIterator for &'a Indices {
     type Item = &'a Index;
@@ -212,12 +213,6 @@ impl<'a> IntoIterator for &'a Indices {
 
     fn into_iter(self) -> Self::IntoIter {
         self.indices.iter()
-    }
-}
-
-impl Expr {
-    pub fn from_i128(v: i128) -> Expr {
-        Expr { kind: ExprKind::Literal(Lit::from_i128(v)), span: DUMMY_SP }
     }
 }
 

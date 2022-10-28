@@ -20,14 +20,18 @@ use rustc_errors::{
 use rustc_session::{config::ErrorOutputType, parse::ParseSess};
 use rustc_span::source_map::SourceMap;
 
+// These are sorted loosily following the order of the pipeline except for lowering which doesn't
+// quite fit this ordering.
 fluent_messages! {
-    desugar => "../locales/en-US/desugar.ftl",
-    invariants => "../locales/en-US/invariants.ftl",
-    lowering => "../locales/en-US/lowering.ftl",
     parse => "../locales/en-US/parse.ftl",
-    refineck => "../locales/en-US/refineck.ftl",
     resolver => "../locales/en-US/resolver.ftl",
+    annot_check => "../locales/en-US/annot_check.ftl",
+    desugar => "../locales/en-US/desugar.ftl",
     wf => "../locales/en-US/wf.ftl",
+    invariants => "../locales/en-US/invariants.ftl",
+    refineck => "../locales/en-US/refineck.ftl",
+
+    lowering => "../locales/en-US/lowering.ftl",
 }
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};

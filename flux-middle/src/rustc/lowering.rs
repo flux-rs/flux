@@ -337,9 +337,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(self.lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
-                let kind = self
-                    .lower_cast_kind(*kind)
-                    .ok_or_else(|| format!("unsupported cast"))?;
+                let kind = self.lower_cast_kind(*kind).ok_or("unsupported cast")?;
                 let op = self.lower_operand(op)?;
                 let ty = lower_ty(self.tcx, *ty).map_err(|err| err.reason)?;
                 Ok(Rvalue::Cast(kind, op, ty))
