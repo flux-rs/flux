@@ -80,7 +80,11 @@ pub Variant: surface::VariantDef = {
 
 VariantRet: surface::VariantRet = {
     <path: Path> "[" <indices: Indices> "]" => {
-        surface::VariantRet {<>}
+        surface::VariantRet { <> }
+    },
+    <path: Path> <lo:@L> <hi:@R> => {
+        let indices = surface::Indices { indices: vec![], span: mk_span(lo, hi) };
+        surface::VariantRet { path, indices }
     }
 }
 
