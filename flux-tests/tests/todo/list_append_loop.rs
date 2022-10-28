@@ -10,7 +10,7 @@ enum List<T> {
 }
 
 // Panics when joining environments because we are closing a box with an outstanding
-// ptr(mut) to the boxes location, i.e.,
+// ptr(mut) to the box's location, i.e.,
 // we start with
 //   r1: box(a0), r2: ptr(mut, a0), a0: T,
 // and closing the box produces

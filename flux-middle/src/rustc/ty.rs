@@ -58,6 +58,7 @@ pub struct EnumDef {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct VariantDef {
+    pub def_id: DefId,
     pub fields: List<Ty>,
     pub ret: Ty,
 }

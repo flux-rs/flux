@@ -428,6 +428,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(resolver::unresolved_path, code = "FLUX")]
+    #[help]
     pub struct UnresolvedPath {
         #[primary_span]
         pub span: Span,

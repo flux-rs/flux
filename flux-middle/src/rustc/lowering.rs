@@ -491,7 +491,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 /// the total number of "predecessors" returned by `rustc`.
 /// The option is to recompute "predecessors" from scratch but we may miss
 /// some cases there. (see also `is_join_point`)
-
 fn mk_fake_predecessors(
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
 ) -> IndexVec<BasicBlock, usize> {
@@ -546,7 +545,7 @@ pub fn lower_variant_def(
     let fields: Result<Vec<Ty>, ErrorGuaranteed> = fields.into_iter().collect();
     let fields = List::from_vec(fields?);
     let ret = lower_type_of(tcx, sess, adt_def_id)?;
-    Ok(VariantDef { fields, ret })
+    Ok(VariantDef { fields, ret, def_id: variant_def.def_id })
 }
 
 pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
@@ -778,26 +777,25 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(lowering::unsupported_mir, code = "FLUX")]
+    #[note]
     pub struct UnsupportedMir {
         #[primary_span]
         pub span: Span,
         pub kind: &'static str,
-        #[note]
-        pub note: (),
         pub reason: String,
     }
 
     impl UnsupportedMir {
         pub fn new(span: Span, kind: &'static str, reason: String) -> Self {
-            Self { span, kind, note: (), reason }
+            Self { span, kind, reason }
         }
 
         pub fn terminator(span: Span, reason: String) -> Self {
-            Self { span, kind: "terminator", note: (), reason }
+            Self { span, kind: "terminator", reason }
         }
 
         pub fn statement(span: Span, reason: String) -> Self {
-            Self { span, kind: "statement", note: (), reason }
+            Self { span, kind: "statement", reason }
         }
     }
 

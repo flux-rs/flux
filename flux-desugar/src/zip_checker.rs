@@ -41,8 +41,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         if flux_fields != rust_fields {
             return Err(self.sess.emit_err(errors::FieldCountMismatch::new(
                 variant_def.span,
-                rust_fields,
                 flux_fields,
+                self.tcx.def_span(rust_variant_def.def_id),
+                rust_fields,
             )));
         }
         iter::zip(&variant_def.fields, rust_variant_def.fields.iter())
@@ -57,10 +58,11 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         &self,
         sig: &FnSig<Res>,
         rust_sig: &rustc_ty::PolyFnSig,
+        def_span: Span,
     ) -> Result<(), ErrorGuaranteed> {
         let rust_sig = rust_sig.as_ref().skip_binder();
         let mut locs = Locs::new();
-        self.zip_args(sig.span, &sig.args, rust_sig.inputs(), &mut locs)?;
+        self.zip_args(&sig.args, rust_sig.inputs(), sig.span, def_span, &mut locs)?;
         self.zip_return_ty(sig.span, &sig.returns, &rust_sig.output())?;
         self.zip_ty_locs(&sig.ensures, &locs)
     }
@@ -103,17 +105,18 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     /// saves the types of the references in `locs`
     fn zip_args(
         &self,
-        span: Span,
         binds: &[Arg<Res>],
         rust_tys: &[rustc_ty::Ty],
+        flux_span: Span,
+        def_span: Span,
         locs: &mut Locs,
     ) -> Result<(), ErrorGuaranteed> {
         let rust_args = rust_tys.len();
         let flux_args = binds.len();
         if rust_args != flux_args {
-            return Err(self
-                .sess
-                .emit_err(errors::ArgCountMismatch::new(span, rust_args, flux_args)));
+            return Err(self.sess.emit_err(errors::ArgCountMismatch::new(
+                flux_span, flux_args, def_span, rust_args,
+            )));
         }
 
         iter::zip(binds, rust_tys).try_for_each_exhaust(|(arg, rust_ty)| {
@@ -248,32 +251,43 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_fields, code = "FLUX")]
+    #[diag(resolver::field_count_mismatch, code = "FLUX")]
     pub struct FieldCountMismatch {
         #[primary_span]
-        pub span: Span,
-        pub rust_fields: usize,
+        #[label]
+        pub flux_span: Span,
         pub flux_fields: usize,
+        #[label(resolver::rust_label)]
+        pub rust_span: Span,
+        pub rust_fields: usize,
     }
 
     impl FieldCountMismatch {
-        pub fn new(span: Span, rust_fields: usize, flux_fields: usize) -> Self {
-            Self { span, rust_fields, flux_fields }
+        pub fn new(
+            flux_span: Span,
+            flux_fields: usize,
+            rust_span: Span,
+            rust_fields: usize,
+        ) -> Self {
+            Self { flux_span, flux_fields, rust_span, rust_fields }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_args, code = "FLUX")]
+    #[diag(resolver::arg_count_mismatch, code = "FLUX")]
     pub struct ArgCountMismatch {
         #[primary_span]
-        pub span: Span,
-        pub rust_args: usize,
+        #[label]
+        pub flux_span: Span,
         pub flux_args: usize,
+        #[label(resolver::rust_label)]
+        pub rust_span: Span,
+        pub rust_args: usize,
     }
 
     impl ArgCountMismatch {
-        pub fn new(span: Span, rust_args: usize, flux_args: usize) -> Self {
-            Self { span, rust_args, flux_args }
+        pub fn new(flux_span: Span, flux_args: usize, rust_span: Span, rust_args: usize) -> Self {
+            Self { flux_span, flux_args, rust_args, rust_span }
         }
     }
 

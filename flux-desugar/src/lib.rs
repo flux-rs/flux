@@ -63,8 +63,9 @@ pub fn desugar_fn_sig(
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
     let sig = resolver.resolve_fn_sig(fn_sig)?;
 
+    let def_span = genv.tcx.def_span(def_id);
     let rust_sig = lowering::lower_fn_sig_of(genv.tcx, def_id.to_def_id()).emit(genv.sess)?;
-    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig)?;
+    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig, def_span)?;
 
     desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
 }
