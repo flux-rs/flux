@@ -173,7 +173,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             _ => {
                 Err(self
                     .sess
-                    .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, ty.span)))
+                    .emit_err(errors::InvalidRefinement::from_span(self.tcx, rust_ty, ty.span)))
             }
         }
     }
@@ -220,7 +220,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             _ => {
                 Err(self
                     .sess
-                    .emit_err(errors::TypeMismatch::from_span(self.tcx, rust_ty, path.span)))
+                    .emit_err(errors::PathMismatch::from_span(self.tcx, rust_ty, path.span)))
             }
         }
     }
@@ -308,8 +308,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::mismatched_type, code = "FLUX")]
-    pub struct TypeMismatch {
+    #[diag(resolver::path_mismatch, code = "FLUX")]
+    pub struct PathMismatch {
         #[primary_span]
         #[label]
         pub span: Span,
@@ -317,7 +317,29 @@ mod errors {
         pub flux_type: String,
     }
 
-    impl TypeMismatch {
+    impl PathMismatch {
+        pub fn from_span(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
+            let flux_type = tcx
+                .sess
+                .source_map()
+                .span_to_snippet(flux_ty_span)
+                .unwrap_or_else(|_| "{unknown}".to_string());
+            let rust_type = format!("{rust_ty:?}");
+            Self { span: flux_ty_span, rust_type, flux_type }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(resolver::invalid_refinement, code = "FLUX")]
+    pub struct InvalidRefinement {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub rust_type: String,
+        pub flux_type: String,
+    }
+
+    impl InvalidRefinement {
         pub fn from_span(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
             let flux_type = tcx
                 .sess

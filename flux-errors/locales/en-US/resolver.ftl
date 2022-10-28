@@ -32,9 +32,13 @@ resolver_field_count_mismatch =
         *[other] fields
     }
 
-resolver_mismatched_type =
-    type mismatch in flux signature
+resolver_path_mismatch =
+    mismatched types
     .label =  expected `{$rust_type}`, found `{$flux_type}`
+
+resolver_invalid_refinement =
+    invalid type refinement
+    .label = `{$flux_type}` is not a valid refinement of `{$rust_type}`
 
 resolver_mutability_mismatch =
     mutability mismatch in flux signature: rust signature has a `{$rust_ref}` reference but flux signature has a `{$flux_ref}` reference
