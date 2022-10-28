@@ -15,17 +15,15 @@ mod table_resolver;
 mod zip_checker;
 
 pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uif_def};
-use flux_errors::ResultExt;
 use flux_middle::{
     fhir::{self, AdtMap},
     global_env::GlobalEnv,
-    rustc::{self, lowering},
+    rustc,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
-use zip_checker::ZipChecker;
 
 pub fn desugar_struct_def(
     genv: &GlobalEnv,
@@ -39,9 +37,7 @@ pub fn desugar_struct_def(
     let struct_def = resolver.resolve_struct_def(struct_def)?;
 
     // Check
-    let rust_adt_def =
-        lowering::lower_adt_def(genv.tcx, genv.sess, genv.tcx.adt_def(def_id.to_def_id()))?;
-    ZipChecker::new(genv.tcx, genv.sess).zip_struct_def(&struct_def, &rust_adt_def)?;
+    zip_checker::check_struct_def(genv.tcx, genv.sess, &struct_def)?;
 
     // Desugar
     desugar::desugar_struct_def(genv.sess, &genv.consts, adt_sorts, struct_def)
@@ -59,9 +55,7 @@ pub fn desugar_enum_def(
     let enum_def = resolver.resolve_enum_def(enum_def)?;
 
     // Check
-    let rust_adt_def =
-        lowering::lower_adt_def(genv.tcx, genv.sess, genv.tcx.adt_def(def_id.to_def_id()))?;
-    ZipChecker::new(genv.tcx, genv.sess).zip_enum_def(&enum_def, &rust_adt_def)?;
+    zip_checker::check_enum_def(genv.tcx, genv.sess, &enum_def)?;
 
     // Desugar
     desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
@@ -75,15 +69,13 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     // Resolve
     let resolver = table_resolver::Resolver::new(genv, def_id)?;
-    let sig = resolver.resolve_fn_sig(fn_sig)?;
+    let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
 
     // Check
-    let def_span = genv.tcx.def_span(def_id);
-    let rust_sig = lowering::lower_fn_sig_of(genv.tcx, def_id.to_def_id()).emit(genv.sess)?;
-    ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig, def_span)?;
+    zip_checker::check_fn_sig(genv.tcx, genv.sess, def_id.to_def_id(), &fn_sig)?;
 
     // Desugar
-    desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
+    desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, fn_sig)
 }
 
 // TODO(RJ): This is not used but perhaps *could* used to generate default

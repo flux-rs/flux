@@ -1,5 +1,7 @@
 //! A simplified version of rust types.
 
+use std::iter;
+
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
@@ -65,7 +67,8 @@ pub struct AdtDef {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct VariantDef {
     pub def_id: DefId,
-    pub fields: List<Ty>,
+    pub fields: Vec<DefId>,
+    pub field_tys: List<Ty>,
     pub ret: Ty,
 }
 
@@ -131,6 +134,12 @@ impl FnSig {
 
     pub fn output(&self) -> Ty {
         self.inputs_and_output[self.inputs_and_output.len() - 1].clone()
+    }
+}
+
+impl VariantDef {
+    pub fn fields(&self) -> impl Iterator<Item = (&Ty, &DefId)> {
+        iter::zip(&self.field_tys, &self.fields)
     }
 }
 

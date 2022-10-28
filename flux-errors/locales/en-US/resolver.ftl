@@ -4,7 +4,7 @@ resolver_unsupported_signature =
 
 resolver_unresolved_path =
     cannot resolve `{$path}`
-    .help = flux can only resolve a path if it is present in the rust signature
+    .help = flux can only resolve a path if it is present in the definition being refined
 
 resolver_unresolved_location =
     cannot resolve `{$loc}`: only `&strg` variables can appear in ensures clauses
@@ -12,7 +12,7 @@ resolver_unresolved_location =
 
 resolver_arg_count_mismatch =
     argument count mismatch
-    .label = flux signature has {$flux_args} {$flux_args ->
+    .label = refined signature has {$flux_args} {$flux_args ->
         [one] argument
         *[other] arguments
      }
@@ -23,7 +23,7 @@ resolver_arg_count_mismatch =
 
 resolver_field_count_mismatch =
     field count mismatch
-    .label = flux variant has {$flux_fields} {$flux_fields ->
+    .label = refined variant has {$flux_fields} {$flux_fields ->
         [one] field
         *[other] fields
      }
@@ -35,32 +35,48 @@ resolver_field_count_mismatch =
 resolver_path_mismatch =
     mismatched types
     .label =  expected `{$rust_type}`, found `{$flux_type}`
+    .def_label = refinement annotation for this {$def_kind} is invalid
 
 resolver_invalid_refinement =
-    invalid type refinement
-    .label = `{$flux_type}` is not a valid refinement of `{$rust_type}`
+    invalid refinement annotation
+    .label = not a valid refinement of `{$rust_type}`
+    .def_label = refinement annotation for this {$def_kind} is invalid
 
 resolver_mutability_mismatch =
-    mutability mismatch in flux signature: rust signature has a `{$rust_ref}` reference but flux signature has a `{$flux_ref}` reference
+    mismatched types
+    .label = types differ in mutability
+    .def_label = refinement annotation for this {$def_kind} is invalid
 
 resolver_default_return_mismatch =
-    return type mismatch in flux signature: expected `{$rust_type}`, found ()
+    return type mismatch
+    .label = expected `{$rust_type}`, found `()`
+    .def_label = refinement annotation for this {$def_kind} is invalid
 
 resolver_too_few_arguments =
-    this type takes at least {$min} generic {$min ->
+    this {$def_kind} takes at least {$min} generic {$min ->
         [one] argument
         *[other] arguments
     } but {$found} generic {$found ->
         [one] argument was
         *[other] arguments were
     } supplied
+    .label = expected at least {$min} generic {$min ->
+        [one] argument
+        *[other] arguments
+    }
+    .note = {$def_kind} defined here
 
 resolver_too_many_arguments =
-    this type takes at most {$max} generic {$max ->
+    this {$def_kind} takes at most {$max} generic {$max ->
         [one] argument
         *[other] arguments
     } but {$found} generic {$found ->
         [one] argument was
         *[other] arguments were
     } supplied
+    .label = expected at most {$max} generic {$max ->
+        [one] argument
+        *[other] arguments
+    }
+    .note = {$def_kind} defined here
 

@@ -537,15 +537,16 @@ pub fn lower_variant_def(
     adt_def_id: DefId,
     variant_def: &rustc_ty::VariantDef,
 ) -> Result<VariantDef, ErrorGuaranteed> {
-    let fields = variant_def
-        .fields
-        .iter()
-        .map(|field| lower_type_of(tcx, sess, field.did))
-        .collect_vec();
-    let fields: Result<Vec<Ty>, ErrorGuaranteed> = fields.into_iter().collect();
-    let fields = List::from_vec(fields?);
+    let field_tys = List::from_vec(
+        variant_def
+            .fields
+            .iter()
+            .map(|field| lower_type_of(tcx, sess, field.did))
+            .try_collect()?,
+    );
+    let fields = variant_def.fields.iter().map(|fld| fld.did).collect_vec();
     let ret = lower_type_of(tcx, sess, adt_def_id)?;
-    Ok(VariantDef { fields, ret, def_id: variant_def.def_id })
+    Ok(VariantDef { field_tys, fields, ret, def_id: variant_def.def_id })
 }
 
 pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {

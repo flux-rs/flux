@@ -216,7 +216,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::lowering::lower_variant_def(self.tcx, self.sess, adt_def_id, variant_def)
         {
             let fields = variant_def
-                .fields
+                .field_tys
                 .iter()
                 .map(|ty| self.refine_ty_true(ty))
                 .collect_vec();

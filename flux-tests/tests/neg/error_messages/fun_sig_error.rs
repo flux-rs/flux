@@ -41,7 +41,7 @@ pub fn baz(x: i32) -> i32 {
     x + 1
 }
 
-#[flux::sig(fn(x: &mut i32) -> i32)] //~ ERROR mutability mismatch
+#[flux::sig(fn(x: &mut i32) -> i32)] //~ ERROR mismatched types
 pub fn ipa(x: &i32) -> i32 {
     *x + 1
 }
@@ -65,5 +65,5 @@ fn ira(x: Option<i32>) {}
 #[flux::sig(fn(x: f32))] //~ ERROR mismatched types
 fn hefe(f: &mut f32) {}
 
-#[flux::sig(fn(x: &mut f32))] //~ ERROR invalid type refinement
+#[flux::sig(fn(x: &mut f32))] //~ ERROR invalid refinement annotation
 fn quad(f: f32) {}

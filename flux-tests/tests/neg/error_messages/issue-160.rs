@@ -7,11 +7,11 @@ pub struct S<T1, T2, T3 = i32> {
     z: T3,
 }
 
-#[flux::sig(fn(S) -> ())] //~ ERROR this type takes at least 2 generic arguments
+#[flux::sig(fn(S) -> ())] //~ ERROR this struct takes at least 2 generic arguments
 pub fn test01(bob: S<i32, i32>) {}
 
-#[flux::sig(fn(S<i32>) -> ())] //~ ERROR this type takes at least 2 generic arguments
+#[flux::sig(fn(S<i32>) -> ())] //~ ERROR this struct takes at least 2 generic arguments
 pub fn test02(bob: S<i32, i32>) {}
 
-#[flux::sig(fn(S<i32, i32, i32, i32>) -> ())] //~ ERROR this type takes at most 3 generic arguments
+#[flux::sig(fn(S<i32, i32, i32, i32>) -> ())] //~ ERROR this struct takes at most 3 generic arguments
 pub fn test03(bob: S<i32, i32>) {}

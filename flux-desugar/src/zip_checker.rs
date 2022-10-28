@@ -1,50 +1,72 @@
 use std::{collections::HashMap, iter};
 
 use flux_common::iter::IterExt;
-use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
+use flux_errors::{ErrorGuaranteed, FluxSession, ResultExt};
+use flux_middle::rustc::{
+    lowering,
+    ty::{self as rustc_ty, Mutability},
+};
 use flux_syntax::surface::{
     Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, StructDef, Ty, TyKind, VariantDef,
 };
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 
-type Locs = HashMap<Symbol, rustc_ty::Ty>;
-
-pub struct ZipChecker<'genv, 'tcx> {
-    tcx: TyCtxt<'tcx>,
-    sess: &'genv FluxSession,
+pub fn check_struct_def(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    struct_def: &StructDef<Res>,
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = struct_def.def_id.to_def_id();
+    let rust_adt_def = lowering::lower_adt_def(tcx, sess, tcx.adt_def(def_id))?;
+    let rust_variant_def = &rust_adt_def.variants[0];
+    iter::zip(&struct_def.fields, rust_variant_def.fields()).try_for_each_exhaust(
+        |(ty, (rust_ty, field_def_id))| {
+            if let Some(ty) = ty {
+                ZipChecker::new(tcx, sess, *field_def_id).zip_ty(ty, rust_ty)?
+            }
+            Ok(())
+        },
+    )
 }
 
+pub fn check_enum_def(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    enum_def: &EnumDef<Res>,
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = enum_def.def_id.to_def_id();
+    let rust_adt_def = lowering::lower_adt_def(tcx, sess, tcx.adt_def(def_id))?;
+
+    iter::zip(&enum_def.variants, &rust_adt_def.variants).try_for_each_exhaust(
+        |(variant, rust_variant)| {
+            ZipChecker::new(tcx, sess, rust_variant.def_id).zip_variant_def(variant, rust_variant)
+        },
+    )
+}
+
+pub fn check_fn_sig(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    def_id: DefId,
+    fn_sig: &FnSig<Res>,
+) -> Result<(), ErrorGuaranteed> {
+    let rust_sig = lowering::lower_fn_sig_of(tcx, def_id).emit(sess)?;
+    ZipChecker::new(tcx, sess, def_id).zip_fn_sig(&fn_sig, &rust_sig)
+}
+
+struct ZipChecker<'genv, 'tcx> {
+    tcx: TyCtxt<'tcx>,
+    sess: &'genv FluxSession,
+    def_id: DefId,
+}
+
+type Locs = HashMap<Symbol, rustc_ty::Ty>;
+
 impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession) -> Self {
-        ZipChecker { tcx, sess }
-    }
-
-    pub fn zip_struct_def(
-        &self,
-        struct_def: &StructDef<Res>,
-        rust_adt_def: &rustc_ty::AdtDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let rust_variant_def = &rust_adt_def.variants[0];
-        iter::zip(&struct_def.fields, rust_variant_def.fields.iter()).try_for_each_exhaust(
-            |(ty, rust_ty)| {
-                if let Some(ty) = ty {
-                    self.zip_ty(ty, rust_ty)?
-                }
-                Ok(())
-            },
-        )
-    }
-
-    pub fn zip_enum_def(
-        &self,
-        enum_def: &EnumDef<Res>,
-        rust_adt_def: &rustc_ty::AdtDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        iter::zip(&enum_def.variants, &rust_adt_def.variants).try_for_each_exhaust(
-            |(variant, rust_variant)| self.zip_variant_def(variant, rust_variant),
-        )
+    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession, def_id: DefId) -> Self {
+        ZipChecker { tcx, sess, def_id }
     }
 
     fn zip_variant_def(
@@ -53,7 +75,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         rust_variant_def: &rustc_ty::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
         let flux_fields = variant_def.fields.len();
-        let rust_fields = rust_variant_def.fields.len();
+        let rust_fields = rust_variant_def.field_tys.len();
         if flux_fields != rust_fields {
             return Err(self.sess.emit_err(errors::FieldCountMismatch::new(
                 variant_def.span,
@@ -62,7 +84,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
                 rust_fields,
             )));
         }
-        iter::zip(&variant_def.fields, rust_variant_def.fields.iter())
+        iter::zip(&variant_def.fields, rust_variant_def.field_tys.iter())
             .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))?;
 
         self.zip_path(&variant_def.ret.path, &rust_variant_def.ret)
@@ -70,15 +92,14 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     /// `zip_fn_sig(b_sig, d_sig)` combines the refinements of the `b_sig` and the resolved elements
     /// of the (trivial/default) `dsig:DefFnSig` to compute a (refined) `DefFnSig`
-    pub fn zip_fn_sig(
+    fn zip_fn_sig(
         &self,
         sig: &FnSig<Res>,
         rust_sig: &rustc_ty::PolyFnSig,
-        def_span: Span,
     ) -> Result<(), ErrorGuaranteed> {
         let rust_sig = rust_sig.as_ref().skip_binder();
         let mut locs = Locs::new();
-        self.zip_args(&sig.args, rust_sig.inputs(), sig.span, def_span, &mut locs)?;
+        self.zip_args(&sig.args, rust_sig.inputs(), sig.span, &mut locs)?;
         self.zip_return_ty(sig.span, &sig.returns, &rust_sig.output())?;
         self.zip_ty_locs(&sig.ensures, &locs)
     }
@@ -93,10 +114,12 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (Some(ty), _) => self.zip_ty(ty, rust_ty),
             (None, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => Ok(()),
             (_, _) => {
-                Err(self.sess.emit_err(errors::DefaultReturnMismatch {
+                Err(self.sess.emit_err(errors::DefaultReturnMismatch::new(
+                    self.tcx,
                     span,
-                    rust_type: format!("{rust_ty:?}"),
-                }))
+                    rust_ty,
+                    self.def_id,
+                )))
             }
         }
     }
@@ -124,14 +147,16 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         binds: &[Arg<Res>],
         rust_tys: &[rustc_ty::Ty],
         flux_span: Span,
-        def_span: Span,
         locs: &mut Locs,
     ) -> Result<(), ErrorGuaranteed> {
         let rust_args = rust_tys.len();
         let flux_args = binds.len();
         if rust_args != flux_args {
             return Err(self.sess.emit_err(errors::ArgCountMismatch::new(
-                flux_span, flux_args, def_span, rust_args,
+                flux_span,
+                flux_args,
+                self.tcx.def_span(self.def_id),
+                rust_args,
             )));
         }
 
@@ -171,9 +196,12 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
             (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             _ => {
-                Err(self
-                    .sess
-                    .emit_err(errors::InvalidRefinement::from_span(self.tcx, rust_ty, ty.span)))
+                Err(self.sess.emit_err(errors::InvalidRefinement::new(
+                    self.tcx,
+                    ty.span,
+                    rust_ty,
+                    self.def_id,
+                )))
             }
         }
     }
@@ -188,15 +216,14 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
                 let found = path.args.len();
                 if found < min_args {
-                    Err(self
-                        .sess
-                        .emit_err(errors::TooFewArgs::new(path.span, found, min_args)))
+                    Err(self.sess.emit_err(errors::TooFewArgs::new(
+                        self.tcx, path.span, found, min_args, *def_id1,
+                    )))
                 } else if found > max_args {
-                    Err(self
-                        .sess
-                        .emit_err(errors::TooManyArgs::new(path.span, found, max_args)))
+                    Err(self.sess.emit_err(errors::TooManyArgs::new(
+                        self.tcx, path.span, found, max_args, *def_id1,
+                    )))
                 } else {
-                    // zip the supplied args
                     self.zip_generic_args(&path.args, substs)
                 }
             }
@@ -218,9 +245,12 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (Res::Str, rustc_ty::TyKind::Str) => Ok(()),
             (Res::Char, rustc_ty::TyKind::Char) => Ok(()),
             _ => {
-                Err(self
-                    .sess
-                    .emit_err(errors::PathMismatch::from_span(self.tcx, rust_ty, path.span)))
+                Err(self.sess.emit_err(errors::PathMismatch::new(
+                    self.tcx,
+                    rust_ty,
+                    path.span,
+                    self.def_id,
+                )))
             }
         }
     }
@@ -235,9 +265,11 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (RefKind::Mut, Mutability::Mut) => Ok(()),
             (RefKind::Shr, Mutability::Not) => Ok(()),
             _ => {
-                Err(self
-                    .sess
-                    .emit_err(errors::RefKindMismatch::new(span, ref_kind, mutability)))
+                Err(self.sess.emit_err(errors::MutabilityMismatch::new(
+                    self.tcx,
+                    span,
+                    self.def_id,
+                )))
             }
         }
     }
@@ -261,8 +293,8 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
 mod errors {
     use flux_macros::Diagnostic;
-    use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
-    use flux_syntax::surface::RefKind;
+    use flux_middle::rustc::ty::{self as rustc_ty};
+    use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
@@ -315,17 +347,22 @@ mod errors {
         pub span: Span,
         pub rust_type: String,
         pub flux_type: String,
+        #[label(resolver::def_label)]
+        pub def_ident_span: Option<Span>,
+        pub def_kind: &'static str,
     }
 
     impl PathMismatch {
-        pub fn from_span(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
+        pub fn new(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span, def_id: DefId) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_ident_span = tcx.def_ident_span(def_id);
             let flux_type = tcx
                 .sess
                 .source_map()
                 .span_to_snippet(flux_ty_span)
                 .unwrap_or_else(|_| "{unknown}".to_string());
             let rust_type = format!("{rust_ty:?}");
-            Self { span: flux_ty_span, rust_type, flux_type }
+            Self { span: flux_ty_span, rust_type, flux_type, def_kind, def_ident_span }
         }
     }
 
@@ -336,51 +373,57 @@ mod errors {
         #[label]
         pub span: Span,
         pub rust_type: String,
-        pub flux_type: String,
+        #[label(resolver::def_label)]
+        pub def_ident_span: Option<Span>,
+        pub def_kind: &'static str,
     }
 
     impl InvalidRefinement {
-        pub fn from_span(tcx: TyCtxt, rust_ty: &rustc_ty::Ty, flux_ty_span: Span) -> Self {
-            let flux_type = tcx
-                .sess
-                .source_map()
-                .span_to_snippet(flux_ty_span)
-                .unwrap_or_else(|_| "{unknown}".to_string());
+        pub fn new(tcx: TyCtxt, flux_ty_span: Span, rust_ty: &rustc_ty::Ty, def_id: DefId) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_ident_span = tcx.def_ident_span(def_id);
             let rust_type = format!("{rust_ty:?}");
-            Self { span: flux_ty_span, rust_type, flux_type }
+            Self { span: flux_ty_span, rust_type, def_kind, def_ident_span }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(resolver::mutability_mismatch, code = "FLUX")]
-    pub struct RefKindMismatch {
+    pub struct MutabilityMismatch {
         #[primary_span]
+        #[label]
         pub span: Span,
-        pub flux_ref: &'static str,
-        pub rust_ref: &'static str,
+        #[label(resolver::def_label)]
+        pub def_ident_span: Option<Span>,
+        pub def_kind: &'static str,
+    }
+
+    impl MutabilityMismatch {
+        pub fn new(tcx: TyCtxt, span: Span, def_id: DefId) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_ident_span = tcx.def_ident_span(def_id);
+            Self { span, def_ident_span, def_kind }
+        }
     }
 
     #[derive(Diagnostic)]
     #[diag(resolver::default_return_mismatch, code = "FLUX")]
     pub struct DefaultReturnMismatch {
         #[primary_span]
+        #[label]
         pub span: Span,
         pub rust_type: String,
+        #[label(resolver::def_label)]
+        pub def_ident_span: Option<Span>,
+        pub def_kind: &'static str,
     }
 
-    impl RefKindMismatch {
-        pub fn new(span: Span, ref_kind: RefKind, mutability: Mutability) -> Self {
-            Self {
-                span,
-                flux_ref: match ref_kind {
-                    RefKind::Mut => "&mut",
-                    RefKind::Shr => "&",
-                },
-                rust_ref: match mutability {
-                    Mutability::Mut => "&mut",
-                    Mutability::Not => "&",
-                },
-            }
+    impl DefaultReturnMismatch {
+        pub fn new(tcx: TyCtxt, span: Span, rust_ty: &rustc_ty::Ty, def_id: DefId) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_ident_span = tcx.def_ident_span(def_id);
+            let rust_type = format!("{rust_ty:?}");
+            Self { span, def_ident_span, def_kind, rust_type }
         }
     }
 
@@ -403,14 +446,20 @@ mod errors {
     #[diag(resolver::too_few_arguments, code = "FLUX")]
     pub struct TooFewArgs {
         #[primary_span]
+        #[label]
         pub span: Span,
         pub found: usize,
         pub min: usize,
+        #[note]
+        pub def_ident_span: Option<Span>,
+        pub def_kind: &'static str,
     }
 
     impl TooFewArgs {
-        pub fn new(span: Span, found: usize, min: usize) -> Self {
-            Self { span, found, min }
+        pub fn new(tcx: TyCtxt, span: Span, found: usize, min: usize, def_id: DefId) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_ident_span = tcx.def_ident_span(def_id);
+            Self { span, found, min, def_ident_span, def_kind }
         }
     }
 
@@ -418,14 +467,20 @@ mod errors {
     #[diag(resolver::too_many_arguments, code = "FLUX")]
     pub struct TooManyArgs {
         #[primary_span]
+        #[label]
         pub span: Span,
         pub found: usize,
         pub max: usize,
+        #[note]
+        pub def_ident_span: Option<Span>,
+        pub def_kind: &'static str,
     }
 
     impl TooManyArgs {
-        pub fn new(span: Span, found: usize, max: usize) -> Self {
-            Self { span, found, max }
+        pub fn new(tcx: TyCtxt, span: Span, found: usize, max: usize, def_id: DefId) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_ident_span = tcx.def_ident_span(def_id);
+            Self { span, found, max, def_ident_span, def_kind }
         }
     }
 }
