@@ -4,7 +4,7 @@ use flux_common::iter::IterExt;
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::rustc::ty::{self as rustc_ty, Mutability};
 use flux_syntax::surface::{
-    Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, Ty, TyKind, VariantDef,
+    Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, StructDef, Ty, TyKind, VariantDef,
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
@@ -21,12 +21,28 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         ZipChecker { tcx, sess }
     }
 
+    pub fn zip_struct_def(
+        &self,
+        struct_def: &StructDef<Res>,
+        rust_adt_def: &rustc_ty::AdtDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let rust_variant_def = &rust_adt_def.variants[0];
+        iter::zip(&struct_def.fields, rust_variant_def.fields.iter()).try_for_each_exhaust(
+            |(ty, rust_ty)| {
+                if let Some(ty) = ty {
+                    self.zip_ty(ty, rust_ty)?
+                }
+                Ok(())
+            },
+        )
+    }
+
     pub fn zip_enum_def(
         &self,
         enum_def: &EnumDef<Res>,
-        rust_enum_def: &rustc_ty::EnumDef,
+        rust_adt_def: &rustc_ty::AdtDef,
     ) -> Result<(), ErrorGuaranteed> {
-        iter::zip(&enum_def.variants, &rust_enum_def.variants).try_for_each_exhaust(
+        iter::zip(&enum_def.variants, &rust_adt_def.variants).try_for_each_exhaust(
             |(variant, rust_variant)| self.zip_variant_def(variant, rust_variant),
         )
     }

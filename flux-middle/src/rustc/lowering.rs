@@ -21,7 +21,7 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        Binder, BoundRegionKind, BoundVariableKind, Const, EnumDef, FnSig, GenericArg,
+        AdtDef, Binder, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
         GenericParamDef, GenericParamDefKind, Generics, PolyFnSig, Ty, VariantDef,
     },
 };
@@ -518,17 +518,17 @@ pub fn lower_type_of(
         .emit(sess)
 }
 
-pub fn lower_enum_def<'tcx>(
+pub fn lower_adt_def<'tcx>(
     tcx: TyCtxt<'tcx>,
     sess: &FluxSession,
     adt_def: rustc_ty::AdtDef<'tcx>,
-) -> Result<EnumDef, ErrorGuaranteed> {
+) -> Result<AdtDef, ErrorGuaranteed> {
     let adt_def_id = adt_def.did();
     let mut variants = vec![];
     for variant_def in adt_def.variants().into_iter() {
         variants.push(lower_variant_def(tcx, sess, adt_def_id, variant_def)?)
     }
-    Ok(EnumDef { variants })
+    Ok(AdtDef { variants })
 }
 
 pub fn lower_variant_def(
