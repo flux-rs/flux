@@ -1,5 +1,6 @@
 resolver_unsupported_signature =
-    unsupported function signature: `{$msg}`
+    unsupported function signature
+    .note = {$msg}
 
 resolver_unresolved_path =
     cannot resolve `{$path}`

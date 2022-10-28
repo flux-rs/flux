@@ -1,4 +1,4 @@
-//! Desugaring types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter};
 
 use flux_common::{index::IndexGen, iter::IterExt};

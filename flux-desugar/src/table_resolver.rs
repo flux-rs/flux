@@ -420,6 +420,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(resolver::unsupported_signature, code = "FLUX")]
+    #[note]
     pub struct UnsupportedSignature {
         #[primary_span]
         pub span: Span,
