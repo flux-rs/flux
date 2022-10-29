@@ -7,7 +7,7 @@ use flux_common::{
 };
 use flux_fixpoint as fixpoint;
 use flux_middle::{
-    global_env,
+    fhir,
     rty::{self, Binders, BoundVar},
 };
 use itertools::Itertools;
@@ -75,7 +75,7 @@ impl<T> FixpointCtxt<T>
 where
     T: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(const_infos: &[global_env::ConstInfo], kvars: KVarStore) -> Self {
+    pub fn new(const_infos: &[fhir::ConstInfo], kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
         let const_map = fixpoint_const_map(const_infos, &name_gen);
         Self {
@@ -292,7 +292,7 @@ where
 }
 
 fn fixpoint_const_map(
-    const_infos: &[global_env::ConstInfo],
+    const_infos: &[fhir::ConstInfo],
     name_gen: &IndexGen<fixpoint::Name>,
 ) -> FxHashMap<DefId, ConstInfo> {
     const_infos

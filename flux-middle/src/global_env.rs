@@ -13,18 +13,11 @@ use rustc_span::Symbol;
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
-    fhir::{self, UifDef, VariantIdx},
+    fhir::{self, ConstInfo, UifDef, VariantIdx},
     intern::List,
     rty::{self, Binders},
     rustc,
 };
-
-#[derive(Debug)]
-pub struct ConstInfo {
-    pub def_id: DefId,
-    pub sym: Symbol,
-    pub val: i128,
-}
 
 #[derive(Debug)]
 pub struct OpaqueStructErr(pub DefId);
@@ -59,6 +52,28 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             adts_registered: false,
             uif_defs: FxHashMap::default(),
         }
+    }
+
+    pub fn register_map(&mut self, map: &fhir::Map) {
+        for c in map.consts() {
+            self.consts.push(c.clone());
+        }
+        for adt_def in map.adts() {
+            let def_id = adt_def.def_id;
+            let adt_def = rty::conv::ConvCtxt::conv_adt_def(self, adt_def);
+            self.adt_defs.get_mut().insert(def_id, adt_def);
+        }
+        for (name, uif_def) in map.uifs() {
+            let inputs = uif_def
+                .inputs
+                .iter()
+                .map(|sort| rty::conv::conv_sort(*sort))
+                .collect();
+            let output = rty::conv::conv_sort(uif_def.output);
+
+            self.uif_defs.insert(*name, rty::UifDef { inputs, output });
+        }
+        self.finish_adt_registration()
     }
 
     pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {

@@ -30,6 +30,20 @@ pub use rustc_target::abi::VariantIdx;
 
 use crate::pretty;
 
+#[derive(Debug, Clone)]
+pub struct ConstInfo {
+    pub def_id: DefId,
+    pub sym: Symbol,
+    pub val: i128,
+}
+
+#[derive(Default, Debug)]
+pub struct Map {
+    adts: FxHashMap<LocalDefId, AdtDef>,
+    consts: FxHashMap<LocalDefId, ConstInfo>,
+    uifs: FxHashMap<Symbol, UifDef>,
+}
+
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: DefId,
@@ -220,9 +234,6 @@ impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
-#[derive(Default, Debug)]
-pub struct AdtMap(FxHashMap<LocalDefId, AdtDef>);
-
 #[derive(Debug)]
 pub struct AdtDef {
     pub def_id: DefId,
@@ -232,9 +243,7 @@ pub struct AdtDef {
     sorts: Vec<Sort>,
 }
 
-#[derive(Default)]
-pub struct UFSorts(FxHashMap<Symbol, UifDef>);
-
+#[derive(Debug)]
 pub struct UifDef {
     pub inputs: Vec<Sort>,
     pub output: Sort,
@@ -247,45 +256,57 @@ impl AdtDef {
     }
 }
 
-impl UFSorts {
-    pub fn new() -> Self {
-        UFSorts(FxHashMap::default())
+impl Map {
+    pub fn insert_const(&mut self, def_id: LocalDefId, c: ConstInfo) {
+        self.consts.insert(def_id, c);
     }
 
-    pub fn insert(&mut self, name: Symbol, uif_def: UifDef) {
-        self.0.insert(name, uif_def);
+    pub fn consts(&self) -> impl Iterator<Item = &ConstInfo> {
+        self.consts.values()
     }
 
-    pub fn contains(&self, name: &Symbol) -> bool {
-        self.0.contains_key(name)
+    pub fn const_by_name(&self, name: Symbol) -> Option<&ConstInfo> {
+        // FIXME(nilehmann) index this
+        for c in self.consts() {
+            if c.sym == name {
+                return Some(c);
+            }
+        }
+        None
     }
 
-    pub fn get(&self, name: &Symbol) -> Option<&UifDef> {
-        self.0.get(name)
+    pub fn insert_uif(&mut self, symb: Symbol, uif: UifDef) {
+        self.uifs.insert(symb, uif);
     }
-}
 
-impl AdtMap {
-    pub fn insert(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
-        self.0.insert(def_id, sort_info);
+    pub fn uifs(&self) -> impl Iterator<Item = (&Symbol, &UifDef)> {
+        self.uifs.iter()
+    }
+
+    pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
+        self.adts.insert(def_id, sort_info);
     }
 
     pub fn sorts(&self, def_id: DefId) -> Option<&[Sort]> {
-        let info = self.0.get(&def_id.as_local()?)?;
+        let info = self.adts.get(&def_id.as_local()?)?;
         Some(&info.sorts)
     }
 
     pub fn refined_by(&self, def_id: DefId) -> Option<&[Param]> {
-        let adt_def = self.0.get(&def_id.as_local()?)?;
+        let adt_def = self.adts.get(&def_id.as_local()?)?;
         Some(&adt_def.refined_by)
+    }
+
+    pub fn adts(&self) -> impl Iterator<Item = &AdtDef> {
+        self.adts.values()
     }
 }
 
-impl std::ops::Index<LocalDefId> for AdtMap {
+impl std::ops::Index<LocalDefId> for Map {
     type Output = AdtDef;
 
     fn index(&self, def_id: LocalDefId) -> &Self::Output {
-        &self.0[&def_id]
+        &self.adts[&def_id]
     }
 }
 
