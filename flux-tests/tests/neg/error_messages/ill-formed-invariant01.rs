@@ -3,14 +3,7 @@
 
 #[flux::refined_by(n: int)]
 #[flux::invariant(n + 1)] //~ ERROR mismatched sorts
-pub enum A {
-    #[flux::variant(E[0])]
-    V,
-}
-
-#[flux::refined_by(n: int)]
-#[flux::invariant(nn > 0)] //~ ERROR cannot find
-pub enum B {
+pub enum E {
     #[flux::variant(E[0])]
     V,
 }
