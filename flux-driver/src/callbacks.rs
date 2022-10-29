@@ -72,9 +72,18 @@ impl Callbacks for FluxCallbacks {
 }
 
 fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
-    let mut genv = GlobalEnv::new(tcx, sess);
+    let mut specs = SpecCollector::collect(tcx, sess)?;
 
-    let ck = CrateChecker::new(&mut genv)?;
+    // Ignore everything and go home
+    if specs.ignores.contains(&IgnoreKey::Crate) {
+        return Ok(());
+    }
+
+    let map = build_map(tcx, sess, &mut specs)?;
+
+    let mut genv = GlobalEnv::new(tcx, sess, map);
+
+    let ck = CrateChecker::new(&mut genv, specs)?;
 
     if ck.ignores.contains(&IgnoreKey::Crate) {
         return Ok(());
@@ -112,20 +121,11 @@ fn is_ignored(tcx: TyCtxt, ignores: &Ignores, def_id: LocalDefId) -> bool {
 }
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
-    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>) -> Result<Self, ErrorGuaranteed> {
-        let mut specs = SpecCollector::collect(genv.tcx, genv.sess)?;
-
+    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>, specs: Specs) -> Result<Self, ErrorGuaranteed> {
         let mut assume = FxHashSet::default();
 
-        // Ignore everything and go home
-        if specs.ignores.contains(&IgnoreKey::Crate) {
-            return Ok(CrateChecker { genv, qualifiers: vec![], assume, ignores: specs.ignores });
-        }
-
-        let map = build_map(genv.tcx, genv.sess, &mut specs)?;
-        genv.register_map(&map);
-
-        map.adts()
+        genv.map()
+            .adts()
             .try_for_each_exhaust(|adt_def| Wf::new(genv).check_adt_def(adt_def))?;
 
         // Qualifiers
@@ -133,7 +133,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .qualifs
             .into_iter()
             .map(|qualifier| {
-                let qualifier = desugar::desugar_qualifier(genv.sess, &map, qualifier)?;
+                let qualifier = desugar::desugar_qualifier(genv.sess, genv.map(), qualifier)?;
                 Wf::new(genv).check_qualifier(&qualifier)?;
                 Ok(rty::conv::ConvCtxt::conv_qualifier(&qualifier))
             })
@@ -151,9 +151,9 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let struct_def = desugar::desugar_struct_def(genv, &map, struct_def)?;
-                Wf::new(genv).check_struct_def(&map[def_id], &struct_def)?;
-                genv.register_struct_def_variant(def_id.to_def_id(), &map[def_id], struct_def);
+                let struct_def = desugar::desugar_struct_def(genv, struct_def)?;
+                Wf::new(genv).check_struct_def(&genv.map()[def_id], &struct_def)?;
+                genv.register_struct_def_variant(def_id, struct_def);
                 Ok(())
             })?;
 
@@ -161,7 +161,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let enum_def = desugar::desugar_enum_def(genv, &map, enum_def)?;
+                let enum_def = desugar::desugar_enum_def(genv, enum_def)?;
                 Wf::new(genv).check_enum_def(&enum_def)?;
                 genv.register_enum_def_variants(def_id.to_def_id(), enum_def);
                 Ok(())
@@ -180,7 +180,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 if !is_ignored(genv.tcx, &specs.ignores, def_id) {
                     if let Some(fn_sig) = spec.fn_sig {
                         let fn_sig = surface::expand::expand_sig(genv.sess, &aliases, fn_sig)?;
-                        let fn_sig = desugar::desugar_fn_sig(genv, &map, def_id, fn_sig)?;
+                        let fn_sig = desugar::desugar_fn_sig(genv, def_id, fn_sig)?;
                         Wf::new(genv).check_fn_sig(&fn_sig)?;
                         genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                     }
@@ -245,7 +245,8 @@ fn build_map(
     specs: &mut Specs,
 ) -> Result<fhir::Map, ErrorGuaranteed> {
     let mut map = fhir::Map::default();
-    // gather consts
+
+    // Register Consts
     std::mem::take(&mut specs.consts)
         .into_iter()
         .try_for_each_exhaust(|(def_id, const_sig)| {
@@ -257,7 +258,7 @@ fn build_map(
             Ok(())
         })?;
 
-    // Gather UFs
+    // Register UIFs
     std::mem::take(&mut specs.uifs)
         .into_iter()
         .try_for_each_exhaust(|uif_def| {
@@ -267,7 +268,7 @@ fn build_map(
             Ok(())
         })?;
 
-    // Register adts
+    // Register AdtDefs for structs
     specs
         .structs
         .iter_mut()
@@ -285,6 +286,7 @@ fn build_map(
             Ok(())
         })?;
 
+    // Register AdtDefs for enums
     specs
         .enums
         .iter_mut()
