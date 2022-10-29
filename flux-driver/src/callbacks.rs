@@ -151,7 +151,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .structs
             .into_iter()
             .try_for_each_exhaust(|(def_id, struct_def)| {
-                let struct_def = desugar::desugar_struct_def(genv, struct_def)?;
+                let struct_def =
+                    desugar::desugar_struct_def(genv.tcx, genv.sess, genv.map(), struct_def)?;
                 Wf::new(genv).check_struct_def(&genv.map()[def_id], &struct_def)?;
                 genv.register_struct_def_variant(def_id, struct_def);
                 Ok(())
@@ -161,7 +162,8 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .enums
             .into_iter()
             .try_for_each_exhaust(|(def_id, enum_def)| {
-                let enum_def = desugar::desugar_enum_def(genv, enum_def)?;
+                let enum_def =
+                    desugar::desugar_enum_def(genv.tcx, genv.sess, genv.map(), enum_def)?;
                 Wf::new(genv).check_enum_def(&enum_def)?;
                 genv.register_enum_def_variants(def_id.to_def_id(), enum_def);
                 Ok(())
@@ -180,7 +182,13 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 if !is_ignored(genv.tcx, &specs.ignores, def_id) {
                     if let Some(fn_sig) = spec.fn_sig {
                         let fn_sig = surface::expand::expand_sig(genv.sess, &aliases, fn_sig)?;
-                        let fn_sig = desugar::desugar_fn_sig(genv, def_id, fn_sig)?;
+                        let fn_sig = desugar::desugar_fn_sig(
+                            genv.tcx,
+                            genv.sess,
+                            genv.map(),
+                            def_id,
+                            fn_sig,
+                        )?;
                         Wf::new(genv).check_fn_sig(&fn_sig)?;
                         genv.register_fn_sig(def_id.to_def_id(), fn_sig);
                     }

@@ -1,6 +1,5 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
-use flux_middle::global_env::GlobalEnv;
 use flux_syntax::surface::{self, Ident, Path, Res, Ty};
 use hir::{def_id::DefId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
@@ -14,24 +13,28 @@ pub struct Resolver<'genv, 'tcx> {
     table: NameResTable<'genv, 'tcx>,
 }
 
-struct NameResTable<'genv, 'tcx> {
+struct NameResTable<'sess, 'tcx> {
     res: FxHashMap<Symbol, Res>,
     generics: FxHashMap<DefId, ParamTy>,
-    sess: &'genv FluxSession,
+    sess: &'sess FluxSession,
     tcx: TyCtxt<'tcx>,
 }
 
-impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
-    pub fn new(genv: &GlobalEnv<'genv, 'tcx>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
-        let table = match genv.tcx.def_kind(def_id) {
+impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
+        def_id: LocalDefId,
+    ) -> Result<Self, ErrorGuaranteed> {
+        let table = match tcx.def_kind(def_id) {
             hir::def::DefKind::Struct | hir::def::DefKind::Enum | hir::def::DefKind::Fn => {
-                NameResTable::from_item(genv, def_id)?
+                NameResTable::from_item(tcx, sess, def_id)?
             }
-            hir::def::DefKind::AssocFn => NameResTable::from_impl_item(genv, def_id)?,
+            hir::def::DefKind::AssocFn => NameResTable::from_impl_item(tcx, sess, def_id)?,
             kind => panic!("unsupported kind {kind:?}"),
         };
 
-        Ok(Self { sess: genv.sess, table })
+        Ok(Self { sess, table })
     }
 
     pub fn resolve_enum_def(
@@ -182,16 +185,17 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
     }
 }
 
-impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
+impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
     fn from_item(
-        genv: &GlobalEnv<'genv, 'tcx>,
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
-        let item = genv.tcx.hir().expect_item(def_id);
-        let mut table = Self::new(genv.sess, genv.tcx);
+        let item = tcx.hir().expect_item(def_id);
+        let mut table = Self::new(tcx, sess);
         match &item.kind {
             ItemKind::Struct(data, generics) => {
-                table.insert_generics(genv.tcx, generics);
+                table.insert_generics(tcx, generics);
                 table
                     .res
                     .insert(item.ident.name, Res::Adt(def_id.to_def_id()));
@@ -201,7 +205,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 }
             }
             ItemKind::Enum(data, generics) => {
-                table.insert_generics(genv.tcx, generics);
+                table.insert_generics(tcx, generics);
                 table
                     .res
                     .insert(item.ident.name, Res::Adt(def_id.to_def_id()));
@@ -213,7 +217,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 }
             }
             ItemKind::Fn(fn_sig, generics, _) => {
-                table.insert_generics(genv.tcx, generics);
+                table.insert_generics(tcx, generics);
                 table.collect_from_fn_sig(fn_sig)?;
             }
             _ => {}
@@ -222,23 +226,24 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     }
 
     fn from_impl_item(
-        genv: &GlobalEnv<'genv, 'tcx>,
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
-        let impl_item = genv.tcx.hir().expect_impl_item(def_id);
+        let impl_item = tcx.hir().expect_impl_item(def_id);
 
-        let mut table = Self::new(genv.sess, genv.tcx);
+        let mut table = Self::new(tcx, sess);
 
         // Insert generics from parent impl
-        if let Some(parent_impl_did) = genv.tcx.impl_of_method(def_id.to_def_id()) {
-            let parent_impl_item = genv.tcx.hir().expect_item(parent_impl_did.expect_local());
+        if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
+            let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                table.insert_generics(genv.tcx, parent.generics);
+                table.insert_generics(tcx, parent.generics);
                 table.collect_from_ty(parent.self_ty)?;
             }
         }
 
-        table.insert_generics(genv.tcx, impl_item.generics);
+        table.insert_generics(tcx, impl_item.generics);
         match &impl_item.kind {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
@@ -249,7 +254,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
         Ok(table)
     }
 
-    fn new(sess: &'genv FluxSession, tcx: TyCtxt<'tcx>) -> NameResTable<'genv, 'tcx> {
+    fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession) -> NameResTable<'sess, 'tcx> {
         NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
     }
 

@@ -65,8 +65,8 @@ pub fn check_fn_sig(
 struct ZipChecker<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
-    /// Id of the definition being checked, this could either a field on a struct,
-    /// a variant on a enum or a function.
+    /// DefId of the definition being checked, this could either be a field on a struct,
+    /// a variant on a enum, or a function.
     def_id: DefId,
 }
 
