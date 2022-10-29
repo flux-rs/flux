@@ -13,7 +13,7 @@ use rustc_span::Symbol;
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
-    fhir::{self, ConstInfo, UifDef, VariantIdx},
+    fhir::{self, ConstInfo, VariantIdx},
     intern::List,
     rty::{self, Binders},
     rustc,
@@ -60,7 +60,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
         for adt_def in map.adts() {
             let def_id = adt_def.def_id;
-            let adt_def = rty::conv::ConvCtxt::conv_adt_def(self, adt_def);
+            let adt_def = rty::conv::conv_adt_def(self.tcx, adt_def);
             self.adt_defs.get_mut().insert(def_id, adt_def);
         }
         for (name, uif_def) in map.uifs() {
@@ -78,23 +78,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
         self.check_asserts = behavior;
-    }
-
-    pub fn register_uif_def(&mut self, name: Symbol, uif_def: UifDef) {
-        let inputs = uif_def
-            .inputs
-            .into_iter()
-            .map(rty::conv::conv_sort)
-            .collect();
-        let output = rty::conv::conv_sort(uif_def.output);
-
-        self.uif_defs.insert(name, rty::UifDef { inputs, output });
-    }
-
-    pub fn register_adt_def(&mut self, adt_def: &fhir::AdtDef) {
-        let def_id = adt_def.def_id;
-        let adt_def = rty::conv::ConvCtxt::conv_adt_def(self, adt_def);
-        self.adt_defs.get_mut().insert(def_id, adt_def);
     }
 
     /// This function must be called after all adts are registered
