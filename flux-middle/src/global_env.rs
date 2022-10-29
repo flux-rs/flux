@@ -84,7 +84,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn register_struct_def_variant(&mut self, def_id: LocalDefId, struct_def: fhir::StructDef) {
-        let adt_def = &self.map()[def_id];
+        let adt_def = &self.map().adt(def_id);
         let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, adt_def, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
         self.adt_variants

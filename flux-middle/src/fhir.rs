@@ -291,16 +291,12 @@ impl Map {
         Some(&adt_def.refined_by)
     }
 
+    pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {
+        &self.adts[&def_id]
+    }
+
     pub fn adts(&self) -> impl Iterator<Item = &AdtDef> {
         self.adts.values()
-    }
-}
-
-impl std::ops::Index<LocalDefId> for Map {
-    type Output = AdtDef;
-
-    fn index(&self, def_id: LocalDefId) -> &Self::Output {
-        &self.adts[&def_id]
     }
 }
 

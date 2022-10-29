@@ -153,7 +153,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             .try_for_each_exhaust(|(def_id, struct_def)| {
                 let struct_def =
                     desugar::desugar_struct_def(genv.tcx, genv.sess, genv.map(), struct_def)?;
-                Wf::new(genv).check_struct_def(&genv.map()[def_id], &struct_def)?;
+                Wf::new(genv).check_struct_def(genv.map().adt(def_id), &struct_def)?;
                 genv.register_struct_def_variant(def_id, struct_def);
                 Ok(())
             })?;

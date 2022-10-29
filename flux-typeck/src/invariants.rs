@@ -4,6 +4,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{AdtDef, Invariant},
 };
+use rustc_span::Span;
 
 use crate::{
     constraint_gen::Tag,
@@ -15,12 +16,17 @@ pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) -> Result<(), ErrorG
     adt_def
         .invariants()
         .iter()
-        .try_for_each_exhaust(|invariant| check_invariant(genv, adt_def, invariant))
+        .enumerate()
+        .try_for_each_exhaust(|(idx, invariant)| {
+            let span = genv.map().adt(adt_def.def_id().expect_local()).invariants[idx].span;
+            check_invariant(genv, adt_def, span, invariant)
+        })
 }
 
 fn check_invariant(
     genv: &GlobalEnv,
     adt_def: &AdtDef,
+    span: Span,
     invariant: &Invariant,
 ) -> Result<(), ErrorGuaranteed> {
     let mut refine_tree = RefineTree::new();
@@ -47,10 +53,7 @@ fn check_invariant(
     let mut fcx = FixpointCtxt::new(genv, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
     fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uif_defs)
-        .map_err(|_| {
-            genv.sess
-                .emit_err(errors::Invalid { span: invariant.source_info.span() })
-        })
+        .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
 }
 
 mod errors {

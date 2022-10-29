@@ -18,7 +18,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
-use rustc_span::{SpanData, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
@@ -44,12 +43,6 @@ pub struct AdtDefData {
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct Invariant {
     pub pred: Binders<Expr>,
-    /// The source span of the invariant. Used for error reporting.
-    ///
-    /// FIXME(nlehmann) We should't be storing spans here. Probably a
-    /// better approach would be to assign a unique id to the invariant
-    /// (akin to DefId) and keep the span information somewhere else.
-    pub source_info: SpanData,
 }
 
 pub type PolyVariant = Binders<VariantDef>;
@@ -556,7 +549,6 @@ impl BaseTy {
                     Expr::binary_op(BinOp::Ge, Expr::bvar(BoundVar::NU), Expr::zero()),
                     vec![Sort::Int],
                 ),
-                source_info: DUMMY_SP.data(),
             }
         });
 

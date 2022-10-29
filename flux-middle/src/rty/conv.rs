@@ -369,10 +369,7 @@ impl NameMap {
         r
     }
     fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {
-        rty::Invariant {
-            pred: Binders::new(self.conv_expr(invariant, 1), sorts),
-            source_info: invariant.span.data(),
-        }
+        rty::Invariant { pred: Binders::new(self.conv_expr(invariant, 1), sorts) }
     }
 
     fn conv_params(&mut self, params: &[fhir::Param]) -> Vec<rty::Sort> {
