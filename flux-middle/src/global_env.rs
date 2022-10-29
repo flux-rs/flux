@@ -5,7 +5,10 @@ use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::FxHashMap;
-use rustc_hir::{def_id::DefId, LangItem};
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    LangItem,
+};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
@@ -13,18 +16,11 @@ use rustc_span::Symbol;
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
-    fhir::{self, UifDef, VariantIdx},
+    fhir::{self, VariantIdx},
     intern::List,
     rty::{self, Binders},
     rustc,
 };
-
-#[derive(Debug)]
-pub struct ConstInfo {
-    pub def_id: DefId,
-    pub sym: Symbol,
-    pub val: i128,
-}
 
 #[derive(Debug)]
 pub struct OpaqueStructErr(pub DefId);
@@ -33,58 +29,53 @@ pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
-    pub consts: Vec<ConstInfo>,
+    map: fhir::Map,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
     pub uif_defs: FxHashMap<Symbol, rty::UifDef>,
     check_asserts: AssertBehavior,
-    /// Some functions can only to be called after all annotated adts have been
-    /// registered. We use this flag to check at runtime that this is actually the
-    /// case.
-    adts_registered: bool,
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession) -> Self {
+    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession, map: fhir::Map) -> Self {
         let check_asserts = CONFIG.check_asserts;
+
+        let mut adt_defs = FxHashMap::default();
+        for adt_def in map.adts() {
+            let adt_def = rty::conv::conv_adt_def(tcx, adt_def);
+            adt_defs.insert(adt_def.def_id(), adt_def);
+        }
+
+        let mut uif_defs = FxHashMap::default();
+        for (name, uif_def) in map.uifs() {
+            let inputs = uif_def
+                .inputs
+                .iter()
+                .map(|sort| rty::conv::conv_sort(*sort))
+                .collect();
+            let output = rty::conv::conv_sort(uif_def.output);
+
+            uif_defs.insert(*name, rty::UifDef { inputs, output });
+        }
 
         GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
-            consts: vec![],
-            adt_defs: RefCell::new(FxHashMap::default()),
+            adt_defs: RefCell::new(adt_defs),
             adt_variants: RefCell::new(FxHashMap::default()),
             tcx,
             sess,
             check_asserts,
-            adts_registered: false,
-            uif_defs: FxHashMap::default(),
+            uif_defs,
+            map,
         }
+    }
+
+    pub fn map(&self) -> &fhir::Map {
+        &self.map
     }
 
     pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
         self.check_asserts = behavior;
-    }
-
-    pub fn register_uif_def(&mut self, name: Symbol, uif_def: UifDef) {
-        let inputs = uif_def
-            .inputs
-            .into_iter()
-            .map(rty::conv::conv_sort)
-            .collect();
-        let output = rty::conv::conv_sort(uif_def.output);
-
-        self.uif_defs.insert(name, rty::UifDef { inputs, output });
-    }
-
-    pub fn register_adt_def(&mut self, adt_def: &fhir::AdtDef) {
-        let def_id = adt_def.def_id;
-        let adt_def = rty::conv::ConvCtxt::conv_adt_def(self, adt_def);
-        self.adt_defs.get_mut().insert(def_id, adt_def);
-    }
-
-    /// This function must be called after all adts are registered
-    pub fn finish_adt_registration(&mut self) {
-        self.adts_registered = true;
     }
 
     pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: fhir::FnSig) {
@@ -92,15 +83,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fn_sigs.get_mut().insert(def_id, fn_sig);
     }
 
-    pub fn register_struct_def_variant(
-        &mut self,
-        def_id: DefId,
-        adt_data: &fhir::AdtDef,
-        struct_def: fhir::StructDef,
-    ) {
-        let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, adt_data, &struct_def);
+    pub fn register_struct_def_variant(&mut self, def_id: LocalDefId, struct_def: fhir::StructDef) {
+        let adt_def = &self.map()[def_id];
+        let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, adt_def, &struct_def);
         let variants = variant.map(|variant_def| vec![variant_def]);
-        self.adt_variants.get_mut().insert(def_id, variants);
+        self.adt_variants
+            .get_mut()
+            .insert(def_id.to_def_id(), variants);
     }
 
     pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: fhir::EnumDef) {
@@ -128,7 +117,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn adt_def(&self, def_id: DefId) -> rty::AdtDef {
-        debug_assert!(self.adts_registered);
         self.adt_defs
             .borrow_mut()
             .entry(def_id)

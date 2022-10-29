@@ -3,23 +3,19 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::{
-    fhir::{self, AdtMap},
-    global_env::ConstInfo,
-};
+use flux_middle::fhir::{self, Map};
 use flux_syntax::surface::{self, Res};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 pub fn desugar_qualifier(
     sess: &FluxSession,
-    consts: &[ConstInfo],
+    map: &Map,
     qualifier: surface::Qualifier,
 ) -> Result<fhir::Qualifier, ErrorGuaranteed> {
-    let mut binders = Binders::new(sess, consts);
+    let mut binders = Binders::new(sess, map);
     binders.insert_params(qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
     let expr = binders.as_expr_ctxt().desugar_expr(qualifier.expr);
@@ -53,34 +49,34 @@ pub fn resolve_sorts(
 
 pub fn desugar_adt_def(
     sess: &FluxSession,
-    consts: &[ConstInfo],
+    map: &fhir::Map,
     def_id: DefId,
     params: &surface::Params,
     invariants: Vec<surface::Expr>,
     opaque: bool,
 ) -> Result<fhir::AdtDef, ErrorGuaranteed> {
-    let mut binders = Binders::new(sess, consts);
+    let mut binders = Binders::new(sess, map);
     binders.insert_params(params)?;
 
     let invariants = invariants
         .into_iter()
         .map(|invariant| binders.as_expr_ctxt().desugar_expr(invariant))
         .try_collect_exhaust()?;
+
     let refined_by = binders.into_params();
     Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
 }
 
 pub fn desugar_struct_def(
     sess: &FluxSession,
-    consts: &[ConstInfo],
-    adt_sorts: &AdtMap,
+    map: &Map,
     adt_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut binders = Binders::new(sess, consts);
+    let mut binders = Binders::new(sess, map);
     binders.insert_params(adt_def.refined_by.into_iter().flatten())?;
 
-    let mut cx = DesugarCtxt::new(binders, adt_sorts);
+    let mut cx = DesugarCtxt::new(binders, map);
 
     let kind = if adt_def.opaque {
         fhir::StructKind::Opaque
@@ -97,17 +93,16 @@ pub fn desugar_struct_def(
 
 pub fn desugar_enum_def(
     sess: &FluxSession,
-    consts: &[ConstInfo],
-    adt_sorts: &AdtMap,
+    map: &Map,
     enum_def: surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let mut binders = Binders::new(sess, consts);
+    let mut binders = Binders::new(sess, map);
     binders.insert_params(enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
     let variants = enum_def
         .variants
         .into_iter()
-        .map(|variant| desugar_variant(sess, adt_sorts, consts, variant))
+        .map(|variant| desugar_variant(sess, map, variant))
         .try_collect_exhaust()?;
 
     let refined_by = binders.into_params();
@@ -117,15 +112,14 @@ pub fn desugar_enum_def(
 
 fn desugar_variant(
     sess: &FluxSession,
-    adt_sorts: &AdtMap,
-    consts: &[ConstInfo],
+    map: &Map,
     variant: surface::VariantDef<Res>,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
-    let mut binders = Binders::new(sess, consts);
+    let mut binders = Binders::new(sess, map);
     for ty in &variant.fields {
-        binders.ty_gather_params(ty, adt_sorts)?;
+        binders.ty_gather_params(ty, map)?;
     }
-    let mut cx = DesugarCtxt::new(binders, adt_sorts);
+    let mut cx = DesugarCtxt::new(binders, map);
 
     let fields = variant
         .fields
@@ -140,13 +134,12 @@ fn desugar_variant(
 
 pub fn desugar_fn_sig(
     sess: &FluxSession,
-    adt_sorts: &AdtMap,
-    consts: &[ConstInfo],
+    map: &Map,
     fn_sig: surface::FnSig<Res>,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
-    let mut binders = Binders::new(sess, consts);
-    binders.gather_fn_sig_params(&fn_sig, adt_sorts)?;
-    let mut cx = DesugarCtxt::new(binders, adt_sorts);
+    let mut binders = Binders::new(sess, map);
+    binders.gather_fn_sig_params(&fn_sig, map)?;
+    let mut cx = DesugarCtxt::new(binders, map);
 
     if let Some(e) = fn_sig.requires {
         let e = cx.binders.as_expr_ctxt().desugar_expr(e)?;
@@ -188,7 +181,7 @@ pub struct DesugarCtxt<'a> {
     binders: Binders<'a>,
     sess: &'a FluxSession,
     requires: Vec<fhir::Constraint>,
-    adt_map: &'a AdtMap,
+    adt_map: &'a Map,
 }
 
 /// Keeps track of the names in scope and a mapping between symbols in the surface syntax
@@ -197,7 +190,7 @@ struct Binders<'a> {
     sess: &'a FluxSession,
     name_gen: IndexGen<fhir::Name>,
     map: FxIndexMap<surface::Ident, Binder>,
-    const_map: FxHashMap<Symbol, DefId>,
+    fhir_map: &'a fhir::Map,
 }
 
 /// The different kind of binders that can appear in the surface syntax
@@ -225,7 +218,7 @@ enum Binder {
 
 struct ExprCtxt<'a> {
     sess: &'a FluxSession,
-    const_map: &'a FxHashMap<Symbol, DefId>,
+    map: &'a fhir::Map,
     binders: &'a FxIndexMap<surface::Ident, Binder>,
 }
 
@@ -244,7 +237,7 @@ impl BtyOrTy {
 }
 
 impl<'a> DesugarCtxt<'a> {
-    fn new(binders: Binders<'a>, adt_map: &'a AdtMap) -> DesugarCtxt<'a> {
+    fn new(binders: Binders<'a>, adt_map: &'a Map) -> DesugarCtxt<'a> {
         DesugarCtxt { sess: binders.sess, binders, requires: vec![], adt_map }
     }
 
@@ -471,7 +464,7 @@ impl ExprCtxt<'_> {
     }
 
     fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
-        let kind = match (self.binders.get(&ident), self.const_map.get(&ident.name)) {
+        let kind = match (self.binders.get(&ident), self.map.const_by_name(ident.name)) {
             (Some(Binder::Single(name, _)), _) => {
                 fhir::ExprKind::Var(*name, ident.name, ident.span)
             }
@@ -490,7 +483,7 @@ impl ExprCtxt<'_> {
                     .sess
                     .emit_err(errors::InvalidUnrefinedParam::new(ident)))
             }
-            (None, Some(const_id)) => fhir::ExprKind::Const(*const_id, ident.span),
+            (None, Some(const_info)) => fhir::ExprKind::Const(const_info.def_id, ident.span),
             (None, None) => return Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
         };
         Ok(fhir::Expr { kind, span: ident.span })
@@ -573,12 +566,12 @@ pub fn resolve_sort(
 }
 
 impl<'a> Binders<'a> {
-    fn new(sess: &'a FluxSession, consts: &[ConstInfo]) -> Binders<'a> {
-        let const_map: FxHashMap<Symbol, DefId> = consts
-            .iter()
-            .map(|const_info| (const_info.sym, const_info.def_id))
-            .collect();
-        Binders { sess, name_gen: IndexGen::new(), map: FxIndexMap::default(), const_map }
+    fn new(sess: &'a FluxSession, fhir_map: &'a fhir::Map) -> Binders<'a> {
+        // let const_map: FxHashMap<Symbol, DefId> = map
+        //     .consts()
+        //     .map(|const_info| (const_info.sym, const_info.def_id))
+        //     .collect();
+        Binders { sess, name_gen: IndexGen::new(), map: FxIndexMap::default(), fhir_map }
     }
 
     fn fresh(&self) -> fhir::Name {
@@ -633,7 +626,7 @@ impl<'a> Binders<'a> {
     fn gather_fn_sig_params(
         &mut self,
         fn_sig: &surface::FnSig<Res>,
-        adt_sorts: &AdtMap,
+        adt_sorts: &Map,
     ) -> Result<(), ErrorGuaranteed> {
         for arg in &fn_sig.args {
             self.arg_gather_params(arg, adt_sorts)?;
@@ -644,7 +637,7 @@ impl<'a> Binders<'a> {
     fn arg_gather_params(
         &mut self,
         arg: &surface::Arg<Res>,
-        adt_map: &AdtMap,
+        adt_map: &Map,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
@@ -663,7 +656,7 @@ impl<'a> Binders<'a> {
     fn ty_gather_params(
         &mut self,
         ty: &surface::Ty<Res>,
-        adt_map: &AdtMap,
+        adt_map: &Map,
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
@@ -702,7 +695,7 @@ impl<'a> Binders<'a> {
     }
 
     fn as_expr_ctxt(&self) -> ExprCtxt {
-        ExprCtxt { sess: self.sess, const_map: &self.const_map, binders: &self.map }
+        ExprCtxt { sess: self.sess, map: &self.fhir_map, binders: &self.map }
     }
 
     fn into_params(self) -> Vec<fhir::Param> {
@@ -728,7 +721,7 @@ fn param_from_ident(ident: surface::Ident, name: fhir::Name, sort: fhir::Sort) -
     fhir::Param { name, sort }
 }
 
-fn sorts<'a>(adt_sorts: &'a AdtMap, path: &surface::Path<Res>) -> &'a [fhir::Sort] {
+fn sorts<'a>(adt_sorts: &'a Map, path: &surface::Path<Res>) -> &'a [fhir::Sort] {
     match path.ident {
         Res::Bool => &[fhir::Sort::Bool],
         Res::Int(_) | Res::Uint(_) => &[fhir::Sort::Int],
@@ -756,7 +749,7 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
 }
 
 impl Binder {
-    fn new(name_gen: &IndexGen<fhir::Name>, adt_map: &AdtMap, path: &surface::Path<Res>) -> Binder {
+    fn new(name_gen: &IndexGen<fhir::Name>, adt_map: &Map, path: &surface::Path<Res>) -> Binder {
         match path.ident {
             Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool),
             Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int),

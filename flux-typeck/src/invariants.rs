@@ -44,7 +44,7 @@ fn check_invariant(
 
         rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.indices), Tag::Other);
     }
-    let mut fcx = FixpointCtxt::new(&genv.consts, Default::default());
+    let mut fcx = FixpointCtxt::new(genv, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
     fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uif_defs)
         .map_err(|_| {
