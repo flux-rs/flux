@@ -62,6 +62,7 @@ pub fn desugar_adt_def(
         .into_iter()
         .map(|invariant| binders.as_expr_ctxt().desugar_expr(invariant))
         .try_collect_exhaust()?;
+
     let refined_by = binders.into_params();
     Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
 }

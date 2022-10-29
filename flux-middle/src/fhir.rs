@@ -40,7 +40,7 @@ pub struct ConstInfo {
 #[derive(Default, Debug)]
 pub struct Map {
     adts: FxHashMap<LocalDefId, AdtDef>,
-    consts: FxHashMap<LocalDefId, ConstInfo>,
+    consts: FxHashMap<Symbol, ConstInfo>,
     uifs: FxHashMap<Symbol, UifDef>,
 }
 
@@ -257,8 +257,8 @@ impl AdtDef {
 }
 
 impl Map {
-    pub fn insert_const(&mut self, def_id: LocalDefId, c: ConstInfo) {
-        self.consts.insert(def_id, c);
+    pub fn insert_const(&mut self, c: ConstInfo) {
+        self.consts.insert(c.sym, c);
     }
 
     pub fn consts(&self) -> impl Iterator<Item = &ConstInfo> {
@@ -266,13 +266,7 @@ impl Map {
     }
 
     pub fn const_by_name(&self, name: Symbol) -> Option<&ConstInfo> {
-        // FIXME(nilehmann) index this
-        for c in self.consts() {
-            if c.sym == name {
-                return Some(c);
-            }
-        }
-        None
+        self.consts.get(&name)
     }
 
     pub fn insert_uif(&mut self, symb: Symbol, uif: UifDef) {

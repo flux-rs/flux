@@ -261,7 +261,7 @@ fn build_map(
             if !is_ignored(tcx, &specs.ignores, def_id) {
                 let did = def_id.to_def_id();
                 let sym = def_id_symbol(tcx, def_id);
-                map.insert_const(def_id, ConstInfo { def_id: did, sym, val: const_sig.val });
+                map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
             }
             Ok(())
         })?;
