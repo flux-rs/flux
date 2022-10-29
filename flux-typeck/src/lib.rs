@@ -38,7 +38,6 @@ pub fn check<'a, 'tcx>(
     genv: &GlobalEnv<'a, 'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
-    qualifiers: &[rty::Qualifier],
 ) -> Result<(), ErrorGuaranteed> {
     let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
     let mut kvars = fixpoint::KVarStore::new();
@@ -52,7 +51,7 @@ pub fn check<'a, 'tcx>(
 
     let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-    match fcx.check(genv.tcx, def_id, constraint, qualifiers, &genv.uif_defs) {
+    match fcx.check(def_id, constraint) {
         Ok(_) => Ok(()),
         Err(tags) => report_errors(genv, body.span(), tags),
     }

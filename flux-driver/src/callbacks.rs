@@ -4,13 +4,12 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, ConstInfo},
     global_env::GlobalEnv,
-    rty, rustc,
+    rustc,
 };
 use flux_syntax::surface;
 use flux_typeck::{self as typeck, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
@@ -79,11 +78,18 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         return Ok(());
     }
 
-    let map = build_map(tcx, sess, &mut specs)?;
+    let map = build_fhir_map(tcx, sess, &mut specs)?;
+    check_wf(tcx, sess, &map)?;
 
     let mut genv = GlobalEnv::new(tcx, sess, map);
+    // Assert behavior from Crate config
+    // TODO(atgeller) rest of settings from crate config
+    if let Some(crate_config) = specs.crate_config {
+        let assert_behavior = crate_config.check_asserts;
+        genv.register_assert_behavior(assert_behavior);
+    }
 
-    let ck = CrateChecker::new(&mut genv, specs)?;
+    let ck = CrateChecker::new(&mut genv, specs.ignores);
 
     if ck.ignores.contains(&IgnoreKey::Crate) {
         return Ok(());
@@ -97,113 +103,41 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     items
         .chain(impl_items)
-        .filter(|owner_id| !ck.is_assumed(*owner_id) && !is_ignored(tcx, &ck.ignores, *owner_id))
+        // .filter(|owner_id| !ck.is_assumed(*owner_id) && !is_ignored(tcx, &ck.ignores, *owner_id))
         .try_for_each_exhaust(|def_id| ck.check_item(def_id))
 }
 
-struct CrateChecker<'a, 'genv, 'tcx> {
-    genv: &'a mut GlobalEnv<'genv, 'tcx>,
-    qualifiers: Vec<rty::Qualifier>,
-    assume: FxHashSet<LocalDefId>,
+struct CrateChecker<'genv, 'tcx> {
+    genv: &'genv mut GlobalEnv<'genv, 'tcx>,
     ignores: Ignores,
 }
 
-/// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
-/// any enclosing mod has been marked as `ignore`
-fn is_ignored(tcx: TyCtxt, ignores: &Ignores, def_id: LocalDefId) -> bool {
-    let parent_def_id = tcx.parent_module_from_def_id(def_id);
-    if parent_def_id == def_id {
-        false
-    } else {
-        ignores.contains(&IgnoreKey::Module(parent_def_id))
-            || is_ignored(tcx, ignores, parent_def_id)
-    }
-}
-
-impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
-    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>, specs: Specs) -> Result<Self, ErrorGuaranteed> {
-        let mut assume = FxHashSet::default();
-
-        genv.map()
-            .adts()
-            .try_for_each_exhaust(|adt_def| Wf::new(genv).check_adt_def(adt_def))?;
-
-        // Qualifiers
-        let qualifiers: Vec<rty::Qualifier> = specs
-            .qualifs
-            .into_iter()
-            .map(|qualifier| {
-                let qualifier = desugar::desugar_qualifier(genv.sess, genv.map(), qualifier)?;
-                Wf::new(genv).check_qualifier(&qualifier)?;
-                Ok(rty::conv::ConvCtxt::conv_qualifier(&qualifier))
-            })
-            .try_collect_exhaust()?;
-
-        // Assert behavior from Crate config
-        // TODO(atgeller) rest of settings from crate config
-        if let Some(crate_config) = specs.crate_config {
-            let assert_behavior = crate_config.check_asserts;
-            genv.register_assert_behavior(assert_behavior);
-        }
-
-        // Register variants
-        specs
-            .structs
-            .into_iter()
-            .try_for_each_exhaust(|(def_id, struct_def)| {
-                let struct_def =
-                    desugar::desugar_struct_def(genv.tcx, genv.sess, genv.map(), struct_def)?;
-                Wf::new(genv).check_struct_def(genv.map().adt(def_id), &struct_def)?;
-                genv.register_struct_def_variant(def_id, struct_def);
-                Ok(())
-            })?;
-
-        specs
-            .enums
-            .into_iter()
-            .try_for_each_exhaust(|(def_id, enum_def)| {
-                let enum_def =
-                    desugar::desugar_enum_def(genv.tcx, genv.sess, genv.map(), enum_def)?;
-                Wf::new(genv).check_enum_def(&enum_def)?;
-                genv.register_enum_def_variants(def_id.to_def_id(), enum_def);
-                Ok(())
-            })?;
-
-        let aliases = specs.aliases;
-
-        // Function signatures
-        specs
-            .fns
-            .into_iter()
-            .try_for_each_exhaust(|(def_id, spec)| {
-                if spec.assume {
-                    assume.insert(def_id);
-                }
-                if !is_ignored(genv.tcx, &specs.ignores, def_id) {
-                    if let Some(fn_sig) = spec.fn_sig {
-                        let fn_sig = surface::expand::expand_sig(genv.sess, &aliases, fn_sig)?;
-                        let fn_sig = desugar::desugar_fn_sig(
-                            genv.tcx,
-                            genv.sess,
-                            genv.map(),
-                            def_id,
-                            fn_sig,
-                        )?;
-                        Wf::new(genv).check_fn_sig(&fn_sig)?;
-                        genv.register_fn_sig(def_id.to_def_id(), fn_sig);
-                    }
-                }
-                Ok(())
-            })?;
-
-        Ok(CrateChecker { genv, qualifiers, assume, ignores: specs.ignores })
+impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
+    fn new(genv: &'genv mut GlobalEnv<'genv, 'tcx>, ignores: Ignores) -> Self {
+        CrateChecker { genv, ignores }
     }
 
     fn is_assumed(&self, def_id: LocalDefId) -> bool {
-        self.assume.contains(&def_id)
+        self.genv.map().assumed(def_id.to_def_id())
+    }
+
+    /// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
+    /// any enclosing mod has been marked as `ignore`
+    fn is_ignored(&self, def_id: LocalDefId) -> bool {
+        let parent_def_id = self.genv.tcx.parent_module_from_def_id(def_id);
+        if parent_def_id == def_id {
+            false
+        } else {
+            self.ignores.contains(&IgnoreKey::Module(parent_def_id))
+                || self.is_ignored(parent_def_id)
+        }
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        if self.is_assumed(def_id) {
+            return Ok(());
+        }
+
         let mir = unsafe { mir_storage::retrieve_mir_body(self.genv.tcx, def_id).body };
 
         // HACK(nilehmann) this will ignore any code generated by a macro. This is
@@ -227,10 +161,14 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
-        typeck::check(self.genv, def_id.to_def_id(), &body, &self.qualifiers)
+        typeck::check(self.genv, def_id.to_def_id(), &body)
     }
 
     fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        if self.is_ignored(def_id) {
+            return Ok(());
+        }
+
         match self.genv.tcx.def_kind(def_id.to_def_id()) {
             DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
             DefKind::Enum | DefKind::Struct => self.check_adt_invariants(def_id),
@@ -247,37 +185,36 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     }
 }
 
-fn build_map(
+fn build_fhir_map(
     tcx: TyCtxt,
     sess: &FluxSession,
     specs: &mut Specs,
 ) -> Result<fhir::Map, ErrorGuaranteed> {
     let mut map = fhir::Map::default();
 
+    let mut err: Option<ErrorGuaranteed> = None;
+
     // Register Consts
-    std::mem::take(&mut specs.consts)
-        .into_iter()
-        .try_for_each_exhaust(|(def_id, const_sig)| {
-            if !is_ignored(tcx, &specs.ignores, def_id) {
-                let did = def_id.to_def_id();
-                let sym = def_id_symbol(tcx, def_id);
-                map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
-            }
-            Ok(())
-        })?;
+    for (def_id, const_sig) in std::mem::take(&mut specs.consts) {
+        let did = def_id.to_def_id();
+        let sym = def_id_symbol(tcx, def_id);
+        map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
+    }
 
     // Register UIFs
-    std::mem::take(&mut specs.uifs)
+    err = std::mem::take(&mut specs.uifs)
         .into_iter()
         .try_for_each_exhaust(|uif_def| {
             let name = uif_def.name;
             let uif_def = desugar::resolve_uif_def(sess, uif_def)?;
             map.insert_uif(name.name, uif_def);
             Ok(())
-        })?;
+        })
+        .err()
+        .or(err);
 
-    // Register AdtDefs for structs
-    specs
+    // Register AdtDefs
+    err = specs
         .structs
         .iter_mut()
         .try_for_each_exhaust(|(def_id, def)| {
@@ -292,10 +229,10 @@ fn build_map(
             )?;
             map.insert_adt(*def_id, adt_def);
             Ok(())
-        })?;
-
-    // Register AdtDefs for enums
-    specs
+        })
+        .err()
+        .or(err);
+    err = specs
         .enums
         .iter_mut()
         .try_for_each_exhaust(|(def_id, def)| {
@@ -310,9 +247,97 @@ fn build_map(
             )?;
             map.insert_adt(*def_id, adt_def);
             Ok(())
-        })?;
+        })
+        .err()
+        .or(err);
 
-    Ok(map)
+    if let Some(err) = err {
+        return Err(err);
+    }
+
+    // Qualifiers
+    err = std::mem::take(&mut specs.qualifs)
+        .into_iter()
+        .try_for_each_exhaust(|qualifier| {
+            let qualifier = desugar::desugar_qualifier(sess, &map, qualifier)?;
+            map.insert_qualifier(qualifier);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    // Variants
+    err = std::mem::take(&mut specs.structs)
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, struct_def)| {
+            map.insert_struct(def_id, desugar::desugar_struct_def(tcx, sess, &map, struct_def)?);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    err = std::mem::take(&mut specs.enums)
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, enum_def)| {
+            map.insert_enum(def_id, desugar::desugar_enum_def(tcx, sess, &map, enum_def)?);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    // FnSigs
+    let aliases = std::mem::take(&mut specs.aliases);
+    err = std::mem::take(&mut specs.fns)
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, spec)| {
+            if let Some(fn_sig) = spec.fn_sig {
+                let fn_sig = surface::expand::expand_sig(sess, &aliases, fn_sig)?;
+                let fn_sig = desugar::desugar_fn_sig(tcx, sess, &map, def_id, fn_sig)?;
+                map.insert_fn_sig(def_id, fn_sig, spec.assume);
+            }
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    if let Some(err) = err {
+        Err(err)
+    } else {
+        Ok(map)
+    }
+}
+
+fn check_wf(tcx: TyCtxt, sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
+    let wf = Wf::new(tcx, sess, map);
+
+    let mut err: Option<ErrorGuaranteed> = None;
+
+    for adt_def in map.adts() {
+        err = wf.check_adt_def(adt_def).err().or(err);
+    }
+
+    for qualifier in map.qualifiers() {
+        err = wf.check_qualifier(qualifier).err().or(err);
+    }
+
+    for struct_def in map.structs() {
+        let refined_by = map.refined_by(struct_def.def_id).unwrap();
+        err = wf.check_struct_def(refined_by, struct_def).err().or(err);
+    }
+
+    for enum_def in map.enums() {
+        err = wf.check_enum_def(enum_def).err().or(err);
+    }
+
+    for (_, fn_sig) in map.fn_sigs() {
+        err = wf.check_fn_sig(fn_sig).err().or(err);
+    }
+
+    if let Some(err) = err {
+        Err(err)
+    } else {
+        Ok(())
+    }
 }
 
 fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
