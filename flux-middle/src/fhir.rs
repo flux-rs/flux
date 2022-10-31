@@ -37,6 +37,10 @@ pub struct ConstInfo {
     pub val: i128,
 }
 
+/// A map between rust definitions and flux annotations in their desugared `fhir` form.
+///
+/// note: `Map` is a very generic name, so we typically qualify the type as `fhir::Map` when
+/// using it.
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
@@ -45,6 +49,7 @@ pub struct Map {
     adts: FxHashMap<LocalDefId, AdtDef>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
+    /// The `bool` tells whether the function has a `#[flux::assume]` annotation.
     fns: FxHashMap<LocalDefId, (FnSig, bool)>,
 }
 

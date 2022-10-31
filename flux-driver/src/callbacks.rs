@@ -103,8 +103,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     items
         .chain(impl_items)
-        // .filter(|owner_id| !ck.is_assumed(*owner_id) && !is_ignored(tcx, &ck.ignores, *owner_id))
-        .try_for_each_exhaust(|def_id| ck.check_item(def_id))
+        .try_for_each_exhaust(|def_id| ck.check_def(def_id))
 }
 
 struct CrateChecker<'genv, 'tcx> {
@@ -130,6 +129,18 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         } else {
             self.ignores.contains(&IgnoreKey::Module(parent_def_id))
                 || self.is_ignored(parent_def_id)
+        }
+    }
+
+    fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        if self.is_ignored(def_id) {
+            return Ok(());
+        }
+
+        match self.genv.tcx.def_kind(def_id.to_def_id()) {
+            DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
+            DefKind::Enum | DefKind::Struct => self.check_adt_invariants(def_id),
+            _ => Ok(()),
         }
     }
 
@@ -162,18 +173,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
         typeck::check(self.genv, def_id.to_def_id(), &body)
-    }
-
-    fn check_item(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_ignored(def_id) {
-            return Ok(());
-        }
-
-        match self.genv.tcx.def_kind(def_id.to_def_id()) {
-            DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
-            DefKind::Enum | DefKind::Struct => self.check_adt_invariants(def_id),
-            _ => Ok(()),
-        }
     }
 
     fn check_adt_invariants(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
