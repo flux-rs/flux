@@ -9,7 +9,7 @@ use rustc_target::abi::VariantIdx;
 
 use super::{Binders, PolyVariant, VariantRet};
 use crate::{
-    fhir::{self, AdtDef},
+    fhir,
     global_env::GlobalEnv,
     intern::List,
     rty::{self, DebruijnIndex},
@@ -56,24 +56,24 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: fhir::FnSig) -> rty::Binders<rty::FnSig> {
+    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::Binders<rty::FnSig> {
         let mut cx = ConvCtxt::new(genv);
 
         let params = cx.conv_params(&fn_sig.params);
 
         let mut requires = vec![];
-        for constr in fn_sig.requires {
-            requires.push(cx.conv_constr(&constr, 1));
+        for constr in &fn_sig.requires {
+            requires.push(cx.conv_constr(constr, 1));
         }
 
         let mut args = vec![];
-        for ty in fn_sig.args {
-            args.push(cx.conv_ty(&ty, 1));
+        for ty in &fn_sig.args {
+            args.push(cx.conv_ty(ty, 1));
         }
 
         let mut ensures = vec![];
-        for constr in fn_sig.ensures {
-            ensures.push(cx.conv_constr(&constr, 1));
+        for constr in &fn_sig.ensures {
+            ensures.push(cx.conv_constr(constr, 1));
         }
 
         let ret = cx.conv_ty(&fn_sig.ret, 1);
@@ -82,13 +82,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn conv_enum_def_variants(
-        genv: &mut GlobalEnv,
-        enum_def: fhir::EnumDef,
+        genv: &GlobalEnv,
+        enum_def: &fhir::EnumDef,
     ) -> Option<Vec<PolyVariant>> {
         let mut cx = ConvCtxt::new(genv);
         let variants: Vec<PolyVariant> = enum_def
             .variants
-            .into_iter()
+            .iter()
             .map(|variant| cx.conv_variant(variant))
             .collect();
 
@@ -102,18 +102,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_variant(&mut self, variant: fhir::VariantDef) -> PolyVariant {
+    fn conv_variant(&mut self, variant: &fhir::VariantDef) -> PolyVariant {
         let sorts = self.conv_params(&variant.params);
         let fields = variant
             .fields
             .iter()
             .map(|ty| self.conv_ty(ty, 1))
             .collect_vec();
-        let variant = rty::VariantDef::new(fields, self.conv_variant_ret(variant.ret));
+        let variant = rty::VariantDef::new(fields, self.conv_variant_ret(&variant.ret));
         Binders::new(variant, sorts)
     }
 
-    fn conv_variant_ret(&mut self, ret: fhir::VariantRet) -> VariantRet {
+    fn conv_variant_ret(&mut self, ret: &fhir::VariantRet) -> VariantRet {
         let indices = ret
             .indices
             .indices
@@ -125,11 +125,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
-        adt_data: &AdtDef,
+        refined_by: &[fhir::Param],
         struct_def: &fhir::StructDef,
     ) -> Option<rty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
-        let sorts = cx.conv_params(&adt_data.refined_by);
+        let sorts = cx.conv_params(refined_by);
         let def_id = struct_def.def_id;
         let rustc_adt = genv.tcx.adt_def(def_id);
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {

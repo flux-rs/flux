@@ -5,10 +5,7 @@ use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::FxHashMap;
-use rustc_hir::{
-    def_id::{DefId, LocalDefId},
-    LangItem,
-};
+use rustc_hir::{def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
@@ -28,11 +25,12 @@ pub struct OpaqueStructErr(pub DefId);
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
+    pub uif_defs: FxHashMap<Symbol, rty::UifDef>,
+    pub qualifiers: Vec<rty::Qualifier>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     map: fhir::Map,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
-    pub uif_defs: FxHashMap<Symbol, rty::UifDef>,
     check_asserts: AssertBehavior,
 }
 
@@ -57,16 +55,53 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
             uif_defs.insert(*name, rty::UifDef { inputs, output });
         }
+        let mut qualifiers = vec![];
+        for qualifier in map.qualifiers() {
+            qualifiers.push(rty::conv::ConvCtxt::conv_qualifier(qualifier));
+        }
 
-        GlobalEnv {
+        let mut genv = GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(adt_defs),
             adt_variants: RefCell::new(FxHashMap::default()),
+            qualifiers,
             tcx,
             sess,
             check_asserts,
             uif_defs,
             map,
+        };
+        genv.register_struct_def_variants();
+        genv.register_enum_def_variants();
+        genv.register_fn_sigs();
+
+        genv
+    }
+
+    fn register_struct_def_variants(&mut self) {
+        for struct_def in self.map.structs() {
+            let def_id = struct_def.def_id;
+            let refined_by = self.map().refined_by(struct_def.def_id).unwrap();
+            let variant =
+                rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def);
+            let variants = variant.map(|variant_def| vec![variant_def]);
+            self.adt_variants.get_mut().insert(def_id, variants);
+        }
+    }
+
+    fn register_enum_def_variants(&mut self) {
+        for enum_def in self.map.enums() {
+            let def_id = enum_def.def_id;
+            if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
+                self.adt_variants.get_mut().insert(def_id, Some(variants));
+            }
+        }
+    }
+
+    fn register_fn_sigs(&mut self) {
+        for (def_id, fn_sig) in self.map.fn_sigs() {
+            let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
+            self.fn_sigs.get_mut().insert(def_id, fn_sig);
         }
     }
 
@@ -76,26 +111,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
         self.check_asserts = behavior;
-    }
-
-    pub fn register_fn_sig(&mut self, def_id: DefId, fn_sig: fhir::FnSig) {
-        let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
-        self.fn_sigs.get_mut().insert(def_id, fn_sig);
-    }
-
-    pub fn register_struct_def_variant(&mut self, def_id: LocalDefId, struct_def: fhir::StructDef) {
-        let adt_def = &self.map().adt(def_id);
-        let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, adt_def, &struct_def);
-        let variants = variant.map(|variant_def| vec![variant_def]);
-        self.adt_variants
-            .get_mut()
-            .insert(def_id.to_def_id(), variants);
-    }
-
-    pub fn register_enum_def_variants(&mut self, def_id: DefId, enum_def: fhir::EnumDef) {
-        if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
-            self.adt_variants.get_mut().insert(def_id, Some(variants));
-        }
     }
 
     pub fn lookup_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {

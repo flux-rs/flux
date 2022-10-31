@@ -52,7 +52,7 @@ fn check_invariant(
     }
     let mut fcx = FixpointCtxt::new(genv, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uif_defs)
+    fcx.check(adt_def.def_id(), constraint)
         .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
 }
 

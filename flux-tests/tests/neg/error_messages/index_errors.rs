@@ -7,11 +7,6 @@ pub struct Chair {
     pub x: i32,
 }
 
-#[flux::sig(fn () -> Chair[0])] //~ ERROR this type takes 0 refinement parameters but 1 was found
-pub fn mk_chair() -> Chair {
-    Chair { x: 0 }
-}
-
 #[flux::refined_by(x:int, y:int)]
 pub struct Pair {
     #[flux::field(i32[@x])]

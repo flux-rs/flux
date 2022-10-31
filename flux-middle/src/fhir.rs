@@ -16,7 +16,7 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
-use std::{fmt, fmt::Write};
+use std::{borrow::Cow, fmt, fmt::Write};
 
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
@@ -37,11 +37,20 @@ pub struct ConstInfo {
     pub val: i128,
 }
 
+/// A map between rust definitions and flux annotations in their desugared `fhir` form.
+///
+/// note: `Map` is a very generic name, so we typically qualify the type as `fhir::Map` when
+/// using it.
 #[derive(Default, Debug)]
 pub struct Map {
-    adts: FxHashMap<LocalDefId, AdtDef>,
-    consts: FxHashMap<Symbol, ConstInfo>,
     uifs: FxHashMap<Symbol, UifDef>,
+    consts: FxHashMap<Symbol, ConstInfo>,
+    qualifiers: Vec<Qualifier>,
+    adts: FxHashMap<LocalDefId, AdtDef>,
+    structs: FxHashMap<LocalDefId, StructDef>,
+    enums: FxHashMap<LocalDefId, EnumDef>,
+    /// The `bool` tells whether the function has a `#[flux::assume]` annotation.
+    fns: FxHashMap<LocalDefId, (FnSig, bool)>,
 }
 
 #[derive(Debug)]
@@ -257,6 +266,59 @@ impl AdtDef {
 }
 
 impl Map {
+    // Qualifiers
+
+    pub fn insert_qualifier(&mut self, qualifier: Qualifier) {
+        self.qualifiers.push(qualifier);
+    }
+
+    pub fn qualifiers(&self) -> impl Iterator<Item = &Qualifier> {
+        self.qualifiers.iter()
+    }
+
+    // FnSigs
+
+    pub fn insert_fn_sig(&mut self, def_id: LocalDefId, fn_sig: FnSig, assume: bool) {
+        self.fns.insert(def_id, (fn_sig, assume));
+    }
+
+    pub fn fn_sigs(&self) -> impl Iterator<Item = (DefId, &FnSig)> {
+        self.fns
+            .iter()
+            .map(|(def_id, (fn_sig, _))| (def_id.to_def_id(), fn_sig))
+    }
+
+    pub fn assumed(&self, def_id: DefId) -> bool {
+        if let Some(def_id) = def_id.as_local() &&
+           let Some((_, assumed)) = self.fns.get(&def_id) {
+            *assumed
+        } else {
+            false
+        }
+    }
+
+    // Structs
+
+    pub fn insert_struct(&mut self, def_id: LocalDefId, struct_def: StructDef) {
+        self.structs.insert(def_id, struct_def);
+    }
+
+    pub fn structs(&self) -> impl Iterator<Item = &StructDef> {
+        self.structs.values()
+    }
+
+    // Enums
+
+    pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef) {
+        self.enums.insert(def_id, enum_def);
+    }
+
+    pub fn enums(&self) -> impl Iterator<Item = &EnumDef> {
+        self.enums.values()
+    }
+
+    // Consts
+
     pub fn insert_const(&mut self, c: ConstInfo) {
         self.consts.insert(c.sym, c);
     }
@@ -269,6 +331,8 @@ impl Map {
         self.consts.get(&name)
     }
 
+    // UIF
+
     pub fn insert_uif(&mut self, symb: Symbol, uif: UifDef) {
         self.uifs.insert(symb, uif);
     }
@@ -276,6 +340,12 @@ impl Map {
     pub fn uifs(&self) -> impl Iterator<Item = (&Symbol, &UifDef)> {
         self.uifs.iter()
     }
+
+    pub fn uif(&self, sym: Symbol) -> Option<&UifDef> {
+        self.uifs.get(&sym)
+    }
+
+    // ADT
 
     pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
         self.adts.insert(def_id, sort_info);
@@ -489,5 +559,16 @@ impl fmt::Debug for Sort {
             Sort::Int => write!(f, "int"),
             Sort::Loc => write!(f, "loc"),
         }
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        let cow = match self {
+            Sort::Bool => Cow::Borrowed("bool"),
+            Sort::Int => Cow::Borrowed("int"),
+            Sort::Loc => Cow::Borrowed("loc"),
+        };
+        rustc_errors::DiagnosticArgValue::Str(cow)
     }
 }

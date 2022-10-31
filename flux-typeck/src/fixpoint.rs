@@ -55,7 +55,8 @@ type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
 type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxHashMap<DefId, ConstInfo>;
 
-pub struct FixpointCtxt<T> {
+pub struct FixpointCtxt<'genv, 'tcx, T> {
+    genv: &'genv GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
     fixpoint_kvars: IndexVec<fixpoint::KVid, Vec<fixpoint::Sort>>,
     kvid_map: KVidMap,
@@ -71,15 +72,16 @@ struct ConstInfo {
     val: i128,
 }
 
-impl<T> FixpointCtxt<T>
+impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
-    T: std::hash::Hash + Eq + Copy,
+    Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: &GlobalEnv, kvars: KVarStore) -> Self {
+    pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
         let const_map = fixpoint_const_map(genv, &name_gen);
         Self {
             kvars,
+            genv,
             name_gen,
             fixpoint_kvars: IndexVec::new(),
             kvid_map: KVidMap::default(),
@@ -119,12 +121,9 @@ where
 
     pub fn check(
         self,
-        tcx: TyCtxt,
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
-        qualifiers: &[rty::Qualifier],
-        uifs: &FxHashMap<Symbol, rty::UifDef>,
-    ) -> Result<(), Vec<T>> {
+    ) -> Result<(), Vec<Tag>> {
         let kvars = self
             .fixpoint_kvars
             .into_iter_enumerated()
@@ -136,7 +135,9 @@ where
             closed_constraint = Self::assume_const_val(closed_constraint, const_info);
         }
 
-        let qualifiers = qualifiers
+        let qualifiers = self
+            .genv
+            .qualifiers
             .iter()
             .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
             .collect();
@@ -147,14 +148,16 @@ where
             .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
-        let uifs = uifs
+        let uifs = self
+            .genv
+            .uif_defs
             .iter()
             .map(|(sym, uif_def)| uif_def_to_fixpoint(sym, uif_def))
             .collect_vec();
 
         let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
         if CONFIG.dump_constraint {
-            dump_constraint(tcx, did, &task, ".smt2").unwrap();
+            dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
         }
 
         match task.check() {
@@ -171,7 +174,7 @@ where
         }
     }
 
-    pub fn tag_idx(&mut self, tag: T) -> TagIdx {
+    pub fn tag_idx(&mut self, tag: Tag) -> TagIdx {
         *self
             .tags_inv
             .entry(tag)
