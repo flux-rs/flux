@@ -250,6 +250,8 @@ fn build_fhir_map(
         .err()
         .or(err);
 
+    // Desugaring after this depends on the `fhir::Map` containing the information
+    // collected before, so we bail out if there's any error at this point.
     if let Some(err) = err {
         return Err(err);
     }
