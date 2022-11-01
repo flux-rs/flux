@@ -489,7 +489,6 @@ mod pretty {
     use flux_common::format::PadAdapter;
     use flux_middle::{intern::List, pretty::*};
     use itertools::Itertools;
-    use rustc_middle::ty::TyCtxt;
 
     use super::*;
 
@@ -549,10 +548,6 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
-        }
-
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
         }
     }
 
@@ -657,15 +652,11 @@ mod pretty {
                             NodeKind::ForAll(name, sort) => {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }
-                            NodeKind::Guard(e) => f(&format_args!("{:?}", e)),
+                            NodeKind::Guard(pred) => f(&format_args_cx!("{:?}", pred)),
                             NodeKind::Conj | NodeKind::Head(..) => unreachable!(),
                         }
                     })
             )
-        }
-
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
         }
     }
 

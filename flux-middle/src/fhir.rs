@@ -427,8 +427,14 @@ impl fmt::Debug for Constraint {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::BaseTy(bty) => write!(f, "{bty:?}"),
-            Ty::Indexed(bty, e) => fmt_bty(bty, Some(e), f),
+            Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
+            Ty::Indexed(bty, idxs) => {
+                write!(f, "{bty:?}")?;
+                if !idxs.indices.is_empty() {
+                    write!(f, "[{:?}]", idxs.indices.iter().format(", "))?;
+                }
+                Ok(())
+            }
             Ty::Exists(bty, binders, p) => {
                 write!(f, "{bty:?}{{{binders:?} : {p:?}}}")
             }
@@ -456,40 +462,17 @@ impl fmt::Debug for ArrayLen {
 
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_bty(self, None, f)
-    }
-}
-
-fn fmt_bty(bty: &BaseTy, e: Option<&Indices>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match bty {
-        BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
-        BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
-        BaseTy::Bool => write!(f, "bool")?,
-        BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
-    }
-    match bty {
-        BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool => {
-            if let Some(e) = e {
-                write!(f, "<{e:?}>")?;
-            }
+        match self {
+            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
+            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
+            BaseTy::Bool => write!(f, "bool")?,
+            BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
         }
-        BaseTy::Adt(_, args) => {
-            if !args.is_empty() || e.is_some() {
-                write!(f, "<")?;
-            }
-            write!(f, "{:?}", args.iter().format(", "))?;
-            if let Some(e) = e {
-                if !args.is_empty() {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{:?}", e)?;
-            }
-            if !args.is_empty() || e.is_some() {
-                write!(f, ">")?;
-            }
+        if let BaseTy::Adt(_, substs) = self && !substs.is_empty() {
+            write!(f, "<{:?}>", substs.iter().format(", "))?;
         }
+        Ok(())
     }
-    Ok(())
 }
 
 impl fmt::Debug for Indices {
