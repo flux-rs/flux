@@ -685,6 +685,7 @@ mod pretty {
 
     use flux_middle::pretty::*;
     use itertools::Itertools;
+    use rustc_middle::ty::TyCtxt;
 
     use super::*;
 
@@ -710,6 +711,10 @@ mod pretty {
                         }
                     })
             )
+        }
+
+        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+            PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
         }
     }
 

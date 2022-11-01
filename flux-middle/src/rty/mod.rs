@@ -659,10 +659,6 @@ impl KVar {
     pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
         KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
     }
-
-    fn all_args(&self) -> impl Iterator<Item = &Expr> {
-        self.args.iter().chain(&self.scope)
-    }
 }
 
 #[track_caller]
@@ -790,7 +786,13 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Indexed(bty, indices) => fmt_bty(bty, indices, cx, f),
+                TyKind::Indexed(bty, idxs) => {
+                    w!("{:?}", bty)?;
+                    if !idxs.is_empty() {
+                        w!("[{:?}]", join!(", ", idxs))?;
+                    }
+                    Ok(())
+                }
                 TyKind::Exists(bty, pred) => {
                     if pred.is_trivially_true() {
                         w!("{:?}{{}}", bty)
@@ -812,50 +814,29 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Hide)
+            PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
         }
     }
 
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            fmt_bty(self, &[], cx, f)
-        }
-    }
-
-    fn fmt_bty(
-        bty: &BaseTy,
-        indices: &[Index],
-        cx: &PPrintCx,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        define_scoped!(cx, f);
-        match bty {
-            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
-            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
-            BaseTy::Bool => w!("bool")?,
-            BaseTy::Str => w!("str")?,
-            BaseTy::Char => w!("char")?,
-            BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
-            BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
-            BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
-            BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
-        }
-        if let BaseTy::Adt(_, args) = bty {
-            if !args.is_empty() || !indices.is_empty() {
-                w!("<")?;
+            define_scoped!(cx, f);
+            match self {
+                BaseTy::Int(int_ty) => w!("{}", ^int_ty.name_str())?,
+                BaseTy::Uint(uint_ty) => w!("{}", ^uint_ty.name_str())?,
+                BaseTy::Bool => w!("bool")?,
+                BaseTy::Str => w!("str")?,
+                BaseTy::Char => w!("char")?,
+                BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
+                BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
+                BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
+                BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
             }
-            w!("{:?}", join!(", ", args))?;
-            if !args.is_empty() && !indices.is_empty() {
-                w!(", ")?;
+            if let BaseTy::Adt(_, args) = self && !args.is_empty() {
+                w!("<{:?}>", join!(", ", args))?;
             }
-            w!("{:?}", join!(", ", indices))?;
-            if !args.is_empty() || !indices.is_empty() {
-                w!(">")?;
-            }
-        } else if !indices.is_empty() {
-            w!("<{:?}>", join!(", ", indices))?;
+            Ok(())
         }
-        Ok(())
     }
 
     impl Pretty for GenericArg {
@@ -908,9 +889,11 @@ mod pretty {
             define_scoped!(cx, f);
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
-                Visibility::Show => w!("({:?})", join!(", ", self.all_args()))?,
-                Visibility::Truncate(n) => w!("({:?})", join!(", ", self.all_args().take(n)))?,
-                Visibility::Hide => {}
+                KVarArgs::All => {
+                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?
+                }
+                KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
+                KVarArgs::Hide => {}
             }
             Ok(())
         }
