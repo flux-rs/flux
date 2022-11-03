@@ -666,13 +666,30 @@ impl TypeFoldable for Binding {
     }
 }
 
+fn downcast(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[GenericArg],
+    exprs: &[Expr],
+) -> Result<Vec<Ty>, OpaqueStructErr> {
+    if genv.tcx.adt_def(def_id).is_struct() {
+        downcast_struct(genv, def_id, variant_idx, substs, exprs)
+    } else if genv.tcx.adt_def(def_id).is_enum() {
+        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
+    } else {
+        panic!("Downcast without struct or enum!")
+    }
+}
+
 /// `downcast` on struct works as follows
 /// Given a struct definition
-///     struct Foo<A..>[(i...)] { fld : T, ...}
+///     struct S<A..>[(i...)] { fld : T, ...}
 /// and a
-///     * "place" `x: T<t..>[e..]`
+///     * "place" `x: S<t..>[e..]`
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
-///     * `x.fld : T[A := t ..]<i := e...>`
+///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 fn downcast_struct(
     genv: &GlobalEnv,
@@ -692,7 +709,7 @@ fn downcast_struct(
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
 /// Given
 ///     * a "place" `x : T[i..]`
-///     * a "variant" of type `forall z..,(y:t...) => T[j...]`
+///     * a "variant" of type `forall z..,(y:t...) => E[j...]`
 /// We want `downcast` to return a vector of types _and an assertion_ by
 ///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
 ///     2. *Unpack* the fields using `y:t'...`
@@ -716,23 +733,6 @@ fn downcast_enum(
     rcx.assume_pred(constr);
 
     Ok(variant_def.fields.to_vec())
-}
-
-fn downcast(
-    genv: &GlobalEnv,
-    rcx: &mut RefineCtxt,
-    def_id: DefId,
-    variant_idx: VariantIdx,
-    substs: &[GenericArg],
-    exprs: &[Expr],
-) -> Result<Vec<Ty>, OpaqueStructErr> {
-    if genv.tcx.adt_def(def_id).is_struct() {
-        downcast_struct(genv, def_id, variant_idx, substs, exprs)
-    } else if genv.tcx.adt_def(def_id).is_enum() {
-        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
-    } else {
-        panic!("Downcast without struct or enum!")
-    }
 }
 
 mod pretty {
