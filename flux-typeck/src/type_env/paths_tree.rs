@@ -40,7 +40,7 @@ pub(super) enum LocKind {
 
 impl Clone for Root {
     fn clone(&self) -> Root {
-        Root { kind: self.kind, ptr: self.ptr.borrow().clone().into_ptr() }
+        Root { kind: self.kind, ptr: self.ptr.deep_clone() }
     }
 }
 
@@ -61,75 +61,6 @@ impl LookupResult {
 impl Root {
     fn new(node: Node, kind: LocKind) -> Root {
         Root { kind, ptr: node.into_ptr() }
-    }
-}
-
-/// `downcast` on struct works as follows
-/// Given a struct definition
-///     struct Foo<A..>[(i...)] { fld : T, ...}
-/// and a
-///     * "place" `x: T<t..>[e..]`
-/// the `downcast` returns a vector of `ty` for each `fld` of `x` where
-///     * `x.fld : T[A := t ..]<i := e...>`
-/// i.e. by substituting the type and value indices using the types and values from `x`.
-fn downcast_struct(
-    genv: &GlobalEnv,
-    def_id: DefId,
-    variant_idx: VariantIdx,
-    substs: &[GenericArg],
-    exprs: &[Expr],
-) -> Result<Vec<Ty>, OpaqueStructErr> {
-    Ok(genv
-        .variant(def_id, variant_idx)?
-        .replace_bound_vars(exprs)
-        .replace_generic_args(substs)
-        .fields
-        .to_vec())
-}
-
-/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
-/// Given
-///     * a "place" `x : T[i..]`
-///     * a "variant" of type `forall z..,(y:t...) => T[j...]`
-/// We want `downcast` to return a vector of types _and an assertion_ by
-///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
-///     2. *Unpack* the fields using `y:t'...`
-///     3. *Assert* the constraint `i == j'...`
-fn downcast_enum(
-    genv: &GlobalEnv,
-    rcx: &mut RefineCtxt,
-    def_id: DefId,
-    variant_idx: VariantIdx,
-    substs: &[GenericArg],
-    exprs: &[Expr],
-) -> Result<Vec<Ty>, OpaqueStructErr> {
-    let variant_def = genv
-        .variant(def_id, variant_idx)?
-        .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
-        .replace_generic_args(substs);
-
-    debug_assert_eq!(variant_def.ret.indices.len(), exprs.len());
-    let constr =
-        Expr::and(iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(idx, e)));
-    rcx.assume_pred(constr);
-
-    Ok(variant_def.fields.to_vec())
-}
-
-fn downcast(
-    genv: &GlobalEnv,
-    rcx: &mut RefineCtxt,
-    def_id: DefId,
-    variant_idx: VariantIdx,
-    substs: &[GenericArg],
-    exprs: &[Expr],
-) -> Result<Vec<Ty>, OpaqueStructErr> {
-    if genv.tcx.adt_def(def_id).is_struct() {
-        downcast_struct(genv, def_id, variant_idx, substs, exprs)
-    } else if genv.tcx.adt_def(def_id).is_enum() {
-        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
-    } else {
-        panic!("Downcast without struct or enum!")
     }
 }
 
@@ -163,50 +94,43 @@ impl PathsTree {
     }
 
     pub fn get(&self, path: &Path) -> Binding {
-        let mut node = &*self.map.get(&path.loc).unwrap().ptr.borrow();
-        for f in path.projection() {
-            match node {
-                Node::Leaf(_) => panic!("expected `Node::Adt`"),
-                Node::Internal(.., children) => node = &children[f.as_usize()],
-            }
-        }
-        match node {
+        let ptr = self.get_node(path);
+        let node = ptr.borrow();
+        match &*node {
             Node::Leaf(binding) => binding.clone(),
-            Node::Internal(..) => panic!("expcted `Node::Ty`"),
+            Node::Internal(..) => panic!("expected `Node::Leaf`"),
         }
+    }
+
+    fn get_node(&self, path: &Path) -> NodePtr {
+        let mut ptr = NodePtr::clone(&self.map.get(&path.loc).unwrap().ptr);
+        for f in path.projection() {
+            ptr = {
+                let node = ptr.borrow();
+                match &*node {
+                    Node::Leaf(_) => panic!("expected `Node::Internal`"),
+                    Node::Internal(.., children) => NodePtr::clone(&children[f.as_usize()]),
+                }
+            };
+        }
+        ptr
     }
 
     pub fn update_binding(&mut self, path: &Path, binding: Binding) {
-        self.get_node_mut(path, |node, _| {
-            *node = Node::Leaf(binding);
-        });
+        *self.get_node(path).borrow_mut() = Node::Leaf(binding)
     }
 
     pub fn update(&mut self, path: &Path, new_ty: Ty) {
-        self.get_node_mut(path, |node, _| {
-            *node.expect_owned_mut() = new_ty;
-        });
+        *self.get_node(path).borrow_mut().expect_owned_mut() = new_ty;
     }
 
     pub fn block(&mut self, path: &Path) {
-        self.get_node_mut(path, |node, _| {
-            match node {
-                Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
-                _ => panic!("expected owned binding"),
-            }
-        });
-    }
-
-    fn get_node_mut(&mut self, path: &Path, f: impl FnOnce(&mut Node, &mut LocMap)) {
-        let root = Rc::clone(&self.map.get(&path.loc).unwrap().ptr);
-        let mut node = &mut *root.borrow_mut();
-        for f in path.projection() {
-            match node {
-                Node::Leaf(_) => panic!("expected `Node::Adt"),
-                Node::Internal(.., children) => node = &mut children[f.as_usize()],
-            }
+        let ptr = self.get_node(path);
+        let mut node = ptr.borrow_mut();
+        match &mut *node {
+            Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
+            _ => panic!("expected owned binding"),
         }
-        f(node, &mut self.map);
     }
 
     pub(super) fn insert(&mut self, loc: Loc, ty: Ty, kind: LocKind) {
@@ -218,15 +142,16 @@ impl PathsTree {
     }
 
     pub fn iter(&self, mut f: impl FnMut(Path, &Binding)) {
-        fn go(node: &Node, loc: Loc, proj: &mut Vec<Field>, f: &mut impl FnMut(Path, &Binding)) {
-            match node {
+        fn go(ptr: &NodePtr, loc: Loc, proj: &mut Vec<Field>, f: &mut impl FnMut(Path, &Binding)) {
+            let node = ptr.borrow();
+            match &*node {
                 Node::Leaf(binding) => {
                     f(Path::new(loc, proj.as_slice()), binding);
                 }
                 Node::Internal(_, children) => {
-                    for (idx, node) in children.iter().enumerate() {
+                    for (idx, ptr) in children.iter().enumerate() {
                         proj.push(Field::from(idx));
-                        go(node, loc, proj, f);
+                        go(ptr, loc, proj, f);
                         proj.pop();
                     }
                 }
@@ -234,7 +159,7 @@ impl PathsTree {
         }
         let mut proj = vec![];
         for (loc, root) in &self.map {
-            go(&root.ptr.borrow(), *loc, &mut proj, &mut f);
+            go(&root.ptr, *loc, &mut proj, &mut f);
         }
     }
 
@@ -270,12 +195,10 @@ impl PathsTree {
             let loc = path.loc;
             let mut path_proj = vec![];
 
-            let root = Rc::clone(&self.map[&loc].ptr);
-
-            let mut node = &mut *root.borrow_mut();
+            let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
 
             for field in path.projection() {
-                node = node.proj(gen.genv, rcx, *field)?;
+                ptr = ptr.proj(gen.genv, rcx, *field)?;
                 path_proj.push(*field);
             }
 
@@ -283,13 +206,13 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        node = node.proj(gen.genv, rcx, field)?;
+                        ptr = ptr.proj(gen.genv, rcx, field)?;
                     }
                     PlaceElem::Downcast(variant_idx) => {
-                        node.downcast(gen.genv, rcx, variant_idx)?;
+                        ptr.downcast(gen.genv, rcx, variant_idx)?;
                     }
                     PlaceElem::Deref => {
-                        let ty = node.expect_owned();
+                        let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Ptr(_, ptr_path) => {
                                 path = ptr_path.clone();
@@ -306,7 +229,7 @@ impl PathsTree {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::Free(fresh);
-                                *node = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
+                                *ptr.borrow_mut() = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
                                 self.insert(loc, boxed.clone(), LocKind::Box);
                                 path = Path::from(loc);
                                 continue 'outer;
@@ -318,7 +241,7 @@ impl PathsTree {
             }
             return Ok(LookupResult::Ptr(
                 Path::new(loc, path_proj),
-                node.fold(&mut self.map, rcx, gen, true, close_boxes),
+                ptr.fold(&mut self.map, rcx, gen, true, close_boxes),
             ));
         }
     }
@@ -377,14 +300,14 @@ impl PathsTree {
         let mut paths = self.paths();
         paths.sort();
         for path in paths.into_iter().rev() {
-            self.get_node_mut(&path, |node, map| {
-                if let Node::Leaf(Binding::Owned(ty)) = node &&
-                   let TyKind::BoxPtr(loc, _) = ty.kind() &&
-                   !scope.contains(*loc)
-                {
-                    node.fold(map, rcx, gen, false, true);
-                }
-            });
+            let ptr = self.get_node(&path);
+            let mut node = ptr.borrow_mut();
+            if let Node::Leaf(Binding::Owned(ty)) = &mut *node &&
+                let TyKind::BoxPtr(loc, _) = ty.kind() &&
+                !scope.contains(*loc)
+            {
+                node.fold(&mut self.map, rcx, gen, false, true);
+            }
         }
     }
 
@@ -402,12 +325,13 @@ impl PathsTree {
     }
 }
 
-type NodePtr = Rc<RefCell<Node>>;
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct NodePtr(Rc<RefCell<Node>>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum Node {
     Leaf(Binding),
-    Internal(NodeKind, Vec<Node>),
+    Internal(NodeKind, Vec<NodePtr>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -424,8 +348,18 @@ enum NodeKind {
 }
 
 impl Node {
+    fn deep_clone(&self) -> Node {
+        match self {
+            Node::Leaf(binding) => Node::Leaf(binding.clone()),
+            Node::Internal(kind, children) => {
+                let children = children.iter().map(NodePtr::deep_clone).collect();
+                Node::Internal(kind.clone(), children)
+            }
+        }
+    }
+
     fn into_ptr(self) -> NodePtr {
-        Rc::new(RefCell::new(self))
+        NodePtr(Rc::new(RefCell::new(self)))
     }
 
     fn owned(ty: Ty) -> Node {
@@ -466,8 +400,9 @@ impl Node {
                 Node::Internal(NodeKind::Adt(_, variant2, _), children2),
             ) => {
                 if variant1 == variant2 {
-                    for (node1, node2) in iter::zip(children1, children2) {
-                        node1.join_with(gen, rcx, node2);
+                    for (ptr1, ptr2) in iter::zip(children1, children2) {
+                        ptr1.borrow_mut()
+                            .join_with(gen, rcx, &mut ptr2.borrow_mut());
                     }
                 } else {
                     self.fold(map, rcx, gen, false, false);
@@ -477,14 +412,15 @@ impl Node {
             (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
                 let max = usize::max(children1.len(), children2.len());
                 if let NodeKind::Uninit = kind1 {
-                    children1.resize(max, Node::owned(Ty::uninit()));
+                    children1.resize_with(max, || Node::owned(Ty::uninit()).into_ptr());
                 }
                 if let NodeKind::Uninit = kind2 {
-                    children1.resize(max, Node::owned(Ty::uninit()));
+                    children1.resize_with(max, || Node::owned(Ty::uninit()).into_ptr());
                 }
 
-                for (node1, node2) in iter::zip(children1, children2) {
-                    node1.join_with(gen, rcx, node2);
+                for (ptr1, ptr2) in iter::zip(children1, children2) {
+                    ptr1.borrow_mut()
+                        .join_with(gen, rcx, &mut ptr2.borrow_mut());
                 }
             }
         };
@@ -495,7 +431,7 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
-    ) -> Result<&mut Node, OpaqueStructErr> {
+    ) -> Result<&NodePtr, OpaqueStructErr> {
         if let Node::Leaf(_) = self {
             self.split(genv, rcx)?;
         }
@@ -503,9 +439,9 @@ impl Node {
             Node::Internal(kind, children) => {
                 if let NodeKind::Uninit = kind {
                     let max = usize::max(field.as_usize() + 1, children.len());
-                    children.resize(max, Node::owned(Ty::uninit()));
+                    children.resize_with(max, || Node::owned(Ty::uninit()).into_ptr());
                 }
-                Ok(&mut children[field.as_usize()])
+                Ok(&children[field.as_usize()])
             }
             Node::Leaf(..) => unreachable!(),
         }
@@ -531,7 +467,10 @@ impl Node {
                             &idxs.to_exprs(),
                         )?
                         .into_iter()
-                        .map(|ty| Node::owned(rcx.unpack_with(&ty, UnpackFlags::INVARIANTS)))
+                        .map(|ty| {
+                            let ty = rcx.unpack_with(&ty, UnpackFlags::INVARIANTS);
+                            Node::owned(ty).into_ptr()
+                        })
                         .collect();
                         *self = Node::Internal(
                             NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
@@ -554,7 +493,11 @@ impl Node {
         let ty = self.expect_owned();
         match ty.kind() {
             TyKind::Tuple(tys) => {
-                let children = tys.iter().cloned().map(Node::owned).collect();
+                let children = tys
+                    .iter()
+                    .cloned()
+                    .map(|ty| Node::owned(ty).into_ptr())
+                    .collect();
                 *self = Node::Internal(NodeKind::Tuple, children);
             }
             TyKind::Indexed(BaseTy::Adt(def, ..), ..) if def.is_struct() => {
@@ -637,10 +580,53 @@ impl Node {
             Node::Leaf(binding) => *binding = f(binding),
             Node::Internal(.., fields) => {
                 for field in fields {
-                    field.fmap_mut(f);
+                    field.borrow_mut().fmap_mut(f);
                 }
             }
         }
+    }
+}
+
+impl std::ops::Deref for NodePtr {
+    type Target = RefCell<Node>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl NodePtr {
+    fn deep_clone(&self) -> NodePtr {
+        self.borrow().deep_clone().into_ptr()
+    }
+
+    fn fold(
+        &self,
+        map: &mut LocMap,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        unblock: bool,
+        close_boxes: bool,
+    ) -> Ty {
+        self.borrow_mut().fold(map, rcx, gen, unblock, close_boxes)
+    }
+
+    fn proj(
+        &self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        field: Field,
+    ) -> Result<NodePtr, OpaqueStructErr> {
+        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field)?))
+    }
+
+    fn downcast(
+        &self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        variant_idx: VariantIdx,
+    ) -> Result<(), OpaqueStructErr> {
+        self.borrow_mut().downcast(genv, rcx, variant_idx)
     }
 }
 
@@ -677,6 +663,75 @@ impl TypeFoldable for Binding {
         match self {
             Binding::Owned(ty) | Binding::Blocked(ty) => ty.visit_with(visitor),
         }
+    }
+}
+
+/// `downcast` on struct works as follows
+/// Given a struct definition
+///     struct Foo<A..>[(i...)] { fld : T, ...}
+/// and a
+///     * "place" `x: T<t..>[e..]`
+/// the `downcast` returns a vector of `ty` for each `fld` of `x` where
+///     * `x.fld : T[A := t ..]<i := e...>`
+/// i.e. by substituting the type and value indices using the types and values from `x`.
+fn downcast_struct(
+    genv: &GlobalEnv,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[GenericArg],
+    exprs: &[Expr],
+) -> Result<Vec<Ty>, OpaqueStructErr> {
+    Ok(genv
+        .variant(def_id, variant_idx)?
+        .replace_bound_vars(exprs)
+        .replace_generic_args(substs)
+        .fields
+        .to_vec())
+}
+
+/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
+/// Given
+///     * a "place" `x : T[i..]`
+///     * a "variant" of type `forall z..,(y:t...) => T[j...]`
+/// We want `downcast` to return a vector of types _and an assertion_ by
+///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
+///     2. *Unpack* the fields using `y:t'...`
+///     3. *Assert* the constraint `i == j'...`
+fn downcast_enum(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[GenericArg],
+    exprs: &[Expr],
+) -> Result<Vec<Ty>, OpaqueStructErr> {
+    let variant_def = genv
+        .variant(def_id, variant_idx)?
+        .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
+        .replace_generic_args(substs);
+
+    debug_assert_eq!(variant_def.ret.indices.len(), exprs.len());
+    let constr =
+        Expr::and(iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(idx, e)));
+    rcx.assume_pred(constr);
+
+    Ok(variant_def.fields.to_vec())
+}
+
+fn downcast(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    def_id: DefId,
+    variant_idx: VariantIdx,
+    substs: &[GenericArg],
+    exprs: &[Expr],
+) -> Result<Vec<Ty>, OpaqueStructErr> {
+    if genv.tcx.adt_def(def_id).is_struct() {
+        downcast_struct(genv, def_id, variant_idx, substs, exprs)
+    } else if genv.tcx.adt_def(def_id).is_enum() {
+        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
+    } else {
+        panic!("Downcast without struct or enum!")
     }
 }
 

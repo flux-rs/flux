@@ -75,7 +75,6 @@ impl TypeEnv {
         TypeEnvInfer::new(rcx, gen, scope, self)
     }
 
-    #[track_caller]
     pub fn lookup_place(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -264,7 +263,7 @@ impl TypeEnv {
     ) -> Result<(), OpaqueStructErr> {
         self.bindings.close_boxes(rcx, gen, &bb_env.scope);
 
-        // Look up path to make sure they are properly folded/unfolded
+        // Look up paths to make sure they are properly unfolded
         for path in bb_env.bindings.paths() {
             self.bindings.lookup_path(rcx, gen, &path)?;
         }
