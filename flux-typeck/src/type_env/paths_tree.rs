@@ -44,16 +44,26 @@ impl Clone for Root {
     }
 }
 
-pub enum LookupResult {
-    Ptr(Path, Ty),
+pub struct LookupResult<'a> {
+    tree: &'a mut PathsTree,
+    kind: LookupKind,
+}
+
+enum LookupKind {
+    Node(Path, NodePtr),
     Ref(RefKind, Ty),
 }
 
-impl LookupResult {
+pub enum FoldResult {
+    Strg(Path, Ty),
+    Ref(RefKind, Ty),
+}
+
+impl FoldResult {
     pub fn ty(&self) -> Ty {
         match self {
-            LookupResult::Ptr(_, ty) => ty.clone(),
-            LookupResult::Ref(_, ty) => ty.clone(),
+            FoldResult::Strg(_, ty) => ty.clone(),
+            FoldResult::Ref(_, ty) => ty.clone(),
         }
     }
 }
@@ -65,32 +75,31 @@ impl Root {
 }
 
 impl PathsTree {
-    pub fn lookup_place(
-        &mut self,
+    pub fn lookup_place<'a>(
+        &'a mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         place: &Place,
-    ) -> Result<LookupResult, OpaqueStructErr> {
+    ) -> Result<LookupResult<'a>, OpaqueStructErr> {
         self.lookup_place_iter(
+            genv,
             rcx,
-            gen,
             Loc::Local(place.local),
             &mut place.projection.iter().copied(),
-            true,
         )
     }
 
-    pub fn lookup_path(
-        &mut self,
+    pub fn lookup_path<'a>(
+        &'a mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         path: &Path,
-    ) -> Result<LookupResult, OpaqueStructErr> {
+    ) -> Result<LookupResult<'a>, OpaqueStructErr> {
         let mut proj = path
             .projection()
             .iter()
             .map(|field| PlaceElem::Field(*field));
-        self.lookup_place_iter(rcx, gen, path.loc, &mut proj, false)
+        self.lookup_place_iter(genv, rcx, path.loc, &mut proj)
     }
 
     pub fn get(&self, path: &Path) -> Binding {
@@ -182,14 +191,13 @@ impl PathsTree {
         }
     }
 
-    fn lookup_place_iter(
-        &mut self,
+    fn lookup_place_iter<'a>(
+        &'a mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         loc: Loc,
         place_proj: &mut impl Iterator<Item = PlaceElem>,
-        close_boxes: bool,
-    ) -> Result<LookupResult, OpaqueStructErr> {
+    ) -> Result<LookupResult<'a>, OpaqueStructErr> {
         let mut path = Path::from(loc);
         'outer: loop {
             let loc = path.loc;
@@ -198,7 +206,7 @@ impl PathsTree {
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
 
             for field in path.projection() {
-                ptr = ptr.proj(gen.genv, rcx, *field)?;
+                ptr = ptr.proj(genv, rcx, *field)?;
                 path_proj.push(*field);
             }
 
@@ -206,10 +214,10 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        ptr = ptr.proj(gen.genv, rcx, field)?;
+                        ptr = ptr.proj(genv, rcx, field)?;
                     }
                     PlaceElem::Downcast(variant_idx) => {
-                        ptr.downcast(gen.genv, rcx, variant_idx)?;
+                        ptr.downcast(genv, rcx, variant_idx)?;
                     }
                     PlaceElem::Deref => {
                         let ty = ptr.borrow().expect_owned();
@@ -222,8 +230,13 @@ impl PathsTree {
                                 path = Path::from(Loc::Free(*loc));
                                 continue 'outer;
                             }
-                            TyKind::Ref(mode, ty) => {
-                                return Self::lookup_place_iter_ty(rcx, gen, *mode, ty, place_proj);
+                            TyKind::Ref(rk, ty) => {
+                                let (rk, ty) =
+                                    Self::lookup_place_iter_ty(genv, rcx, *rk, ty, place_proj)?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Ref(rk, ty),
+                                });
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let (boxed, alloc) = box_args(substs);
@@ -239,20 +252,21 @@ impl PathsTree {
                     }
                 }
             }
-            return Ok(LookupResult::Ptr(
-                Path::new(loc, path_proj),
-                ptr.fold(&mut self.map, rcx, gen, true, close_boxes),
-            ));
+
+            return Ok(LookupResult {
+                tree: self,
+                kind: LookupKind::Node(Path::new(loc, path_proj), ptr),
+            });
         }
     }
 
     fn lookup_place_iter_ty(
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         mut rk: RefKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
-    ) -> Result<LookupResult, OpaqueStructErr> {
+    ) -> Result<(RefKind, Ty), OpaqueStructErr> {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
@@ -270,7 +284,7 @@ impl PathsTree {
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
                     let fields = downcast(
-                        gen.genv,
+                        genv,
                         rcx,
                         adt.def_id(),
                         VariantIdx::from_u32(0),
@@ -281,7 +295,7 @@ impl PathsTree {
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
                     let tys = downcast(
-                        gen.genv,
+                        genv,
                         rcx,
                         adt_def.def_id(),
                         variant_idx,
@@ -290,10 +304,10 @@ impl PathsTree {
                     )?;
                     ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
-                _ => unreachable!("{elem:?} {ty:?}"),
+                _ => todo!("{elem:?} {ty:?}"),
             }
         }
-        Ok(LookupResult::Ref(rk, ty))
+        Ok((rk, ty))
     }
 
     pub fn close_boxes(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, scope: &Scope) {
@@ -345,6 +359,17 @@ enum NodeKind {
     Adt(AdtDef, VariantIdx, Substs),
     Tuple,
     Uninit,
+}
+
+impl LookupResult<'_> {
+    pub fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, close_boxes: bool) -> FoldResult {
+        match self.kind {
+            LookupKind::Node(path, ptr) => {
+                FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
+            }
+            LookupKind::Ref(rk, ty) => FoldResult::Ref(rk, ty),
+        }
+    }
 }
 
 impl Node {
