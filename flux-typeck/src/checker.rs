@@ -568,9 +568,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    let tag = Tag::Goto(Some(src_info.span), target);
-                    let gen = &mut self.phase.constr_gen(self.genv, &rcx, tag);
-                    env.downcast(&mut rcx, gen, &place, variant_idx)
+                    env.downcast(self.genv, &mut rcx, &place, variant_idx)
                         .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
                 }
             }

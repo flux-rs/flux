@@ -4,7 +4,7 @@ use std::iter;
 
 use flux_common::index::IndexGen;
 use flux_middle::{
-    global_env::OpaqueStructErr,
+    global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
         box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Index,
@@ -339,14 +339,14 @@ impl TypeEnv {
 
     pub fn downcast(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         place: &Place,
         variant_idx: VariantIdx,
     ) -> Result<(), OpaqueStructErr> {
         let mut down_place = place.clone();
         down_place.projection.push(PlaceElem::Downcast(variant_idx));
-        self.lookup_place(rcx, gen, &down_place)?;
+        self.bindings.lookup(genv, rcx, &down_place)?;
         Ok(())
     }
 }
