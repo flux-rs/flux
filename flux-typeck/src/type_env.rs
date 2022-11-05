@@ -83,7 +83,7 @@ impl TypeEnv {
     ) -> Result<Ty, OpaqueStructErr> {
         Ok(self
             .bindings
-            .lookup_place(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place)?
             .fold(rcx, gen, true)
             .ty())
     }
@@ -96,7 +96,7 @@ impl TypeEnv {
     ) -> Result<Ty, OpaqueStructErr> {
         Ok(self
             .bindings
-            .lookup_path(gen.genv, rcx, path)?
+            .lookup(gen.genv, rcx, path)?
             .fold(rcx, gen, false)
             .ty())
     }
@@ -114,7 +114,7 @@ impl TypeEnv {
     ) -> Result<Ty, OpaqueStructErr> {
         let ty = match self
             .bindings
-            .lookup_place(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place)?
             .fold(rcx, gen, true)
         {
             FoldResult::Strg(path, _) => Ty::ptr(rk, path),
@@ -135,7 +135,7 @@ impl TypeEnv {
     ) -> Result<(), OpaqueStructErr> {
         match self
             .bindings
-            .lookup_place(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place)?
             .fold(rcx, gen, true)
         {
             FoldResult::Strg(path, _) => {
@@ -159,7 +159,7 @@ impl TypeEnv {
     ) -> Result<Ty, OpaqueStructErr> {
         match self
             .bindings
-            .lookup_place(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place)?
             .fold(rcx, gen, true)
         {
             FoldResult::Strg(path, ty) => {
@@ -286,7 +286,7 @@ impl TypeEnv {
         // Look up paths to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
             self.bindings
-                .lookup_path(gen.genv, rcx, &path)?
+                .lookup(gen.genv, rcx, &path)?
                 .fold(rcx, gen, false);
         }
 

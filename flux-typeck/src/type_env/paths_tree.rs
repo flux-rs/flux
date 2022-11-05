@@ -49,6 +49,40 @@ pub struct LookupResult<'a> {
     kind: LookupKind,
 }
 
+pub(super) trait LookupKey {
+    type Iter<'a>: Iterator<Item = PlaceElem> + 'a
+    where
+        Self: 'a;
+
+    fn loc(&self) -> Loc;
+
+    fn proj(&self) -> Self::Iter<'_>;
+}
+
+impl LookupKey for Place {
+    type Iter<'a> = impl Iterator<Item = PlaceElem> + 'a;
+
+    fn loc(&self) -> Loc {
+        Loc::Local(self.local)
+    }
+
+    fn proj(&self) -> Self::Iter<'_> {
+        self.projection.iter().copied()
+    }
+}
+
+impl LookupKey for Path {
+    type Iter<'a> = impl Iterator<Item = PlaceElem> + 'a;
+
+    fn loc(&self) -> Loc {
+        self.loc
+    }
+
+    fn proj(&self) -> Self::Iter<'_> {
+        self.projection().iter().map(|f| PlaceElem::Field(*f))
+    }
+}
+
 enum LookupKind {
     Node(Path, NodePtr),
     Ref(RefKind, Ty),
@@ -75,34 +109,7 @@ impl Root {
 }
 
 impl PathsTree {
-    pub fn lookup_place<'a>(
-        &'a mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        place: &Place,
-    ) -> Result<LookupResult<'a>, OpaqueStructErr> {
-        self.lookup_place_iter(
-            genv,
-            rcx,
-            Loc::Local(place.local),
-            &mut place.projection.iter().copied(),
-        )
-    }
-
-    pub fn lookup_path<'a>(
-        &'a mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        path: &Path,
-    ) -> Result<LookupResult<'a>, OpaqueStructErr> {
-        let mut proj = path
-            .projection()
-            .iter()
-            .map(|field| PlaceElem::Field(*field));
-        self.lookup_place_iter(genv, rcx, path.loc, &mut proj)
-    }
-
-    pub fn get(&self, path: &Path) -> Binding {
+    pub(super) fn get(&self, path: &Path) -> Binding {
         let ptr = self.get_node(path);
         let node = ptr.borrow();
         match &*node {
@@ -172,33 +179,39 @@ impl PathsTree {
         }
     }
 
-    pub fn paths(&self) -> Vec<Path> {
+    pub(super) fn paths(&self) -> Vec<Path> {
         let mut paths = vec![];
         self.iter(|path, _| paths.push(path));
         paths
     }
 
-    pub fn flatten(&self) -> Vec<(Path, Binding)> {
+    pub(super) fn flatten(&self) -> Vec<(Path, Binding)> {
         let mut bindings = vec![];
         self.iter(|path, binding| bindings.push((path, binding.clone())));
         bindings
     }
 
-    pub fn join_with(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, other: &mut PathsTree) {
+    pub(super) fn join_with(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        other: &mut PathsTree,
+    ) {
         for (loc, root1) in &self.map {
             let node2 = &mut *other.map[loc].ptr.borrow_mut();
             root1.ptr.borrow_mut().join_with(gen, rcx, node2);
         }
     }
 
-    fn lookup_place_iter<'a>(
+    pub(super) fn lookup<'a>(
         &'a mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        loc: Loc,
-        place_proj: &mut impl Iterator<Item = PlaceElem>,
+        key: &impl LookupKey,
     ) -> Result<LookupResult<'a>, OpaqueStructErr> {
-        let mut path = Path::from(loc);
+        let mut path = Path::from(key.loc());
+        let place_proj = &mut key.proj();
+
         'outer: loop {
             let loc = path.loc;
             let mut path_proj = vec![];
@@ -231,8 +244,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(rk, ty) => {
-                                let (rk, ty) =
-                                    Self::lookup_place_iter_ty(genv, rcx, *rk, ty, place_proj)?;
+                                let (rk, ty) = Self::lookup_ty(genv, rcx, *rk, ty, place_proj)?;
                                 return Ok(LookupResult {
                                     tree: self,
                                     kind: LookupKind::Ref(rk, ty),
@@ -260,7 +272,7 @@ impl PathsTree {
         }
     }
 
-    fn lookup_place_iter_ty(
+    fn lookup_ty(
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         mut rk: RefKind,
