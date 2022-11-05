@@ -1,4 +1,12 @@
-#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_chains, never_type)]
+#![feature(
+    rustc_private,
+    min_specialization,
+    once_cell,
+    if_let_guard,
+    let_chains,
+    never_type,
+    type_alias_impl_trait
+)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;

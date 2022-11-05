@@ -4,7 +4,7 @@ use std::iter;
 
 use flux_common::index::IndexGen;
 use flux_middle::{
-    global_env::OpaqueStructErr,
+    global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
         box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Index,
@@ -16,7 +16,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
-use self::paths_tree::{Binding, LocKind, LookupResult, PathsTree};
+use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
 use super::rty::{Loc, Name, Pred, Sort};
 use crate::{
     constraint_gen::ConstrGen,
@@ -75,14 +75,17 @@ impl TypeEnv {
         TypeEnvInfer::new(rcx, gen, scope, self)
     }
 
-    #[track_caller]
     pub fn lookup_place(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
     ) -> Result<Ty, OpaqueStructErr> {
-        Ok(self.bindings.lookup_place(rcx, gen, place)?.ty())
+        Ok(self
+            .bindings
+            .lookup(gen.genv, rcx, place)?
+            .fold(rcx, gen, true)
+            .ty())
     }
 
     pub fn lookup_path(
@@ -91,7 +94,11 @@ impl TypeEnv {
         gen: &mut ConstrGen,
         path: &Path,
     ) -> Result<Ty, OpaqueStructErr> {
-        Ok(self.bindings.lookup_path(rcx, gen, path)?.ty())
+        Ok(self
+            .bindings
+            .lookup(gen.genv, rcx, path)?
+            .fold(rcx, gen, false)
+            .ty())
     }
 
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
@@ -105,9 +112,13 @@ impl TypeEnv {
         rk: RefKind,
         place: &Place,
     ) -> Result<Ty, OpaqueStructErr> {
-        let ty = match self.bindings.lookup_place(rcx, gen, place)? {
-            LookupResult::Ptr(path, _) => Ty::ptr(rk, path),
-            LookupResult::Ref(result_rk, ty) => {
+        let ty = match self
+            .bindings
+            .lookup(gen.genv, rcx, place)?
+            .fold(rcx, gen, true)
+        {
+            FoldResult::Strg(path, _) => Ty::ptr(rk, path),
+            FoldResult::Ref(result_rk, ty) => {
                 debug_assert!(rk <= result_rk);
                 Ty::mk_ref(rk, ty)
             }
@@ -122,14 +133,18 @@ impl TypeEnv {
         place: &Place,
         new_ty: Ty,
     ) -> Result<(), OpaqueStructErr> {
-        match self.bindings.lookup_place(rcx, gen, place)? {
-            LookupResult::Ptr(path, _) => {
+        match self
+            .bindings
+            .lookup(gen.genv, rcx, place)?
+            .fold(rcx, gen, true)
+        {
+            FoldResult::Strg(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
-            LookupResult::Ref(RefKind::Mut, ty) => {
+            FoldResult::Ref(RefKind::Mut, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            LookupResult::Ref(RefKind::Shr, _) => {
+            FoldResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }
@@ -142,15 +157,19 @@ impl TypeEnv {
         gen: &mut ConstrGen,
         place: &Place,
     ) -> Result<Ty, OpaqueStructErr> {
-        match self.bindings.lookup_place(rcx, gen, place)? {
-            LookupResult::Ptr(path, ty) => {
+        match self
+            .bindings
+            .lookup(gen.genv, rcx, place)?
+            .fold(rcx, gen, true)
+        {
+            FoldResult::Strg(path, ty) => {
                 self.bindings.update(&path, Ty::uninit());
                 Ok(ty)
             }
-            LookupResult::Ref(RefKind::Mut, _) => {
+            FoldResult::Ref(RefKind::Mut, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
             }
-            LookupResult::Ref(RefKind::Shr, _) => {
+            FoldResult::Ref(RefKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
         }
@@ -264,9 +283,11 @@ impl TypeEnv {
     ) -> Result<(), OpaqueStructErr> {
         self.bindings.close_boxes(rcx, gen, &bb_env.scope);
 
-        // Look up path to make sure they are properly folded/unfolded
+        // Look up paths to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
-            self.bindings.lookup_path(rcx, gen, &path)?;
+            self.bindings
+                .lookup(gen.genv, rcx, &path)?
+                .fold(rcx, gen, false);
         }
 
         // Infer subst
@@ -318,14 +339,14 @@ impl TypeEnv {
 
     pub fn downcast(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         place: &Place,
         variant_idx: VariantIdx,
     ) -> Result<(), OpaqueStructErr> {
         let mut down_place = place.clone();
         down_place.projection.push(PlaceElem::Downcast(variant_idx));
-        self.lookup_place(rcx, gen, &down_place)?;
+        self.bindings.lookup(genv, rcx, &down_place)?;
         Ok(())
     }
 }
