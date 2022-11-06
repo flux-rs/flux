@@ -18,7 +18,7 @@ pub fn desugar_qualifier(
     let mut binders = Binders::new();
     binders.insert_params(sess, qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
-    let expr = binders.as_expr_ctxt(sess, map).desugar_expr(qualifier.expr);
+    let expr = ExprCtxt::new(sess, map, &binders).desugar_expr(qualifier.expr);
 
     Ok(fhir::Qualifier { name, args: binders.into_params(), expr: expr? })
 }
@@ -60,7 +60,7 @@ pub fn desugar_adt_def(
 
     let invariants = invariants
         .into_iter()
-        .map(|invariant| binders.as_expr_ctxt(sess, map).desugar_expr(invariant))
+        .map(|invariant| ExprCtxt::new(sess, map, &binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
     let refined_by = binders.into_params();
@@ -142,7 +142,7 @@ pub fn desugar_fn_sig(
     let mut cx = DesugarCtxt::new(sess, map, binders);
 
     if let Some(e) = fn_sig.requires {
-        let e = cx.binders.as_expr_ctxt(sess, map).desugar_expr(e)?;
+        let e = cx.as_expr_ctxt().desugar_expr(e)?;
         cx.requires.push(fhir::Constraint::Pred(e));
     }
 
@@ -162,7 +162,7 @@ pub fn desugar_fn_sig(
         .ensures
         .into_iter()
         .map(|(bind, ty)| {
-            let loc = cx.binders.as_expr_ctxt(sess, map).desugar_loc(bind);
+            let loc = cx.as_expr_ctxt().desugar_loc(bind);
             let ty = cx.desugar_ty(None, ty);
             Ok(fhir::Constraint::Type(loc?, ty?))
         })
@@ -217,7 +217,7 @@ enum Binder {
 struct ExprCtxt<'a> {
     sess: &'a FluxSession,
     map: &'a fhir::Map,
-    binders: &'a FxIndexMap<surface::Ident, Binder>,
+    binders: &'a Binders,
 }
 
 enum BtyOrTy {
@@ -231,7 +231,7 @@ impl<'a> DesugarCtxt<'a> {
     }
 
     fn as_expr_ctxt(&self) -> ExprCtxt {
-        self.binders.as_expr_ctxt(self.sess, self.map)
+        ExprCtxt::new(self.sess, self.map, &self.binders)
     }
 
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -297,7 +297,7 @@ impl<'a> DesugarCtxt<'a> {
                         if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
                             let (pred, _) = self.binders.with_bind(ident, binder, |binders| {
-                                binders.as_expr_ctxt(self.sess, self.map).desugar_expr(pred)
+                                ExprCtxt::new(self.sess, self.map, binders).desugar_expr(pred)
                             })?;
                             let idxs = self.desugar_bind(bind)?;
                             fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
@@ -305,7 +305,7 @@ impl<'a> DesugarCtxt<'a> {
                             let binder = Binder::new(&self.binders.name_gen, self.map, res);
                             let (pred, binder) =
                                 self.binders.with_bind(ident, binder, |binders| {
-                                    binders.as_expr_ctxt(self.sess, self.map).desugar_expr(pred)
+                                    ExprCtxt::new(self.sess, self.map, binders).desugar_expr(pred)
                                 })?;
                             fhir::Ty::Exists(bty, binder.names(), pred)
                         }
@@ -426,7 +426,11 @@ impl<'a> DesugarCtxt<'a> {
     }
 }
 
-impl ExprCtxt<'_> {
+impl<'a> ExprCtxt<'a> {
+    fn new(sess: &'a FluxSession, map: &'a fhir::Map, binders: &'a Binders) -> Self {
+        Self { sess, map, binders }
+    }
+
     fn desugar_expr(&self, expr: surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match expr.kind {
             surface::ExprKind::Var(ident) => return self.desugar_var(ident),
@@ -473,7 +477,7 @@ impl ExprCtxt<'_> {
     }
 
     fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
-        let kind = match (self.binders.get(&ident), self.map.const_by_name(ident.name)) {
+        let kind = match (self.binders.get(ident), self.map.const_by_name(ident.name)) {
             (Some(Binder::Single(name, _)), _) => {
                 fhir::ExprKind::Var(*name, ident.name, ident.span)
             }
@@ -509,7 +513,7 @@ impl ExprCtxt<'_> {
                 .emit_err(errors::InvalidDotVar { span: expr.span }))
         };
 
-        match self.binders.get(&ident) {
+        match self.binders.get(ident) {
             Some(Binder::Single(..)) => {
                 Err(self
                     .sess
@@ -534,7 +538,7 @@ impl ExprCtxt<'_> {
     }
 
     fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
-        match self.binders.get(&loc) {
+        match self.binders.get(loc) {
             Some(&Binder::Single(name, _)) => {
                 let source_info = (loc.span, loc.name);
                 Ok(fhir::Ident { name, source_info })
@@ -581,6 +585,10 @@ impl Binders {
 
     fn fresh(&self) -> fhir::Name {
         self.name_gen.fresh()
+    }
+
+    fn get(&self, ident: impl Borrow<surface::Ident>) -> Option<&Binder> {
+        self.map.get(ident.borrow())
     }
 
     fn with_bind<R>(
@@ -722,10 +730,6 @@ impl Binders {
             }
             surface::TyKind::Unit => Ok(()),
         }
-    }
-
-    fn as_expr_ctxt<'a>(&'a self, sess: &'a FluxSession, map: &'a fhir::Map) -> ExprCtxt<'a> {
-        ExprCtxt { sess, map, binders: &self.map }
     }
 
     fn into_params(self) -> Vec<fhir::Param> {
