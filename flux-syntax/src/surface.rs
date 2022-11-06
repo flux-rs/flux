@@ -102,13 +102,13 @@ pub struct FnSig<T = Ident> {
 #[derive(Debug)]
 pub enum Arg<T = Ident> {
     /// example `a: i32{a > 0}`
-    Constr(Ident, Path<T>, Option<Expr>),
+    Constr(Ident, Path<T>, Expr),
     /// example `x: nat` or `x: lb[0]`
     Alias(Ident, Path<T>, Indices),
     /// example `v: &strg i32`
     StrgRef(Ident, Ty<T>),
-    /// example `i32`
-    Ty(Ty<T>),
+    /// A type with an optional bindner, e.g, `i32`, `x: i32` or `x: i32{v : v > 0}`
+    Ty(Option<Ident>, Ty<T>),
 }
 
 #[derive(Debug)]
@@ -239,16 +239,6 @@ impl Path<Res> {
     }
 }
 
-impl<R> Arg<R> {
-    #[track_caller]
-    pub fn assert_ty(self) -> Ty<R> {
-        match self {
-            Arg::Ty(ty) => ty,
-            _ => panic!("not a type"),
-        }
-    }
-}
-
 impl Params {
     pub fn empty(span: Span) -> Params {
         Params { params: vec![], span }
@@ -350,31 +340,16 @@ pub mod expand {
                     _ => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
                 }
             }
-            Arg::Constr(x, path, None) => {
-                match expand_alias0(aliases, &path) {
-                    Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                        Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
-                    }
-                    Some(_) => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
-                    None => Ok(Arg::Constr(x, expand_path(aliases, &path), None)),
-                }
-            }
-            Arg::Constr(x, path, Some(e)) => {
-                Ok(Arg::Constr(x, expand_path(aliases, &path), Some(e)))
-            }
-            Arg::Ty(t) => Ok(Arg::Ty(expand_ty(aliases, &t))),
-            Arg::StrgRef(x, t) => Ok(Arg::StrgRef(x, expand_ty(aliases, &t))),
+            Arg::Constr(x, path, e) => Ok(Arg::Constr(x, expand_path(aliases, &path), e)),
+            Arg::Ty(x, ty) => Ok(Arg::Ty(x, expand_ty(aliases, &ty))),
+            Arg::StrgRef(x, ty) => Ok(Arg::StrgRef(x, expand_ty(aliases, &ty))),
         }
     }
 
     fn expand_arg_exists(x: Ident, e_path: Path, e_bind: Ident, e_pred: Expr) -> Arg {
         let subst = mk_sub1(e_bind, x);
         let x_pred = subst_expr(&subst, &e_pred);
-        Arg::Constr(x, e_path, Some(x_pred))
-    }
-    fn expand_alias0(aliases: &AliasMap, path: &Path) -> Option<TyKind> {
-        let indices = Indices { indices: vec![], span: path.span };
-        expand_alias(aliases, path, &indices)
+        Arg::Constr(x, e_path, x_pred)
     }
 
     fn expand_alias(aliases: &AliasMap, path: &Path, indices: &Indices) -> Option<TyKind> {

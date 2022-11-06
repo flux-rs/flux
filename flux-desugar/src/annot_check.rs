@@ -167,7 +167,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     fn zip_arg(&self, arg: &Arg<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
         match (arg, rust_ty.kind()) {
-            (Arg::Ty(ty), _) => self.zip_ty(ty, rust_ty),
+            (Arg::Ty(_, ty), _) => self.zip_ty(ty, rust_ty),
             (Arg::Constr(_, path, _), _) => self.zip_path(path, rust_ty),
             (Arg::StrgRef(_, ty), rustc_ty::TyKind::Ref(rust_ty, Mutability::Mut)) => {
                 self.zip_ty(ty, rust_ty)
