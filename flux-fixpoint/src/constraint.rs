@@ -32,21 +32,12 @@ pub enum Expr {
     Var(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<Self>, Box<Self>),
-    App(String, Vec<UFArg>),
+    App(String, Vec<Expr>),
     UnaryOp(UnOp, Box<Self>),
     Pair(Box<Expr>, Box<Expr>),
     Proj(Box<Expr>, Proj),
     IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
     Unit,
-}
-pub struct UFArg {
-    arg: Expr,
-}
-
-impl UFArg {
-    pub fn new(arg: Expr) -> Self {
-        UFArg { arg }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -247,37 +238,29 @@ impl Expr {
     }
 }
 
-fn fmt_parens(parens: bool, thing: impl fmt::Display, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if parens {
-        write!(f, "({})", thing)
-    } else {
-        write!(f, "{}", thing)
-    }
-}
+struct FmtParens<'a>(&'a Expr);
 
-impl fmt::Display for UFArg {
+impl fmt::Display for FmtParens<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let parens = !matches!(&self.arg, Expr::Var(_) | Expr::Constant(_) | Expr::Unit);
-        fmt_parens(parens, &self.arg, f)
+        // Fixpoint parser has `=` at two different precedence levels depending on whether it is
+        // used in a sequence of boolean expressions or not. To avoid complexity we parenthesize
+        // all binary expressions no matter the parent operator.
+        let should_parenthesize = matches!(&self.0, Expr::BinaryOp(..) | Expr::IfThenElse(..));
+        if should_parenthesize {
+            write!(f, "({})", self.0)
+        } else {
+            write!(f, "{}", self.0)
+        }
     }
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn should_parenthesize(child: &Expr) -> bool {
-            // Fixpoint parser has `=` at two different precedence levels, depending on whether
-            // is used in a sequence of predicate/boolean expressions or not. Thus, we parenthesize
-            // all binary expressions to avoid complications.
-            matches!(child, Expr::BinaryOp(..) | Expr::IfThenElse(..))
-        }
-
         match self {
             Expr::Var(x) => write!(f, "{:?}", x),
             Expr::Constant(c) => write!(f, "{}", c),
             Expr::BinaryOp(op, e1, e2) => {
-                fmt_parens(should_parenthesize(e1), e1, f)?;
-                write!(f, " {} ", op)?;
-                fmt_parens(should_parenthesize(e2), e2, f)?;
+                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
                 Ok(())
             }
             Expr::UnaryOp(op, e) => {
@@ -297,7 +280,7 @@ impl fmt::Display for Expr {
                     "({} {})",
                     uf,
                     args.iter()
-                        .format_with(" ", |expr, f| f(&format_args!("{expr}"))),
+                        .format_with(" ", |expr, f| { f(&format_args!("{}", FmtParens(expr))) }),
                 )
             }
             Expr::IfThenElse(p, e1, e2) => {
