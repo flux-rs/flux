@@ -545,7 +545,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             Some(Binder::Aggregate(def_id, fields)) => {
                 let (name, _) = fields.get(&fld.name).ok_or_else(|| {
                     self.sess
-                        .emit_err(errors::FieldNotFound::new(self.tcx, *def_id, fld))
+                        .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
                 let span = ident.span.to(fld.span);
                 let kind = fhir::ExprKind::Var(*name, ident.name, span);
@@ -821,7 +821,7 @@ impl Binder {
             Res::Adt(def_id) => {
                 let fields: FxIndexMap<_, _> = map
                     .refined_by(def_id)
-                    .unwrap_or_default()
+                    .unwrap_or(fhir::RefinedBy::DUMMY)
                     .iter()
                     .map(|param| {
                         let fld = param.name.source_info.1;
@@ -859,8 +859,9 @@ static SORTS: std::sync::LazyLock<Sorts> =
     std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use flux_macros::Diagnostic;
+    use flux_macros::{Diagnostic, Subdiagnostic};
     use flux_middle::fhir;
+    use rustc_errors::MultiSpan;
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span, Symbol};
@@ -1000,13 +1001,35 @@ mod errors {
         fld: Ident,
         def_kind: &'static str,
         def_name: String,
+        #[subdiagnostic]
+        def_note: Option<DefSpanNote>,
     }
 
     impl FieldNotFound {
-        pub fn new(tcx: TyCtxt, def_id: DefId, fld: Ident) -> Self {
+        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: Ident) -> Self {
             let def_kind = tcx.def_kind(def_id).descr(def_id);
             let def_name = tcx.def_path_str(def_id);
-            Self { span: fld.span, fld, def_kind, def_name }
+            let def_note = DefSpanNote::new(tcx, map, def_id);
+            Self { span: fld.span, fld, def_kind, def_name, def_note }
+        }
+    }
+
+    #[derive(Subdiagnostic)]
+    #[note(desugar::def_span_note)]
+    struct DefSpanNote {
+        #[primary_span]
+        sp: MultiSpan,
+        def_kind: &'static str,
+    }
+
+    impl DefSpanNote {
+        fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
+            let def_span = tcx.def_ident_span(def_id)?;
+            let refined_by = map.refined_by(def_id)?;
+            let mut sp = MultiSpan::from_span(def_span);
+            sp.push_span_label(refined_by.span, "");
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            Some(Self { sp, def_kind })
         }
     }
 

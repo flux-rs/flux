@@ -15,7 +15,7 @@ use rustc_errors::{
     emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticMessage, IntoDiagnostic, SubdiagnosticMessage,
+    DiagnosticId, DiagnosticMessage, IntoDiagnostic, SubdiagnosticMessage,
 };
 use rustc_session::{config::ErrorOutputType, parse::ParseSess};
 use rustc_span::source_map::SourceMap;
@@ -38,6 +38,10 @@ pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
 
 pub struct FluxSession {
     pub parse_sess: ParseSess,
+}
+
+pub fn diagnostic_id() -> DiagnosticId {
+    DiagnosticId::Error("FLUX".to_string())
 }
 
 impl FluxSession {

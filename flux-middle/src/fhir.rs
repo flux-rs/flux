@@ -25,7 +25,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
 use crate::pretty;
@@ -272,6 +272,7 @@ impl AdtDef {
 }
 
 impl RefinedBy {
+    pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
     pub fn iter(&self) -> impl Iterator<Item = &Param> {
         self.params.iter()
     }
@@ -368,9 +369,9 @@ impl Map {
         Some(&info.sorts)
     }
 
-    pub fn refined_by(&self, def_id: DefId) -> Option<&[Param]> {
+    pub fn refined_by(&self, def_id: DefId) -> Option<&RefinedBy> {
         let adt_def = self.adts.get(&def_id.as_local()?)?;
-        Some(&adt_def.refined_by.params)
+        Some(&adt_def.refined_by)
     }
 
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {

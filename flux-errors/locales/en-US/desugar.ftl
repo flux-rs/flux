@@ -43,3 +43,6 @@ desugar_invalid_unrefined_param =
 
 desugar_field_not_found =
     no field `{$fld}` on refinement for {$def_kind} `{$def_name}`
+
+desugar_def_span_note =
+    {$def_kind} defined here
