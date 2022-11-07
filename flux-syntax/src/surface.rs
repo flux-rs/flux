@@ -107,7 +107,8 @@ pub enum Arg<T = Ident> {
     Alias(Ident, Path<T>, Indices),
     /// example `v: &strg i32`
     StrgRef(Ident, Ty<T>),
-    /// A type with an optional bindner, e.g, `i32`, `x: i32` or `x: i32{v : v > 0}`
+    /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v : v > 0}`.
+    /// The binder has a different meaning depending on the type.
     Ty(Option<Ident>, Ty<T>),
 }
 
