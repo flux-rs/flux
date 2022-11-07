@@ -219,6 +219,7 @@ fn build_fhir_map(
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
             let adt_def = desugar::desugar_adt_def(
+                tcx,
                 sess,
                 &map,
                 def_id.to_def_id(),
@@ -237,6 +238,7 @@ fn build_fhir_map(
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::Params::DUMMY);
             let adt_def = desugar::desugar_adt_def(
+                tcx,
                 sess,
                 &map,
                 def_id.to_def_id(),
@@ -260,7 +262,7 @@ fn build_fhir_map(
     err = std::mem::take(&mut specs.qualifs)
         .into_iter()
         .try_for_each_exhaust(|qualifier| {
-            let qualifier = desugar::desugar_qualifier(sess, &map, qualifier)?;
+            let qualifier = desugar::desugar_qualifier(tcx, sess, &map, qualifier)?;
             map.insert_qualifier(qualifier);
             Ok(())
         })

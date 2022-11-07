@@ -31,10 +31,15 @@ desugar_param_count_mismatch =
     }
     .label = expected {$expected} arguments, found {$found}
 
-desugar_invalid_dot_access =
-    the field `{$fld}` is not valid for param `{$ident}`
+desugar_invalid_primitive_dot_access =
+    `{$sort}` is a primitive sort and therefore doesn't have fields
+    .label = field access on parameter `{$name}`
+    .defined_here = `{$name}` defined here with sort `{$sort}`
 
 desugar_invalid_unrefined_param =
     invalid use of parameter `{$var}`
     .label = parameter `{$var}` refers to a type with no indices
     .defined_here = declared here
+
+desugar_field_not_found =
+    no field `{$fld}` on refinement for {$def_kind} `{$def_name}`
