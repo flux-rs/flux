@@ -57,6 +57,7 @@ Param: surface::Param = <name: Ident> ":" <sort: Ident> => surface::Param { <> }
 pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
+    <abstract_params:("<" <Comma<AbstractPred>> ">")?>
     "(" <args:Args> ")"
     <returns:("->" <Ty>)?>
     <requires:("requires" <Level1>)?>
@@ -64,8 +65,13 @@ pub FnSig: surface::FnSig = {
     <hi:@R>
     => {
         let ensures = ensures.unwrap_or_default();
-        surface::FnSig { args, returns, ensures, requires, span: mk_span(lo, hi) }
+        let abstract_params = abstract_params.unwrap_or_default();
+        surface::FnSig { abstract_params, args, returns, ensures, requires, span: mk_span(lo, hi) }
     }
+}
+
+AbstractPred: surface::AbstractPred = {
+    <name:Ident> ":" "(" <inputs:Comma<Ident>> ")" "->" <output:Ident> => surface::AbstractPred { <> }
 }
 
 pub Variant: surface::VariantDef = {

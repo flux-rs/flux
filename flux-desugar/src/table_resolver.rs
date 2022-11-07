@@ -115,6 +115,7 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
         let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
 
         Ok(surface::FnSig {
+            abstract_params: fn_sig.abstract_params,
             requires: fn_sig.requires,
             args: args?,
             returns: returns?,

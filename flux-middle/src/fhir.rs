@@ -578,15 +578,25 @@ impl fmt::Display for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
             Sort::Loc => write!(f, "loc"),
-            Sort::Func(sort) => {
-                write!(f, "({}) -> {}", sort.inputs().iter().join(","), sort.output())
-            }
+            Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
         }
     }
 }
 
 impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for FuncSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}) -> {}", self.inputs().iter().join(","), self.output())
+    }
+}
+
+impl fmt::Debug for FuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
