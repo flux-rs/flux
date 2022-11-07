@@ -1020,16 +1020,18 @@ mod errors {
         #[primary_span]
         sp: MultiSpan,
         def_kind: &'static str,
+        has_params: bool,
     }
 
     impl DefSpanNote {
         fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
-            let def_span = tcx.def_ident_span(def_id)?;
+            let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
             let refined_by = map.refined_by(def_id)?;
-            let mut sp = MultiSpan::from_span(def_span);
-            sp.push_span_label(refined_by.span, "");
+            if !refined_by.params.is_empty() {
+                sp.push_span_label(refined_by.span, "");
+            }
             let def_kind = tcx.def_kind(def_id).descr(def_id);
-            Some(Self { sp, def_kind })
+            Some(Self { sp, def_kind, has_params: !refined_by.params.is_empty() })
         }
     }
 

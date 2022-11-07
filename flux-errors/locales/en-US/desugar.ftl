@@ -42,7 +42,10 @@ desugar_invalid_unrefined_param =
     .defined_here = declared here
 
 desugar_field_not_found =
-    no field `{$fld}` on refinement for {$def_kind} `{$def_name}`
+    no field `{$fld}` on refinement parameters for {$def_kind} `{$def_name}`
 
 desugar_def_span_note =
-    {$def_kind} defined here
+    {$has_params ->
+        [true] {$def_kind} defined here
+        *[false] {$def_kind} defined here with no parameters
+    }
