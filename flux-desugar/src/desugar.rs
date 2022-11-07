@@ -39,7 +39,7 @@ pub fn resolve_uif_def(
 
 pub fn resolve_sorts(
     sess: &FluxSession,
-    params: &surface::Params,
+    params: &surface::RefinedBy,
 ) -> Result<Vec<fhir::Sort>, ErrorGuaranteed> {
     params
         .params
@@ -53,19 +53,19 @@ pub fn desugar_adt_def(
     sess: &FluxSession,
     map: &fhir::Map,
     def_id: DefId,
-    params: &surface::Params,
+    refined_by: &surface::RefinedBy,
     invariants: Vec<surface::Expr>,
     opaque: bool,
 ) -> Result<fhir::AdtDef, ErrorGuaranteed> {
     let mut binders = Binders::new();
-    binders.insert_params(sess, params)?;
+    binders.insert_params(sess, refined_by)?;
 
     let invariants = invariants
         .into_iter()
         .map(|invariant| ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
-    let refined_by = binders.into_params();
+    let refined_by = fhir::RefinedBy { params: binders.into_params(), span: refined_by.span };
     Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
 }
 

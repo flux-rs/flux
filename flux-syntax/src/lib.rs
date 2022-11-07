@@ -37,7 +37,7 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::Params> {
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::RefinedBy> {
     parse!(surface_grammar::RefinedByParser, tokens, span)
 }
 

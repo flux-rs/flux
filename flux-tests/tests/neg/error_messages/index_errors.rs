@@ -30,7 +30,7 @@ pub fn mytuple3(p: Pair) -> i32 {
     p.x
 }
 
-#[flux::sig(fn(i32[@n]) -> i32[n.x])] //~ ERROR the field `x` is not valid
+#[flux::sig(fn(i32[@n]) -> i32[n.x])] //~ ERROR `int` is a primitive sort
 pub fn myint1(x: i32) -> i32 {
     x
 }
@@ -50,7 +50,7 @@ fn ris(f: f32) -> i32 {
     0
 }
 
-#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR invalid use of parameter
+#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR no field `a` on refinement
 pub fn use_chair(c: Chair) -> i32 {
     c.x
 }

@@ -246,10 +246,16 @@ impl Lit {
 #[derive(Debug)]
 pub struct AdtDef {
     pub def_id: DefId,
-    pub refined_by: Vec<Param>,
+    pub refined_by: RefinedBy,
     pub invariants: Vec<Expr>,
     pub opaque: bool,
     sorts: Vec<Sort>,
+}
+
+#[derive(Debug)]
+pub struct RefinedBy {
+    pub params: Vec<Param>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -259,9 +265,15 @@ pub struct UifDef {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, refined_by: Vec<Param>, invariants: Vec<Expr>, opaque: bool) -> Self {
+    pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
         let sorts = refined_by.iter().map(|param| param.sort).collect();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
+    }
+}
+
+impl RefinedBy {
+    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+        self.params.iter()
     }
 }
 
@@ -358,7 +370,7 @@ impl Map {
 
     pub fn refined_by(&self, def_id: DefId) -> Option<&[Param]> {
         let adt_def = self.adts.get(&def_id.as_local()?)?;
-        Some(&adt_def.refined_by)
+        Some(&adt_def.refined_by.params)
     }
 
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {
