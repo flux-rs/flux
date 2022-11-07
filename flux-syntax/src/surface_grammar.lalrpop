@@ -99,16 +99,14 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(bind, ty),
-    <bind:Ident> ":" <path:Path>                           => surface::Arg::Constr(bind, path, None),
-    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}"     => surface::Arg::Constr(bind, path, Some(pred)),
-    <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(bind, path, indices),
-    <bind:Ident> ":" <lo:@L> "&" "mut" <ty:Ty> <hi:@R> => {
-        let kind = surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty));
-        let arg_ty = surface::Ty { kind, span: mk_span(lo, hi) };
-        surface::Arg::Ty(arg_ty)
+    <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(<>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}"     => surface::Arg::Constr(<>),
+    <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(<>),
+    <bind:Ident> ":" <lo:@L> <kind:ArgTyKind> <hi:@R> => {
+        let ty = surface::Ty { kind, span: mk_span(lo, hi) };
+        surface::Arg::Ty(Some(bind), ty)
     },
-    <ty:Ty> => surface::Arg::Ty(<>),
+    <ty:Ty> => surface::Arg::Ty(None, <>),
 }
 
 pub Ty: surface::Ty = {
@@ -118,7 +116,8 @@ pub Ty: surface::Ty = {
     }
 }
 
-TyKind: surface::TyKind = {
+// FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
+ArgTyKind: surface::TyKind = {
     "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut"  <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
@@ -126,7 +125,6 @@ TyKind: surface::TyKind = {
 
     <path:Path>                                        => surface::TyKind::Path(<>),
     <path:Path> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
-    <path:Path> "[" <indices:Indices> "]"              => surface::TyKind::Indexed { <> },
 
     "[" <ty:Ty> ";"  <lo:@L> <ident:Ident> <hi:@R> "]" =>? {
         if ident.name.as_str() == "_" {
@@ -136,9 +134,13 @@ TyKind: surface::TyKind = {
         }
     },
     "[" <ty:Ty> "]" => surface::TyKind::Slice(Box::new(ty)),
-    "[" <ty:Ty> "]""[" <indices:Indices> "]" => surface::TyKind::Slice(Box::new(ty)),
 
     "(" ")"  => surface::TyKind::Unit
+}
+
+TyKind: surface::TyKind = {
+    <ArgTyKind>,
+    <path:Path> "[" <indices:Indices> "]" => surface::TyKind::Indexed { <> },
 }
 
 GenericArgs: Vec<surface::Ty> = {
