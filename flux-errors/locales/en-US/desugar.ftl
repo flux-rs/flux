@@ -9,6 +9,7 @@ desugar_unresolved_dot_var =
 desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
     .label = already used
+    .first_use = first use of `{$name}`
 
 desugar_unresolved_sort =
     cannot find sort `{$sort}` in this scope
@@ -34,5 +35,6 @@ desugar_invalid_dot_access =
     the field `{$fld}` is not valid for param `{$ident}`
 
 desugar_invalid_unrefined_param =
-    invalid use of parameter for an unrefined type
-    .label = name `{$var}` is bound to an unrefined type
+    invalid use of parameter `{$var}`
+    .label = parameter `{$var}` refers to a type with no indices
+    .defined_here = declared here
