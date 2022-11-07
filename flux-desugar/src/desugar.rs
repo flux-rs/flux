@@ -5,7 +5,7 @@ use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir;
 use flux_syntax::surface::{self, Res};
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_span::{sym, symbol::kw, Symbol};
@@ -492,9 +492,10 @@ impl<'a> ExprCtxt<'a> {
                 }
             }
             (Some(Binder::Unrefined), _) => {
+                let def_ident = self.binders.def_ident(ident).unwrap();
                 return Err(self
                     .sess
-                    .emit_err(errors::InvalidUnrefinedParam::new(ident)))
+                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, ident)));
             }
             (None, Some(const_info)) => fhir::ExprKind::Const(const_info.def_id, ident.span),
             (None, None) => return Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
@@ -507,6 +508,7 @@ impl<'a> ExprCtxt<'a> {
         expr: surface::Expr,
         fld: surface::Ident,
     ) -> Result<fhir::Expr, ErrorGuaranteed> {
+        // This error never occurs because the parser forces `expr` to be an ident, but we report an error just in case.
         let surface::ExprKind::Var(ident) = expr.kind else {
             return Err(self
                 .sess
@@ -529,9 +531,10 @@ impl<'a> ExprCtxt<'a> {
                 Ok(fhir::Expr { kind, span })
             }
             Some(Binder::Unrefined) => {
+                let def_ident = self.binders.def_ident(ident).unwrap();
                 Err(self
                     .sess
-                    .emit_err(errors::InvalidUnrefinedParam::new(ident)))
+                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, ident)))
             }
             None => Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
         }
@@ -587,6 +590,10 @@ impl Binders {
         self.name_gen.fresh()
     }
 
+    fn def_ident(&self, ident: impl Borrow<surface::Ident>) -> Option<surface::Ident> {
+        Some(*self.map.get_key_value(ident.borrow())?.0)
+    }
+
     fn get(&self, ident: impl Borrow<surface::Ident>) -> Option<&Binder> {
         self.map.get(ident.borrow())
     }
@@ -632,10 +639,14 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
-        if self.map.insert(ident, binder).is_some() {
-            Err(sess.emit_err(errors::DuplicateParam::new(ident)))
-        } else {
-            Ok(())
+        match self.map.entry(ident) {
+            IndexEntry::Occupied(entry) => {
+                Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
+            }
+            IndexEntry::Vacant(entry) => {
+                entry.insert(binder);
+                Ok(())
+            }
         }
     }
 
@@ -855,12 +866,15 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        name: Ident,
+        name: Symbol,
+        #[label(desugar::first_use)]
+        first_use: Span,
     }
 
     impl DuplicateParam {
-        pub fn new(name: Ident) -> Self {
-            Self { span: name.span, name }
+        pub fn new(old_ident: Ident, new_ident: Ident) -> Self {
+            debug_assert_eq!(old_ident.name, new_ident.name);
+            Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
         }
     }
 
@@ -961,11 +975,13 @@ mod errors {
         #[label]
         pub span: Span,
         pub var: Ident,
+        #[label(desugar::defined_here)]
+        pub def_span: Span,
     }
 
     impl InvalidUnrefinedParam {
-        pub fn new(var: Ident) -> Self {
-            Self { var, span: var.span }
+        pub fn new(def: Ident, var: Ident) -> Self {
+            Self { def_span: def.span, var, span: var.span }
         }
     }
 }
