@@ -31,21 +31,10 @@ pub fn resolve_uif_def(
     let inputs = uif_def
         .inputs
         .into_iter()
-        .map(|ident| resolve_sort(sess, ident))
+        .map(|ident| resolve_sort(sess, ident).cloned())
         .try_collect_exhaust()?;
-    let output = resolve_sort(sess, uif_def.output)?;
+    let output = resolve_sort(sess, uif_def.output)?.clone();
     Ok(fhir::UifDef { inputs, output })
-}
-
-pub fn resolve_sorts(
-    sess: &FluxSession,
-    params: &surface::RefinedBy,
-) -> Result<Vec<fhir::Sort>, ErrorGuaranteed> {
-    params
-        .params
-        .iter()
-        .map(|param| resolve_sort(sess, param.sort))
-        .try_collect_exhaust()
 }
 
 pub fn desugar_adt_def(
@@ -109,9 +98,7 @@ pub fn desugar_enum_def(
         .map(|variant| desugar_variant(tcx, sess, map, variant))
         .try_collect_exhaust()?;
 
-    let refined_by = binders.into_params();
-
-    Ok(fhir::EnumDef { def_id, refined_by, variants })
+    Ok(fhir::EnumDef { def_id, variants })
 }
 
 fn desugar_variant(
@@ -187,31 +174,31 @@ pub struct DesugarCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     map: &'a fhir::Map,
-    binders: Binders,
+    binders: Binders<'a>,
     requires: Vec<fhir::Constraint>,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
 /// [`Binder`].
-struct Binders {
+struct Binders<'a> {
     name_gen: IndexGen<fhir::Name>,
-    map: FxIndexMap<surface::Ident, Binder>,
+    map: FxIndexMap<surface::Ident, Binder<'a>>,
 }
 
 /// The different kind of binders that can appear in the surface syntax
 #[derive(Debug, Clone)]
-enum Binder {
+enum Binder<'a> {
     /// A binder that needs to be desugared to a single index. They come from bindings
     /// to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`, or
     /// by explicitly listing the indices for a type with multiple indices, e.g,
     /// `RMat[@row, @cols]`.
-    Single(fhir::Name, fhir::Sort),
+    Single(fhir::Name, &'a fhir::Sort),
     /// A binder that will desugar into multiple indices and _must_ be projected using
     /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
     /// index are treated specially as they can be used either with a projection or the
     /// binder directly.
-    Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
+    Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, &'a fhir::Sort)>),
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
@@ -225,7 +212,7 @@ struct ExprCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     map: &'a fhir::Map,
-    binders: &'a Binders,
+    binders: &'a Binders<'a>,
 }
 
 enum BtyOrTy {
@@ -238,7 +225,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
         map: &'a fhir::Map,
-        binders: Binders,
+        binders: Binders<'a>,
     ) -> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt { tcx, sess, binders, requires: vec![], map }
     }
@@ -540,7 +527,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 let def_ident = self.binders.def_ident(ident).unwrap();
                 Err(self
                     .sess
-                    .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, *sort, ident, fld)))
+                    .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, ident, fld)))
             }
             Some(Binder::Aggregate(def_id, fields)) => {
                 let (name, _) = fields.get(&fld.name).ok_or_else(|| {
@@ -592,18 +579,18 @@ fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {
 pub fn resolve_sort(
     sess: &FluxSession,
     sort: surface::Ident,
-) -> Result<fhir::Sort, ErrorGuaranteed> {
+) -> Result<&'static fhir::Sort, ErrorGuaranteed> {
     if sort.name == SORTS.int {
-        Ok(fhir::Sort::Int)
+        Ok(&fhir::Sort::Int)
     } else if sort.name == sym::bool {
-        Ok(fhir::Sort::Bool)
+        Ok(&fhir::Sort::Bool)
     } else {
         Err(sess.emit_err(errors::UnresolvedSort::new(sort)))
     }
 }
 
-impl Binders {
-    fn new() -> Binders {
+impl<'a> Binders<'a> {
+    fn new() -> Binders<'a> {
         Binders { name_gen: IndexGen::new(), map: FxIndexMap::default() }
     }
 
@@ -622,7 +609,7 @@ impl Binders {
     fn with_bind<R>(
         &mut self,
         ident: surface::Ident,
-        binder: Binder,
+        binder: Binder<'a>,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
     ) -> Result<(R, Binder), ErrorGuaranteed> {
         let old = self.map.insert(ident, binder);
@@ -658,7 +645,7 @@ impl Binders {
         &mut self,
         sess: &FluxSession,
         ident: surface::Ident,
-        binder: Binder,
+        binder: Binder<'a>,
     ) -> Result<(), ErrorGuaranteed> {
         match self.map.entry(ident) {
             IndexEntry::Occupied(entry) => {
@@ -674,7 +661,7 @@ impl Binders {
     fn gather_fn_sig_params(
         &mut self,
         sess: &FluxSession,
-        map: &fhir::Map,
+        map: &'a fhir::Map,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         for arg in &fn_sig.args {
@@ -686,7 +673,7 @@ impl Binders {
     fn arg_gather_params(
         &mut self,
         sess: &FluxSession,
-        map: &fhir::Map,
+        map: &'a fhir::Map,
         arg: &surface::Arg<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
@@ -694,7 +681,7 @@ impl Binders {
                 self.insert_binder(sess, *bind, Binder::new(&self.name_gen, map, path.ident))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                self.insert_binder(sess, *loc, Binder::Single(self.fresh(), fhir::Sort::Loc))?;
+                self.insert_binder(sess, *loc, Binder::Single(self.fresh(), &fhir::Sort::Loc))?;
                 self.ty_gather_params(sess, map, None, ty)?;
             }
             surface::Arg::Ty(bind, ty) => self.ty_gather_params(sess, map, *bind, ty)?,
@@ -706,7 +693,7 @@ impl Binders {
     fn ty_gather_params(
         &mut self,
         sess: &FluxSession,
-        map: &fhir::Map,
+        map: &'a fhir::Map,
         bind: Option<surface::Ident>,
         ty: &surface::Ty<Res>,
     ) -> Result<(), ErrorGuaranteed> {
@@ -768,10 +755,12 @@ impl Binders {
         let mut params = vec![];
         for (ident, binder) in self.map {
             match binder {
-                Binder::Single(name, sort) => params.push(param_from_ident(ident, name, sort)),
+                Binder::Single(name, sort) => {
+                    params.push(param_from_ident(ident, name, sort.clone()))
+                }
                 Binder::Aggregate(_, fields) => {
                     for (_, (name, sort)) in fields {
-                        params.push(param_from_ident(ident, name, sort));
+                        params.push(param_from_ident(ident, name, sort.clone()));
                     }
                 }
                 Binder::Unrefined => {}
@@ -781,8 +770,8 @@ impl Binders {
     }
 }
 
-impl<T: Borrow<surface::Ident>> std::ops::Index<T> for Binders {
-    type Output = Binder;
+impl<'a, T: Borrow<surface::Ident>> std::ops::Index<T> for Binders<'a> {
+    type Output = Binder<'a>;
 
     fn index(&self, index: T) -> &Self::Output {
         &self.map[index.borrow()]
@@ -813,11 +802,11 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
     }
 }
 
-impl Binder {
-    fn new(name_gen: &IndexGen<fhir::Name>, map: &fhir::Map, res: surface::Res) -> Binder {
+impl<'a> Binder<'a> {
+    fn new(name_gen: &IndexGen<fhir::Name>, map: &'a fhir::Map, res: surface::Res) -> Binder<'a> {
         match res {
-            Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool),
-            Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int),
+            Res::Bool => Binder::Single(name_gen.fresh(), &fhir::Sort::Bool),
+            Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), &fhir::Sort::Int),
             Res::Adt(def_id) => {
                 let fields: FxIndexMap<_, _> = map
                     .refined_by(def_id)
@@ -825,7 +814,7 @@ impl Binder {
                     .iter()
                     .map(|param| {
                         let fld = param.name.source_info.1;
-                        (fld, (name_gen.fresh(), param.sort))
+                        (fld, (name_gen.fresh(), &param.sort))
                     })
                     .collect();
                 Binder::Aggregate(def_id, fields)
@@ -834,7 +823,7 @@ impl Binder {
         }
     }
 
-    fn deaggregate(self) -> Vec<(fhir::Name, fhir::Sort)> {
+    fn deaggregate(self) -> Vec<(fhir::Name, &'a fhir::Sort)> {
         match self {
             Binder::Single(name, sort) => vec![(name, sort)],
             Binder::Aggregate(_, fields) => fields.into_values().collect(),
@@ -975,7 +964,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(desugar::invalid_primitive_dot_access, code = "FLUX")]
-    pub struct InvalidPrimitiveDotAccess {
+    pub struct InvalidPrimitiveDotAccess<'a> {
         #[primary_span]
         #[label]
         span: Span,
@@ -983,11 +972,11 @@ mod errors {
         fld: Symbol,
         #[label(desugar::defined_here)]
         def_span: Span,
-        sort: fhir::Sort,
+        sort: &'a fhir::Sort,
     }
 
-    impl InvalidPrimitiveDotAccess {
-        pub fn new(def_ident: Ident, sort: fhir::Sort, name: Ident, fld: Ident) -> Self {
+    impl<'a> InvalidPrimitiveDotAccess<'a> {
+        pub fn new(def_ident: Ident, sort: &'a fhir::Sort, name: Ident, fld: Ident) -> Self {
             let span = name.span.to(fld.span);
             Self { def_span: def_ident.span, sort, span, name, fld: fld.name }
         }

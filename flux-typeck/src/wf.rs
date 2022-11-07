@@ -1,4 +1,4 @@
-use std::iter;
+use std::{borrow::Borrow, iter};
 
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
@@ -16,15 +16,15 @@ pub struct Wf<'a, 'tcx> {
     map: &'a fhir::Map,
 }
 
-struct Env {
-    sorts: FxHashMap<fhir::Name, fhir::Sort>,
+struct Env<'a> {
+    sorts: FxHashMap<fhir::Name, &'a fhir::Sort>,
 }
 
-impl Env {
-    fn new(params: &[fhir::Param]) -> Env {
+impl<'a> Env<'a> {
+    fn new(params: &'a [fhir::Param]) -> Env {
         let sorts = params
             .iter()
-            .map(|param| (param.name.name, param.sort))
+            .map(|param| (param.name.name, &param.sort))
             .collect();
         Env { sorts }
     }
@@ -32,12 +32,12 @@ impl Env {
     fn with_binders<R>(
         &mut self,
         binders: &[fhir::Name],
-        sorts: &[fhir::Sort],
+        sorts: &'a [fhir::Sort],
         f: impl FnOnce(&Self) -> R,
     ) -> R {
         debug_assert_eq!(binders.len(), sorts.len());
         for (binder, sort) in iter::zip(binders, sorts) {
-            self.sorts.insert(*binder, *sort);
+            self.sorts.insert(*binder, sort);
         }
         let r = f(self);
         for binder in binders {
@@ -47,13 +47,13 @@ impl Env {
     }
 }
 
-impl std::ops::Index<&'_ fhir::Name> for Env {
-    type Output = fhir::Sort;
+impl<'a, T: Borrow<fhir::Name>> std::ops::Index<T> for Env<'a> {
+    type Output = &'a fhir::Sort;
 
-    fn index(&self, var: &fhir::Name) -> &Self::Output {
+    fn index(&self, var: T) -> &Self::Output {
         self.sorts
-            .get(var)
-            .unwrap_or_else(|| panic!("no enty found for key: `{var:?}`"))
+            .get(var.borrow())
+            .unwrap_or_else(|| panic!("no enty found for key: `{:?}`", var.borrow()))
     }
 }
 
@@ -119,7 +119,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
         let env = Env::new(&qualifier.args);
 
-        self.check_expr(&env, &qualifier.expr, fhir::Sort::Bool)
+        self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
     pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
@@ -127,7 +127,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         adt_def
             .invariants
             .iter()
-            .try_for_each_exhaust(|invariant| self.check_expr(&env, invariant, fhir::Sort::Bool))?;
+            .try_for_each_exhaust(|invariant| {
+                self.check_expr(&env, invariant, &fhir::Sort::Bool)
+            })?;
 
         Ok(())
     }
@@ -171,7 +173,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_constr(
         &self,
-        env: &mut Env,
+        env: &mut Env<'a>,
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
         match constr {
@@ -180,13 +182,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .into_iter()
                     .try_collect_exhaust()
             }
-            fhir::Constraint::Pred(e) => self.check_expr(env, e, fhir::Sort::Bool),
+            fhir::Constraint::Pred(e) => self.check_expr(env, e, &fhir::Sort::Bool),
         }
     }
 
     fn check_type(
         &self,
-        env: &mut Env,
+        env: &mut Env<'a>,
         ty: &fhir::Ty,
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
@@ -206,7 +208,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     ));
                 }
                 self.check_base_ty(env, bty, allow_binder)?;
-                env.with_binders(binders, sorts, |env| self.check_expr(env, pred, fhir::Sort::Bool))
+                env.with_binders(binders, sorts, |env| {
+                    self.check_expr(env, pred, &fhir::Sort::Bool)
+                })
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
             fhir::Ty::Ref(_, ty) => self.check_type(env, ty, allow_binder),
@@ -215,7 +219,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .try_for_each_exhaust(|ty| self.check_type(env, ty, allow_binder))
             }
             fhir::Ty::Constr(pred, ty) => {
-                self.check_expr(env, pred, fhir::Sort::Bool)?;
+                self.check_expr(env, pred, &fhir::Sort::Bool)?;
                 self.check_type(env, ty, allow_binder)
             }
             fhir::Ty::Slice(ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty, false),
@@ -233,7 +237,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_base_ty(
         &self,
-        env: &mut Env,
+        env: &mut Env<'a>,
         bty: &fhir::BaseTy,
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
@@ -260,7 +264,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             return self.emit_err(errors::IllegalBinder::new(Some(indices.span)));
         }
 
-        let found = self.synt_indices(env, indices)?;
+        let found = self.synth_indices(env, indices)?;
         if expected.len() != found.len() {
             return self.emit_err(errors::ParamCountMismatch::new(
                 Some(indices.span),
@@ -270,10 +274,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
         izip!(indices, expected, found)
             .map(|(idx, expected, found)| {
-                if found == *expected {
+                if found == expected {
                     Ok(())
                 } else {
-                    self.emit_err(errors::SortMismatch::new(idx.expr.span, *expected, found))
+                    self.emit_err(errors::SortMismatch::new(idx.expr.span, expected, found))
                 }
             })
             .try_collect_exhaust()
@@ -283,7 +287,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         &self,
         env: &Env,
         e: &fhir::Expr,
-        expected: fhir::Sort,
+        expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         let found = self.synth_expr(env, e)?;
         if found == expected {
@@ -295,19 +299,19 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_loc(&self, env: &Env, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
         let found = env[&loc.name];
-        if found == fhir::Sort::Loc {
+        if found == &fhir::Sort::Loc {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(loc.source_info.0, fhir::Sort::Loc, found))
+            self.emit_err(errors::SortMismatch::new(loc.source_info.0, &fhir::Sort::Loc, found))
         }
     }
 
-    fn synt_indices(
+    fn synth_indices(
         &self,
-        env: &Env,
-        refine: &fhir::Indices,
-    ) -> Result<Vec<fhir::Sort>, ErrorGuaranteed> {
-        let sorts: Vec<fhir::Sort> = refine
+        env: &Env<'a>,
+        refine: &'a fhir::Indices,
+    ) -> Result<Vec<&'a fhir::Sort>, ErrorGuaranteed> {
+        let sorts: Vec<&fhir::Sort> = refine
             .indices
             .iter()
             .map(|idx| self.synth_expr(env, &idx.expr))
@@ -315,15 +319,19 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Ok(sorts)
     }
 
-    fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
+    fn synth_expr(
+        &self,
+        env: &Env<'a>,
+        e: &'a fhir::Expr,
+    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
             fhir::ExprKind::Var(var, ..) => Ok(env[var]),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
-            fhir::ExprKind::Const(_, _) => Ok(fhir::Sort::Int), // TODO: generalize const sorts
+            fhir::ExprKind::Const(_, _) => Ok(&fhir::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_uf_app(env, f, es, e.span),
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
-                self.check_expr(env, p, fhir::Sort::Bool)?;
+                self.check_expr(env, p, &fhir::Sort::Bool)?;
                 let sort = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, sort)?;
                 Ok(sort)
@@ -333,40 +341,40 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn synth_binary_op(
         &self,
-        env: &Env,
+        env: &Env<'a>,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
-    ) -> Result<fhir::Sort, ErrorGuaranteed> {
+    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
         match op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
-                self.check_expr(env, e1, fhir::Sort::Bool)?;
-                self.check_expr(env, e2, fhir::Sort::Bool)?;
-                Ok(fhir::Sort::Bool)
+                self.check_expr(env, e1, &fhir::Sort::Bool)?;
+                self.check_expr(env, e2, &fhir::Sort::Bool)?;
+                Ok(&fhir::Sort::Bool)
             }
             fhir::BinOp::Eq | fhir::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, s)?;
-                Ok(fhir::Sort::Bool)
+                Ok(&fhir::Sort::Bool)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
-                self.check_expr(env, e1, fhir::Sort::Int)?;
-                self.check_expr(env, e2, fhir::Sort::Int)?;
-                Ok(fhir::Sort::Bool)
+                self.check_expr(env, e1, &fhir::Sort::Int)?;
+                self.check_expr(env, e2, &fhir::Sort::Int)?;
+                Ok(&fhir::Sort::Bool)
             }
             fhir::BinOp::Add
             | fhir::BinOp::Sub
             | fhir::BinOp::Mod
             | fhir::BinOp::Mul
             | fhir::BinOp::Div => {
-                self.check_expr(env, e1, fhir::Sort::Int)?;
-                self.check_expr(env, e2, fhir::Sort::Int)?;
-                Ok(fhir::Sort::Int)
+                self.check_expr(env, e1, &fhir::Sort::Int)?;
+                self.check_expr(env, e2, &fhir::Sort::Int)?;
+                Ok(&fhir::Sort::Int)
             }
         }
     }
 
-    fn sorts(&self, bty: &fhir::BaseTy) -> &[fhir::Sort] {
+    fn sorts(&self, bty: &fhir::BaseTy) -> &'a [fhir::Sort] {
         match bty {
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) => &[fhir::Sort::Int],
             fhir::BaseTy::Bool => &[fhir::Sort::Bool],
@@ -380,11 +388,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn synth_uf_app(
         &self,
-        env: &Env,
-        f: &fhir::UFun,
+        env: &Env<'a>,
+        f: &'a fhir::UFun,
         es: &[fhir::Expr],
         span: Span,
-    ) -> Result<fhir::Sort, ErrorGuaranteed> {
+    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
         let Some(uif_def) = self.map.uif(f.symbol) else {
             return self.emit_err(errors::UnresolvedFunction::new(f.span));
         };
@@ -393,20 +401,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         if expected != found {
             return self.emit_err(errors::ParamCountMismatch::new(Some(span), expected, found));
         }
-        for (e, t) in iter::zip(es, &uif_def.inputs) {
-            let e_t = self.synth_expr(env, e)?;
-            if e_t != *t {
-                return self.emit_err(errors::SortMismatch::new(e.span, *t, e_t));
+        for (e, expected) in iter::zip(es, &uif_def.inputs) {
+            let found = self.synth_expr(env, e)?;
+            if found != expected {
+                return self.emit_err(errors::SortMismatch::new(e.span, expected, found));
             }
         }
-        Ok(uif_def.output)
+        Ok(&uif_def.output)
     }
 }
 
-fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
+fn synth_lit(lit: fhir::Lit) -> &'static fhir::Sort {
     match lit {
-        fhir::Lit::Int(_) => fhir::Sort::Int,
-        fhir::Lit::Bool(_) => fhir::Sort::Bool,
+        fhir::Lit::Int(_) => &fhir::Sort::Int,
+        fhir::Lit::Bool(_) => &fhir::Sort::Bool,
     }
 }
 
@@ -417,16 +425,16 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(wf::sort_mismatch, code = "FLUX")]
-    pub struct SortMismatch {
+    pub struct SortMismatch<'a> {
         #[primary_span]
         #[label]
         pub span: Span,
-        pub expected: fhir::Sort,
-        pub found: fhir::Sort,
+        pub expected: &'a fhir::Sort,
+        pub found: &'a fhir::Sort,
     }
 
-    impl SortMismatch {
-        pub fn new(span: Span, expected: fhir::Sort, found: fhir::Sort) -> Self {
+    impl<'a> SortMismatch<'a> {
+        pub fn new(span: Span, expected: &'a fhir::Sort, found: &'a fhir::Sort) -> Self {
             Self { span, expected, found }
         }
     }

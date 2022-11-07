@@ -379,7 +379,7 @@ impl std::str::FromStr for TagIdx {
 
 pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     match sort {
-        rty::Sort::Int | rty::Sort::Loc => fixpoint::Sort::Int,
+        rty::Sort::Int => fixpoint::Sort::Int,
         rty::Sort::Bool => fixpoint::Sort::Bool,
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {
@@ -398,6 +398,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
+        rty::Sort::Func(_) | rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
     }
 }
 
@@ -472,7 +473,7 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
         rty::ExprKind::App(f, exprs) => {
             let args = exprs
                 .iter()
-                .map(|e| expr_to_fixpoint(e, name_map, const_map))
+                .map(|e| (expr_to_fixpoint(e, name_map, const_map)))
                 .collect();
             fixpoint::Expr::App(f.to_string(), args)
         }

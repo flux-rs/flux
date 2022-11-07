@@ -14,7 +14,7 @@ mod annot_check;
 mod desugar;
 mod table_resolver;
 
-pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uif_def};
+pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_uif_def};
 use flux_errors::FluxSession;
 use flux_middle::fhir;
 use flux_syntax::surface::{self, TyCtxt};

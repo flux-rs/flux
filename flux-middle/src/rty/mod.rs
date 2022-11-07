@@ -182,6 +182,12 @@ pub enum Sort {
     Bool,
     Loc,
     Tuple(List<Sort>),
+    Func(FuncSort),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FuncSort {
+    inputs_and_output: List<Sort>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -193,6 +199,16 @@ pub struct UifDef {
 newtype_index! {
     pub struct KVid {
         DEBUG_FORMAT = "$k{}"
+    }
+}
+
+impl FuncSort {
+    pub fn inputs(&self) -> &[Sort] {
+        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
+    }
+
+    pub fn output(&self) -> &Sort {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 
@@ -907,6 +923,7 @@ mod pretty {
                 Sort::Bool => w!("bool"),
                 Sort::Loc => w!("loc"),
                 Sort::Tuple(sorts) => w!("({:?})", join!(", ", sorts)),
+                Sort::Func(sort) => w!("({:?}) -> {:?}", join!(", ", sort.inputs()), sort.output()),
             }
         }
     }

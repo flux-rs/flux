@@ -68,7 +68,6 @@ pub enum StructKind {
 #[derive(Debug)]
 pub struct EnumDef {
     pub def_id: DefId,
-    pub refined_by: Vec<Param>,
     pub variants: Vec<VariantDef>,
 }
 
@@ -169,13 +168,13 @@ pub enum BaseTy {
     Adt(DefId, Vec<Ty>),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Param {
     pub name: Ident,
     pub sort: Sort,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Sort {
     Bool,
     Int,
@@ -266,7 +265,7 @@ pub struct UifDef {
 
 impl AdtDef {
     pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
-        let sorts = refined_by.iter().map(|param| param.sort).collect();
+        let sorts = refined_by.iter().map(|param| param.sort.clone()).collect();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
     }
 }
@@ -561,7 +560,7 @@ impl fmt::Debug for Sort {
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for Sort {
+impl rustc_errors::IntoDiagnosticArg for &Sort {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         let cow = match self {
             Sort::Bool => Cow::Borrowed("bool"),

@@ -182,7 +182,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .map(|(index, param)| {
                 self.name_map
                     .insert(param.name.name, Entry::Bound { index, level: 0 });
-                conv_sort(param.sort)
+                conv_sort(&param.sort)
             })
             .collect()
     }
@@ -212,7 +212,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .map(|param| {
                 let fresh = name_gen.fresh();
                 name_map.insert(param.name.name, fresh);
-                (fresh, conv_sort(param.sort))
+                (fresh, conv_sort(&param.sort))
             })
             .collect_vec();
 
@@ -379,7 +379,7 @@ impl NameMap {
             .map(|(index, param)| {
                 self.map
                     .insert(param.name.name, Entry::Bound { index, level: 0 });
-                conv_sort(param.sort)
+                conv_sort(&param.sort)
             })
             .collect()
     }
@@ -418,7 +418,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     }
 }
 
-pub fn conv_sort(sort: fhir::Sort) -> rty::Sort {
+pub fn conv_sort(sort: &fhir::Sort) -> rty::Sort {
     match sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Bool => rty::Sort::Bool,
