@@ -21,7 +21,10 @@ pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy}
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
-pub use crate::{fhir::RefKind, rustc::ty::Const};
+pub use crate::{
+    fhir::{FuncSort, RefKind, Sort},
+    rustc::ty::Const,
+};
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::Place,
@@ -176,20 +179,6 @@ pub struct KVar {
     pub scope: List<Expr>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Sort {
-    Int,
-    Bool,
-    Loc,
-    Tuple(List<Sort>),
-    Func(FuncSort),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FuncSort {
-    inputs_and_output: List<Sort>,
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct UifDef {
     pub inputs: Vec<Sort>,
@@ -199,16 +188,6 @@ pub struct UifDef {
 newtype_index! {
     pub struct KVid {
         DEBUG_FORMAT = "$k{}"
-    }
-}
-
-impl FuncSort {
-    pub fn inputs(&self) -> &[Sort] {
-        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
-    }
-
-    pub fn output(&self) -> &Sort {
-        &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 
@@ -696,7 +675,6 @@ impl_internable!(
     [KVar],
     [Constraint],
     [Index],
-    [Sort]
 );
 
 #[macro_export]
@@ -928,18 +906,11 @@ mod pretty {
         }
     }
 
-    impl fmt::Display for Sort {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            fmt::Debug::fmt(self, f)
-        }
-    }
-
     impl_debug_with_default_cx!(
         Constraint,
         TyS => "ty",
         BaseTy,
         Pred,
-        Sort,
         KVar,
         FnSig,
         Index,

@@ -46,8 +46,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let mut uif_defs = FxHashMap::default();
         for (name, uif_def) in map.uifs() {
-            let inputs = uif_def.inputs.iter().map(rty::conv::conv_sort).collect();
-            let output = rty::conv::conv_sort(&uif_def.output);
+            let inputs = uif_def.inputs.clone();
+            let output = uif_def.output.clone();
 
             uif_defs.insert(*name, rty::UifDef { inputs, output });
         }

@@ -28,7 +28,10 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::pretty;
+use crate::{
+    intern::{impl_internable, List},
+    pretty,
+};
 
 #[derive(Debug, Clone)]
 pub struct ConstInfo {
@@ -174,11 +177,18 @@ pub struct Param {
     pub sort: Sort,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Sort {
-    Bool,
     Int,
+    Bool,
     Loc,
+    Tuple(List<Sort>),
+    Func(FuncSort),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FuncSort {
+    pub inputs_and_output: List<Sort>,
 }
 
 pub struct Expr {
@@ -274,6 +284,16 @@ impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
     pub fn iter(&self) -> impl Iterator<Item = &Param> {
         self.params.iter()
+    }
+}
+
+impl FuncSort {
+    pub fn inputs(&self) -> &[Sort] {
+        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
+    }
+
+    pub fn output(&self) -> &Sort {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 
@@ -384,6 +404,8 @@ impl Map {
         self.adts.values()
     }
 }
+
+impl_internable!([Sort]);
 
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -550,13 +572,23 @@ impl fmt::Debug for Lit {
     }
 }
 
-impl fmt::Debug for Sort {
+impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
             Sort::Loc => write!(f, "loc"),
+            Sort::Func(sort) => {
+                write!(f, "({}) -> {}", sort.inputs().iter().join(","), sort.output())
+            }
+            Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
         }
+    }
+}
+
+impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -566,6 +598,7 @@ impl rustc_errors::IntoDiagnosticArg for &Sort {
             Sort::Bool => Cow::Borrowed("bool"),
             Sort::Int => Cow::Borrowed("int"),
             Sort::Loc => Cow::Borrowed("loc"),
+            _ => Cow::Owned(format!("{}", self)),
         };
         rustc_errors::DiagnosticArgValue::Str(cow)
     }
