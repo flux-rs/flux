@@ -39,7 +39,7 @@ pub struct Alias<T = Ident> {
 #[derive(Debug)]
 pub struct StructDef<T = Ident> {
     pub def_id: LocalDefId,
-    pub refined_by: Option<Params>,
+    pub refined_by: Option<RefinedBy>,
     pub fields: Vec<Option<Ty<T>>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
@@ -48,7 +48,7 @@ pub struct StructDef<T = Ident> {
 #[derive(Debug)]
 pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
-    pub refined_by: Option<Params>,
+    pub refined_by: Option<RefinedBy>,
     pub variants: Vec<VariantDef<T>>,
     pub invariants: Vec<Expr>,
 }
@@ -69,7 +69,7 @@ pub struct VariantRet<T = Ident> {
 }
 
 #[derive(Debug, Default)]
-pub struct Params {
+pub struct RefinedBy {
     pub params: Vec<Param>,
     pub span: Span,
 }
@@ -226,8 +226,8 @@ pub enum BinOp {
     Mul,
 }
 
-impl Params {
-    pub const DUMMY: &Params = &Params { params: vec![], span: rustc_span::DUMMY_SP };
+impl RefinedBy {
+    pub const DUMMY: &RefinedBy = &RefinedBy { params: vec![], span: rustc_span::DUMMY_SP };
 }
 
 impl Path<Res> {
@@ -240,17 +240,13 @@ impl Path<Res> {
     }
 }
 
-impl Params {
-    pub fn empty(span: Span) -> Params {
-        Params { params: vec![], span }
-    }
-
+impl RefinedBy {
     pub fn iter(&self) -> impl Iterator<Item = &Param> {
         self.params.iter()
     }
 }
 
-impl<'a> IntoIterator for &'a Params {
+impl<'a> IntoIterator for &'a RefinedBy {
     type Item = &'a Param;
 
     type IntoIter = std::slice::Iter<'a, Param>;
@@ -260,7 +256,7 @@ impl<'a> IntoIterator for &'a Params {
     }
 }
 
-impl IntoIterator for Params {
+impl IntoIterator for RefinedBy {
     type Item = Param;
 
     type IntoIter = std::vec::IntoIter<Self::Item>;

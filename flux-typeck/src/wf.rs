@@ -123,7 +123,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&adt_def.refined_by);
+        let env = Env::new(&adt_def.refined_by.params);
         adt_def
             .invariants
             .iter()
@@ -134,10 +134,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     pub fn check_struct_def(
         &self,
-        refined_by: &[fhir::Param],
+        refined_by: &fhir::RefinedBy,
         def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(refined_by);
+        let mut env = Env::new(&refined_by.params);
         if let fhir::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
                 if let Some(ty) = ty {

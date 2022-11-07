@@ -416,7 +416,7 @@ enum FluxAttrKind {
     Assume,
     Opaque,
     FnSig(surface::FnSig),
-    RefinedBy(surface::Params),
+    RefinedBy(surface::RefinedBy),
     Qualifier(surface::Qualifier),
     UifDef(surface::UifDef),
     TypeAlias(surface::Alias),
@@ -509,7 +509,7 @@ impl FluxAttrs {
         read_attr!(self, TypeAlias)
     }
 
-    fn refined_by(&mut self) -> Option<surface::Params> {
+    fn refined_by(&mut self) -> Option<surface::RefinedBy> {
         read_attr!(self, RefinedBy)
     }
 

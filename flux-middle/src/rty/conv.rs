@@ -40,7 +40,7 @@ impl From<rty::Name> for Entry {
 
 pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
     let mut name_map = NameMap::default();
-    let sorts = name_map.conv_params(&adt_def.refined_by);
+    let sorts = name_map.conv_refined_by(&adt_def.refined_by);
 
     let invariants = adt_def
         .invariants
@@ -372,8 +372,8 @@ impl NameMap {
         rty::Invariant { pred: Binders::new(self.conv_expr(invariant, 1), sorts) }
     }
 
-    fn conv_params(&mut self, params: &[fhir::Param]) -> Vec<rty::Sort> {
-        params
+    fn conv_refined_by(&mut self, refined_by: &fhir::RefinedBy) -> Vec<rty::Sort> {
+        refined_by
             .iter()
             .enumerate()
             .map(|(index, param)| {

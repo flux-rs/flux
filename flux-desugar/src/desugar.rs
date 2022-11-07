@@ -4,13 +4,14 @@ use std::{borrow::Borrow, iter};
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir;
-use flux_syntax::surface::{self, Res};
+use flux_syntax::surface::{self, Res, TyCtxt};
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_span::{sym, symbol::kw, Symbol};
 
 pub fn desugar_qualifier(
+    tcx: TyCtxt,
     sess: &FluxSession,
     map: &fhir::Map,
     qualifier: surface::Qualifier,
@@ -18,7 +19,7 @@ pub fn desugar_qualifier(
     let mut binders = Binders::new();
     binders.insert_params(sess, qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
-    let expr = ExprCtxt::new(sess, map, &binders).desugar_expr(qualifier.expr);
+    let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(qualifier.expr);
 
     Ok(fhir::Qualifier { name, args: binders.into_params(), expr: expr? })
 }
@@ -38,7 +39,7 @@ pub fn resolve_uif_def(
 
 pub fn resolve_sorts(
     sess: &FluxSession,
-    params: &surface::Params,
+    params: &surface::RefinedBy,
 ) -> Result<Vec<fhir::Sort>, ErrorGuaranteed> {
     params
         .params
@@ -48,26 +49,28 @@ pub fn resolve_sorts(
 }
 
 pub fn desugar_adt_def(
+    tcx: TyCtxt,
     sess: &FluxSession,
     map: &fhir::Map,
     def_id: DefId,
-    params: &surface::Params,
+    refined_by: &surface::RefinedBy,
     invariants: Vec<surface::Expr>,
     opaque: bool,
 ) -> Result<fhir::AdtDef, ErrorGuaranteed> {
     let mut binders = Binders::new();
-    binders.insert_params(sess, params)?;
+    binders.insert_params(sess, refined_by)?;
 
     let invariants = invariants
         .into_iter()
-        .map(|invariant| ExprCtxt::new(sess, map, &binders).desugar_expr(invariant))
+        .map(|invariant| ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
-    let refined_by = binders.into_params();
+    let refined_by = fhir::RefinedBy { params: binders.into_params(), span: refined_by.span };
     Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
 }
 
 pub fn desugar_struct_def(
+    tcx: TyCtxt,
     sess: &FluxSession,
     map: &fhir::Map,
     adt_def: surface::StructDef<Res>,
@@ -76,7 +79,7 @@ pub fn desugar_struct_def(
     let mut binders = Binders::new();
     binders.insert_params(sess, adt_def.refined_by.into_iter().flatten())?;
 
-    let mut cx = DesugarCtxt::new(sess, map, binders);
+    let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     let kind = if adt_def.opaque {
         fhir::StructKind::Opaque
@@ -92,6 +95,7 @@ pub fn desugar_struct_def(
 }
 
 pub fn desugar_enum_def(
+    tcx: TyCtxt,
     sess: &FluxSession,
     map: &fhir::Map,
     enum_def: surface::EnumDef<Res>,
@@ -102,7 +106,7 @@ pub fn desugar_enum_def(
     let variants = enum_def
         .variants
         .into_iter()
-        .map(|variant| desugar_variant(sess, map, variant))
+        .map(|variant| desugar_variant(tcx, sess, map, variant))
         .try_collect_exhaust()?;
 
     let refined_by = binders.into_params();
@@ -111,6 +115,7 @@ pub fn desugar_enum_def(
 }
 
 fn desugar_variant(
+    tcx: TyCtxt,
     sess: &FluxSession,
     map: &fhir::Map,
     variant: surface::VariantDef<Res>,
@@ -119,7 +124,7 @@ fn desugar_variant(
     for ty in &variant.fields {
         binders.ty_gather_params(sess, map, None, ty)?;
     }
-    let mut cx = DesugarCtxt::new(sess, map, binders);
+    let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     let fields = variant
         .fields
@@ -133,13 +138,14 @@ fn desugar_variant(
 }
 
 pub fn desugar_fn_sig(
+    tcx: TyCtxt,
     sess: &FluxSession,
     map: &fhir::Map,
     fn_sig: surface::FnSig<Res>,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
     binders.gather_fn_sig_params(sess, map, &fn_sig)?;
-    let mut cx = DesugarCtxt::new(sess, map, binders);
+    let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     if let Some(e) = fn_sig.requires {
         let e = cx.as_expr_ctxt().desugar_expr(e)?;
@@ -177,7 +183,8 @@ pub fn desugar_fn_sig(
     })
 }
 
-pub struct DesugarCtxt<'a> {
+pub struct DesugarCtxt<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     map: &'a fhir::Map,
     binders: Binders,
@@ -204,7 +211,7 @@ enum Binder {
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
     /// index are treated specially as they can be used either with a projection or the
     /// binder directly.
-    Aggregate(FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
+    Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
@@ -214,7 +221,8 @@ enum Binder {
     Unrefined,
 }
 
-struct ExprCtxt<'a> {
+struct ExprCtxt<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     map: &'a fhir::Map,
     binders: &'a Binders,
@@ -225,13 +233,18 @@ enum BtyOrTy {
     Ty(fhir::Ty),
 }
 
-impl<'a> DesugarCtxt<'a> {
-    fn new(sess: &'a FluxSession, map: &'a fhir::Map, binders: Binders) -> DesugarCtxt<'a> {
-        DesugarCtxt { sess, binders, requires: vec![], map }
+impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
+    fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'a FluxSession,
+        map: &'a fhir::Map,
+        binders: Binders,
+    ) -> DesugarCtxt<'a, 'tcx> {
+        DesugarCtxt { tcx, sess, binders, requires: vec![], map }
     }
 
-    fn as_expr_ctxt(&self) -> ExprCtxt {
-        ExprCtxt::new(self.sess, self.map, &self.binders)
+    fn as_expr_ctxt(&self) -> ExprCtxt<'_, 'tcx> {
+        ExprCtxt::new(self.tcx, self.sess, self.map, &self.binders)
     }
 
     fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -297,7 +310,8 @@ impl<'a> DesugarCtxt<'a> {
                         if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
                             let (pred, _) = self.binders.with_bind(ident, binder, |binders| {
-                                ExprCtxt::new(self.sess, self.map, binders).desugar_expr(pred)
+                                ExprCtxt::new(self.tcx, self.sess, self.map, binders)
+                                    .desugar_expr(pred)
                             })?;
                             let idxs = self.desugar_bind(bind)?;
                             fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
@@ -305,7 +319,8 @@ impl<'a> DesugarCtxt<'a> {
                             let binder = Binder::new(&self.binders.name_gen, self.map, res);
                             let (pred, binder) =
                                 self.binders.with_bind(ident, binder, |binders| {
-                                    ExprCtxt::new(self.sess, self.map, binders).desugar_expr(pred)
+                                    ExprCtxt::new(self.tcx, self.sess, self.map, binders)
+                                        .desugar_expr(pred)
                                 })?;
                             fhir::Ty::Exists(bty, binder.names(), pred)
                         }
@@ -360,7 +375,7 @@ impl<'a> DesugarCtxt<'a> {
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(vec![fhir::Index { expr, is_binder: true }])
             }
-            Some(Binder::Aggregate(fields)) => {
+            Some(Binder::Aggregate(_, fields)) => {
                 let indices = fields
                     .values()
                     .map(|(name, _)| {
@@ -426,9 +441,14 @@ impl<'a> DesugarCtxt<'a> {
     }
 }
 
-impl<'a> ExprCtxt<'a> {
-    fn new(sess: &'a FluxSession, map: &'a fhir::Map, binders: &'a Binders) -> Self {
-        Self { sess, map, binders }
+impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
+    fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'a FluxSession,
+        map: &'a fhir::Map,
+        binders: &'a Binders,
+    ) -> Self {
+        Self { tcx, sess, map, binders }
     }
 
     fn desugar_expr(&self, expr: surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
@@ -481,7 +501,7 @@ impl<'a> ExprCtxt<'a> {
             (Some(Binder::Single(name, _)), _) => {
                 fhir::ExprKind::Var(*name, ident.name, ident.span)
             }
-            (Some(Binder::Aggregate(fields)), _) => {
+            (Some(Binder::Aggregate(_, fields)), _) => {
                 if fields.len() == 1 {
                     let (name, _) = fields.values().next().unwrap();
                     fhir::ExprKind::Var(*name, ident.name, ident.span)
@@ -516,15 +536,16 @@ impl<'a> ExprCtxt<'a> {
         };
 
         match self.binders.get(ident) {
-            Some(Binder::Single(..)) => {
+            Some(Binder::Single(_, sort)) => {
+                let def_ident = self.binders.def_ident(ident).unwrap();
                 Err(self
                     .sess
-                    .emit_err(errors::InvalidDotAccess::new(ident, fld)))
+                    .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, *sort, ident, fld)))
             }
-            Some(Binder::Aggregate(fields)) => {
+            Some(Binder::Aggregate(def_id, fields)) => {
                 let (name, _) = fields.get(&fld.name).ok_or_else(|| {
                     self.sess
-                        .emit_err(errors::InvalidDotAccess::new(ident, fld))
+                        .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
                 let span = ident.span.to(fld.span);
                 let kind = fhir::ExprKind::Var(*name, ident.name, span);
@@ -748,7 +769,7 @@ impl Binders {
         for (ident, binder) in self.map {
             match binder {
                 Binder::Single(name, sort) => params.push(param_from_ident(ident, name, sort)),
-                Binder::Aggregate(fields) => {
+                Binder::Aggregate(_, fields) => {
                     for (_, (name, sort)) in fields {
                         params.push(param_from_ident(ident, name, sort));
                     }
@@ -800,18 +821,14 @@ impl Binder {
             Res::Adt(def_id) => {
                 let fields: FxIndexMap<_, _> = map
                     .refined_by(def_id)
-                    .unwrap_or_default()
+                    .unwrap_or(fhir::RefinedBy::DUMMY)
                     .iter()
                     .map(|param| {
                         let fld = param.name.source_info.1;
                         (fld, (name_gen.fresh(), param.sort))
                     })
                     .collect();
-                if fields.is_empty() {
-                    Binder::Unrefined
-                } else {
-                    Binder::Aggregate(fields)
-                }
+                Binder::Aggregate(def_id, fields)
             }
             Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
         }
@@ -820,7 +837,7 @@ impl Binder {
     fn deaggregate(self) -> Vec<(fhir::Name, fhir::Sort)> {
         match self {
             Binder::Single(name, sort) => vec![(name, sort)],
-            Binder::Aggregate(fields) => fields.into_values().collect(),
+            Binder::Aggregate(_, fields) => fields.into_values().collect(),
             Binder::Unrefined => vec![],
         }
     }
@@ -828,7 +845,7 @@ impl Binder {
     fn names(self) -> Vec<fhir::Name> {
         match self {
             Binder::Single(name, _) => vec![name],
-            Binder::Aggregate(fields) => fields.into_values().map(|(name, _)| name).collect(),
+            Binder::Aggregate(_, fields) => fields.into_values().map(|(name, _)| name).collect(),
             Binder::Unrefined => vec![],
         }
     }
@@ -842,7 +859,11 @@ static SORTS: std::sync::LazyLock<Sorts> =
     std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use flux_macros::Diagnostic;
+    use flux_macros::{Diagnostic, Subdiagnostic};
+    use flux_middle::fhir;
+    use rustc_errors::MultiSpan;
+    use rustc_hir::def_id::DefId;
+    use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -953,18 +974,64 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::invalid_dot_access, code = "FLUX")]
-    pub struct InvalidDotAccess {
+    #[diag(desugar::invalid_primitive_dot_access, code = "FLUX")]
+    pub struct InvalidPrimitiveDotAccess {
         #[primary_span]
-        pub span: Span,
-        pub ident: Ident,
-        pub fld: Symbol,
+        #[label]
+        span: Span,
+        name: Ident,
+        fld: Symbol,
+        #[label(desugar::defined_here)]
+        def_span: Span,
+        sort: fhir::Sort,
     }
 
-    impl InvalidDotAccess {
-        pub fn new(ident: Ident, fld: Ident) -> Self {
-            let span = ident.span.to(fld.span);
-            Self { span, ident, fld: fld.name }
+    impl InvalidPrimitiveDotAccess {
+        pub fn new(def_ident: Ident, sort: fhir::Sort, name: Ident, fld: Ident) -> Self {
+            let span = name.span.to(fld.span);
+            Self { def_span: def_ident.span, sort, span, name, fld: fld.name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar::field_not_found, code = "FLUX")]
+    pub struct FieldNotFound {
+        #[primary_span]
+        span: Span,
+        fld: Ident,
+        def_kind: &'static str,
+        def_name: String,
+        #[subdiagnostic]
+        def_note: Option<DefSpanNote>,
+    }
+
+    impl FieldNotFound {
+        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: Ident) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_name = tcx.def_path_str(def_id);
+            let def_note = DefSpanNote::new(tcx, map, def_id);
+            Self { span: fld.span, fld, def_kind, def_name, def_note }
+        }
+    }
+
+    #[derive(Subdiagnostic)]
+    #[note(desugar::def_span_note)]
+    struct DefSpanNote {
+        #[primary_span]
+        sp: MultiSpan,
+        def_kind: &'static str,
+        has_params: bool,
+    }
+
+    impl DefSpanNote {
+        fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
+            let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
+            let refined_by = map.refined_by(def_id)?;
+            if !refined_by.params.is_empty() {
+                sp.push_span_label(refined_by.span, "");
+            }
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            Some(Self { sp, def_kind, has_params: !refined_by.params.is_empty() })
         }
     }
 

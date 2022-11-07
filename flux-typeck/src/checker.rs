@@ -1076,7 +1076,7 @@ pub(crate) mod errors {
         global_env::{OpaqueStructErr, UnsupportedFnSig},
         pretty,
     };
-    use rustc_errors::{DiagnosticId, IntoDiagnostic};
+    use rustc_errors::IntoDiagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
@@ -1126,8 +1126,7 @@ pub(crate) mod errors {
                 CheckerErrKind::OpaqueStruct(_) => refineck::opaque_struct_error,
                 CheckerErrKind::UnsupportedCall { .. } => refineck::unsupported_call,
             };
-            let mut builder =
-                handler.struct_err_with_code(fluent, DiagnosticId::Error("FLUX".to_string()));
+            let mut builder = handler.struct_err_with_code(fluent, flux_errors::diagnostic_id());
             if let Some(span) = self.span {
                 builder.set_span(span);
             }

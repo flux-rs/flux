@@ -24,8 +24,8 @@ pub Alias: surface::Alias = {
     }
 }
 
-pub RefinedBy: surface::Params = {
-    <lo:@L> <params:Comma<Param>> <hi:@R> => surface::Params { params, span: mk_span(lo, hi) }
+pub RefinedBy: surface::RefinedBy = {
+    <lo:@L> <params:Comma<Param>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
 }
 
 pub UifDef: surface::UifDef = {
