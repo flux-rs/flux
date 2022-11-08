@@ -160,7 +160,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         variant_idx: VariantIdx,
     ) -> Result<rty::PolySig, OpaqueStructErr> {
         let poly_variant = self.variant(def_id, variant_idx)?;
-        let variant = poly_variant.skip_binders();
+        let variant = poly_variant.as_ref().skip_binders();
         let sorts = poly_variant.params();
         let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
         Ok(rty::Binders::new(sig, sorts))

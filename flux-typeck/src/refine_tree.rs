@@ -284,8 +284,8 @@ impl ConstrBuilder<'_> {
         ConstrBuilder { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub fn push_guard(&mut self, p: Expr) {
-        self.ptr.push_guard(p);
+    pub fn push_guard(&mut self, p: impl Into<Pred>) {
+        self.ptr.push_guard(p.into());
     }
 
     pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {

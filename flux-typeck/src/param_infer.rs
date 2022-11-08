@@ -17,10 +17,10 @@ pub fn infer_from_constructor(
     fields: &[Ty],
     variant: &PolyVariant,
 ) -> Result<Vec<Expr>, InferenceError> {
-    debug_assert_eq!(fields.len(), variant.skip_binders().fields().len());
+    debug_assert_eq!(fields.len(), variant.as_ref().skip_binders().fields().len());
     let mut exprs = Exprs::default();
 
-    for (actual, formal) in iter::zip(fields, variant.skip_binders().fields()) {
+    for (actual, formal) in iter::zip(fields, variant.as_ref().skip_binders().fields()) {
         infer_from_tys(&mut exprs, &FxHashMap::default(), actual, &FxHashMap::default(), formal);
     }
 
@@ -32,10 +32,11 @@ pub fn infer_from_fn_call<M: PathMap>(
     actuals: &[Ty],
     fn_sig: &PolySig,
 ) -> Result<Vec<Expr>, InferenceError> {
-    debug_assert_eq!(actuals.len(), fn_sig.skip_binders().args().len());
+    debug_assert_eq!(actuals.len(), fn_sig.as_ref().skip_binders().args().len());
 
     let mut exprs = Exprs::default();
     let requires: FxHashMap<Path, Ty> = fn_sig
+        .as_ref()
         .skip_binders()
         .requires()
         .iter()
@@ -48,7 +49,7 @@ pub fn infer_from_fn_call<M: PathMap>(
         })
         .collect();
 
-    for (actual, formal) in iter::zip(actuals, fn_sig.skip_binders().args()) {
+    for (actual, formal) in iter::zip(actuals, fn_sig.as_ref().skip_binders().args()) {
         infer_from_tys(&mut exprs, env, actual, &requires, formal);
     }
 

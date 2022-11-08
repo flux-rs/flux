@@ -114,7 +114,7 @@ pub enum TyKind {
     ///    the capability to deallocate the memory stays with the pointer).
     BoxPtr(Name, Ty),
     Ref(RefKind, Ty),
-    Constr(Expr, Ty),
+    Constr(Pred, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -200,8 +200,12 @@ impl<T> Binders<T> {
         &self.params
     }
 
-    pub fn skip_binders(&self) -> &T {
-        &self.value
+    pub fn as_ref(&self) -> Binders<&T> {
+        Binders { params: self.params.clone(), value: &self.value }
+    }
+
+    pub fn skip_binders(self) -> T {
+        self.value
     }
 }
 
@@ -355,8 +359,8 @@ impl Ty {
         TyKind::Tuple(tys.into()).intern()
     }
 
-    pub fn constr(p: Expr, ty: Ty) -> Ty {
-        TyKind::Constr(p, ty).intern()
+    pub fn constr(p: impl Into<Pred>, ty: Ty) -> Ty {
+        TyKind::Constr(p.into(), ty).intern()
     }
 
     pub fn unconstr(&self) -> &Ty {

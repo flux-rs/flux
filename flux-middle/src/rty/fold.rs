@@ -31,6 +31,10 @@ pub trait TypeFolder: Sized {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         expr.super_fold_with(self)
     }
+
+    fn fold_pred(&mut self, pred: &Pred) -> Pred {
+        pred.super_fold_with(self)
+    }
 }
 
 pub trait TypeFoldable: Sized {
@@ -66,26 +70,33 @@ pub trait TypeFoldable: Sized {
     /// [`holes`]: Pred::Hole
     /// [`predicate`]: Pred
     fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Binders<Pred>) -> Self {
-        struct ReplaceHoles<'a, F>(&'a mut F);
+        struct ReplaceHoles<'a, F>(&'a mut F, &'a [Sort]);
 
         impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
         where
             F: FnMut(&[Sort]) -> Binders<Pred>,
         {
-            fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                if let TyKind::Exists(bty, Binders { params, value: Pred::Hole }) = ty.kind() {
-                    Ty::exists(bty.super_fold_with(self), self.0(params))
+            fn fold_binders<T: TypeFoldable>(&mut self, t: &Binders<T>) -> Binders<T> {
+                t.super_fold_with(&mut ReplaceHoles(&mut self.0, &t.params))
+            }
+
+            fn fold_pred(&mut self, pred: &Pred) -> Pred {
+                if let Pred::Hole = pred {
+                    let binders = self.0(self.1);
+                    debug_assert_eq!(&binders.params[..], self.1);
+                    binders.skip_binders()
                 } else {
-                    ty.super_fold_with(self)
+                    pred.super_fold_with(self)
                 }
             }
         }
-        self.fold_with(&mut ReplaceHoles(mk_pred))
+
+        self.fold_with(&mut ReplaceHoles(mk_pred, &[]))
     }
 
     /// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces
     /// all existing [`predicates`] with a [`hole`].
-    /// For example, `Vec<i32{v : v > 0}>[n]` becomes `Vec<i32{*}>{*}`.
+    /// For example, `Vec<i32{v: v > 0}>[n]` becomes `Vec<i32{v: *}>{v: *}`.
     ///
     /// [`hole`]: Pred::Hole
     /// [`predicates`]: Pred
@@ -393,6 +404,10 @@ impl TypeFoldable for Pred {
             Pred::Kvar(kvar) => kvar.visit_with(visitor),
             Pred::Hole => {}
         }
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_pred(self)
     }
 }
 

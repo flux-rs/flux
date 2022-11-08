@@ -80,13 +80,13 @@ impl TypeFolder for FVarFolder<'_> {
     }
 }
 
-pub(crate) struct BVarFolder<'a> {
+pub(super) struct BVarFolder<'a> {
     outer_binder: DebruijnIndex,
     exprs: &'a [Expr],
 }
 
 impl<'a> BVarFolder<'a> {
-    pub(crate) fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
+    pub(super) fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
         BVarFolder { exprs, outer_binder: INNERMOST }
     }
 }
