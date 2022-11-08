@@ -592,7 +592,7 @@ mod pretty {
                     }
                 }
                 ExprKind::App(f, exprs) => {
-                    w!("{f:?}({:?})", join!(", ", exprs))
+                    w!("{}({:?})", ^f, join!(", ", exprs))
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)

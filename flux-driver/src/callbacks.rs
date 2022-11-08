@@ -291,10 +291,13 @@ fn build_fhir_map(
     err = std::mem::take(&mut specs.fns)
         .into_iter()
         .try_for_each_exhaust(|(def_id, spec)| {
+            if spec.assume {
+                map.add_assumed(def_id);
+            }
             if let Some(fn_sig) = spec.fn_sig {
                 let fn_sig = surface::expand::expand_sig(sess, &aliases, fn_sig)?;
                 let fn_sig = desugar::desugar_fn_sig(tcx, sess, &map, def_id, fn_sig)?;
-                map.insert_fn_sig(def_id, fn_sig, spec.assume);
+                map.insert_fn_sig(def_id, fn_sig);
             }
             Ok(())
         })

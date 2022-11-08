@@ -21,7 +21,7 @@ use std::{borrow::Cow, fmt, fmt::Write};
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
@@ -49,8 +49,8 @@ pub struct Map {
     adts: FxHashMap<LocalDefId, AdtDef>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
-    /// The `bool` tells whether the function has a `#[flux::assume]` annotation.
-    fns: FxHashMap<LocalDefId, (FnSig, bool)>,
+    fns: FxHashMap<LocalDefId, FnSig>,
+    assumes: FxHashSet<LocalDefId>,
 }
 
 #[derive(Debug)]
@@ -291,20 +291,23 @@ impl Map {
 
     // FnSigs
 
-    pub fn insert_fn_sig(&mut self, def_id: LocalDefId, fn_sig: FnSig, assume: bool) {
-        self.fns.insert(def_id, (fn_sig, assume));
+    pub fn insert_fn_sig(&mut self, def_id: LocalDefId, fn_sig: FnSig) {
+        self.fns.insert(def_id, fn_sig);
+    }
+
+    pub fn add_assumed(&mut self, def_id: LocalDefId) {
+        self.assumes.insert(def_id);
     }
 
     pub fn fn_sigs(&self) -> impl Iterator<Item = (DefId, &FnSig)> {
         self.fns
             .iter()
-            .map(|(def_id, (fn_sig, _))| (def_id.to_def_id(), fn_sig))
+            .map(|(def_id, fn_sig)| (def_id.to_def_id(), fn_sig))
     }
 
     pub fn assumed(&self, def_id: DefId) -> bool {
-        if let Some(def_id) = def_id.as_local() &&
-           let Some((_, assumed)) = self.fns.get(&def_id) {
-            *assumed
+        if let Some(def_id) = def_id.as_local() {
+            self.assumes.contains(&def_id)
         } else {
             false
         }
