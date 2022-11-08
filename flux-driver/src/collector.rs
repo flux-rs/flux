@@ -75,7 +75,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let item = tcx.hir().item(item_id);
             let hir_id = item.hir_id();
             let attrs = tcx.hir().attrs(hir_id);
-            let def_id = item.def_id.def_id;
+            let def_id = item.owner_id.def_id;
             let _ = match &item.kind {
                 ItemKind::Fn(..) => collector.parse_fn_spec(def_id, attrs),
                 ItemKind::Struct(data, ..) => collector.parse_struct_def(def_id, attrs, data),
@@ -89,7 +89,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
-            let def_id = impl_item.def_id.def_id;
+            let def_id = impl_item.owner_id.def_id;
             if let ImplItemKind::Fn(..) = &impl_item.kind {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
@@ -132,7 +132,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Ok(());
         };
 
-        let def_id = item.def_id.def_id;
+        let def_id = item.owner_id.def_id;
         let span = item.span;
         let val = match eval_const(self.tcx, def_id) {
             Some(val) => val,

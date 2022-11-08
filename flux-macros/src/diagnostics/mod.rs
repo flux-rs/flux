@@ -12,7 +12,7 @@ use diagnostic::DiagnosticDerive;
 pub(crate) use fluent::fluent_messages;
 use proc_macro2::TokenStream;
 use quote::format_ident;
-use subdiagnostic::SubdiagnosticDerive;
+use subdiagnostic::SubdiagnosticDeriveBuilder;
 use synstructure::Structure;
 
 pub fn diagnostic_derive(s: Structure<'_>) -> TokenStream {
@@ -20,5 +20,5 @@ pub fn diagnostic_derive(s: Structure<'_>) -> TokenStream {
 }
 
 pub fn subdiagnostic_derive(s: Structure<'_>) -> TokenStream {
-    SubdiagnosticDerive::new(s).into_tokens()
+    SubdiagnosticDeriveBuilder::new().into_tokens(s)
 }

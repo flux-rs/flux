@@ -16,7 +16,6 @@ use rustc_middle::ty::{
     query::{query_values, Providers},
     TyCtxt, WithOptConstParam,
 };
-use rustc_session::config::ErrorOutputType;
 use typeck::invariants;
 
 use crate::{
@@ -26,19 +25,18 @@ use crate::{
 
 pub(crate) struct FluxCallbacks {
     full_compilation: bool,
-    error_format: ErrorOutputType,
 }
 
 impl FluxCallbacks {
     pub(crate) fn new(full_compilation: bool) -> Self {
-        FluxCallbacks { full_compilation, error_format: Default::default() }
+        FluxCallbacks { full_compilation }
     }
 }
 
 impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
-        self.error_format = config.opts.error_format;
+
         config.override_queries = Some(|_, local, _| {
             local.mir_borrowck = mir_borrowck;
         });
@@ -57,7 +55,7 @@ impl Callbacks for FluxCallbacks {
             if !is_tool_registered(tcx) {
                 return;
             }
-            let sess = FluxSession::new(self.error_format, tcx.sess.parse_sess.clone_source_map());
+            let sess = FluxSession::new(&tcx.sess.opts, tcx.sess.parse_sess.clone_source_map());
             let _ = check_crate(tcx, &sess);
             sess.finish_diagnostics();
         });
@@ -96,10 +94,10 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     }
 
     let crate_items = tcx.hir_crate_items(());
-    let items = crate_items.items().map(|item| item.def_id.def_id);
+    let items = crate_items.items().map(|item| item.owner_id.def_id);
     let impl_items = crate_items
         .impl_items()
-        .map(|impl_item| impl_item.def_id.def_id);
+        .map(|impl_item| impl_item.owner_id.def_id);
 
     items
         .chain(impl_items)
