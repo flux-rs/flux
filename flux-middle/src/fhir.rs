@@ -40,10 +40,16 @@ pub struct ConstInfo {
     pub val: i128,
 }
 
+#[derive(Debug)]
+pub struct Qualifier {
+    pub name: String,
+    pub args: Vec<Param>,
+    pub expr: Expr,
+}
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
-/// note: `Map` is a very generic name, so we typically qualify the type as `fhir::Map` when
-/// using it.
+/// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
@@ -99,24 +105,12 @@ pub struct FnSig {
     /// example: vec![(l: i32{v:n < v})]
     pub ensures: Vec<Constraint>,
 }
+
 pub enum Constraint {
     /// A type constraint on a location
     Type(Ident, Ty),
     /// A predicate that needs to hold
     Pred(Expr),
-}
-
-#[derive(Debug)]
-pub struct Qualifier {
-    pub name: String,
-    pub args: Vec<Param>,
-    pub expr: Expr,
-}
-
-pub struct ConstSig {
-    pub def_id: DefId,
-    pub val: i128,
-    pub ty: Ty,
 }
 
 pub enum Ty {
@@ -128,7 +122,7 @@ pub enum Ty {
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
     /// for two indices. There's currently no equivalent surface syntax and existentials for
     /// types with multiple indices have to use projection syntax.
-    Exists(BaseTy, Vec<Name>, Expr),
+    Exists(BaseTy, Vec<Name>, Pred),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -142,6 +136,10 @@ pub enum Ty {
     Array(Box<Ty>, ArrayLen),
     Slice(Box<Ty>),
     Never,
+}
+
+pub enum Pred {
+    Expr(Expr),
 }
 
 pub struct ArrayLen;
@@ -494,6 +492,14 @@ impl fmt::Debug for Ty {
             Ty::Slice(ty) => write!(f, "[{ty:?}]"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
+        }
+    }
+}
+
+impl fmt::Debug for Pred {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pred::Expr(expr) => write!(f, "{expr:?}"),
         }
     }
 }

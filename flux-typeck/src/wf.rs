@@ -208,9 +208,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     ));
                 }
                 self.check_base_ty(env, bty, allow_binder)?;
-                env.with_binders(binders, sorts, |env| {
-                    self.check_expr(env, pred, &fhir::Sort::Bool)
-                })
+                env.with_binders(binders, sorts, |env| self.check_pred(env, pred))
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
             fhir::Ty::Ref(_, ty) => self.check_type(env, ty, allow_binder),
@@ -281,6 +279,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 }
             })
             .try_collect_exhaust()
+    }
+
+    fn check_pred(&self, env: &Env, pred: &fhir::Pred) -> Result<(), ErrorGuaranteed> {
+        match pred {
+            fhir::Pred::Expr(e) => self.check_expr(env, e, &fhir::Sort::Bool),
+        }
     }
 
     fn check_expr(

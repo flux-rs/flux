@@ -249,8 +249,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let bty = self.conv_base_ty(bty, nbinders);
                 self.name_map
                     .with_binders(binders, nbinders, |name_map, nbinders| {
-                        let expr = name_map.conv_expr(pred, nbinders);
-                        let pred = rty::Binders::new(rty::Pred::Expr(expr), bty.sorts());
+                        let pred = name_map.conv_pred(pred, nbinders);
+                        let pred = rty::Binders::new(pred, bty.sorts());
                         rty::Ty::exists(bty, pred)
                     })
             }
@@ -382,6 +382,12 @@ impl NameMap {
                 param.sort.clone()
             })
             .collect()
+    }
+
+    fn conv_pred(&self, pred: &fhir::Pred, nbinders: u32) -> rty::Pred {
+        match pred {
+            fhir::Pred::Expr(expr) => rty::Pred::Expr(self.conv_expr(expr, nbinders)),
+        }
     }
 
     fn conv_expr(&self, expr: &fhir::Expr, nbinders: u32) -> rty::Expr {

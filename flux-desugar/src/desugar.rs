@@ -33,7 +33,7 @@ pub fn resolve_uif_def(
         .into_iter()
         .map(|ident| resolve_sort(sess, ident))
         .try_collect_exhaust()?;
-    let output = resolve_sort(sess, uif_def.output)?.clone();
+    let output = resolve_sort(sess, uif_def.output)?;
     Ok(fhir::UifDef { inputs, output })
 }
 
@@ -310,7 +310,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            fhir::Ty::Exists(bty, binder.names(), pred)
+                            fhir::Ty::Exists(bty, binder.names(), fhir::Pred::Expr(pred))
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -601,7 +601,7 @@ fn resolve_func_sort(
         .iter()
         .map(|sort| resolve_sort(sess, *sort))
         .try_collect_exhaust()?;
-    inputs_and_output.push(resolve_sort(sess, *output)?.clone());
+    inputs_and_output.push(resolve_sort(sess, *output)?);
     Ok(fhir::FuncSort { inputs_and_output: List::from_vec(inputs_and_output) })
 }
 
