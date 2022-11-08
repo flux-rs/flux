@@ -303,20 +303,15 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         Ok(())
     }
 
-    fn of_ty(&self, ty: rustc_middle::ty::Ty, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn res_from_ty(&self, ty: rustc_middle::ty::Ty) -> Option<Res> {
         match ty.kind() {
-            TyKind::Bool => Ok(Res::Bool),
-            TyKind::Int(int_ty) => Ok(Res::Int(*int_ty)),
-            TyKind::Uint(uint_ty) => Ok(Res::Uint(*uint_ty)),
-            TyKind::Float(float_ty) => Ok(Res::Float(*float_ty)),
-            TyKind::Param(param_ty) => Ok(Res::Param(*param_ty)),
-            TyKind::Char => Ok(Res::Char),
-            _ => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    note: format!("unsupported type `{ty:?}`"),
-                }))
-            }
+            TyKind::Bool => Some(Res::Bool),
+            TyKind::Int(int_ty) => Some(Res::Int(*int_ty)),
+            TyKind::Uint(uint_ty) => Some(Res::Uint(*uint_ty)),
+            TyKind::Float(float_ty) => Some(Res::Float(*float_ty)),
+            TyKind::Param(param_ty) => Some(Res::Param(*param_ty)),
+            TyKind::Char => Some(Res::Char),
+            _ => None,
         }
     }
 
@@ -343,7 +338,13 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
             hir::def::Res::PrimTy(hir::PrimTy::Char) => Ok(Res::Char),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
-                self.of_ty(self.tcx.type_of(did), span)
+                let ty = self.tcx.type_of(did);
+                self.res_from_ty(ty).ok_or_else(|| {
+                    self.sess.emit_err(errors::UnsupportedSignature {
+                        span,
+                        note: format!("unsupported alias `{ty:?}`"),
+                    })
+                })
             }
 
             _ => {
