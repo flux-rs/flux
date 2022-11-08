@@ -282,8 +282,15 @@ impl AdtDef {
 
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
+
     pub fn iter(&self) -> impl Iterator<Item = &Param> {
         self.params.iter()
+    }
+}
+
+impl From<FuncSort> for Sort {
+    fn from(v: FuncSort) -> Self {
+        Self::Func(v)
     }
 }
 
