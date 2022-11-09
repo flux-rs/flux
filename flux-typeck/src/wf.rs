@@ -8,7 +8,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Span;
+use rustc_span::{Span, DUMMY_SP};
 
 pub struct Wf<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -217,7 +217,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .try_for_each_exhaust(|ty| self.check_type(env, ty, allow_binder))
             }
             fhir::Ty::Constr(pred, ty) => {
-                self.check_expr(env, pred, &fhir::Sort::Bool)?;
+                self.check_pred(env, pred)?;
                 self.check_type(env, ty, allow_binder)
             }
             fhir::Ty::Slice(ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty, false),
@@ -289,6 +289,26 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .iter()
                     .try_for_each_exhaust(|pred| self.check_pred(env, pred))
             }
+            fhir::Pred::App(func, args) => {
+                // FIXME(nilehmann) we should pass the application span here
+                self.check_app(env, DUMMY_SP, env[func], args, &fhir::Sort::Bool)
+            }
+        }
+    }
+
+    fn check_app(
+        &self,
+        env: &Env,
+        span: Span,
+        func: &fhir::Sort,
+        args: &[fhir::Expr],
+        expected: &fhir::Sort,
+    ) -> Result<(), ErrorGuaranteed> {
+        let found = self.synth_app(env, func, args)?;
+        if found == expected {
+            Ok(())
+        } else {
+            self.emit_err(errors::SortMismatch::new(span, expected, found))
         }
     }
 
@@ -403,6 +423,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         es: &[fhir::Expr],
         span: Span,
     ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
+        // TODO(nilehmann) we should unify this with synth_app
         let Some(uif_def) = self.map.uif(f.symbol) else {
             return self.emit_err(errors::UnresolvedFunction::new(f.span));
         };
@@ -418,6 +439,29 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
         }
         Ok(&uif_def.output)
+    }
+
+    fn synth_app(
+        &self,
+        env: &Env<'a>,
+        func: &'a fhir::Sort,
+        args: &[fhir::Expr],
+    ) -> Result<&fhir::Sort, ErrorGuaranteed> {
+        let fhir::Sort::Func(func) = func else {
+            todo!()
+        };
+        if args.len() != func.inputs().len() {
+            return self.emit_err(errors::ParamCountMismatch::new(
+                None,
+                func.inputs().len(),
+                args.len(),
+            ));
+        }
+
+        iter::zip(args, func.inputs())
+            .try_for_each_exhaust(|(arg, formal)| self.check_expr(env, arg, formal))?;
+
+        Ok(func.output())
     }
 }
 

@@ -277,7 +277,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Ty::Never => rty::Ty::never(),
             fhir::Ty::Constr(pred, ty) => {
-                let pred = self.name_map.conv_expr(pred, nbinders);
+                let pred = self.name_map.conv_pred(pred, nbinders);
                 rty::Ty::constr(pred, self.conv_ty(ty, nbinders))
             }
             fhir::Ty::Array(ty, _) => rty::Ty::array(self.conv_ty(ty, nbinders), rty::Const),
@@ -394,6 +394,7 @@ impl NameMap {
                     .collect();
                 rty::Pred::And(List::from_vec(preds))
             }
+            fhir::Pred::App(_, _) => todo!(),
         }
     }
 

@@ -125,7 +125,7 @@ pub enum Ty {
     Exists(BaseTy, Vec<Name>, Pred),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
-    Constr(Expr, Box<Ty>),
+    Constr(Pred, Box<Ty>),
     Float(FloatTy),
     Str,
     Char,
@@ -141,6 +141,7 @@ pub enum Ty {
 pub enum Pred {
     Expr(Expr),
     And(Vec<Pred>),
+    App(Name, Vec<Expr>),
 }
 
 pub struct ArrayLen;
@@ -225,6 +226,12 @@ pub struct Ident {
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "x{}",
+    }
+}
+
+impl UFun {
+    pub fn new(symbol: Symbol, span: Span) -> Self {
+        Self { symbol, span }
     }
 }
 
@@ -507,6 +514,9 @@ impl fmt::Debug for Pred {
                 } else {
                     write!(f, "{:?}", preds.iter().format(" ∧ "))
                 }
+            }
+            Pred::App(func, args) => {
+                write!(f, "{func:?}({:?})", args.iter().format(", "))
             }
         }
     }
