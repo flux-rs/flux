@@ -110,7 +110,7 @@ pub enum Constraint {
     /// A type constraint on a location
     Type(Ident, Ty),
     /// A predicate that needs to hold
-    Pred(Expr),
+    Pred(Pred),
 }
 
 pub enum Ty {

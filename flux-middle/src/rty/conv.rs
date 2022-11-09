@@ -198,7 +198,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     self.conv_ty(ty, nbinders),
                 )
             }
-            fhir::Constraint::Pred(e) => rty::Constraint::Pred(self.name_map.conv_expr(e, 1)),
+            fhir::Constraint::Pred(pred) => rty::Constraint::Pred(self.name_map.conv_pred(pred, 1)),
         }
     }
 

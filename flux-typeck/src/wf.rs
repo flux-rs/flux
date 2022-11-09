@@ -182,7 +182,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .into_iter()
                     .try_collect_exhaust()
             }
-            fhir::Constraint::Pred(e) => self.check_expr(env, e, &fhir::Sort::Bool),
+            fhir::Constraint::Pred(pred) => self.check_pred(env, pred),
         }
     }
 

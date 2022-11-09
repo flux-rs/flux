@@ -135,8 +135,8 @@ pub fn desugar_fn_sig(
     let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     if let Some(e) = fn_sig.requires {
-        let e = cx.as_expr_ctxt().desugar_expr(e)?;
-        cx.requires.push(fhir::Constraint::Pred(e));
+        let pred = cx.as_expr_ctxt().desugar_pred(e)?;
+        cx.requires.push(fhir::Constraint::Pred(pred));
     }
 
     // We bail out if there's an error in the arguments to avoid confusing error messages

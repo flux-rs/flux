@@ -82,7 +82,7 @@ pub type Constraints = List<Constraint>;
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constraint {
     Type(Path, Ty),
-    Pred(Expr),
+    Pred(Pred),
 }
 
 #[derive(Debug)]
