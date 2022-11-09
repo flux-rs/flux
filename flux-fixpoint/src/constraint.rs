@@ -38,11 +38,12 @@ pub enum Expr {
     Var(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Expr; 2]>),
-    App(String, Vec<Expr>),
+    App(Box<Expr>, Vec<Expr>),
     UnaryOp(UnOp, Box<Self>),
     Pair(Box<Expr>, Box<Expr>),
     Proj(Box<Expr>, Proj),
     IfThenElse(Box<[Expr; 3]>),
+    Uif(String),
     Unit,
 }
 
@@ -293,11 +294,11 @@ impl fmt::Display for Expr {
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),
-            Expr::App(uf, args) => {
+            Expr::App(func, args) => {
                 write!(
                     f,
                     "({} {})",
-                    uf,
+                    func,
                     args.iter()
                         .format_with(" ", |expr, f| { f(&format_args!("{}", FmtParens(expr))) }),
                 )
@@ -305,6 +306,7 @@ impl fmt::Display for Expr {
             Expr::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "if {p} then {e1} else {e2}")
             }
+            Expr::Uif(func) => write!(f, "{func}"),
         }
     }
 }

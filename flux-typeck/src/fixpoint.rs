@@ -214,7 +214,9 @@ where
                     .name_map
                     .get(name)
                     .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
-                todo!()
+                let func = fixpoint::Expr::Var(*name);
+                let args = exprs_to_fixpoint(args, &self.name_map, &self.const_map);
+                fixpoint::Pred::Expr(fixpoint::Expr::App(Box::new(func), args))
             }
             rty::Pred::App(rty::Var::Bound(_), _) => {
                 panic!("unexpected bound var in pred application")
@@ -495,12 +497,10 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
             panic!("unexpected expr: `{expr:?}`")
         }
         rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
-        rty::ExprKind::App(f, exprs) => {
-            let args = exprs
-                .iter()
-                .map(|e| (expr_to_fixpoint(e, name_map, const_map)))
-                .collect();
-            fixpoint::Expr::App(f.to_string(), args)
+        rty::ExprKind::App(func, args) => {
+            let args = exprs_to_fixpoint(args, name_map, const_map);
+            let uif = fixpoint::Expr::Uif(func.to_string());
+            fixpoint::Expr::App(Box::new(uif), args)
         }
         rty::ExprKind::IfThenElse(p, e1, e2) => {
             fixpoint::Expr::IfThenElse(Box::new([
@@ -510,6 +510,17 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
             ]))
         }
     }
+}
+
+fn exprs_to_fixpoint<'a>(
+    exprs: impl IntoIterator<Item = &'a rty::Expr>,
+    name_map: &NameMap,
+    const_map: &ConstMap,
+) -> Vec<fixpoint::Expr> {
+    exprs
+        .into_iter()
+        .map(|e| expr_to_fixpoint(e, name_map, const_map))
+        .collect()
 }
 
 fn tuple_to_fixpoint(
