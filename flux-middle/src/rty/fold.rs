@@ -340,12 +340,14 @@ impl TypeFoldable for RefineArg {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             RefineArg::Expr(e) => RefineArg::Expr(e.fold_with(folder)),
+            RefineArg::KVar(kvar) => RefineArg::KVar(kvar.fold_with(folder)),
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             RefineArg::Expr(e) => e.visit_with(visitor),
+            RefineArg::KVar(kvar) => kvar.visit_with(visitor),
         }
     }
 }

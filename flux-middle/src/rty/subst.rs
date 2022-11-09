@@ -37,8 +37,8 @@ impl FVarSubst {
         arg1: &RefineArg,
         arg2: &RefineArg,
     ) {
-        match (arg1, arg2) {
-            (RefineArg::Expr(e1), RefineArg::Expr(e2)) => self.infer_from_exprs(params, e1, e2),
+        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
+            self.infer_from_exprs(params, e1, e2)
         }
     }
 
@@ -112,10 +112,27 @@ impl TypeFolder for BVarFolder<'_> {
         r
     }
 
+    fn fold_pred(&mut self, pred: &Pred) -> Pred {
+        if let Pred::App(Var::Bound(bvar), args) = pred && bvar.debruijn == self.outer_binder {
+            match &self.args[bvar.index] {
+                RefineArg::KVar(kvar) => {
+                    let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
+                    Pred::Kvar(kvar.replace_bound_vars(&args))
+                },
+                RefineArg::Expr(_) => pred.super_fold_with(self),
+            }
+        } else {
+            pred.super_fold_with(self)
+        }
+    }
+
     fn fold_expr(&mut self, e: &Expr) -> Expr {
         if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
-            let RefineArg::Expr(e) = &self.args[bvar.index];
-            e.clone()
+            if let RefineArg::Expr(e) = &self.args[bvar.index] {
+                e.clone()
+            } else {
+                panic!("invalid substitution")
+            }
         } else {
             e.super_fold_with(self)
         }

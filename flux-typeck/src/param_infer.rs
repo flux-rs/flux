@@ -139,8 +139,8 @@ fn infer_from_generic_args(
 }
 
 fn infer_from_refine_args(exprs: &mut Exprs, arg1: &RefineArg, arg2: &RefineArg) {
-    match (arg1, arg2) {
-        (RefineArg::Expr(e1), RefineArg::Expr(e2)) => infer_from_exprs(exprs, e1, e2),
+    if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
+        infer_from_exprs(exprs, e1, e2)
     }
 }
 
