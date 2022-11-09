@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Index, Name, Pred, RefKind,
-    Sort, Ty, TyKind,
+    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred, RefKind,
+    RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -178,12 +178,7 @@ impl RefineCtxt<'_> {
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let idxs = self
-                        .ptr
-                        .push_bound_guard(pred)
-                        .into_iter()
-                        .map(Index::from)
-                        .collect_vec();
+                    let idxs = RefineArgs::multi(self.ptr.push_bound_guard(pred));
                     let bty = self.unpack_bty(bty, in_mut_ref, flags);
                     self.assume_invariants(&bty, &idxs);
                     Ty::indexed(bty, idxs)
@@ -222,10 +217,9 @@ impl RefineCtxt<'_> {
         self.unpack_inner(ty, false, UnpackFlags::empty())
     }
 
-    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &[Index]) {
-        let exprs = idxs.iter().map(Index::to_expr).collect_vec();
+    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &RefineArgs) {
         for invariant in bty.invariants() {
-            self.assume_pred(invariant.pred.replace_bound_vars(&exprs));
+            self.assume_pred(invariant.pred.replace_bound_vars(idxs.args()));
         }
     }
 }

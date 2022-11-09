@@ -5,8 +5,8 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, Index, KVar, Name, Pred, Sort,
-    Ty, TyKind, VariantRet,
+    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, Index, KVar, Name, Pred,
+    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
@@ -254,14 +254,8 @@ impl TypeFoldable for Constraint {
 impl TypeFoldable for Ty {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Ty {
         match self.kind() {
-            TyKind::Indexed(bty, indices) => {
-                Ty::indexed(
-                    bty.fold_with(folder),
-                    indices
-                        .iter()
-                        .map(|idx| idx.fold_with(folder))
-                        .collect_vec(),
-                )
+            TyKind::Indexed(bty, idxs) => {
+                Ty::indexed(bty.fold_with(folder), idxs.fold_with(folder))
             }
             TyKind::Exists(bty, pred) => {
                 TyKind::Exists(bty.fold_with(folder), pred.fold_with(folder)).intern()
@@ -295,9 +289,9 @@ impl TypeFoldable for Ty {
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self.kind() {
-            TyKind::Indexed(bty, indices) => {
+            TyKind::Indexed(bty, idxs) => {
                 bty.visit_with(visitor);
-                indices.iter().for_each(|idx| idx.visit_with(visitor));
+                idxs.visit_with(visitor);
             }
             TyKind::Exists(bty, pred) => {
                 bty.visit_with(visitor);
@@ -320,6 +314,25 @@ impl TypeFoldable for Ty {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_ty(self)
+    }
+}
+
+impl TypeFoldable for RefineArgs {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        RefineArgsData {
+            args: self
+                .0
+                .args
+                .iter()
+                .map(|arg| arg.fold_with(folder))
+                .collect_vec(),
+            is_binder: self.0.is_binder.clone(),
+        }
+        .intern()
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.args().iter().for_each(|arg| arg.visit_with(visitor))
     }
 }
 

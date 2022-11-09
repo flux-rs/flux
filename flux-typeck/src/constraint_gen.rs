@@ -4,7 +4,7 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     rty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, GenericArg,
-        Index, PolySig, PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
+        PolySig, PolyVariant, Pred, RefKind, RefineArgs, Sort, Ty, TyKind, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -208,12 +208,8 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             return;
         }
         (TyKind::Exists(bty, pred), _) => {
-            let indices = constr
-                .push_bound_guard(pred)
-                .into_iter()
-                .map(Index::from)
-                .collect_vec();
-            let ty1 = Ty::indexed(bty.clone(), indices);
+            let idxs = constr.push_bound_guard(pred);
+            let ty1 = Ty::indexed(bty.clone(), RefineArgs::multi(idxs));
             subtyping(genv, constr, &ty1, ty2, tag);
             return;
         }
@@ -223,16 +219,15 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idx2)) => {
             bty_subtyping(genv, constr, bty1, bty2, tag);
-            for (idx1, idx2) in iter::zip(idxs1, idx2) {
-                if idx1.expr != idx2.expr {
+            for (idx1, idx2) in iter::zip(idxs1.args(), idx2.args()) {
+                if idx1 != idx2 {
                     constr.push_head(Expr::binary_op(BinOp::Eq, idx1.clone(), idx2.clone()), tag);
                 }
             }
         }
-        (TyKind::Indexed(bty1, indices), TyKind::Exists(bty2, pred)) => {
+        (TyKind::Indexed(bty1, idxs), TyKind::Exists(bty2, pred)) => {
             bty_subtyping(genv, constr, bty1, bty2, tag);
-            let exprs = indices.iter().map(|idx| idx.expr.clone()).collect_vec();
-            constr.push_head(pred.replace_bound_vars(&exprs), tag);
+            constr.push_head(pred.replace_bound_vars(idxs.args()), tag);
         }
         (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
             debug_assert_eq!(rk1, rk2);

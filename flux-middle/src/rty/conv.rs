@@ -231,19 +231,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let bty = self.conv_base_ty(bty, nbinders);
                 let sorts = bty.sorts();
                 if sorts.is_empty() {
-                    rty::Ty::indexed(bty, vec![])
+                    rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
                     let pred = rty::Binders::new(rty::Pred::tt(), sorts);
                     rty::Ty::exists(bty, pred)
                 }
             }
-            fhir::Ty::Indexed(bty, indices) => {
-                let indices = indices
-                    .indices
-                    .iter()
-                    .map(|idx| self.conv_index(idx, nbinders))
-                    .collect_vec();
-                rty::Ty::indexed(self.conv_base_ty(bty, nbinders), indices)
+            fhir::Ty::Indexed(bty, idxs) => {
+                let idxs = self.conv_indices(idxs, nbinders);
+                rty::Ty::indexed(self.conv_base_ty(bty, nbinders), idxs)
             }
             fhir::Ty::Exists(bty, binders, pred) => {
                 let bty = self.conv_base_ty(bty, nbinders);
@@ -287,8 +283,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_index(&self, idx: &fhir::Index, nbinders: u32) -> rty::Index {
-        rty::Index { expr: self.name_map.conv_expr(&idx.expr, nbinders), is_binder: idx.is_binder }
+    fn conv_indices(&self, idxs: &fhir::Indices, nbinders: u32) -> rty::RefineArgs {
+        rty::RefineArgs::new(
+            idxs.indices
+                .iter()
+                .map(|idx| (self.name_map.conv_expr(&idx.expr, nbinders), idx.is_binder)),
+        )
     }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {

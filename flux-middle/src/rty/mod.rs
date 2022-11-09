@@ -15,7 +15,7 @@ pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, IN
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_index::newtype_index;
+use rustc_index::{bit_set::BitSet, newtype_index};
 use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 pub use rustc_target::abi::VariantIdx;
@@ -101,7 +101,7 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Indexed(BaseTy, List<Index>),
+    Indexed(BaseTy, RefineArgs),
     Exists(BaseTy, Binders<Pred>),
     Tuple(List<Ty>),
     Uninit,
@@ -124,6 +124,15 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(Place),
+}
+
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub struct RefineArgs(Interned<RefineArgsData>);
+
+#[derive(Eq, Hash, PartialEq)]
+struct RefineArgsData {
+    args: Vec<Expr>,
+    is_binder: BitSet<usize>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -228,6 +237,58 @@ where
     }
 }
 
+impl RefineArgs {
+    pub fn new<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (Expr, bool)>,
+        T::IntoIter: ExactSizeIterator,
+    {
+        let iter = iter.into_iter();
+        let mut bitset = BitSet::new_empty(iter.len());
+        let args = iter
+            .enumerate()
+            .map(|(idx, (expr, is_binder))| {
+                if is_binder {
+                    bitset.insert(idx);
+                }
+                expr
+            })
+            .collect();
+        RefineArgsData { args, is_binder: bitset }.intern()
+    }
+
+    pub fn multi(args: Vec<Expr>) -> Self {
+        let is_binder = BitSet::new_empty(args.len());
+        RefineArgsData { args, is_binder }.intern()
+    }
+
+    pub fn one(expr: impl Into<Expr>) -> Self {
+        RefineArgsData { args: vec![expr.into()], is_binder: BitSet::new_empty(1) }.intern()
+    }
+
+    pub fn is_binder(&self, i: usize) -> bool {
+        self.0.is_binder.contains(i)
+    }
+
+    pub fn nth(&self, idx: usize) -> &Expr {
+        &self.args()[idx]
+    }
+
+    pub fn args(&self) -> &[Expr] {
+        &self.0.args
+    }
+
+    pub fn empty() -> Self {
+        RefineArgsData { args: vec![], is_binder: BitSet::new_empty(0) }.intern()
+    }
+}
+
+impl RefineArgsData {
+    pub fn intern(self) -> RefineArgs {
+        RefineArgs(Interned::new(self))
+    }
+}
+
 impl FnSig {
     pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
     where
@@ -325,13 +386,7 @@ impl VariantDef {
 
 impl VariantRet {
     pub fn to_ty(&self) -> Ty {
-        Ty::indexed(
-            self.bty.clone(),
-            self.indices
-                .iter()
-                .map(|e| Index { expr: e.clone(), is_binder: false })
-                .collect_vec(),
-        )
+        Ty::indexed(self.bty.clone(), RefineArgs::multi(self.indices.to_vec()))
     }
 }
 
@@ -341,11 +396,11 @@ impl Ty {
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
-        Ty::indexed(BaseTy::Array(ty, c), vec![])
+        Ty::indexed(BaseTy::Array(ty, c), RefineArgs::empty())
     }
 
     pub fn slice(ty: Ty) -> Ty {
-        Ty::indexed(BaseTy::Slice(ty), vec![])
+        Ty::indexed(BaseTy::Slice(ty), RefineArgs::empty())
     }
 
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
@@ -382,11 +437,8 @@ impl Ty {
         TyKind::Uninit.intern()
     }
 
-    pub fn indexed<T>(bty: BaseTy, indices: T) -> Ty
-    where
-        List<Index>: From<T>,
-    {
-        TyKind::Indexed(bty, Interned::from(indices)).intern()
+    pub fn indexed(bty: BaseTy, args: RefineArgs) -> Ty {
+        TyKind::Indexed(bty, args).intern()
     }
 
     pub fn exists(bty: BaseTy, pred: Binders<Pred>) -> Ty {
@@ -402,11 +454,11 @@ impl Ty {
     }
 
     pub fn str() -> Ty {
-        Ty::indexed(BaseTy::Str, vec![])
+        Ty::indexed(BaseTy::Str, RefineArgs::empty())
     }
 
     pub fn char() -> Ty {
-        Ty::indexed(BaseTy::Char, vec![])
+        Ty::indexed(BaseTy::Char, RefineArgs::empty())
     }
 
     pub fn never() -> Ty {
@@ -441,7 +493,7 @@ impl Ty {
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::indexed(BaseTy::Float(float_ty), vec![])
+        Ty::indexed(BaseTy::Float(float_ty), RefineArgs::empty())
     }
 }
 
@@ -671,6 +723,7 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
 }
 
 impl_internable!(
+    RefineArgsData,
     AdtDefData,
     TyS,
     [Ty],
@@ -769,6 +822,10 @@ mod pretty {
 
             Ok(())
         }
+
+        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+            PPrintCx::default(tcx).show_is_binder(true)
+        }
     }
 
     impl Pretty for Constraint {
@@ -787,8 +844,8 @@ mod pretty {
             match self.kind() {
                 TyKind::Indexed(bty, idxs) => {
                     w!("{:?}", bty)?;
-                    if !idxs.is_empty() {
-                        w!("[{:?}]", join!(", ", idxs))?;
+                    if !idxs.args().is_empty() {
+                        w!("[{:?}]", idxs)?;
                     }
                     Ok(())
                 }
@@ -814,6 +871,25 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+        }
+    }
+
+    impl Pretty for RefineArgs {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!(
+                "{}",
+                ^self.args()
+                    .iter()
+                    .enumerate()
+                    .format_with(", ", |(i, arg), f| {
+                        if cx.show_is_binder && self.is_binder(i) {
+                            f(&format_args_cx!("@{:?}", arg))
+                        } else {
+                            f(&format_args_cx!("{:?}", arg))
+                        }
+                    })
+            )
         }
     }
 

@@ -301,19 +301,13 @@ impl PathsTree {
                         adt.def_id(),
                         VariantIdx::from_u32(0),
                         substs,
-                        &idxs.to_exprs(),
+                        idxs.args(),
                     )?;
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let tys = downcast(
-                        genv,
-                        rcx,
-                        adt_def.def_id(),
-                        variant_idx,
-                        substs,
-                        &idxs.to_exprs(),
-                    )?;
+                    let tys =
+                        downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idxs.args())?;
                     ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
                 _ => todo!("{elem:?} {ty:?}"),
@@ -501,7 +495,7 @@ impl Node {
                             adt_def.def_id(),
                             variant_idx,
                             substs,
-                            &idxs.to_exprs(),
+                            idxs.args(),
                         )?
                         .into_iter()
                         .map(|ty| {

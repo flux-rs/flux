@@ -82,10 +82,10 @@ pub fn check_inference(
 
 fn infer_from_tys(exprs: &mut Exprs, env1: &impl PathMap, ty1: &Ty, env2: &impl PathMap, ty2: &Ty) {
     match (ty1.unconstr().kind(), ty2.unconstr().kind()) {
-        (TyKind::Indexed(_, indices1), TyKind::Indexed(_, indices2)) => {
-            for (idx1, idx2) in iter::zip(indices1, indices2) {
-                if idx2.is_binder {
-                    infer_from_exprs(exprs, &idx1.expr, &idx2.expr);
+        (TyKind::Indexed(_, idxs1), TyKind::Indexed(_, idxs2)) => {
+            for (i, (idx1, idx2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
+                if idxs2.is_binder(i) {
+                    infer_from_exprs(exprs, idx1, idx2);
                 }
             }
         }

@@ -147,7 +147,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
-        rty::Ty::indexed(bty, vec![])
+        rty::Ty::indexed(bty, rty::RefineArgs::empty())
     }
 
     pub fn check_asserts(&self) -> &AssertBehavior {
@@ -292,7 +292,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         };
         let sorts = bty.sorts();
         if sorts.is_empty() {
-            rty::Ty::indexed(bty, vec![])
+            rty::Ty::indexed(bty, rty::RefineArgs::empty())
         } else {
             let pred = mk_pred(sorts);
             rty::Ty::exists(bty, pred)

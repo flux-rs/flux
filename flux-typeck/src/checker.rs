@@ -17,7 +17,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
-        Int, IntTy, PolySig, Pred, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        Int, IntTy, PolySig, Pred, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -488,11 +488,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         msg: &'static str,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, source_info, cond)?;
-        let pred = if let TyKind::Indexed(BaseTy::Bool, indices) = ty.kind() {
+        let pred = if let TyKind::Indexed(BaseTy::Bool, idxs) = ty.kind() {
             if expected {
-                indices[0].expr.clone()
+                idxs.nth(0).clone()
             } else {
-                indices[0].expr.not()
+                idxs.nth(0).not()
             }
         } else {
             unreachable!("unexpected ty `{ty:?}`")
@@ -514,15 +514,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn check_if(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
-                TyKind::Indexed(BaseTy::Bool, indices) => {
+                TyKind::Indexed(BaseTy::Bool, idxs) => {
                     if bits == 0 {
-                        indices[0].expr.not()
+                        idxs.nth(0).not()
                     } else {
-                        indices[0].expr.clone()
+                        idxs.nth(0).clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), indices) => {
-                    Expr::binary_op(BinOp::Eq, indices[0].clone(), Expr::from_bits(bty, bits))
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idxs) => {
+                    Expr::binary_op(BinOp::Eq, idxs.nth(0).clone(), Expr::from_bits(bty, bits))
                 }
                 _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -696,14 +696,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let (bty, idx1, idx2, sig) = match (ty1.kind(), ty2.kind()) {
             (Int!(int_ty1, idxs1), Int!(int_ty2, idxs2)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (BaseTy::Int(*int_ty1), &idxs1[0], &idxs2[0], sigs::signed_bin_ops(op))
+                (BaseTy::Int(*int_ty1), idxs1.nth(0), idxs2.nth(0), sigs::signed_bin_ops(op))
             }
             (Uint!(uint_ty1, idxs1), Uint!(uint_ty2, idxs2)) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (BaseTy::Uint(*uint_ty1), &idxs1[0], &idxs2[0], sigs::unsigned_bin_ops(op))
+                (BaseTy::Uint(*uint_ty1), idxs1.nth(0), idxs2.nth(0), sigs::unsigned_bin_ops(op))
             }
             (Bool!(idxs1), Bool!(idxs2)) => {
-                (BaseTy::Bool, &idxs1[0], &idxs2[0], sigs::bool_bin_ops(op))
+                (BaseTy::Bool, idxs1.nth(0), idxs2.nth(0), sigs::bool_bin_ops(op))
             }
             (Float!(float_ty1, _), Float!(float_ty2, _)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
@@ -711,7 +711,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         };
-        let (e1, e2) = (idx1.to_expr(), idx2.to_expr());
+        let (e1, e2) = (idx1.clone(), idx2.clone());
         if let sigs::Pre::Some(tag, constr) = sig.pre {
             self.phase
                 .constr_gen(self.genv, rcx, tag(source_info.span))
@@ -719,7 +719,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
 
         match sig.out {
-            sigs::Output::Indexed(mk) => Ty::indexed(bty, vec![mk([e1, e2]).into()]),
+            sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
             sigs::Output::Exists(mk) => {
                 let pred = Pred::Expr(mk(Expr::nu(), [e1, e2]));
                 Ty::exists(bty, Binders::new(pred, vec![Sort::Int]))
@@ -738,16 +738,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let (idx1, idx2, sig) = match (ty1.kind(), ty2.kind()) {
             (Int!(int_ty1, idxs1), Int!(int_ty2, idxs2)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
-                (&idxs1[0], &idxs2[0], sigs::signed_bin_ops(op))
+                (idxs1.nth(0), idxs2.nth(0), sigs::signed_bin_ops(op))
             }
             (Uint!(uint_ty1, idxs1), Uint!(uint_ty2, idxs2)) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
-                (&idxs1[0], &idxs2[0], sigs::unsigned_bin_ops(op))
+                (idxs1.nth(0), idxs2.nth(0), sigs::unsigned_bin_ops(op))
             }
-            (Bool!(idxs1), Bool!(idxs2)) => (&idxs1[0], &idxs2[0], sigs::bool_bin_ops(op)),
+            (Bool!(idxs1), Bool!(idxs2)) => (idxs1.nth(0), idxs2.nth(0), sigs::bool_bin_ops(op)),
             _ => return Ty::bool(),
         };
-        let (e1, e2) = (idx1.to_expr(), idx2.to_expr());
+        let (e1, e2) = (idx1.clone(), idx2.clone());
         if let sigs::Pre::Some(tag, constr) = sig.pre {
             self.phase
                 .constr_gen(self.genv, rcx, tag(source_info.span))
@@ -756,7 +756,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let bty = BaseTy::Bool;
         match sig.out {
-            sigs::Output::Indexed(mk) => Ty::indexed(bty, vec![mk([e1, e2]).into()]),
+            sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
             sigs::Output::Exists(mk) => {
                 let pred = Pred::Expr(mk(Expr::nu(), [e1, e2]));
                 Ty::exists(bty, Binders::new(pred, vec![Sort::Bool]))
@@ -776,7 +776,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = match un_op {
             mir::UnOp::Not => {
                 if let Bool!(idxs) = ty.kind() {
-                    Ty::indexed(BaseTy::Bool, vec![idxs[0].expr.not().into()])
+                    Ty::indexed(BaseTy::Bool, RefineArgs::one(idxs.nth(0).not()))
                 } else {
                     unreachable!("incompatible type: `{:?}`", ty)
                 }
@@ -784,7 +784,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             mir::UnOp::Neg => {
                 match ty.kind() {
                     Int!(int_ty, idxs) => {
-                        Ty::indexed(BaseTy::Int(*int_ty), vec![idxs[0].expr.neg().into()])
+                        Ty::indexed(BaseTy::Int(*int_ty), RefineArgs::one(idxs.nth(0).neg()))
                     }
                     Float!(float_ty, _) => Ty::float(*float_ty),
                     _ => unreachable!("incompatible type: `{:?}`", ty),
@@ -799,16 +799,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match kind {
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
-                    (Bool!(idxs), RustTy::Int(int_ty)) => bool_int_cast(&idxs[0].expr, *int_ty),
-                    (Bool!(idxs), RustTy::Uint(uint_ty)) => bool_uint_cast(&idxs[0].expr, *uint_ty),
+                    (Bool!(idxs), RustTy::Int(int_ty)) => bool_int_cast(idxs.nth(0), *int_ty),
+                    (Bool!(idxs), RustTy::Uint(uint_ty)) => bool_uint_cast(idxs.nth(0), *uint_ty),
                     (Int!(int_ty1, idxs), RustTy::Int(int_ty2)) => {
-                        int_int_cast(&idxs[0].expr, *int_ty1, *int_ty2)
+                        int_int_cast(idxs.nth(0), *int_ty1, *int_ty2)
                     }
                     (Uint!(uint_ty1, idxs), RustTy::Uint(uint_ty2)) => {
-                        uint_uint_cast(&idxs[0].expr, *uint_ty1, *uint_ty2)
+                        uint_uint_cast(idxs.nth(0), *uint_ty1, *uint_ty2)
                     }
                     (Uint!(uint_ty, idxs), RustTy::Int(int_ty)) => {
-                        uint_int_cast(&idxs[0].expr, *uint_ty, *int_ty)
+                        uint_int_cast(idxs.nth(0), *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => {
@@ -855,16 +855,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn check_constant(c: &Constant) -> Ty {
         match c {
             Constant::Int(n, int_ty) => {
-                let idx = Expr::constant(rty::Constant::from(*n)).into();
-                Ty::indexed(BaseTy::Int(*int_ty), vec![idx])
+                let idx = Expr::constant(rty::Constant::from(*n));
+                Ty::indexed(BaseTy::Int(*int_ty), RefineArgs::one(idx))
             }
             Constant::Uint(n, uint_ty) => {
-                let idx = Expr::constant(rty::Constant::from(*n)).into();
-                Ty::indexed(BaseTy::Uint(*uint_ty), vec![idx])
+                let idx = Expr::constant(rty::Constant::from(*n));
+                Ty::indexed(BaseTy::Uint(*uint_ty), RefineArgs::one(idx))
             }
             Constant::Bool(b) => {
-                let idx = Expr::constant(rty::Constant::from(*b)).into();
-                Ty::indexed(BaseTy::Bool, vec![idx])
+                let idx = Expr::constant(rty::Constant::from(*b));
+                Ty::indexed(BaseTy::Bool, RefineArgs::one(idx))
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
@@ -881,18 +881,18 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 }
 
 fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0).into();
-    Ty::indexed(BaseTy::Int(int_ty), vec![idx])
+    let idx = Expr::ite(b, 1, 0);
+    Ty::indexed(BaseTy::Int(int_ty), RefineArgs::one(idx))
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0).into();
-    Ty::indexed(BaseTy::Uint(uint_ty), vec![idx])
+    let idx = Expr::ite(b, 1, 0);
+    Ty::indexed(BaseTy::Uint(uint_ty), RefineArgs::one(idx))
 }
 
 fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
     if int_bit_width(int_ty1) <= int_bit_width(int_ty2) {
-        Ty::indexed(BaseTy::Int(int_ty2), vec![idx.clone().into()])
+        Ty::indexed(BaseTy::Int(int_ty2), RefineArgs::one(idx))
     } else {
         Ty::int(int_ty2)
     }
@@ -900,7 +900,7 @@ fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
 
 fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
     if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
-        Ty::indexed(BaseTy::Int(int_ty), vec![idx.clone().into()])
+        Ty::indexed(BaseTy::Int(int_ty), RefineArgs::one(idx))
     } else {
         Ty::int(int_ty)
     }
@@ -908,7 +908,7 @@ fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
 
 fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
     if uint_bit_width(uint_ty1) <= uint_bit_width(uint_ty2) {
-        Ty::indexed(BaseTy::Uint(uint_ty2), vec![idx.clone().into()])
+        Ty::indexed(BaseTy::Uint(uint_ty2), RefineArgs::one(idx))
     } else {
         Ty::uint(uint_ty2)
     }
