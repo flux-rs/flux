@@ -9,7 +9,7 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, iter, sync::LazyLock};
+use std::{borrow::Cow, fmt, sync::LazyLock};
 
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -132,6 +132,8 @@ pub struct RefineArgs(Interned<RefineArgsData>);
 #[derive(Eq, Hash, PartialEq)]
 struct RefineArgsData {
     args: Vec<RefineArg>,
+    /// Set containing all the indices of arguments that were used as binders in the surface syntax.
+    /// This is used as a hint for inferring parameters at call sites.
     is_binder: BitSet<usize>,
 }
 
@@ -139,16 +141,6 @@ struct RefineArgsData {
 pub enum RefineArg {
     Expr(Expr),
     KVar(Binders<KVar>),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Index {
-    pub expr: Expr,
-    /// Whether the index was annotated as a binder in the surface. This is used as a hint for inferring
-    /// parameters at call sites. This is very hacky and we should have a different way to preserve this
-    /// information. The problem is that the extra field is preserved through substitutions and other
-    /// manipulations of types which makes it problematic to test for index equality.
-    pub is_binder: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -554,46 +546,9 @@ impl TyS {
     }
 }
 
-impl List<Index> {
-    pub fn to_exprs(&self) -> Vec<Expr> {
-        self.iter().map(|idx| idx.to_expr()).collect_vec()
-    }
-}
-
-impl Index {
-    pub fn exprs_eq(idxs1: &[Index], idxs2: &[Index]) -> bool {
-        if idxs1.len() != idxs2.len() {
-            return false;
-        }
-
-        for (idx1, idx2) in iter::zip(idxs1, idxs2) {
-            if idx1.expr != idx2.expr {
-                return false;
-            }
-        }
-        true
-    }
-
-    pub fn to_expr(&self) -> Expr {
-        self.expr.clone()
-    }
-}
-
 impl From<Expr> for Pred {
     fn from(e: Expr) -> Self {
         Pred::Expr(e)
-    }
-}
-
-impl From<Expr> for Index {
-    fn from(expr: Expr) -> Index {
-        Index { expr, is_binder: false }
-    }
-}
-
-impl From<Index> for Expr {
-    fn from(index: Index) -> Expr {
-        index.expr
     }
 }
 
@@ -767,7 +722,6 @@ impl_internable!(
     [Field],
     [KVar],
     [Constraint],
-    [Index],
 );
 
 #[macro_export]
@@ -969,19 +923,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for Index {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            if self.is_binder && self.expr.is_binary_op() {
-                w!("@{:?}", &self.expr)
-            } else if self.is_binder {
-                w!("@({:?})", &self.expr)
-            } else {
-                w!("{:?}", &self.expr)
-            }
-        }
-    }
-
     impl Pretty for Pred {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1053,7 +994,6 @@ mod pretty {
         Pred,
         KVar,
         FnSig,
-        Index,
         GenericArg,
     );
 }

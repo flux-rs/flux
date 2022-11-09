@@ -5,8 +5,8 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, Index, KVar, Name, Pred,
-    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred, RefineArg,
+    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
@@ -349,16 +349,6 @@ impl TypeFoldable for RefineArg {
             RefineArg::Expr(e) => e.visit_with(visitor),
             RefineArg::KVar(kvar) => kvar.visit_with(visitor),
         }
-    }
-}
-
-impl TypeFoldable for Index {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Index { expr: self.expr.fold_with(folder), is_binder: self.is_binder }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.expr.visit_with(visitor);
     }
 }
 
