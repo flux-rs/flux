@@ -6,7 +6,7 @@ use rustc_hash::FxHashSet;
 
 use super::{
     BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, Index, KVar, Name, Pred,
-    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
@@ -333,6 +333,20 @@ impl TypeFoldable for RefineArgs {
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.args().iter().for_each(|arg| arg.visit_with(visitor))
+    }
+}
+
+impl TypeFoldable for RefineArg {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            RefineArg::Expr(e) => RefineArg::Expr(e.fold_with(folder)),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            RefineArg::Expr(e) => e.visit_with(visitor),
+        }
     }
 }
 

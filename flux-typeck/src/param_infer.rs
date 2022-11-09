@@ -2,7 +2,7 @@ use std::iter;
 
 use flux_middle::rty::{
     subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, GenericArg, Name, Path, PolySig,
-    PolyVariant, Ty, TyKind, INNERMOST,
+    PolyVariant, RefineArg, Ty, TyKind, INNERMOST,
 };
 use rustc_hash::FxHashMap;
 
@@ -16,7 +16,7 @@ pub struct InferenceError(String);
 pub fn infer_from_constructor(
     fields: &[Ty],
     variant: &PolyVariant,
-) -> Result<Vec<Expr>, InferenceError> {
+) -> Result<Vec<RefineArg>, InferenceError> {
     debug_assert_eq!(fields.len(), variant.as_ref().skip_binders().fields().len());
     let mut exprs = Exprs::default();
 
@@ -31,7 +31,7 @@ pub fn infer_from_fn_call<M: PathMap>(
     env: &M,
     actuals: &[Ty],
     fn_sig: &PolySig,
-) -> Result<Vec<Expr>, InferenceError> {
+) -> Result<Vec<RefineArg>, InferenceError> {
     debug_assert_eq!(actuals.len(), fn_sig.as_ref().skip_binders().args().len());
 
     let mut exprs = Exprs::default();
@@ -56,14 +56,15 @@ pub fn infer_from_fn_call<M: PathMap>(
     collect(fn_sig, exprs)
 }
 
-fn collect<T>(t: &Binders<T>, mut exprs: Exprs) -> Result<Vec<Expr>, InferenceError> {
+fn collect<T>(t: &Binders<T>, mut exprs: Exprs) -> Result<Vec<RefineArg>, InferenceError> {
     t.params()
         .iter()
         .enumerate()
         .map(|(idx, _)| {
-            exprs
+            let e = exprs
                 .remove(&idx)
-                .ok_or_else(|| InferenceError(format!("^0.{idx}")))
+                .ok_or_else(|| InferenceError(format!("^0.{idx}")))?;
+            Ok(RefineArg::Expr(e))
         })
         .collect()
 }
@@ -85,7 +86,7 @@ fn infer_from_tys(exprs: &mut Exprs, env1: &impl PathMap, ty1: &Ty, env2: &impl 
         (TyKind::Indexed(_, idxs1), TyKind::Indexed(_, idxs2)) => {
             for (i, (idx1, idx2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
                 if idxs2.is_binder(i) {
-                    infer_from_exprs(exprs, idx1, idx2);
+                    infer_from_refine_args(exprs, idx1, idx2);
                 }
             }
         }
@@ -134,6 +135,12 @@ fn infer_from_generic_args(
 ) {
     if let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
         infer_from_tys(exprs, env1, ty1, env2, ty2)
+    }
+}
+
+fn infer_from_refine_args(exprs: &mut Exprs, arg1: &RefineArg, arg2: &RefineArg) {
+    match (arg1, arg2) {
+        (RefineArg::Expr(e1), RefineArg::Expr(e2)) => infer_from_exprs(exprs, e1, e2),
     }
 }
 

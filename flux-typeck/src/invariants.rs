@@ -2,8 +2,9 @@ use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     global_env::GlobalEnv,
-    rty::{AdtDef, Invariant},
+    rty::{AdtDef, Invariant, RefineArg},
 };
+use itertools::Itertools;
 use rustc_span::Span;
 
 use crate::{
@@ -48,7 +49,13 @@ fn check_invariant(
             rcx.unpack_with(field, UnpackFlags::INVARIANTS);
         }
 
-        rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.indices), Tag::Other);
+        let args = variant
+            .ret
+            .indices
+            .iter()
+            .map(|e| RefineArg::Expr(e.clone()))
+            .collect_vec();
+        rcx.check_pred(invariant.pred.replace_bound_vars(&args), Tag::Other);
     }
     let mut fcx = FixpointCtxt::new(genv, Default::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);

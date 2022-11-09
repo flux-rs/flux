@@ -284,11 +284,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_indices(&self, idxs: &fhir::Indices, nbinders: u32) -> rty::RefineArgs {
-        rty::RefineArgs::new(
-            idxs.indices
-                .iter()
-                .map(|idx| (self.name_map.conv_expr(&idx.expr, nbinders), idx.is_binder)),
-        )
+        rty::RefineArgs::new(idxs.indices.iter().map(|idx| {
+            (rty::RefineArg::Expr(self.name_map.conv_expr(&idx.expr, nbinders)), idx.is_binder)
+        }))
     }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {

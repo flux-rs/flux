@@ -31,6 +31,16 @@ impl FVarSubst {
             .to_loc()
             .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
     }
+    pub fn infer_from_refine_args(
+        &mut self,
+        params: &FxHashSet<Name>,
+        arg1: &RefineArg,
+        arg2: &RefineArg,
+    ) {
+        match (arg1, arg2) {
+            (RefineArg::Expr(e1), RefineArg::Expr(e2)) => self.infer_from_exprs(params, e1, e2),
+        }
+    }
 
     pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
@@ -82,12 +92,12 @@ impl TypeFolder for FVarFolder<'_> {
 
 pub(super) struct BVarFolder<'a> {
     outer_binder: DebruijnIndex,
-    exprs: &'a [Expr],
+    args: &'a [RefineArg],
 }
 
 impl<'a> BVarFolder<'a> {
-    pub(super) fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
-        BVarFolder { exprs, outer_binder: INNERMOST }
+    pub(super) fn new(args: &'a [RefineArg]) -> BVarFolder<'a> {
+        BVarFolder { args, outer_binder: INNERMOST }
     }
 }
 
@@ -104,7 +114,8 @@ impl TypeFolder for BVarFolder<'_> {
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
         if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
-            self.exprs[bvar.index].clone()
+            let RefineArg::Expr(e) = &self.args[bvar.index];
+            e.clone()
         } else {
             e.super_fold_with(self)
         }

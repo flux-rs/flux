@@ -8,7 +8,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Path,
-        RefKind, RefineArgs, Ty, TyKind,
+        RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -224,7 +224,7 @@ impl TypeEnv {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 self.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
                 for (idx1, idx2) in iter::zip(idxs1.args(), idxs2.args()) {
-                    subst.infer_from_exprs(params, idx1, idx2);
+                    subst.infer_from_refine_args(params, idx1, idx2);
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -639,7 +639,10 @@ impl TypeEnvInfer {
             .into_iter()
             .filter(|pred| !matches!(pred, Pred::Hole))
             .collect_vec();
-        let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
+        let exprs = names
+            .iter()
+            .map(|name| RefineArg::Expr(Expr::fvar(*name)))
+            .collect_vec();
         let kvar = kvar_gen
             .fresh(&sorts, self.scope.iter())
             .replace_bound_vars(&exprs);
@@ -678,7 +681,7 @@ fn generalize(
                 let fresh = name_gen.fresh();
                 names.push(fresh);
                 sorts.push(sort.clone());
-                idxs.push(Expr::fvar(fresh));
+                idxs.push(RefineArg::Expr(Expr::fvar(fresh)));
                 fresh
             });
             preds.push(pred);

@@ -221,7 +221,10 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             bty_subtyping(genv, constr, bty1, bty2, tag);
             for (idx1, idx2) in iter::zip(idxs1.args(), idx2.args()) {
                 if idx1 != idx2 {
-                    constr.push_head(Expr::binary_op(BinOp::Eq, idx1.clone(), idx2.clone()), tag);
+                    constr.push_head(
+                        Expr::binary_op(BinOp::Eq, idx1.as_expr().clone(), idx2.as_expr().clone()),
+                        tag,
+                    );
                 }
             }
         }

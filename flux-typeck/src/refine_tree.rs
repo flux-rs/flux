@@ -9,7 +9,7 @@ use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred, RefKind,
-    RefineArgs, Sort, Ty, TyKind,
+    RefineArg, RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -282,7 +282,7 @@ impl ConstrBuilder<'_> {
         self.ptr.push_guard(p.into());
     }
 
-    pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
+    pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
         self.ptr.push_bound_guard(pred)
     }
 
@@ -306,14 +306,14 @@ impl NodePtr {
         }
     }
 
-    fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
-        let exprs = self
+    fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
+        let args = self
             .push_foralls(pred.params())
             .into_iter()
-            .map(Expr::fvar)
+            .map(|name| RefineArg::Expr(Expr::fvar(name)))
             .collect_vec();
-        self.push_guard(pred.replace_bound_vars(&exprs));
-        exprs
+        self.push_guard(pred.replace_bound_vars(&args));
+        args
     }
 
     fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {

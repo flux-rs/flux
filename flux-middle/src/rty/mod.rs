@@ -131,8 +131,13 @@ pub struct RefineArgs(Interned<RefineArgsData>);
 
 #[derive(Eq, Hash, PartialEq)]
 struct RefineArgsData {
-    args: Vec<Expr>,
+    args: Vec<RefineArg>,
     is_binder: BitSet<usize>,
+}
+
+#[derive(Eq, Hash, PartialEq)]
+pub enum RefineArg {
+    Expr(Expr),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -224,57 +229,57 @@ where
     T: TypeFoldable,
 {
     pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-        let exprs = self
+        let args = self
             .params
             .iter()
-            .map(|sort| Expr::fvar(fresh(sort)))
+            .map(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
             .collect_vec();
-        self.replace_bound_vars(&exprs)
+        self.replace_bound_vars(&args)
     }
 
-    pub fn replace_bound_vars(&self, exprs: &[Expr]) -> T {
-        self.value.fold_with(&mut BVarFolder::new(exprs))
+    pub fn replace_bound_vars(&self, args: &[RefineArg]) -> T {
+        self.value.fold_with(&mut BVarFolder::new(args))
     }
 }
 
 impl RefineArgs {
     pub fn new<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = (Expr, bool)>,
+        T: IntoIterator<Item = (RefineArg, bool)>,
         T::IntoIter: ExactSizeIterator,
     {
         let iter = iter.into_iter();
         let mut bitset = BitSet::new_empty(iter.len());
         let args = iter
             .enumerate()
-            .map(|(idx, (expr, is_binder))| {
+            .map(|(idx, (arg, is_binder))| {
                 if is_binder {
                     bitset.insert(idx);
                 }
-                expr
+                arg
             })
             .collect();
         RefineArgsData { args, is_binder: bitset }.intern()
     }
 
-    pub fn multi(args: Vec<Expr>) -> Self {
+    pub fn multi(args: Vec<RefineArg>) -> Self {
         let is_binder = BitSet::new_empty(args.len());
         RefineArgsData { args, is_binder }.intern()
     }
 
-    pub fn one(expr: impl Into<Expr>) -> Self {
-        RefineArgsData { args: vec![expr.into()], is_binder: BitSet::new_empty(1) }.intern()
+    pub fn one(arg: impl Into<RefineArg>) -> Self {
+        RefineArgsData { args: vec![arg.into()], is_binder: BitSet::new_empty(1) }.intern()
     }
 
     pub fn is_binder(&self, i: usize) -> bool {
         self.0.is_binder.contains(i)
     }
 
-    pub fn nth(&self, idx: usize) -> &Expr {
+    pub fn nth(&self, idx: usize) -> &RefineArg {
         &self.args()[idx]
     }
 
-    pub fn args(&self) -> &[Expr] {
+    pub fn args(&self) -> &[RefineArg] {
         &self.0.args
     }
 
@@ -286,6 +291,14 @@ impl RefineArgs {
 impl RefineArgsData {
     pub fn intern(self) -> RefineArgs {
         RefineArgs(Interned::new(self))
+    }
+}
+
+impl RefineArg {
+    pub fn as_expr(&self) -> &Expr {
+        match self {
+            RefineArg::Expr(e) => e,
+        }
     }
 }
 
@@ -386,7 +399,15 @@ impl VariantDef {
 
 impl VariantRet {
     pub fn to_ty(&self) -> Ty {
-        Ty::indexed(self.bty.clone(), RefineArgs::multi(self.indices.to_vec()))
+        Ty::indexed(
+            self.bty.clone(),
+            RefineArgs::multi(
+                self.indices
+                    .iter()
+                    .map(|e| RefineArg::Expr(e.clone()))
+                    .collect(),
+            ),
+        )
     }
 }
 
@@ -571,6 +592,18 @@ impl From<Expr> for Index {
 impl From<Index> for Expr {
     fn from(index: Index) -> Expr {
         index.expr
+    }
+}
+
+impl From<Expr> for RefineArg {
+    fn from(expr: Expr) -> Self {
+        RefineArg::Expr(expr)
+    }
+}
+
+impl From<&Expr> for RefineArg {
+    fn from(expr: &Expr) -> Self {
+        RefineArg::Expr(expr.clone())
     }
 }
 
@@ -890,6 +923,15 @@ mod pretty {
                         }
                     })
             )
+        }
+    }
+
+    impl Pretty for RefineArg {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                RefineArg::Expr(e) => w!("{:?}", e),
+            }
         }
     }
 
