@@ -209,8 +209,17 @@ where
                 fixpoint::Pred::Expr(expr)
             }
             rty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
+            rty::Pred::App(rty::Var::Free(name), args) => {
+                let name = self
+                    .name_map
+                    .get(name)
+                    .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
+                todo!()
+            }
+            rty::Pred::App(rty::Var::Bound(_), _) => {
+                panic!("unexpected bound var in pred application")
+            }
             rty::Pred::Hole => panic!("unexpected hole"),
-            rty::Pred::App(_, _) => todo!(),
         }
     }
 
@@ -261,8 +270,10 @@ where
                 let fresh = self.fresh_name();
                 let pred = fixpoint::Expr::BinaryOp(
                     fixpoint::BinOp::Eq,
-                    Box::new(fixpoint::Expr::Var(fresh)),
-                    Box::new(expr_to_fixpoint(arg, &self.name_map, &self.const_map)),
+                    Box::new([
+                        fixpoint::Expr::Var(fresh),
+                        expr_to_fixpoint(arg, &self.name_map, &self.const_map),
+                    ]),
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
                 fresh
@@ -399,7 +410,18 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
-        rty::Sort::Func(_) | rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
+        rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
+        rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
+    }
+}
+
+fn func_sort_to_fixpoint(sort: &rty::FuncSort) -> fixpoint::FuncSort {
+    fixpoint::FuncSort {
+        inputs_and_output: sort
+            .inputs_and_output
+            .iter()
+            .map(sort_to_fixpoint)
+            .collect(),
     }
 }
 
@@ -419,7 +441,7 @@ fn dump_constraint<C: std::fmt::Debug>(
 fn uif_def_to_fixpoint(name: &Symbol, uif_def: &rty::UifDef) -> fixpoint::UifDef {
     let inputs = uif_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
     let output = sort_to_fixpoint(&uif_def.output);
-    fixpoint::UifDef::new(name.to_string(), inputs, output)
+    fixpoint::UifDef::new(name.to_string(), fixpoint::FuncSort::new(inputs, output))
 }
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
@@ -452,8 +474,10 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
         rty::ExprKind::BinaryOp(op, e1, e2) => {
             fixpoint::Expr::BinaryOp(
                 *op,
-                Box::new(expr_to_fixpoint(e1, name_map, const_map)),
-                Box::new(expr_to_fixpoint(e2, name_map, const_map)),
+                Box::new([
+                    expr_to_fixpoint(e1, name_map, const_map),
+                    expr_to_fixpoint(e2, name_map, const_map),
+                ]),
             )
         }
         rty::ExprKind::UnaryOp(op, e) => {
@@ -479,11 +503,11 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
             fixpoint::Expr::App(f.to_string(), args)
         }
         rty::ExprKind::IfThenElse(p, e1, e2) => {
-            fixpoint::Expr::IfThenElse(
-                Box::new(expr_to_fixpoint(p, name_map, const_map)),
-                Box::new(expr_to_fixpoint(e1, name_map, const_map)),
-                Box::new(expr_to_fixpoint(e2, name_map, const_map)),
-            )
+            fixpoint::Expr::IfThenElse(Box::new([
+                expr_to_fixpoint(p, name_map, const_map),
+                expr_to_fixpoint(e1, name_map, const_map),
+                expr_to_fixpoint(e2, name_map, const_map),
+            ]))
         }
     }
 }

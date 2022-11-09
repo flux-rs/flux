@@ -20,6 +20,12 @@ pub enum Sort {
     Bool,
     Unit,
     Pair(Box<Sort>, Box<Sort>),
+    Func(FuncSort),
+}
+
+#[derive(Clone)]
+pub struct FuncSort {
+    pub inputs_and_output: Vec<Sort>,
 }
 
 pub enum Pred {
@@ -31,12 +37,12 @@ pub enum Pred {
 pub enum Expr {
     Var(Name),
     Constant(Constant),
-    BinaryOp(BinOp, Box<Self>, Box<Self>),
+    BinaryOp(BinOp, Box<[Expr; 2]>),
     App(String, Vec<Expr>),
     UnaryOp(UnOp, Box<Self>),
     Pair(Box<Expr>, Box<Expr>),
     Proj(Box<Expr>, Proj),
-    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
+    IfThenElse(Box<[Expr; 3]>),
     Unit,
 }
 
@@ -54,13 +60,12 @@ pub struct Qualifier {
 
 pub struct UifDef {
     pub name: String,
-    pub inputs: Vec<Sort>,
-    pub output: Sort,
+    pub sort: FuncSort,
 }
 
 impl UifDef {
-    pub fn new(name: String, inputs: Vec<Sort>, output: Sort) -> Self {
-        UifDef { name, inputs, output }
+    pub fn new(name: String, sort: FuncSort) -> Self {
+        UifDef { name, sort }
     }
 }
 #[derive(Clone, Copy, Debug)]
@@ -127,6 +132,13 @@ impl<Tag> Constraint<Tag> {
 
 impl Pred {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
+}
+
+impl FuncSort {
+    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> FuncSort {
+        inputs.push(output);
+        FuncSort { inputs_and_output: inputs }
+    }
 }
 
 impl<Tag> fmt::Display for Constraint<Tag>
@@ -202,7 +214,14 @@ impl fmt::Display for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Unit => write!(f, "Unit"),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
+            Sort::Func(sort) => write!(f, "{sort}"),
         }
+    }
+}
+
+impl fmt::Display for FuncSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(func(0, [{:?}]))", self.inputs_and_output.iter().format("; "))
     }
 }
 
@@ -234,7 +253,7 @@ impl Expr {
     pub const ZERO: Expr = Expr::Constant(Constant::ZERO);
     pub const ONE: Expr = Expr::Constant(Constant::ONE);
     pub fn eq(self, other: Expr) -> Expr {
-        Expr::BinaryOp(BinOp::Eq, Box::new(self), Box::new(other))
+        Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
     }
 }
 
@@ -259,7 +278,7 @@ impl fmt::Display for Expr {
         match self {
             Expr::Var(x) => write!(f, "{:?}", x),
             Expr::Constant(c) => write!(f, "{}", c),
-            Expr::BinaryOp(op, e1, e2) => {
+            Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
                 Ok(())
             }
@@ -283,7 +302,7 @@ impl fmt::Display for Expr {
                         .format_with(" ", |expr, f| { f(&format_args!("{}", FmtParens(expr))) }),
                 )
             }
-            Expr::IfThenElse(p, e1, e2) => {
+            Expr::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "if {p} then {e1} else {e2}")
             }
         }
@@ -296,35 +315,35 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     // (qualif EqZero ((v int)) (v == 0))
     let eqzero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Eq, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
+        expr: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("EqZero"),
     };
 
     // (qualif GtZero ((v int)) (v > 0))
     let gtzero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Gt, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
+        expr: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("GtZero"),
     };
 
     // (qualif GeZero ((v int)) (v >= 0))
     let gezero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Ge, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
+        expr: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("GeZero"),
     };
 
     // (qualif LtZero ((v int)) (v < 0))
     let ltzero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Lt, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
+        expr: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("LtZero"),
     };
 
     // (qualif LeZero ((v int)) (v <= 0))
     let lezero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Le, Box::new(Expr::Var(NAME0)), Box::new(Expr::ZERO)),
+        expr: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("LeZero"),
     };
 
@@ -333,35 +352,35 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     // (qualif Eq ((a int) (b int)) (a == b))
     let eq = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Eq, Box::new(Expr::Var(NAME0)), Box::new(Expr::Var(NAME1))),
+        expr: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Eq"),
     };
 
     // (qualif Gt ((a int) (b int)) (a > b))
     let gt = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Gt, Box::new(Expr::Var(NAME0)), Box::new(Expr::Var(NAME1))),
+        expr: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Gt"),
     };
 
     // (qualif Lt ((a int) (b int)) (a < b))
     let ge = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Ge, Box::new(Expr::Var(NAME0)), Box::new(Expr::Var(NAME1))),
+        expr: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Ge"),
     };
 
     // (qualif Ge ((a int) (b int)) (a >= b))
     let lt = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Lt, Box::new(Expr::Var(NAME0)), Box::new(Expr::Var(NAME1))),
+        expr: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Lt"),
     };
 
     // (qualif Le ((a int) (b int)) (a <= b))
     let le = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Le, Box::new(Expr::Var(NAME0)), Box::new(Expr::Var(NAME1))),
+        expr: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Le"),
     };
 
@@ -370,8 +389,10 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
         expr: Expr::BinaryOp(
             BinOp::Le,
-            Box::new(Expr::Var(NAME0)),
-            Box::new(Expr::BinaryOp(BinOp::Sub, Box::new(Expr::Var(NAME1)), Box::new(Expr::ONE))),
+            Box::new([
+                Expr::Var(NAME0),
+                Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(NAME1), Expr::ONE])),
+            ]),
         ),
         name: String::from("Le1"),
     };
@@ -381,12 +402,10 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
         expr: Expr::BinaryOp(
             BinOp::Eq,
-            Box::new(Expr::Var(NAME0)),
-            Box::new(Expr::BinaryOp(
-                BinOp::Add,
-                Box::new(Expr::Var(NAME1)),
-                Box::new(Expr::Var(NAME2)),
-            )),
+            Box::new([
+                Expr::Var(NAME0),
+                Expr::BinaryOp(BinOp::Add, Box::new([Expr::Var(NAME1), Expr::Var(NAME2)])),
+            ]),
         ),
         name: String::from("Add2"),
     };
@@ -396,12 +415,10 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
         expr: Expr::BinaryOp(
             BinOp::Eq,
-            Box::new(Expr::Var(NAME0)),
-            Box::new(Expr::BinaryOp(
-                BinOp::Sub,
-                Box::new(Expr::Var(NAME1)),
-                Box::new(Expr::Var(NAME2)),
-            )),
+            Box::new([
+                Expr::Var(NAME0),
+                Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(NAME1), Expr::Var(NAME2)])),
+            ]),
         ),
         name: String::from("Sub2"),
     };
