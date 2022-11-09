@@ -388,13 +388,17 @@ impl NameMap {
         match pred {
             fhir::Pred::Expr(expr) => rty::Pred::Expr(self.conv_expr(expr, nbinders)),
             fhir::Pred::And(preds) => {
-                let preds = preds
-                    .iter()
-                    .map(|pred| self.conv_pred(pred, nbinders))
-                    .collect();
-                rty::Pred::And(List::from_vec(preds))
+                let preds = preds.iter().map(|pred| self.conv_pred(pred, nbinders));
+                rty::Pred::And(List::from_iter(preds))
             }
-            fhir::Pred::App(_, _) => todo!(),
+            fhir::Pred::App(name, args) => {
+                let args = List::from_iter(args.iter().map(|expr| self.conv_expr(expr, nbinders)));
+                if let rty::ExprKind::BoundVar(bvar) = self.get(*name, nbinders).kind() {
+                    rty::Pred::App(rty::Var::Bound(*bvar), args)
+                } else {
+                    unreachable!()
+                }
+            }
         }
     }
 

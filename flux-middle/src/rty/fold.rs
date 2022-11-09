@@ -384,25 +384,32 @@ impl TypeFoldable for GenericArg {
 impl TypeFoldable for Pred {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
-            Pred::And(preds) => {
-                Pred::And(List::from_iter(preds.iter().map(|p| p.fold_with(folder))))
-            }
+            Pred::And(preds) => Pred::And(preds.fold_with(folder)),
             Pred::Kvar(kvar) => Pred::Kvar(kvar.fold_with(folder)),
             Pred::Expr(e) => Pred::Expr(e.fold_with(folder)),
             Pred::Hole => Pred::Hole,
+            Pred::App(func, args) => {
+                let args = args.fold_with(folder);
+                let func = func
+                    .to_expr()
+                    .fold_with(folder)
+                    .to_var()
+                    .expect("folding produced invalid var");
+                Pred::App(func, args)
+            }
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
-            Pred::And(preds) => {
-                for p in preds {
-                    p.visit_with(visitor);
-                }
-            }
+            Pred::And(preds) => preds.visit_with(visitor),
             Pred::Expr(e) => e.visit_with(visitor),
             Pred::Kvar(kvar) => kvar.visit_with(visitor),
             Pred::Hole => {}
+            Pred::App(func, args) => {
+                func.to_expr().visit_with(visitor);
+                args.visit_with(visitor);
+            }
         }
     }
 

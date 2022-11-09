@@ -210,6 +210,7 @@ where
             }
             rty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
             rty::Pred::Hole => panic!("unexpected hole"),
+            rty::Pred::App(_, _) => todo!(),
         }
     }
 

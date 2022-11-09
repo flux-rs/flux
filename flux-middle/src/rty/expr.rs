@@ -37,6 +37,12 @@ pub enum ExprKind {
     IfThenElse(Expr, Expr, Expr),
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Var {
+    Bound(BoundVar),
+    Free(Name),
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Path {
     pub loc: Loc,
@@ -286,6 +292,14 @@ impl ExprS {
         }
     }
 
+    pub fn to_var(&self) -> Option<Var> {
+        match self.kind() {
+            ExprKind::FreeVar(name) => Some(Var::Free(*name)),
+            ExprKind::BoundVar(bvar) => Some(Var::Bound(*bvar)),
+            _ => None,
+        }
+    }
+
     pub fn to_name(&self) -> Option<Name> {
         match self.kind() {
             ExprKind::FreeVar(name) => Some(*name),
@@ -310,6 +324,15 @@ impl ExprS {
         };
         proj.reverse();
         Some(Path::new(loc, proj))
+    }
+}
+
+impl Var {
+    pub fn to_expr(&self) -> Expr {
+        match self {
+            Var::Bound(bvar) => Expr::bvar(*bvar),
+            Var::Free(name) => Expr::fvar(*name),
+        }
     }
 }
 

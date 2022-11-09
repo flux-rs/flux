@@ -11,7 +11,7 @@ pub mod subst;
 
 use std::{borrow::Cow, fmt, iter, sync::LazyLock};
 
-pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, INNERMOST};
+pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -164,6 +164,7 @@ pub enum Pred {
     Kvar(KVar),
     Expr(Expr),
     And(List<Pred>),
+    App(Var, List<Expr>),
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
@@ -618,7 +619,7 @@ impl Pred {
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
         match self {
-            Pred::Hole | Pred::Kvar(_) => true,
+            Pred::Hole | Pred::Kvar(_) | Pred::App(..) => true,
             Pred::Expr(expr) => expr.is_binary_op(),
             Pred::And(preds) => {
                 match &preds[..] {
@@ -874,11 +875,25 @@ mod pretty {
                         w!("{:?}", join!(" ∧ ", preds))
                     }
                 }
+                Pred::App(func, args) => {
+                    w!("{:?}({:?})", func, join!(", ", args))
+                }
             }
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).fully_qualified_paths(true)
+        }
+    }
+
+    impl Pretty for Var {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+
+            match self {
+                Var::Bound(bvar) => w!("{:?}", bvar),
+                Var::Free(name) => w!("{:?}", ^name),
+            }
         }
     }
 
