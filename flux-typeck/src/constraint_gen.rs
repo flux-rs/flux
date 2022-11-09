@@ -129,7 +129,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig)?;
+        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.fresh_kvar)?;
         let fn_sig = fn_sig
             .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);
@@ -184,7 +184,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_constructor(fields, variant)?;
+        let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.fresh_kvar)?;
         let variant = variant
             .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);

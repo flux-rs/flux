@@ -2,7 +2,7 @@ use std::iter;
 
 use flux_middle::rty::{
     subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, GenericArg, Name, Path, PolySig,
-    PolyVariant, RefineArg, Ty, TyKind, INNERMOST,
+    PolyVariant, Pred, RefineArg, Sort, Ty, TyKind, INNERMOST,
 };
 use rustc_hash::FxHashMap;
 
@@ -16,6 +16,7 @@ pub struct InferenceError(String);
 pub fn infer_from_constructor(
     fields: &[Ty],
     variant: &PolyVariant,
+    fresh_kvar: &mut impl FnMut(&[Sort]) -> Binders<Pred>,
 ) -> Result<Vec<RefineArg>, InferenceError> {
     debug_assert_eq!(fields.len(), variant.as_ref().skip_binders().fields().len());
     let mut exprs = Exprs::default();
@@ -24,13 +25,14 @@ pub fn infer_from_constructor(
         infer_from_tys(&mut exprs, &FxHashMap::default(), actual, &FxHashMap::default(), formal);
     }
 
-    collect(variant, exprs)
+    collect(variant, exprs, fresh_kvar)
 }
 
 pub fn infer_from_fn_call<M: PathMap>(
     env: &M,
     actuals: &[Ty],
     fn_sig: &PolySig,
+    fresh_kvar: &mut impl FnMut(&[Sort]) -> Binders<Pred>,
 ) -> Result<Vec<RefineArg>, InferenceError> {
     debug_assert_eq!(actuals.len(), fn_sig.as_ref().skip_binders().args().len());
 
@@ -53,18 +55,26 @@ pub fn infer_from_fn_call<M: PathMap>(
         infer_from_tys(&mut exprs, env, actual, &requires, formal);
     }
 
-    collect(fn_sig, exprs)
+    collect(fn_sig, exprs, fresh_kvar)
 }
 
-fn collect<T>(t: &Binders<T>, mut exprs: Exprs) -> Result<Vec<RefineArg>, InferenceError> {
+fn collect<T>(
+    t: &Binders<T>,
+    mut exprs: Exprs,
+    fresh_kvar: &mut impl FnMut(&[Sort]) -> Binders<Pred>,
+) -> Result<Vec<RefineArg>, InferenceError> {
     t.params()
         .iter()
         .enumerate()
-        .map(|(idx, _)| {
-            let e = exprs
-                .remove(&idx)
-                .ok_or_else(|| InferenceError(format!("^0.{idx}")))?;
-            Ok(RefineArg::Expr(e))
+        .map(|(idx, sort)| {
+            if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
+                Ok(RefineArg::Pred(fresh_kvar(fsort.inputs())))
+            } else {
+                let e = exprs
+                    .remove(&idx)
+                    .ok_or_else(|| InferenceError(format!("^0.{idx}")))?;
+                Ok(RefineArg::Expr(e))
+            }
         })
         .collect()
 }

@@ -294,6 +294,16 @@ impl RefinedBy {
     }
 }
 
+impl Sort {
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+}
+
 impl From<FuncSort> for Sort {
     fn from(v: FuncSort) -> Self {
         Self::Func(v)

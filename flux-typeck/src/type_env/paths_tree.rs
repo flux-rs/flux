@@ -763,7 +763,7 @@ fn downcast_enum(
     let constr = Expr::and(iter::zip(&variant_def.ret.indices, args).map(|(idx, arg)| {
         match arg {
             RefineArg::Expr(e) => Expr::eq(idx, e),
-            RefineArg::KVar(_) => todo!(),
+            RefineArg::Pred(_) => todo!(),
         }
     }));
     rcx.assume_pred(constr);

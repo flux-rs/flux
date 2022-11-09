@@ -115,9 +115,9 @@ impl TypeFolder for BVarFolder<'_> {
     fn fold_pred(&mut self, pred: &Pred) -> Pred {
         if let Pred::App(Var::Bound(bvar), args) = pred && bvar.debruijn == self.outer_binder {
             match &self.args[bvar.index] {
-                RefineArg::KVar(kvar) => {
+                RefineArg::Pred(pred_abs) => {
                     let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-                    Pred::Kvar(kvar.replace_bound_vars(&args))
+                    pred_abs.replace_bound_vars(&args)
                 },
                 RefineArg::Expr(_) => pred.super_fold_with(self),
             }

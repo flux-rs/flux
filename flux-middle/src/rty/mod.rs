@@ -140,7 +140,7 @@ struct RefineArgsData {
 #[derive(Eq, Hash, PartialEq)]
 pub enum RefineArg {
     Expr(Expr),
-    KVar(Binders<KVar>),
+    Pred(Binders<Pred>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -291,7 +291,7 @@ impl RefineArg {
     pub fn as_expr(&self) -> &Expr {
         match self {
             RefineArg::Expr(e) => e,
-            RefineArg::KVar(_) => panic!("expected an [`RefineArg::Expr`]"),
+            RefineArg::Pred(_) => panic!("expected an [`RefineArg::Expr`]"),
         }
     }
 }
@@ -887,7 +887,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 RefineArg::Expr(e) => w!("{:?}", e),
-                RefineArg::KVar(kvar) => w!("{:?}", kvar),
+                RefineArg::Pred(kvar) => w!("{:?}", kvar),
             }
         }
     }
