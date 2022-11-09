@@ -221,6 +221,11 @@ enum BtyOrTy {
     Ty(fhir::Ty),
 }
 
+enum AbstractPredOrUif {
+    AbstractPred,
+    Uif(fhir::UFun),
+}
+
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn new(
         tcx: TyCtxt<'tcx>,
@@ -308,9 +313,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             let (pred, binder) =
                                 self.binders.with_bind(ident, binder, |binders| {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-                                        .desugar_expr(pred)
+                                        .desugar_pred(pred)
                                 })?;
-                            fhir::Ty::Exists(bty, binder.names(), fhir::Pred::Expr(pred))
+                            fhir::Ty::Exists(bty, binder.names(), pred)
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -440,6 +445,37 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         Self { tcx, sess, map, binders }
     }
 
+    fn desugar_pred(&self, expr: surface::Expr) -> Result<fhir::Pred, ErrorGuaranteed> {
+        fn go(
+            cx: &ExprCtxt,
+            expr: surface::Expr,
+            preds: &mut Vec<fhir::Pred>,
+        ) -> Result<(), ErrorGuaranteed> {
+            match expr.kind {
+                surface::ExprKind::BinaryOp(surface::BinOp::And, e1, e2) => {
+                    let e1 = go(cx, *e1, preds);
+                    let e2 = go(cx, *e2, preds);
+                    e1?;
+                    e2?;
+                }
+                surface::ExprKind::App(func, es) => {
+                    match cx.desugar_func(func)? {
+                        AbstractPredOrUif::AbstractPred => todo!(),
+                        AbstractPredOrUif::Uif(_) => todo!(),
+                    }
+                }
+                _ => {
+                    let e = cx.desugar_expr(expr)?;
+                    preds.push(fhir::Pred::Expr(e));
+                }
+            }
+            Ok(())
+        }
+        let mut preds = vec![];
+        go(self, expr, &mut preds)?;
+        Ok(fhir::Pred::And(preds))
+    }
+
     fn desugar_expr(&self, expr: surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match expr.kind {
             surface::ExprKind::Var(ident) => return self.desugar_var(ident),
@@ -450,13 +486,16 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 fhir::ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
             }
             surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
-            surface::ExprKind::App(f, es) => {
-                let uf = desugar_uf(f);
-                let es = es
-                    .into_iter()
-                    .map(|e| self.desugar_expr(e))
-                    .try_collect_exhaust()?;
-                fhir::ExprKind::App(uf, es)
+            surface::ExprKind::App(func, es) => {
+                if let AbstractPredOrUif::Uif(uif) = self.desugar_func(func)? {
+                    let es = es
+                        .into_iter()
+                        .map(|e| self.desugar_expr(e))
+                        .try_collect_exhaust()?;
+                    fhir::ExprKind::App(uif, es)
+                } else {
+                    todo!()
+                }
             }
             surface::ExprKind::IfThenElse(p, e1, e2) => {
                 let p = self.desugar_expr(*p);
@@ -466,6 +505,17 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
         };
         Ok(fhir::Expr { kind, span: expr.span })
+    }
+
+    fn desugar_func(&self, func: surface::Ident) -> Result<AbstractPredOrUif, ErrorGuaranteed> {
+        match (self.binders.get(func), self.map.uif(func.name)) {
+            (Some(Binder::AbstractPred(..)), _) => todo!(),
+            (Some(Binder::Single(..)), _) => todo!(),
+            (Some(Binder::Aggregate(..)), _) => todo!(),
+            (Some(Binder::Unrefined), _) => todo!(),
+            (None, Some(_)) => todo!(),
+            (None, None) => todo!(),
+        }
     }
 
     fn desugar_lit(&self, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {
@@ -569,10 +619,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             None => Err(self.sess.emit_err(errors::UnresolvedVar::new(loc))),
         }
     }
-}
-
-fn desugar_uf(f: surface::Ident) -> fhir::UFun {
-    fhir::UFun { symbol: f.name, span: f.span }
 }
 
 fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {

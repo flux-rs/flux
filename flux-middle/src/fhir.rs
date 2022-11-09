@@ -140,6 +140,7 @@ pub enum Ty {
 
 pub enum Pred {
     Expr(Expr),
+    And(Vec<Pred>),
 }
 
 pub struct ArrayLen;
@@ -500,6 +501,13 @@ impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Pred::Expr(expr) => write!(f, "{expr:?}"),
+            Pred::And(preds) => {
+                if preds.is_empty() {
+                    write!(f, "true")
+                } else {
+                    write!(f, "{:?}", preds.iter().format(" ∧ "))
+                }
+            }
         }
     }
 }

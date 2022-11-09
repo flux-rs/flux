@@ -284,6 +284,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn check_pred(&self, env: &Env, pred: &fhir::Pred) -> Result<(), ErrorGuaranteed> {
         match pred {
             fhir::Pred::Expr(e) => self.check_expr(env, e, &fhir::Sort::Bool),
+            fhir::Pred::And(preds) => {
+                preds
+                    .iter()
+                    .try_for_each_exhaust(|pred| self.check_pred(env, pred))
+            }
         }
     }
 
@@ -386,6 +391,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
+    #[track_caller]
     fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
     }

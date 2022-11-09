@@ -387,6 +387,13 @@ impl NameMap {
     fn conv_pred(&self, pred: &fhir::Pred, nbinders: u32) -> rty::Pred {
         match pred {
             fhir::Pred::Expr(expr) => rty::Pred::Expr(self.conv_expr(expr, nbinders)),
+            fhir::Pred::And(preds) => {
+                let preds = preds
+                    .iter()
+                    .map(|pred| self.conv_pred(pred, nbinders))
+                    .collect();
+                rty::Pred::And(List::from_vec(preds))
+            }
         }
     }
 
