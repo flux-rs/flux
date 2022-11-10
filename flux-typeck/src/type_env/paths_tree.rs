@@ -262,6 +262,21 @@ impl PathsTree {
                             _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
                     }
+                    PlaceElem::Index(_) => {
+                        let ty = ptr.borrow().expect_owned();
+                        match ty.kind() {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _)
+                            | TyKind::Exists(BaseTy::Array(arr_ty, _), _) => {
+                                let (rk, ty) =
+                                    Self::lookup_ty(genv, rcx, RefKind::Shr, arr_ty, place_proj)?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Ref(rk, ty),
+                                });
+                            }
+                            _ => panic!("Unsupported Index: {elem:?} {ty:?}"),
+                        }
+                    }
                 }
             }
 

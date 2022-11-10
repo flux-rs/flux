@@ -427,6 +427,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 rustc_mir::PlaceElem::Downcast(_, variant_idx) => {
                     projection.push(PlaceElem::Downcast(variant_idx));
                 }
+                rustc_mir::PlaceElem::Index(v) => {
+                    projection.push(PlaceElem::Index(v))
+                    // return Err(format!("unsupported place index `{place:?} and index {v:?}`"))
+                }
                 _ => {
                     return Err(format!("unsupported place `{place:?}`"));
                 }
