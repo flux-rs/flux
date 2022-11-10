@@ -1,3 +1,6 @@
+//! Checks type well-formedness
+//!
+//! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 use std::{borrow::Borrow, iter};
 
 use flux_common::iter::IterExt;
@@ -390,10 +393,13 @@ impl<'a> Wf<'a> {
     ) -> Result<&fhir::FuncSort, ErrorGuaranteed> {
         match func {
             fhir::Func::Var(var) => {
-                if let fhir::Sort::Func(sort) = env[&var.name] {
-                    Ok(sort)
-                } else {
-                    todo!()
+                match env[&var.name] {
+                    fhir::Sort::Func(sort) => Ok(sort),
+                    sort => {
+                        Err(self
+                            .sess
+                            .emit_err(errors::ExpectedFun::new(var.source_info.0, sort)))
+                    }
                 }
             }
             fhir::Func::Uif(func, span) => {
@@ -421,60 +427,74 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(wf::sort_mismatch, code = "FLUX")]
-    pub struct SortMismatch<'a> {
+    pub(super) struct SortMismatch<'a> {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub expected: &'a fhir::Sort,
-        pub found: &'a fhir::Sort,
+        span: Span,
+        expected: &'a fhir::Sort,
+        found: &'a fhir::Sort,
     }
 
     impl<'a> SortMismatch<'a> {
-        pub fn new(span: Span, expected: &'a fhir::Sort, found: &'a fhir::Sort) -> Self {
+        pub(super) fn new(span: Span, expected: &'a fhir::Sort, found: &'a fhir::Sort) -> Self {
             Self { span, expected, found }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(wf::param_count_mismatch, code = "FLUX")]
-    pub struct ParamCountMismatch {
+    pub(super) struct ParamCountMismatch {
         #[primary_span]
         #[label]
-        pub span: Option<Span>,
-        pub expected: usize,
-        pub found: usize,
+        span: Option<Span>,
+        expected: usize,
+        found: usize,
     }
 
     impl ParamCountMismatch {
-        pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
+        pub(super) fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(wf::duplicated_ensures, code = "FLUX")]
-    pub struct DuplicatedEnsures {
+    pub(super) struct DuplicatedEnsures {
         #[primary_span]
-        pub span: Span,
-        pub loc: Symbol,
+        span: Span,
+        loc: Symbol,
     }
 
     impl DuplicatedEnsures {
-        pub fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
+        pub(super) fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
             Self { span: loc.source_info.0, loc: loc.source_info.1 }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(wf::missing_ensures, code = "FLUX")]
-    pub struct MissingEnsures {
+    pub(super) struct MissingEnsures {
         #[primary_span]
-        pub span: Span,
+        span: Span,
     }
 
     impl MissingEnsures {
-        pub fn new(loc: &fhir::Ident) -> MissingEnsures {
+        pub(super) fn new(loc: &fhir::Ident) -> MissingEnsures {
             Self { span: loc.source_info.0 }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::expected_fun, code = "FLUX")]
+    pub(super) struct ExpectedFun<'a> {
+        #[primary_span]
+        span: Span,
+        found: &'a fhir::Sort,
+    }
+
+    impl<'a> ExpectedFun<'a> {
+        pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
+            Self { span, found }
         }
     }
 }

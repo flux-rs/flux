@@ -18,3 +18,6 @@ wf_duplicated_ensures =
 
 wf_missing_ensures =
     missing ensures clause for `&strg` reference
+
+wf_expected_fun =
+    expected function, found `{$found}`

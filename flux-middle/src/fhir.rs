@@ -311,6 +311,15 @@ impl Sort {
     }
 }
 
+impl Func {
+    pub fn span(&self) -> Span {
+        match self {
+            Func::Var(var) => var.source_info.0,
+            Func::Uif(_, span) => *span,
+        }
+    }
+}
+
 impl From<FuncSort> for Sort {
     fn from(v: FuncSort) -> Self {
         Self::Func(v)
