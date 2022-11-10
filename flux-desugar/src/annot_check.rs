@@ -191,9 +191,8 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (TyKind::Tuple(tys), rustc_ty::TyKind::Tuple(rust_tys))
                 if tys.len() == rust_tys.len() =>
             {
-                for (ty, rust_ty) in tys.iter().zip(rust_tys) {
-                    self.zip_ty(ty, rust_ty)?;
-                }
+                iter::zip(tys, rust_tys)
+                    .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))?;
                 Ok(())
             }
             _ => {

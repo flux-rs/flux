@@ -346,11 +346,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::Slice(ty) => fhir::Ty::Slice(Box::new(self.desugar_ty(None, *ty)?)),
             surface::TyKind::Tuple(tys) => {
-                fhir::Ty::Tuple(
-                    tys.into_iter()
-                        .map(|ty| self.desugar_ty(None, ty))
-                        .collect::<Result<_, _>>()?,
-                )
+                let tys = tys
+                    .into_iter()
+                    .map(|ty| self.desugar_ty(None, ty))
+                    .try_collect_exhaust()?;
+                fhir::Ty::Tuple(tys)
             }
         };
         Ok(ty)
