@@ -397,7 +397,7 @@ impl fmt::Debug for Place {
                 }
                 PlaceElem::Index(v) => {
                     p = format!("{p}[{v:?}]");
-                    need_parens = true;
+                    need_parens = false;
                 }
             }
         }
