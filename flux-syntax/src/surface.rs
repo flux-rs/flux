@@ -164,8 +164,8 @@ pub struct Indices {
 
 #[derive(Debug, Clone)]
 pub enum Index {
-    /// @n
-    Bind(Ident),
+    /// @n, the span correspond to the span of @ plus the identifier
+    Bind(Ident, Span),
     Expr(Expr),
 }
 
@@ -444,11 +444,7 @@ pub mod expand {
                 Index::Expr(e) => {
                     res.insert(*src_id, e.clone());
                 }
-                Index::Bind(_) => panic!("cannot use binder in type alias"),
-                // TyKind::Path(p) if p.args.is_empty() => {
-                //     res.insert(*src_id, p.ident);
-                // }
-                // _ => panic!("mk_sub: invalid arg"),
+                Index::Bind(..) => panic!("cannot use binder in type alias"),
             }
         }
         res
@@ -512,10 +508,10 @@ pub mod expand {
         Indices { indices, span: i_indices.span }
     }
 
-    fn subst_index(subst: &Subst, i: &Index) -> Index {
-        match i {
+    fn subst_index(subst: &Subst, idx: &Index) -> Index {
+        match idx {
             super::Index::Expr(e) => Index::Expr(subst_expr(subst, e)),
-            super::Index::Bind(_) => i.clone(),
+            super::Index::Bind(..) => idx.clone(),
         }
     }
 

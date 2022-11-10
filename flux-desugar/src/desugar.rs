@@ -108,9 +108,7 @@ fn desugar_variant(
     variant: surface::VariantDef<Res>,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
     let mut binders = Binders::new();
-    for ty in &variant.fields {
-        binders.ty_gather_params(sess, map, None, ty)?;
-    }
+    binders.gather_variant_params(tcx, sess, map, &variant)?;
     let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     let fields = variant
@@ -131,7 +129,7 @@ pub fn desugar_fn_sig(
     fn_sig: surface::FnSig<Res>,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
-    binders.gather_fn_sig_params(sess, map, &fn_sig)?;
+    binders.gather_fn_sig_params(tcx, sess, map, &fn_sig)?;
     let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     if let Some(e) = fn_sig.requires {
@@ -384,7 +382,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_index(&self, idx: surface::Index) -> Result<Vec<fhir::Index>, ErrorGuaranteed> {
         match idx {
-            surface::Index::Bind(ident) => self.bind_into_indices(ident),
+            surface::Index::Bind(ident, _) => self.bind_into_indices(ident),
             surface::Index::Expr(expr) => {
                 Ok(vec![fhir::Index {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
@@ -699,8 +697,35 @@ impl Binders {
         }
     }
 
+    fn gather_variant_params(
+        &mut self,
+        tcx: TyCtxt,
+        sess: &FluxSession,
+        map: &fhir::Map,
+        variant: &surface::VariantDef<Res>,
+    ) -> Result<(), ErrorGuaranteed> {
+        for ty in &variant.fields {
+            self.ty_gather_params(tcx, sess, map, None, ty, true)?;
+        }
+        // Traverse return type to find illegal binders
+        self.path_gather_params(tcx, sess, map, &variant.ret.path, false)?;
+        variant
+            .ret
+            .indices
+            .indices
+            .iter()
+            .try_for_each_exhaust(|idx| {
+                if let surface::Index::Bind(_, span) = idx {
+                    Err(sess.emit_err(errors::IllegalBinder::new(*span)))
+                } else {
+                    Ok(())
+                }
+            })
+    }
+
     fn gather_fn_sig_params(
         &mut self,
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         fn_sig: &surface::FnSig<Res>,
@@ -716,13 +741,19 @@ impl Binders {
             )?;
         }
         for arg in &fn_sig.args {
-            self.arg_gather_params(sess, map, arg)?;
+            self.arg_gather_params(tcx, sess, map, arg)?;
         }
+        // Traverse return type to find illegal binders
+        if let Some(ret) = &fn_sig.returns {
+            self.ty_gather_params(tcx, sess, map, None, ret, false)?;
+        }
+
         Ok(())
     }
 
     fn arg_gather_params(
         &mut self,
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         arg: &surface::Arg<Res>,
@@ -733,9 +764,9 @@ impl Binders {
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(sess, *loc, Binder::Single(self.fresh(), fhir::Sort::Loc))?;
-                self.ty_gather_params(sess, map, None, ty)?;
+                self.ty_gather_params(tcx, sess, map, None, ty, true)?;
             }
-            surface::Arg::Ty(bind, ty) => self.ty_gather_params(sess, map, *bind, ty)?,
+            surface::Arg::Ty(bind, ty) => self.ty_gather_params(tcx, sess, map, *bind, ty, true)?,
             surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
@@ -743,10 +774,12 @@ impl Binders {
 
     fn ty_gather_params(
         &mut self,
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         bind: Option<surface::Ident>,
         ty: &surface::Ty<Res>,
+        allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { path, indices } => {
@@ -754,8 +787,11 @@ impl Binders {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, binder.clone())?;
                 }
-                if let [surface::Index::Bind(ident)] = &indices.indices[..] {
-                    self.insert_binder(sess, *ident, binder)?;
+                if let [surface::Index::Bind(ident, span)] = indices.indices[..] {
+                    if !allow_binder {
+                        return Err(sess.emit_err(errors::IllegalBinder::new(span)));
+                    }
+                    self.insert_binder(sess, ident, binder)?;
                 } else {
                     let refined_by = binder.deaggregate();
                     let exp = refined_by.len();
@@ -767,12 +803,15 @@ impl Binders {
                     }
 
                     for (idx, (name, sort)) in iter::zip(&indices.indices, refined_by) {
-                        if let surface::Index::Bind(bind) = idx {
-                            self.insert_binder(sess, *bind, Binder::Single(name, sort))?;
+                        if let surface::Index::Bind(ident, span) = idx {
+                            if !allow_binder {
+                                return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
+                            }
+                            self.insert_binder(sess, *ident, Binder::Single(name, sort))?;
                         }
                     }
                 }
-                Ok(())
+                self.path_gather_params(tcx, sess, map, path, allow_binder)
             }
             surface::TyKind::Path(path) => {
                 if let Some(bind) = bind {
@@ -782,19 +821,19 @@ impl Binders {
                         Binder::from_res(&self.name_gen, map, path.ident),
                     )?;
                 }
-                for ty in &path.args {
-                    self.ty_gather_params(sess, map, None, ty)?;
-                }
-                Ok(())
+                self.path_gather_params(tcx, sess, map, path, allow_binder)
             }
-            surface::TyKind::Ref(_, ty)
-            | surface::TyKind::Array(ty, _)
-            | surface::TyKind::Slice(ty)
-            | surface::TyKind::Constr(_, ty) => {
+            surface::TyKind::Array(ty, _) | surface::TyKind::Slice(ty) => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::Unrefined)?;
                 }
-                self.ty_gather_params(sess, map, None, ty)
+                self.ty_gather_params(tcx, sess, map, None, ty, false)
+            }
+            surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
+                if let Some(bind) = bind {
+                    self.insert_binder(sess, bind, Binder::Unrefined)?;
+                }
+                self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
             }
             surface::TyKind::Exists { path, .. } => {
                 if let Some(bind) = bind {
@@ -804,10 +843,24 @@ impl Binders {
                         Binder::from_res(&self.name_gen, map, path.ident),
                     )?;
                 }
-                Ok(())
+                self.path_gather_params(tcx, sess, map, path, false)
             }
             surface::TyKind::Unit => Ok(()),
         }
+    }
+
+    fn path_gather_params(
+        &mut self,
+        tcx: TyCtxt,
+        sess: &FluxSession,
+        map: &fhir::Map,
+        path: &surface::Path<Res>,
+        allow_binder: bool,
+    ) -> Result<(), ErrorGuaranteed> {
+        let allow_binder = allow_binder && is_box(tcx, path.ident);
+        path.args.iter().try_for_each_exhaust(|ty| {
+            self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
+        })
     }
 
     fn into_params(self) -> Vec<fhir::Param> {
@@ -826,6 +879,14 @@ impl Binders {
             }
         }
         params
+    }
+}
+
+fn is_box(tcx: TyCtxt, res: surface::Res) -> bool {
+    if let Res::Adt(def_id) = res {
+        tcx.adt_def(def_id).is_box()
+    } else {
+        false
     }
 }
 
@@ -1100,6 +1161,20 @@ mod errors {
     impl InvalidUnrefinedParam {
         pub fn new(def: Ident, var: Ident) -> Self {
             Self { def_span: def.span, var, span: var.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar::illegal_binder, code = "FLUX")]
+    pub struct IllegalBinder {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+    }
+
+    impl IllegalBinder {
+        pub fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 }

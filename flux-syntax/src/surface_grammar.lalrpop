@@ -176,8 +176,8 @@ Indices: surface::Indices = {
 };
 
 Index: surface::Index = {
-    "@" <Ident> => surface::Index::Bind(<>),
-    <Level1>    => surface::Index::Expr(<>),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::Index::Bind(bind, mk_span(lo, hi)),
+    <Level1>                         => surface::Index::Expr(<>),
 };
 
 pub Expr = Level1;

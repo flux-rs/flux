@@ -35,7 +35,7 @@ pub fn myint1(x: i32) -> i32 {
     x
 }
 
-#[flux::sig(fn(i32) -> i32[@n])] //~ ERROR cannot find
+#[flux::sig(fn(i32) -> i32[@n])] //~ ERROR illegal binder
 pub fn myint2(x: i32) -> i32 {
     x
 }

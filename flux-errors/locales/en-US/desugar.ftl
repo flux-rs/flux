@@ -49,3 +49,7 @@ desugar_def_span_note =
         [true] {$def_kind} defined here
         *[false] {$def_kind} defined here with no parameters
     }
+
+desugar_illegal_binder =
+    illegal binder
+    .label = binder not allowed in this position
