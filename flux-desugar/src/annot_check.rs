@@ -189,6 +189,12 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (TyKind::Unit, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => Ok(()),
             (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
             (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
+            (TyKind::Tuple(tys), rustc_ty::TyKind::Tuple(rust_tys)) => {
+                for (ty, rust_ty) in tys.iter().zip(rust_tys) {
+                    self.zip_ty(ty, rust_ty)?;
+                }
+                Ok(())
+            }
             _ => {
                 Err(self.sess.emit_err(errors::InvalidRefinement::new(
                     self.tcx,

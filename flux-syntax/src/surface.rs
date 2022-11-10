@@ -141,6 +141,7 @@ pub enum TyKind<T = Ident> {
     Unit,
     Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
+    Tuple(Vec<Ty<T>>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -404,6 +405,9 @@ pub mod expand {
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
             TyKind::Slice(ty) => TyKind::Slice(Box::new(expand_ty(aliases, ty))),
+            TyKind::Tuple(tys) => {
+                TyKind::Tuple(tys.iter().map(|t| expand_ty(aliases, t)).collect())
+            }
         }
     }
 
@@ -532,6 +536,7 @@ pub mod expand {
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
             TyKind::Slice(ty) => TyKind::Slice(Box::new(subst_ty(subst, ty))),
+            TyKind::Tuple(tys) => TyKind::Tuple(tys.iter().map(|t| subst_ty(subst, t)).collect()),
         }
     }
 }

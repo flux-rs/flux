@@ -346,6 +346,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::Ty::Array(Box::new(ty), fhir::ArrayLen)
             }
             surface::TyKind::Slice(ty) => fhir::Ty::Slice(Box::new(self.desugar_ty(None, *ty)?)),
+            surface::TyKind::Tuple(tys) => {
+                fhir::Ty::Tuple(
+                    tys.into_iter()
+                        .map(|ty| self.desugar_ty(None, ty))
+                        .collect::<Result<_, _>>()?,
+                )
+            }
         };
         Ok(ty)
     }
@@ -753,6 +760,15 @@ impl Binders {
                     self.insert_binder(sess, bind, Binder::Unrefined)?;
                 }
                 self.ty_gather_params(sess, map, None, ty)
+            }
+            surface::TyKind::Tuple(tys) => {
+                if let Some(bind) = bind {
+                    self.insert_binder(sess, bind, Binder::Unrefined)?;
+                }
+                for ty in tys {
+                    self.ty_gather_params(sess, map, None, ty)?;
+                }
+                Ok(())
             }
             surface::TyKind::Exists { path, .. } => {
                 if let Some(bind) = bind {
