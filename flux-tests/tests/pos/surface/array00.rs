@@ -16,3 +16,9 @@ pub fn write() -> i32 {
     let bytes: [i32; 2] = [10, 20];
     bytes[0] + bytes[1]
 }
+
+pub fn foo() {
+    let mut arr = [1, 2, 3];
+    let _x = &arr[0];
+    let _y = &mut arr[0];
+}

@@ -134,7 +134,7 @@ pub enum Ty {
     Str,
     Char,
     Ptr(Ident),
-    Ref(RefKind, Box<Ty>),
+    Ref(WeakKind, Box<Ty>),
     Param(ParamTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
@@ -145,9 +145,10 @@ pub enum Ty {
 pub struct ArrayLen;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub enum RefKind {
+pub enum WeakKind {
     Shr,
     Mut,
+    Arr,
 }
 
 pub struct Indices {
@@ -456,8 +457,9 @@ impl fmt::Debug for Ty {
             }
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
-            Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
+            Ty::Ref(WeakKind::Mut, ty) => write!(f, "&mut {ty:?}"),
+            Ty::Ref(WeakKind::Shr, ty) => write!(f, "&{ty:?}"),
+            Ty::Ref(WeakKind::Arr, _) => panic!("unexpected! Ref with WeakKind::Array"),
             Ty::Param(param) => write!(f, "{param}"),
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             Ty::Never => write!(f, "!"),
@@ -506,11 +508,12 @@ impl fmt::Debug for Index {
     }
 }
 
-impl fmt::Debug for RefKind {
+impl fmt::Debug for WeakKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RefKind::Shr => write!(f, "shr"),
-            RefKind::Mut => write!(f, "mut"),
+            WeakKind::Shr => write!(f, "shr"),
+            WeakKind::Mut => write!(f, "mut"),
+            WeakKind::Arr => write!(f, "arr"),
         }
     }
 }

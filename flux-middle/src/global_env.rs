@@ -263,10 +263,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Never => return rty::Ty::never(),
             rustc::ty::TyKind::Param(param_ty) => return rty::Ty::param(*param_ty),
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
-                return rty::Ty::mk_ref(rty::RefKind::Mut, self.refine_ty(ty, mk_pred));
+                return rty::Ty::mk_ref(rty::WeakKind::Mut, self.refine_ty(ty, mk_pred));
             }
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Not) => {
-                return rty::Ty::mk_ref(rty::RefKind::Shr, self.refine_ty(ty, mk_pred));
+                return rty::Ty::mk_ref(rty::WeakKind::Shr, self.refine_ty(ty, mk_pred));
             }
             rustc::ty::TyKind::Float(float_ty) => return rty::Ty::float(*float_ty),
             rustc::ty::TyKind::Tuple(tys) => {

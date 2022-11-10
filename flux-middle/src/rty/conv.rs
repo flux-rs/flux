@@ -256,7 +256,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Ty::Ptr(loc) => {
                 rty::Ty::ptr(
-                    rty::RefKind::Mut,
+                    rty::WeakKind::Mut,
                     self.name_map
                         .get(loc.name, nbinders)
                         .to_path()
@@ -291,10 +291,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         rty::Index { expr: self.name_map.conv_expr(&idx.expr, nbinders), is_binder: idx.is_binder }
     }
 
-    fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
+    fn conv_ref_kind(rk: fhir::WeakKind) -> rty::WeakKind {
         match rk {
-            fhir::RefKind::Mut => rty::RefKind::Mut,
-            fhir::RefKind::Shr => rty::RefKind::Shr,
+            fhir::WeakKind::Mut => rty::WeakKind::Mut,
+            fhir::WeakKind::Shr => rty::WeakKind::Shr,
+            fhir::WeakKind::Arr => rty::WeakKind::Arr,
         }
     }
 

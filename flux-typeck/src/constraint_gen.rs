@@ -4,7 +4,7 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     rty::{
         fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, GenericArg,
-        Index, PolySig, PolyVariant, Pred, RefKind, Sort, Ty, TyKind, VariantRet,
+        Index, PolySig, PolyVariant, Pred, Sort, Ty, TyKind, VariantRet, WeakKind,
     },
     rustc::mir::BasicBlock,
 };
@@ -113,7 +113,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // mutable references.
         let actuals = iter::zip(actuals, fn_sig.skip_binders().args())
             .map(|(actual, formal)| {
-                if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+                if let (TyKind::Ref(WeakKind::Mut, _), TyKind::Ref(WeakKind::Mut, ty)) = (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
@@ -141,14 +141,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|(actual, formal)| {
                 let formal = formal.unconstr();
                 match (actual.kind(), formal.kind()) {
-                    (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(WeakKind::Mut, path), TyKind::Ref(WeakKind::Mut, bound)) => {
                         subtyping(self.genv, constr, &env.get(path), bound, self.tag);
                         env.update(path, bound.clone());
                         env.block(path);
-                        Ty::mk_ref(RefKind::Mut, bound.clone())
+                        Ty::mk_ref(WeakKind::Mut, bound.clone())
                     }
-                    (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = Ty::mk_ref(RefKind::Shr, env.get(path));
+                    (TyKind::Ptr(WeakKind::Shr, path), TyKind::Ref(WeakKind::Shr, _)) => {
+                        let ty = Ty::mk_ref(WeakKind::Shr, env.get(path));
                         env.block(path);
                         ty
                     }
@@ -242,11 +242,11 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             debug_assert_eq!(loc1, loc2);
             debug_assert_eq!(alloc1, alloc2);
         }
-        (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
+        (TyKind::Ref(WeakKind::Mut, ty1), TyKind::Ref(WeakKind::Mut, ty2)) => {
             subtyping(genv, constr, ty1, ty2, tag);
             subtyping(genv, constr, ty2, ty1, tag);
         }
-        (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
+        (TyKind::Ref(WeakKind::Shr, ty1), TyKind::Ref(WeakKind::Shr, ty2)) => {
             subtyping(genv, constr, ty1, ty2, tag);
         }
         (_, TyKind::Uninit) => {

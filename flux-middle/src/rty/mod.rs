@@ -21,7 +21,7 @@ pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy}
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
-pub use crate::{fhir::RefKind, rustc::ty::Const};
+pub use crate::{fhir::WeakKind, rustc::ty::Const};
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::Place,
@@ -102,7 +102,7 @@ pub enum TyKind {
     Exists(BaseTy, Binders<Pred>),
     Tuple(List<Ty>),
     Uninit,
-    Ptr(RefKind, Path),
+    Ptr(WeakKind, Path),
     /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
     /// with two major differences:
     /// 1. An open box can only point to a fresh location and not an arbitrary [`Path`], so we just
@@ -110,7 +110,7 @@ pub enum TyKind {
     /// 2. We keep around the allocator to be able to put the box back together (you could say that
     ///    the capability to deallocate the memory stays with the pointer).
     BoxPtr(Name, Ty),
-    Ref(RefKind, Ty),
+    Ref(WeakKind, Ty),
     Constr(Expr, Ty),
     Param(ParamTy),
     Never,
@@ -336,7 +336,7 @@ impl VariantRet {
 }
 
 impl Ty {
-    pub fn ptr(rk: RefKind, path: impl Into<Path>) -> Ty {
+    pub fn ptr(rk: WeakKind, path: impl Into<Path>) -> Ty {
         TyKind::Ptr(rk, path.into()).intern()
     }
 
@@ -352,7 +352,7 @@ impl Ty {
         TyKind::BoxPtr(loc, alloc).intern()
     }
 
-    pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
+    pub fn mk_ref(mode: WeakKind, ty: Ty) -> Ty {
         TyKind::Ref(mode, ty).intern()
     }
 
@@ -803,8 +803,9 @@ mod pretty {
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(rk, loc) => w!("ptr({:?}, {:?})", ^rk, loc),
                 TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
-                TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
-                TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
+                TyKind::Ref(WeakKind::Mut, ty) => w!("&mut {:?}", ty),
+                TyKind::Ref(WeakKind::Shr, ty) => w!("&{:?}", ty),
+                TyKind::Ref(WeakKind::Arr, _ty) => panic!("Unexpected: Ref with WeakKind::Arr"),
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),

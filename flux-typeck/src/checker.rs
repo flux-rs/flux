@@ -17,7 +17,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
-        Int, IntTy, PolySig, Pred, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        Int, IntTy, PolySig, Pred, Sort, Ty, TyKind, Uint, UintTy, VariantIdx, WeakKind,
     },
     rustc::{
         self,
@@ -611,12 +611,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::MutRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
-                env.borrow(rcx, gen, RefKind::Mut, place)
+                env.borrow(rcx, gen, WeakKind::Mut, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
-                env.borrow(rcx, gen, RefKind::Shr, place)
+                env.borrow(rcx, gen, WeakKind::Shr, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, src_info, *un_op, op),
@@ -868,7 +868,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
-            Constant::Str => Ty::mk_ref(RefKind::Shr, Ty::str()),
+            Constant::Str => Ty::mk_ref(WeakKind::Shr, Ty::str()),
             Constant::Char => Ty::char(),
         }
     }

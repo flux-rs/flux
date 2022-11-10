@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Index, Name, Pred, RefKind,
-    Sort, Ty, TyKind,
+    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Index, Name, Pred, Sort, Ty,
+    TyKind, WeakKind,
 };
 use itertools::Itertools;
 
@@ -195,13 +195,13 @@ impl RefineCtxt<'_> {
                 self.assume_pred(pred.clone());
                 self.unpack_inner(ty, in_mut_ref, flags)
             }
-            TyKind::Ref(RefKind::Shr, ty) => {
+            TyKind::Ref(WeakKind::Shr, ty) => {
                 let ty = self.unpack_inner(ty, in_mut_ref, flags);
-                Ty::mk_ref(RefKind::Shr, ty)
+                Ty::mk_ref(WeakKind::Shr, ty)
             }
-            TyKind::Ref(RefKind::Mut, ty) => {
+            TyKind::Ref(WeakKind::Mut, ty) => {
                 let ty = self.unpack_inner(ty, true, flags);
-                Ty::mk_ref(RefKind::Mut, ty)
+                Ty::mk_ref(WeakKind::Mut, ty)
             }
             TyKind::Tuple(tys) => {
                 let tys = tys

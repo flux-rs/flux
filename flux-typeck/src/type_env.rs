@@ -8,7 +8,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Index,
-        Path, RefKind, Ty, TyKind,
+        Path, Ty, TyKind, WeakKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -109,7 +109,7 @@ impl TypeEnv {
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
-        rk: RefKind,
+        rk: WeakKind,
         place: &Place,
     ) -> Result<Ty, OpaqueStructErr> {
         let ty = match self
@@ -141,10 +141,10 @@ impl TypeEnv {
             FoldResult::Strg(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
-            FoldResult::Ref(RefKind::Mut, ty) => {
+            FoldResult::Ref(WeakKind::Mut, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            FoldResult::Ref(RefKind::Shr, _) => {
+            FoldResult::Ref(WeakKind::Shr, _) | FoldResult::Ref(WeakKind::Arr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }
@@ -166,10 +166,10 @@ impl TypeEnv {
                 self.bindings.update(&path, Ty::uninit());
                 Ok(ty)
             }
-            FoldResult::Ref(RefKind::Mut, _) => {
+            FoldResult::Ref(WeakKind::Mut, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
             }
-            FoldResult::Ref(RefKind::Shr, _) => {
+            FoldResult::Ref(WeakKind::Shr, _) | FoldResult::Ref(WeakKind::Arr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
         }
@@ -308,19 +308,19 @@ impl TypeEnv {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(WeakKind::Mut, ptr_path), TyKind::Ref(WeakKind::Mut, bound)) => {
                         let ty = self.bindings.get(ptr_path).expect_owned();
                         gen.subtyping(rcx, &ty, bound);
 
                         self.bindings
                             .update_binding(ptr_path, Binding::Blocked(bound.clone()));
                         self.bindings
-                            .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                            .update(path, Ty::mk_ref(WeakKind::Mut, bound.clone()));
                     }
-                    (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(WeakKind::Shr, ptr_path), TyKind::Ref(WeakKind::Shr, _)) => {
                         let ty = self.bindings.get(ptr_path).expect_owned();
                         self.bindings.block(ptr_path);
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        self.bindings.update(path, Ty::mk_ref(WeakKind::Shr, ty));
                     }
                     _ => (),
                 }
@@ -473,7 +473,7 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(RefKind::Shr, path1), TyKind::Ptr(RefKind::Shr, path2))
+                    (TyKind::Ptr(WeakKind::Shr, path1), TyKind::Ptr(WeakKind::Shr, path2))
                         if path1 != path2 =>
                     {
                         let ty1 = self.bindings.get(path1).expect_owned();
@@ -482,46 +482,48 @@ impl TypeEnvInfer {
                         self.bindings.block(path1);
                         other.bindings.block(path2);
 
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty1));
-                        other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty2));
+                        self.bindings.update(path, Ty::mk_ref(WeakKind::Shr, ty1));
+                        other.bindings.update(path, Ty::mk_ref(WeakKind::Shr, ty2));
                     }
-                    (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(WeakKind::Shr, ptr_path), TyKind::Ref(WeakKind::Shr, _)) => {
                         let ty = self.bindings.get(ptr_path).expect_owned();
                         self.bindings.block(ptr_path);
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        self.bindings.update(path, Ty::mk_ref(WeakKind::Shr, ty));
                     }
-                    (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(RefKind::Shr, ptr_path)) => {
+                    (TyKind::Ref(WeakKind::Shr, _), TyKind::Ptr(WeakKind::Shr, ptr_path)) => {
                         let ty = other.bindings.get(ptr_path).expect_owned();
                         other.bindings.block(ptr_path);
-                        other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        other.bindings.update(path, Ty::mk_ref(WeakKind::Shr, ty));
                     }
-                    (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2))
+                    (TyKind::Ptr(WeakKind::Mut, path1), TyKind::Ptr(WeakKind::Mut, path2))
                         if path1 != path2 =>
                     {
                         let ty1 = self.bindings.get(path1).expect_owned().with_holes();
                         let ty2 = other.bindings.get(path2).expect_owned().with_holes();
 
                         self.bindings
-                            .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
+                            .update(path, Ty::mk_ref(WeakKind::Mut, ty1.clone()));
                         other
                             .bindings
-                            .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
+                            .update(path, Ty::mk_ref(WeakKind::Mut, ty2.clone()));
 
                         self.bindings.update_binding(path1, Binding::Blocked(ty1));
                         other.bindings.update_binding(path2, Binding::Blocked(ty2));
                     }
-                    (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(WeakKind::Mut, ptr_path), TyKind::Ref(WeakKind::Mut, bound)) => {
                         let bound = bound.with_holes();
                         self.bindings
                             .update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                        self.bindings.update(path, Ty::mk_ref(WeakKind::Mut, bound));
                     }
-                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(RefKind::Mut, ptr_path)) => {
+                    (TyKind::Ref(WeakKind::Mut, bound), TyKind::Ptr(WeakKind::Mut, ptr_path)) => {
                         let bound = bound.with_holes();
                         other
                             .bindings
                             .update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                        other.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                        other
+                            .bindings
+                            .update(path, Ty::mk_ref(WeakKind::Mut, bound));
                     }
                     _ => {}
                 }
@@ -685,9 +687,9 @@ fn generalize(
 
             Ty::indexed(bty, idxs)
         }
-        TyKind::Ref(RefKind::Shr, ty) => {
+        TyKind::Ref(WeakKind::Shr, ty) => {
             let ty = generalize(name_gen, ty, names, sorts, preds);
-            Ty::mk_ref(RefKind::Shr, ty)
+            Ty::mk_ref(WeakKind::Shr, ty)
         }
         _ => ty.clone(),
     }

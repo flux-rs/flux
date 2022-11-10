@@ -582,10 +582,10 @@ fn desugar_uf(f: surface::Ident) -> fhir::UFun {
     fhir::UFun { symbol: f.name, span: f.span }
 }
 
-fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {
+fn desugar_ref_kind(rk: surface::RefKind) -> fhir::WeakKind {
     match rk {
-        surface::RefKind::Mut => fhir::RefKind::Mut,
-        surface::RefKind::Shr => fhir::RefKind::Shr,
+        surface::RefKind::Mut => fhir::WeakKind::Mut,
+        surface::RefKind::Shr => fhir::WeakKind::Shr,
     }
 }
 
