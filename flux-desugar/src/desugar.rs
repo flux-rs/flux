@@ -486,8 +486,17 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn resolve_func(&self, func: surface::Ident) -> Result<FuncRes, ErrorGuaranteed> {
         match (self.binders.get(func), self.map.uif(func.name)) {
             (Some(Binder::Single(name, sort)), _) => Ok(FuncRes::Param(*name, sort)),
-            (Some(Binder::Aggregate(..)), _) => todo!(),
-            (Some(Binder::Unrefined), _) => todo!(),
+            (Some(Binder::Aggregate(_, fields)), _) => {
+                Err(self
+                    .sess
+                    .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())))
+            }
+            (Some(Binder::Unrefined), _) => {
+                let def_ident = self.binders.def_ident(func).unwrap();
+                Err(self
+                    .sess
+                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)))
+            }
             (None, Some(uif)) => Ok(FuncRes::Uif(uif)),
             (None, None) => Err(self.sess.emit_err(errors::UnresolvedVar::new(func))),
         }
@@ -522,7 +531,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 } else {
                     return Err(self
                         .sess
-                        .emit_err(errors::UnresolvedDotVar::new(ident, fields.keys())));
+                        .emit_err(errors::InvalidAggregateUse::new(ident, fields.keys())));
                 }
             }
             (Some(Binder::Unrefined), _) => {
@@ -995,8 +1004,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::unresolved_dot_var, code = "FLUX")]
-    pub struct UnresolvedDotVar {
+    #[diag(desugar::invalid_aggregate_use, code = "FLUX")]
+    pub struct InvalidAggregateUse {
         #[primary_span]
         #[label]
         pub span: Span,
@@ -1004,7 +1013,7 @@ mod errors {
         pub msg: String,
     }
 
-    impl UnresolvedDotVar {
+    impl InvalidAggregateUse {
         pub fn new<'a>(ident: Ident, fields: impl IntoIterator<Item = &'a Symbol>) -> Self {
             let msg: Vec<String> = fields
                 .into_iter()

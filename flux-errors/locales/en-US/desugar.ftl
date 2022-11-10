@@ -2,9 +2,9 @@ desugar_unresolved_var =
     cannot find value `{$var}` in this scope
     .label = not found in this scope
 
-desugar_unresolved_dot_var =
+desugar_invalid_aggregate_use =
     invalid use of refinement parameter
-    .label = did you mean one of {$msg}?
+    .label = help: did you mean one of {$msg}?
 
 desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
@@ -37,9 +37,9 @@ desugar_invalid_primitive_dot_access =
     .defined_here = `{$name}` defined here with sort `{$sort}`
 
 desugar_invalid_unrefined_param =
-    invalid use of parameter `{$var}`
+    invalid use of refinement parameter
     .label = parameter `{$var}` refers to a type with no indices
-    .defined_here = declared here
+    .defined_here = `{$var}` bound here
 
 desugar_field_not_found =
     no field `{$fld}` on refinement parameters for {$def_kind} `{$def_name}`
