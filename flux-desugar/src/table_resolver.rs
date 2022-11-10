@@ -149,7 +149,6 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
             }
-            surface::TyKind::Unit => surface::TyKind::Unit,
             surface::TyKind::Constr(pred, ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))

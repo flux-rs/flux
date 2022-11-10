@@ -335,7 +335,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::Ref(rk, ty) => {
                 fhir::Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(None, *ty)?))
             }
-            surface::TyKind::Unit => fhir::Ty::Tuple(vec![]),
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                 let ty = self.desugar_ty(None, *ty)?;
@@ -776,7 +775,6 @@ impl Binders {
                 }
                 Ok(())
             }
-            surface::TyKind::Unit => Ok(()),
         }
     }
 

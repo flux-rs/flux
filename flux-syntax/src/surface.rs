@@ -137,8 +137,6 @@ pub enum TyKind<T = Ident> {
     Ref(RefKind, Box<Ty<T>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
-    /// ()
-    Unit,
     Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
     Tuple(Vec<Ty<T>>),
@@ -399,7 +397,6 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, t))),
-            TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
@@ -530,7 +527,6 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(subst_ty(subst, t))),
-            TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }

@@ -186,10 +186,11 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
                 self.zip_ty(ref_ty, rust_ty)?;
                 self.zip_mutability(ty.span, *rk, *mutability)
             }
-            (TyKind::Unit, rustc_ty::TyKind::Tuple(tys)) if tys.is_empty() => Ok(()),
             (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
             (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
-            (TyKind::Tuple(tys), rustc_ty::TyKind::Tuple(rust_tys)) => {
+            (TyKind::Tuple(tys), rustc_ty::TyKind::Tuple(rust_tys))
+                if tys.len() == rust_tys.len() =>
+            {
                 for (ty, rust_ty) in tys.iter().zip(rust_tys) {
                     self.zip_ty(ty, rust_ty)?;
                 }
