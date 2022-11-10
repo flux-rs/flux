@@ -47,7 +47,7 @@ pub struct ConstInfo {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<Param>,
+    pub args: Vec<RefineParam>,
     pub expr: Expr,
 }
 
@@ -86,7 +86,7 @@ pub struct EnumDef {
 
 #[derive(Debug)]
 pub struct VariantDef {
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
 }
@@ -99,7 +99,7 @@ pub struct VariantRet {
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -170,7 +170,7 @@ pub enum BaseTy {
 }
 
 #[derive(Debug)]
-pub struct Param {
+pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
 }
@@ -276,7 +276,7 @@ pub struct AdtDef {
 
 #[derive(Debug)]
 pub struct RefinedBy {
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     pub span: Span,
 }
 
@@ -296,7 +296,7 @@ impl AdtDef {
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
 
-    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
         self.params.iter()
     }
 }
@@ -308,15 +308,6 @@ impl Sort {
     #[must_use]
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
-    }
-}
-
-impl Func {
-    pub fn span(&self) -> Span {
-        match self {
-            Func::Var(var) => var.source_info.0,
-            Func::Uif(_, span) => *span,
-        }
     }
 }
 

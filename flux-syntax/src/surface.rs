@@ -11,7 +11,7 @@ pub type AliasMap = rustc_hash::FxHashMap<Ident, Alias>;
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
-    pub args: Vec<Param>,
+    pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub span: Span,
 }
@@ -70,22 +70,20 @@ pub struct VariantRet<T = Ident> {
 
 #[derive(Debug, Default)]
 pub struct RefinedBy {
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct Param {
+pub struct RefineParam {
     pub name: Ident,
-    pub sort: Ident,
+    pub sort: Sort,
 }
 
-/// An abstract refinement predicate
 #[derive(Debug)]
-pub struct AbstractPred {
-    pub name: Ident,
-    pub inputs: Vec<Ident>,
-    pub output: Ident,
+pub enum Sort {
+    Base(Ident),
+    Func { inputs: Vec<Ident>, output: Ident },
 }
 
 #[derive(Debug)]
@@ -95,8 +93,8 @@ pub struct ConstSig {
 
 #[derive(Debug)]
 pub struct FnSig<T = Ident> {
-    pub abstract_params: Vec<AbstractPred>,
-    // pub abstract: Vec<AbstractRefine>,
+    /// note: the parser only accepts params with a function sort
+    pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
@@ -251,15 +249,15 @@ impl Path<Res> {
 }
 
 impl RefinedBy {
-    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
         self.params.iter()
     }
 }
 
 impl<'a> IntoIterator for &'a RefinedBy {
-    type Item = &'a Param;
+    type Item = &'a RefineParam;
 
-    type IntoIter = std::slice::Iter<'a, Param>;
+    type IntoIter = std::slice::Iter<'a, RefineParam>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.params.iter()
@@ -267,7 +265,7 @@ impl<'a> IntoIterator for &'a RefinedBy {
 }
 
 impl IntoIterator for RefinedBy {
-    type Item = Param;
+    type Item = RefineParam;
 
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -315,7 +313,7 @@ pub mod expand {
         fn_sig: FnSig,
     ) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
-            abstract_params: fn_sig.abstract_params,
+            params: fn_sig.params,
             args: expand_args(sess, aliases, fn_sig.args)?,
             returns: fn_sig.returns.as_ref().map(|ty| expand_ty(aliases, ty)),
             ensures: expand_locs(aliases, fn_sig.ensures),

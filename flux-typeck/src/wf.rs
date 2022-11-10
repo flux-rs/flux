@@ -21,7 +21,7 @@ struct Env<'a> {
 }
 
 impl<'a> Env<'a> {
-    fn new(params: &'a [fhir::Param]) -> Env {
+    fn new(params: &'a [fhir::RefineParam]) -> Env {
         let sorts = params
             .iter()
             .map(|param| (param.name.name, &param.sort))

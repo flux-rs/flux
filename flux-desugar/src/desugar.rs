@@ -28,13 +28,8 @@ pub fn resolve_uif_def(
     sess: &FluxSession,
     uif_def: surface::UifDef,
 ) -> Result<fhir::UifDef, ErrorGuaranteed> {
-    let inputs = uif_def
-        .inputs
-        .into_iter()
-        .map(|ident| resolve_sort(sess, ident))
-        .try_collect_exhaust()?;
-    let output = resolve_sort(sess, uif_def.output)?;
-    Ok(fhir::UifDef { name: uif_def.name.name, sort: fhir::FuncSort::new(inputs, output) })
+    let sort = resolve_func_sort(sess, &uif_def.inputs, &uif_def.output)?;
+    Ok(fhir::UifDef { name: uif_def.name.name, sort })
 }
 
 pub fn desugar_adt_def(
@@ -605,13 +600,12 @@ fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {
     }
 }
 
-fn resolve_sort(sess: &FluxSession, sort: surface::Ident) -> Result<fhir::Sort, ErrorGuaranteed> {
-    if sort.name == SORTS.int {
-        Ok(fhir::Sort::Int)
-    } else if sort.name == sym::bool {
-        Ok(fhir::Sort::Bool)
-    } else {
-        Err(sess.emit_err(errors::UnresolvedSort::new(sort)))
+fn resolve_sort(sess: &FluxSession, sort: &surface::Sort) -> Result<fhir::Sort, ErrorGuaranteed> {
+    match sort {
+        surface::Sort::Base(sort) => resolve_base_sort(sess, *sort),
+        surface::Sort::Func { inputs, output } => {
+            Ok(resolve_func_sort(sess, inputs, output)?.into())
+        }
     }
 }
 
@@ -622,10 +616,23 @@ fn resolve_func_sort(
 ) -> Result<fhir::FuncSort, ErrorGuaranteed> {
     let mut inputs_and_output: Vec<fhir::Sort> = inputs
         .iter()
-        .map(|sort| resolve_sort(sess, *sort))
+        .map(|sort| resolve_base_sort(sess, *sort))
         .try_collect_exhaust()?;
-    inputs_and_output.push(resolve_sort(sess, *output)?);
+    inputs_and_output.push(resolve_base_sort(sess, *output)?);
     Ok(fhir::FuncSort { inputs_and_output: List::from_vec(inputs_and_output) })
+}
+
+fn resolve_base_sort(
+    sess: &FluxSession,
+    sort: surface::Ident,
+) -> Result<fhir::Sort, ErrorGuaranteed> {
+    if sort.name == SORTS.int {
+        Ok(fhir::Sort::Int)
+    } else if sort.name == sym::bool {
+        Ok(fhir::Sort::Bool)
+    } else {
+        Err(sess.emit_err(errors::UnresolvedSort::new(sort)))
+    }
 }
 
 impl Binders {
@@ -667,14 +674,14 @@ impl Binders {
         params: impl IntoIterator<Item = P>,
     ) -> Result<(), ErrorGuaranteed>
     where
-        P: Borrow<surface::Param>,
+        P: Borrow<surface::RefineParam>,
     {
         for param in params {
             let param = param.borrow();
             self.insert_binder(
                 sess,
                 param.name,
-                Binder::Single(self.fresh(), resolve_sort(sess, param.sort)?),
+                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?),
             )?;
         }
         Ok(())
@@ -730,14 +737,11 @@ impl Binders {
         map: &fhir::Map,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        for pred in &fn_sig.abstract_params {
+        for param in &fn_sig.params {
             self.insert_binder(
                 sess,
-                pred.name,
-                Binder::Single(
-                    self.fresh(),
-                    fhir::Sort::Func(resolve_func_sort(sess, &pred.inputs, &pred.output)?),
-                ),
+                param.name,
+                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?),
             )?;
         }
         for arg in &fn_sig.args {
@@ -863,7 +867,7 @@ impl Binders {
         })
     }
 
-    fn into_params(self) -> Vec<fhir::Param> {
+    fn into_params(self) -> Vec<fhir::RefineParam> {
         let mut params = vec![];
         for (ident, binder) in self.map {
             match binder {
@@ -898,9 +902,13 @@ impl<T: Borrow<surface::Ident>> std::ops::Index<T> for Binders {
     }
 }
 
-fn param_from_ident(ident: surface::Ident, name: fhir::Name, sort: fhir::Sort) -> fhir::Param {
+fn param_from_ident(
+    ident: surface::Ident,
+    name: fhir::Name,
+    sort: fhir::Sort,
+) -> fhir::RefineParam {
     let name = fhir::Ident { name, source_info: to_src_info(ident) };
-    fhir::Param { name, sort }
+    fhir::RefineParam { name, sort }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {

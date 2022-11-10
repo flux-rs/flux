@@ -133,7 +133,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
-        refined_by: &[fhir::Param],
+        refined_by: &[fhir::RefineParam],
         struct_def: &fhir::StructDef,
     ) -> Option<rty::PolyVariant> {
         let mut cx = ConvCtxt::new(genv);
@@ -183,7 +183,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_params(&mut self, params: &[fhir::Param]) -> Vec<rty::Sort> {
+    fn conv_params(&mut self, params: &[fhir::RefineParam]) -> Vec<rty::Sort> {
         params
             .iter()
             .enumerate()

@@ -69,6 +69,7 @@ pub struct Binders<T> {
 }
 
 pub type PolySig = Binders<FnSig>;
+
 #[derive(Clone)]
 pub struct FnSig {
     requires: List<Constraint>,
