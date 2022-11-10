@@ -13,8 +13,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, FuncSort, KVid, Name, Pred, Proj, Qualifier, Sign,
-    Sort, UifDef, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj, Qualifier,
+    Sign, Sort, UifDef, UnOp,
 };
 use flux_common::format::PadAdapter;
 use itertools::Itertools;

@@ -214,9 +214,9 @@ where
                     .name_map
                     .get(name)
                     .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
-                let func = fixpoint::Expr::Var(*name);
+                let func = fixpoint::Func::Var(*name);
                 let args = exprs_to_fixpoint(args, &self.name_map, &self.const_map);
-                fixpoint::Pred::Expr(fixpoint::Expr::App(Box::new(func), args))
+                fixpoint::Pred::Expr(fixpoint::Expr::App(func, args))
             }
             rty::Pred::App(rty::Var::Bound(_), _) => {
                 panic!("unexpected bound var in pred application")
@@ -499,8 +499,8 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
         rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
         rty::ExprKind::App(func, args) => {
             let args = exprs_to_fixpoint(args, name_map, const_map);
-            let uif = fixpoint::Expr::Uif(func.to_string());
-            fixpoint::Expr::App(Box::new(uif), args)
+            let uif = fixpoint::Func::Uif(func.to_string());
+            fixpoint::Expr::App(uif, args)
         }
         rty::ExprKind::IfThenElse(p, e1, e2) => {
             fixpoint::Expr::IfThenElse(Box::new([
@@ -531,10 +531,10 @@ fn tuple_to_fixpoint(
     match exprs {
         [] => fixpoint::Expr::Unit,
         [e, exprs @ ..] => {
-            fixpoint::Expr::Pair(
-                Box::new(expr_to_fixpoint(e, name_map, const_map)),
-                Box::new(tuple_to_fixpoint(exprs, name_map, const_map)),
-            )
+            fixpoint::Expr::Pair(Box::new([
+                expr_to_fixpoint(e, name_map, const_map),
+                tuple_to_fixpoint(exprs, name_map, const_map),
+            ]))
         }
     }
 }

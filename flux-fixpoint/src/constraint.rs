@@ -38,13 +38,17 @@ pub enum Expr {
     Var(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Expr; 2]>),
-    App(Box<Expr>, Vec<Expr>),
+    App(Func, Vec<Expr>),
     UnaryOp(UnOp, Box<Self>),
-    Pair(Box<Expr>, Box<Expr>),
+    Pair(Box<[Expr; 2]>),
     Proj(Box<Expr>, Proj),
     IfThenElse(Box<[Expr; 3]>),
-    Uif(String),
     Unit,
+}
+
+pub enum Func {
+    Var(Name),
+    Uif(String),
 }
 
 #[derive(Clone, Copy)]
@@ -277,8 +281,8 @@ impl fmt::Display for FmtParens<'_> {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Var(x) => write!(f, "{:?}", x),
-            Expr::Constant(c) => write!(f, "{}", c),
+            Expr::Var(x) => write!(f, "{x:?}"),
+            Expr::Constant(c) => write!(f, "{c}"),
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
                 Ok(())
@@ -290,7 +294,7 @@ impl fmt::Display for Expr {
                     write!(f, "{}({})", op, e)
                 }
             }
-            Expr::Pair(e1, e2) => write!(f, "(Pair ({e1}) ({e2}))"),
+            Expr::Pair(box [e1, e2]) => write!(f, "(Pair ({e1}) ({e2}))"),
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),
@@ -306,7 +310,15 @@ impl fmt::Display for Expr {
             Expr::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "if {p} then {e1} else {e2}")
             }
-            Expr::Uif(func) => write!(f, "{func}"),
+        }
+    }
+}
+
+impl fmt::Display for Func {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Func::Var(name) => write!(f, "{name:?}"),
+            Func::Uif(uif) => write!(f, "{uif}"),
         }
     }
 }
