@@ -7,6 +7,7 @@ use flux_common::{
 };
 use flux_fixpoint as fixpoint;
 use flux_middle::{
+    fhir,
     global_env::GlobalEnv,
     rty::{self, Binders, BoundVar},
 };
@@ -15,7 +16,6 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Symbol;
 
 use crate::refine_tree::Scope;
 
@@ -150,9 +150,9 @@ where
 
         let uifs = self
             .genv
-            .uif_defs
-            .iter()
-            .map(|(sym, uif_def)| uif_def_to_fixpoint(sym, uif_def))
+            .map()
+            .uifs()
+            .map(uif_def_to_fixpoint)
             .collect_vec();
 
         let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
@@ -440,10 +440,9 @@ fn dump_constraint<C: std::fmt::Debug>(
     write!(file, "{:?}", c)
 }
 
-fn uif_def_to_fixpoint(name: &Symbol, uif_def: &rty::UifDef) -> fixpoint::UifDef {
-    let inputs = uif_def.inputs.iter().map(sort_to_fixpoint).collect_vec();
-    let output = sort_to_fixpoint(&uif_def.output);
-    fixpoint::UifDef::new(name.to_string(), fixpoint::FuncSort::new(inputs, output))
+fn uif_def_to_fixpoint(uif_def: &fhir::UifDef) -> fixpoint::UifDef {
+    let sort = func_sort_to_fixpoint(&uif_def.sort);
+    fixpoint::UifDef::new(uif_def.name.to_string(), sort)
 }
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {

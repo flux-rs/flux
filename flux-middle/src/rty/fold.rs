@@ -468,10 +468,7 @@ impl TypeFoldable for Expr {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
-            ExprKind::App(f, es) => {
-                let es = es.iter().map(|e| e.fold_with(folder)).collect();
-                Expr::app(*f, es)
-            }
+            ExprKind::App(func, args) => Expr::app(*func, args.fold_with(folder)),
             ExprKind::IfThenElse(p, e1, e2) => {
                 Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
             }

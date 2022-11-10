@@ -9,7 +9,6 @@ use rustc_hir::{def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
-use rustc_span::Symbol;
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
@@ -25,7 +24,6 @@ pub struct OpaqueStructErr(pub DefId);
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
-    pub uif_defs: FxHashMap<Symbol, rty::UifDef>,
     pub qualifiers: Vec<rty::Qualifier>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     map: fhir::Map,
@@ -44,13 +42,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             adt_defs.insert(adt_def.def_id(), adt_def);
         }
 
-        let mut uif_defs = FxHashMap::default();
-        for (name, uif_def) in map.uifs() {
-            let inputs = uif_def.inputs.clone();
-            let output = uif_def.output.clone();
-
-            uif_defs.insert(*name, rty::UifDef { inputs, output });
-        }
         let mut qualifiers = vec![];
         for qualifier in map.qualifiers() {
             qualifiers.push(rty::conv::ConvCtxt::conv_qualifier(qualifier));
@@ -64,7 +55,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             tcx,
             sess,
             check_asserts,
-            uif_defs,
             map,
         };
         genv.register_struct_def_variants();

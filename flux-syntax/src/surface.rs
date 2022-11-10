@@ -207,9 +207,9 @@ pub enum ExprKind {
     Var(Ident),
     Dot(Box<Expr>, Ident),
     Literal(Lit),
-    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<[Expr; 2]>),
     App(Ident, Vec<Expr>),
-    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
+    IfThenElse(Box<[Expr; 3]>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -420,7 +420,7 @@ pub mod expand {
 
     fn _and(e1: Expr, e2: Expr) -> Expr {
         let span = e1.span;
-        let kind = ExprKind::BinaryOp(BinOp::And, Box::new(e1), Box::new(e2));
+        let kind = ExprKind::BinaryOp(BinOp::And, Box::new([e1, e2]));
         Expr { kind, span }
     }
 
@@ -463,12 +463,11 @@ pub mod expand {
                 }
             }
             ExprKind::Literal(l) => Expr { kind: ExprKind::Literal(*l), span: e.span },
-            ExprKind::BinaryOp(o, e1, e2) => {
+            ExprKind::BinaryOp(op, box [e1, e2]) => {
                 Expr {
                     kind: ExprKind::BinaryOp(
-                        *o,
-                        Box::new(subst_expr(subst, e1)),
-                        Box::new(subst_expr(subst, e2)),
+                        *op,
+                        Box::new([subst_expr(subst, e1), subst_expr(subst, e2)]),
                     ),
                     span: e.span,
                 }
@@ -480,13 +479,13 @@ pub mod expand {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();
                 Expr { kind: ExprKind::App(*f, es), span: e.span }
             }
-            ExprKind::IfThenElse(p, e1, e2) => {
+            ExprKind::IfThenElse(box [p, e1, e2]) => {
                 Expr {
-                    kind: ExprKind::IfThenElse(
-                        Box::new(subst_expr(subst, p)),
-                        Box::new(subst_expr(subst, e1)),
-                        Box::new(subst_expr(subst, e2)),
-                    ),
+                    kind: ExprKind::IfThenElse(Box::new([
+                        subst_expr(subst, p),
+                        subst_expr(subst, e1),
+                        subst_expr(subst, e2),
+                    ])),
                     span: e.span,
                 }
             }

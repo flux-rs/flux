@@ -16,7 +16,11 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
-use std::{borrow::Cow, fmt, fmt::Write};
+use std::{
+    borrow::{Borrow, Cow},
+    fmt,
+    fmt::Write,
+};
 
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
@@ -110,7 +114,7 @@ pub enum Constraint {
     /// A type constraint on a location
     Type(Ident, Ty),
     /// A predicate that needs to hold
-    Pred(Pred),
+    Pred(Expr),
 }
 
 pub enum Ty {
@@ -122,10 +126,10 @@ pub enum Ty {
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
     /// for two indices. There's currently no equivalent surface syntax and existentials for
     /// types with multiple indices have to use projection syntax.
-    Exists(BaseTy, Vec<Name>, Pred),
+    Exists(BaseTy, Vec<Name>, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
-    Constr(Pred, Box<Ty>),
+    Constr(Expr, Box<Ty>),
     Float(FloatTy),
     Str,
     Char,
@@ -136,12 +140,6 @@ pub enum Ty {
     Array(Box<Ty>, ArrayLen),
     Slice(Box<Ty>),
     Never,
-}
-
-pub enum Pred {
-    Expr(Expr),
-    And(Vec<Pred>),
-    App(Name, Vec<Expr>),
 }
 
 pub struct ArrayLen;
@@ -200,9 +198,16 @@ pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
     Literal(Lit),
-    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
-    App(UFun, Vec<Expr>),
-    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<[Expr; 2]>),
+    App(Func, Vec<Expr>),
+    IfThenElse(Box<[Expr; 3]>),
+}
+
+pub enum Func {
+    /// A function comming from a refinement parameter.
+    Var(Ident),
+    /// An _global_ uninterpreted function.
+    Uif(Symbol, Span),
 }
 
 /// representation of uninterpreted functions
@@ -217,10 +222,12 @@ pub enum Lit {
     Bool(bool),
 }
 
+pub type SourceInfo = (Span, Symbol);
+
 #[derive(Clone, Copy)]
 pub struct Ident {
     pub name: Name,
-    pub source_info: (Span, Symbol),
+    pub source_info: SourceInfo,
 }
 
 newtype_index! {
@@ -275,8 +282,8 @@ pub struct RefinedBy {
 
 #[derive(Debug)]
 pub struct UifDef {
-    pub inputs: Vec<Sort>,
-    pub output: Sort,
+    pub name: Symbol,
+    pub sort: FuncSort,
 }
 
 impl AdtDef {
@@ -311,6 +318,11 @@ impl From<FuncSort> for Sort {
 }
 
 impl FuncSort {
+    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
+        inputs.push(output);
+        FuncSort { inputs_and_output: List::from_vec(inputs) }
+    }
+
     pub fn inputs(&self) -> &[Sort] {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
@@ -395,12 +407,12 @@ impl Map {
         self.uifs.insert(symb, uif);
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = (&Symbol, &UifDef)> {
-        self.uifs.iter()
+    pub fn uifs(&self) -> impl Iterator<Item = &UifDef> {
+        self.uifs.values()
     }
 
-    pub fn uif(&self, sym: Symbol) -> Option<&UifDef> {
-        self.uifs.get(&sym)
+    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&UifDef> {
+        self.uifs.get(sym.borrow())
     }
 
     // ADT
@@ -514,24 +526,6 @@ impl fmt::Debug for Ty {
     }
 }
 
-impl fmt::Debug for Pred {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Pred::Expr(expr) => write!(f, "{expr:?}"),
-            Pred::And(preds) => {
-                if preds.is_empty() {
-                    write!(f, "true")
-                } else {
-                    write!(f, "{:?}", preds.iter().format(" ∧ "))
-                }
-            }
-            Pred::App(func, args) => {
-                write!(f, "{func:?}({:?})", args.iter().format(", "))
-            }
-        }
-    }
-}
-
 impl fmt::Debug for ArrayLen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "_")
@@ -587,13 +581,22 @@ impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
-            ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
-            ExprKind::IfThenElse(p, e1, e2) => {
+            ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
+        }
+    }
+}
+
+impl fmt::Debug for Func {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Var(func) => write!(f, "{func:?}"),
+            Self::Uif(sym, _) => write!(f, "{sym}"),
         }
     }
 }

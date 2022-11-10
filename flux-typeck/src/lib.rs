@@ -4,8 +4,8 @@
     once_cell,
     if_let_guard,
     let_chains,
-    never_type,
-    type_alias_impl_trait
+    type_alias_impl_trait,
+    box_patterns
 )]
 
 extern crate rustc_data_structures;

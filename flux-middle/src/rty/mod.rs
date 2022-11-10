@@ -187,12 +187,6 @@ pub struct KVar {
     pub scope: List<Expr>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct UifDef {
-    pub inputs: Vec<Sort>,
-    pub output: Sort,
-}
-
 newtype_index! {
     pub struct KVid {
         DEBUG_FORMAT = "$k{}"

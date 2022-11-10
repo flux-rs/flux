@@ -8,7 +8,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{Span, DUMMY_SP};
+use rustc_span::Span;
 
 pub struct Wf<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -281,35 +281,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_collect_exhaust()
     }
 
-    fn check_pred(&self, env: &Env, pred: &fhir::Pred) -> Result<(), ErrorGuaranteed> {
-        match pred {
-            fhir::Pred::Expr(e) => self.check_expr(env, e, &fhir::Sort::Bool),
-            fhir::Pred::And(preds) => {
-                preds
-                    .iter()
-                    .try_for_each_exhaust(|pred| self.check_pred(env, pred))
-            }
-            fhir::Pred::App(func, args) => {
-                // FIXME(nilehmann) we should pass the application span here
-                self.check_app(env, DUMMY_SP, env[func], args, &fhir::Sort::Bool)
-            }
-        }
-    }
-
-    fn check_app(
-        &self,
-        env: &Env,
-        span: Span,
-        func: &fhir::Sort,
-        args: &[fhir::Expr],
-        expected: &fhir::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
-        let found = self.synth_app(env, func, args)?;
-        if found == expected {
-            Ok(())
-        } else {
-            self.emit_err(errors::SortMismatch::new(span, expected, found))
-        }
+    fn check_pred(&self, env: &Env, expr: &fhir::Expr) -> Result<(), ErrorGuaranteed> {
+        self.check_expr(env, expr, &fhir::Sort::Bool)
     }
 
     fn check_expr(
@@ -339,7 +312,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         &self,
         env: &Env<'a>,
         refine: &'a fhir::Indices,
-    ) -> Result<Vec<&'a fhir::Sort>, ErrorGuaranteed> {
+    ) -> Result<Vec<&fhir::Sort>, ErrorGuaranteed> {
         let sorts: Vec<&fhir::Sort> = refine
             .indices
             .iter()
@@ -348,18 +321,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Ok(sorts)
     }
 
-    fn synth_expr(
-        &self,
-        env: &Env<'a>,
-        e: &'a fhir::Expr,
-    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
+    fn synth_expr(&self, env: &Env<'a>, e: &'a fhir::Expr) -> Result<&fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
             fhir::ExprKind::Var(var, ..) => Ok(env[var]),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
-            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(env, *op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
             fhir::ExprKind::Const(_, _) => Ok(&fhir::Sort::Int), // TODO: generalize const sorts
-            fhir::ExprKind::App(f, es) => self.synth_uf_app(env, f, es, e.span),
-            fhir::ExprKind::IfThenElse(p, e1, e2) => {
+            fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, e.span),
+            fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 self.check_expr(env, p, &fhir::Sort::Bool)?;
                 let sort = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, sort)?;
@@ -416,52 +385,49 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Err(self.sess.emit_err(err))
     }
 
-    fn synth_uf_app(
-        &self,
-        env: &Env<'a>,
-        f: &'a fhir::UFun,
-        es: &[fhir::Expr],
-        span: Span,
-    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
-        // TODO(nilehmann) we should unify this with synth_app
-        let Some(uif_def) = self.map.uif(f.symbol) else {
-            return self.emit_err(errors::UnresolvedFunction::new(f.span));
-        };
-        let found = es.len();
-        let expected = uif_def.inputs.len();
-        if expected != found {
-            return self.emit_err(errors::ParamCountMismatch::new(Some(span), expected, found));
-        }
-        for (e, expected) in iter::zip(es, &uif_def.inputs) {
-            let found = self.synth_expr(env, e)?;
-            if found != expected {
-                return self.emit_err(errors::SortMismatch::new(e.span, expected, found));
-            }
-        }
-        Ok(&uif_def.output)
-    }
-
     fn synth_app(
         &self,
         env: &Env<'a>,
-        func: &'a fhir::Sort,
+        func: &fhir::Func,
         args: &[fhir::Expr],
+        span: Span,
     ) -> Result<&fhir::Sort, ErrorGuaranteed> {
-        let fhir::Sort::Func(func) = func else {
-            todo!()
-        };
-        if args.len() != func.inputs().len() {
+        let fsort = self.synth_func(env, func)?;
+        if args.len() != fsort.inputs().len() {
             return self.emit_err(errors::ParamCountMismatch::new(
-                None,
-                func.inputs().len(),
+                Some(span),
+                fsort.inputs().len(),
                 args.len(),
             ));
         }
 
-        iter::zip(args, func.inputs())
+        iter::zip(args, fsort.inputs())
             .try_for_each_exhaust(|(arg, formal)| self.check_expr(env, arg, formal))?;
 
-        Ok(func.output())
+        Ok(fsort.output())
+    }
+
+    fn synth_func(
+        &self,
+        env: &Env<'a>,
+        func: &fhir::Func,
+    ) -> Result<&fhir::FuncSort, ErrorGuaranteed> {
+        match func {
+            fhir::Func::Var(var) => {
+                if let fhir::Sort::Func(sort) = env[&var.name] {
+                    Ok(sort)
+                } else {
+                    todo!()
+                }
+            }
+            fhir::Func::Uif(func, span) => {
+                Ok(&self
+                    .map
+                    .uif(func)
+                    .unwrap_or_else(|| panic!("no definition found for uif `{func:?}` - {span:?}"))
+                    .sort)
+            }
+        }
     }
 }
 
@@ -506,20 +472,6 @@ mod errors {
     impl ParamCountMismatch {
         pub fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(wf::unresolved_function, code = "FLUX")]
-    pub struct UnresolvedFunction {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-    }
-
-    impl UnresolvedFunction {
-        pub fn new(span: Span) -> Self {
-            Self { span }
         }
     }
 

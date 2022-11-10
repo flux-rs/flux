@@ -29,7 +29,7 @@ pub enum ExprKind {
     Local(Local),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
-    App(Symbol, Vec<Expr>),
+    App(Symbol, List<Expr>),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
@@ -169,9 +169,8 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(f: Symbol, es: Vec<impl Into<Expr>>) -> Expr {
-        let es = es.into_iter().map(|e| e.into()).collect();
-        ExprKind::App(f, es).intern()
+    pub fn app(func: Symbol, args: impl Into<List<Expr>>) -> Expr {
+        ExprKind::App(func, args.into()).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -332,6 +331,17 @@ impl Var {
         match self {
             Var::Bound(bvar) => Expr::bvar(*bvar),
             Var::Free(name) => Expr::fvar(*name),
+        }
+    }
+
+    pub fn to_path(&self) -> Path {
+        self.to_loc().into()
+    }
+
+    pub fn to_loc(&self) -> Loc {
+        match self {
+            Var::Bound(bvar) => Loc::Bound(*bvar),
+            Var::Free(name) => Loc::Free(*name),
         }
     }
 }

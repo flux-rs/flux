@@ -34,7 +34,7 @@ pub fn resolve_uif_def(
         .map(|ident| resolve_sort(sess, ident))
         .try_collect_exhaust()?;
     let output = resolve_sort(sess, uif_def.output)?;
-    Ok(fhir::UifDef { inputs, output })
+    Ok(fhir::UifDef { name: uif_def.name.name, sort: fhir::FuncSort::new(inputs, output) })
 }
 
 pub fn desugar_adt_def(
@@ -135,7 +135,7 @@ pub fn desugar_fn_sig(
     let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     if let Some(e) = fn_sig.requires {
-        let pred = cx.as_expr_ctxt().desugar_pred(e)?;
+        let pred = cx.as_expr_ctxt().desugar_expr(e)?;
         cx.requires.push(fhir::Constraint::Pred(pred));
     }
 
@@ -246,7 +246,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     BtyOrTy::Bty(bty) => fhir::Ty::Indexed(bty, self.desugar_bind(bind)?),
                     BtyOrTy::Ty(ty) => ty,
                 };
-                Ok(fhir::Ty::Constr(self.as_expr_ctxt().desugar_pred(pred)?, Box::new(ty)))
+                Ok(fhir::Ty::Constr(self.as_expr_ctxt().desugar_expr(pred)?, Box::new(ty)))
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let loc = self.as_expr_ctxt().desugar_loc(loc)?;
@@ -303,7 +303,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             let binder = self.binders[bind].clone();
                             let (pred, _) = self.binders.with_bind(ident, binder, |binders| {
                                 ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-                                    .desugar_pred(pred)
+                                    .desugar_expr(pred)
                             })?;
                             let idxs = self.desugar_bind(bind)?;
                             fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
@@ -312,7 +312,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             let (pred, binder) =
                                 self.binders.with_bind(ident, binder, |binders| {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-                                        .desugar_pred(pred)
+                                        .desugar_expr(pred)
                                 })?;
                             fhir::Ty::Exists(bty, binder.names(), pred)
                         }
@@ -329,7 +329,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::Unit => fhir::Ty::Tuple(vec![]),
             surface::TyKind::Constr(pred, ty) => {
-                let pred = self.as_expr_ctxt().desugar_pred(pred)?;
+                let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                 let ty = self.desugar_ty(None, *ty)?;
                 fhir::Ty::Constr(pred, Box::new(ty))
             }
@@ -443,68 +443,34 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         Self { tcx, sess, map, binders }
     }
 
-    fn desugar_pred(&self, expr: surface::Expr) -> Result<fhir::Pred, ErrorGuaranteed> {
-        fn go(
-            cx: &ExprCtxt,
-            expr: surface::Expr,
-            preds: &mut Vec<fhir::Pred>,
-        ) -> Result<(), ErrorGuaranteed> {
-            let pred = match expr.kind {
-                surface::ExprKind::BinaryOp(surface::BinOp::And, e1, e2) => {
-                    let e1 = go(cx, *e1, preds);
-                    let e2 = go(cx, *e2, preds);
-                    e1?;
-                    e2?;
-                    return Ok(());
-                }
-                surface::ExprKind::App(func, args) => {
-                    match cx.resolve_func(func)? {
-                        FuncRes::Param(name, ..) => {
-                            let args = cx.desugar_exprs(args)?;
-                            fhir::Pred::App(name, args)
-                        }
-                        FuncRes::Uif(_) => {
-                            let args = cx.desugar_exprs(args)?;
-                            let kind =
-                                fhir::ExprKind::App(fhir::UFun::new(func.name, func.span), args);
-                            let expr = fhir::Expr { kind, span: expr.span };
-                            fhir::Pred::Expr(expr)
-                        }
-                    }
-                }
-                _ => fhir::Pred::Expr(cx.desugar_expr(expr)?),
-            };
-            preds.push(pred);
-            Ok(())
-        }
-        let mut preds = vec![];
-        go(self, expr, &mut preds)?;
-        Ok(fhir::Pred::And(preds))
-    }
-
     fn desugar_expr(&self, expr: surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match expr.kind {
             surface::ExprKind::Var(ident) => return self.desugar_var(ident),
             surface::ExprKind::Literal(lit) => fhir::ExprKind::Literal(self.desugar_lit(lit)?),
-            surface::ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = self.desugar_expr(*e1);
-                let e2 = self.desugar_expr(*e2);
-                fhir::ExprKind::BinaryOp(desugar_bin_op(op), Box::new(e1?), Box::new(e2?))
+            surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
+                let e1 = self.desugar_expr(e1);
+                let e2 = self.desugar_expr(e2);
+                fhir::ExprKind::BinaryOp(desugar_bin_op(op), Box::new([e1?, e2?]))
             }
             surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
             surface::ExprKind::App(func, args) => {
-                if let FuncRes::Uif(_) = self.resolve_func(func)? {
-                    let args = self.desugar_exprs(args)?;
-                    fhir::ExprKind::App(fhir::UFun::new(func.name, func.span), args)
-                } else {
-                    todo!()
+                let args = self.desugar_exprs(args)?;
+                match self.resolve_func(func)? {
+                    FuncRes::Uif(_) => {
+                        fhir::ExprKind::App(fhir::Func::Uif(func.name, func.span), args)
+                    }
+                    FuncRes::Param(name, _) => {
+                        let func =
+                            fhir::Func::Var(fhir::Ident { name, source_info: to_src_info(func) });
+                        fhir::ExprKind::App(func, args)
+                    }
                 }
             }
-            surface::ExprKind::IfThenElse(p, e1, e2) => {
-                let p = self.desugar_expr(*p);
-                let e1 = self.desugar_expr(*e1);
-                let e2 = self.desugar_expr(*e2);
-                fhir::ExprKind::IfThenElse(Box::new(p?), Box::new(e1?), Box::new(e2?))
+            surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
+                let p = self.desugar_expr(p);
+                let e1 = self.desugar_expr(e1);
+                let e2 = self.desugar_expr(e2);
+                fhir::ExprKind::IfThenElse(Box::new([p?, e1?, e2?]))
             }
         };
         Ok(fhir::Expr { kind, span: expr.span })
@@ -612,8 +578,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
         match self.binders.get(loc) {
             Some(&Binder::Single(name, _)) => {
-                let source_info = (loc.span, loc.name);
-                Ok(fhir::Ident { name, source_info })
+                Ok(fhir::Ident { name, source_info: to_src_info(loc) })
             }
             Some(binder @ (Binder::Aggregate(..) | Binder::Unrefined)) => {
                 // This shouldn't happen because loc bindings in input position should
@@ -864,8 +829,7 @@ impl<T: Borrow<surface::Ident>> std::ops::Index<T> for Binders {
 }
 
 fn param_from_ident(ident: surface::Ident, name: fhir::Name, sort: fhir::Sort) -> fhir::Param {
-    let source_info = (ident.span, ident.name);
-    let name = fhir::Ident { name, source_info };
+    let name = fhir::Ident { name, source_info: to_src_info(ident) };
     fhir::Param { name, sort }
 }
 
@@ -923,6 +887,10 @@ impl Binder {
             Binder::Unrefined => vec![],
         }
     }
+}
+
+fn to_src_info(ident: surface::Ident) -> fhir::SourceInfo {
+    (ident.span, ident.name)
 }
 
 struct Sorts {

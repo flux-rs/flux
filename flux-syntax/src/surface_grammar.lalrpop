@@ -192,7 +192,7 @@ Level7 = LeftAssoc<BinOp7, Level8>; // *, %
 Level8: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
         surface::Expr {
-            kind: surface::ExprKind::IfThenElse(Box::new(p), Box::new(e1), Box::new(e2)),
+            kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
             span: mk_span(lo, hi),
         }
     },
@@ -227,7 +227,7 @@ Level8: surface::Expr = {
 
 NonAssoc<Op, NextLevel>: surface::Expr = {
     <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => surface::Expr {
-        kind: surface::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
+        kind: surface::ExprKind::BinaryOp(op, Box::new([e1, e2])),
         span: mk_span(lo, hi)
     },
     NextLevel
@@ -237,8 +237,7 @@ LeftAssoc<Op, NextLevel>: surface::Expr = {
         surface::Expr {
             kind: surface::ExprKind::BinaryOp(
                 op,
-                Box::new(e1),
-                Box::new(e2)
+                Box::new([e1, e2])
             ),
             span: mk_span(lo, hi),
         },
