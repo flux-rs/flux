@@ -489,7 +489,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             (Some(Binder::Aggregate(..)), _) => todo!(),
             (Some(Binder::Unrefined), _) => todo!(),
             (None, Some(uif)) => Ok(FuncRes::Uif(uif)),
-            (None, None) => todo!(),
+            (None, None) => Err(self.sess.emit_err(errors::UnresolvedVar::new(func))),
         }
     }
 
