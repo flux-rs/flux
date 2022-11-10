@@ -6,10 +6,10 @@ pub mod nat;
 
 #[flux::sig(fn((Nat, i32)) -> Nat)]
 pub fn test1(pair: (i32, i32)) -> i32 {
-    pair.0 - 1 //~ ERROR postcondition
+    pair.0
 }
 
 #[flux::sig(fn() -> (Nat, i32))]
 pub fn test2() -> (i32, i32) {
-    (10 - 100, 0) //~ ERROR postcondition
+    (10, 0)
 }
