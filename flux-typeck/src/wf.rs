@@ -62,6 +62,24 @@ impl<'a> Wf<'a> {
         Wf { sess, map }
     }
 
+    pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
+        let env = Env::new(&qualifier.args);
+
+        self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
+    }
+
+    pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
+        let env = Env::new(&adt_def.refined_by.params);
+        adt_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| {
+                self.check_expr(&env, invariant, &fhir::Sort::Bool)
+            })?;
+
+        Ok(())
+    }
+
     pub fn check_fn_sig(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::new(&fn_sig.params);
 
@@ -89,47 +107,6 @@ impl<'a> Wf<'a> {
         ensures?;
         requires?;
         constrs?;
-
-        Ok(())
-    }
-
-    fn check_constrs(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
-        let mut output_locs = FxHashSet::default();
-        fn_sig.ensures.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, _) = constr
-               && !output_locs.insert(loc.name)
-            {
-                self.emit_err(errors::DuplicatedEnsures::new(loc))
-            } else {
-                Ok(())
-            }
-        })?;
-
-        fn_sig.requires.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, _) = constr
-               && !output_locs.contains(&loc.name)
-            {
-                self.emit_err(errors::MissingEnsures::new(loc))
-            } else {
-                Ok(())
-            }
-        })
-    }
-
-    pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&qualifier.args);
-
-        self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
-    }
-
-    pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&adt_def.refined_by.params);
-        adt_def
-            .invariants
-            .iter()
-            .try_for_each_exhaust(|invariant| {
-                self.check_expr(&env, invariant, &fhir::Sort::Bool)
-            })?;
 
         Ok(())
     }
@@ -168,6 +145,29 @@ impl<'a> Wf<'a> {
         fields?;
         indices?;
         Ok(())
+    }
+
+    fn check_constrs(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+        let mut output_locs = FxHashSet::default();
+        fn_sig.ensures.iter().try_for_each_exhaust(|constr| {
+            if let fhir::Constraint::Type(loc, _) = constr
+               && !output_locs.insert(loc.name)
+            {
+                self.emit_err(errors::DuplicatedEnsures::new(loc))
+            } else {
+                Ok(())
+            }
+        })?;
+
+        fn_sig.requires.iter().try_for_each_exhaust(|constr| {
+            if let fhir::Constraint::Type(loc, _) = constr
+               && !output_locs.contains(&loc.name)
+            {
+                self.emit_err(errors::MissingEnsures::new(loc))
+            } else {
+                Ok(())
+            }
+        })
     }
 
     fn check_constr(
@@ -241,27 +241,34 @@ impl<'a> Wf<'a> {
         indices: &fhir::Indices,
         expected: &[fhir::Sort],
     ) -> Result<(), ErrorGuaranteed> {
-        let found = self.synth_indices(env, indices)?;
-        if expected.len() != found.len() {
+        if expected.len() != indices.indices.len() {
             return self.emit_err(errors::ParamCountMismatch::new(
                 Some(indices.span),
                 expected.len(),
-                found.len(),
+                indices.indices.len(),
             ));
         }
-        izip!(indices, expected, found)
-            .map(|(idx, expected, found)| {
-                if found == expected {
-                    Ok(())
-                } else {
-                    self.emit_err(errors::SortMismatch::new(idx.expr.span, expected, found))
-                }
-            })
+        izip!(indices, expected)
+            .map(|(idx, expected)| self.check_index(env, idx, expected))
             .try_collect_exhaust()
     }
 
+    fn check_index(
+        &self,
+        env: &Env,
+        idx: &fhir::Index,
+        expected: &fhir::Sort,
+    ) -> Result<(), ErrorGuaranteed> {
+        let found = self.synth_expr(env, &idx.expr)?;
+        if found != expected {
+            return self.emit_err(errors::SortMismatch::new(idx.expr.span, expected, found));
+        }
+        self.check_param_uses(env, &idx.expr, false)
+    }
+
     fn check_pred(&self, env: &Env, expr: &fhir::Expr) -> Result<(), ErrorGuaranteed> {
-        self.check_expr(env, expr, &fhir::Sort::Bool)
+        self.check_expr(env, expr, &fhir::Sort::Bool)?;
+        self.check_param_uses(env, expr, true)
     }
 
     fn check_expr(
@@ -285,19 +292,6 @@ impl<'a> Wf<'a> {
         } else {
             self.emit_err(errors::SortMismatch::new(loc.source_info.0, &fhir::Sort::Loc, found))
         }
-    }
-
-    fn synth_indices(
-        &self,
-        env: &Env<'a>,
-        refine: &'a fhir::Indices,
-    ) -> Result<Vec<&fhir::Sort>, ErrorGuaranteed> {
-        let sorts: Vec<&fhir::Sort> = refine
-            .indices
-            .iter()
-            .map(|idx| self.synth_expr(env, &idx.expr))
-            .try_collect_exhaust()?;
-        Ok(sorts)
     }
 
     fn synth_expr(&self, env: &Env<'a>, e: &'a fhir::Expr) -> Result<&fhir::Sort, ErrorGuaranteed> {
@@ -411,6 +405,42 @@ impl<'a> Wf<'a> {
             }
         }
     }
+
+    /// Checks that refinement parameters are used in allowed positions.
+    fn check_param_uses(
+        &self,
+        env: &Env,
+        expr: &fhir::Expr,
+        is_top_level_conj: bool,
+    ) -> Result<(), ErrorGuaranteed> {
+        match &expr.kind {
+            fhir::ExprKind::BinaryOp(bin_op, exprs) => {
+                let is_pred = is_top_level_conj && matches!(bin_op, fhir::BinOp::And);
+                exprs
+                    .iter()
+                    .try_for_each_exhaust(|e| self.check_param_uses(env, e, is_pred))
+            }
+            fhir::ExprKind::App(func, args) => {
+                if !is_top_level_conj && let fhir::Func::Var(var) = func {
+                    return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));
+                }
+                args.into_iter()
+                    .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
+            }
+            fhir::ExprKind::Var(name, _, span) => {
+                if let sort @ fhir::Sort::Func(_) = env[name] {
+                    return self.emit_err(errors::InvalidParamPos::new(*span, sort));
+                }
+                Ok(())
+            }
+            fhir::ExprKind::IfThenElse(exprs) => {
+                exprs
+                    .iter()
+                    .try_for_each_exhaust(|e| self.check_param_uses(env, e, false))
+            }
+            fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
+        }
+    }
 }
 
 fn synth_lit(lit: fhir::Lit) -> &'static fhir::Sort {
@@ -495,6 +525,22 @@ mod errors {
     impl<'a> ExpectedFun<'a> {
         pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
             Self { span, found }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::invalid_param_in_func_pos, code = "FLUX")]
+    pub(super) struct InvalidParamPos<'a> {
+        #[primary_span]
+        #[label]
+        span: Span,
+        sort: &'a fhir::Sort,
+        is_pred: bool,
+    }
+
+    impl<'a> InvalidParamPos<'a> {
+        pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+            Self { span, sort, is_pred: sort.is_pred() }
         }
     }
 }

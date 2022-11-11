@@ -21,3 +21,10 @@ wf_missing_ensures =
 
 wf_expected_fun =
     expected function, found `{$found}`
+
+wf_invalid_param_in_func_pos =
+    illegal use of refinement parameter
+    .label = {$is_pred ->
+        [true] abstract refinements are only allowed in a top-level conjunction
+        *[false] parameters of sort `{$sort}` are not supported in this position
+     }

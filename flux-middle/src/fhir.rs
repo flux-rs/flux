@@ -309,11 +309,16 @@ impl Sort {
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
+
+    /// Whether the sort is a function with return sort bool
+    pub fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
 }
 
 impl From<FuncSort> for Sort {
-    fn from(v: FuncSort) -> Self {
-        Self::Func(v)
+    fn from(sort: FuncSort) -> Self {
+        Self::Func(sort)
     }
 }
 
@@ -652,8 +657,14 @@ impl rustc_errors::IntoDiagnosticArg for &Sort {
             Sort::Bool => Cow::Borrowed("bool"),
             Sort::Int => Cow::Borrowed("int"),
             Sort::Loc => Cow::Borrowed("loc"),
-            _ => Cow::Owned(format!("{}", self)),
+            _ => Cow::Owned(format!("{self}")),
         };
         rustc_errors::DiagnosticArgValue::Str(cow)
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for &FuncSort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
     }
 }

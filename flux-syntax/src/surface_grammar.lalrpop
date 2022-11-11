@@ -56,7 +56,8 @@ RefineParam: surface::RefineParam = <name:Ident> ":" <sort:Sort> => surface::Ref
 
 Sort: surface::Sort = {
     <sort: Ident> => surface::Sort::Base(sort),
-    "(" <inputs:Comma<Ident>> ")" "->" <output:Ident> => surface::Sort::Func { <> }
+    "(" <inputs:Comma<Ident>> ")" "->" <output:Ident> => surface::Sort::Func { <> },
+    <input:Ident> "->" <output:Ident>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
 pub FnSig: surface::FnSig = {

@@ -82,7 +82,10 @@ pub struct RefineParam {
 
 #[derive(Debug)]
 pub enum Sort {
+    /// A _base_ sort, e.g., `int` or `bool`.
     Base(Ident),
+    /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
+    /// are all base sorts.
     Func { inputs: Vec<Ident>, output: Ident },
 }
 
@@ -93,7 +96,7 @@ pub struct ConstSig {
 
 #[derive(Debug)]
 pub struct FnSig<T = Ident> {
-    /// note: the parser only accepts params with a function sort
+    /// List of explicit refinement parameters
     pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,

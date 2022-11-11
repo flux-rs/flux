@@ -131,7 +131,7 @@ impl TypeFolder for BVarFolder<'_> {
             if let RefineArg::Expr(e) = &self.args[bvar.index] {
                 e.clone()
             } else {
-                panic!("invalid substitution")
+                panic!("expected expr for `{bvar:?}` but found `{:?}` when substituting", self.args[bvar.index])
             }
         } else {
             e.super_fold_with(self)

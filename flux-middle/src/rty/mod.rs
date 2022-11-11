@@ -761,7 +761,7 @@ mod pretty {
     where
         T: Pretty,
     {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        default fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             if !self.params.is_empty() {
                 w!("for<{}> ",
@@ -771,6 +771,13 @@ mod pretty {
                 )?;
             }
             w!("{:?}", &self.value)
+        }
+    }
+
+    impl Pretty for Binders<Pred> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("|{:?}| {:?}", join!(", ", &self.params), &self.value)
         }
     }
 
@@ -990,5 +997,6 @@ mod pretty {
         KVar,
         FnSig,
         GenericArg,
+        RefineArg,
     );
 }
