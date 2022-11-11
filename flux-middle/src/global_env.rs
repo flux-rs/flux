@@ -219,7 +219,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 })
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
-            let ret = rty::VariantRet { bty, indices: List::from_vec(vec![]) };
+            let ret = rty::VariantRet { bty, args: List::from_vec(vec![]) };
             Binders::new(rty::VariantDef::new(fields, ret), vec![])
         } else {
             FatalError.raise()

@@ -780,11 +780,12 @@ fn downcast_enum(
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_args(substs);
 
-    debug_assert_eq!(variant_def.ret.indices.len(), args.len());
-    let constr = Expr::and(iter::zip(&variant_def.ret.indices, args).map(|(idx, arg)| {
-        match arg {
-            RefineArg::Expr(e) => Expr::eq(idx, e),
-            RefineArg::Pred(_) => todo!(),
+    debug_assert_eq!(variant_def.ret.args.len(), args.len());
+    let constr = Expr::and(iter::zip(&variant_def.ret.args, args).map(|(arg1, arg2)| {
+        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
+            Expr::eq(e1, e2)
+        } else {
+            todo!()
         }
     }));
     rcx.assume_pred(constr);

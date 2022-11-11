@@ -122,13 +122,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_variant_ret(&mut self, ret: &fhir::VariantRet) -> VariantRet {
-        let indices = ret
-            .indices
-            .indices
-            .iter()
-            .map(|idx| self.conv_expr(&idx.expr))
-            .collect_vec();
-        VariantRet { bty: self.conv_base_ty(&ret.bty, 1), indices: List::from_vec(indices) }
+        let args = List::from_iter(
+            ret.indices
+                .indices
+                .iter()
+                .map(|idx| rty::RefineArg::Expr(self.conv_expr(&idx.expr))),
+        );
+        VariantRet { bty: self.conv_base_ty(&ret.bty, 1), args }
     }
 
     pub(crate) fn conv_struct_def_variant(
@@ -170,11 +170,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let idxs = sorts
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| rty::Expr::bvar(rty::BoundVar::innermost(idx)))
-                .collect_vec();
+                .map(|(idx, _)| rty::Expr::bvar(rty::BoundVar::innermost(idx)).into());
             let ret = VariantRet {
                 bty: rty::BaseTy::adt(genv.adt_def(def_id), substs),
-                indices: List::from_vec(idxs),
+                args: List::from_iter(idxs),
             };
             let variant = rty::VariantDef::new(fields, ret);
             Some(Binders::new(variant, sorts))

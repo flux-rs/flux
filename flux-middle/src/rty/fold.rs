@@ -176,18 +176,13 @@ impl TypeFoldable for VariantDef {
 impl TypeFoldable for VariantRet {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let bty = self.bty.fold_with(folder);
-        let indices = self
-            .indices
-            .iter()
-            .map(|idx| idx.fold_with(folder))
-            .collect_vec();
-
-        VariantRet { bty, indices: List::from_vec(indices) }
+        let args = self.args.fold_with(folder);
+        VariantRet { bty, args }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.bty.visit_with(visitor);
-        self.indices.iter().for_each(|idx| idx.visit_with(visitor));
+        self.args.iter().for_each(|idx| idx.visit_with(visitor));
     }
 }
 

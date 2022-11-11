@@ -59,7 +59,7 @@ pub struct VariantDef {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VariantRet {
     pub bty: BaseTy,
-    pub indices: List<Expr>,
+    pub args: List<RefineArg>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -138,7 +138,7 @@ struct RefineArgsData {
     is_binder: BitSet<usize>,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub enum RefineArg {
     Expr(Expr),
     Pred(Binders<Pred>),
@@ -388,15 +388,7 @@ impl VariantDef {
 
 impl VariantRet {
     pub fn to_ty(&self) -> Ty {
-        Ty::indexed(
-            self.bty.clone(),
-            RefineArgs::multi(
-                self.indices
-                    .iter()
-                    .map(|e| RefineArg::Expr(e.clone()))
-                    .collect(),
-            ),
-        )
+        Ty::indexed(self.bty.clone(), RefineArgs::multi(self.args.to_vec()))
     }
 }
 
@@ -717,6 +709,7 @@ impl_internable!(
     [Field],
     [KVar],
     [Constraint],
+    [RefineArg],
 );
 
 #[macro_export]
@@ -998,5 +991,6 @@ mod pretty {
         FnSig,
         GenericArg,
         RefineArg,
+        RefineArgs,
     );
 }
