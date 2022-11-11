@@ -7,12 +7,12 @@ pub fn say_strng(x: &mut i32) {
     return;
 }
 
-#[flux::sig(fn(x:i32) -> i32)] //~ ERROR mismatched types
+#[flux::sig(fn(x:i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn sob(x: i32) {
     return;
 }
 
-#[flux::sig(fn(x:i32) -> i32)] //~ ERROR mismatched types
+#[flux::sig(fn(x:i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn foo(x: bool) -> i32 {
     if x {
         1
@@ -21,7 +21,7 @@ pub fn foo(x: bool) -> i32 {
     }
 }
 
-#[flux::sig(fn(x:i32) -> i32)] //~ ERROR mismatched types
+#[flux::sig(fn(x:i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn bar(x: i32) -> bool {
     x > 0
 }
@@ -31,7 +31,7 @@ pub fn boo(x: i32) -> bool {
     x > 0
 }
 
-#[flux::sig(fn(x:Option<i32>) -> i32)] //~ ERROR mismatched types
+#[flux::sig(fn(x:Option<i32>) -> i32)] //~ ERROR invalid refinement annotation
 pub fn goo(x: i32) -> Option<i32> {
     Some(x)
 }
@@ -56,7 +56,7 @@ type A<'a> = &'a [i32];
 #[flux::sig(fn())]
 fn dipa(x: A) {} //~ ERROR unsupported function signature
 
-#[flux::sig(fn(x: f32))] //~ ERROR mismatched types
+#[flux::sig(fn(x: f32))] //~ ERROR invalid refinement annotation
 fn hefe(f: &mut f32) {}
 
 #[flux::sig(fn(x: &mut f32))] //~ ERROR invalid refinement annotation

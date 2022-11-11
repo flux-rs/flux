@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Index,
-        Path, RefKind, Ty, TyKind,
+        box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Path,
+        RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -222,10 +222,10 @@ impl TypeEnv {
         subst: &mut FVarSubst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(bty1, indices1), TyKind::Indexed(bty2, indices2)) => {
+            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 self.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
-                for (idx1, idx2) in iter::zip(indices1, indices2) {
-                    subst.infer_from_exprs(params, &idx1.expr, &idx2.expr);
+                for (idx1, idx2) in iter::zip(idxs1.args(), idxs2.args()) {
+                    subst.infer_from_refine_args(params, idx1, idx2);
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -566,7 +566,7 @@ impl TypeEnvInfer {
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2);
-                if self.scope.has_free_vars(idxs2) || !Index::exprs_eq(idxs1, idxs2) {
+                if self.scope.has_free_vars(idxs2) || idxs1.args() != idxs2.args() {
                     let pred = Binders::new(Pred::Hole, bty.sorts());
                     Ty::exists(bty, pred)
                 } else {
@@ -640,7 +640,10 @@ impl TypeEnvInfer {
             .into_iter()
             .filter(|pred| !matches!(pred, Pred::Hole))
             .collect_vec();
-        let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
+        let exprs = names
+            .iter()
+            .map(|name| RefineArg::Expr(Expr::fvar(*name)))
+            .collect_vec();
         let kvar = kvar_gen
             .fresh(&sorts, self.scope.iter())
             .replace_bound_vars(&exprs);
@@ -679,12 +682,12 @@ fn generalize(
                 let fresh = name_gen.fresh();
                 names.push(fresh);
                 sorts.push(sort.clone());
-                idxs.push(Expr::fvar(fresh).into());
+                idxs.push(RefineArg::Expr(Expr::fvar(fresh)));
                 fresh
             });
             preds.push(pred);
 
-            Ty::indexed(bty, idxs)
+            Ty::indexed(bty, RefineArgs::multi(idxs))
         }
         TyKind::Ref(RefKind::Shr, ty) => {
             let ty = generalize(name_gen, ty, names, sorts, preds);

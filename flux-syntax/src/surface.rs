@@ -11,7 +11,7 @@ pub type AliasMap = rustc_hash::FxHashMap<Ident, Alias>;
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
-    pub args: Vec<Param>,
+    pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub span: Span,
 }
@@ -70,14 +70,23 @@ pub struct VariantRet<T = Ident> {
 
 #[derive(Debug, Default)]
 pub struct RefinedBy {
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct Param {
+pub struct RefineParam {
     pub name: Ident,
-    pub sort: Ident,
+    pub sort: Sort,
+}
+
+#[derive(Debug)]
+pub enum Sort {
+    /// A _base_ sort, e.g., `int` or `bool`.
+    Base(Ident),
+    /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
+    /// are all base sorts.
+    Func { inputs: Vec<Ident>, output: Ident },
 }
 
 #[derive(Debug)]
@@ -87,6 +96,8 @@ pub struct ConstSig {
 
 #[derive(Debug)]
 pub struct FnSig<T = Ident> {
+    /// List of explicit refinement parameters
+    pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
@@ -153,8 +164,8 @@ pub struct Indices {
 
 #[derive(Debug, Clone)]
 pub enum Index {
-    /// @n
-    Bind(Ident),
+    /// @n, the span correspond to the span of @ plus the identifier
+    Bind(Ident, Span),
     Expr(Expr),
 }
 
@@ -196,9 +207,9 @@ pub enum ExprKind {
     Var(Ident),
     Dot(Box<Expr>, Ident),
     Literal(Lit),
-    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<[Expr; 2]>),
     App(Ident, Vec<Expr>),
-    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
+    IfThenElse(Box<[Expr; 3]>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -240,15 +251,15 @@ impl Path<Res> {
 }
 
 impl RefinedBy {
-    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
         self.params.iter()
     }
 }
 
 impl<'a> IntoIterator for &'a RefinedBy {
-    type Item = &'a Param;
+    type Item = &'a RefineParam;
 
-    type IntoIter = std::slice::Iter<'a, Param>;
+    type IntoIter = std::slice::Iter<'a, RefineParam>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.params.iter()
@@ -256,7 +267,7 @@ impl<'a> IntoIterator for &'a RefinedBy {
 }
 
 impl IntoIterator for RefinedBy {
-    type Item = Param;
+    type Item = RefineParam;
 
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -304,6 +315,7 @@ pub mod expand {
         fn_sig: FnSig,
     ) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
+            params: fn_sig.params,
             args: expand_args(sess, aliases, fn_sig.args)?,
             returns: fn_sig.returns.as_ref().map(|ty| expand_ty(aliases, ty)),
             ensures: expand_locs(aliases, fn_sig.ensures),
@@ -410,7 +422,7 @@ pub mod expand {
 
     fn _and(e1: Expr, e2: Expr) -> Expr {
         let span = e1.span;
-        let kind = ExprKind::BinaryOp(BinOp::And, Box::new(e1), Box::new(e2));
+        let kind = ExprKind::BinaryOp(BinOp::And, Box::new([e1, e2]));
         Expr { kind, span }
     }
 
@@ -434,11 +446,7 @@ pub mod expand {
                 Index::Expr(e) => {
                     res.insert(*src_id, e.clone());
                 }
-                Index::Bind(_) => panic!("cannot use binder in type alias"),
-                // TyKind::Path(p) if p.args.is_empty() => {
-                //     res.insert(*src_id, p.ident);
-                // }
-                // _ => panic!("mk_sub: invalid arg"),
+                Index::Bind(..) => panic!("cannot use binder in type alias"),
             }
         }
         res
@@ -453,12 +461,11 @@ pub mod expand {
                 }
             }
             ExprKind::Literal(l) => Expr { kind: ExprKind::Literal(*l), span: e.span },
-            ExprKind::BinaryOp(o, e1, e2) => {
+            ExprKind::BinaryOp(op, box [e1, e2]) => {
                 Expr {
                     kind: ExprKind::BinaryOp(
-                        *o,
-                        Box::new(subst_expr(subst, e1)),
-                        Box::new(subst_expr(subst, e2)),
+                        *op,
+                        Box::new([subst_expr(subst, e1), subst_expr(subst, e2)]),
                     ),
                     span: e.span,
                 }
@@ -470,13 +477,13 @@ pub mod expand {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();
                 Expr { kind: ExprKind::App(*f, es), span: e.span }
             }
-            ExprKind::IfThenElse(p, e1, e2) => {
+            ExprKind::IfThenElse(box [p, e1, e2]) => {
                 Expr {
-                    kind: ExprKind::IfThenElse(
-                        Box::new(subst_expr(subst, p)),
-                        Box::new(subst_expr(subst, e1)),
-                        Box::new(subst_expr(subst, e2)),
-                    ),
+                    kind: ExprKind::IfThenElse(Box::new([
+                        subst_expr(subst, p),
+                        subst_expr(subst, e1),
+                        subst_expr(subst, e2),
+                    ])),
                     span: e.span,
                 }
             }
@@ -503,10 +510,10 @@ pub mod expand {
         Indices { indices, span: i_indices.span }
     }
 
-    fn subst_index(subst: &Subst, i: &Index) -> Index {
-        match i {
+    fn subst_index(subst: &Subst, idx: &Index) -> Index {
+        match idx {
             super::Index::Expr(e) => Index::Expr(subst_expr(subst, e)),
-            super::Index::Bind(_) => i.clone(),
+            super::Index::Bind(..) => idx.clone(),
         }
     }
 

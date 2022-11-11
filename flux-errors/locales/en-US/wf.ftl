@@ -13,12 +13,18 @@ wf_illegal_binder =
     illegal binder
     .label = binder not allowed in this position
 
-wf_unresolved_function =
-    unresolved function
-    .label = function is not defined in this scope
-
 wf_duplicated_ensures =
     an ensures clause already exists for `{$loc}`
 
 wf_missing_ensures =
     missing ensures clause for `&strg` reference
+
+wf_expected_fun =
+    expected function, found `{$found}`
+
+wf_invalid_param_in_func_pos =
+    illegal use of refinement parameter
+    .label = {$is_pred ->
+        [true] abstract refinements are only allowed in a top-level conjunction
+        *[false] parameters of sort `{$sort}` are not supported in this position
+     }

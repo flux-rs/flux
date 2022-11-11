@@ -25,7 +25,7 @@ annot_check_field_count_mismatch =
     }
 
 annot_check_path_mismatch =
-    mismatched types
+    invalid refinement annotation
     .label =  expected `{$rust_type}`, found `{$flux_type}`
 
 annot_check_invalid_refinement =

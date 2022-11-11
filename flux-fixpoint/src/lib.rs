@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization, once_cell)]
+#![feature(rustc_private, min_specialization, once_cell, box_patterns)]
 
 extern crate rustc_index;
 extern crate rustc_serialize;
@@ -13,8 +13,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, KVid, Name, Pred, Proj, Qualifier, Sign, Sort,
-    UifDef, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj, Qualifier,
+    Sign, Sort, UifDef, UnOp,
 };
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
@@ -143,15 +143,7 @@ impl fmt::Display for KVar {
 
 impl fmt::Display for UifDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "(constant {} (func(0, [{}{:?}])))",
-            self.name,
-            self.inputs
-                .iter()
-                .format_with(" ", |sort, f| f(&format_args!("{};", sort))),
-            self.output
-        )
+        write!(f, "(constant {} {})", self.name, self.sort)
     }
 }
 

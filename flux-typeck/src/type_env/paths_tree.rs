@@ -6,7 +6,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, Sort, Substs, Ty, TyKind, VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefineArg, Sort, Substs, Ty, TyKind,
+        VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
 };
@@ -322,19 +323,13 @@ impl PathsTree {
                         adt.def_id(),
                         VariantIdx::from_u32(0),
                         substs,
-                        &idxs.to_exprs(),
+                        idxs.args(),
                     )?;
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let tys = downcast(
-                        genv,
-                        rcx,
-                        adt_def.def_id(),
-                        variant_idx,
-                        substs,
-                        &idxs.to_exprs(),
-                    )?;
+                    let tys =
+                        downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idxs.args())?;
                     ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
                 _ => todo!("{elem:?} {ty:?}"),
@@ -522,7 +517,7 @@ impl Node {
                             adt_def.def_id(),
                             variant_idx,
                             substs,
-                            &idxs.to_exprs(),
+                            idxs.args(),
                         )?
                         .into_iter()
                         .map(|ty| {
@@ -730,12 +725,12 @@ fn downcast(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    exprs: &[Expr],
+    args: &[RefineArg],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     if genv.tcx.adt_def(def_id).is_struct() {
-        downcast_struct(genv, def_id, variant_idx, substs, exprs)
+        downcast_struct(genv, def_id, variant_idx, substs, args)
     } else if genv.tcx.adt_def(def_id).is_enum() {
-        downcast_enum(genv, rcx, def_id, variant_idx, substs, exprs)
+        downcast_enum(genv, rcx, def_id, variant_idx, substs, args)
     } else {
         panic!("Downcast without struct or enum!")
     }
@@ -754,11 +749,11 @@ fn downcast_struct(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    exprs: &[Expr],
+    args: &[RefineArg],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
-        .replace_bound_vars(exprs)
+        .replace_bound_vars(args)
         .replace_generic_args(substs)
         .fields
         .to_vec())
@@ -778,16 +773,20 @@ fn downcast_enum(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    exprs: &[Expr],
+    args: &[RefineArg],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     let variant_def = genv
         .variant(def_id, variant_idx)?
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_args(substs);
 
-    debug_assert_eq!(variant_def.ret.indices.len(), exprs.len());
-    let constr =
-        Expr::and(iter::zip(&variant_def.ret.indices, exprs).map(|(idx, e)| Expr::eq(idx, e)));
+    debug_assert_eq!(variant_def.ret.indices.len(), args.len());
+    let constr = Expr::and(iter::zip(&variant_def.ret.indices, args).map(|(idx, arg)| {
+        match arg {
+            RefineArg::Expr(e) => Expr::eq(idx, e),
+            RefineArg::Pred(_) => todo!(),
+        }
+    }));
     rcx.assume_pred(constr);
 
     Ok(variant_def.fields.to_vec())

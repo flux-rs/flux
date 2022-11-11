@@ -77,7 +77,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     }
 
     let map = build_fhir_map(tcx, sess, &mut specs)?;
-    check_wf(tcx, sess, &map)?;
+    check_wf(sess, &map)?;
 
     let mut genv = GlobalEnv::new(tcx, sess, map);
     // Assert behavior from Crate config
@@ -311,8 +311,8 @@ fn build_fhir_map(
     }
 }
 
-fn check_wf(tcx: TyCtxt, sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
-    let wf = Wf::new(tcx, sess, map);
+fn check_wf(sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
+    let wf = Wf::new(sess, map);
 
     let mut err: Option<ErrorGuaranteed> = None;
 

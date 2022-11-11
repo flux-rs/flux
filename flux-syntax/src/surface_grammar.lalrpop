@@ -25,7 +25,7 @@ pub Alias: surface::Alias = {
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <params:Comma<Param>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
+    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
 }
 
 pub UifDef: surface::UifDef = {
@@ -44,7 +44,7 @@ pub UifDef: surface::UifDef = {
 pub Qualifier: surface::Qualifier = {
     <lo:@L>
     <name:Ident>
-    "(" <args:Comma<Param>> ")"
+    "(" <args:Comma<RefineParam>> ")"
     ":"
     <expr:Level1>
     <hi:@R> => {
@@ -52,11 +52,18 @@ pub Qualifier: surface::Qualifier = {
     }
 }
 
-Param: surface::Param = <name: Ident> ":" <sort: Ident> => surface::Param { <> };
+RefineParam: surface::RefineParam = <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> };
+
+Sort: surface::Sort = {
+    <sort: Ident> => surface::Sort::Base(sort),
+    "(" <inputs:Comma<Ident>> ")" "->" <output:Ident> => surface::Sort::Func { <> },
+    <input:Ident> "->" <output:Ident>                 => surface::Sort::Func { inputs: vec![input], output }
+}
 
 pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
+    <params:("<" <Comma<RefineParam>> ">")?>
     "(" <args:Args> ")"
     <returns:("->" <Ty>)?>
     <requires:("requires" <Level1>)?>
@@ -64,7 +71,8 @@ pub FnSig: surface::FnSig = {
     <hi:@R>
     => {
         let ensures = ensures.unwrap_or_default();
-        surface::FnSig { args, returns, ensures, requires, span: mk_span(lo, hi) }
+        let params = params.unwrap_or_default();
+        surface::FnSig { params, args, returns, ensures, requires, span: mk_span(lo, hi) }
     }
 }
 
@@ -172,8 +180,8 @@ Indices: surface::Indices = {
 };
 
 Index: surface::Index = {
-    "@" <Ident> => surface::Index::Bind(<>),
-    <Level1>    => surface::Index::Expr(<>),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::Index::Bind(bind, mk_span(lo, hi)),
+    <Level1>                         => surface::Index::Expr(<>),
 };
 
 pub Expr = Level1;
@@ -188,7 +196,7 @@ Level7 = LeftAssoc<BinOp7, Level8>; // *, %
 Level8: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
         surface::Expr {
-            kind: surface::ExprKind::IfThenElse(Box::new(p), Box::new(e1), Box::new(e2)),
+            kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
             span: mk_span(lo, hi),
         }
     },
@@ -223,7 +231,7 @@ Level8: surface::Expr = {
 
 NonAssoc<Op, NextLevel>: surface::Expr = {
     <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => surface::Expr {
-        kind: surface::ExprKind::BinaryOp(op, Box::new(e1), Box::new(e2)),
+        kind: surface::ExprKind::BinaryOp(op, Box::new([e1, e2])),
         span: mk_span(lo, hi)
     },
     NextLevel
@@ -233,8 +241,7 @@ LeftAssoc<Op, NextLevel>: surface::Expr = {
         surface::Expr {
             kind: surface::ExprKind::BinaryOp(
                 op,
-                Box::new(e1),
-                Box::new(e2)
+                Box::new([e1, e2])
             ),
             span: mk_span(lo, hi),
         },

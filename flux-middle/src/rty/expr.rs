@@ -29,12 +29,18 @@ pub enum ExprKind {
     Local(Local),
     Constant(Constant),
     BinaryOp(BinOp, Expr, Expr),
-    App(Symbol, Vec<Expr>),
+    App(Symbol, List<Expr>),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
     PathProj(Expr, Field),
     IfThenElse(Expr, Expr, Expr),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Var {
+    Bound(BoundVar),
+    Free(Name),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -163,9 +169,8 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(f: Symbol, es: Vec<impl Into<Expr>>) -> Expr {
-        let es = es.into_iter().map(|e| e.into()).collect();
-        ExprKind::App(f, es).intern()
+    pub fn app(func: Symbol, args: impl Into<List<Expr>>) -> Expr {
+        ExprKind::App(func, args.into()).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -286,6 +291,14 @@ impl ExprS {
         }
     }
 
+    pub fn to_var(&self) -> Option<Var> {
+        match self.kind() {
+            ExprKind::FreeVar(name) => Some(Var::Free(*name)),
+            ExprKind::BoundVar(bvar) => Some(Var::Bound(*bvar)),
+            _ => None,
+        }
+    }
+
     pub fn to_name(&self) -> Option<Name> {
         match self.kind() {
             ExprKind::FreeVar(name) => Some(*name),
@@ -310,6 +323,26 @@ impl ExprS {
         };
         proj.reverse();
         Some(Path::new(loc, proj))
+    }
+}
+
+impl Var {
+    pub fn to_expr(&self) -> Expr {
+        match self {
+            Var::Bound(bvar) => Expr::bvar(*bvar),
+            Var::Free(name) => Expr::fvar(*name),
+        }
+    }
+
+    pub fn to_path(&self) -> Path {
+        self.to_loc().into()
+    }
+
+    pub fn to_loc(&self) -> Loc {
+        match self {
+            Var::Bound(bvar) => Loc::Bound(*bvar),
+            Var::Free(name) => Loc::Free(*name),
+        }
     }
 }
 

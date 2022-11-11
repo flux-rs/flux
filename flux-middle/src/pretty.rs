@@ -126,6 +126,7 @@ pub struct PPrintCx<'tcx> {
     pub preds_chain: bool,
     pub full_spans: bool,
     pub hide_uninit: bool,
+    pub show_is_binder: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -174,6 +175,7 @@ impl PPrintCx<'_> {
             preds_chain: true,
             full_spans: false,
             hide_uninit: true,
+            show_is_binder: false,
         }
     }
 
@@ -200,6 +202,10 @@ impl PPrintCx<'_> {
 
     pub fn fully_qualified_paths(self, b: bool) -> Self {
         Self { fully_qualified_paths: b, ..self }
+    }
+
+    pub fn show_is_binder(self, b: bool) -> Self {
+        Self { show_is_binder: b, ..self }
     }
 }
 

@@ -16,7 +16,11 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
-use std::{borrow::Cow, fmt, fmt::Write};
+use std::{
+    borrow::{Borrow, Cow},
+    fmt,
+    fmt::Write,
+};
 
 use flux_common::format::PadAdapter;
 pub use flux_fixpoint::BinOp;
@@ -28,7 +32,10 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::pretty;
+use crate::{
+    intern::{impl_internable, List},
+    pretty,
+};
 
 #[derive(Debug, Clone)]
 pub struct ConstInfo {
@@ -37,10 +44,16 @@ pub struct ConstInfo {
     pub val: i128,
 }
 
+#[derive(Debug)]
+pub struct Qualifier {
+    pub name: String,
+    pub args: Vec<RefineParam>,
+    pub expr: Expr,
+}
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
-/// note: `Map` is a very generic name, so we typically qualify the type as `fhir::Map` when
-/// using it.
+/// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
@@ -68,13 +81,12 @@ pub enum StructKind {
 #[derive(Debug)]
 pub struct EnumDef {
     pub def_id: DefId,
-    pub refined_by: Vec<Param>,
     pub variants: Vec<VariantDef>,
 }
 
 #[derive(Debug)]
 pub struct VariantDef {
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
 }
@@ -87,7 +99,7 @@ pub struct VariantRet {
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -97,24 +109,12 @@ pub struct FnSig {
     /// example: vec![(l: i32{v:n < v})]
     pub ensures: Vec<Constraint>,
 }
+
 pub enum Constraint {
     /// A type constraint on a location
     Type(Ident, Ty),
     /// A predicate that needs to hold
     Pred(Expr),
-}
-
-#[derive(Debug)]
-pub struct Qualifier {
-    pub name: String,
-    pub args: Vec<Param>,
-    pub expr: Expr,
-}
-
-pub struct ConstSig {
-    pub def_id: DefId,
-    pub val: i128,
-    pub ty: Ty,
 }
 
 pub enum Ty {
@@ -185,17 +185,24 @@ pub enum BaseTy {
     Adt(DefId, Vec<Ty>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Param {
+#[derive(Debug)]
+pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Sort {
-    Bool,
     Int,
+    Bool,
     Loc,
+    Tuple(List<Sort>),
+    Func(FuncSort),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FuncSort {
+    pub inputs_and_output: List<Sort>,
 }
 
 pub struct Expr {
@@ -207,9 +214,16 @@ pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
     Literal(Lit),
-    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
-    App(UFun, Vec<Expr>),
-    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<[Expr; 2]>),
+    App(Func, Vec<Expr>),
+    IfThenElse(Box<[Expr; 3]>),
+}
+
+pub enum Func {
+    /// A function comming from a refinement parameter.
+    Var(Ident),
+    /// An _global_ uninterpreted function.
+    Uif(Symbol, Span),
 }
 
 /// representation of uninterpreted functions
@@ -224,15 +238,23 @@ pub enum Lit {
     Bool(bool),
 }
 
+pub type SourceInfo = (Span, Symbol);
+
 #[derive(Clone, Copy)]
 pub struct Ident {
     pub name: Name,
-    pub source_info: (Span, Symbol),
+    pub source_info: SourceInfo,
 }
 
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "x{}",
+    }
+}
+
+impl UFun {
+    pub fn new(symbol: Symbol, span: Span) -> Self {
+        Self { symbol, span }
     }
 }
 
@@ -270,27 +292,64 @@ pub struct AdtDef {
 
 #[derive(Debug)]
 pub struct RefinedBy {
-    pub params: Vec<Param>,
+    pub params: Vec<RefineParam>,
     pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct UifDef {
-    pub inputs: Vec<Sort>,
-    pub output: Sort,
+    pub name: Symbol,
+    pub sort: FuncSort,
 }
 
 impl AdtDef {
     pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
-        let sorts = refined_by.iter().map(|param| param.sort).collect();
+        let sorts = refined_by.iter().map(|param| param.sort.clone()).collect();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
     }
 }
 
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
-    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+
+    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
         self.params.iter()
+    }
+}
+
+impl Sort {
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    /// Whether the sort is a function with return sort bool
+    pub fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+}
+
+impl From<FuncSort> for Sort {
+    fn from(sort: FuncSort) -> Self {
+        Self::Func(sort)
+    }
+}
+
+impl FuncSort {
+    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
+        inputs.push(output);
+        FuncSort { inputs_and_output: List::from_vec(inputs) }
+    }
+
+    pub fn inputs(&self) -> &[Sort] {
+        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
+    }
+
+    pub fn output(&self) -> &Sort {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 
@@ -369,12 +428,12 @@ impl Map {
         self.uifs.insert(symb, uif);
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = (&Symbol, &UifDef)> {
-        self.uifs.iter()
+    pub fn uifs(&self) -> impl Iterator<Item = &UifDef> {
+        self.uifs.values()
     }
 
-    pub fn uif(&self, sym: Symbol) -> Option<&UifDef> {
-        self.uifs.get(&sym)
+    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&UifDef> {
+        self.uifs.get(sym.borrow())
     }
 
     // ADT
@@ -401,6 +460,8 @@ impl Map {
         self.adts.values()
     }
 }
+
+impl_internable!([Sort]);
 
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -541,13 +602,22 @@ impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
-            ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
-            ExprKind::IfThenElse(p, e1, e2) => {
+            ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
+        }
+    }
+}
+
+impl fmt::Debug for Func {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Var(func) => write!(f, "{func:?}"),
+            Self::Uif(sym, _) => write!(f, "{sym}"),
         }
     }
 }
@@ -567,23 +637,50 @@ impl fmt::Debug for Lit {
     }
 }
 
-impl fmt::Debug for Sort {
+impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
             Sort::Loc => write!(f, "loc"),
+            Sort::Func(sort) => write!(f, "{sort}"),
+            Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
         }
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for Sort {
+impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for FuncSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}) -> {}", self.inputs().iter().join(","), self.output())
+    }
+}
+
+impl fmt::Debug for FuncSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for &Sort {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         let cow = match self {
             Sort::Bool => Cow::Borrowed("bool"),
             Sort::Int => Cow::Borrowed("int"),
             Sort::Loc => Cow::Borrowed("loc"),
+            _ => Cow::Owned(format!("{self}")),
         };
         rustc_errors::DiagnosticArgValue::Str(cow)
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for &FuncSort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
     }
 }

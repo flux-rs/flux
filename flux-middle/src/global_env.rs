@@ -9,7 +9,6 @@ use rustc_hir::{def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::symbol::Ident;
-use rustc_span::Symbol;
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
@@ -25,7 +24,6 @@ pub struct OpaqueStructErr(pub DefId);
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
-    pub uif_defs: FxHashMap<Symbol, rty::UifDef>,
     pub qualifiers: Vec<rty::Qualifier>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     map: fhir::Map,
@@ -44,17 +42,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             adt_defs.insert(adt_def.def_id(), adt_def);
         }
 
-        let mut uif_defs = FxHashMap::default();
-        for (name, uif_def) in map.uifs() {
-            let inputs = uif_def
-                .inputs
-                .iter()
-                .map(|sort| rty::conv::conv_sort(*sort))
-                .collect();
-            let output = rty::conv::conv_sort(uif_def.output);
-
-            uif_defs.insert(*name, rty::UifDef { inputs, output });
-        }
         let mut qualifiers = vec![];
         for qualifier in map.qualifiers() {
             qualifiers.push(rty::conv::ConvCtxt::conv_qualifier(qualifier));
@@ -68,7 +55,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             tcx,
             sess,
             check_asserts,
-            uif_defs,
             map,
         };
         genv.register_struct_def_variants();
@@ -151,7 +137,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
-        rty::Ty::indexed(bty, vec![])
+        rty::Ty::indexed(bty, rty::RefineArgs::empty())
     }
 
     pub fn check_asserts(&self) -> &AssertBehavior {
@@ -164,7 +150,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         variant_idx: VariantIdx,
     ) -> Result<rty::PolySig, OpaqueStructErr> {
         let poly_variant = self.variant(def_id, variant_idx)?;
-        let variant = poly_variant.skip_binders();
+        let variant = poly_variant.as_ref().skip_binders();
         let sorts = poly_variant.params();
         let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
         Ok(rty::Binders::new(sig, sorts))
@@ -296,7 +282,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         };
         let sorts = bty.sorts();
         if sorts.is_empty() {
-            rty::Ty::indexed(bty, vec![])
+            rty::Ty::indexed(bty, rty::RefineArgs::empty())
         } else {
             let pred = mk_pred(sorts);
             rty::Ty::exists(bty, pred)
