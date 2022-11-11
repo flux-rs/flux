@@ -86,7 +86,11 @@ pub enum Sort {
     Base(Ident),
     /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
     /// are all base sorts.
-    Func { inputs: Vec<Ident>, output: Ident },
+    Func {
+        inputs: Vec<Ident>,
+        output: Ident,
+    },
+    Infer,
 }
 
 #[derive(Debug)]
@@ -158,15 +162,16 @@ pub struct ArrayLen;
 
 #[derive(Debug, Clone)]
 pub struct Indices {
-    pub indices: Vec<Index>,
+    pub indices: Vec<RefineArg>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub enum Index {
+pub enum RefineArg {
     /// @n, the span correspond to the span of @ plus the identifier
     Bind(Ident, Span),
     Expr(Expr),
+    Abs(Vec<Ident>, Expr),
 }
 
 #[derive(Debug)]
@@ -304,7 +309,7 @@ pub mod expand {
     use rustc_span::symbol::Ident;
 
     use super::{
-        errors, AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Index, Indices, Path, Ty, TyKind,
+        errors, AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
     };
 
     /// `expand_bare_sig(aliases, b_sig)` replaces all the alias-applications in `b_sig`
@@ -438,15 +443,16 @@ pub mod expand {
         HashMap::from([(src, Expr { kind: ExprKind::Var(dst), span: dst.span })])
     }
 
-    fn mk_sub(src: &Vec<Ident>, dst: &Vec<Index>) -> Subst {
+    fn mk_sub(src: &Vec<Ident>, dst: &Vec<RefineArg>) -> Subst {
         assert_eq!(src.len(), dst.len(), "mk_sub: invalid args");
         let mut res = HashMap::new();
         for (src_id, dst_ix) in iter::zip(src, dst) {
             match dst_ix {
-                Index::Expr(e) => {
+                RefineArg::Expr(e) => {
                     res.insert(*src_id, e.clone());
                 }
-                Index::Bind(..) => panic!("cannot use binder in type alias"),
+                RefineArg::Bind(..) => panic!("cannot use binder in type alias"),
+                RefineArg::Abs(..) => panic!("cannot use `RefineArg::Abs` in type alias"),
             }
         }
         res
@@ -505,15 +511,15 @@ pub mod expand {
     fn subst_indices(subst: &Subst, i_indices: &Indices) -> Indices {
         let mut indices = vec![];
         for i in &i_indices.indices {
-            indices.push(subst_index(subst, i));
+            indices.push(subst_arg(subst, i));
         }
         Indices { indices, span: i_indices.span }
     }
 
-    fn subst_index(subst: &Subst, idx: &Index) -> Index {
-        match idx {
-            super::Index::Expr(e) => Index::Expr(subst_expr(subst, e)),
-            super::Index::Bind(..) => idx.clone(),
+    fn subst_arg(subst: &Subst, arg: &RefineArg) -> RefineArg {
+        match arg {
+            RefineArg::Expr(e) => RefineArg::Expr(subst_expr(subst, e)),
+            RefineArg::Bind(..) | RefineArg::Abs(..) => arg.clone(),
         }
     }
 

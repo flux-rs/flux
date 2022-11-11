@@ -2,9 +2,11 @@ use std::iter;
 
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
+    intern::List,
     rty::{
-        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, GenericArg,
-        PolySig, PolyVariant, Pred, RefKind, RefineArgs, Sort, Ty, TyKind, VariantRet,
+        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, ExprKind,
+        GenericArg, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
+        Var, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -218,14 +220,10 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
 
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idx2)) => {
+            println!("{ty1:?} <: {ty2:?}");
             bty_subtyping(genv, constr, bty1, bty2, tag);
-            for (idx1, idx2) in iter::zip(idxs1.args(), idx2.args()) {
-                if idx1 != idx2 {
-                    constr.push_head(
-                        Expr::binary_op(BinOp::Eq, idx1.as_expr().clone(), idx2.as_expr().clone()),
-                        tag,
-                    );
-                }
+            for (arg1, arg2) in iter::zip(idxs1.args(), idx2.args()) {
+                arg_subtyping(constr, arg1, arg2, tag);
             }
         }
         (TyKind::Indexed(bty1, idxs), TyKind::Exists(bty2, pred)) => {
@@ -268,6 +266,46 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
             subtyping(genv, constr, ty1, ty2, tag);
         }
         _ => unreachable!("`{ty1:?}` <: `{ty2:?}`"),
+    }
+}
+
+fn arg_subtyping(constr: &mut ConstrBuilder, arg1: &RefineArg, arg2: &RefineArg, tag: Tag) {
+    if arg1 == arg2 {
+        return;
+    }
+    match (arg1, arg2) {
+        (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
+            constr.push_head(Expr::binary_op(BinOp::Eq, e1, e2), tag);
+        }
+        (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
+            debug_assert_eq!(abs1.params(), abs2.params());
+            let args = constr
+                .define_vars(abs1.params())
+                .into_iter()
+                .map(|var| RefineArg::Expr(var.into()))
+                .collect_vec();
+            let pred1 = abs1.replace_bound_vars(&args);
+            let pred2 = abs2.replace_bound_vars(&args);
+            constr.push_horn_clause(&pred1, &pred2, tag);
+            constr.push_horn_clause(pred2, pred1, tag);
+        }
+        (RefineArg::Expr(expr), RefineArg::Abs(abs))
+        | (RefineArg::Abs(abs), RefineArg::Expr(expr)) => {
+            if let ExprKind::FreeVar(name) = expr.kind() {
+                let args = constr
+                    .define_vars(abs.params())
+                    .into_iter()
+                    .map(Expr::from)
+                    .collect_vec();
+                let pred1 = Pred::App(Var::Free(*name), List::from(&args[..]));
+                let args = args.into_iter().map(RefineArg::from).collect_vec();
+                let pred2 = abs.replace_bound_vars(&args);
+                constr.push_horn_clause(&pred1, &pred2, tag);
+                constr.push_horn_clause(pred2, pred1, tag);
+            } else {
+                unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
+            }
+        }
     }
 }
 

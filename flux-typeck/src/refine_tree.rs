@@ -278,6 +278,10 @@ impl ConstrBuilder<'_> {
         ConstrBuilder { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
+    pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
+        self.ptr.push_foralls(sorts)
+    }
+
     pub fn push_guard(&mut self, p: impl Into<Pred>) {
         self.ptr.push_guard(p.into());
     }
@@ -291,6 +295,12 @@ impl ConstrBuilder<'_> {
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
+    }
+
+    pub fn push_horn_clause(&mut self, body: impl Into<Pred>, head: impl Into<Pred>, tag: Tag) {
+        let mut constr = self.breadcrumb();
+        constr.push_guard(body);
+        constr.push_head(head, tag);
     }
 }
 

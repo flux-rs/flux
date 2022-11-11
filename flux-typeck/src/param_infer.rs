@@ -68,7 +68,7 @@ fn collect<T>(
         .enumerate()
         .map(|(idx, sort)| {
             if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-                Ok(RefineArg::Pred(fresh_kvar(fsort.inputs())))
+                Ok(RefineArg::Abs(fresh_kvar(fsort.inputs())))
             } else {
                 let e = exprs
                     .remove(&idx)

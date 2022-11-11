@@ -249,21 +249,26 @@ impl<'a> Wf<'a> {
             ));
         }
         izip!(indices, expected)
-            .map(|(idx, expected)| self.check_index(env, idx, expected))
+            .map(|(idx, expected)| self.check_arg(env, idx, expected))
             .try_collect_exhaust()
     }
 
-    fn check_index(
+    fn check_arg(
         &self,
         env: &Env,
-        idx: &fhir::Index,
+        arg: &fhir::RefineArg,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        let found = self.synth_expr(env, &idx.expr)?;
-        if found != expected {
-            return self.emit_err(errors::SortMismatch::new(idx.expr.span, expected, found));
+        match arg {
+            fhir::RefineArg::Expr { expr, .. } => {
+                let found = self.synth_expr(env, expr)?;
+                if found != expected {
+                    return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
+                }
+                self.check_param_uses(env, expr, false)
+            }
+            fhir::RefineArg::Abs(_, _) => Ok(()),
         }
-        self.check_param_uses(env, &idx.expr, false)
     }
 
     fn check_pred(&self, env: &Env, expr: &fhir::Expr) -> Result<(), ErrorGuaranteed> {
@@ -349,7 +354,7 @@ impl<'a> Wf<'a> {
         match bty {
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) => &[fhir::Sort::Int],
             fhir::BaseTy::Bool => &[fhir::Sort::Bool],
-            fhir::BaseTy::Adt(def_id, _) => self.map.sorts(*def_id).unwrap_or_default(),
+            fhir::BaseTy::Adt(def_id, _) => self.map.sorts_of(*def_id).unwrap_or_default(),
         }
     }
 

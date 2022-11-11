@@ -50,7 +50,7 @@ pub struct Invariant {
 
 pub type PolyVariant = Binders<VariantDef>;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VariantDef {
     pub fields: List<Ty>,
     pub ret: VariantRet,
@@ -141,7 +141,7 @@ struct RefineArgsData {
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum RefineArg {
     Expr(Expr),
-    Pred(Binders<Pred>),
+    Abs(Binders<Pred>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -283,10 +283,12 @@ impl RefineArgsData {
 }
 
 impl RefineArg {
+    #[track_caller]
     pub fn as_expr(&self) -> &Expr {
-        match self {
-            RefineArg::Expr(e) => e,
-            RefineArg::Pred(_) => panic!("expected an [`RefineArg::Expr`]"),
+        if let RefineArg::Expr(e) = self {
+            e
+        } else {
+            panic!("expected an `RefineArg::Expr`")
         }
     }
 }
@@ -536,6 +538,12 @@ impl TyS {
 impl From<Expr> for Pred {
     fn from(e: Expr) -> Self {
         Pred::Expr(e)
+    }
+}
+
+impl From<&Pred> for Pred {
+    fn from(pred: &Pred) -> Self {
+        pred.clone()
     }
 }
 
@@ -882,7 +890,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 RefineArg::Expr(e) => w!("{:?}", e),
-                RefineArg::Pred(kvar) => w!("{:?}", kvar),
+                RefineArg::Abs(abs) => w!("{:?}", abs),
             }
         }
     }
@@ -970,15 +978,23 @@ mod pretty {
     }
 
     impl Pretty for Sort {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!(f, "{}", ^self)
+        }
+    }
+
+    impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self {
-                Sort::Int => w!("int"),
-                Sort::Bool => w!("bool"),
-                Sort::Loc => w!("loc"),
-                Sort::Tuple(sorts) => w!("({:?})", join!(", ", sorts)),
-                Sort::Func(sort) => w!("({:?}) -> {:?}", join!(", ", sort.inputs()), sort.output()),
-            }
+            w!(f, "({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+        }
+    }
+
+    impl Pretty for VariantRet {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!(f, "{:?}", self.to_ty())
         }
     }
 
@@ -992,5 +1008,6 @@ mod pretty {
         GenericArg,
         RefineArg,
         RefineArgs,
+        VariantDef,
     );
 }

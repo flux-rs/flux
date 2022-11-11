@@ -16,8 +16,7 @@ pub fn desugar_qualifier(
     map: &fhir::Map,
     qualifier: surface::Qualifier,
 ) -> Result<fhir::Qualifier, ErrorGuaranteed> {
-    let mut binders = Binders::new();
-    binders.insert_params(sess, qualifier.args)?;
+    let binders = Binders::from_params(sess, &qualifier.args)?;
     let name = qualifier.name.name.to_ident_string();
     let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(qualifier.expr);
 
@@ -41,8 +40,7 @@ pub fn desugar_adt_def(
     invariants: Vec<surface::Expr>,
     opaque: bool,
 ) -> Result<fhir::AdtDef, ErrorGuaranteed> {
-    let mut binders = Binders::new();
-    binders.insert_params(sess, refined_by)?;
+    let binders = Binders::from_params(sess, refined_by)?;
 
     let invariants = invariants
         .into_iter()
@@ -60,8 +58,7 @@ pub fn desugar_struct_def(
     adt_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let def_id = adt_def.def_id.to_def_id();
-    let mut binders = Binders::new();
-    binders.insert_params(sess, adt_def.refined_by.into_iter().flatten())?;
+    let binders = Binders::from_params(sess, adt_def.refined_by.iter().flatten())?;
 
     let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
@@ -84,8 +81,6 @@ pub fn desugar_enum_def(
     map: &fhir::Map,
     enum_def: surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let mut binders = Binders::new();
-    binders.insert_params(sess, enum_def.refined_by.into_iter().flatten())?;
     let def_id = enum_def.def_id.to_def_id();
     let variants = enum_def
         .variants
@@ -228,6 +223,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt { tcx, sess, binders, requires: vec![], map }
     }
 
+    fn expr_ctxt_with<'b>(&'b self, binders: &'b Binders) -> ExprCtxt<'b, 'tcx> {
+        ExprCtxt::new(self.tcx, self.sess, self.map, &binders)
+    }
+
     fn as_expr_ctxt(&self) -> ExprCtxt<'_, 'tcx> {
         ExprCtxt::new(self.tcx, self.sess, self.map, &self.binders)
     }
@@ -344,7 +343,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_indices(&self, indices: surface::Indices) -> Result<fhir::Indices, ErrorGuaranteed> {
         let mut exprs = vec![];
         for idx in indices.indices {
-            let idxs = self.desugar_index(idx)?;
+            let idxs = self.desugar_refine_arg(idx)?;
             for e in idxs {
                 exprs.push(e)
             }
@@ -353,25 +352,28 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn desugar_bind(&self, bind: surface::Ident) -> Result<fhir::Indices, ErrorGuaranteed> {
-        Ok(fhir::Indices { indices: self.bind_into_indices(bind)?, span: bind.span })
+        Ok(fhir::Indices { indices: self.bind_into_args(bind)?, span: bind.span })
     }
 
-    fn bind_into_indices(
+    fn bind_into_args(
         &self,
         ident: surface::Ident,
-    ) -> Result<Vec<fhir::Index>, ErrorGuaranteed> {
+    ) -> Result<Vec<fhir::RefineArg>, ErrorGuaranteed> {
         match self.binders.get(ident) {
             Some(Binder::Single(name, _)) => {
                 let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
                 let expr = fhir::Expr { kind, span: ident.span };
-                Ok(vec![fhir::Index { expr, is_binder: true }])
+                Ok(vec![fhir::RefineArg::Expr { expr, is_binder: true }])
             }
             Some(Binder::Aggregate(_, fields)) => {
                 let indices = fields
                     .values()
                     .map(|(name, _)| {
                         let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
-                        fhir::Index { expr: fhir::Expr { kind, span: ident.span }, is_binder: true }
+                        fhir::RefineArg::Expr {
+                            expr: fhir::Expr { kind, span: ident.span },
+                            is_binder: true,
+                        }
                     })
                     .collect();
                 Ok(indices)
@@ -381,14 +383,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         }
     }
 
-    fn desugar_index(&self, idx: surface::Index) -> Result<Vec<fhir::Index>, ErrorGuaranteed> {
-        match idx {
-            surface::Index::Bind(ident, _) => self.bind_into_indices(ident),
-            surface::Index::Expr(expr) => {
-                Ok(vec![fhir::Index {
+    fn desugar_refine_arg(
+        &self,
+        arg: surface::RefineArg,
+    ) -> Result<Vec<fhir::RefineArg>, ErrorGuaranteed> {
+        match arg {
+            surface::RefineArg::Bind(ident, _) => self.bind_into_args(ident),
+            surface::RefineArg::Expr(expr) => {
+                Ok(vec![fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
                     is_binder: false,
                 }])
+            }
+            surface::RefineArg::Abs(params, body) => {
+                let binders = Binders::from_abs(self.sess, &params)?;
+                let body = self.expr_ctxt_with(&binders).desugar_expr(body)?;
+                Ok(vec![fhir::RefineArg::Abs(binders.into_params(), body)])
             }
         }
     }
@@ -612,6 +622,7 @@ fn resolve_sort(sess: &FluxSession, sort: &surface::Sort) -> Result<fhir::Sort, 
         surface::Sort::Func { inputs, output } => {
             Ok(resolve_func_sort(sess, inputs, output)?.into())
         }
+        surface::Sort::Infer => todo!(),
     }
 }
 
@@ -646,6 +657,33 @@ impl Binders {
         Binders { name_gen: IndexGen::new(), map: FxIndexMap::default() }
     }
 
+    fn from_params<'a>(
+        sess: &FluxSession,
+        params: impl IntoIterator<Item = &'a surface::RefineParam>,
+    ) -> Result<Self, ErrorGuaranteed> {
+        let mut binders = Self::new();
+        for param in params {
+            binders.insert_binder(
+                sess,
+                param.name,
+                Binder::Single(binders.fresh(), resolve_sort(sess, &param.sort)?),
+            )?;
+        }
+        Ok(binders)
+    }
+
+    fn from_abs(sess: &FluxSession, params: &[surface::Ident]) -> Result<Self, ErrorGuaranteed> {
+        let mut binders = Self::new();
+        for param in params {
+            binders.insert_binder(
+                sess,
+                *param,
+                Binder::Single(binders.fresh(), fhir::Sort::Infer),
+            )?;
+        }
+        Ok(binders)
+    }
+
     fn fresh(&self) -> fhir::Name {
         self.name_gen.fresh()
     }
@@ -672,25 +710,6 @@ impl Binders {
             self.map.remove(&ident).unwrap()
         };
         Ok((r, binder))
-    }
-
-    fn insert_params<P>(
-        &mut self,
-        sess: &FluxSession,
-        params: impl IntoIterator<Item = P>,
-    ) -> Result<(), ErrorGuaranteed>
-    where
-        P: Borrow<surface::RefineParam>,
-    {
-        for param in params {
-            let param = param.borrow();
-            self.insert_binder(
-                sess,
-                param.name,
-                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?),
-            )?;
-        }
-        Ok(())
     }
 
     fn insert_binder(
@@ -728,7 +747,7 @@ impl Binders {
             .indices
             .iter()
             .try_for_each_exhaust(|idx| {
-                if let surface::Index::Bind(_, span) = idx {
+                if let surface::RefineArg::Bind(_, span) = idx {
                     Err(sess.emit_err(errors::IllegalBinder::new(*span)))
                 } else {
                     Ok(())
@@ -802,7 +821,7 @@ impl Binders {
                     // of `fn<n: int>(x: RMat[n, n])`
                     unreachable!("[sanity check] this code is unreachable but we are leaving a not in case it is not anymore");
                 }
-                if let [surface::Index::Bind(ident, span)] = indices.indices[..] {
+                if let [surface::RefineArg::Bind(ident, span)] = indices.indices[..] {
                     if !allow_binder {
                         return Err(sess.emit_err(errors::IllegalBinder::new(span)));
                     }
@@ -818,7 +837,7 @@ impl Binders {
                     }
 
                     for (idx, (name, sort)) in iter::zip(&indices.indices, refined_by) {
-                        if let surface::Index::Bind(ident, span) = idx {
+                        if let surface::RefineArg::Bind(ident, span) = idx {
                             if !allow_binder {
                                 return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
                             }

@@ -167,15 +167,18 @@ impl From<RefKind> for WeakKind {
 }
 
 pub struct Indices {
-    pub indices: Vec<Index>,
+    pub indices: Vec<RefineArg>,
     pub span: Span,
 }
 
-pub struct Index {
-    pub expr: Expr,
-    /// Whether this index was used as a binder in the surface syntax. Used as a hint for inferring
-    /// parameters at function calls.
-    pub is_binder: bool,
+pub enum RefineArg {
+    Expr {
+        expr: Expr,
+        /// Whether this index was used as a binder in the surface syntax. Used as a hint for inferring
+        /// parameters at function calls.
+        is_binder: bool,
+    },
+    Abs(Vec<RefineParam>, Expr),
 }
 
 pub enum BaseTy {
@@ -198,6 +201,7 @@ pub enum Sort {
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
+    Infer,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -268,9 +272,9 @@ impl BaseTy {
 }
 
 impl<'a> IntoIterator for &'a Indices {
-    type Item = &'a Index;
+    type Item = &'a RefineArg;
 
-    type IntoIter = std::slice::Iter<'a, Index>;
+    type IntoIter = std::slice::Iter<'a, RefineArg>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.indices.iter()
@@ -329,6 +333,15 @@ impl Sort {
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    #[track_caller]
+    pub fn as_func(&self) -> &FuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            panic!("expected `Sort::Func`")
+        }
     }
 }
 
@@ -442,7 +455,7 @@ impl Map {
         self.adts.insert(def_id, sort_info);
     }
 
-    pub fn sorts(&self, def_id: DefId) -> Option<&[Sort]> {
+    pub fn sorts_of(&self, def_id: DefId) -> Option<&[Sort]> {
         let info = self.adts.get(&def_id.as_local()?)?;
         Some(&info.sorts)
     }
@@ -574,12 +587,17 @@ impl fmt::Debug for Indices {
     }
 }
 
-impl fmt::Debug for Index {
+impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_binder {
-            write!(f, "@")?;
+        match self {
+            RefineArg::Expr { expr, is_binder } => {
+                if *is_binder {
+                    write!(f, "@")?;
+                }
+                write!(f, "{expr:?}")
+            }
+            RefineArg::Abs(params, body) => write!(f, "|{:?}| {body:?}", params.iter().format(",")),
         }
-        write!(f, "{:?}", self.expr)
     }
 }
 
@@ -645,6 +663,7 @@ impl fmt::Display for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
+            Sort::Infer => write!(f, "_"),
         }
     }
 }

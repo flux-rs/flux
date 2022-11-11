@@ -35,6 +35,10 @@ pub trait TypeFolder: Sized {
     fn fold_pred(&mut self, pred: &Pred) -> Pred {
         pred.super_fold_with(self)
     }
+
+    fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
+        arg.super_fold_with(self)
+    }
 }
 
 pub trait TypeFoldable: Sized {
@@ -335,15 +339,19 @@ impl TypeFoldable for RefineArg {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             RefineArg::Expr(e) => RefineArg::Expr(e.fold_with(folder)),
-            RefineArg::Pred(kvar) => RefineArg::Pred(kvar.fold_with(folder)),
+            RefineArg::Abs(abs) => RefineArg::Abs(abs.fold_with(folder)),
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             RefineArg::Expr(e) => e.visit_with(visitor),
-            RefineArg::Pred(kvar) => kvar.visit_with(visitor),
+            RefineArg::Abs(kvar) => kvar.visit_with(visitor),
         }
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_refine_arg(self)
     }
 }
 
