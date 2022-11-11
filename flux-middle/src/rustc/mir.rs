@@ -177,6 +177,7 @@ pub enum PlaceElem {
     Deref,
     Field(Field),
     Downcast(VariantIdx),
+    Index(Local),
 }
 
 pub enum Constant {
@@ -393,6 +394,10 @@ impl fmt::Debug for Place {
                 PlaceElem::Downcast(variant_idx) => {
                     p = format!("{p} as {variant_idx:?}");
                     need_parens = true;
+                }
+                PlaceElem::Index(v) => {
+                    p = format!("{p}[{v:?}]");
+                    need_parens = false;
                 }
             }
         }

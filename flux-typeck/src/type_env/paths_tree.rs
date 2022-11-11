@@ -1,11 +1,12 @@
 use std::{cell::RefCell, iter, rc::Rc};
 
 use flux_middle::{
+    fhir::WeakKind,
     global_env::{GlobalEnv, OpaqueStructErr},
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefKind, RefineArg, Sort, Substs, Ty, TyKind,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefineArg, Sort, Substs, Ty, TyKind,
         VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
@@ -85,20 +86,20 @@ impl LookupKey for Path {
 }
 
 enum LookupKind {
-    Node(Path, NodePtr),
-    Ref(RefKind, Ty),
+    Strg(Path, NodePtr),
+    Weak(WeakKind, Ty),
 }
 
 pub enum FoldResult {
     Strg(Path, Ty),
-    Ref(RefKind, Ty),
+    Weak(WeakKind, Ty),
 }
 
 impl FoldResult {
     pub fn ty(&self) -> Ty {
         match self {
             FoldResult::Strg(_, ty) => ty.clone(),
-            FoldResult::Ref(_, ty) => ty.clone(),
+            FoldResult::Weak(_, ty) => ty.clone(),
         }
     }
 }
@@ -245,10 +246,16 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::Ref(rk, ty) => {
-                                let (rk, ty) = Self::lookup_ty(genv, rcx, *rk, ty, place_proj)?;
+                                let (rk, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::from(*rk),
+                                    ty,
+                                    place_proj,
+                                )?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Ref(rk, ty),
+                                    kind: LookupKind::Weak(rk, ty),
                                 });
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
@@ -263,12 +270,26 @@ impl PathsTree {
                             _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
                     }
+                    PlaceElem::Index(_) => {
+                        let ty = ptr.borrow().expect_owned();
+                        match ty.kind() {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
+                                let (rk, ty) =
+                                    Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Weak(rk, ty),
+                                });
+                            }
+                            _ => panic!("Unsupported Index: {elem:?} {ty:?}"),
+                        }
+                    }
                 }
             }
 
             return Ok(LookupResult {
                 tree: self,
-                kind: LookupKind::Node(Path::new(loc, path_proj), ptr),
+                kind: LookupKind::Strg(Path::new(loc, path_proj), ptr),
             });
         }
     }
@@ -276,16 +297,16 @@ impl PathsTree {
     fn lookup_ty(
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        mut rk: RefKind,
+        mut rk: WeakKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
-    ) -> Result<(RefKind, Ty), OpaqueStructErr> {
+    ) -> Result<(WeakKind, Ty), OpaqueStructErr> {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
-                    rk = rk.min(*rk2);
+                    rk = rk.min(WeakKind::from(*rk2));
                     ty = ty2.clone();
                 }
                 (Deref, TyKind::Indexed(BaseTy::Adt(_, substs), _)) if ty.is_box() => {
@@ -371,10 +392,10 @@ enum NodeKind {
 impl LookupResult<'_> {
     pub fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, close_boxes: bool) -> FoldResult {
         match self.kind {
-            LookupKind::Node(path, ptr) => {
+            LookupKind::Strg(path, ptr) => {
                 FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
             }
-            LookupKind::Ref(rk, ty) => FoldResult::Ref(rk, ty),
+            LookupKind::Weak(rk, ty) => FoldResult::Weak(rk, ty),
         }
     }
 }

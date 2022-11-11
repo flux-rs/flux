@@ -126,6 +126,9 @@ pub Ty: surface::Ty = {
 
 // FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
 ArgTyKind: surface::TyKind = {
+
+    "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
+
     "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut"  <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
@@ -143,7 +146,6 @@ ArgTyKind: surface::TyKind = {
     },
     "[" <ty:Ty> "]" => surface::TyKind::Slice(Box::new(ty)),
 
-    "(" ")"  => surface::TyKind::Unit
 }
 
 TyKind: surface::TyKind = {
