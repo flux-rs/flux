@@ -424,7 +424,7 @@ impl<'a> Wf<'a> {
                 if !is_top_level_conj && let fhir::Func::Var(var) = func {
                     return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));
                 }
-                args.into_iter()
+                args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
             }
             fhir::ExprKind::Var(name, _, span) => {
