@@ -91,14 +91,14 @@ enum LookupKind {
 
 pub enum FoldResult {
     Strg(Path, Ty),
-    Ref(WeakKind, Ty),
+    Weak(WeakKind, Ty),
 }
 
 impl FoldResult {
     pub fn ty(&self) -> Ty {
         match self {
             FoldResult::Strg(_, ty) => ty.clone(),
-            FoldResult::Ref(_, ty) => ty.clone(),
+            FoldResult::Weak(_, ty) => ty.clone(),
         }
     }
 }
@@ -400,7 +400,7 @@ impl LookupResult<'_> {
             LookupKind::Strg(path, ptr) => {
                 FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
             }
-            LookupKind::Weak(rk, ty) => FoldResult::Ref(rk, ty),
+            LookupKind::Weak(rk, ty) => FoldResult::Weak(rk, ty),
         }
     }
 }
