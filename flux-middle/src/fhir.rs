@@ -164,13 +164,6 @@ impl WeakKind {
             RefKind::Mut => WeakKind::Mut,
         }
     }
-    pub fn to_ref_kind(rk: WeakKind) -> RefKind {
-        match rk {
-            WeakKind::Mut => RefKind::Mut,
-            WeakKind::Shr => RefKind::Shr,
-            WeakKind::Arr => RefKind::Shr,
-        }
-    }
 }
 
 pub struct Indices {
