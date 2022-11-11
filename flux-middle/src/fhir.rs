@@ -150,6 +150,22 @@ pub enum RefKind {
     Mut,
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+pub enum WeakKind {
+    Shr,
+    Mut,
+    Arr,
+}
+
+impl From<RefKind> for WeakKind {
+    fn from(rk: RefKind) -> WeakKind {
+        match rk {
+            RefKind::Shr => WeakKind::Shr,
+            RefKind::Mut => WeakKind::Mut,
+        }
+    }
+}
+
 pub struct Indices {
     pub indices: Vec<Index>,
     pub span: Span,
