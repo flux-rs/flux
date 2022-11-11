@@ -120,7 +120,7 @@ impl TypeEnv {
         {
             FoldResult::Strg(path, _) => Ty::ptr(rk, path),
             FoldResult::Weak(result_rk, ty) => {
-                debug_assert!(WeakKind::from_ref_kind(rk) <= result_rk);
+                debug_assert!(WeakKind::from(rk) <= result_rk);
                 Ty::mk_ref(rk, ty)
             }
         };

@@ -248,7 +248,7 @@ impl PathsTree {
                                 let (rk, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
-                                    WeakKind::from_ref_kind(*rk),
+                                    WeakKind::from(*rk),
                                     ty,
                                     place_proj,
                                 )?;
@@ -305,7 +305,7 @@ impl PathsTree {
         for elem in proj.by_ref() {
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
-                    rk = rk.min(WeakKind::from_ref_kind(*rk2));
+                    rk = rk.min(WeakKind::from(*rk2));
                     ty = ty2.clone();
                 }
                 (Deref, TyKind::Indexed(BaseTy::Adt(_, substs), _)) if ty.is_box() => {

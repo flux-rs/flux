@@ -157,18 +157,11 @@ pub enum WeakKind {
     Arr,
 }
 
-impl WeakKind {
-    pub fn from_ref_kind(rk: RefKind) -> WeakKind {
+impl From<RefKind> for WeakKind {
+    fn from(rk: RefKind) -> WeakKind {
         match rk {
             RefKind::Shr => WeakKind::Shr,
             RefKind::Mut => WeakKind::Mut,
-        }
-    }
-    pub fn to_ref_kind(rk: WeakKind) -> RefKind {
-        match rk {
-            WeakKind::Mut => RefKind::Mut,
-            WeakKind::Shr => RefKind::Shr,
-            WeakKind::Arr => RefKind::Shr,
         }
     }
 }
