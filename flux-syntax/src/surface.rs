@@ -137,10 +137,9 @@ pub enum TyKind<T = Ident> {
     Ref(RefKind, Box<Ty<T>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
-    /// ()
-    Unit,
     Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
+    Tuple(Vec<Ty<T>>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -398,12 +397,14 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, t))),
-            TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
             TyKind::Slice(ty) => TyKind::Slice(Box::new(expand_ty(aliases, ty))),
+            TyKind::Tuple(tys) => {
+                TyKind::Tuple(tys.iter().map(|t| expand_ty(aliases, t)).collect())
+            }
         }
     }
 
@@ -526,12 +527,12 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(subst_ty(subst, t))),
-            TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
             TyKind::Slice(ty) => TyKind::Slice(Box::new(subst_ty(subst, ty))),
+            TyKind::Tuple(tys) => TyKind::Tuple(tys.iter().map(|t| subst_ty(subst, t)).collect()),
         }
     }
 }

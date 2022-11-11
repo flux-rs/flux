@@ -335,7 +335,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::Ref(rk, ty) => {
                 fhir::Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(None, *ty)?))
             }
-            surface::TyKind::Unit => fhir::Ty::Tuple(vec![]),
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                 let ty = self.desugar_ty(None, *ty)?;
@@ -346,6 +345,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::Ty::Array(Box::new(ty), fhir::ArrayLen)
             }
             surface::TyKind::Slice(ty) => fhir::Ty::Slice(Box::new(self.desugar_ty(None, *ty)?)),
+            surface::TyKind::Tuple(tys) => {
+                let tys = tys
+                    .into_iter()
+                    .map(|ty| self.desugar_ty(None, ty))
+                    .try_collect_exhaust()?;
+                fhir::Ty::Tuple(tys)
+            }
         };
         Ok(ty)
     }
@@ -754,13 +760,21 @@ impl Binders {
                 }
                 self.ty_gather_params(sess, map, None, ty)
             }
+            surface::TyKind::Tuple(tys) => {
+                if let Some(bind) = bind {
+                    self.insert_binder(sess, bind, Binder::Unrefined)?;
+                }
+                for ty in tys {
+                    self.ty_gather_params(sess, map, None, ty)?;
+                }
+                Ok(())
+            }
             surface::TyKind::Exists { path, .. } => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::new(&self.name_gen, map, path.ident))?;
                 }
                 Ok(())
             }
-            surface::TyKind::Unit => Ok(()),
         }
     }
 

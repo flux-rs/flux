@@ -149,7 +149,6 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
             }
-            surface::TyKind::Unit => surface::TyKind::Unit,
             surface::TyKind::Constr(pred, ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))
@@ -161,6 +160,13 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
             surface::TyKind::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Slice(Box::new(ty))
+            }
+            surface::TyKind::Tuple(tys) => {
+                let tys = tys
+                    .into_iter()
+                    .map(|ty| self.resolve_ty(ty))
+                    .try_collect_exhaust()?;
+                surface::TyKind::Tuple(tys)
             }
         };
         Ok(surface::Ty { kind, span: ty.span })
