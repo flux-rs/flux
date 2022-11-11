@@ -85,8 +85,8 @@ impl LookupKey for Path {
 }
 
 enum LookupKind {
-    Node(Path, NodePtr),
-    Ref(WeakKind, Ty),
+    Strg(Path, NodePtr),
+    Weak(WeakKind, Ty),
 }
 
 pub enum FoldResult {
@@ -254,7 +254,7 @@ impl PathsTree {
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Ref(rk, ty),
+                                    kind: LookupKind::Weak(rk, ty),
                                 });
                             }
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
@@ -277,7 +277,7 @@ impl PathsTree {
                                     Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Ref(rk, ty),
+                                    kind: LookupKind::Weak(rk, ty),
                                 });
                             }
                             _ => panic!("Unsupported Index: {elem:?} {ty:?}"),
@@ -288,7 +288,7 @@ impl PathsTree {
 
             return Ok(LookupResult {
                 tree: self,
-                kind: LookupKind::Node(Path::new(loc, path_proj), ptr),
+                kind: LookupKind::Strg(Path::new(loc, path_proj), ptr),
             });
         }
     }
@@ -397,10 +397,10 @@ enum NodeKind {
 impl LookupResult<'_> {
     pub fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, close_boxes: bool) -> FoldResult {
         match self.kind {
-            LookupKind::Node(path, ptr) => {
+            LookupKind::Strg(path, ptr) => {
                 FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
             }
-            LookupKind::Ref(rk, ty) => FoldResult::Ref(rk, ty),
+            LookupKind::Weak(rk, ty) => FoldResult::Ref(rk, ty),
         }
     }
 }
