@@ -4,6 +4,7 @@ use std::iter;
 
 use flux_common::index::IndexGen;
 use flux_middle::{
+    fhir::WeakKind,
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
@@ -119,7 +120,7 @@ impl TypeEnv {
         {
             FoldResult::Strg(path, _) => Ty::ptr(rk, path),
             FoldResult::Ref(result_rk, ty) => {
-                debug_assert!(rk <= result_rk);
+                debug_assert!(WeakKind::from_ref_kind(rk) <= result_rk);
                 Ty::mk_ref(rk, ty)
             }
         };
@@ -141,10 +142,10 @@ impl TypeEnv {
             FoldResult::Strg(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
-            FoldResult::Ref(RefKind::Mut, ty) => {
+            FoldResult::Ref(WeakKind::Mut, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            FoldResult::Ref(RefKind::Shr, _) => {
+            FoldResult::Ref(WeakKind::Arr, _) | FoldResult::Ref(WeakKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }
@@ -166,10 +167,10 @@ impl TypeEnv {
                 self.bindings.update(&path, Ty::uninit());
                 Ok(ty)
             }
-            FoldResult::Ref(RefKind::Mut, _) => {
+            FoldResult::Ref(WeakKind::Mut, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
             }
-            FoldResult::Ref(RefKind::Shr, _) => {
+            FoldResult::Ref(WeakKind::Arr, _) | FoldResult::Ref(WeakKind::Shr, _) => {
                 panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
         }
