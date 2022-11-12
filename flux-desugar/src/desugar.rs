@@ -224,10 +224,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt { tcx, sess, binders, requires: vec![], map }
     }
 
-    fn expr_ctxt_with<'b>(&'b self, binders: &'b Binders) -> ExprCtxt<'b, 'tcx> {
-        ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-    }
-
     fn as_expr_ctxt(&self) -> ExprCtxt<'_, 'tcx> {
         ExprCtxt::new(self.tcx, self.sess, self.map, &self.binders)
     }
@@ -342,7 +338,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         Ok(ty)
     }
 
-    fn desugar_indices(&self, indices: surface::Indices) -> Result<fhir::Indices, ErrorGuaranteed> {
+    fn desugar_indices(
+        &mut self,
+        indices: surface::Indices,
+    ) -> Result<fhir::Indices, ErrorGuaranteed> {
         let mut exprs = vec![];
         for idx in indices.indices {
             let idxs = self.desugar_refine_arg(idx)?;
@@ -386,7 +385,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn desugar_refine_arg(
-        &self,
+        &mut self,
         arg: surface::RefineArg,
     ) -> Result<Vec<fhir::RefineArg>, ErrorGuaranteed> {
         match arg {
@@ -398,14 +397,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 }])
             }
             surface::RefineArg::Abs(params, body, span) => {
-                let binders = Binders::from_abs(self.sess, &params)?;
-                let body = self.expr_ctxt_with(&binders).desugar_expr(body)?;
-                let params = binders
-                    .into_params()
-                    .into_iter()
-                    .map(|param| param.name.name)
-                    .collect_vec();
-                Ok(vec![fhir::RefineArg::Abs(params, body, span)])
+                let (body, names) = self.binders.with_abs_params(&params, |binders| {
+                    let cx = ExprCtxt::new(self.tcx, self.sess, self.map, binders);
+                    cx.desugar_expr(body)
+                })?;
+                Ok(vec![fhir::RefineArg::Abs(names, body, span)])
             }
         }
     }
@@ -679,18 +675,6 @@ impl Binders {
         Ok(binders)
     }
 
-    fn from_abs(sess: &FluxSession, params: &[surface::Ident]) -> Result<Self, ErrorGuaranteed> {
-        let mut binders = Self::new();
-        for param in params {
-            binders.insert_binder(
-                sess,
-                *param,
-                Binder::Single(binders.fresh(), fhir::Sort::Infer),
-            )?;
-        }
-        Ok(binders)
-    }
-
     fn fresh(&self) -> fhir::Name {
         self.name_gen.fresh()
     }
@@ -711,6 +695,19 @@ impl Binders {
     ) -> Result<(R, Binder), ErrorGuaranteed> {
         let (r, mut binders) = self.with_binders([(ident, binder)], f)?;
         Ok((r, binders.pop().unwrap()))
+    }
+
+    fn with_abs_params<R>(
+        &mut self,
+        params: &[surface::Ident],
+        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
+    ) -> Result<(R, Vec<fhir::Name>), ErrorGuaranteed> {
+        let names = params.iter().map(|_| self.fresh()).collect_vec();
+        let binders = iter::zip(&names, params)
+            .map(|(name, param)| (*param, Binder::Single(*name, fhir::Sort::Infer)))
+            .collect_vec();
+        let (r, _) = self.with_binders(binders, f)?;
+        Ok((r, names))
     }
 
     fn with_binders<R>(

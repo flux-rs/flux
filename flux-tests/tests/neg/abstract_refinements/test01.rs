@@ -18,3 +18,8 @@ fn test01() {
     let pair = Pair { fst: 1, snd: 0 };
     let x = test00(pair); //~ ERROR precondition
 }
+
+#[flux::sig(fn(x: i32, Pair[@a, @b, |a, b| a >= x]) -> i32{v: v > x})]
+fn test02(x: i32, pair: Pair) -> i32 {
+    pair.fst //~ ERROR postcondition
+}

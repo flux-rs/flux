@@ -23,3 +23,8 @@ fn test02() {
     let pair = Pair { fst: 0, snd: 1 };
     let x = test01(pair);
 }
+
+#[flux::sig(fn(x: i32, Pair[@a, @b, |a, b| a > x]) -> i32{v: v > x})]
+fn test03(x: i32, pair: Pair) -> i32 {
+    pair.fst
+}
