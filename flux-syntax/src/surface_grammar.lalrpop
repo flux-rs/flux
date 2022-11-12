@@ -180,9 +180,11 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
-    <Level1>                         => surface::RefineArg::Expr(<>),
-    "|"<Comma<Ident>> "|" <Level1>   => surface::RefineArg::Abs(<>)
+    <lo:@L> "@" <bind:Ident> <hi:@R>               => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
+    <Level1>                                       => surface::RefineArg::Expr(<>),
+    <lo:@L> "|"<params: Comma<Ident>> "|" <body:Level1> <hi:@R> => {
+        surface::RefineArg::Abs(params, body, mk_span(lo, hi))
+    }
 };
 
 pub Expr = Level1;

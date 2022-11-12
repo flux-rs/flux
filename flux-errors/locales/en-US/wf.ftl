@@ -28,3 +28,7 @@ wf_invalid_param_in_func_pos =
         [true] abstract refinements are only allowed in a top-level conjunction
         *[false] parameters of sort `{$sort}` are not supported in this position
      }
+
+wf_unexpected_fun =
+    mismatched sorts
+    .label = expected `{$sort}`, found function

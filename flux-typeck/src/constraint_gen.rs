@@ -220,7 +220,6 @@ fn subtyping(genv: &GlobalEnv, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty, t
 
     match (ty1.kind(), ty2.kind()) {
         (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idx2)) => {
-            println!("{ty1:?} <: {ty2:?}");
             bty_subtyping(genv, constr, bty1, bty2, tag);
             for (arg1, arg2) in iter::zip(idxs1.args(), idx2.args()) {
                 arg_subtyping(constr, arg1, arg2, tag);

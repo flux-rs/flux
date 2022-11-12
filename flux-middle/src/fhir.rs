@@ -174,11 +174,11 @@ pub struct Indices {
 pub enum RefineArg {
     Expr {
         expr: Expr,
-        /// Whether this index was used as a binder in the surface syntax. Used as a hint for inferring
-        /// parameters at function calls.
+        /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
+        /// inferring parameters at function calls.
         is_binder: bool,
     },
-    Abs(Vec<RefineParam>, Expr),
+    Abs(Vec<RefineParam>, Expr, Span),
 }
 
 pub enum BaseTy {
@@ -253,12 +253,6 @@ pub struct Ident {
 newtype_index! {
     pub struct Name {
         DEBUG_FORMAT = "x{}",
-    }
-}
-
-impl UFun {
-    pub fn new(symbol: Symbol, span: Span) -> Self {
-        Self { symbol, span }
     }
 }
 
@@ -596,7 +590,9 @@ impl fmt::Debug for RefineArg {
                 }
                 write!(f, "{expr:?}")
             }
-            RefineArg::Abs(params, body) => write!(f, "|{:?}| {body:?}", params.iter().format(",")),
+            RefineArg::Abs(params, body, _) => {
+                write!(f, "|{:?}| {body:?}", params.iter().format(","))
+            }
         }
     }
 }

@@ -171,7 +171,7 @@ pub enum RefineArg {
     /// @n, the span correspond to the span of @ plus the identifier
     Bind(Ident, Span),
     Expr(Expr),
-    Abs(Vec<Ident>, Expr),
+    Abs(Vec<Ident>, Expr, Span),
 }
 
 #[derive(Debug)]

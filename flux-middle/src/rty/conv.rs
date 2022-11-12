@@ -299,7 +299,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::RefineArg::Expr { expr, .. } => {
                 rty::RefineArg::Expr(self.name_map.conv_expr(expr, nbinders))
             }
-            fhir::RefineArg::Abs(params, body) => {
+            fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = sort.as_func();
                 let names = params.iter().map(|param| param.name.name).collect_vec();
                 let abs = self

@@ -6,7 +6,7 @@ use std::{borrow::Borrow, iter};
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_middle::fhir;
-use itertools::izip;
+use itertools::{izip, Itertools};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Span;
@@ -141,7 +141,8 @@ impl<'a> Wf<'a> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices = self.check_indices(&env, &variant.ret.indices, self.sorts(&variant.ret.bty));
+        let indices =
+            self.check_indices(&mut env, &variant.ret.indices, self.sorts(&variant.ret.bty));
         fields?;
         indices?;
         Ok(())
@@ -237,9 +238,9 @@ impl<'a> Wf<'a> {
 
     fn check_indices(
         &self,
-        env: &Env,
+        env: &mut Env<'a>,
         indices: &fhir::Indices,
-        expected: &[fhir::Sort],
+        expected: &'a [fhir::Sort],
     ) -> Result<(), ErrorGuaranteed> {
         if expected.len() != indices.indices.len() {
             return self.emit_err(errors::ParamCountMismatch::new(
@@ -255,9 +256,9 @@ impl<'a> Wf<'a> {
 
     fn check_arg(
         &self,
-        env: &Env,
+        env: &mut Env<'a>,
         arg: &fhir::RefineArg,
-        expected: &fhir::Sort,
+        expected: &'a fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             fhir::RefineArg::Expr { expr, .. } => {
@@ -267,7 +268,16 @@ impl<'a> Wf<'a> {
                 }
                 self.check_param_uses(env, expr, false)
             }
-            fhir::RefineArg::Abs(_, _) => Ok(()),
+            fhir::RefineArg::Abs(params, body, span) => {
+                if let fhir::Sort::Func(fsort) = expected {
+                    let binders = params.iter().map(|param| param.name.name).collect_vec();
+                    env.with_binders(&binders, fsort.inputs(), |env| {
+                        self.check_expr(env, body, fsort.output())
+                    })
+                } else {
+                    self.emit_err(errors::UnexpectedFun::new(*span, expected))
+                }
+            }
         }
     }
 
@@ -275,6 +285,8 @@ impl<'a> Wf<'a> {
         self.check_expr(env, expr, &fhir::Sort::Bool)?;
         self.check_param_uses(env, expr, true)
     }
+
+    // fn check_abs(&self, env: &Env, arg: &)
 
     fn check_expr(
         &self,
@@ -546,6 +558,21 @@ mod errors {
     impl<'a> InvalidParamPos<'a> {
         pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
             Self { span, sort, is_pred: sort.is_pred() }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::unexpected_fun, code = "FLUX")]
+    pub(super) struct UnexpectedFun<'a> {
+        #[primary_span]
+        #[label]
+        span: Span,
+        sort: &'a fhir::Sort,
+    }
+
+    impl<'a> UnexpectedFun<'a> {
+        pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+            Self { span, sort }
         }
     }
 }

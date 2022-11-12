@@ -5,6 +5,7 @@ use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{fhir, intern::List};
 use flux_syntax::surface::{self, Res, TyCtxt};
+use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
@@ -131,7 +132,7 @@ pub fn desugar_fn_sig(
     let args = fn_sig
         .args
         .into_iter()
-        .map(|arg| cx.desugar_arg(arg))
+        .map(|arg| cx.desugar_fun_arg(arg))
         .try_collect_exhaust()?;
 
     let ret = match fn_sig.returns {
@@ -231,7 +232,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         ExprCtxt::new(self.tcx, self.sess, self.map, &self.binders)
     }
 
-    fn desugar_arg(&mut self, arg: surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn desugar_fun_arg(&mut self, arg: surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
                 let ty = match self.desugar_path(path)? {
@@ -293,16 +294,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
-                            let (pred, _) = self.binders.with_bind(ident, binder, |binders| {
-                                ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-                                    .desugar_expr(pred)
-                            })?;
+                            let (pred, _) =
+                                self.binders.with_binders([(ident, binder)], |binders| {
+                                    ExprCtxt::new(self.tcx, self.sess, self.map, binders)
+                                        .desugar_expr(pred)
+                                })?;
                             let idxs = self.desugar_bind(bind)?;
                             fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
                         } else {
                             let binder = Binder::from_res(&self.binders.name_gen, self.map, res);
                             let (pred, binder) =
-                                self.binders.with_bind(ident, binder, |binders| {
+                                self.binders.with_binder(ident, binder, |binders| {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
@@ -395,10 +397,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     is_binder: false,
                 }])
             }
-            surface::RefineArg::Abs(params, body) => {
+            surface::RefineArg::Abs(params, body, span) => {
                 let binders = Binders::from_abs(self.sess, &params)?;
                 let body = self.expr_ctxt_with(&binders).desugar_expr(body)?;
-                Ok(vec![fhir::RefineArg::Abs(binders.into_params(), body)])
+                Ok(vec![fhir::RefineArg::Abs(binders.into_params(), body, span)])
             }
         }
     }
@@ -696,20 +698,37 @@ impl Binders {
         self.map.get(ident.borrow())
     }
 
-    fn with_bind<R>(
+    fn with_binder<R>(
         &mut self,
         ident: surface::Ident,
         binder: Binder,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
     ) -> Result<(R, Binder), ErrorGuaranteed> {
-        let old = self.map.insert(ident, binder);
+        let (r, mut binders) = self.with_binders([(ident, binder)], f)?;
+        Ok((r, binders.pop().unwrap()))
+    }
+
+    fn with_binders<R>(
+        &mut self,
+        binders: impl IntoIterator<Item = (surface::Ident, Binder)>,
+        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
+    ) -> Result<(R, Vec<Binder>), ErrorGuaranteed> {
+        let mut old = vec![];
+        for (ident, binder) in binders {
+            old.push((ident, self.map.insert(ident, binder)));
+        }
         let r = f(self)?;
-        let binder = if let Some(old) = old {
-            self.map.insert(ident, old).unwrap()
-        } else {
-            self.map.remove(&ident).unwrap()
-        };
-        Ok((r, binder))
+        let binders = old
+            .into_iter()
+            .map(|(ident, binder)| {
+                if let Some(binder) = binder {
+                    self.map.insert(ident, binder).unwrap()
+                } else {
+                    self.map.remove(&ident).unwrap()
+                }
+            })
+            .collect_vec();
+        Ok((r, binders))
     }
 
     fn insert_binder(
