@@ -2,7 +2,6 @@ use std::{fmt, sync::OnceLock};
 
 use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
-use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
@@ -11,6 +10,7 @@ use rustc_span::Symbol;
 use super::BaseTy;
 use crate::{
     intern::{impl_internable, Interned, List},
+    rty::fold::{TypeFoldable, TypeFolder},
     rustc::mir::{Place, PlaceElem},
 };
 
@@ -222,7 +222,7 @@ impl Expr {
     }
 }
 
-impl ExprS {
+impl Expr {
     pub fn kind(&self) -> &ExprKind {
         &self.kind
     }
@@ -239,47 +239,42 @@ impl ExprS {
     /// Simplify expression applying some simple rules like removing double negation. This is
     /// only used for pretty printing.
     pub fn simplify(&self) -> Expr {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Expr::fvar(*name),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
-            ExprKind::BoundVar(idx) => Expr::bvar(*idx),
-            ExprKind::Local(local) => Expr::local(*local),
-            ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::BinaryOp(op, e1, e2) => {
-                let e1 = e1.simplify();
-                let e2 = e2.simplify();
-                match (op, e1.kind(), e2.kind()) {
-                    (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _)
-                    | (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                        Expr::constant(Constant::Bool(false))
+        struct Simplify;
+
+        impl TypeFolder for Simplify {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                match expr.kind() {
+                    ExprKind::BinaryOp(op, e1, e2) => {
+                        let e1 = e1.fold_with(self);
+                        let e2 = e2.fold_with(self);
+                        match (op, e1.kind(), e2.kind()) {
+                            (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _)
+                            | (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
+                                Expr::constant(Constant::Bool(false))
+                            }
+                            (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
+                            (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
+                            _ => Expr::binary_op(*op, e1, e2),
+                        }
                     }
-                    (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
-                    (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
-                    _ => Expr::binary_op(*op, e1, e2),
-                }
-            }
-            ExprKind::UnaryOp(UnOp::Not, e) => {
-                let e = e.simplify();
-                match e.kind() {
-                    ExprKind::Constant(Constant::Bool(b)) => Expr::constant(Constant::Bool(!b)),
-                    ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
-                    ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                        Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone())
+                    ExprKind::UnaryOp(UnOp::Not, e) => {
+                        let e = e.fold_with(self);
+                        match e.kind() {
+                            ExprKind::Constant(Constant::Bool(b)) => {
+                                Expr::constant(Constant::Bool(!b))
+                            }
+                            ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
+                            ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
+                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone())
+                            }
+                            _ => Expr::unary_op(UnOp::Not, e),
+                        }
                     }
-                    _ => Expr::unary_op(UnOp::Not, e),
+                    _ => expr.super_fold_with(self),
                 }
-            }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.simplify()),
-            ExprKind::TupleProj(e, field) => Expr::proj(e.simplify(), *field),
-            ExprKind::Tuple(exprs) => Expr::tuple(exprs.iter().map(|e| e.simplify()).collect_vec()),
-            ExprKind::PathProj(e, field) => Expr::path_proj(e.clone(), *field),
-            ExprKind::App(f, exprs) => {
-                Expr::app(*f, exprs.iter().map(|e| e.simplify()).collect_vec())
-            }
-            ExprKind::IfThenElse(p, e1, e2) => {
-                Expr::ite(p.simplify(), e1.simplify(), e2.simplify())
             }
         }
+        self.fold_with(&mut Simplify)
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
@@ -563,10 +558,10 @@ mod pretty {
         }
     }
 
-    impl Pretty for ExprS {
+    impl Pretty for Expr {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            fn should_parenthesize(op: &BinOp, child: &ExprS) -> bool {
+            fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
                 if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
                     precedence(child_op) < precedence(op)
                         || (precedence(child_op) == precedence(op)
@@ -575,7 +570,7 @@ mod pretty {
                     false
                 }
             }
-            let e = if cx.simplify_exprs { self.simplify() } else { Interned::new(self.clone()) };
+            let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
                 ExprKind::ConstDefId(did) => w!("{:?}", ^did),
@@ -696,5 +691,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(ExprS, Loc, Path, BoundVar, Var);
+    impl_debug_with_default_cx!(Expr, Loc, Path, BoundVar, Var);
 }
