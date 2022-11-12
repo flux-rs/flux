@@ -28,3 +28,8 @@ fn test02() {
 fn test03(x: i32, pair: Pair) -> i32 {
     pair.fst
 }
+
+fn test04() {
+    let pair = Pair { fst: 10, snd: 0 };
+    test03(0, pair);
+}

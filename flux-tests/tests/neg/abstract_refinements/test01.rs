@@ -23,3 +23,8 @@ fn test01() {
 fn test02(x: i32, pair: Pair) -> i32 {
     pair.fst //~ ERROR postcondition
 }
+
+fn test03() {
+    let pair = Pair { fst: 0, snd: 0 };
+    test02(10, pair); //~ ERROR precondition
+}
