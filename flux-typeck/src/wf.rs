@@ -6,7 +6,7 @@ use std::{borrow::Borrow, iter};
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_middle::fhir;
-use itertools::{izip, Itertools};
+use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Span;
@@ -270,8 +270,7 @@ impl<'a> Wf<'a> {
             }
             fhir::RefineArg::Abs(params, body, span) => {
                 if let fhir::Sort::Func(fsort) = expected {
-                    let binders = params.iter().map(|param| param.name.name).collect_vec();
-                    env.with_binders(&binders, fsort.inputs(), |env| {
+                    env.with_binders(&params, fsort.inputs(), |env| {
                         self.check_expr(env, body, fsort.output())
                     })
                 } else {

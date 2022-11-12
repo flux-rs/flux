@@ -178,7 +178,7 @@ pub enum RefineArg {
         /// inferring parameters at function calls.
         is_binder: bool,
     },
-    Abs(Vec<RefineParam>, Expr, Span),
+    Abs(Vec<Name>, Expr, Span),
 }
 
 pub enum BaseTy {

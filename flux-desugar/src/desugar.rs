@@ -400,7 +400,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::RefineArg::Abs(params, body, span) => {
                 let binders = Binders::from_abs(self.sess, &params)?;
                 let body = self.expr_ctxt_with(&binders).desugar_expr(body)?;
-                Ok(vec![fhir::RefineArg::Abs(binders.into_params(), body, span)])
+                let params = binders
+                    .into_params()
+                    .into_iter()
+                    .map(|param| param.name.name)
+                    .collect_vec();
+                Ok(vec![fhir::RefineArg::Abs(params, body, span)])
             }
         }
     }

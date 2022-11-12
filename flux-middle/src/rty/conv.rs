@@ -301,10 +301,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = sort.as_func();
-                let names = params.iter().map(|param| param.name.name).collect_vec();
                 let abs = self
                     .name_map
-                    .with_binders(&names, nbinders, |name_map, nbinders| {
+                    .with_binders(&params, nbinders, |name_map, nbinders| {
                         let body = name_map.conv_expr(body, nbinders);
                         rty::Binders::new(rty::Pred::Expr(body), fsort.inputs())
                     });
