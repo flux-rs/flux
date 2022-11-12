@@ -696,5 +696,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(ExprS, Loc, Path, BoundVar,);
+    impl_debug_with_default_cx!(ExprS, Loc, Path, BoundVar, Var);
 }

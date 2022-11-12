@@ -129,8 +129,8 @@ ArgTyKind: surface::TyKind = {
 
     "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
 
-    "&"        <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
-    "&" "mut"  <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+    "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
+    "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
     "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
 
@@ -176,12 +176,15 @@ Refinement: surface::Expr = {
 };
 
 Indices: surface::Indices = {
-    <lo:@L> <indices:Comma<Index>> <hi:@R> => surface::Indices { indices, span: mk_span(lo, hi) }
+    <lo:@L> <indices:Comma<RefineArg>> <hi:@R> => surface::Indices { indices, span: mk_span(lo, hi) }
 };
 
-Index: surface::Index = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::Index::Bind(bind, mk_span(lo, hi)),
-    <Level1>                         => surface::Index::Expr(<>),
+RefineArg: surface::RefineArg = {
+    <lo:@L> "@" <bind:Ident> <hi:@R>               => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
+    <Level1>                                       => surface::RefineArg::Expr(<>),
+    <lo:@L> "|"<params: Comma<Ident>> "|" <body:Level1> <hi:@R> => {
+        surface::RefineArg::Abs(params, body, mk_span(lo, hi))
+    }
 };
 
 pub Expr = Level1;
