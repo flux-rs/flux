@@ -270,7 +270,7 @@ impl<'a> Wf<'a> {
             }
             fhir::RefineArg::Abs(params, body, span) => {
                 if let fhir::Sort::Func(fsort) = expected {
-                    env.with_binders(&params, fsort.inputs(), |env| {
+                    env.with_binders(params, fsort.inputs(), |env| {
                         self.check_expr(env, body, fsort.output())
                     })
                 } else {

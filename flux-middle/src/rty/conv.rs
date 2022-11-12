@@ -303,7 +303,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let fsort = sort.as_func();
                 let abs = self
                     .name_map
-                    .with_binders(&params, nbinders, |name_map, nbinders| {
+                    .with_binders(params, nbinders, |name_map, nbinders| {
                         let body = name_map.conv_expr(body, nbinders);
                         rty::Binders::new(rty::Pred::Expr(body), fsort.inputs())
                     });

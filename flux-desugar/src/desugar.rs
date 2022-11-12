@@ -225,7 +225,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn expr_ctxt_with<'b>(&'b self, binders: &'b Binders) -> ExprCtxt<'b, 'tcx> {
-        ExprCtxt::new(self.tcx, self.sess, self.map, &binders)
+        ExprCtxt::new(self.tcx, self.sess, self.map, binders)
     }
 
     fn as_expr_ctxt(&self) -> ExprCtxt<'_, 'tcx> {
