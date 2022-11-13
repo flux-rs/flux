@@ -27,7 +27,7 @@ pub struct ConstrGen<'a, 'tcx> {
     tag: Tag,
 }
 
-struct SubCtxt<'a, 'tcx> {
+struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     evars: EVarCtxt,
     tag: Tag,
@@ -83,16 +83,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         constraint: &Constraint,
     ) -> Result<(), OpaqueStructErr> {
-        match constraint {
-            Constraint::Type(path, ty) => {
-                let actual_ty = env.lookup_path(rcx, self, path)?;
-                self.sub_ctxt().subtyping(rcx, &actual_ty, ty);
-            }
-            Constraint::Pred(e) => {
-                rcx.check_pred(e, self.tag);
-            }
-        }
-        Ok(())
+        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| {
+            infcx.check_constraint(rcx, env, &mut *self.fresh_kvar, constraint)
+        })
     }
 
     pub fn check_pred(&mut self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
@@ -100,7 +93,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     }
 
     pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        self.sub_ctxt().subtyping(rcx, ty1, ty2);
+        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| infcx.subtyping(rcx, ty1, ty2))
     }
 
     pub fn check_fn_call(
@@ -133,55 +126,54 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.fresh_kvar)?;
-        let mut sub = self.sub_ctxt();
-        let rcx = &mut rcx.breadcrumb();
-
-        let fn_sig = fn_sig.replace_generic_args(&substs).replace_bvars(&exprs);
-        // .replace_bvars_with(|sort| {
-        //     if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-        //         RefineArg::Abs((self.fresh_kvar)(fsort.inputs()))
-        //     } else {
-        //         RefineArg::Expr(Expr::evar(sub.fresh_evar()))
-        //     }
-        // });
-
-        // Convert pointers to borrows
-        let actuals = iter::zip(actuals, fn_sig.args())
-            .map(|(actual, formal)| {
-                let formal = formal.unconstr();
-                match (actual.kind(), formal.kind()) {
-                    (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        sub.subtyping(rcx, &env.get(path), bound);
-                        env.update(path, bound.clone());
-                        env.block(path);
-                        Ty::mk_ref(RefKind::Mut, bound.clone())
+        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| {
+            let fn_sig = fn_sig
+                .replace_generic_args(&substs)
+                .replace_bvars_with(|sort| {
+                    if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
+                        RefineArg::Abs((self.fresh_kvar)(fsort.inputs()))
+                    } else {
+                        RefineArg::Expr(Expr::evar(infcx.fresh_evar()))
                     }
-                    (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = Ty::mk_ref(RefKind::Shr, env.get(path));
-                        env.block(path);
-                        ty
+                });
+
+            // Convert pointers to borrows
+            let actuals = iter::zip(actuals, fn_sig.args())
+                .map(|(actual, formal)| {
+                    let formal = formal.unconstr();
+                    match (actual.kind(), formal.kind()) {
+                        (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                            infcx.subtyping(rcx, &env.get(path), bound);
+                            let bound = bound.replace_evars(&infcx.evars);
+                            env.update(path, bound.clone());
+                            env.block(path);
+                            Ty::mk_ref(RefKind::Mut, bound)
+                        }
+                        (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
+                            let ty = Ty::mk_ref(RefKind::Shr, env.get(path));
+                            env.block(path);
+                            ty
+                        }
+                        _ => actual.clone(),
                     }
-                    _ => actual.clone(),
-                }
-            })
-            .collect_vec();
+                })
+                .collect_vec();
 
-        // Check arguments
-        for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            sub.subtyping(rcx, &actual, formal);
-        }
+            // Check arguments
+            for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
+                infcx.subtyping(rcx, &actual, formal);
+            }
 
-        // Check preconditions
-        for constraint in &fn_sig.requires().replace_evars(&sub.evars) {
-            self.check_constraint(&mut rcx.breadcrumb(), env, constraint)?;
-        }
+            // Check preconditions
+            for constraint in &fn_sig.requires().replace_evars(&infcx.evars) {
+                infcx.check_constraint(rcx, env, &mut self.fresh_kvar, constraint)?;
+            }
 
-        rcx.replace_evars(&sub.evars);
-        let ret = fn_sig.ret().replace_evars(&sub.evars);
-        let ensures = fn_sig.ensures().replace_evars(&sub.evars);
+            let ret = fn_sig.ret().replace_evars(&infcx.evars);
+            let ensures = fn_sig.ensures().replace_evars(&infcx.evars);
 
-        Ok(CallOutput { ret, ensures })
+            Ok(CallOutput { ret, ensures })
+        })
     }
 
     pub fn check_constructor(
@@ -201,26 +193,55 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.fresh_kvar)?;
         let variant = variant.replace_generic_args(&substs).replace_bvars(&exprs);
 
-        // Check arguments
-        for (actual, formal) in iter::zip(fields, variant.fields()) {
-            self.sub_ctxt().subtyping(rcx, actual, formal);
-        }
+        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| {
+            // Check arguments
+            for (actual, formal) in iter::zip(fields, variant.fields()) {
+                infcx.subtyping(rcx, actual, formal);
+            }
+        });
 
         Ok(variant.ret)
     }
-
-    fn sub_ctxt(&self) -> SubCtxt<'a, 'tcx> {
-        SubCtxt::new(self.genv, self.tag)
-    }
 }
 
-impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
-    fn new(genv: &'a GlobalEnv<'a, 'tcx>, tag: Tag) -> Self {
-        Self { genv, evars: EVarCtxt::new(), tag }
+impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
+    fn with<R>(
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        rcx: &mut RefineCtxt,
+        tag: Tag,
+        f: impl FnOnce(&mut RefineCtxt, &mut Self) -> R,
+    ) -> R {
+        let mut infcx = Self { genv, evars: EVarCtxt::new(), tag };
+        let r = f(&mut rcx.breadcrumb(), &mut infcx);
+        rcx.replace_evars(&infcx.evars);
+        r
     }
 
     fn fresh_evar(&mut self) -> EVar {
         self.evars.fresh()
+    }
+
+    fn check_constraint(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        fresh_kvar: &mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
+        constraint: &Constraint,
+    ) -> Result<(), OpaqueStructErr> {
+        let rcx = &mut rcx.breadcrumb();
+        match constraint {
+            Constraint::Type(path, ty) => {
+                let actual_ty = {
+                    let gen = &mut ConstrGen::new(self.genv, fresh_kvar, self.tag);
+                    env.lookup_path(rcx, gen, path)?
+                };
+                self.subtyping(rcx, &actual_ty, ty);
+            }
+            Constraint::Pred(e) => {
+                rcx.check_pred(e, self.tag);
+            }
+        }
+        Ok(())
     }
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {

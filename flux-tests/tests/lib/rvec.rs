@@ -105,6 +105,7 @@ impl<T> Iterator for RVecIter<T> {
 impl<T> std::ops::Index<usize> for RVec<T> {
     type Output = T;
 
+    #[flux::assume]
     #[flux::sig(fn(&RVec<T>[@n], usize{v : v < n}) -> &T)]
     fn index(&self, index: usize) -> &T {
         self.get(index)
@@ -112,6 +113,7 @@ impl<T> std::ops::Index<usize> for RVec<T> {
 }
 
 impl<T> std::ops::IndexMut<usize> for RVec<T> {
+    #[flux::assume]
     #[flux::sig(fn(&mut RVec<T>[@n], usize{v : v < n}) -> &mut T)]
     fn index_mut(&mut self, index: usize) -> &mut T {
         self.get_mut(index)

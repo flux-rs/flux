@@ -27,13 +27,13 @@ impl RMat {
         Self { cols, inner }
     }
 
-    #[flux::sig(fn(&RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &f32)]
-    pub fn get(&self, i: usize, j: usize) -> &f32 {
-        &self.inner.get(i).get(j)
-    }
+    // #[flux::sig(fn(&RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &f32)]
+    // pub fn get(&self, i: usize, j: usize) -> &f32 {
+    //     &self.inner.get(i).get(j)
+    // }
 
-    #[flux::sig(fn(&mut RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &mut f32)]
-    pub fn get_mut(&mut self, i: usize, j: usize) -> &mut f32 {
-        self.inner.get_mut(i).get_mut(j)
-    }
+    // #[flux::sig(fn(&mut RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &mut f32)]
+    // pub fn get_mut(&mut self, i: usize, j: usize) -> &mut f32 {
+    //     self.inner.get_mut(i).get_mut(j)
+    // }
 }
