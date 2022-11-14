@@ -298,13 +298,12 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         match self.tcx.resolve_instance(param_env.and((trait_f, substs))) {
             Ok(Some(instance)) => {
                 let impl_f = instance.def_id();
-                let inst = if impl_f != trait_f {
-                    let substs = lower_substs(self.tcx, instance.substs)?;
-                    Some(Instance { impl_f, substs })
+                if impl_f == trait_f {
+                    Ok(None)
                 } else {
-                    None
-                };
-                Ok(inst)
+                    let substs = lower_substs(self.tcx, instance.substs)?;
+                    Ok(Some(Instance { impl_f, substs }))
+                }
             }
             _ => Ok(None),
         }
@@ -482,14 +481,16 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 }
 
 /// [NOTE:Fake Predecessors] The `FalseEdge/imaginary_target` edges mess up
-/// the "is_join_point" computation which creates spurious join points that
+/// the `is_join_point` computation which creates spurious join points that
 /// lose information e.g. in match arms, the k+1-th arm has the k-th arm as
 /// a "fake" predecessor so we lose the assumptions specific to the k+1-th
 /// arm due to a spurious join. This code corrects for this problem by
 /// computing the number of "fake" predecessors and decreasing them from
 /// the total number of "predecessors" returned by `rustc`.
 /// The option is to recompute "predecessors" from scratch but we may miss
-/// some cases there. (see also `is_join_point`)
+/// some cases there. (see also [`is_join_point`])
+///
+/// [`is_join_point`] crate::rustc::mir::Body::is_join_point
 fn mk_fake_predecessors(
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
 ) -> IndexVec<BasicBlock, usize> {
@@ -524,8 +525,8 @@ pub fn lower_adt_def<'tcx>(
 ) -> Result<AdtDef, ErrorGuaranteed> {
     let adt_def_id = adt_def.did();
     let mut variants = vec![];
-    for variant_def in adt_def.variants().into_iter() {
-        variants.push(lower_variant_def(tcx, sess, adt_def_id, variant_def)?)
+    for variant_def in adt_def.variants() {
+        variants.push(lower_variant_def(tcx, sess, adt_def_id, variant_def)?);
     }
     Ok(AdtDef { variants })
 }

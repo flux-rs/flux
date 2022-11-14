@@ -186,7 +186,7 @@ impl TypeEnv {
     }
 
     pub fn block(&mut self, path: &Path) {
-        self.bindings.block(path)
+        self.bindings.block(path);
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {

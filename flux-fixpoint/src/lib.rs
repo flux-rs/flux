@@ -86,7 +86,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
             let mut w = BufWriter::new(stdin.unwrap());
             // let mut w = BufWriter::new(std::io::stdout());
 
-            writeln!(w, "{}", self)?;
+            writeln!(w, "{self}")?;
         }
         let out = child.wait_with_output()?;
 
@@ -136,7 +136,7 @@ impl fmt::Display for KVar {
             self.0,
             self.1
                 .iter()
-                .format_with(" ", |sort, f| f(&format_args!("({})", sort)))
+                .format_with(" ", |sort, f| f(&format_args!("({sort})")))
         )
     }
 }

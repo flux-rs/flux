@@ -38,7 +38,7 @@ impl FVarSubst {
         arg2: &RefineArg,
     ) {
         if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-            self.infer_from_exprs(params, e1, e2)
+            self.infer_from_exprs(params, e1, e2);
         }
     }
 

@@ -17,7 +17,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, EnumDef, ImplItemKind, Item, ItemKind, VariantData};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -615,14 +615,14 @@ impl FluxAttrCFG {
                     if self.map.get(&name).is_some() {
                         return Err(errors::CFGError {
                             span,
-                            message: format!("duplicated setting `{}`", name),
+                            message: format!("duplicated setting `{name}`"),
                         });
                     }
 
                     // TODO: support types of values other than strings
                     let value = item
                         .value_str()
-                        .map(|symbol| symbol.to_ident_string())
+                        .map(Symbol::to_ident_string)
                         .ok_or_else(|| {
                             errors::CFGError { span, message: "unsupported value".to_string() }
                         })?;
@@ -654,7 +654,7 @@ impl FluxAttrCFG {
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {
                 span: setting.span,
-                message: format!("invalid crate cfg keyword `{}`", name),
+                message: format!("invalid crate cfg keyword `{name}`"),
             });
         }
 

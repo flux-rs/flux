@@ -286,7 +286,7 @@ impl fmt::Debug for Body<'_> {
                     .format_with("", |stmt, f| f(&format_args!("\n    {stmt:?};")))
             )?;
             if let Some(terminator) = &data.terminator {
-                writeln!(f, "    {terminator:?}", terminator = terminator)?;
+                writeln!(f, "    {terminator:?}")?;
             }
             writeln!(f, "}}\n")?;
         }
@@ -297,10 +297,10 @@ impl fmt::Debug for Body<'_> {
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            StatementKind::Assign(place, rvalue) => write!(f, "{:?} = {:?}", place, rvalue),
+            StatementKind::Assign(place, rvalue) => write!(f, "{place:?} = {rvalue:?}"),
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::SetDiscriminant(place, variant_idx) => {
-                write!(f, "discriminant({:?}) = {:?}", place, variant_idx)
+                write!(f, "discriminant({place:?}) = {variant_idx:?}")
             }
             StatementKind::FakeRead(box (cause, place)) => {
                 write!(f, "FakeRead({cause:?}, {place:?})")
@@ -340,7 +340,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
                     "switchInt({discr:?}) -> [{}, otherwise: {:?}]",
                     targets
                         .iter()
-                        .format_with(", ", |(val, bb), f| f(&format_args!("{:?}: {:?}", val, bb))),
+                        .format_with(", ", |(val, bb), f| f(&format_args!("{val:?}: {bb:?}"))),
                     targets.otherwise()
                 )
             }
@@ -401,19 +401,19 @@ impl fmt::Debug for Place {
                 }
             }
         }
-        write!(f, "{}", p)
+        write!(f, "{p}")
     }
 }
 
 impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rvalue::Use(op) => write!(f, "{:?}", op),
-            Rvalue::MutRef(place) => write!(f, "&mut {:?}", place),
-            Rvalue::ShrRef(place) => write!(f, "& {:?}", place),
-            Rvalue::Discriminant(place) => write!(f, "discriminant({:?})", place),
-            Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{:?}({:?}, {:?})", bin_op, op1, op2),
-            Rvalue::UnaryOp(un_up, op) => write!(f, "{:?}({:?})", un_up, op),
+            Rvalue::Use(op) => write!(f, "{op:?}"),
+            Rvalue::MutRef(place) => write!(f, "&mut {place:?}"),
+            Rvalue::ShrRef(place) => write!(f, "& {place:?}"),
+            Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
+            Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
+            Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*def_id);
@@ -455,9 +455,9 @@ impl fmt::Debug for CastKind {
 impl fmt::Debug for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Copy(place) => write!(f, "copy {:?}", place),
-            Self::Move(place) => write!(f, "move {:?}", place),
-            Self::Constant(c) => write!(f, "{:?}", c),
+            Self::Copy(place) => write!(f, "copy {place:?}"),
+            Self::Move(place) => write!(f, "move {place:?}"),
+            Self::Constant(c) => write!(f, "{c:?}"),
         }
     }
 }
@@ -465,10 +465,10 @@ impl fmt::Debug for Operand {
 impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Int(n, int_ty) => write!(f, "{}{}", n, int_ty.name_str()),
-            Constant::Uint(n, uint_ty) => write!(f, "{}{}", n, uint_ty.name_str()),
-            Constant::Float(bits, float_ty) => write!(f, "{}{}", bits, float_ty.name_str()),
-            Constant::Bool(b) => write!(f, "{}", b),
+            Constant::Int(n, int_ty) => write!(f, "{n}{}", int_ty.name_str()),
+            Constant::Uint(n, uint_ty) => write!(f, "{n}{}", uint_ty.name_str()),
+            Constant::Float(bits, float_ty) => write!(f, "{bits}{}", float_ty.name_str()),
+            Constant::Bool(b) => write!(f, "{b}"),
             Constant::Unit => write!(f, "()"),
             Constant::Str => write!(f, "\"<opaque str>\""),
             Constant::Char => write!(f, "\"<opaque char>\""),

@@ -294,18 +294,13 @@ impl RefineArg {
 }
 
 impl FnSig {
-    pub fn new<A, B, C>(requires: A, args: B, ret: Ty, ensures: C) -> Self
-    where
-        List<Constraint>: From<A>,
-        List<Ty>: From<B>,
-        List<Constraint>: From<C>,
-    {
-        FnSig {
-            requires: Interned::from(requires),
-            args: Interned::from(args),
-            ret,
-            ensures: Interned::from(ensures),
-        }
+    pub fn new(
+        requires: impl Into<List<Constraint>>,
+        args: impl Into<List<Ty>>,
+        ret: Ty,
+        ensures: impl Into<List<Constraint>>,
+    ) -> Self {
+        FnSig { requires: requires.into(), args: args.into(), ret, ensures: ensures.into() }
     }
     pub fn requires(&self) -> &Constraints {
         &self.requires
@@ -968,7 +963,7 @@ mod pretty {
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?
+                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
                 }
                 KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
                 KVarArgs::Hide => {}

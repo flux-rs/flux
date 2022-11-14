@@ -103,8 +103,8 @@ fn dump_constraint<C: std::fmt::Debug>(
 ) -> Result<(), std::io::Error> {
     let dir = CONFIG.log_dir.join("horn");
     fs::create_dir_all(&dir)?;
-    let mut file = fs::File::create(dir.join(format!("{}{}", tcx.def_path_str(def_id), suffix)))?;
-    write!(file, "{:?}", c)
+    let mut file = fs::File::create(dir.join(format!("{}{suffix}", tcx.def_path_str(def_id))))?;
+    write!(file, "{c:?}")
 }
 
 mod errors {

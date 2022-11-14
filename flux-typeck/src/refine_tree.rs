@@ -141,7 +141,7 @@ impl RefineCtxt<'_> {
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Pred>, tag: Tag) {
-        self.check_constr().push_head(pred, tag)
+        self.check_constr().push_head(pred, tag);
     }
 
     pub fn check_constr(&mut self) -> ConstrBuilder {

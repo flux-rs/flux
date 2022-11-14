@@ -24,7 +24,7 @@ pub fn check_struct_def(
     iter::zip(&struct_def.fields, rust_variant_def.fields()).try_for_each_exhaust(
         |(ty, (rust_ty, field_def_id))| {
             if let Some(ty) = ty {
-                ZipChecker::new(tcx, sess, *field_def_id).zip_ty(ty, rust_ty)?
+                ZipChecker::new(tcx, sess, *field_def_id).zip_ty(ty, rust_ty)?;
             }
             Ok(())
         },
@@ -178,22 +178,21 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     fn zip_ty(&self, ty: &Ty<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
         match (&ty.kind, rust_ty.kind()) {
-            (TyKind::Path(path), _) => self.zip_path(path, rust_ty),
-            (TyKind::Indexed { path, .. }, _) => self.zip_path(path, rust_ty),
-            (TyKind::Exists { path, .. }, _) => self.zip_path(path, rust_ty),
+            (TyKind::Path(path), _)
+            | (TyKind::Indexed { path, .. }, _)
+            | (TyKind::Exists { path, .. }, _) => self.zip_path(path, rust_ty),
             (TyKind::Constr(_, ty), _) => self.zip_ty(ty, rust_ty),
             (TyKind::Ref(rk, ref_ty), rustc_ty::TyKind::Ref(rust_ty, mutability)) => {
                 self.zip_ty(ref_ty, rust_ty)?;
                 self.zip_mutability(ty.span, *rk, *mutability)
             }
-            (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
-            (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
+            (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _))
+            | (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             (TyKind::Tuple(tys), rustc_ty::TyKind::Tuple(rust_tys))
                 if tys.len() == rust_tys.len() =>
             {
                 iter::zip(tys, rust_tys)
-                    .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))?;
-                Ok(())
+                    .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))
             }
             _ => {
                 Err(self.sess.emit_err(errors::InvalidRefinement::new(
@@ -230,20 +229,20 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             (Res::Uint(uint_ty1), rustc_ty::TyKind::Uint(uint_ty2)) if uint_ty1 == uint_ty2 => {
                 Ok(())
             }
-            (Res::Bool, rustc_ty::TyKind::Bool) => Ok(()),
+            (Res::Int(int_ty1), rustc_ty::TyKind::Int(int_ty2)) if int_ty1 == int_ty2 => Ok(()),
             (Res::Float(float_ty1), rustc_ty::TyKind::Float(float_ty2))
                 if float_ty1 == float_ty2 =>
             {
                 Ok(())
             }
-            (Res::Int(int_ty1), rustc_ty::TyKind::Int(int_ty2)) if int_ty1 == int_ty2 => Ok(()),
             (Res::Param(param_ty1), rustc_ty::TyKind::Param(param_ty2))
                 if param_ty1 == param_ty2 =>
             {
                 Ok(())
             }
-            (Res::Str, rustc_ty::TyKind::Str) => Ok(()),
-            (Res::Char, rustc_ty::TyKind::Char) => Ok(()),
+            (Res::Bool, rustc_ty::TyKind::Bool)
+            | (Res::Str, rustc_ty::TyKind::Str)
+            | (Res::Char, rustc_ty::TyKind::Char) => Ok(()),
             _ => {
                 Err(self.sess.emit_err(errors::PathMismatch::new(
                     self.tcx,
@@ -262,8 +261,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
         mutability: rustc_ty::Mutability,
     ) -> Result<(), ErrorGuaranteed> {
         match (ref_kind, mutability) {
-            (RefKind::Mut, Mutability::Mut) => Ok(()),
-            (RefKind::Shr, Mutability::Not) => Ok(()),
+            (RefKind::Mut, Mutability::Mut) | (RefKind::Shr, Mutability::Not) => Ok(()),
             _ => {
                 Err(self.sess.emit_err(errors::MutabilityMismatch::new(
                     self.tcx,
@@ -335,7 +333,7 @@ mod errors {
 
     impl ArgCountMismatch {
         pub fn new(flux_span: Span, flux_args: usize, rust_span: Span, rust_args: usize) -> Self {
-            Self { flux_span, flux_args, rust_args, rust_span }
+            Self { flux_span, flux_args, rust_span, rust_args }
         }
     }
 

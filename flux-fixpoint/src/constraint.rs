@@ -156,7 +156,7 @@ where
             Constraint::Conj(preds) => {
                 match &preds[..] {
                     [] => write!(f, "((true))"),
-                    [pred] => write!(f, "{}", pred),
+                    [pred] => write!(f, "{pred}"),
                     preds => {
                         write!(f, "(and")?;
                         write!(PadAdapter::wrap_fmt(f, 2), "\n{}", preds.iter().join("\n"))?;
@@ -171,7 +171,7 @@ where
             }
             Constraint::ForAll(x, sort, body, head) => {
                 write!(f, "(forall (({x:?} {sort}) {body})")?;
-                write!(PadAdapter::wrap_fmt(f, 2), "\n{}", head)?;
+                write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
         }
@@ -242,14 +242,14 @@ impl fmt::Display for Pred {
             Pred::And(preds) => {
                 match &preds[..] {
                     [] => write!(f, "((true))"),
-                    [pred] => write!(f, "{}", pred),
+                    [pred] => write!(f, "{pred}"),
                     preds => write!(f, "(and {})", preds.iter().join(" ")),
                 }
             }
             Pred::KVar(kvid, vars) => {
-                write!(f, "({:?} {:?})", kvid, vars.iter().format(" "))
+                write!(f, "({kvid:?} {:?})", vars.iter().format(" "))
             }
-            Pred::Expr(expr) => write!(f, "({})", expr),
+            Pred::Expr(expr) => write!(f, "({expr})"),
         }
     }
 }
@@ -289,9 +289,9 @@ impl fmt::Display for Expr {
             }
             Expr::UnaryOp(op, e) => {
                 if matches!(e.as_ref(), Expr::Constant(_) | Expr::Var(_)) {
-                    write!(f, "{}{}", op, e)
+                    write!(f, "{op}{e}")
                 } else {
-                    write!(f, "{}({})", op, e)
+                    write!(f, "{op}({e})")
                 }
             }
             Expr::Pair(box [e1, e2]) => write!(f, "(Pair ({e1}) ({e2}))"),
@@ -299,13 +299,7 @@ impl fmt::Display for Expr {
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::Unit => write!(f, "Unit"),
             Expr::App(func, args) => {
-                write!(
-                    f,
-                    "({} {})",
-                    func,
-                    args.iter()
-                        .format_with(" ", |expr, f| { f(&format_args!("{}", FmtParens(expr))) }),
-                )
+                write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }
             Expr::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "if {p} then {e1} else {e2}")
@@ -494,9 +488,9 @@ impl fmt::Display for UnOp {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Int(Sign::Positive, n) => write!(f, "{}", n),
-            Constant::Int(Sign::Negative, n) => write!(f, "-{}", n),
-            Constant::Bool(b) => write!(f, "{}", b),
+            Constant::Int(Sign::Positive, n) => write!(f, "{n}"),
+            Constant::Int(Sign::Negative, n) => write!(f, "-{n}"),
+            Constant::Bool(b) => write!(f, "{b}"),
         }
     }
 }
