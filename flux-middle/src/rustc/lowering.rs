@@ -490,7 +490,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 /// The option is to recompute "predecessors" from scratch but we may miss
 /// some cases there. (see also [`is_join_point`])
 ///
-/// [`is_join_point`] crate::rustc::mir::Body::is_join_point
+/// [`is_join_point`]: crate::rustc::mir::Body::is_join_point
 fn mk_fake_predecessors(
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
 ) -> IndexVec<BasicBlock, usize> {
