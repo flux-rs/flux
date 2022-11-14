@@ -13,8 +13,3 @@ pub fn foo(x: i32, y: i32) -> i32 {
 pub fn bar(a: i32) -> i32 {
     return a;
 }
-
-#[flux::sig(fn (i32[fog(10, 20)]) -> i32)] //~ ERROR unresolved function
-pub fn baz(a: i32) -> i32 {
-    return a;
-}

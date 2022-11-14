@@ -10,79 +10,65 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
+mod annot_check;
 mod desugar;
 mod table_resolver;
-mod zip_checker;
-// mod zip_resolver;
 
-pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_sorts, resolve_uif_def};
-use flux_middle::{
-    fhir::{self, AdtMap},
-    global_env::GlobalEnv,
-    rustc::{self, lowering},
-};
-use flux_syntax::surface;
+pub use desugar::{desugar_adt_def, desugar_qualifier, resolve_uif_def};
+use flux_errors::FluxSession;
+use flux_middle::fhir;
+use flux_syntax::surface::{self, TyCtxt};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::Span;
 
 pub fn desugar_struct_def(
-    genv: &GlobalEnv,
-    adt_sorts: &AdtMap,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &fhir::Map,
     struct_def: surface::StructDef,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let resolver = table_resolver::Resolver::new(genv, struct_def.def_id)?;
+    // Resolve
+    let resolver = table_resolver::Resolver::new(tcx, sess, struct_def.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(genv.sess, &genv.consts, adt_sorts, struct_def)
+
+    // Check
+    annot_check::check_struct_def(tcx, sess, &struct_def)?;
+
+    // Desugar
+    desugar::desugar_struct_def(tcx, sess, map, struct_def)
 }
 
 pub fn desugar_enum_def(
-    genv: &GlobalEnv,
-    adt_sorts: &AdtMap,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &fhir::Map,
     enum_def: surface::EnumDef,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let def_id = enum_def.def_id;
-
-    let resolver = table_resolver::Resolver::new(genv, def_id)?;
+    // Resolve
+    let resolver = table_resolver::Resolver::new(tcx, sess, enum_def.def_id)?;
     let enum_def = resolver.resolve_enum_def(enum_def)?;
 
-    let rust_enum_def = lowering::lower_enum_def(genv.tcx, genv.tcx.adt_def(def_id.to_def_id()))?;
-    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_enum_def(&enum_def, &rust_enum_def)?;
+    // Check
+    annot_check::check_enum_def(tcx, sess, &enum_def)?;
 
-    desugar::desugar_enum_def(genv.sess, &genv.consts, adt_sorts, enum_def)
+    // Desugar
+    desugar::desugar_enum_def(tcx, sess, map, enum_def)
 }
 
 pub fn desugar_fn_sig(
-    genv: &GlobalEnv,
-    sorts: &AdtMap,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &fhir::Map,
     def_id: LocalDefId,
     fn_sig: surface::FnSig,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
-    let resolver = table_resolver::Resolver::new(genv, def_id)?;
-    let sig = resolver.resolve_fn_sig(fn_sig)?;
+    // Resolve
+    let resolver = table_resolver::Resolver::new(tcx, sess, def_id)?;
+    let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
 
-    let span = genv.tcx.def_span(def_id.to_def_id());
-    let rust_sig = lowering::lower_fn_sig(genv.tcx, genv.tcx.fn_sig(def_id), span)?;
-    zip_checker::ZipChecker::new(genv.tcx, genv.sess).zip_fn_sig(&sig, &rust_sig)?;
+    // Check
+    annot_check::check_fn_sig(tcx, sess, def_id.to_def_id(), &fn_sig)?;
 
-    desugar::desugar_fn_sig(genv.sess, sorts, &genv.consts, sig)
-}
-
-// TODO(RJ): This is not used but perhaps *could* used to generate default
-// type signatures for const (instead of the current "inline" method?)
-pub fn const_ty(
-    rust_ty: &flux_middle::rustc::ty::Ty,
-    val: i128,
-    span: Span,
-) -> flux_middle::fhir::Ty {
-    let bty = match rust_ty.kind() {
-        rustc::ty::TyKind::Int(i) => fhir::BaseTy::Int(*i),
-        rustc::ty::TyKind::Uint(u) => fhir::BaseTy::Uint(*u),
-        kind => panic!("const_ty: cannot handle {kind:?}"),
-    };
-
-    let expr = fhir::Expr::from_i128(val);
-    let idx = fhir::Index { expr, is_binder: false };
-    let indices = fhir::Indices { indices: vec![idx], span };
-    fhir::Ty::Indexed(bty, indices)
+    // Desugar
+    desugar::desugar_fn_sig(tcx, sess, map, fn_sig)
 }

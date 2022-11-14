@@ -31,12 +31,22 @@ impl FVarSubst {
             .to_loc()
             .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
     }
+    pub fn infer_from_refine_args(
+        &mut self,
+        params: &FxHashSet<Name>,
+        arg1: &RefineArg,
+        arg2: &RefineArg,
+    ) {
+        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
+            self.infer_from_exprs(params, e1, e2);
+        }
+    }
 
     pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
                 if let Some(old_e) = self.insert(*fvar, e1.clone()) {
-                    if &old_e != e2 {
+                    if &old_e != e1 {
                         todo!(
                             "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
                             *fvar,
@@ -80,14 +90,14 @@ impl TypeFolder for FVarFolder<'_> {
     }
 }
 
-pub(crate) struct BVarFolder<'a> {
+pub(super) struct BVarFolder<'a> {
     outer_binder: DebruijnIndex,
-    exprs: &'a [Expr],
+    args: &'a [RefineArg],
 }
 
 impl<'a> BVarFolder<'a> {
-    pub(crate) fn new(exprs: &'a [Expr]) -> BVarFolder<'a> {
-        BVarFolder { exprs, outer_binder: INNERMOST }
+    pub(super) fn new(args: &'a [RefineArg]) -> BVarFolder<'a> {
+        BVarFolder { args, outer_binder: INNERMOST }
     }
 }
 
@@ -102,9 +112,36 @@ impl TypeFolder for BVarFolder<'_> {
         r
     }
 
+    fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
+        if let RefineArg::Expr(expr) = arg
+           && let ExprKind::BoundVar(bvar) = expr.kind()
+           && bvar.debruijn == self.outer_binder
+        {
+            self.args[bvar.index].clone()
+        } else {
+            arg.super_fold_with(self)
+        }
+    }
+
+    fn fold_pred(&mut self, pred: &Pred) -> Pred {
+        if let Pred::App(Var::Bound(bvar), args) = pred
+           && bvar.debruijn == self.outer_binder
+           && let RefineArg::Abs(pred_abs) = &self.args[bvar.index]
+        {
+            let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
+            pred_abs.replace_bound_vars(&args)
+        } else {
+            pred.super_fold_with(self)
+        }
+    }
+
     fn fold_expr(&mut self, e: &Expr) -> Expr {
         if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
-            self.exprs[bvar.index].clone()
+            if let RefineArg::Expr(e) = &self.args[bvar.index] {
+                e.clone()
+            } else {
+                panic!("expected expr for `{bvar:?}` but found `{:?}` when substituting", self.args[bvar.index])
+            }
         } else {
             e.super_fold_with(self)
         }

@@ -17,7 +17,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::LocalDefId, EnumDef, ImplItemKind, Item, ItemKind, VariantData};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -75,7 +75,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let item = tcx.hir().item(item_id);
             let hir_id = item.hir_id();
             let attrs = tcx.hir().attrs(hir_id);
-            let def_id = item.def_id.def_id;
+            let def_id = item.owner_id.def_id;
             let _ = match &item.kind {
                 ItemKind::Fn(..) => collector.parse_fn_spec(def_id, attrs),
                 ItemKind::Struct(data, ..) => collector.parse_struct_def(def_id, attrs, data),
@@ -89,7 +89,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
-            let def_id = impl_item.def_id.def_id;
+            let def_id = impl_item.owner_id.def_id;
             if let ImplItemKind::Fn(..) = &impl_item.kind {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
@@ -132,11 +132,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Ok(());
         };
 
-        let def_id = item.def_id.def_id;
+        let def_id = item.owner_id.def_id;
         let span = item.span;
         let val = match eval_const(self.tcx, def_id) {
             Some(val) => val,
-            None => return self.emit_err(errors::InvalidConstant { span }),
+            None => return Err(self.emit_err(errors::InvalidConstant { span })),
         };
 
         let size = val.size();
@@ -144,7 +144,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             self.specs.consts.insert(def_id, ConstSig { _ty, val });
             Ok(())
         } else {
-            self.emit_err(errors::InvalidConstant { span })
+            Err(self.emit_err(errors::InvalidConstant { span }))
         }
     }
     fn parse_tyalias_spec(
@@ -289,7 +289,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_flux_attr(&mut self, attr_item: &AttrItem) -> Result<FluxAttr, ErrorGuaranteed> {
         let segment = match &attr_item.path.segments[..] {
             [_, segment] => segment,
-            _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
+            _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
@@ -338,7 +338,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
             ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
-            _ => return self.emit_err(errors::InvalidAttr { span: attr_item.span() }),
+            _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
     }
@@ -349,9 +349,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         input_span: Span,
         parser: impl FnOnce(TokenStream, Span) -> ParseResult<T>,
     ) -> Result<T, ErrorGuaranteed> {
-        parser(tokens, input_span)
-            .map_err(errors::SyntaxErr::from)
-            .emit(self.sess)
+        parser(tokens, input_span).map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
@@ -360,10 +358,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 if attr.allow_dups() {
                     continue;
                 }
-                self.error_guaranteed = Some(
-                    self.sess
-                        .emit_err(errors::DuplicatedAttr { span: attr.span, name }),
-                );
+                self.error_guaranteed =
+                    Some(self.emit_err(errors::DuplicatedAttr { span: attr.span, name }));
             }
         }
         if let Some(e) = self.error_guaranteed {
@@ -373,10 +369,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn emit_err<T>(&mut self, err: impl IntoDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+    fn emit_err(&mut self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);
-        Err(e)
+        e
     }
 }
 
@@ -420,7 +416,7 @@ enum FluxAttrKind {
     Assume,
     Opaque,
     FnSig(surface::FnSig),
-    RefinedBy(surface::Params),
+    RefinedBy(surface::RefinedBy),
     Qualifier(surface::Qualifier),
     UifDef(surface::UifDef),
     TypeAlias(surface::Alias),
@@ -513,7 +509,7 @@ impl FluxAttrs {
         read_attr!(self, TypeAlias)
     }
 
-    fn refined_by(&mut self) -> Option<surface::Params> {
+    fn refined_by(&mut self) -> Option<surface::RefinedBy> {
         read_attr!(self, RefinedBy)
     }
 
@@ -619,14 +615,14 @@ impl FluxAttrCFG {
                     if self.map.get(&name).is_some() {
                         return Err(errors::CFGError {
                             span,
-                            message: format!("duplicated setting `{}`", name),
+                            message: format!("duplicated setting `{name}`"),
                         });
                     }
 
                     // TODO: support types of values other than strings
                     let value = item
                         .value_str()
-                        .map(|symbol| symbol.to_ident_string())
+                        .map(Symbol::to_ident_string)
                         .ok_or_else(|| {
                             errors::CFGError { span, message: "unsupported value".to_string() }
                         })?;
@@ -658,7 +654,7 @@ impl FluxAttrCFG {
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {
                 span: setting.span,
-                message: format!("invalid crate cfg keyword `{}`", name),
+                message: format!("invalid crate cfg keyword `{name}`"),
             });
         }
 

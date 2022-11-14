@@ -33,3 +33,7 @@ refineck_overflow_error =
 
 refineck_opaque_struct_error =
     cannot access fields of opaque struct `{$struct}`
+
+refineck_unsupported_call =
+    unsupported type in function call
+    .function_definition = function defined here

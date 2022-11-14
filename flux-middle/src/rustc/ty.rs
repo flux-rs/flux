@@ -1,11 +1,17 @@
 //! A simplified version of rust types.
 
+use std::iter;
+
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{
+        BoundRegion, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid,
+        ScalarInt, UintTy,
+    },
 };
+use rustc_span::Symbol;
 
 use crate::intern::{impl_internable, Interned, List};
 
@@ -14,15 +20,30 @@ pub struct Generics<'tcx> {
     pub rustc: &'tcx rustc_middle::ty::Generics,
 }
 
+pub struct Binder<T>(T, List<BoundVariableKind>);
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum BoundVariableKind {
+    Region(BoundRegionKind),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum BoundRegionKind {
+    BrNamed(DefId, Symbol),
+}
+
 #[derive(Hash, Eq, PartialEq)]
 pub struct GenericParamDef {
     pub def_id: DefId,
+    pub index: u32,
+    pub name: Symbol,
     pub kind: GenericParamDefKind,
 }
 
 #[derive(Hash, Eq, PartialEq)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
+    Lifetime,
 }
 
 #[derive(Debug)]
@@ -30,14 +51,24 @@ pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
 
+pub type PolyFnSig = Binder<FnSig>;
+
+/// FIXME(nilehmann)
+/// [`AdtDef`] and [`VariantDef`] are inconsistent with the convention in the rest of this module
+/// because they do not correspond to a lowered version of the same struct in rustc.
 #[derive(Debug)]
-pub struct EnumDef {
+pub struct AdtDef {
     pub variants: Vec<VariantDef>,
 }
 
+/// FIXME(nilehmann)
+/// [`AdtDef`] and [`VariantDef`] are inconsistent with the convention in the rest of this module
+/// because they do not correspond to a lowered version of the same struct in rustc.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct VariantDef {
-    pub fields: List<Ty>,
+    pub def_id: DefId,
+    pub fields: Vec<DefId>,
+    pub field_tys: List<Ty>,
     pub ret: Ty,
 }
 
@@ -72,6 +103,28 @@ pub struct Const;
 #[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {
     Ty(Ty),
+    Lifetime(Region),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum Region {
+    ReVar(RegionVid),
+    ReLateBound(DebruijnIndex, BoundRegion),
+    ReEarlyBound(EarlyBoundRegion),
+}
+
+impl<T> Binder<T> {
+    pub fn bind_with_vars(value: T, vars: impl Into<List<BoundVariableKind>>) -> Binder<T> {
+        Binder(value, vars.into())
+    }
+
+    pub fn skip_binder(self) -> T {
+        self.0
+    }
+
+    pub fn as_ref(&self) -> Binder<&T> {
+        Binder(&self.0, self.1.clone())
+    }
 }
 
 impl FnSig {
@@ -81,6 +134,12 @@ impl FnSig {
 
     pub fn output(&self) -> Ty {
         self.inputs_and_output[self.inputs_and_output.len() - 1].clone()
+    }
+}
+
+impl VariantDef {
+    pub fn fields(&self) -> impl Iterator<Item = (&Ty, &DefId)> {
+        iter::zip(&self.field_tys, &self.fields)
     }
 }
 
@@ -152,12 +211,23 @@ impl Ty {
     }
 }
 
-impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef]);
+impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef], [BoundVariableKind]);
 
 impl std::fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GenericArg::Ty(ty) => write!(f, "{ty:?}"),
+            GenericArg::Lifetime(region) => write!(f, "{region:?}"),
+        }
+    }
+}
+
+impl std::fmt::Debug for Region {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Region::ReVar(rvid) => write!(f, "{rvid:?}"),
+            Region::ReLateBound(_, bregion) => write!(f, "{bregion:?}"),
+            Region::ReEarlyBound(bregion) => write!(f, "{bregion:?}"),
         }
     }
 }
@@ -172,13 +242,7 @@ impl std::fmt::Debug for Ty {
                 });
                 write!(f, "{adt_name}")?;
                 if !substs.is_empty() {
-                    write!(
-                        f,
-                        "<{}>",
-                        substs
-                            .iter()
-                            .format_with(", ", |arg, f| f(&format_args!("{:?}", arg)))
-                    )?;
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
                 Ok(())
             }
@@ -194,12 +258,7 @@ impl std::fmt::Debug for Ty {
             TyKind::Ref(ty, Mutability::Not) => write!(f, "&{ty:?}"),
             TyKind::Array(ty, c) => write!(f, "[{ty:?}; {c:?}]"),
             TyKind::Tuple(tys) => {
-                write!(
-                    f,
-                    "({})",
-                    tys.iter()
-                        .format_with(", ", |ty, f| f(&format_args!("{:?}", ty)))
-                )
+                write!(f, "({:?})", tys.iter().format(", "))
             }
             TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }

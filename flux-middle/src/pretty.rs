@@ -110,15 +110,15 @@ macro_rules! _impl_debug_with_default_cx {
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 
-pub enum Visibility {
-    Show,
+pub enum KVarArgs {
+    All,
+    SelfOnly,
     Hide,
-    Truncate(usize),
 }
 
 pub struct PPrintCx<'tcx> {
     pub tcx: TyCtxt<'tcx>,
-    pub kvar_args: Visibility,
+    pub kvar_args: KVarArgs,
     pub fully_qualified_paths: bool,
     pub simplify_exprs: bool,
     pub tags: bool,
@@ -126,6 +126,7 @@ pub struct PPrintCx<'tcx> {
     pub preds_chain: bool,
     pub full_spans: bool,
     pub hide_uninit: bool,
+    pub show_is_binder: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -166,7 +167,7 @@ impl PPrintCx<'_> {
     pub fn default(tcx: TyCtxt) -> PPrintCx {
         PPrintCx {
             tcx,
-            kvar_args: Visibility::Show,
+            kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: false,
             simplify_exprs: true,
             tags: true,
@@ -174,6 +175,7 @@ impl PPrintCx<'_> {
             preds_chain: true,
             full_spans: false,
             hide_uninit: true,
+            show_is_binder: false,
         }
     }
 
@@ -194,12 +196,16 @@ impl PPrintCx<'_> {
         );
     }
 
-    pub fn kvar_args(self, kvar_args: Visibility) -> Self {
+    pub fn kvar_args(self, kvar_args: KVarArgs) -> Self {
         Self { kvar_args, ..self }
     }
 
     pub fn fully_qualified_paths(self, b: bool) -> Self {
         Self { fully_qualified_paths: b, ..self }
+    }
+
+    pub fn show_is_binder(self, b: bool) -> Self {
+        Self { show_is_binder: b, ..self }
     }
 }
 
@@ -343,19 +349,12 @@ impl FromOpt for bool {
     }
 }
 
-impl FromOpt for Visibility {
+impl FromOpt for KVarArgs {
     fn from_opt(opt: &config::Value) -> Option<Self> {
         match opt.as_str() {
-            Some("show") => Some(Visibility::Show),
-            Some("hide") => Some(Visibility::Hide),
-            Some(s) => {
-                let n = s
-                    .strip_prefix("truncate(")?
-                    .strip_suffix(')')?
-                    .parse()
-                    .ok()?;
-                Some(Visibility::Truncate(n))
-            }
+            Some("self") => Some(KVarArgs::SelfOnly),
+            Some("hide") => Some(KVarArgs::Hide),
+            Some("all") => Some(KVarArgs::All),
             _ => None,
         }
     }

@@ -403,6 +403,7 @@ dependencies = [
  "flux-common",
  "flux-errors",
  "flux-fixpoint",
+ "flux-macros",
  "itertools",
 ]
 

@@ -4,10 +4,11 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{AdtDef, Invariant},
 };
+use rustc_span::Span;
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint::FixpointCtxt,
+    fixpoint::{FixpointCtxt, KVarStore},
     refine_tree::{RefineTree, UnpackFlags},
 };
 
@@ -15,12 +16,17 @@ pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) -> Result<(), ErrorG
     adt_def
         .invariants()
         .iter()
-        .try_for_each_exhaust(|invariant| check_invariant(genv, adt_def, invariant))
+        .enumerate()
+        .try_for_each_exhaust(|(idx, invariant)| {
+            let span = genv.map().adt(adt_def.def_id().expect_local()).invariants[idx].span;
+            check_invariant(genv, adt_def, span, invariant)
+        })
 }
 
 fn check_invariant(
     genv: &GlobalEnv,
     adt_def: &AdtDef,
+    span: Span,
     invariant: &Invariant,
 ) -> Result<(), ErrorGuaranteed> {
     let mut refine_tree = RefineTree::new();
@@ -42,15 +48,12 @@ fn check_invariant(
             rcx.unpack_with(field, UnpackFlags::INVARIANTS);
         }
 
-        rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.indices), Tag::Other);
+        rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.args), Tag::Other);
     }
-    let mut fcx = FixpointCtxt::new(&genv.consts, Default::default());
+    let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(genv.tcx, adt_def.def_id(), constraint, &[], &genv.uif_defs)
-        .map_err(|_| {
-            genv.sess
-                .emit_err(errors::Invalid { span: invariant.source_info.span() })
-        })
+    fcx.check(adt_def.def_id(), constraint)
+        .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
 }
 
 mod errors {

@@ -7,11 +7,6 @@ pub struct Chair {
     pub x: i32,
 }
 
-#[flux::sig(fn () -> Chair[0])] //~ ERROR this type takes 0 refinement parameters but 1 was found
-pub fn mk_chair() -> Chair {
-    Chair { x: 0 }
-}
-
 #[flux::refined_by(x:int, y:int)]
 pub struct Pair {
     #[flux::field(i32[@x])]
@@ -35,27 +30,27 @@ pub fn mytuple3(p: Pair) -> i32 {
     p.x
 }
 
-#[flux::sig(fn(i32[@n]) -> i32[n.x])] //~ ERROR the field `x` is not valid
+#[flux::sig(fn(i32[@n]) -> i32[n.x])] //~ ERROR `int` is a primitive sort
 pub fn myint1(x: i32) -> i32 {
     x
 }
 
-#[flux::sig(fn(i32) -> i32[@n])] //~ ERROR cannot find
+#[flux::sig(fn(i32) -> i32[@n])] //~ ERROR illegal binder
 pub fn myint2(x: i32) -> i32 {
     x
 }
 
-#[flux::sig(fn(f: f32) -> i32[f])] //~ ERROR invalid use of parameter
+#[flux::sig(fn(f: f32) -> i32[f])] //~ ERROR invalid use of refinement parameter
 fn ipa(f: f32) -> i32 {
     0
 }
 
-#[flux::sig(fn(f: f32) -> i32[f.x])] //~ ERROR invalid use of parameter
+#[flux::sig(fn(f: f32) -> i32[f.x])] //~ ERROR invalid use of refinement parameter
 fn ris(f: f32) -> i32 {
     0
 }
 
-#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR invalid use of parameter
+#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR no field `a` on refinement
 pub fn use_chair(c: Chair) -> i32 {
     c.x
 }

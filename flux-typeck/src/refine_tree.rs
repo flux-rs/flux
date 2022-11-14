@@ -8,7 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    fold::TypeFoldable, BaseTy, Binders, Expr, Index, Name, Pred, RefKind, Sort, Ty, TyKind,
+    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred, RefKind,
+    RefineArg, RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -140,7 +141,7 @@ impl RefineCtxt<'_> {
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Pred>, tag: Tag) {
-        self.check_constr().push_head(pred, tag)
+        self.check_constr().push_head(pred, tag);
     }
 
     pub fn check_constr(&mut self) -> ConstrBuilder {
@@ -151,8 +152,12 @@ impl RefineCtxt<'_> {
     fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let ty = self.unpack_inner(&substs[0], inside_mut_ref, flags);
-                BaseTy::adt(adt_def.clone(), vec![ty, substs[1].clone()])
+                let (boxed, alloc) = box_args(substs);
+                let boxed = self.unpack_inner(boxed, inside_mut_ref, flags);
+                BaseTy::adt(
+                    adt_def.clone(),
+                    vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                )
             }
             _ => bty.clone(),
         }
@@ -173,12 +178,7 @@ impl RefineCtxt<'_> {
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let idxs = self
-                        .ptr
-                        .push_bound_guard(pred)
-                        .into_iter()
-                        .map(Index::from)
-                        .collect_vec();
+                    let idxs = RefineArgs::multi(self.ptr.push_bound_guard(pred));
                     let bty = self.unpack_bty(bty, in_mut_ref, flags);
                     self.assume_invariants(&bty, &idxs);
                     Ty::indexed(bty, idxs)
@@ -217,10 +217,9 @@ impl RefineCtxt<'_> {
         self.unpack_inner(ty, false, UnpackFlags::empty())
     }
 
-    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &[Index]) {
-        let exprs = idxs.iter().map(Index::to_expr).collect_vec();
+    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &RefineArgs) {
         for invariant in bty.invariants() {
-            self.assume_pred(invariant.pred.replace_bound_vars(&exprs));
+            self.assume_pred(invariant.pred.replace_bound_vars(idxs.args()));
         }
     }
 }
@@ -279,11 +278,15 @@ impl ConstrBuilder<'_> {
         ConstrBuilder { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub fn push_guard(&mut self, p: Expr) {
-        self.ptr.push_guard(p);
+    pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
+        self.ptr.push_foralls(sorts)
     }
 
-    pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
+    pub fn push_guard(&mut self, p: impl Into<Pred>) {
+        self.ptr.push_guard(p.into());
+    }
+
+    pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
         self.ptr.push_bound_guard(pred)
     }
 
@@ -292,6 +295,12 @@ impl ConstrBuilder<'_> {
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
+    }
+
+    pub fn push_horn_clause(&mut self, body: impl Into<Pred>, head: impl Into<Pred>, tag: Tag) {
+        let mut constr = self.breadcrumb();
+        constr.push_guard(body);
+        constr.push_head(head, tag);
     }
 }
 
@@ -307,14 +316,14 @@ impl NodePtr {
         }
     }
 
-    fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<Expr> {
-        let exprs = self
+    fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
+        let args = self
             .push_foralls(pred.params())
             .into_iter()
-            .map(Expr::fvar)
+            .map(|name| RefineArg::Expr(Expr::fvar(name)))
             .collect_vec();
-        self.push_guard(pred.replace_bound_vars(&exprs));
-        exprs
+        self.push_guard(pred.replace_bound_vars(&args));
+        args
     }
 
     fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {
@@ -484,7 +493,6 @@ mod pretty {
     use flux_common::format::PadAdapter;
     use flux_middle::{intern::List, pretty::*};
     use itertools::Itertools;
-    use rustc_middle::ty::TyCtxt;
 
     use super::*;
 
@@ -544,10 +552,6 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
-        }
-
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
         }
     }
 
@@ -652,15 +656,11 @@ mod pretty {
                             NodeKind::ForAll(name, sort) => {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }
-                            NodeKind::Guard(e) => f(&format_args!("{:?}", e)),
+                            NodeKind::Guard(pred) => f(&format_args_cx!("{:?}", pred)),
                             NodeKind::Conj | NodeKind::Head(..) => unreachable!(),
                         }
                     })
             )
-        }
-
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(Visibility::Truncate(1))
         }
     }
 

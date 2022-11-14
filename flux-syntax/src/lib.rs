@@ -1,4 +1,4 @@
-#![feature(rustc_private)]
+#![feature(rustc_private, box_patterns)]
 
 extern crate flux_errors;
 extern crate rustc_ast;
@@ -37,7 +37,7 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::Params> {
+pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::RefinedBy> {
     parse!(surface_grammar::RefinedByParser, tokens, span)
 }
 

@@ -1,6 +1,5 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
-use flux_middle::global_env::GlobalEnv;
 use flux_syntax::surface::{self, Ident, Path, Res, Ty};
 use hir::{def_id::DefId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
@@ -14,29 +13,30 @@ pub struct Resolver<'genv, 'tcx> {
     table: NameResTable<'genv, 'tcx>,
 }
 
-struct NameResTable<'genv, 'tcx> {
+struct NameResTable<'sess, 'tcx> {
     res: FxHashMap<Symbol, Res>,
     generics: FxHashMap<DefId, ParamTy>,
-    sess: &'genv FluxSession,
+    sess: &'sess FluxSession,
     tcx: TyCtxt<'tcx>,
 }
 
-impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
-    #[allow(dead_code)]
-
-    pub fn new(genv: &GlobalEnv<'genv, 'tcx>, def_id: LocalDefId) -> Result<Self, ErrorGuaranteed> {
-        let table = match genv.tcx.def_kind(def_id) {
+impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
+        def_id: LocalDefId,
+    ) -> Result<Self, ErrorGuaranteed> {
+        let table = match tcx.def_kind(def_id) {
             hir::def::DefKind::Struct | hir::def::DefKind::Enum | hir::def::DefKind::Fn => {
-                NameResTable::from_item(genv, def_id)?
+                NameResTable::from_item(tcx, sess, def_id)?
             }
-            hir::def::DefKind::AssocFn => NameResTable::from_impl_item(genv, def_id)?,
+            hir::def::DefKind::AssocFn => NameResTable::from_impl_item(tcx, sess, def_id)?,
             kind => panic!("unsupported kind {kind:?}"),
         };
 
-        Ok(Self { sess: genv.sess, table })
+        Ok(Self { sess, table })
     }
 
-    #[allow(dead_code)]
     pub fn resolve_enum_def(
         &self,
         enum_def: surface::EnumDef,
@@ -115,6 +115,7 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
         let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
 
         Ok(surface::FnSig {
+            params: fn_sig.params,
             requires: fn_sig.requires,
             args: args?,
             returns: returns?,
@@ -129,7 +130,7 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
                 Ok(surface::Arg::Constr(bind, self.resolve_path(path)?, pred))
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
-            surface::Arg::Ty(ty) => Ok(surface::Arg::Ty(self.resolve_ty(ty)?)),
+            surface::Arg::Ty(bind, ty) => Ok(surface::Arg::Ty(bind, self.resolve_ty(ty)?)),
             surface::Arg::Alias(_, _, _) => panic!("Unexpected 'Alias' in resolve_arg"),
         }
     }
@@ -149,7 +150,6 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
             }
-            surface::TyKind::Unit => surface::TyKind::Unit,
             surface::TyKind::Constr(pred, ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))
@@ -161,6 +161,13 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
             surface::TyKind::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Slice(Box::new(ty))
+            }
+            surface::TyKind::Tuple(tys) => {
+                let tys = tys
+                    .into_iter()
+                    .map(|ty| self.resolve_ty(ty))
+                    .try_collect_exhaust()?;
+                surface::TyKind::Tuple(tys)
             }
         };
         Ok(surface::Ty { kind, span: ty.span })
@@ -185,16 +192,17 @@ impl<'genv, 'tcx> Resolver<'genv, 'tcx> {
     }
 }
 
-impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
+impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
     fn from_item(
-        genv: &GlobalEnv<'genv, 'tcx>,
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
-        let item = genv.tcx.hir().expect_item(def_id);
-        let mut table = Self::new(genv.sess, genv.tcx);
+        let item = tcx.hir().expect_item(def_id);
+        let mut table = Self::new(tcx, sess);
         match &item.kind {
             ItemKind::Struct(data, generics) => {
-                table.insert_generics(genv.tcx, generics);
+                table.insert_generics(tcx, generics);
                 table
                     .res
                     .insert(item.ident.name, Res::Adt(def_id.to_def_id()));
@@ -204,7 +212,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 }
             }
             ItemKind::Enum(data, generics) => {
-                table.insert_generics(genv.tcx, generics);
+                table.insert_generics(tcx, generics);
                 table
                     .res
                     .insert(item.ident.name, Res::Adt(def_id.to_def_id()));
@@ -216,7 +224,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 }
             }
             ItemKind::Fn(fn_sig, generics, _) => {
-                table.insert_generics(genv.tcx, generics);
+                table.insert_generics(tcx, generics);
                 table.collect_from_fn_sig(fn_sig)?;
             }
             _ => {}
@@ -225,23 +233,24 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     }
 
     fn from_impl_item(
-        genv: &GlobalEnv<'genv, 'tcx>,
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
-        let impl_item = genv.tcx.hir().expect_impl_item(def_id);
+        let impl_item = tcx.hir().expect_impl_item(def_id);
 
-        let mut table = Self::new(genv.sess, genv.tcx);
+        let mut table = Self::new(tcx, sess);
 
         // Insert generics from parent impl
-        if let Some(parent_impl_did) = genv.tcx.impl_of_method(def_id.to_def_id()) {
-            let parent_impl_item = genv.tcx.hir().expect_item(parent_impl_did.expect_local());
+        if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
+            let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                table.insert_generics(genv.tcx, parent.generics);
+                table.insert_generics(tcx, parent.generics);
                 table.collect_from_ty(parent.self_ty)?;
             }
         }
 
-        table.insert_generics(genv.tcx, impl_item.generics);
+        table.insert_generics(tcx, impl_item.generics);
         match &impl_item.kind {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
@@ -252,7 +261,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
         Ok(table)
     }
 
-    fn new(sess: &'genv FluxSession, tcx: TyCtxt<'tcx>) -> NameResTable<'genv, 'tcx> {
+    fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession) -> NameResTable<'sess, 'tcx> {
         NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
     }
 
@@ -265,14 +274,13 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     }
 
     fn insert_generics(&mut self, tcx: TyCtxt, generics: &hir::Generics) {
-        for param in generics.params {
+        for (idx, param) in generics.params.iter().enumerate() {
             if let hir::GenericParamKind::Type { .. } = param.kind {
                 let def_id = tcx.hir().local_def_id(param.hir_id).to_def_id();
                 assert!(!self.generics.contains_key(&def_id));
 
                 let name = param.name.ident().name;
-                let index = self.generics.len() as u32;
-                let param_ty = ParamTy { index, name };
+                let param_ty = ParamTy { index: idx as u32, name };
                 self.generics.insert(def_id, param_ty);
             }
         }
@@ -297,56 +305,31 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
         ident: Ident,
         res: rustc_hir::def::Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let res = self.of_hir_res(res, ident.span)?;
+        let res = self.res_from_hir_res(res, ident.span)?;
         self.res.insert(ident.name, res);
         Ok(())
     }
 
-    fn of_ty(&self, ty: rustc_middle::ty::Ty, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn res_from_ty(ty: rustc_middle::ty::Ty) -> Option<Res> {
         match ty.kind() {
-            TyKind::Bool => Ok(Res::Bool),
-            TyKind::Int(int_ty) => Ok(Res::Int(*int_ty)),
-            TyKind::Uint(uint_ty) => Ok(Res::Uint(*uint_ty)),
-            TyKind::Float(float_ty) => Ok(Res::Float(*float_ty)),
-            TyKind::Param(pty) => Ok(Res::Param(*pty)),
-            // TyKind::Adt(did, what) => todo!(),
-            // TyKind::Char => todo!(),
-            _ => {
-            Err(self.sess.emit_err(errors::UnsupportedSignature {
-                span,
-                msg: "path resolved to an unsupported type",
-            }))
-        }
-            // rustc_type_ir::TyKind::Foreign(_) => todo!(),
-            // rustc_type_ir::TyKind::Str => todo!(),
-            // rustc_type_ir::TyKind::Array(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Slice(_) => todo!(),
-            // rustc_type_ir::TyKind::RawPtr(_) => todo!(),
-            // rustc_type_ir::TyKind::Ref(_, _, _) => todo!(),
-            // rustc_type_ir::TyKind::FnDef(_, _) => todo!(),
-            // rustc_type_ir::TyKind::FnPtr(_) => todo!(),
-            // rustc_type_ir::TyKind::Dynamic(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Closure(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Generator(_, _, _) => todo!(),
-            // rustc_type_ir::TyKind::GeneratorWitness(_) => todo!(),
-            // rustc_type_ir::TyKind::Never => todo!(),
-            // rustc_type_ir::TyKind::Tuple(_) => todo!(),
-            // rustc_type_ir::TyKind::Projection(_) => todo!(),
-            // rustc_type_ir::TyKind::Opaque(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Bound(_, _) => todo!(),
-            // rustc_type_ir::TyKind::Placeholder(_) => todo!(),
-            // rustc_type_ir::TyKind::Infer(_) => todo!(),
-            // rustc_type_ir::TyKind::Error(_) => todo!(),
+            TyKind::Bool => Some(Res::Bool),
+            TyKind::Int(int_ty) => Some(Res::Int(*int_ty)),
+            TyKind::Uint(uint_ty) => Some(Res::Uint(*uint_ty)),
+            TyKind::Float(float_ty) => Some(Res::Float(*float_ty)),
+            TyKind::Param(param_ty) => Some(Res::Param(*param_ty)),
+            TyKind::Char => Some(Res::Char),
+            _ => None,
         }
     }
 
-    fn of_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(Res::Param(self.get_param_ty(did).unwrap()))
             }
-            hir::def::Res::Def(hir::def::DefKind::Struct, did)
-            | hir::def::Res::Def(hir::def::DefKind::Enum, did) => Ok(Res::Adt(did)),
+            hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
+                Ok(Res::Adt(did))
+            }
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
                 Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
             }
@@ -363,13 +346,19 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
             hir::def::Res::PrimTy(hir::PrimTy::Char) => Ok(Res::Char),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
-                self.of_ty(self.tcx.type_of(did), span)
+                let ty = self.tcx.type_of(did);
+                Self::res_from_ty(ty).ok_or_else(|| {
+                    self.sess.emit_err(errors::UnsupportedSignature {
+                        span,
+                        note: format!("unsupported alias `{ty:?}`"),
+                    })
+                })
             }
 
             _ => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span,
-                    msg: "path resolved to an unsupported type",
+                    note: format!("unsupported resolution `{res:?}`"),
                 }))
             }
         }
@@ -388,7 +377,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                 } else {
                     return Err(self.sess.emit_err(errors::UnsupportedSignature {
                         span: qpath.span(),
-                        msg: "unsupported type",
+                        note: "unsupported type".to_string(),
                     }));
                 };
 
@@ -397,7 +386,7 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
                     _ => {
                         return Err(self.sess.emit_err(errors::UnsupportedSignature {
                             span: qpath.span(),
-                            msg: "multi-segment paths are not supported yet",
+                            note: "multi-segment paths are not supported yet".to_string(),
                         }));
                     }
                 };
@@ -422,16 +411,11 @@ impl<'genv, 'tcx> NameResTable<'genv, 'tcx> {
     fn collect_from_generic_arg(&mut self, arg: &hir::GenericArg) -> Result<(), ErrorGuaranteed> {
         match arg {
             hir::GenericArg::Type(ty) => self.collect_from_ty(ty),
-            hir::GenericArg::Lifetime(_) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span: arg.span(),
-                    msg: "lifetime parameters are not supported yet",
-                }))
-            }
+            hir::GenericArg::Lifetime(_) => Ok(()),
             hir::GenericArg::Const(_) => {
                 Err(self.sess.emit_err(errors::UnsupportedSignature {
                     span: arg.span(),
-                    msg: "const generics are not supported yet",
+                    note: "const generics are not supported yet".to_string(),
                 }))
             }
 
@@ -447,14 +431,16 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(resolver::unsupported_signature, code = "FLUX")]
+    #[note]
     pub struct UnsupportedSignature {
         #[primary_span]
         pub span: Span,
-        pub msg: &'static str,
+        pub note: String,
     }
 
     #[derive(Diagnostic)]
     #[diag(resolver::unresolved_path, code = "FLUX")]
+    #[help]
     pub struct UnresolvedPath {
         #[primary_span]
         pub span: Span,

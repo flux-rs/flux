@@ -1,4 +1,12 @@
-#![feature(rustc_private, min_specialization, once_cell, if_let_guard, let_chains, never_type)]
+#![feature(
+    rustc_private,
+    min_specialization,
+    once_cell,
+    if_let_guard,
+    let_chains,
+    type_alias_impl_trait,
+    box_patterns
+)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -38,7 +46,6 @@ pub fn check<'a, 'tcx>(
     genv: &GlobalEnv<'a, 'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
-    qualifiers: &[rty::Qualifier],
 ) -> Result<(), ErrorGuaranteed> {
     let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
     let mut kvars = fixpoint::KVarStore::new();
@@ -48,11 +55,11 @@ pub fn check<'a, 'tcx>(
         dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
     }
 
-    let mut fcx = fixpoint::FixpointCtxt::new(&genv.consts, kvars);
+    let mut fcx = fixpoint::FixpointCtxt::new(genv, kvars);
 
     let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-    match fcx.check(genv.tcx, def_id, constraint, qualifiers, &genv.uif_defs) {
+    match fcx.check(def_id, constraint) {
         Ok(_) => Ok(()),
         Err(tags) => report_errors(genv, body.span(), tags),
     }
@@ -96,8 +103,8 @@ fn dump_constraint<C: std::fmt::Debug>(
 ) -> Result<(), std::io::Error> {
     let dir = CONFIG.log_dir.join("horn");
     fs::create_dir_all(&dir)?;
-    let mut file = fs::File::create(dir.join(format!("{}{}", tcx.def_path_str(def_id), suffix)))?;
-    write!(file, "{:?}", c)
+    let mut file = fs::File::create(dir.join(format!("{}{suffix}", tcx.def_path_str(def_id))))?;
+    write!(file, "{c:?}")
 }
 
 mod errors {

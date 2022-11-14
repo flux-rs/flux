@@ -15,18 +15,26 @@ use rustc_errors::{
     emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticMessage, IntoDiagnostic, SubdiagnosticMessage,
+    DiagnosticId, DiagnosticMessage, IntoDiagnostic, SubdiagnosticMessage,
 };
-use rustc_session::{config::ErrorOutputType, parse::ParseSess};
+use rustc_session::{
+    config::{self, ErrorOutputType},
+    parse::ParseSess,
+};
 use rustc_span::source_map::SourceMap;
 
+// These are sorted loosily following the order of the pipeline except for lowering which doesn't
+// quite fit this ordering.
 fluent_messages! {
     parse => "../locales/en-US/parse.ftl",
     resolver => "../locales/en-US/resolver.ftl",
+    annot_check => "../locales/en-US/annot_check.ftl",
     desugar => "../locales/en-US/desugar.ftl",
     wf => "../locales/en-US/wf.ftl",
-    refineck => "../locales/en-US/refineck.ftl",
     invariants => "../locales/en-US/invariants.ftl",
+    refineck => "../locales/en-US/refineck.ftl",
+
+    lowering => "../locales/en-US/lowering.ftl",
 }
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
@@ -35,13 +43,18 @@ pub struct FluxSession {
     pub parse_sess: ParseSess,
 }
 
+pub fn diagnostic_id() -> DiagnosticId {
+    DiagnosticId::Error("FLUX".to_string())
+}
+
 impl FluxSession {
-    pub fn new(error_format: ErrorOutputType, source_map: Rc<SourceMap>) -> Self {
-        let emitter = emitter(error_format, source_map.clone());
+    pub fn new(opts: &config::Options, source_map: Rc<SourceMap>) -> Self {
+        let emitter = emitter(opts, source_map.clone());
         let handler = rustc_errors::Handler::with_emitter(true, None, emitter);
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
+    #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
     }
@@ -56,16 +69,18 @@ impl FluxSession {
             .print_error_count(&Registry::new(&[]));
         self.abort_if_errors();
     }
+
+    pub fn diagnostic(&self) -> &rustc_errors::Handler {
+        &self.parse_sess.span_diagnostic
+    }
 }
 
-fn emitter(
-    error_format: ErrorOutputType,
-    source_map: Rc<SourceMap>,
-) -> Box<dyn Emitter + sync::Send> {
+fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter + sync::Send> {
     let fallback_bundle = rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES, false);
     let bundle = None;
+    let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
-    match error_format {
+    match opts.error_format {
         ErrorOutputType::HumanReadable(kind) => {
             let (short, color_config) = kind.unzip();
             if let HumanReadableErrorType::AnnotateSnippet(_) = kind {
@@ -87,6 +102,7 @@ fn emitter(
                     false,
                     None,
                     false,
+                    track_diagnostics,
                 );
                 Box::new(emitter)
             }
@@ -101,6 +117,7 @@ fn emitter(
                 json_rendered,
                 None,
                 false,
+                track_diagnostics,
             ))
         }
     }

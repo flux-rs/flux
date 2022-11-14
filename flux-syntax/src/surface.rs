@@ -11,7 +11,7 @@ pub type AliasMap = rustc_hash::FxHashMap<Ident, Alias>;
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
-    pub args: Vec<Param>,
+    pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub span: Span,
 }
@@ -39,7 +39,7 @@ pub struct Alias<T = Ident> {
 #[derive(Debug)]
 pub struct StructDef<T = Ident> {
     pub def_id: LocalDefId,
-    pub refined_by: Option<Params>,
+    pub refined_by: Option<RefinedBy>,
     pub fields: Vec<Option<Ty<T>>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
@@ -48,7 +48,7 @@ pub struct StructDef<T = Ident> {
 #[derive(Debug)]
 pub struct EnumDef<T = Ident> {
     pub def_id: LocalDefId,
-    pub refined_by: Option<Params>,
+    pub refined_by: Option<RefinedBy>,
     pub variants: Vec<VariantDef<T>>,
     pub invariants: Vec<Expr>,
 }
@@ -69,15 +69,28 @@ pub struct VariantRet<T = Ident> {
 }
 
 #[derive(Debug, Default)]
-pub struct Params {
-    pub params: Vec<Param>,
+pub struct RefinedBy {
+    pub params: Vec<RefineParam>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct Param {
+pub struct RefineParam {
     pub name: Ident,
-    pub sort: Ident,
+    pub sort: Sort,
+}
+
+#[derive(Debug)]
+pub enum Sort {
+    /// A _base_ sort, e.g., `int` or `bool`.
+    Base(Ident),
+    /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
+    /// are all base sorts.
+    Func {
+        inputs: Vec<Ident>,
+        output: Ident,
+    },
+    Infer,
 }
 
 #[derive(Debug)]
@@ -87,6 +100,8 @@ pub struct ConstSig {
 
 #[derive(Debug)]
 pub struct FnSig<T = Ident> {
+    /// List of explicit refinement parameters
+    pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
@@ -102,13 +117,14 @@ pub struct FnSig<T = Ident> {
 #[derive(Debug)]
 pub enum Arg<T = Ident> {
     /// example `a: i32{a > 0}`
-    Constr(Ident, Path<T>, Option<Expr>),
+    Constr(Ident, Path<T>, Expr),
     /// example `x: nat` or `x: lb[0]`
     Alias(Ident, Path<T>, Indices),
     /// example `v: &strg i32`
     StrgRef(Ident, Ty<T>),
-    /// example `i32`
-    Ty(Ty<T>),
+    /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v : v > 0}`.
+    /// The binder has a different meaning depending on the type.
+    Ty(Option<Ident>, Ty<T>),
 }
 
 #[derive(Debug)]
@@ -136,10 +152,9 @@ pub enum TyKind<T = Ident> {
     Ref(RefKind, Box<Ty<T>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
-    /// ()
-    Unit,
     Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
+    Tuple(Vec<Ty<T>>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -147,22 +162,21 @@ pub struct ArrayLen;
 
 #[derive(Debug, Clone)]
 pub struct Indices {
-    pub indices: Vec<Index>,
+    pub indices: Vec<RefineArg>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub enum Index {
-    /// @n
-    Bind(Ident),
+pub enum RefineArg {
+    /// `@n`, the span correspond to the span of `@` plus the identifier
+    Bind(Ident, Span),
     Expr(Expr),
+    Abs(Vec<Ident>, Expr, Span),
 }
 
 #[derive(Debug)]
 pub struct Path<R = Ident> {
-    /// e.g. vec
     pub ident: R,
-    /// e.g. <nat>
     pub args: Vec<Ty<R>>,
     pub span: Span,
 }
@@ -196,9 +210,9 @@ pub enum ExprKind {
     Var(Ident),
     Dot(Box<Expr>, Ident),
     Literal(Lit),
-    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
+    BinaryOp(BinOp, Box<[Expr; 2]>),
     App(Ident, Vec<Expr>),
-    IfThenElse(Box<Expr>, Box<Expr>, Box<Expr>),
+    IfThenElse(Box<[Expr; 3]>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -225,8 +239,8 @@ pub enum BinOp {
     Mul,
 }
 
-impl Params {
-    pub const DUMMY: &Params = &Params { params: vec![], span: rustc_span::DUMMY_SP };
+impl RefinedBy {
+    pub const DUMMY: &RefinedBy = &RefinedBy { params: vec![], span: rustc_span::DUMMY_SP };
 }
 
 impl Path<Res> {
@@ -239,38 +253,24 @@ impl Path<Res> {
     }
 }
 
-impl<R> Arg<R> {
-    #[track_caller]
-    pub fn assert_ty(self) -> Ty<R> {
-        match self {
-            Arg::Ty(ty) => ty,
-            _ => panic!("not a type"),
-        }
-    }
-}
-
-impl Params {
-    pub fn empty(span: Span) -> Params {
-        Params { params: vec![], span }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Param> {
+impl RefinedBy {
+    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
         self.params.iter()
     }
 }
 
-impl<'a> IntoIterator for &'a Params {
-    type Item = &'a Param;
+impl<'a> IntoIterator for &'a RefinedBy {
+    type Item = &'a RefineParam;
 
-    type IntoIter = std::slice::Iter<'a, Param>;
+    type IntoIter = std::slice::Iter<'a, RefineParam>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.params.iter()
     }
 }
 
-impl IntoIterator for Params {
-    type Item = Param;
+impl IntoIterator for RefinedBy {
+    type Item = RefineParam;
 
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -307,7 +307,7 @@ pub mod expand {
     use rustc_span::symbol::Ident;
 
     use super::{
-        errors, AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Index, Indices, Path, Ty, TyKind,
+        errors, AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
     };
 
     /// `expand_bare_sig(aliases, b_sig)` replaces all the alias-applications in `b_sig`
@@ -318,6 +318,7 @@ pub mod expand {
         fn_sig: FnSig,
     ) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
+            params: fn_sig.params,
             args: expand_args(sess, aliases, fn_sig.args)?,
             returns: fn_sig.returns.as_ref().map(|ty| expand_ty(aliases, ty)),
             ensures: expand_locs(aliases, fn_sig.ensures),
@@ -350,31 +351,16 @@ pub mod expand {
                     _ => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
                 }
             }
-            Arg::Constr(x, path, None) => {
-                match expand_alias0(aliases, &path) {
-                    Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                        Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
-                    }
-                    Some(_) => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
-                    None => Ok(Arg::Constr(x, expand_path(aliases, &path), None)),
-                }
-            }
-            Arg::Constr(x, path, Some(e)) => {
-                Ok(Arg::Constr(x, expand_path(aliases, &path), Some(e)))
-            }
-            Arg::Ty(t) => Ok(Arg::Ty(expand_ty(aliases, &t))),
-            Arg::StrgRef(x, t) => Ok(Arg::StrgRef(x, expand_ty(aliases, &t))),
+            Arg::Constr(x, path, e) => Ok(Arg::Constr(x, expand_path(aliases, &path), e)),
+            Arg::Ty(x, ty) => Ok(Arg::Ty(x, expand_ty(aliases, &ty))),
+            Arg::StrgRef(x, ty) => Ok(Arg::StrgRef(x, expand_ty(aliases, &ty))),
         }
     }
 
     fn expand_arg_exists(x: Ident, e_path: Path, e_bind: Ident, e_pred: Expr) -> Arg {
         let subst = mk_sub1(e_bind, x);
         let x_pred = subst_expr(&subst, &e_pred);
-        Arg::Constr(x, e_path, Some(x_pred))
-    }
-    fn expand_alias0(aliases: &AliasMap, path: &Path) -> Option<TyKind> {
-        let indices = Indices { indices: vec![], span: path.span };
-        expand_alias(aliases, path, &indices)
+        Arg::Constr(x, e_path, x_pred)
     }
 
     fn expand_alias(aliases: &AliasMap, path: &Path, indices: &Indices) -> Option<TyKind> {
@@ -426,18 +412,20 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(expand_ty(aliases, t))),
-            TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
             TyKind::Slice(ty) => TyKind::Slice(Box::new(expand_ty(aliases, ty))),
+            TyKind::Tuple(tys) => {
+                TyKind::Tuple(tys.iter().map(|t| expand_ty(aliases, t)).collect())
+            }
         }
     }
 
     fn _and(e1: Expr, e2: Expr) -> Expr {
         let span = e1.span;
-        let kind = ExprKind::BinaryOp(BinOp::And, Box::new(e1), Box::new(e2));
+        let kind = ExprKind::BinaryOp(BinOp::And, Box::new([e1, e2]));
         Expr { kind, span }
     }
 
@@ -453,19 +441,16 @@ pub mod expand {
         HashMap::from([(src, Expr { kind: ExprKind::Var(dst), span: dst.span })])
     }
 
-    fn mk_sub(src: &Vec<Ident>, dst: &Vec<Index>) -> Subst {
+    fn mk_sub(src: &Vec<Ident>, dst: &Vec<RefineArg>) -> Subst {
         assert_eq!(src.len(), dst.len(), "mk_sub: invalid args");
         let mut res = HashMap::new();
         for (src_id, dst_ix) in iter::zip(src, dst) {
             match dst_ix {
-                Index::Expr(e) => {
+                RefineArg::Expr(e) => {
                     res.insert(*src_id, e.clone());
                 }
-                Index::Bind(_) => panic!("cannot use binder in type alias"),
-                // TyKind::Path(p) if p.args.is_empty() => {
-                //     res.insert(*src_id, p.ident);
-                // }
-                // _ => panic!("mk_sub: invalid arg"),
+                RefineArg::Bind(..) => panic!("cannot use binder in type alias"),
+                RefineArg::Abs(..) => panic!("cannot use `RefineArg::Abs` in type alias"),
             }
         }
         res
@@ -480,12 +465,11 @@ pub mod expand {
                 }
             }
             ExprKind::Literal(l) => Expr { kind: ExprKind::Literal(*l), span: e.span },
-            ExprKind::BinaryOp(o, e1, e2) => {
+            ExprKind::BinaryOp(op, box [e1, e2]) => {
                 Expr {
                     kind: ExprKind::BinaryOp(
-                        *o,
-                        Box::new(subst_expr(subst, e1)),
-                        Box::new(subst_expr(subst, e2)),
+                        *op,
+                        Box::new([subst_expr(subst, e1), subst_expr(subst, e2)]),
                     ),
                     span: e.span,
                 }
@@ -497,13 +481,13 @@ pub mod expand {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();
                 Expr { kind: ExprKind::App(*f, es), span: e.span }
             }
-            ExprKind::IfThenElse(p, e1, e2) => {
+            ExprKind::IfThenElse(box [p, e1, e2]) => {
                 Expr {
-                    kind: ExprKind::IfThenElse(
-                        Box::new(subst_expr(subst, p)),
-                        Box::new(subst_expr(subst, e1)),
-                        Box::new(subst_expr(subst, e2)),
-                    ),
+                    kind: ExprKind::IfThenElse(Box::new([
+                        subst_expr(subst, p),
+                        subst_expr(subst, e1),
+                        subst_expr(subst, e2),
+                    ])),
                     span: e.span,
                 }
             }
@@ -525,15 +509,15 @@ pub mod expand {
     fn subst_indices(subst: &Subst, i_indices: &Indices) -> Indices {
         let mut indices = vec![];
         for i in &i_indices.indices {
-            indices.push(subst_index(subst, i));
+            indices.push(subst_arg(subst, i));
         }
         Indices { indices, span: i_indices.span }
     }
 
-    fn subst_index(subst: &Subst, i: &Index) -> Index {
-        match i {
-            super::Index::Expr(e) => Index::Expr(subst_expr(subst, e)),
-            super::Index::Bind(_) => i.clone(),
+    fn subst_arg(subst: &Subst, arg: &RefineArg) -> RefineArg {
+        match arg {
+            RefineArg::Expr(e) => RefineArg::Expr(subst_expr(subst, e)),
+            RefineArg::Bind(..) | RefineArg::Abs(..) => arg.clone(),
         }
     }
 
@@ -554,12 +538,12 @@ pub mod expand {
                 }
             }
             TyKind::Ref(rk, t) => TyKind::Ref(*rk, Box::new(subst_ty(subst, t))),
-            TyKind::Unit => TyKind::Unit,
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
             TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
             TyKind::Slice(ty) => TyKind::Slice(Box::new(subst_ty(subst, ty))),
+            TyKind::Tuple(tys) => TyKind::Tuple(tys.iter().map(|t| subst_ty(subst, t)).collect()),
         }
     }
 }
