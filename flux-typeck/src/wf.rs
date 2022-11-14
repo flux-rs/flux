@@ -206,7 +206,6 @@ impl<'a> Wf<'a> {
                 env.with_binders(binders, sorts, |env| self.check_pred(env, pred))
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
-            fhir::Ty::Ref(_, ty) => self.check_type(env, ty),
             fhir::Ty::Tuple(tys) => {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
@@ -215,7 +214,9 @@ impl<'a> Wf<'a> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::Slice(ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty),
+            fhir::Ty::Ref(_, ty) | fhir::Ty::Slice(ty) | fhir::Ty::Array(ty, _) => {
+                self.check_type(env, ty)
+            }
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)

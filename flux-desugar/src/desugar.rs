@@ -346,7 +346,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         for idx in indices.indices {
             let idxs = self.desugar_refine_arg(idx)?;
             for e in idxs {
-                exprs.push(e)
+                exprs.push(e);
             }
         }
         Ok(fhir::Indices { indices: exprs, span: indices.span })
@@ -931,7 +931,7 @@ impl Binders {
         for (ident, binder) in self.map {
             match binder {
                 Binder::Single(name, sort) => {
-                    params.push(param_from_ident(ident, name, sort.clone()))
+                    params.push(param_from_ident(ident, name, sort.clone()));
                 }
                 Binder::Aggregate(_, fields) => {
                     for (_, (name, sort)) in fields {

@@ -98,8 +98,7 @@ pub enum FoldResult {
 impl FoldResult {
     pub fn ty(&self) -> Ty {
         match self {
-            FoldResult::Strg(_, ty) => ty.clone(),
-            FoldResult::Weak(_, ty) => ty.clone(),
+            FoldResult::Strg(_, ty) | FoldResult::Weak(_, ty) => ty.clone(),
         }
     }
 }
@@ -135,7 +134,7 @@ impl PathsTree {
     }
 
     pub fn update_binding(&mut self, path: &Path, binding: Binding) {
-        *self.get_node(path).borrow_mut() = Node::Leaf(binding)
+        *self.get_node(path).borrow_mut() = Node::Leaf(binding);
     }
 
     pub fn update(&mut self, path: &Path, new_ty: Ty) {

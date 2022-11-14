@@ -305,12 +305,12 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         ident: Ident,
         res: rustc_hir::def::Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let res = self.of_hir_res(res, ident.span)?;
+        let res = self.res_from_hir_res(res, ident.span)?;
         self.res.insert(ident.name, res);
         Ok(())
     }
 
-    fn res_from_ty(&self, ty: rustc_middle::ty::Ty) -> Option<Res> {
+    fn res_from_ty(ty: rustc_middle::ty::Ty) -> Option<Res> {
         match ty.kind() {
             TyKind::Bool => Some(Res::Bool),
             TyKind::Int(int_ty) => Some(Res::Int(*int_ty)),
@@ -322,13 +322,14 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         }
     }
 
-    fn of_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
                 Ok(Res::Param(self.get_param_ty(did).unwrap()))
             }
-            hir::def::Res::Def(hir::def::DefKind::Struct, did)
-            | hir::def::Res::Def(hir::def::DefKind::Enum, did) => Ok(Res::Adt(did)),
+            hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
+                Ok(Res::Adt(did))
+            }
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
                 Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
             }
@@ -346,7 +347,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Char) => Ok(Res::Char),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
                 let ty = self.tcx.type_of(did);
-                self.res_from_ty(ty).ok_or_else(|| {
+                Self::res_from_ty(ty).ok_or_else(|| {
                     self.sess.emit_err(errors::UnsupportedSignature {
                         span,
                         note: format!("unsupported alias `{ty:?}`"),

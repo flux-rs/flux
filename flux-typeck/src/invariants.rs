@@ -8,7 +8,7 @@ use rustc_span::Span;
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint::FixpointCtxt,
+    fixpoint::{FixpointCtxt, KVarStore},
     refine_tree::{RefineTree, UnpackFlags},
 };
 
@@ -50,7 +50,7 @@ fn check_invariant(
 
         rcx.check_pred(invariant.pred.replace_bound_vars(&variant.ret.args), Tag::Other);
     }
-    let mut fcx = FixpointCtxt::new(genv, Default::default());
+    let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
     fcx.check(adt_def.def_id(), constraint)
         .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))

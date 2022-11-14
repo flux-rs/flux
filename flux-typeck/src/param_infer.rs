@@ -144,13 +144,13 @@ fn infer_from_generic_args(
     arg2: &GenericArg,
 ) {
     if let (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
-        infer_from_tys(exprs, env1, ty1, env2, ty2)
+        infer_from_tys(exprs, env1, ty1, env2, ty2);
     }
 }
 
 fn infer_from_refine_args(exprs: &mut Exprs, arg1: &RefineArg, arg2: &RefineArg) {
     if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-        infer_from_exprs(exprs, e1, e2)
+        infer_from_exprs(exprs, e1, e2);
     }
 }
 

@@ -331,7 +331,7 @@ impl TypeFoldable for RefineArgs {
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.args().iter().for_each(|arg| arg.visit_with(visitor))
+        self.args().iter().for_each(|arg| arg.visit_with(visitor));
     }
 }
 
@@ -485,19 +485,20 @@ impl TypeFoldable for Expr {
                 e1.visit_with(visitor);
                 e2.visit_with(visitor);
             }
-            ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => e.visit_with(visitor),
             ExprKind::Tuple(exprs) => {
                 for e in exprs {
                     e.visit_with(visitor);
                 }
             }
-            ExprKind::PathProj(e, _) => e.visit_with(visitor),
+            ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
+                e.visit_with(visitor);
+            }
             ExprKind::Constant(_)
             | ExprKind::BoundVar(_)
             | ExprKind::Local(_)
             | ExprKind::ConstDefId(_) => {}
-            ExprKind::App(_, exprs) => {
-                for e in exprs {
+            ExprKind::App(_, args) => {
+                for e in args {
                     e.visit_with(visitor);
                 }
             }

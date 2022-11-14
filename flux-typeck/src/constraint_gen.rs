@@ -333,7 +333,6 @@ fn bty_subtyping(
         (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
             debug_assert_eq!(float_ty1, float_ty2);
         }
-        (BaseTy::Bool, BaseTy::Bool) | (BaseTy::Str, BaseTy::Str) => {}
         (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
             debug_assert_eq!(len1, len2);
             subtyping(genv, constr, ty1, ty2, tag);
@@ -341,7 +340,9 @@ fn bty_subtyping(
         (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
             subtyping(genv, constr, ty1, ty2, tag);
         }
-        (BaseTy::Char, BaseTy::Char) => {}
+        (BaseTy::Bool, BaseTy::Bool)
+        | (BaseTy::Str, BaseTy::Str)
+        | (BaseTy::Char, BaseTy::Char) => {}
         _ => {
             unreachable!("unexpected base types: `{:?}` and `{:?}` at {:?}", bty1, bty2, tag.span())
         }

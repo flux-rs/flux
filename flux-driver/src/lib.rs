@@ -24,7 +24,7 @@ use rustc_driver::{catch_with_exit_code, RunCompiler};
 fn sysroot() -> Option<String> {
     let home = option_env!("RUSTUP_HOME")?;
     let toolchain = option_env!("RUSTUP_TOOLCHAIN")?;
-    Some(format!("{}/toolchains/{}", home, toolchain))
+    Some(format!("{home}/toolchains/{toolchain}"))
 }
 
 /// Run Flux Rust and return the exit status code.

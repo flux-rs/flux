@@ -242,13 +242,7 @@ impl std::fmt::Debug for Ty {
                 });
                 write!(f, "{adt_name}")?;
                 if !substs.is_empty() {
-                    write!(
-                        f,
-                        "<{}>",
-                        substs
-                            .iter()
-                            .format_with(", ", |arg, f| f(&format_args!("{:?}", arg)))
-                    )?;
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
                 Ok(())
             }
@@ -264,12 +258,7 @@ impl std::fmt::Debug for Ty {
             TyKind::Ref(ty, Mutability::Not) => write!(f, "&{ty:?}"),
             TyKind::Array(ty, c) => write!(f, "[{ty:?}; {c:?}]"),
             TyKind::Tuple(tys) => {
-                write!(
-                    f,
-                    "({})",
-                    tys.iter()
-                        .format_with(", ", |ty, f| f(&format_args!("{:?}", ty)))
-                )
+                write!(f, "({:?})", tys.iter().format(", "))
             }
             TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }

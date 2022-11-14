@@ -306,7 +306,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                         .phase
                         .constr_gen(self.genv, rcx, Tag::Assign(stmt.source_info.span));
                 env.write_place(rcx, gen, place, ty)
-                    .map_err(|err| CheckerError::from(err).with_src_info(stmt.source_info))?
+                    .map_err(|err| CheckerError::from(err).with_src_info(stmt.source_info))?;
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double check here that the place is unfolded to
@@ -656,7 +656,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Len(_) => Ok(Ty::usize()),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, src_info, op)?;
-                Ok(self.check_cast(*kind, from, to))
+                Ok(self.check_cast(*kind, &from, to))
             }
         }
     }
@@ -801,7 +801,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         Ok(ty)
     }
 
-    fn check_cast(&self, kind: CastKind, from: Ty, to: &rustc::ty::Ty) -> Ty {
+    fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Ty {
         use rustc::ty::TyKind as RustTy;
         match kind {
             CastKind::IntToInt => {

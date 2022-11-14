@@ -168,7 +168,7 @@ pub struct Indices {
 
 #[derive(Debug, Clone)]
 pub enum RefineArg {
-    /// @n, the span correspond to the span of @ plus the identifier
+    /// `@n`, the span correspond to the span of `@` plus the identifier
     Bind(Ident, Span),
     Expr(Expr),
     Abs(Vec<Ident>, Expr, Span),
@@ -176,9 +176,7 @@ pub enum RefineArg {
 
 #[derive(Debug)]
 pub struct Path<R = Ident> {
-    /// e.g. vec
     pub ident: R,
-    /// e.g. <nat>
     pub args: Vec<Ty<R>>,
     pub span: Span,
 }
