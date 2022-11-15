@@ -97,6 +97,29 @@ You can run the various tests in the `tests/pos` and `tests/neg` directory using
 $ cargo test -p flux-tests
 ```
 
+## Grammar of Refinements
+
+Note: This changes frequently! For most up-to-date grammar see [`surface_grammar.lalrpop`](flux-syntax/src/surface_grammar.lalrpop)
+
+```
+e ::= n                     // numbers 1,2,3...
+    | x                     // identifiers x,y,z...
+    | x.f                   // index-field access
+    | e + e                 // addition
+    | e - e                 // subtraction
+    | n * e                 // multiplication by constant
+    | if p { e } else { e } // if-then-else
+    | f(e...)               // uninterpreted function application
+
+p ::= true | false
+    | e = e   // equality
+    | e < e   // less than
+    | e || e  // disjunction
+    | e && e  // conjunction
+    | e => e  // implication
+    | !p      // negation
+```
+
 ## Limitations
 
 This is a prototype! Use at your own risk. Everything could break and it will break.
