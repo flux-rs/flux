@@ -114,9 +114,9 @@ e ::= n                     // numbers 1,2,3...
 p ::= true | false
     | e = e   // equality
     | e < e   // less than
-    | e || e  // disjunction
-    | e && e  // conjunction
-    | e => e  // implication
+    | p || p  // disjunction
+    | p && p  // conjunction
+    | p => p  // implication
     | !p      // negation
 ```
 
