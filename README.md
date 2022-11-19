@@ -1,4 +1,10 @@
-# Flux
+
+![Flux](logo.png)
+
+`flux` is a refinement type checker for Rust. 
+
+See the [blog](https://liquid-rust.github.io/) for details on refinement types and rust.
+
 
 ## Requirements
 
