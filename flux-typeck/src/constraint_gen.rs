@@ -16,7 +16,7 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerError,
     param_infer::{self, InferenceError},
-    refine_tree::{ConstrBuilder, RefineCtxt, UnpackFlags},
+    refine_tree::{RefineCtxt, UnpackFlags},
     type_env::{PathMap, TypeEnv},
 };
 
@@ -86,25 +86,21 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         match constraint {
             Constraint::Type(path, ty) => {
                 let actual_ty = env.lookup_path(rcx, self, path)?;
-                let mut constr = rcx.check_constr();
-                self.sub_ctxt().subtyping(&mut constr, &actual_ty, ty);
+                self.sub_ctxt().subtyping(rcx, &actual_ty, ty);
             }
             Constraint::Pred(e) => {
-                let constr = &mut rcx.check_constr();
-                constr.push_head(e.clone(), self.tag);
+                rcx.check_pred(e, self.tag);
             }
         }
         Ok(())
     }
 
     pub fn check_pred(&mut self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
-        let mut constr = rcx.check_constr();
-        constr.push_head(pred, self.tag);
+        rcx.check_pred(pred, self.tag);
     }
 
     pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        let mut constr = rcx.check_constr();
-        self.sub_ctxt().subtyping(&mut constr, ty1, ty2);
+        self.sub_ctxt().subtyping(rcx, ty1, ty2);
     }
 
     pub fn check_fn_call(
@@ -115,7 +111,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<CallOutput, CheckerError> {
-        println!("{fn_sig:?}");
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -138,29 +133,26 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Infer refinement parameters
-        // let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.fresh_kvar)?;
+        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.fresh_kvar)?;
         let mut sub = self.sub_ctxt();
-        let mut rcx = rcx.breadcrumb();
+        let rcx = &mut rcx.breadcrumb();
 
-        let fn_sig = fn_sig
-            .replace_generic_args(&substs)
-            // .replace_bvars(&exprs);
-            .replace_bvars_with(|sort| {
-                if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-                    RefineArg::Abs((self.fresh_kvar)(fsort.inputs()))
-                } else {
-                    RefineArg::Expr(Expr::evar(sub.fresh_evar()))
-                }
-            });
+        let fn_sig = fn_sig.replace_generic_args(&substs).replace_bvars(&exprs);
+        // .replace_bvars_with(|sort| {
+        //     if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
+        //         RefineArg::Abs((self.fresh_kvar)(fsort.inputs()))
+        //     } else {
+        //         RefineArg::Expr(Expr::evar(sub.fresh_evar()))
+        //     }
+        // });
 
-        let constr = &mut rcx.check_constr();
         // Convert pointers to borrows
         let actuals = iter::zip(actuals, fn_sig.args())
             .map(|(actual, formal)| {
                 let formal = formal.unconstr();
                 match (actual.kind(), formal.kind()) {
                     (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        sub.subtyping(constr, &env.get(path), bound);
+                        sub.subtyping(rcx, &env.get(path), bound);
                         env.update(path, bound.clone());
                         env.block(path);
                         Ty::mk_ref(RefKind::Mut, bound.clone())
@@ -177,17 +169,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-            sub.subtyping(constr, &actual, formal);
+            sub.subtyping(rcx, &actual, formal);
         }
-
-        println!("1: {:?}", sub.evars);
 
         // Check preconditions
         for constraint in &fn_sig.requires().replace_evars(&sub.evars) {
-            println!("{constraint:?}");
             self.check_constraint(&mut rcx.breadcrumb(), env, constraint)?;
         }
-        println!("2: {:?}\n", sub.evars);
 
         rcx.replace_evars(&sub.evars);
         let ret = fn_sig.ret().replace_evars(&sub.evars);
@@ -213,11 +201,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.fresh_kvar)?;
         let variant = variant.replace_generic_args(&substs).replace_bvars(&exprs);
 
-        let constr = &mut rcx.check_constr();
-
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
-            self.sub_ctxt().subtyping(constr, actual, formal);
+            self.sub_ctxt().subtyping(rcx, actual, formal);
         }
 
         Ok(variant.ret)
@@ -237,17 +223,17 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
         self.evars.fresh()
     }
 
-    fn subtyping(&mut self, constr: &mut ConstrBuilder, ty1: &Ty, ty2: &Ty) {
-        let constr = &mut constr.breadcrumb();
+    fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
+        let rcx = &mut rcx.breadcrumb();
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
-                self.bty_subtyping(constr, bty1, bty2);
+                self.bty_subtyping(rcx, bty1, bty2);
                 return;
             }
             (TyKind::Exists(bty, pred), _) => {
-                let idxs = constr.push_bound_guard(pred);
+                let idxs = rcx.assume_bound_pred(pred);
                 let ty1 = Ty::indexed(bty.clone(), RefineArgs::multi(idxs));
-                self.subtyping(constr, &ty1, ty2);
+                self.subtyping(rcx, &ty1, ty2);
                 return;
             }
             _ => {}
@@ -255,14 +241,14 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
-                self.bty_subtyping(constr, bty1, bty2);
+                self.bty_subtyping(rcx, bty1, bty2);
                 for (arg1, arg2) in iter::zip(idxs1.args(), idxs2.args()) {
-                    self.arg_subtyping(constr, idxs2, arg1, arg2);
+                    self.arg_subtyping(rcx, idxs2, arg1, arg2);
                 }
             }
             (TyKind::Indexed(bty1, idxs), TyKind::Exists(bty2, pred)) => {
-                self.bty_subtyping(constr, bty1, bty2);
-                constr.push_head(pred.replace_bvars(idxs.args()), self.tag);
+                self.bty_subtyping(rcx, bty1, bty2);
+                rcx.check_pred(pred.replace_bvars(idxs.args()), self.tag);
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
                 debug_assert_eq!(rk1, rk2);
@@ -273,11 +259,11 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
                 debug_assert_eq!(alloc1, alloc2);
             }
             (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
-                self.subtyping(constr, ty1, ty2);
-                self.subtyping(constr, ty2, ty1);
+                self.subtyping(rcx, ty1, ty2);
+                self.subtyping(rcx, ty2, ty1);
             }
             (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-                self.subtyping(constr, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2);
             }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
@@ -288,16 +274,16 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
             (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
                 debug_assert_eq!(tys1.len(), tys2.len());
                 for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    self.subtyping(constr, ty1, ty2);
+                    self.subtyping(rcx, ty1, ty2);
                 }
             }
             (_, TyKind::Constr(p2, ty2)) => {
-                constr.push_head(p2.clone(), self.tag);
-                self.subtyping(constr, ty1, ty2);
+                rcx.check_pred(p2, self.tag);
+                self.subtyping(rcx, ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
-                constr.push_guard(p1.clone());
-                self.subtyping(constr, ty1, ty2);
+                rcx.assume_pred(p1);
+                self.subtyping(rcx, ty1, ty2);
             }
             _ => unreachable!("`{ty1:?}` <: `{ty2:?}`"),
         }
@@ -305,7 +291,7 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
 
     fn arg_subtyping(
         &mut self,
-        constr: &mut ConstrBuilder,
+        rcx: &mut RefineCtxt,
         refine_args: &RefineArgs,
         arg1: &RefineArg,
         arg2: &RefineArg,
@@ -316,24 +302,24 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
         match (arg1, arg2) {
             (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
                 self.unify_exprs(e1, e2);
-                constr.push_head(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
+                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
             }
             (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
                 debug_assert_eq!(abs1.params(), abs2.params());
-                let args = constr
+                let args = rcx
                     .define_vars(abs1.params())
                     .into_iter()
                     .map(|var| RefineArg::Expr(var.into()))
                     .collect_vec();
                 let pred1 = abs1.replace_bvars(&args);
                 let pred2 = abs2.replace_bvars(&args);
-                constr.push_horn_clause(&pred1, &pred2, self.tag);
-                constr.push_horn_clause(pred2, pred1, self.tag);
+                rcx.check_impl(&pred1, &pred2, self.tag);
+                rcx.check_impl(pred2, pred1, self.tag);
             }
             (RefineArg::Expr(expr), RefineArg::Abs(abs))
             | (RefineArg::Abs(abs), RefineArg::Expr(expr)) => {
                 if let ExprKind::FreeVar(name) = expr.kind() {
-                    let args = constr
+                    let args = rcx
                         .define_vars(abs.params())
                         .into_iter()
                         .map(Expr::from)
@@ -341,8 +327,8 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
                     let pred1 = Pred::App(Var::Free(*name), List::from(&args[..]));
                     let args = args.into_iter().map(RefineArg::from).collect_vec();
                     let pred2 = abs.replace_bvars(&args);
-                    constr.push_horn_clause(&pred1, &pred2, self.tag);
-                    constr.push_horn_clause(pred2, pred1, self.tag);
+                    rcx.check_impl(&pred1, &pred2, self.tag);
+                    rcx.check_impl(pred2, pred1, self.tag);
                 } else {
                     unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
                 }
@@ -356,7 +342,7 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
         }
     }
 
-    fn bty_subtyping(&mut self, constr: &mut ConstrBuilder, bty1: &BaseTy, bty2: &BaseTy) {
+    fn bty_subtyping(&mut self, rcx: &mut RefineCtxt, bty1: &BaseTy, bty2: &BaseTy) {
         match (bty1, bty2) {
             (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
@@ -369,7 +355,7 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
                 debug_assert_eq!(substs1.len(), substs2.len());
                 let variances = self.genv.variances_of(def1.def_id());
                 for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-                    self.generic_arg_subtyping(constr, *variance, ty1, ty2);
+                    self.generic_arg_subtyping(rcx, *variance, ty1, ty2);
                 }
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
@@ -377,10 +363,10 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
                 debug_assert_eq!(len1, len2);
-                self.subtyping(constr, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
-                self.subtyping(constr, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
@@ -398,7 +384,7 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
 
     fn generic_arg_subtyping(
         &mut self,
-        constr: &mut ConstrBuilder,
+        rcx: &mut RefineCtxt,
         variance: Variance,
         arg1: &GenericArg,
         arg2: &GenericArg,
@@ -406,12 +392,12 @@ impl<'a, 'tcx> SubCtxt<'a, 'tcx> {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
                 match variance {
-                    rustc_middle::ty::Variance::Covariant => self.subtyping(constr, ty1, ty2),
+                    rustc_middle::ty::Variance::Covariant => self.subtyping(rcx, ty1, ty2),
                     rustc_middle::ty::Variance::Invariant => {
-                        self.subtyping(constr, ty1, ty2);
-                        self.subtyping(constr, ty2, ty1);
+                        self.subtyping(rcx, ty1, ty2);
+                        self.subtyping(rcx, ty2, ty1);
                     }
-                    rustc_middle::ty::Variance::Contravariant => self.subtyping(constr, ty2, ty1),
+                    rustc_middle::ty::Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
                     rustc_middle::ty::Variance::Bivariant => {}
                 }
             }

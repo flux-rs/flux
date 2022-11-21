@@ -217,7 +217,6 @@ impl PathsTree {
             let loc = path.loc;
             let mut path_proj = vec![];
 
-            println!("{loc:?}");
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
 
             for field in path.projection() {

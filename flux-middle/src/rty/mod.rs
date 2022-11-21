@@ -222,8 +222,8 @@ where
         self.value.fold_with(&mut BVarFolder::new(args))
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort) -> RefineArg) -> T {
-        let args = self.params.iter().map(|sort| f(sort)).collect_vec();
+    pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> RefineArg) -> T {
+        let args = self.params.iter().map(f).collect_vec();
         self.replace_bvars(&args)
     }
 
