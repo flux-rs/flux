@@ -5,7 +5,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, EVarCtxt, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
+    BaseTy, Binders, Constraint, EVarGen, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
     RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
@@ -142,8 +142,8 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut GenericsFolder(args))
     }
 
-    fn replace_evars(&self, evars: &EVarCtxt) -> Self {
-        struct EVarFolder<'a>(&'a EVarCtxt);
+    fn replace_evars(&self, evars: &EVarGen) -> Self {
+        struct EVarFolder<'a>(&'a EVarGen);
 
         impl TypeFolder for EVarFolder<'_> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {

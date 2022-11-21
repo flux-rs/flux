@@ -507,7 +507,6 @@ impl Node {
     ) -> Result<(), OpaqueStructErr> {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                let ty = ty.unconstr();
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) => {
                         let fields = downcast(

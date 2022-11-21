@@ -4,33 +4,36 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
     rty::{
-        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarCtxt, Expr,
+        evars, fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, EVarGen, Expr,
         ExprKind, GenericArg, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
         TyKind, Var, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
-    param_infer::{self, InferenceError},
-    refine_tree::{RefineCtxt, UnpackFlags},
+    param_infer::InferenceError,
+    refine_tree::{RefineCtxt, Scope, UnpackFlags},
     type_env::{PathMap, TypeEnv},
 };
 
 #[allow(clippy::type_complexity)]
-pub struct ConstrGen<'a, 'tcx> {
-    pub genv: &'a GlobalEnv<'a, 'tcx>,
+pub struct ConstrGen<'a, 'genv, 'tcx> {
+    pub genv: &'a GlobalEnv<'genv, 'tcx>,
     fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
     tag: Tag,
 }
 
-struct InferCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
-    evars: EVarCtxt,
+struct InferCtxt<'a, 'genv, 'tcx> {
+    genv: &'a GlobalEnv<'genv, 'tcx>,
+    kvar_gen: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
+    evar_gen: EVarGen,
     tag: Tag,
+    evar_ctxts: FxIndexMap<evars::CtxtId, Scope>,
 }
 
 pub struct CallOutput {
@@ -69,8 +72,8 @@ impl Tag {
     }
 }
 
-impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
-    pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
+impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
+    pub fn new<F>(genv: &'a GlobalEnv<'genv, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
         F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
     {
@@ -83,17 +86,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         constraint: &Constraint,
     ) -> Result<(), OpaqueStructErr> {
-        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| {
-            infcx.check_constraint(rcx, env, &mut *self.fresh_kvar, constraint)
-        })
+        self.infcx(rcx).check_constraint(rcx, env, constraint)
     }
 
-    pub fn check_pred(&mut self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
+    pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
         rcx.check_pred(pred, self.tag);
     }
 
     pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| infcx.subtyping(rcx, ty1, ty2))
+        self.infcx(rcx).subtyping(rcx, ty1, ty2)
     }
 
     pub fn check_fn_call(
@@ -125,55 +126,47 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
             .collect_vec();
 
-        // Infer refinement parameters
-        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| {
-            let fn_sig = fn_sig
-                .replace_generic_args(&substs)
-                .replace_bvars_with(|sort| {
-                    if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-                        RefineArg::Abs((self.fresh_kvar)(fsort.inputs()))
-                    } else {
-                        RefineArg::Expr(Expr::evar(infcx.fresh_evar()))
-                    }
-                });
+        let mut infcx = self.infcx(rcx);
 
-            // Convert pointers to borrows
-            let actuals = iter::zip(actuals, fn_sig.args())
-                .map(|(actual, formal)| {
-                    let formal = formal.unconstr();
-                    match (actual.kind(), formal.kind()) {
-                        (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                            infcx.subtyping(rcx, &env.get(path), bound);
-                            let bound = bound.replace_evars(&infcx.evars);
-                            env.update(path, bound.clone());
-                            env.block(path);
-                            Ty::mk_ref(RefKind::Mut, bound)
-                        }
-                        (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, _)) => {
-                            let ty = Ty::mk_ref(RefKind::Shr, env.get(path));
-                            env.block(path);
-                            ty
-                        }
-                        _ => actual.clone(),
-                    }
-                })
-                .collect_vec();
+        let fn_sig = fn_sig
+            .replace_generic_args(&substs)
+            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
 
-            // Check arguments
-            for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
-                infcx.subtyping(rcx, &actual, formal);
+        // Check arguments
+        let mut upds = vec![];
+        for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
+            let (formal, pred) = formal.unconstr();
+            infcx.check_pred(rcx, pred);
+            match (actual.kind(), formal.kind()) {
+                (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    upds.push((path, bound.clone()));
+                    infcx.subtyping(rcx, &env.get(path), bound);
+                }
+                (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
+                    infcx.subtyping(rcx, &env.get(path), bound);
+                    env.block(path);
+                }
+                _ => {
+                    infcx.subtyping(rcx, actual, &formal);
+                }
             }
+        }
 
-            // Check preconditions
-            for constraint in &fn_sig.requires().replace_evars(&infcx.evars) {
-                infcx.check_constraint(rcx, env, &mut self.fresh_kvar, constraint)?;
-            }
+        // Check preconditions
+        for constraint in &fn_sig.requires().replace_evars(&infcx.evar_gen) {
+            infcx.check_constraint(rcx, env, constraint)?;
+        }
 
-            let ret = fn_sig.ret().replace_evars(&infcx.evars);
-            let ensures = fn_sig.ensures().replace_evars(&infcx.evars);
+        for (path, bound) in upds {
+            env.update(path, bound.replace_evars(&infcx.evar_gen));
+            env.block(path);
+        }
 
-            Ok(CallOutput { ret, ensures })
-        })
+        rcx.replace_evars(&infcx.evar_gen);
+        let ret = fn_sig.ret().replace_evars(&infcx.evar_gen);
+        let ensures = fn_sig.ensures().replace_evars(&infcx.evar_gen);
+
+        Ok(CallOutput { ret, ensures })
     }
 
     pub fn check_constructor(
@@ -189,50 +182,64 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
             .collect_vec();
 
-        // Infer refinement parameters
-        let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.fresh_kvar)?;
-        let variant = variant.replace_generic_args(&substs).replace_bvars(&exprs);
+        let mut infcx = self.infcx(rcx);
+        let variant = variant
+            .replace_generic_args(&substs)
+            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
 
-        InferCtxt::with(self.genv, rcx, self.tag, |rcx, infcx| {
-            // Check arguments
-            for (actual, formal) in iter::zip(fields, variant.fields()) {
-                infcx.subtyping(rcx, actual, formal);
-            }
-        });
+        // Check arguments
+        for (actual, formal) in iter::zip(fields, variant.fields()) {
+            infcx.subtyping(rcx, actual, formal);
+        }
 
-        Ok(variant.ret)
+        rcx.replace_evars(&infcx.evar_gen);
+
+        Ok(variant.ret.replace_evars(&infcx.evar_gen))
+    }
+
+    fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt::new(self.genv, rcx, &mut self.fresh_kvar, self.tag)
     }
 }
 
-impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
-    fn with<R>(
-        genv: &'a GlobalEnv<'a, 'tcx>,
-        rcx: &mut RefineCtxt,
+impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
+    fn new(
+        genv: &'a GlobalEnv<'genv, 'tcx>,
+        rcx: &RefineCtxt,
+        fresh_kvar: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
         tag: Tag,
-        f: impl FnOnce(&mut RefineCtxt, &mut Self) -> R,
-    ) -> R {
-        let mut infcx = Self { genv, evars: EVarCtxt::new(), tag };
-        let r = f(&mut rcx.breadcrumb(), &mut infcx);
-        rcx.replace_evars(&infcx.evars);
-        r
+    ) -> Self {
+        let mut evars = EVarGen::new();
+        let mut evar_ctxts = FxIndexMap::default();
+        evar_ctxts.insert(evars.new_ctxt(), rcx.scope());
+        Self { genv, kvar_gen: fresh_kvar, evar_gen: evars, evar_ctxts, tag }
     }
 
-    fn fresh_evar(&mut self) -> EVar {
-        self.evars.fresh()
+    fn fresh_evar_or_kvar(&mut self, sort: &Sort) -> RefineArg {
+        if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
+            RefineArg::Abs((self.kvar_gen)(fsort.inputs()))
+        } else {
+            let cx_id = self.evar_ctxts.last().unwrap().0;
+            let evar = self.evar_gen.fresh_in_cx(*cx_id);
+            RefineArg::Expr(Expr::evar(evar))
+        }
+    }
+
+    fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
+        rcx.check_pred(pred, self.tag)
     }
 
     fn check_constraint(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        fresh_kvar: &mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
         constraint: &Constraint,
     ) -> Result<(), OpaqueStructErr> {
         let rcx = &mut rcx.breadcrumb();
         match constraint {
             Constraint::Type(path, ty) => {
                 let actual_ty = {
-                    let gen = &mut ConstrGen::new(self.genv, fresh_kvar, self.tag);
+                    let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag);
                     env.lookup_path(rcx, gen, path)?
                 };
                 self.subtyping(rcx, &actual_ty, ty);
@@ -263,8 +270,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 self.bty_subtyping(rcx, bty1, bty2);
-                for (arg1, arg2) in iter::zip(idxs1.args(), idxs2.args()) {
-                    self.arg_subtyping(rcx, idxs2, arg1, arg2);
+                for (i, (arg1, arg2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
+                    self.arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
                 }
             }
             (TyKind::Indexed(bty1, idxs), TyKind::Exists(bty2, pred)) => {
@@ -273,7 +280,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
                 debug_assert_eq!(rk1, rk2);
-                self.unify_exprs(&path1.to_expr(), &path2.to_expr())
+                self.unify_exprs(&path1.to_expr(), &path2.to_expr(), false)
             }
             (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
                 debug_assert_eq!(loc1, loc2);
@@ -313,16 +320,16 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn arg_subtyping(
         &mut self,
         rcx: &mut RefineCtxt,
-        refine_args: &RefineArgs,
         arg1: &RefineArg,
         arg2: &RefineArg,
+        is_binder: bool,
     ) {
         if arg1 == arg2 {
             return;
         }
         match (arg1, arg2) {
             (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
-                self.unify_exprs(e1, e2);
+                self.unify_exprs(e1, e2, is_binder);
                 rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
             }
             (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
@@ -357,9 +364,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr) {
-        if let ExprKind::EVar(evar) = e2.kind() {
-            self.evars.solve(*evar, e1);
+    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
+        if let ExprKind::EVar(evar) = e2.kind()
+           && !self.evar_ctxts[&evar.cx].has_free_vars(e1)
+        {
+            self.evar_gen.solve(*evar, e1, replace);
         }
     }
 
