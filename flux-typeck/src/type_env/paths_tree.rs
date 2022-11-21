@@ -217,6 +217,7 @@ impl PathsTree {
             let loc = path.loc;
             let mut path_proj = vec![];
 
+            println!("{loc:?}");
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
 
             for field in path.projection() {
@@ -241,7 +242,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::BoxPtr(loc, _) => {
-                                path = Path::from(Loc::Free(*loc));
+                                path = Path::from(Loc::from(*loc));
                                 continue 'outer;
                             }
                             TyKind::Ref(rk, ty) => {
@@ -260,7 +261,7 @@ impl PathsTree {
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
-                                let loc = Loc::Free(fresh);
+                                let loc = Loc::from(fresh);
                                 *ptr.borrow_mut() = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
                                 self.insert(loc, boxed.clone(), LocKind::Box);
                                 path = Path::from(loc);
@@ -572,7 +573,7 @@ impl Node {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
                 if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
-                    let root = map.remove(&Loc::Free(*loc)).unwrap();
+                    let root = map.remove(&Loc::from(*loc)).unwrap();
                     debug_assert!(matches!(root.kind, LocKind::Box));
                     let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
                     let ty = gen.genv.mk_box(boxed_ty, alloc.clone());
@@ -752,7 +753,7 @@ fn downcast_struct(
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
-        .replace_bound_vars(args)
+        .replace_bvars(args)
         .replace_generic_args(substs)
         .fields
         .to_vec())

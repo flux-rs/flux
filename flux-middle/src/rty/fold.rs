@@ -5,12 +5,12 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred, RefineArg,
-    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    BaseTy, Binders, Constraint, EVarCtxt, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
+    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
-    rty::VariantDef,
+    rty::{evars::EVarEntry, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -141,6 +141,24 @@ pub trait TypeFoldable: Sized {
 
         self.fold_with(&mut GenericsFolder(args))
     }
+
+    fn replace_evars(&self, evars: &EVarCtxt) -> Self {
+        struct EVarFolder<'a>(&'a EVarCtxt);
+
+        impl TypeFolder for EVarFolder<'_> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::EVar(evar) = expr.kind()
+                   && let Some(EVarEntry::Resolved(sol)) = self.0.entry(*evar)
+                {
+                    sol.clone()
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut EVarFolder(evars))
+    }
 }
 
 impl<T> TypeFoldable for Binders<T>
@@ -227,11 +245,11 @@ impl TypeFoldable for Constraint {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             Constraint::Type(path, ty) => {
+                let path_expr = path.to_expr().fold_with(folder);
                 Constraint::Type(
-                    path.to_expr()
-                        .fold_with(folder)
-                        .to_path()
-                        .expect("folding produced an invalid path"),
+                    path_expr.to_path().unwrap_or_else(|| {
+                        panic!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
+                    }),
                     ty.fold_with(folder),
                 )
             }
@@ -458,13 +476,13 @@ impl TypeFoldable for Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(name.fold_with(folder)),
             ExprKind::BoundVar(bvar) => Expr::bvar(*bvar),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
+            ExprKind::EVar(evar) => Expr::evar(*evar),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
+            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder))
             }
-
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder)),
             ExprKind::TupleProj(e, proj) => Expr::proj(e.fold_with(folder), *proj),
             ExprKind::Tuple(exprs) => {
@@ -493,10 +511,6 @@ impl TypeFoldable for Expr {
             ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
                 e.visit_with(visitor);
             }
-            ExprKind::Constant(_)
-            | ExprKind::BoundVar(_)
-            | ExprKind::Local(_)
-            | ExprKind::ConstDefId(_) => {}
             ExprKind::App(_, args) => {
                 for e in args {
                     e.visit_with(visitor);
@@ -507,6 +521,11 @@ impl TypeFoldable for Expr {
                 e1.visit_with(visitor);
                 e2.visit_with(visitor);
             }
+            ExprKind::Constant(_)
+            | ExprKind::BoundVar(_)
+            | ExprKind::EVar(_)
+            | ExprKind::Local(_)
+            | ExprKind::ConstDefId(_) => {}
         }
     }
 

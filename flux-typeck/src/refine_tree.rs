@@ -8,7 +8,7 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred, RefKind,
+    box_args, fold::TypeFoldable, BaseTy, Binders, EVarCtxt, Expr, GenericArg, Name, Pred, RefKind,
     RefineArg, RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
@@ -219,8 +219,11 @@ impl RefineCtxt<'_> {
 
     fn assume_invariants(&mut self, bty: &BaseTy, idxs: &RefineArgs) {
         for invariant in bty.invariants() {
-            self.assume_pred(invariant.pred.replace_bound_vars(idxs.args()));
+            self.assume_pred(invariant.pred.replace_bvars(idxs.args()));
         }
+    }
+    pub fn replace_evars(&mut self, evars: &EVarCtxt) {
+        self.ptr.borrow_mut().replace_evars(evars);
     }
 }
 
@@ -322,7 +325,7 @@ impl NodePtr {
             .into_iter()
             .map(|name| RefineArg::Expr(Expr::fvar(name)))
             .collect_vec();
-        self.push_guard(pred.replace_bound_vars(&args));
+        self.push_guard(pred.replace_bvars(&args));
         args
     }
 
@@ -389,6 +392,17 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
+    fn replace_evars(&mut self, evars: &EVarCtxt) {
+        match &mut self.kind {
+            NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
+            NodeKind::Head(pred, _) => *pred = pred.replace_evars(evars),
+            NodeKind::Conj | NodeKind::ForAll(_, _) => {}
+        }
+        for child in &self.children {
+            child.borrow_mut().replace_evars(evars)
+        }
+    }
+
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
             NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {

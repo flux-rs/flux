@@ -5,12 +5,14 @@
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
 pub mod conv;
+mod evars;
 mod expr;
 pub mod fold;
 pub mod subst;
 
 use std::{borrow::Cow, fmt, sync::LazyLock};
 
+pub use evars::{EVar, EVarCtxt};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
@@ -216,17 +218,17 @@ impl<T> Binders<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-        let args = self
-            .params
-            .iter()
-            .map(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
-            .collect_vec();
-        self.replace_bound_vars(&args)
+    pub fn replace_bvars(&self, args: &[RefineArg]) -> T {
+        self.value.fold_with(&mut BVarFolder::new(args))
     }
 
-    pub fn replace_bound_vars(&self, args: &[RefineArg]) -> T {
-        self.value.fold_with(&mut BVarFolder::new(args))
+    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort) -> RefineArg) -> T {
+        let args = self.params.iter().map(|sort| f(sort)).collect_vec();
+        self.replace_bvars(&args)
+    }
+
+    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
+        self.replace_bvars_with(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
     }
 }
 
@@ -965,6 +967,7 @@ mod pretty {
             match self {
                 Var::Bound(bvar) => w!("{:?}", bvar),
                 Var::Free(name) => w!("{:?}", ^name),
+                Var::EVar(evar) => w!("{:?}", evar),
             }
         }
     }

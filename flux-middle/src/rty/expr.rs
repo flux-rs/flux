@@ -7,7 +7,7 @@ use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::BaseTy;
+use super::{evars::EVar, BaseTy};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -23,11 +23,12 @@ pub struct ExprS {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ExprKind {
-    ConstDefId(DefId),
     FreeVar(Name),
+    EVar(EVar),
     BoundVar(BoundVar),
     Local(Local),
     Constant(Constant),
+    ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     App(Symbol, List<Expr>),
     UnaryOp(UnOp, Expr),
@@ -37,10 +38,11 @@ pub enum ExprKind {
     IfThenElse(Expr, Expr, Expr),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Var {
-    Bound(BoundVar),
     Free(Name),
+    Bound(BoundVar),
+    EVar(EVar),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -52,8 +54,7 @@ pub struct Path {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Loc {
     Local(Local),
-    Free(Name),
-    Bound(BoundVar),
+    Var(Var),
 }
 
 /// A bound *var*riable is represented as a debruijn index
@@ -121,6 +122,10 @@ impl Expr {
 
     pub fn fvar(name: Name) -> Expr {
         ExprKind::FreeVar(name).intern()
+    }
+
+    pub fn evar(evar: EVar) -> Expr {
+        ExprKind::EVar(evar).intern()
     }
 
     pub fn bvar(bvar: BoundVar) -> Expr {
@@ -279,9 +284,9 @@ impl Expr {
 
     pub fn to_loc(&self) -> Option<Loc> {
         match self.kind() {
-            ExprKind::FreeVar(name) => Some(Loc::Free(*name)),
             ExprKind::Local(local) => Some(Loc::Local(*local)),
-            ExprKind::BoundVar(bvar) => Some(Loc::Bound(*bvar)),
+            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name))),
+            ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar))),
             _ => None,
         }
     }
@@ -310,8 +315,9 @@ impl Expr {
                     proj.push(*field);
                     expr = e;
                 }
-                ExprKind::FreeVar(name) => break Loc::Free(*name),
-                ExprKind::BoundVar(bvar) => break Loc::Bound(*bvar),
+                ExprKind::FreeVar(name) => break Loc::Var(Var::Free(*name)),
+                ExprKind::BoundVar(bvar) => break Loc::Var(Var::Bound(*bvar)),
+                ExprKind::EVar(evar) => break Loc::Var(Var::EVar(*evar)),
                 ExprKind::Local(local) => break Loc::Local(*local),
                 _ => return None,
             }
@@ -326,6 +332,7 @@ impl Var {
         match self {
             Var::Bound(bvar) => Expr::bvar(*bvar),
             Var::Free(name) => Expr::fvar(*name),
+            Var::EVar(evar) => Expr::evar(*evar),
         }
     }
 
@@ -334,10 +341,7 @@ impl Var {
     }
 
     pub fn to_loc(&self) -> Loc {
-        match self {
-            Var::Bound(bvar) => Loc::Bound(*bvar),
-            Var::Free(name) => Loc::Free(*name),
-        }
+        Loc::Var(*self)
     }
 }
 
@@ -377,8 +381,7 @@ impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
             Loc::Local(local) => Expr::local(*local),
-            Loc::Free(name) => Expr::fvar(*name),
-            Loc::Bound(bvar) => Expr::bvar(*bvar),
+            Loc::Var(var) => var.to_expr(),
         }
     }
 }
@@ -511,7 +514,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Free(name)
+        Loc::Var(Var::Free(name))
     }
 }
 
@@ -572,10 +575,12 @@ mod pretty {
             }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
-                ExprKind::FreeVar(name) => w!("{:?}", ^name),
-                ExprKind::ConstDefId(did) => w!("{:?}", ^did),
                 ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
+                ExprKind::FreeVar(name) => w!("{:?}", ^name),
+                ExprKind::EVar(evar) => w!("{:?}", evar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
+                ExprKind::ConstDefId(did) => w!("{:?}", ^did),
+                ExprKind::Constant(c) => w!("{}", ^c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
                         w!("({:?})", e1)?;
@@ -594,7 +599,6 @@ mod pretty {
                     }
                     Ok(())
                 }
-                ExprKind::Constant(c) => w!("{}", ^c),
                 ExprKind::UnaryOp(op, e) => {
                     if e.is_binary_op() {
                         w!("{:?}{:?}", op, e)
@@ -645,8 +649,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Free(name) => w!("{:?}", ^name),
-                Loc::Bound(bvar) => w!("{:?}", bvar),
+                Loc::Var(var) => w!("{:?}", var),
             }
         }
     }

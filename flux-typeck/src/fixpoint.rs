@@ -218,8 +218,8 @@ where
                 let args = exprs_to_fixpoint(args, &self.name_map, &self.const_map);
                 fixpoint::Pred::Expr(fixpoint::Expr::App(func, args))
             }
-            rty::Pred::App(rty::Var::Bound(_), _) => {
-                panic!("unexpected bound var in pred application")
+            rty::Pred::App(var, _) => {
+                panic!("unexpected var `{var:?}` in pred application")
             }
             rty::Pred::Hole => panic!("unexpected hole"),
         }
@@ -492,9 +492,6 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
                 })
         }
         rty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
-        rty::ExprKind::Local(_) | rty::ExprKind::BoundVar(_) | rty::ExprKind::PathProj(..) => {
-            panic!("unexpected expr: `{expr:?}`")
-        }
         rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
         rty::ExprKind::App(func, args) => {
             let args = exprs_to_fixpoint(args, name_map, const_map);
@@ -507,6 +504,12 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
                 expr_to_fixpoint(e1, name_map, const_map),
                 expr_to_fixpoint(e2, name_map, const_map),
             ]))
+        }
+        rty::ExprKind::EVar(_)
+        | rty::ExprKind::Local(_)
+        | rty::ExprKind::BoundVar(_)
+        | rty::ExprKind::PathProj(..) => {
+            panic!("unexpected expr: `{expr:?}`")
         }
     }
 }

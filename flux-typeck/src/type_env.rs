@@ -646,7 +646,7 @@ impl TypeEnvInfer {
             .collect_vec();
         let kvar = kvar_gen
             .fresh(&sorts, self.scope.iter())
-            .replace_bound_vars(&exprs);
+            .replace_bvars(&exprs);
         constrs.push(kvar);
 
         let params = iter::zip(names, sorts).collect_vec();
