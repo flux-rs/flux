@@ -71,13 +71,13 @@ To run `flux` on code outside the repo, use script in `tools/flux.sh`
 ### A tiny example
 
 The following example declares a funcion `inc` that returns a integer greater than the input.
-We use the nightly feature `register_tool` to register the `lr` tool in order to add refinement annotations to functions.
+We use the nightly feature `register_tool` to register the `flux` tool in order to add refinement annotations to functions.
 
 ```rust
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::ty(fn<n: int>(i32@n) -> i32{v: v > n})]
+#[flux::ty(fn(n: i32) -> i32{v: v > n})]
 pub fn inc(x: i32) -> i32 {
     x + 1
 }
