@@ -149,6 +149,8 @@ Add this to the workspace settings i.e. `.vscode/settings.json` using in the app
 }
 ```
 
+## Cargo Wrapper
+
 If the plugin doesn't work it is useful to write a small shell script e.g. `cargo-flux` 
 that simulates how `vscode` invokes `flux` via `rust-analyzer`
 
