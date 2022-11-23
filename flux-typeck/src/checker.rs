@@ -60,12 +60,12 @@ pub struct Checker<'a, 'tcx, P> {
 }
 
 pub trait Phase: Sized {
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn constr_gen<'a, 'tcx>(
         &'a mut self,
-        genv: &'a GlobalEnv<'genv, 'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
         tag: Tag,
-    ) -> ConstrGen<'a, 'genv, 'tcx>;
+    ) -> ConstrGen<'a, 'tcx>;
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
 
@@ -950,12 +950,12 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
 }
 
 impl Phase for Inference<'_> {
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn constr_gen<'a, 'tcx>(
         &'a mut self,
-        genv: &'a GlobalEnv<'genv, 'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         _rcx: &RefineCtxt,
         tag: Tag,
-    ) -> ConstrGen<'a, 'genv, 'tcx> {
+    ) -> ConstrGen<'a, 'tcx> {
         ConstrGen::new(genv, |sorts| Binders::new(Pred::Hole, sorts), tag)
     }
 
@@ -997,12 +997,12 @@ impl Phase for Inference<'_> {
 }
 
 impl Phase for Check<'_> {
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn constr_gen<'a, 'tcx>(
         &'a mut self,
-        genv: &'a GlobalEnv<'genv, 'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
         tag: Tag,
-    ) -> ConstrGen<'a, 'genv, 'tcx> {
+    ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
         let fresh_kvar = move |sorts: &[Sort]| self.kvars.fresh(sorts, scope.iter());
         ConstrGen::new(genv, fresh_kvar, tag)

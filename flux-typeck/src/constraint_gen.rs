@@ -22,14 +22,14 @@ use crate::{
 };
 
 #[allow(clippy::type_complexity)]
-pub struct ConstrGen<'a, 'genv, 'tcx> {
-    pub genv: &'a GlobalEnv<'genv, 'tcx>,
+pub struct ConstrGen<'a, 'tcx> {
+    pub genv: &'a GlobalEnv<'a, 'tcx>,
     fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
     tag: Tag,
 }
 
-struct InferCtxt<'a, 'genv, 'tcx> {
-    genv: &'a GlobalEnv<'genv, 'tcx>,
+struct InferCtxt<'a, 'tcx> {
+    genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
     evar_gen: EVarGen,
     tag: Tag,
@@ -72,8 +72,8 @@ impl Tag {
     }
 }
 
-impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
-    pub fn new<F>(genv: &'a GlobalEnv<'genv, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
+impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
+    pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
         F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
     {
@@ -146,9 +146,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
                     infcx.subtyping(rcx, &env.get(path), bound);
                     env.block(path);
                 }
-                _ => {
-                    infcx.subtyping(rcx, actual, &formal);
-                }
+                _ => infcx.subtyping(rcx, actual, &formal),
             }
         }
 
@@ -157,11 +155,11 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             infcx.check_constraint(rcx, env, constraint)?;
         }
 
+        // Replace evars
         for (path, bound) in upds {
             env.update(path, bound.replace_evars(&infcx.evar_gen));
             env.block(path);
         }
-
         rcx.replace_evars(&infcx.evar_gen);
         let ret = fn_sig.ret().replace_evars(&infcx.evar_gen);
         let ensures = fn_sig.ensures().replace_evars(&infcx.evar_gen);
@@ -197,14 +195,14 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         Ok(variant.ret.replace_evars(&infcx.evar_gen))
     }
 
-    fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'genv, 'tcx> {
+    fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
         InferCtxt::new(self.genv, rcx, &mut self.fresh_kvar, self.tag)
     }
 }
 
-impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
+impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
-        genv: &'a GlobalEnv<'genv, 'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
         fresh_kvar: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
         tag: Tag,
@@ -364,14 +362,6 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
-        if let ExprKind::EVar(evar) = e2.kind()
-           && !self.evar_ctxts[&evar.cx].has_free_vars(e1)
-        {
-            self.evar_gen.solve(*evar, e1, replace);
-        }
-    }
-
     fn bty_subtyping(&mut self, rcx: &mut RefineCtxt, bty1: &BaseTy, bty2: &BaseTy) {
         match (bty1, bty2) {
             (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
@@ -434,6 +424,14 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
             _ => unreachable!("incompatible generic args:  `{arg1:?}` `{arg2:?}"),
         };
+    }
+
+    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
+        if let ExprKind::EVar(evar) = e2.kind()
+           && !self.evar_ctxts[&evar.cx].has_free_vars(e1)
+        {
+            self.evar_gen.solve(*evar, e1, replace);
+        }
     }
 }
 

@@ -573,7 +573,8 @@ impl TypeEnvInfer {
                     Ty::indexed(bty, idxs1.clone())
                 }
             }
-            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
+            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..))
+            | (TyKind::Exists(bty1, _), TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let pred = Binders::new(Pred::Hole, bty.sorts());
