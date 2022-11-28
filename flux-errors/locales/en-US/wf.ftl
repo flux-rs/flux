@@ -3,7 +3,7 @@ wf_sort_mismatch =
     .label = expected `{$expected}`, found `{$found}`
 
 wf_param_count_mismatch =
-    this type takes {$expected} refinement parameters but {$found ->
+    this {$thing} takes {$expected} refinement parameters but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }

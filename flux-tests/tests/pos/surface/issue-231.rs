@@ -2,9 +2,8 @@
 #![register_tool(flux)]
 
 #[flux::sig(fn(b:bool[true]))]
-fn assert(_: bool) {}
+pub fn assert(_: bool) {}
 
-// We should not check the body of the function
-fn foo() {
+pub fn foo() {
     assert(0 < 1);
 }
