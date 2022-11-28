@@ -302,24 +302,19 @@ impl fmt::Debug for BinOp {
 pub mod expand {
     use std::{collections::HashMap, iter};
 
-    use flux_errors::FluxSession;
     use rustc_errors::ErrorGuaranteed;
     use rustc_span::symbol::Ident;
 
     use super::{
-        errors, AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
+        AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
     };
 
     /// `expand_bare_sig(aliases, b_sig)` replaces all the alias-applications in `b_sig`
     /// with the corresponding type definitions from `aliases` (if any).
-    pub fn expand_sig(
-        sess: &FluxSession,
-        aliases: &AliasMap,
-        fn_sig: FnSig,
-    ) -> Result<FnSig, ErrorGuaranteed> {
+    pub fn expand_sig(aliases: &AliasMap, fn_sig: FnSig) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
             params: fn_sig.params,
-            args: expand_args(sess, aliases, fn_sig.args)?,
+            args: expand_args(aliases, fn_sig.args)?,
             returns: fn_sig.returns.as_ref().map(|ty| expand_ty(aliases, ty)),
             ensures: expand_locs(aliases, fn_sig.ensures),
             requires: fn_sig.requires,
@@ -327,28 +322,23 @@ pub mod expand {
         })
     }
 
-    fn expand_args(
-        sess: &FluxSession,
-        aliases: &AliasMap,
-        args: Vec<Arg>,
-    ) -> Result<Vec<Arg>, ErrorGuaranteed> {
+    fn expand_args(aliases: &AliasMap, args: Vec<Arg>) -> Result<Vec<Arg>, ErrorGuaranteed> {
         args.into_iter()
-            .map(|arg| expand_arg(sess, aliases, arg))
+            .map(|arg| expand_arg(aliases, arg))
             .collect()
     }
 
-    fn expand_arg(
-        sess: &FluxSession,
-        aliases: &AliasMap,
-        arg: Arg,
-    ) -> Result<Arg, ErrorGuaranteed> {
+    fn expand_arg(aliases: &AliasMap, arg: Arg) -> Result<Arg, ErrorGuaranteed> {
         match arg {
             Arg::Alias(x, path, indices) => {
                 match expand_alias(aliases, &path, &indices) {
                     Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
                         Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
                     }
-                    _ => Err(sess.emit_err(errors::InvalidAliasApplication { span: x.span })),
+                    _ => {
+                        let span = path.span;
+                        Ok(Arg::Ty(None, Ty { kind: TyKind::Indexed { path, indices }, span }))
+                    }
                 }
             }
             Arg::Constr(x, path, e) => Ok(Arg::Constr(x, expand_path(aliases, &path), e)),

@@ -9,7 +9,7 @@ fn foo(x: i32, y: i32) -> i32 {
     x + y
 }
 
-#[flux::sig(fn(a:i32[foo(10, 20)]))] //~ ERROR invalid alias
+#[flux::sig(fn(i32[foo(10,20,30)]))] //~ ERROR this function
 fn bar(a: i32) {
     return;
 }

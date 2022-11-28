@@ -295,7 +295,7 @@ fn build_fhir_map(
                 map.add_assumed(def_id);
             }
             if let Some(fn_sig) = spec.fn_sig {
-                let fn_sig = surface::expand::expand_sig(sess, &aliases, fn_sig)?;
+                let fn_sig = surface::expand::expand_sig(&aliases, fn_sig)?;
                 let fn_sig = desugar::desugar_fn_sig(tcx, sess, &map, def_id, fn_sig)?;
                 map.insert_fn_sig(def_id, fn_sig);
             }

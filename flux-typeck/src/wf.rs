@@ -198,6 +198,7 @@ impl<'a> Wf<'a> {
                 if binders.len() != sorts.len() {
                     return self.emit_err(errors::ParamCountMismatch::new(
                         None,
+                        String::from("type"),
                         sorts.len(),
                         binders.len(),
                     ));
@@ -246,6 +247,7 @@ impl<'a> Wf<'a> {
         if expected.len() != indices.indices.len() {
             return self.emit_err(errors::ParamCountMismatch::new(
                 Some(indices.span),
+                String::from("type"),
                 expected.len(),
                 indices.indices.len(),
             ));
@@ -386,6 +388,7 @@ impl<'a> Wf<'a> {
         if args.len() != fsort.inputs().len() {
             return self.emit_err(errors::ParamCountMismatch::new(
                 Some(span),
+                String::from("function"),
                 fsort.inputs().len(),
                 args.len(),
             ));
@@ -496,11 +499,17 @@ mod errors {
         span: Option<Span>,
         expected: usize,
         found: usize,
+        thing: String,
     }
 
     impl ParamCountMismatch {
-        pub(super) fn new(span: Option<Span>, expected: usize, found: usize) -> Self {
-            Self { span, expected, found }
+        pub(super) fn new(
+            span: Option<Span>,
+            thing: String,
+            expected: usize,
+            found: usize,
+        ) -> Self {
+            Self { span, expected, found, thing }
         }
     }
 
