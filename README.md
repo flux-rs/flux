@@ -1,7 +1,7 @@
 
 ![Flux](logo.png)
 
-`flux` is a refinement type checker for Rust. 
+`flux` is a refinement type checker for Rust.
 
 See the [blog](https://liquid-rust.github.io/) for details on refinement types and rust.
 
@@ -65,7 +65,7 @@ not yet supported.
 To run `flux` on code outside the repo, use script in `tools/flux.sh`
 
 - copy it to some place on your `$PATH`
-- edit the variable `FLUX` to point to the root of your local `flux` repo. 
+- edit the variable `FLUX` to point to the root of your local `flux` repo.
 
 
 ### A tiny example
@@ -133,10 +133,10 @@ This is a prototype! Use at your own risk. Everything could break and it will br
 
 ## Rust-Analyzer in VSCode
 
-Add this to the workspace settings i.e. `.vscode/settings.json` using in the appropriate paths for 
+Add this to the workspace settings i.e. `.vscode/settings.json` using in the appropriate paths for
 
 * `DYLD_FALLBACK_LIBRARY_PATH` (on `macos`) or `LD_LIBRARY_PATH` (on `linux`)
-* `RUSTC_WRAPPER` 
+* `RUSTC_WRAPPER`
 * `RUSTUP_TOOLCHAIN` (should be the same as the contents of `/path/to/flux/rust-toolchain.toml`)
 
 ```json
@@ -151,7 +151,7 @@ Add this to the workspace settings i.e. `.vscode/settings.json` using in the app
 
 ## Cargo Wrapper
 
-If the plugin doesn't work it is useful to write a small shell script e.g. `cargo-flux` 
+If the plugin doesn't work it is useful to write a small shell script e.g. `cargo-flux`
 that simulates how `vscode` invokes `flux` via `rust-analyzer`
 
 ```bash

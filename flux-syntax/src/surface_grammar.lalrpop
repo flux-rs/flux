@@ -45,8 +45,9 @@ pub Qualifier: surface::Qualifier = {
     <lo:@L>
     <name:Ident>
     "(" <args:Comma<RefineParam>> ")"
-    ":"
+    "{"
     <expr:Level1>
+    "}"
     <hi:@R> => {
         surface::Qualifier { name: name, args: args, expr: expr, span: mk_span(lo, hi) }
     }

@@ -2,7 +2,7 @@
 #![register_tool(flux)]
 // Test definition and checking of const and qualifiers
 #![feature(custom_inner_attributes)]
-#![flux::qualifier(MyQ1(x: int, a: int): x == a + FORTY_TOO)] //~ ERROR cannot find
+#![flux::qualifier(MyQ1(x: int, a: int) { x == a + FORTY_TOO })] //~ ERROR cannot find
 
 #[flux::constant]
 const FORTY_TWO: usize = 21 + 21;
