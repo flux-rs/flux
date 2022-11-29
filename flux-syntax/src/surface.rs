@@ -309,7 +309,7 @@ pub mod expand {
         AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
     };
 
-    /// `expand_bare_sig(aliases, b_sig)` replaces all the alias-applications in `b_sig`
+    /// `expand_sig(aliases, sig)` replaces all the alias-applications in `sig`
     /// with the corresponding type definitions from `aliases` (if any).
     pub fn expand_sig(aliases: &AliasMap, fn_sig: FnSig) -> Result<FnSig, ErrorGuaranteed> {
         Ok(FnSig {
