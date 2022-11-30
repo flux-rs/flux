@@ -17,6 +17,15 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
+pub struct Defn {
+    pub name: Ident,
+    pub args: Vec<RefineParam>,
+    pub sort: Sort,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct UifDef {
     /// name of the uninterpreted function
     pub name: Ident,

@@ -40,6 +40,19 @@ pub UifDef: surface::UifDef = {
     }
 }
 
+pub Defn: surface::Defn = {
+    <lo:@L>
+    <name:Ident>
+    "(" <args:Comma<RefineParam>> ")"
+    "->"
+    <sort:Sort>
+    "{"
+    <expr:Level1>
+    "}"
+    <hi:@R> => {
+        surface::Defn { name: name, args: args, sort: sort, expr: expr, span: mk_span(lo, hi) }
+    }
+}
 
 pub Qualifier: surface::Qualifier = {
     <lo:@L>
