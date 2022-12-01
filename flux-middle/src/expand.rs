@@ -6,11 +6,21 @@ use rustc_hash::FxHashMap;
 use rustc_span::Symbol;
 
 use crate::fhir::{
-    self, BaseTy, Constraint, Defn, Expr, ExprKind, FnSig, Func, Indices, Name, RefineArg, Ty,
+    self, AdtDef, BaseTy, Constraint, Defn, EnumDef, Expr, ExprKind, FnSig, Func, Indices, Name,
+    Qualifier, RefineArg, StructDef, Ty, VariantDef, VariantRet,
 };
 
 pub fn expand_fhir_map(mut map: fhir::Map) -> fhir::Map {
     let mut exp_map = fhir::Map::default();
+
+    exp_map.consts = std::mem::take(&mut map.consts);
+    exp_map.uifs = std::mem::take(&mut map.uifs);
+    exp_map.assumes = std::mem::take(&mut map.assumes);
+
+    // Qualifiers
+    for qualifier in std::mem::take(&mut map.qualifiers) {
+        exp_map.insert_qualifier(expand_qualifier(&map.defns, qualifier));
+    }
 
     // FnSigs
     for (def_id, fn_sig) in std::mem::take(&mut map.fns) {
@@ -18,10 +28,29 @@ pub fn expand_fhir_map(mut map: fhir::Map) -> fhir::Map {
         exp_map.insert_fn_sig(def_id, exp_fn_sig)
     }
 
+    // AdtDefs
+    for (def_id, adt_def) in std::mem::take(&mut map.adts) {
+        let exp_adt_def = expand_adt_def(&map.defns, adt_def);
+        exp_map.insert_adt(def_id, exp_adt_def)
+    }
+
+    // Structs
+    for (def_id, struct_def) in std::mem::take(&mut map.structs) {
+        let exp_struct_def = expand_struct_def(&map.defns, struct_def);
+        exp_map.insert_struct(def_id, exp_struct_def)
+    }
+
+    // Enums
+    for (def_id, enum_def) in std::mem::take(&mut map.enums) {
+        let exp_enum_def = expand_enum_def(&map.defns, enum_def);
+        exp_map.insert_enum(def_id, exp_enum_def)
+    }
+
     return exp_map;
 }
 
 type Subst = FxHashMap<Name, Expr>;
+type Defns = FxHashMap<Symbol, Defn>;
 
 fn subst_expr(subst: &Subst, e: &Expr) -> Expr {
     match &e.kind {
@@ -63,7 +92,7 @@ fn expand_defn(defn: &Defn, args: Vec<Expr>) -> ExprKind {
     exp_body.kind
 }
 
-fn expand_app(defns: &FxHashMap<Symbol, Defn>, f: Func, args: Vec<Expr>) -> ExprKind {
+fn expand_app(defns: &Defns, f: Func, args: Vec<Expr>) -> ExprKind {
     let exp_args: Vec<Expr> = args
         .into_iter()
         .map(|arg| expand_expr(defns, arg))
@@ -77,7 +106,7 @@ fn expand_app(defns: &FxHashMap<Symbol, Defn>, f: Func, args: Vec<Expr>) -> Expr
     return ExprKind::App(f, exp_args);
 }
 
-fn expand_expr(defns: &FxHashMap<Symbol, Defn>, expr: Expr) -> Expr {
+fn expand_expr(defns: &Defns, expr: Expr) -> Expr {
     let kind = match expr.kind {
         fhir::ExprKind::App(f, args) => expand_app(defns, f, args),
         fhir::ExprKind::Const(_, _) | fhir::ExprKind::Var(_, _, _) | fhir::ExprKind::Literal(_) => {
@@ -97,7 +126,15 @@ fn expand_expr(defns: &FxHashMap<Symbol, Defn>, expr: Expr) -> Expr {
     Expr { kind, span: expr.span }
 }
 
-fn expand_bty(defns: &FxHashMap<Symbol, Defn>, bty: BaseTy) -> BaseTy {
+fn expand_qualifier(defns: &Defns, qualifier: Qualifier) -> Qualifier {
+    Qualifier {
+        name: qualifier.name,
+        args: qualifier.args,
+        expr: expand_expr(defns, qualifier.expr),
+    }
+}
+
+fn expand_bty(defns: &Defns, bty: BaseTy) -> BaseTy {
     match bty {
         BaseTy::Adt(did, tys) => {
             BaseTy::Adt(did, tys.into_iter().map(|ty| expand_ty(defns, ty)).collect())
@@ -106,7 +143,7 @@ fn expand_bty(defns: &FxHashMap<Symbol, Defn>, bty: BaseTy) -> BaseTy {
     }
 }
 
-fn expand_refine_arg(defns: &FxHashMap<Symbol, Defn>, arg: RefineArg) -> RefineArg {
+fn expand_refine_arg(defns: &Defns, arg: RefineArg) -> RefineArg {
     match arg {
         RefineArg::Expr { expr, is_binder } => {
             RefineArg::Expr { expr: expand_expr(defns, expr), is_binder }
@@ -115,7 +152,7 @@ fn expand_refine_arg(defns: &FxHashMap<Symbol, Defn>, arg: RefineArg) -> RefineA
     }
 }
 
-fn expand_indices(defns: &FxHashMap<Symbol, Defn>, idxs: Indices) -> Indices {
+fn expand_indices(defns: &Defns, idxs: Indices) -> Indices {
     let exp_indices = idxs
         .indices
         .into_iter()
@@ -124,7 +161,7 @@ fn expand_indices(defns: &FxHashMap<Symbol, Defn>, idxs: Indices) -> Indices {
     Indices { indices: exp_indices, span: idxs.span }
 }
 
-fn expand_ty(defns: &FxHashMap<Symbol, Defn>, ty: Ty) -> Ty {
+fn expand_ty(defns: &Defns, ty: Ty) -> Ty {
     match ty {
         Ty::BaseTy(bty) => Ty::BaseTy(expand_bty(defns, bty)),
         Ty::Indexed(bty, idxs) => Ty::Indexed(expand_bty(defns, bty), expand_indices(defns, idxs)),
@@ -152,7 +189,53 @@ fn expand_constraint(
     }
 }
 
-fn expand_fn_sig(defns: &FxHashMap<Symbol, Defn>, fn_sig: FnSig) -> FnSig {
+fn expand_struct_def(defns: &Defns, struct_def: StructDef) -> StructDef {
+    let exp_kind = match struct_def.kind {
+        fhir::StructKind::Transparent { fields } => {
+            let exp_fields = fields
+                .into_iter()
+                .map(|tyo| tyo.map(|t| expand_ty(defns, t)))
+                .collect();
+            fhir::StructKind::Transparent { fields: exp_fields }
+        }
+        fhir::StructKind::Opaque => struct_def.kind,
+    };
+
+    StructDef { def_id: struct_def.def_id, kind: exp_kind }
+}
+
+fn expand_variant_def(defns: &Defns, variant_def: VariantDef) -> VariantDef {
+    let exp_fields = variant_def
+        .fields
+        .into_iter()
+        .map(|ty| expand_ty(defns, ty))
+        .collect();
+    let exp_ret_bty = expand_bty(defns, variant_def.ret.bty);
+    let exp_ret_idxs = expand_indices(defns, variant_def.ret.indices);
+    let exp_ret = VariantRet { bty: exp_ret_bty, indices: exp_ret_idxs };
+    VariantDef { params: variant_def.params, fields: exp_fields, ret: exp_ret }
+}
+
+fn expand_enum_def(defns: &Defns, enum_def: EnumDef) -> EnumDef {
+    let exp_variants = enum_def
+        .variants
+        .into_iter()
+        .map(|variant_def| expand_variant_def(defns, variant_def))
+        .collect();
+
+    EnumDef { def_id: enum_def.def_id, variants: exp_variants }
+}
+
+fn expand_adt_def(defns: &Defns, adt_def: AdtDef) -> AdtDef {
+    let invariants = adt_def
+        .invariants
+        .into_iter()
+        .map(|inv| expand_expr(defns, inv))
+        .collect();
+    AdtDef { invariants, ..adt_def }
+}
+
+fn expand_fn_sig(defns: &Defns, fn_sig: FnSig) -> FnSig {
     let params = fn_sig.params;
     let requires: Vec<Constraint> = fn_sig
         .requires

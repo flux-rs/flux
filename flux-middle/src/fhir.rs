@@ -56,15 +56,15 @@ pub struct Qualifier {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
-    uifs: FxHashMap<Symbol, UifDef>,
+    pub(crate) uifs: FxHashMap<Symbol, UifDef>,
     pub(crate) defns: FxHashMap<Symbol, Defn>,
-    consts: FxHashMap<Symbol, ConstInfo>,
-    qualifiers: Vec<Qualifier>,
-    adts: FxHashMap<LocalDefId, AdtDef>,
-    structs: FxHashMap<LocalDefId, StructDef>,
-    enums: FxHashMap<LocalDefId, EnumDef>,
+    pub(crate) consts: FxHashMap<Symbol, ConstInfo>,
+    pub(crate) qualifiers: Vec<Qualifier>,
+    pub(crate) adts: FxHashMap<LocalDefId, AdtDef>,
+    pub(crate) structs: FxHashMap<LocalDefId, StructDef>,
+    pub(crate) enums: FxHashMap<LocalDefId, EnumDef>,
     pub(crate) fns: FxHashMap<LocalDefId, FnSig>,
-    assumes: FxHashSet<LocalDefId>,
+    pub(crate) assumes: FxHashSet<LocalDefId>,
 }
 
 pub mod expand {
@@ -297,7 +297,7 @@ pub struct AdtDef {
     pub refined_by: RefinedBy,
     pub invariants: Vec<Expr>,
     pub opaque: bool,
-    sorts: Vec<Sort>,
+    pub(crate) sorts: Vec<Sort>,
 }
 
 #[derive(Debug)]
