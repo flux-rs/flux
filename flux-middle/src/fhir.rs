@@ -454,7 +454,6 @@ impl Map {
 
     // Defn
     pub fn insert_defn(&mut self, symb: Symbol, defn: Defn) {
-        // println!("TRACE: inserting defn: {}", symb);
         self.defns.insert(symb, defn);
     }
 

@@ -210,6 +210,18 @@ fn build_fhir_map(
         .err()
         .or(err);
 
+    // Register Defns as UIFs for sort-checking
+    err = std::mem::take(&mut specs.dfns)
+        .into_iter()
+        .try_for_each_exhaust(|defn| {
+            let name = defn.name;
+            let defn_uif = desugar::resolve_defn_uif(sess, defn)?;
+            map.insert_uif(name.name, defn_uif);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
     // Register AdtDefs
     err = specs
         .structs
