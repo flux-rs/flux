@@ -276,7 +276,6 @@ fn build_fhir_map(
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
             let defn = desugar::desugar_defn(tcx, sess, &map, defn)?;
-            println!("TRACE: {defn:?}");
             map.insert_defn(name.name, defn);
             Ok(())
         })

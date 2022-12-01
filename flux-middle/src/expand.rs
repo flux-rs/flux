@@ -20,9 +20,7 @@ pub fn expand_fhir_map(mut map: fhir::Map) -> fhir::Map {
 
     return exp_map;
 }
-// ------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------
 type Subst = FxHashMap<Name, Expr>;
 
 fn subst_expr(subst: &Subst, e: &Expr) -> Expr {
@@ -161,6 +159,16 @@ fn expand_fn_sig(defns: &FxHashMap<Symbol, Defn>, fn_sig: FnSig) -> FnSig {
         .into_iter()
         .map(|constr| expand_constraint(defns, constr))
         .collect();
-
-    fhir::FnSig { params, requires, args: fn_sig.args, ret: fn_sig.ret, ensures: fn_sig.ensures }
+    let args = fn_sig
+        .args
+        .into_iter()
+        .map(|arg| expand_ty(defns, arg))
+        .collect();
+    let ret = expand_ty(defns, fn_sig.ret);
+    let ensures = fn_sig
+        .ensures
+        .into_iter()
+        .map(|constr| expand_constraint(defns, constr))
+        .collect();
+    fhir::FnSig { params, requires, args, ret, ensures }
 }
