@@ -78,6 +78,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     let map = build_fhir_map(tcx, sess, &mut specs)?;
     check_wf(sess, &map)?;
+    let map = flux_desugar::expand_fhir_map(map);
 
     let mut genv = GlobalEnv::new(tcx, sess, map);
     // Assert behavior from Crate config
@@ -211,8 +212,9 @@ fn build_fhir_map(
         .or(err);
 
     // Register Defns as UIFs for sort-checking
-    err = std::mem::take(&mut specs.dfns)
-        .into_iter()
+    err = // std::mem::take(&mut specs.dfns)
+         specs.dfns
+        .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
             let defn_uif = desugar::resolve_defn_uif(sess, defn)?;
@@ -274,6 +276,7 @@ fn build_fhir_map(
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
             let defn = desugar::desugar_defn(tcx, sess, &map, defn)?;
+            println!("TRACE: {defn:?}");
             map.insert_defn(name.name, defn);
             Ok(())
         })

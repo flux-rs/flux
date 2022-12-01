@@ -50,11 +50,11 @@ fn sort_ident(sort: &surface::Sort) -> Result<surface::Ident, ErrorGuaranteed> {
 
 pub fn resolve_defn_uif(
     sess: &FluxSession,
-    defn: surface::Defn,
+    defn: &surface::Defn,
 ) -> Result<fhir::UifDef, ErrorGuaranteed> {
     let inputs: Vec<surface::Ident> = defn
         .args
-        .into_iter()
+        .iter()
         .map(|arg| sort_ident(&arg.sort))
         .try_collect_exhaust()?;
     let output: surface::Ident = sort_ident(&defn.sort)?;
