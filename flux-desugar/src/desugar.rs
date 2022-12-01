@@ -24,6 +24,19 @@ pub fn desugar_qualifier(
     Ok(fhir::Qualifier { name, args: binders.into_params(), expr: expr? })
 }
 
+pub fn desugar_defn(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &fhir::Map,
+    defn: surface::Defn,
+) -> Result<fhir::Defn, ErrorGuaranteed> {
+    let binders = Binders::from_params(sess, &defn.args)?;
+    let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(defn.expr)?;
+    let name = defn.name.name;
+    let sort = resolve_sort(sess, &defn.sort)?;
+    Ok(fhir::Defn { name, args: binders.into_params(), sort, expr })
+}
+
 pub fn resolve_uif_def(
     sess: &FluxSession,
     uif_def: surface::UifDef,
@@ -496,6 +509,28 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     }
 
     fn resolve_func(&self, func: surface::Ident) -> Result<FuncRes, ErrorGuaranteed> {
+        if let Some(b) = self.binders.get(func) {
+            match b {
+                Binder::Single(name, sort) => return Ok(FuncRes::Param(*name, sort)),
+                Binder::Aggregate(_, fields) => {
+                    return Err(self
+                        .sess
+                        .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())))
+                }
+                Binder::Unrefined => {
+                    let def_ident = self.binders.def_ident(func).unwrap();
+                    return Err(self
+                        .sess
+                        .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)));
+                }
+            }
+        }
+        if let Some(uif) = self.map.uif(func.name) {
+            return Ok(FuncRes::Uif(uif));
+        }
+        return Err(self.sess.emit_err(errors::UnresolvedVar::new(func)));
+
+        /*
         match (self.binders.get(func), self.map.uif(func.name)) {
             (Some(Binder::Single(name, sort)), _) => Ok(FuncRes::Param(*name, sort)),
             (Some(Binder::Aggregate(_, fields)), _) => {
@@ -512,6 +547,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             (None, Some(uif)) => Ok(FuncRes::Uif(uif)),
             (None, None) => Err(self.sess.emit_err(errors::UnresolvedVar::new(func))),
         }
+        */
     }
 
     fn desugar_lit(&self, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {

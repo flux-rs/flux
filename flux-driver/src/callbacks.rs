@@ -256,6 +256,18 @@ fn build_fhir_map(
         return Err(err);
     }
 
+    // Register Defns
+    err = std::mem::take(&mut specs.dfns)
+        .into_iter()
+        .try_for_each_exhaust(|defn| {
+            let name = defn.name;
+            let defn = desugar::desugar_defn(tcx, sess, &map, defn)?;
+            map.insert_defn(name.name, defn);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
     // Qualifiers
     err = std::mem::take(&mut specs.qualifs)
         .into_iter()

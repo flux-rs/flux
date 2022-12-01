@@ -43,6 +43,7 @@ pub(crate) struct Specs {
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub uifs: Vec<surface::UifDef>,
+    pub dfns: Vec<surface::Defn>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
@@ -244,6 +245,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut uif_defs = attrs.uif_defs();
         self.specs.uifs.append(&mut uif_defs);
 
+        let mut dfns = attrs.defns();
+        self.specs.dfns.append(&mut dfns);
+
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
         Ok(())
@@ -396,6 +400,7 @@ impl Specs {
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
             uifs: Vec::default(),
+            dfns: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
@@ -508,6 +513,10 @@ impl FluxAttrs {
 
     fn uif_defs(&mut self) -> Vec<surface::UifDef> {
         read_attrs!(self, UifDef)
+    }
+
+    fn defns(&mut self) -> Vec<surface::Defn> {
+        read_attrs!(self, Defn)
     }
 
     fn alias(&mut self) -> Option<surface::Alias> {

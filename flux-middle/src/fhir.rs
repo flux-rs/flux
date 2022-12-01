@@ -57,6 +57,7 @@ pub struct Qualifier {
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
+    defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     adts: FxHashMap<LocalDefId, AdtDef>,
@@ -300,6 +301,14 @@ pub struct UifDef {
     pub sort: FuncSort,
 }
 
+#[derive(Debug)]
+pub struct Defn {
+    pub name: Symbol,
+    pub args: Vec<RefineParam>,
+    pub sort: Sort,
+    pub expr: Expr,
+}
+
 impl AdtDef {
     pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
         let sorts = refined_by.iter().map(|param| param.sort.clone()).collect();
@@ -441,6 +450,20 @@ impl Map {
 
     pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&UifDef> {
         self.uifs.get(sym.borrow())
+    }
+
+    // Defn
+    pub fn insert_defn(&mut self, symb: Symbol, defn: Defn) {
+        // println!("TRACE: inserting defn: {}", symb);
+        self.defns.insert(symb, defn);
+    }
+
+    pub fn defns(&self) -> impl Iterator<Item = &Defn> {
+        self.defns.values()
+    }
+
+    pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
+        self.defns.get(sym.borrow())
     }
 
     // ADT
