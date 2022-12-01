@@ -12,13 +12,11 @@ extern crate rustc_span;
 
 mod annot_check;
 mod desugar;
-mod expand;
 mod table_resolver;
 
 pub use desugar::{
     desugar_adt_def, desugar_defn, desugar_qualifier, resolve_defn_uif, resolve_uif_def,
 };
-pub use expand::expand_fhir_map;
 use flux_errors::FluxSession;
 use flux_middle::fhir;
 use flux_syntax::surface::{self, TyCtxt};

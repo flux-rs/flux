@@ -87,7 +87,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn register_fn_sigs(&mut self) {
         for (def_id, fn_sig) in self.map.fn_sigs() {
             let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig);
-            self.fn_sigs.get_mut().insert(def_id, fn_sig);
+            self.fn_sigs.get_mut().insert(def_id.to_def_id(), fn_sig);
         }
     }
 

@@ -57,14 +57,22 @@ pub struct Qualifier {
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
-    defns: FxHashMap<Symbol, Defn>,
+    pub(crate) defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     adts: FxHashMap<LocalDefId, AdtDef>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
-    fns: FxHashMap<LocalDefId, FnSig>,
+    pub(crate) fns: FxHashMap<LocalDefId, FnSig>,
     assumes: FxHashSet<LocalDefId>,
+}
+
+pub mod expand {
+    use super::Map;
+
+    pub fn foo(m: &Map) -> bool {
+        m.fns.is_empty()
+    }
 }
 
 #[derive(Debug)]
@@ -210,11 +218,13 @@ pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
 
+#[derive(Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
 }
 
+#[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
@@ -224,10 +234,11 @@ pub enum ExprKind {
     IfThenElse(Box<[Expr; 3]>),
 }
 
+#[derive(Clone)]
 pub enum Func {
     /// A function comming from a refinement parameter.
     Var(Ident),
-    /// An _global_ uninterpreted function.
+    /// A _global_ uninterpreted function.
     Uif(Symbol, Span),
 }
 
@@ -390,10 +401,8 @@ impl Map {
         self.assumes.insert(def_id);
     }
 
-    pub fn fn_sigs(&self) -> impl Iterator<Item = (DefId, &FnSig)> {
-        self.fns
-            .iter()
-            .map(|(def_id, fn_sig)| (def_id.to_def_id(), fn_sig))
+    pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
+        self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
     }
 
     pub fn assumed(&self, def_id: DefId) -> bool {
