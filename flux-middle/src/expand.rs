@@ -2,51 +2,63 @@
 //! i.e. replacing {v:nat(v)} with {v:0<=v} in all the relevant signatures.
 //! As this is done _after_ wf-checking, there should be no user-visible errors during expansion...
 
+use std::{collections::HashSet, error::Error};
+
+use flux_errors::FluxSession;
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_span::Symbol;
+use toposort_scc::IndexGraph;
 
 use crate::fhir::{
     self, AdtDef, BaseTy, Constraint, Defn, EnumDef, Expr, ExprKind, FnSig, Func, Indices, Name,
     Qualifier, RefineArg, StructDef, Ty, VariantDef, VariantRet,
 };
 
-pub fn expand_fhir_map(mut map: fhir::Map) -> fhir::Map {
+pub fn expand_fhir_map(
+    sess: &FluxSession,
+    mut map: fhir::Map,
+) -> Result<fhir::Map, ErrorGuaranteed> {
     let mut exp_map = fhir::Map::default();
 
+    // Shift the things without any expressions (hence need for expansion)
     exp_map.consts = std::mem::take(&mut map.consts);
     exp_map.uifs = std::mem::take(&mut map.uifs);
     exp_map.assumes = std::mem::take(&mut map.assumes);
 
+    // Expand all the definitions in the map
+    exp_map.defns = expand_defns(sess, std::mem::take(&mut map.defns))?;
+
     // Qualifiers
     for qualifier in std::mem::take(&mut map.qualifiers) {
-        exp_map.insert_qualifier(expand_qualifier(&map.defns, qualifier));
+        exp_map.insert_qualifier(expand_qualifier(&exp_map.defns, qualifier));
     }
 
     // FnSigs
     for (def_id, fn_sig) in std::mem::take(&mut map.fns) {
-        let exp_fn_sig = expand_fn_sig(&map.defns, fn_sig);
+        let exp_fn_sig = expand_fn_sig(&exp_map.defns, fn_sig);
         exp_map.insert_fn_sig(def_id, exp_fn_sig)
     }
 
     // AdtDefs
     for (def_id, adt_def) in std::mem::take(&mut map.adts) {
-        let exp_adt_def = expand_adt_def(&map.defns, adt_def);
+        let exp_adt_def = expand_adt_def(&exp_map.defns, adt_def);
         exp_map.insert_adt(def_id, exp_adt_def)
     }
 
     // Structs
     for (def_id, struct_def) in std::mem::take(&mut map.structs) {
-        let exp_struct_def = expand_struct_def(&map.defns, struct_def);
+        let exp_struct_def = expand_struct_def(&exp_map.defns, struct_def);
         exp_map.insert_struct(def_id, exp_struct_def)
     }
 
     // Enums
     for (def_id, enum_def) in std::mem::take(&mut map.enums) {
-        let exp_enum_def = expand_enum_def(&map.defns, enum_def);
+        let exp_enum_def = expand_enum_def(&exp_map.defns, enum_def);
         exp_map.insert_enum(def_id, exp_enum_def)
     }
 
-    return exp_map;
+    Ok(exp_map)
 }
 
 type Subst = FxHashMap<Name, Expr>;
@@ -92,16 +104,23 @@ fn expand_defn(defn: &Defn, args: Vec<Expr>) -> ExprKind {
     exp_body.kind
 }
 
+fn func_defn(defns: &Defns, f: Func) -> Option<&Defn> {
+    if let Func::Uif(uif, _) = f {
+        if let Some(defn) = defns.get(&uif) {
+            return Some(defn);
+        }
+    }
+    return None;
+}
+
 fn expand_app(defns: &Defns, f: Func, args: Vec<Expr>) -> ExprKind {
     let exp_args: Vec<Expr> = args
         .into_iter()
         .map(|arg| expand_expr(defns, arg))
         .collect();
 
-    if let Func::Uif(uif, _) = f {
-        if let Some(defn) = defns.get(&uif) {
-            return expand_defn(defn, exp_args);
-        }
+    if let Some(defn) = func_defn(defns, f.clone()) {
+        return expand_defn(defn, exp_args);
     }
     return ExprKind::App(f, exp_args);
 }
@@ -254,4 +273,78 @@ fn expand_fn_sig(defns: &Defns, fn_sig: FnSig) -> FnSig {
         .map(|constr| expand_constraint(defns, constr))
         .collect();
     fhir::FnSig { params, requires, args, ret, ensures }
+}
+
+// ---------------------------------------------------------------------------------------
+
+fn defn_deps(defns: &Defns, expr: &Expr, res: &mut HashSet<Symbol>) {
+    match &expr.kind {
+        ExprKind::Const(_, _) | ExprKind::Var(_, _, _) | ExprKind::Literal(_) => (),
+        ExprKind::BinaryOp(_, box [e1, e2]) => {
+            defn_deps(defns, &e1, res);
+            defn_deps(defns, &e2, res);
+        }
+        ExprKind::IfThenElse(box [e1, e2, e3]) => {
+            defn_deps(defns, &e1, res);
+            defn_deps(defns, &e2, res);
+            defn_deps(defns, &e3, res);
+        }
+        ExprKind::App(f, es) => {
+            if let Some(defn) = func_defn(defns, f.clone()) {
+                res.insert(defn.name);
+            }
+            es.iter().for_each(|e| defn_deps(defns, e, res));
+        }
+    }
+}
+/// Returns
+/// * either Ok(d1...dn) which are topologically sorted such that
+///   forall i < j, di does not depend on i.e. "call" dj
+/// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
+
+fn sorted_defns(defns: &Defns) -> Result<Vec<Symbol>, Vec<Symbol>> {
+    // 1. Make the Symbol-Index
+    let mut i2s: Vec<Symbol> = Vec::new();
+    let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
+    for (i, s) in defns.keys().enumerate() {
+        i2s.push(*s);
+        s2i.insert(*s, i);
+    }
+
+    // 2. Make the dependency graph
+    let mut adj_list: Vec<Vec<usize>> = vec![];
+    for name in i2s.iter() {
+        let defn = defns.get(&name).unwrap();
+        let mut deps = HashSet::default();
+        defn_deps(defns, &defn.expr, &mut deps);
+        adj_list.push(deps.iter().map(|s| *s2i.get(s).unwrap()).collect());
+    }
+    let g = IndexGraph::from_adjacency_list(&adj_list);
+
+    // 3. Topologically sort the graph
+    match g.toposort_or_scc() {
+        Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
+        Err(mut scc) => {
+            let cycle = scc.pop().unwrap();
+            Err(cycle.iter().map(|i| i2s[*i]).collect())
+        }
+    }
+}
+
+fn expand_defns(sess: &FluxSession, mut defns: Defns) -> Result<Defns, ErrorGuaranteed> {
+    // 1. Topo-Sort the Defns
+    let ds = match sorted_defns(&defns) {
+        Ok(ds) => ds,
+        Err(cs) => panic!("Alias defn cycle {:?}", cs),
+    };
+
+    // 2. Expand each defn in the sorted order
+    let mut exp_defns = FxHashMap::default();
+    for d in ds {
+        let defn = defns.remove(&d).unwrap();
+        let exp_defn = Defn { expr: expand_expr(&exp_defns, defn.expr), ..defn };
+        exp_defns.insert(d, exp_defn);
+    }
+
+    Ok(exp_defns)
 }
