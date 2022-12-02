@@ -729,7 +729,7 @@ fn downcast(
     if genv.tcx.adt_def(def_id).is_struct() {
         downcast_struct(genv, def_id, variant_idx, substs, args)
     } else if genv.tcx.adt_def(def_id).is_enum() {
-        downcast_enum(genv, rcx, def_id, variant_idx, substs, args)
+        Ok(downcast_enum(genv, rcx, def_id, variant_idx, substs, args))
     } else {
         panic!("Downcast without struct or enum!")
     }
@@ -773,9 +773,10 @@ fn downcast_enum(
     variant_idx: VariantIdx,
     substs: &[GenericArg],
     args: &[RefineArg],
-) -> Result<Vec<Ty>, OpaqueStructErr> {
+) -> Vec<Ty> {
     let variant_def = genv
-        .variant(def_id, variant_idx)?
+        .variant(def_id, variant_idx)
+        .unwrap()
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generic_args(substs);
 
@@ -789,7 +790,7 @@ fn downcast_enum(
     }));
     rcx.assume_pred(constr);
 
-    Ok(variant_def.fields.to_vec())
+    variant_def.fields.to_vec()
 }
 
 mod pretty {
