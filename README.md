@@ -42,7 +42,7 @@ cargo build
 You can run the flux binary with `cargo run`.
 The flux binary is a [rustc driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface) (similar to how clippy works) meaning it uses rustc as a library to "drive" compilation performing aditional analysis along the way.
 In practice this means you can use flux as you would use rustc.
-For example, the following command checks the file `test.rs` (everythins after the `--` are the arguments to the flux binary)
+For example, the following command checks the file `test.rs` (everything after the `--` are the arguments to the flux binary)
 
 ```bash
 cargo run -- path/to/test.rs
