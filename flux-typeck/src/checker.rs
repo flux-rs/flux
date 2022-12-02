@@ -544,14 +544,23 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     }
 
     fn check_match(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
-        let place = discr_ty.expect_discr();
+        let (adt_def, place) = discr_ty.expect_discr();
 
         let mut successors = vec![];
+        let mut remaining = BitSet::new_filled(adt_def.nvariants());
         for (bits, bb) in targets.iter() {
-            successors
-                .push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(bits as usize))));
+            let i = bits as usize;
+            remaining.remove(i);
+            successors.push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(i))));
         }
-        successors.push((targets.otherwise(), Guard::None));
+
+        if remaining.count() == 1 {
+            let i = remaining.iter().next().unwrap();
+            successors
+                .push((targets.otherwise(), Guard::Match(place.clone(), VariantIdx::from_usize(i))))
+        } else {
+            successors.push((targets.otherwise(), Guard::None));
+        }
 
         successors
     }
@@ -652,7 +661,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .try_collect()?;
                 Ok(Ty::tuple(tys))
             }
-            Rvalue::Discriminant(place) => Ok(Ty::discr(place.clone())),
+            Rvalue::Discriminant(place) => {
+                let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+                let ty = env
+                    .lookup_place(rcx, gen, place)
+                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
+                let (adt_def, ..) = ty.expect_adt();
+                Ok(Ty::discr(adt_def.clone(), place.clone()))
+            }
             Rvalue::Len(_) => Ok(Ty::usize()),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, src_info, op)?;
