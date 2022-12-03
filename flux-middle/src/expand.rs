@@ -340,8 +340,12 @@ fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorG
             let cycle = scc.pop().unwrap();
             let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
             let span = defns.get(&cycle[0]).unwrap().expr.span;
-            panic!("DefinitionCycle at {:?} with {:?}", span, cycle);
-            // 'failed to find' ugh Err(sess.emit_err(errors::DefinitionCycle::new(span, cycle)))
+            // 'failed to find fluent bundle'
+            if 1 + 1 < 0 + 0 {
+                Err(sess.emit_err(errors::DefinitionCycle::new(span, cycle)))
+            } else {
+                panic!("DefinitionCycle at {:?} with {:?}", span, cycle);
+            }
         }
     }
 }
