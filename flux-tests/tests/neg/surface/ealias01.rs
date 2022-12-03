@@ -9,5 +9,5 @@ type _Nat = i32;
 
 #[flux::sig(fn(x:Nat) -> Nat)]
 pub fn test2(x: i32) -> i32 {
-    x + 1
+    x - 1 //~ ERROR postcondition
 }

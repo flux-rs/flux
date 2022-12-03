@@ -2,7 +2,10 @@
 //! i.e. replacing {v:nat(v)} with {v:0<=v} in all the relevant signatures.
 //! As this is done _after_ wf-checking, there should be no user-visible errors during expansion...
 
-use std::{collections::HashSet, error::Error};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+};
 
 use flux_errors::FluxSession;
 use rustc_errors::ErrorGuaranteed;
@@ -23,8 +26,15 @@ pub fn expand_fhir_map(
 
     // Shift the things without any expressions (hence need for expansion)
     exp_map.consts = std::mem::take(&mut map.consts);
-    exp_map.uifs = std::mem::take(&mut map.uifs);
     exp_map.assumes = std::mem::take(&mut map.assumes);
+
+    // remove the uifs that correspond to defns
+    exp_map.uifs = HashMap::default();
+    for (name, uif) in std::mem::take(&mut map.uifs) {
+        if !map.defns.contains_key(&name) {
+            exp_map.uifs.insert(name, uif);
+        }
+    }
 
     // Expand all the definitions in the map
     exp_map.defns = expand_defns(sess, std::mem::take(&mut map.defns))?;
@@ -319,11 +329,16 @@ fn sorted_defns(defns: &Defns) -> Result<Vec<Symbol>, Vec<Symbol>> {
         defn_deps(defns, &defn.expr, &mut deps);
         adj_list.push(deps.iter().map(|s| *s2i.get(s).unwrap()).collect());
     }
-    let g = IndexGraph::from_adjacency_list(&adj_list);
+    let mut g = IndexGraph::from_adjacency_list(&adj_list);
+    g.transpose();
+    // println!("TRACE: i2s = {:?}, adj_list = {:?}", i2s, adj_list);
 
     // 3. Topologically sort the graph
     match g.toposort_or_scc() {
-        Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
+        Ok(is) => {
+            // println!("TRACE: topo-sort {:?}", is);
+            Ok(is.iter().map(|i| i2s[*i]).collect())
+        }
         Err(mut scc) => {
             let cycle = scc.pop().unwrap();
             Err(cycle.iter().map(|i| i2s[*i]).collect())
@@ -342,9 +357,10 @@ fn expand_defns(sess: &FluxSession, mut defns: Defns) -> Result<Defns, ErrorGuar
     let mut exp_defns = FxHashMap::default();
     for d in ds {
         let defn = defns.remove(&d).unwrap();
-        let exp_defn = Defn { expr: expand_expr(&exp_defns, defn.expr), ..defn };
+        let expr = expand_expr(&exp_defns, defn.expr);
+        let exp_defn = Defn { expr, ..defn };
+        // println!("TRACE: exp_defn {:?}", exp_defn);
         exp_defns.insert(d, exp_defn);
     }
-
     Ok(exp_defns)
 }
