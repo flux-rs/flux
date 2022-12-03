@@ -5,12 +5,12 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, EVarGen, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
-    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    evars::EVarSol, BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, KVar, Name,
+    Pred, RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
-    rty::{evars::EVarEntry, VariantDef},
+    rty::VariantDef,
 };
 
 pub trait TypeVisitor: Sized {
@@ -142,13 +142,13 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut GenericsFolder(args))
     }
 
-    fn replace_evars(&self, evars: &EVarGen) -> Self {
-        struct EVarFolder<'a>(&'a EVarGen);
+    fn replace_evars(&self, evars: &EVarSol) -> Self {
+        struct EVarFolder<'a>(&'a EVarSol);
 
         impl TypeFolder for EVarFolder<'_> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::EVar(evar) = expr.kind()
-                   && let Some(EVarEntry::Resolved(sol)) = self.0.entry(*evar)
+                   && let Some(sol) = self.0.get(*evar)
                 {
                     sol.clone()
                 } else {
@@ -210,21 +210,9 @@ impl TypeFoldable for VariantRet {
 
 impl TypeFoldable for FnSig {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let requires = self
-            .requires
-            .iter()
-            .map(|constr| constr.fold_with(folder))
-            .collect_vec();
-        let args = self
-            .args
-            .iter()
-            .map(|arg| arg.fold_with(folder))
-            .collect_vec();
-        let ensures = self
-            .ensures
-            .iter()
-            .map(|constr| constr.fold_with(folder))
-            .collect_vec();
+        let requires = self.requires.fold_with(folder);
+        let args = self.args.fold_with(folder);
+        let ensures = self.ensures.fold_with(folder);
         let ret = self.ret.fold_with(folder);
         FnSig::new(requires, args, ret, ensures)
     }
@@ -277,9 +265,7 @@ impl TypeFoldable for Ty {
             TyKind::Exists(bty, pred) => {
                 TyKind::Exists(bty.fold_with(folder), pred.fold_with(folder)).intern()
             }
-            TyKind::Tuple(tys) => {
-                Ty::tuple(tys.iter().map(|ty| ty.fold_with(folder)).collect_vec())
-            }
+            TyKind::Tuple(tys) => Ty::tuple(tys.fold_with(folder)),
             TyKind::Ptr(rk, path) => {
                 Ty::ptr(
                     *rk,
@@ -376,10 +362,7 @@ impl TypeFoldable for RefineArg {
 impl TypeFoldable for BaseTy {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
-            BaseTy::Adt(adt_def, substs) => {
-                let substs = List::from_vec(substs.iter().map(|ty| ty.fold_with(folder)).collect());
-                BaseTy::adt(adt_def.clone(), substs)
-            }
+            BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
             BaseTy::Int(_)

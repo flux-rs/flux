@@ -287,6 +287,7 @@ impl Expr {
             ExprKind::Local(local) => Some(Loc::Local(*local)),
             ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name))),
             ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar))),
+            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar))),
             _ => None,
         }
     }
@@ -295,6 +296,7 @@ impl Expr {
         match self.kind() {
             ExprKind::FreeVar(name) => Some(Var::Free(*name)),
             ExprKind::BoundVar(bvar) => Some(Var::Bound(*bvar)),
+            ExprKind::EVar(evar) => Some(Var::EVar(*evar)),
             _ => None,
         }
     }

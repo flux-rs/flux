@@ -120,7 +120,13 @@ impl PathsTree {
     }
 
     fn get_node(&self, path: &Path) -> NodePtr {
-        let mut ptr = NodePtr::clone(&self.map.get(&path.loc).unwrap().ptr);
+        let mut ptr = NodePtr::clone(
+            &self
+                .map
+                .get(&path.loc)
+                .unwrap_or_else(|| panic!("key not found `{:?}`", path.loc))
+                .ptr,
+        );
         for f in path.projection() {
             ptr = {
                 let node = ptr.borrow();

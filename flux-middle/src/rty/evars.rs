@@ -13,14 +13,18 @@ pub struct EVarGen {
     evars: FxHashMap<CtxtId, IndexVec<EVid, EVarEntry>>,
 }
 
+pub struct EVarSol {
+    evars: FxHashMap<CtxtId, IndexVec<EVid, EVarEntry>>,
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EVar {
-    pub cx: CtxtId,
+    cx: CtxtId,
     id: EVid,
 }
 
 #[derive(Debug)]
-pub enum EVarEntry {
+enum EVarEntry {
     Unresolved,
     Resolved(Expr),
 }
@@ -31,6 +35,12 @@ newtype_index! {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct CtxtId(u64);
+
+impl EVar {
+    pub fn cx(&self) -> CtxtId {
+        self.cx
+    }
+}
 
 impl EVarGen {
     pub fn new() -> Self {
@@ -48,15 +58,30 @@ impl EVarGen {
         EVar { id: evid, cx }
     }
 
-    pub fn solve(&mut self, evar: EVar, expr: impl Into<Expr>, replace: bool) {
+    pub fn unify(&mut self, evar: EVar, expr: impl Into<Expr>, replace: bool) {
         let evars = self.evars.get_mut(&evar.cx).unwrap();
         if matches!(evars[evar.id], EVarEntry::Unresolved) || replace {
             evars[evar.id] = EVarEntry::Resolved(expr.into());
         }
     }
 
-    pub fn entry(&self, evar: EVar) -> Option<&EVarEntry> {
-        Some(&self.evars.get(&evar.cx)?[evar.id])
+    pub fn solve(&mut self, cx: CtxtId) -> Option<EVarSol> {
+        let mut evars = FxHashMap::default();
+        evars.insert(cx, self.evars.remove(&cx)?);
+        Some(EVarSol { evars })
+    }
+}
+
+impl EVarSol {
+    pub(crate) fn get(&self, evar: EVar) -> Option<&Expr> {
+        match &self.evars.get(&evar.cx())?[evar.id] {
+            EVarEntry::Resolved(e) => Some(e),
+            EVarEntry::Unresolved => None,
+        }
+    }
+
+    pub fn extend(&mut self, other: Self) {
+        self.evars.extend(other.evars)
     }
 }
 

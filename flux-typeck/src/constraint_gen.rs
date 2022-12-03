@@ -4,14 +4,15 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
     rty::{
-        evars, fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, EVarGen, Expr,
-        ExprKind, GenericArg, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
-        TyKind, Var, VariantRet,
+        evars::{self, EVarSol},
+        fold::TypeFoldable,
+        BaseTy, BinOp, Binders, Constraint, Constraints, EVarGen, Expr, ExprKind, GenericArg,
+        PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
+        VariantRet,
     },
     rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
-use rustc_data_structures::fx::FxIndexMap;
 use rustc_span::Span;
 
 use crate::{
@@ -33,7 +34,9 @@ struct InferCtxt<'a, 'tcx> {
     kvar_gen: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
     evar_gen: EVarGen,
     tag: Tag,
-    evar_ctxts: FxIndexMap<evars::CtxtId, Scope>,
+    scope: Scope,
+    locs_cx: evars::CtxtId,
+    evars_cx: evars::CtxtId,
 }
 
 pub struct CallOutput {
@@ -120,7 +123,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             })
             .collect_vec();
 
-        // Generate fresh kvars for generic types
+        // Replace holes with fresh kvars in generic arguments
         let substs = substs
             .iter()
             .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
@@ -128,19 +131,20 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let mut infcx = self.infcx(rcx);
 
+        // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generic_args(&substs)
             .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
 
         // Check arguments
-        let mut upds = vec![];
         for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    upds.push((path, bound.clone()));
                     infcx.subtyping(rcx, &env.get(path), bound);
+                    env.update(path, bound.clone());
+                    env.block(path);
                 }
                 (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
                     infcx.subtyping(rcx, &env.get(path), bound);
@@ -151,18 +155,19 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
 
         // Check preconditions
-        for constraint in &fn_sig.requires().replace_evars(&infcx.evar_gen) {
+        let locs_sol = infcx.solve_locs();
+        for constraint in &fn_sig.requires().replace_evars(&locs_sol) {
             infcx.check_constraint(rcx, env, constraint)?;
         }
 
         // Replace evars
-        for (path, bound) in upds {
-            env.update(path, bound.replace_evars(&infcx.evar_gen));
-            env.block(path);
-        }
-        rcx.replace_evars(&infcx.evar_gen);
-        let ret = fn_sig.ret().replace_evars(&infcx.evar_gen);
-        let ensures = fn_sig.ensures().replace_evars(&infcx.evar_gen);
+        let mut evars_sol = infcx.solve();
+        evars_sol.extend(locs_sol);
+
+        env.replace_evars(&evars_sol);
+        rcx.replace_evars(&evars_sol);
+        let ret = fn_sig.ret().replace_evars(&evars_sol);
+        let ensures = fn_sig.ensures().replace_evars(&evars_sol);
 
         Ok(CallOutput { ret, ensures })
     }
@@ -190,9 +195,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             infcx.subtyping(rcx, actual, formal);
         }
 
-        rcx.replace_evars(&infcx.evar_gen);
+        let evars_sol = infcx.solve();
+        rcx.replace_evars(&evars_sol);
 
-        Ok(variant.ret.replace_evars(&infcx.evar_gen))
+        Ok(variant.ret.replace_evars(&evars_sol))
     }
 
     fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
@@ -204,22 +210,29 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
-        fresh_kvar: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
+        kvar_gen: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
         tag: Tag,
     ) -> Self {
-        let mut evars = EVarGen::new();
-        let mut evar_ctxts = FxIndexMap::default();
-        evar_ctxts.insert(evars.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen: fresh_kvar, evar_gen: evars, evar_ctxts, tag }
+        let mut evar_gen = EVarGen::new();
+        let scope = rcx.scope();
+        let locs_cx = evar_gen.new_ctxt();
+        let evars_cx = evar_gen.new_ctxt();
+        Self { genv, kvar_gen, scope, evar_gen, locs_cx, evars_cx, tag }
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort) -> RefineArg {
-        if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-            RefineArg::Abs((self.kvar_gen)(fsort.inputs()))
-        } else {
-            let cx_id = self.evar_ctxts.last().unwrap().0;
-            let evar = self.evar_gen.fresh_in_cx(*cx_id);
-            RefineArg::Expr(Expr::evar(evar))
+        match sort {
+            Sort::Func(fsort) if fsort.output().is_bool() => {
+                RefineArg::Abs((self.kvar_gen)(fsort.inputs()))
+            }
+            Sort::Loc => {
+                let evar = self.evar_gen.fresh_in_cx(self.locs_cx);
+                RefineArg::Expr(Expr::evar(evar))
+            }
+            _ => {
+                let evar = self.evar_gen.fresh_in_cx(self.evars_cx);
+                RefineArg::Expr(Expr::evar(evar))
+            }
         }
     }
 
@@ -428,10 +441,18 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
         if let ExprKind::EVar(evar) = e2.kind()
-           && !self.evar_ctxts[&evar.cx].has_free_vars(e1)
+           && !self.scope.has_free_vars(e1)
         {
-            self.evar_gen.solve(*evar, e1, replace);
+            self.evar_gen.unify(*evar, e1, replace);
         }
+    }
+
+    fn solve(mut self) -> EVarSol {
+        self.evar_gen.solve(self.evars_cx).unwrap()
+    }
+
+    fn solve_locs(&mut self) -> EVarSol {
+        self.evar_gen.solve(self.locs_cx).unwrap()
     }
 }
 

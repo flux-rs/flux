@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Path,
-        RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr,
+        GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -349,6 +349,11 @@ impl TypeEnv {
         down_place.projection.push(PlaceElem::Downcast(variant_idx));
         self.bindings.lookup(genv, rcx, &down_place)?;
         Ok(())
+    }
+
+    pub fn replace_evars(&mut self, evars: &EVarSol) {
+        self.bindings
+            .fmap_mut(|binding| binding.replace_evars(evars));
     }
 }
 

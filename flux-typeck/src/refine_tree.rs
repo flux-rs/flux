@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, fold::TypeFoldable, BaseTy, Binders, EVarGen, Expr, GenericArg, Name, Pred, RefKind,
-    RefineArg, RefineArgs, Sort, Ty, TyKind,
+    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred,
+    RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -226,7 +226,7 @@ impl RefineCtxt<'_> {
             self.assume_pred(invariant.pred.replace_bvars(idxs.args()));
         }
     }
-    pub fn replace_evars(&mut self, evars: &EVarGen) {
+    pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
     }
 }
@@ -365,7 +365,7 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn replace_evars(&mut self, evars: &EVarGen) {
+    fn replace_evars(&mut self, evars: &EVarSol) {
         match &mut self.kind {
             NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
             NodeKind::Head(pred, _) => *pred = pred.replace_evars(evars),
