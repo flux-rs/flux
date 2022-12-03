@@ -553,24 +553,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         if let Some(uif) = self.map.uif(func.name) {
             return Ok(FuncRes::Uif(uif));
         }
-        return Err(self.sess.emit_err(errors::UnresolvedVar::new(func)));
-
-        // match (self.binders.get(func), self.map.uif(func.name)) {
-        //     (Some(Binder::Single(name, sort)), _) => Ok(FuncRes::Param(*name, sort)),
-        //     (Some(Binder::Aggregate(_, fields)), _) => {
-        //         Err(self
-        //             .sess
-        //             .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())))
-        //     }
-        //     (Some(Binder::Unrefined), _) => {
-        //         let def_ident = self.binders.def_ident(func).unwrap();
-        //         Err(self
-        //             .sess
-        //             .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)))
-        //     }
-        //     (None, Some(uif)) => Ok(FuncRes::Uif(uif)),
-        //     (None, None) => Err(self.sess.emit_err(errors::UnresolvedVar::new(func))),
-        // }
+        Err(self.sess.emit_err(errors::UnresolvedVar::new(func)))
     }
 
     fn desugar_lit(&self, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {

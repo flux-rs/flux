@@ -19,14 +19,15 @@ pub fn expand_fhir_map(
     sess: &FluxSession,
     mut map: fhir::Map,
 ) -> Result<fhir::Map, ErrorGuaranteed> {
-    let mut exp_map = fhir::Map::default();
-
-    // Shift the things without any expressions (hence need for expansion)
-    exp_map.consts = std::mem::take(&mut map.consts);
-    exp_map.assumes = std::mem::take(&mut map.assumes);
+    // Take the things without any expressions (hence need for expansion)
+    let mut exp_map = fhir::Map {
+        consts: std::mem::take(&mut map.consts),
+        assumes: std::mem::take(&mut map.assumes),
+        uifs: HashMap::default(),
+        ..Default::default()
+    };
 
     // remove the uifs that correspond to defns
-    exp_map.uifs = HashMap::default();
     for (name, uif) in std::mem::take(&mut map.uifs) {
         if !map.defns.contains_key(&name) {
             exp_map.uifs.insert(name, uif);
@@ -82,8 +83,8 @@ fn subst_expr(subst: &Subst, e: &Expr) -> Expr {
         }
         ExprKind::Const(_, _) | ExprKind::Literal(_) => e.clone(),
         ExprKind::BinaryOp(o, box [e1, e2]) => {
-            let e1 = subst_expr(subst, &e1);
-            let e2 = subst_expr(subst, &e2);
+            let e1 = subst_expr(subst, e1);
+            let e2 = subst_expr(subst, e2);
             let kind = ExprKind::BinaryOp(*o, Box::new([e1, e2]));
             Expr { kind, span: e.span }
         }
@@ -93,9 +94,9 @@ fn subst_expr(subst: &Subst, e: &Expr) -> Expr {
             Expr { kind, span: e.span }
         }
         ExprKind::IfThenElse(box [e1, e2, e3]) => {
-            let e1 = subst_expr(subst, &e1);
-            let e2 = subst_expr(subst, &e2);
-            let e3 = subst_expr(subst, &e3);
+            let e1 = subst_expr(subst, e1);
+            let e2 = subst_expr(subst, e2);
+            let e3 = subst_expr(subst, e3);
             let kind = ExprKind::IfThenElse(Box::new([e1, e2, e3]));
             Expr { kind, span: e.span }
         }
@@ -117,7 +118,7 @@ fn func_defn(defns: &Defns, f: Func) -> Option<&Defn> {
             return Some(defn);
         }
     }
-    return None;
+    None
 }
 
 fn expand_app(defns: &Defns, f: Func, args: Vec<Expr>) -> ExprKind {
@@ -129,7 +130,7 @@ fn expand_app(defns: &Defns, f: Func, args: Vec<Expr>) -> ExprKind {
     if let Some(defn) = func_defn(defns, f.clone()) {
         return expand_defn(defn, exp_args);
     }
-    return ExprKind::App(f, exp_args);
+    ExprKind::App(f, exp_args)
 }
 
 fn expand_expr(defns: &Defns, expr: Expr) -> Expr {
@@ -288,13 +289,13 @@ fn defn_deps(defns: &Defns, expr: &Expr, res: &mut HashSet<Symbol>) {
     match &expr.kind {
         ExprKind::Const(_, _) | ExprKind::Var(_, _, _) | ExprKind::Literal(_) => (),
         ExprKind::BinaryOp(_, box [e1, e2]) => {
-            defn_deps(defns, &e1, res);
-            defn_deps(defns, &e2, res);
+            defn_deps(defns, e1, res);
+            defn_deps(defns, e2, res);
         }
         ExprKind::IfThenElse(box [e1, e2, e3]) => {
-            defn_deps(defns, &e1, res);
-            defn_deps(defns, &e2, res);
-            defn_deps(defns, &e3, res);
+            defn_deps(defns, e1, res);
+            defn_deps(defns, e2, res);
+            defn_deps(defns, e3, res);
         }
         ExprKind::App(f, es) => {
             if let Some(defn) = func_defn(defns, f.clone()) {
@@ -321,7 +322,7 @@ fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorG
     // 2. Make the dependency graph
     let mut adj_list: Vec<Vec<usize>> = vec![];
     for name in i2s.iter() {
-        let defn = defns.get(&name).unwrap();
+        let defn = defns.get(name).unwrap();
         let mut deps = HashSet::default();
         defn_deps(defns, &defn.expr, &mut deps);
         adj_list.push(deps.iter().map(|s| *s2i.get(s).unwrap()).collect());
@@ -340,8 +341,8 @@ fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorG
             let cycle = scc.pop().unwrap();
             let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
             let span = defns.get(&cycle[0]).unwrap().expr.span;
-            // 'failed to find fluent bundle'
-            if 1 + 1 < 0 + 0 {
+            if 1 + 1 < 0 {
+                // 'failed to find fluent bundle'
                 Err(sess.emit_err(errors::DefinitionCycle::new(span, cycle)))
             } else {
                 panic!("DefinitionCycle at {:?} with {:?}", span, cycle);
