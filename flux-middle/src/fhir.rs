@@ -67,14 +67,6 @@ pub struct Map {
     pub(crate) assumes: FxHashSet<LocalDefId>,
 }
 
-pub mod expand {
-    use super::Map;
-
-    pub fn foo(m: &Map) -> bool {
-        m.fns.is_empty()
-    }
-}
-
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: DefId,
