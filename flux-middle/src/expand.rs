@@ -340,7 +340,8 @@ fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorG
             let cycle = scc.pop().unwrap();
             let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
             let span = defns.get(&cycle[0]).unwrap().expr.span;
-            Err(sess.emit_err(errors::DefinitionCycle::new(span, cycle)))
+            panic!("DefinitionCycle at {:?} with {:?}", span, cycle);
+            // 'failed to find' ugh Err(sess.emit_err(errors::DefinitionCycle::new(span, cycle)))
         }
     }
 }
