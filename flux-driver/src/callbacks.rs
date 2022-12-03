@@ -76,6 +76,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         return Ok(());
     }
 
+    // Do defn-expansion _after_ the WF check, so errors are given at user-specification level
     let map = build_fhir_map(tcx, sess, &mut specs)?;
     check_wf(sess, &map)?;
     let map = flux_middle::expand::expand_fhir_map(sess, map)?;
@@ -341,6 +342,10 @@ fn check_wf(sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> 
     let wf = Wf::new(sess, map);
 
     let mut err: Option<ErrorGuaranteed> = None;
+
+    for defn in map.defns() {
+        err = wf.check_defn(defn).err().or(err);
+    }
 
     for adt_def in map.adts() {
         err = wf.check_adt_def(adt_def).err().or(err);

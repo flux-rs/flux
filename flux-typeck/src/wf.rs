@@ -68,6 +68,11 @@ impl<'a> Wf<'a> {
         self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
+    pub fn check_defn(&self, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
+        let env = Env::new(&defn.args);
+        self.check_expr(&env, &defn.expr, &defn.sort)
+    }
+
     pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
         let env = Env::new(&adt_def.refined_by.params);
         adt_def
